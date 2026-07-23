@@ -22,6 +22,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.MoreCircle
+import top.yukonga.miuix.kmp.icon.extended.Share
+import top.yukonga.miuix.kmp.icon.extended.Stopwatch
 
 internal enum class PlayerHeaderActionKind {
     Favorite,
@@ -103,6 +108,22 @@ internal fun QuickActionIcon(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    val miuixIcon = when (kind) {
+        PlayerQuickActionKind.Info -> MiuixIcons.Regular.Info
+        PlayerQuickActionKind.Share -> MiuixIcons.Regular.Share
+        PlayerQuickActionKind.Timer -> MiuixIcons.Regular.Stopwatch
+        PlayerQuickActionKind.More -> MiuixIcons.Regular.MoreCircle
+        else -> null
+    }
+    if (miuixIcon != null) {
+        Icon(
+            imageVector = miuixIcon,
+            contentDescription = null,
+            tint = color,
+            modifier = modifier
+        )
+        return
+    }
     Canvas(modifier = modifier) {
         val stroke = size.minDimension * 0.10f
         val cx = size.width / 2f

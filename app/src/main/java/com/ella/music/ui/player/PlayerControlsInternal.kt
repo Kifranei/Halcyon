@@ -131,6 +131,7 @@ internal fun GlowSeekBar(
     onSeek: (Float) -> Unit,
     accent: Color,
     allowTapSeek: Boolean,
+    onPreviewProgressChange: (Float?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val safeProgress = value.coerceIn(0f, 1f)
@@ -175,17 +176,19 @@ internal fun GlowSeekBar(
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { offset ->
-                            draggingProgress = progressAt(size.width.toFloat(), offset.x)
+                            draggingProgress = progressAt(size.width.toFloat(), offset.x).also(onPreviewProgressChange)
                         },
                         onDragEnd = {
                             draggingProgress?.let(onSeek)
                             draggingProgress = null
+                            onPreviewProgressChange(null)
                         },
                         onDragCancel = {
                             draggingProgress = null
+                            onPreviewProgressChange(null)
                         }
                     ) { change, _ ->
-                        draggingProgress = progressAt(size.width.toFloat(), change.position.x)
+                        draggingProgress = progressAt(size.width.toFloat(), change.position.x).also(onPreviewProgressChange)
                     }
                 }
         )

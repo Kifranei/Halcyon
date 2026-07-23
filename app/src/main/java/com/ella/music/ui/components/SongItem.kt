@@ -47,6 +47,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -287,10 +288,11 @@ fun SongItem(
                     .clickable(onClick = onMore),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "⋮",
-                    fontSize = 22.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                Icon(
+                    imageVector = MiuixIcons.Regular.More,
+                    contentDescription = stringResource(R.string.player_quick_more),
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

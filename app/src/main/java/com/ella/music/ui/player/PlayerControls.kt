@@ -37,6 +37,7 @@ import com.ella.music.data.model.Song
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Playlist
 
 @Composable
 internal fun LandscapeProgressRow(
@@ -47,6 +48,7 @@ internal fun LandscapeProgressRow(
     showTotalDuration: Boolean,
     onSeek: (Float) -> Unit
 ) {
+    var previewProgress by remember { mutableStateOf<Float?>(null) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -64,12 +66,13 @@ internal fun LandscapeProgressRow(
             onSeek = onSeek,
             accent = palette.accent,
             allowTapSeek = allowTapSeek,
+            onPreviewProgressChange = { previewProgress = it },
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 12.dp)
         )
         Text(
-            text = if (showTotalDuration) {
+            text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: if (showTotalDuration) {
                 formatTime(duration.coerceAtLeast(0L))
             } else {
                 "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"
@@ -145,6 +148,7 @@ internal fun PlayerProgressBlock(
 ) {
     val context = LocalContext.current
     var infoMode by remember(audioInfo, bluetoothDeviceName, playbackModeLabel) { mutableStateOf(0) }
+    var previewProgress by remember { mutableStateOf<Float?>(null) }
     val infoLabels = remember(audioInfo, bluetoothDeviceName, playbackModeLabel) {
         buildList {
             playbackModeLabel?.takeIf { it.isNotBlank() }?.let(::add) ?: run {
@@ -163,13 +167,14 @@ internal fun PlayerProgressBlock(
             onSeek = onSeek,
             accent = palette.accent,
             allowTapSeek = allowTapSeek,
+            onPreviewProgressChange = { previewProgress = it },
             modifier = Modifier.fillMaxWidth()
         )
         Box(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = formatTime(currentPosition),
                 fontSize = 14.sp,
-                color = palette.onBackground.copy(alpha = 0.56f),
+                color = palette.onBackground.copy(alpha = 0.72f),
                 modifier = Modifier.align(Alignment.CenterStart)
             )
             if (infoLabels.isNotEmpty()) {
@@ -198,13 +203,13 @@ internal fun PlayerProgressBlock(
                 )
             }
             Text(
-                text = if (showTotalDuration) {
+                text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: if (showTotalDuration) {
                     formatTime(duration.coerceAtLeast(0L))
                 } else {
                     "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"
                 },
                 fontSize = 14.sp,
-                color = palette.onBackground.copy(alpha = 0.56f),
+                color = palette.onBackground.copy(alpha = 0.72f),
                 modifier = Modifier.align(Alignment.CenterEnd)
             )
         }
@@ -278,8 +283,10 @@ internal fun PlayerTransportControls(
         }
         Box(contentAlignment = Alignment.Center) {
             PlayerTransportIconButton(onClick = onToggleQueue) {
-                QueueListIcon(
-                    color = palette.onBackground.copy(alpha = 0.58f),
+                Icon(
+                    imageVector = MiuixIcons.Regular.Playlist,
+                    contentDescription = stringResource(R.string.player_queue_title),
+                    tint = palette.onBackground.copy(alpha = 0.58f),
                     modifier = Modifier.size(28.dp)
                 )
             }

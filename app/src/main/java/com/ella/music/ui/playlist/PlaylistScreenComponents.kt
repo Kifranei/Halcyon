@@ -29,7 +29,6 @@ import com.ella.music.R
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaSmallTopAppBar
-import com.ella.music.ui.components.QueueListIcon
 import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.ellaPageBackground
@@ -43,6 +42,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.icon.extended.Sort
@@ -104,8 +104,10 @@ internal fun PlaylistScreenTopBar(
                         )
                     }
                     IconButton(onClick = onAddSelectedToQueueClick) {
-                        QueueListIcon(
-                            color = MiuixTheme.colorScheme.primary,
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Playlist,
+                            contentDescription = stringResource(R.string.player_queue_title),
+                            tint = MiuixTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                     }

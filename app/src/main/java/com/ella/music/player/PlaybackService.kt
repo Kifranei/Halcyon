@@ -114,7 +114,9 @@ class PlaybackService : MediaLibraryService() {
         private const val TIMING_TAG = "EllaPlaybackTiming"
 
         val bluetoothConnectEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-        val externalPlaybackChangeEvent = MutableSharedFlow<PlaybackExternalSnapshot>(extraBufferCapacity = 8)
+        // StateFlow retains the latest service state so a ViewModel recreated after a long
+        // background stay can rebuild immediately instead of waiting for the next player event.
+        val externalPlaybackSnapshot = MutableStateFlow<PlaybackExternalSnapshot?>(null)
         val externalPlaybackModeEvent = MutableSharedFlow<PlaybackModeExternalSnapshot>(extraBufferCapacity = 4)
 
         /**
@@ -374,6 +376,7 @@ class PlaybackService : MediaLibraryService() {
                 } else {
                     closeAudioEffectSession()
                 }
+                publishExternalPlaybackSnapshot(player)
                 PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
             }
 
@@ -491,11 +494,10 @@ class PlaybackService : MediaLibraryService() {
         // During a network rebuffer ExoPlayer can briefly report !isPlaying although the user has
         // not stopped playback. Do not turn that transient state into a service teardown when the
         // task is removed; keeping the media session alive also keeps Lyricon/desktop bridges alive.
-        val shouldKeepPlayback = player != null && player.mediaItemCount > 0 &&
-            (player.playWhenReady || player.playbackState == Player.STATE_BUFFERING)
-        if (!shouldKeepPlayback) {
-            stopSelf()
-        }
+        // Never tear down a prepared MediaLibraryService because its task was swiped. Some ROMs
+        // deliver this while Bluetooth playback is transitioning or while the app is backgrounded.
+        // Media3 owns the foreground notification and shuts down only after the real queue ends.
+        if ((player?.mediaItemCount ?: 0) > 0) publishExternalPlaybackSnapshot(player)
     }
 
     override fun onDestroy() {
@@ -1087,18 +1089,17 @@ class PlaybackService : MediaLibraryService() {
 
     private fun publishExternalPlaybackSnapshot(player: Player? = mediaSession?.player) {
         val current = player ?: return
-        externalPlaybackChangeEvent.tryEmit(
-            PlaybackExternalSnapshot(
-                mediaItem = current.currentMediaItem,
-                mediaItemIndex = current.currentMediaItemIndex,
-                mediaItemCount = current.mediaItemCount,
-                positionMs = current.currentPosition.coerceAtLeast(0L),
-                durationMs = current.duration.coerceAtLeast(0L),
-                repeatMode = current.repeatMode,
-                isPlaying = current.isPlaying,
-                playbackState = current.playbackState
-            )
+        val snapshot = PlaybackExternalSnapshot(
+            mediaItem = current.currentMediaItem,
+            mediaItemIndex = current.currentMediaItemIndex,
+            mediaItemCount = current.mediaItemCount,
+            positionMs = current.currentPosition.coerceAtLeast(0L),
+            durationMs = current.duration.coerceAtLeast(0L),
+            repeatMode = current.repeatMode,
+            isPlaying = current.isPlaying,
+            playbackState = current.playbackState
         )
+        externalPlaybackSnapshot.value = snapshot
     }
 
     private fun publishExternalPlaybackModeSnapshot(player: Player? = mediaSession?.player) {

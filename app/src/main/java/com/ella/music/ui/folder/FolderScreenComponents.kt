@@ -38,6 +38,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -45,6 +46,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun FolderListRow(
     folder: FolderTreeEntry,
     sortMode: FolderListSortMode,
+    isPinned: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -68,6 +70,14 @@ internal fun FolderListRow(
             tint = MiuixTheme.colorScheme.primary,
             modifier = Modifier.size(42.dp)
         )
+        if (isPinned) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Pin,
+                contentDescription = stringResource(R.string.common_pin_to_top),
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = folder.name,

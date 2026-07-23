@@ -1,6 +1,5 @@
 package com.ella.music.ui.components
 
-import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -24,27 +23,23 @@ fun SafeCoverImage(
 ) {
     val context = LocalContext.current
     val request = remember(context, model, sizePx, loadOriginal) {
-        if (model is Uri || model is String) {
-            ImageRequest.Builder(context)
-                .data(model)
-                .apply {
-                    if (loadOriginal) {
-                        size(Size.ORIGINAL)
-                    } else {
-                        size(sizePx)
-                    }
+        ImageRequest.Builder(context)
+            .data(model)
+            .apply {
+                if (loadOriginal) {
+                    size(Size.ORIGINAL)
+                } else {
+                    size(sizePx)
                 }
-                .build()
-        } else {
-            model
-        }
+            }
+            .build()
     }
 
     Box(modifier = modifier) {
         if (showDefaultPlaceholder) {
             DefaultAlbumCover(modifier = Modifier.fillMaxSize())
         }
-        if (request != null) {
+        if (model != null) {
             AsyncImage(
                 model = request,
                 contentDescription = contentDescription,

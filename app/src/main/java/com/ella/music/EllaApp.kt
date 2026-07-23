@@ -7,6 +7,7 @@ import com.ella.music.data.AppIconManager
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.mcp.McpServerService
+import com.ella.music.oem.AppMemoryTrimAdapter
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.settings.WebDavAutoBackupScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,7 @@ class EllaApp : Application() {
             previousHandler?.uncaughtException(thread, throwable)
         }
         AppLogStore.info(this, "EllaApp", "Application started")
+        AppMemoryTrimAdapter.initialize(this)
 
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val settingsManager = SettingsManager.getInstance(this)

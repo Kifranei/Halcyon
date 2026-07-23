@@ -33,9 +33,12 @@ import com.ella.music.ui.components.EllaMiuixActionRow
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import sh.calvin.reorderable.ReorderableColumn
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Link
 
 private data class AppShortcutPreferenceItem(
     val id: String,
@@ -164,11 +167,19 @@ internal fun SettingsAppShortcutsPreference(
         },
         modifier = Modifier.clickable { sheetVisible = true },
         endActions = {
-            Text(
-                text = "${selectedItems.size}/${SettingsManager.MAX_APP_SHORTCUTS}",
-                fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Link,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+                Text(
+                    text = "${selectedItems.size}/${SettingsManager.MAX_APP_SHORTCUTS}",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+            }
         }
     )
 

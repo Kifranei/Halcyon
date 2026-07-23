@@ -467,6 +467,7 @@ fun FolderScreen(
                         FolderListRow(
                             folder = folder,
                             sortMode = folderSortMode,
+                            isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) },
                             onClick = { onFolderClick(folder.path) },
                             onLongClick = { folderMenuTarget = folder }
                         )

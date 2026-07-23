@@ -61,6 +61,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
 import top.yukonga.miuix.kmp.icon.extended.Playlist
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -212,8 +213,10 @@ internal fun PlaylistRow(
                 }
                 if (onMore != null) {
                     IconButton(onClick = onMore) {
-                        com.ella.music.ui.player.MoreIcon(
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        Icon(
+                            imageVector = MiuixIcons.Regular.More,
+                            contentDescription = stringResource(R.string.player_quick_more),
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.size(18.dp)
                         )
                     }

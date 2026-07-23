@@ -666,7 +666,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun initExternalPlaybackSync() {
         viewModelScope.launch {
-            PlaybackService.externalPlaybackChangeEvent.collect { snapshot ->
+            PlaybackService.externalPlaybackSnapshot.collectLatest { snapshot ->
+                snapshot ?: return@collectLatest
                 playerManager.ensureConnected(refreshStateIfConnected = false)
                 playerManager.applyExternalPlaybackSnapshot(snapshot)
             }

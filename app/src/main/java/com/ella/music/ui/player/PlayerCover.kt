@@ -106,22 +106,18 @@ internal fun PlayerCoverImage(
         )
     }
     val request = remember(context, model, sizePx, loadOriginal) {
-        if (model is Uri || model is String) {
-            coil3.request.ImageRequest.Builder(context)
-                .data(model)
-                .apply {
-                    if (loadOriginal) {
-                        size(Size.ORIGINAL)
-                    } else {
-                        size(sizePx)
-                    }
+        coil3.request.ImageRequest.Builder(context)
+            .data(model)
+            .apply {
+                if (loadOriginal) {
+                    size(Size.ORIGINAL)
+                } else {
+                    size(sizePx)
                 }
-                .build()
-        } else {
-            model
-        }
+            }
+            .build()
     }
-    if (request != null) {
+    if (model != null) {
         val roundedContentModifier = if (cornerRadius > 0.dp && contentScale == ContentScale.Fit) {
             Modifier.drawWithContent {
                 val aspectRatio = sourceAspectRatio

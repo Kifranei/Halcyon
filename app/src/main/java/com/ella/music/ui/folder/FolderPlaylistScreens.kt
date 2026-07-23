@@ -89,8 +89,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -428,10 +429,22 @@ fun FolderPlaylistsScreen(
                         text = stringResource(R.string.folder_playlist_empty),
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(onClick = ::openNewFolderPlaylistEditor) {
-                        Text(text = stringResource(R.string.folder_playlist_create))
-                    }
+                }
+                FloatingActionButton(
+                    onClick = ::openNewFolderPlaylistEditor,
+                    minWidth = 46.dp,
+                    minHeight = 46.dp,
+                    containerColor = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Add,
+                        contentDescription = stringResource(R.string.folder_playlist_create),
+                        tint = MiuixTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(21.dp)
+                    )
                 }
             }
         } else {

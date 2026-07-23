@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -64,6 +65,7 @@ import androidx.documentfile.provider.DocumentFile
 import coil3.compose.AsyncImage
 import coil3.imageLoader
 import coil3.request.ImageRequest
+import coil3.size.Size
 import coil3.toBitmap
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
@@ -76,6 +78,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.Share
 
 /** Full-resolution cover preview shared by the player and album pages. */
 @Composable
@@ -192,6 +199,7 @@ internal fun CoverPreviewDialog(
                 model = remember(context, model) {
                     ImageRequest.Builder(context)
                         .data(model)
+                        .size(Size.ORIGINAL)
                         .build()
                 },
                 contentDescription = title,
@@ -262,7 +270,7 @@ internal fun CoverPreviewDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CoverPreviewAction(
-                            text = "‹",
+                            icon = MiuixIcons.Regular.Back,
                             contentDescription = stringResource(R.string.cover_preview_back),
                             onClick = onDismiss
                         )
@@ -279,7 +287,7 @@ internal fun CoverPreviewDialog(
                         )
                         Row {
                             CoverPreviewAction(
-                                text = "↓",
+                                icon = MiuixIcons.Regular.Download,
                                 contentDescription = stringResource(R.string.cover_preview_save),
                                 onClick = {
                                     scope.launch {
@@ -297,7 +305,7 @@ internal fun CoverPreviewDialog(
                             )
                             Spacer(modifier = Modifier.size(8.dp))
                             CoverPreviewAction(
-                                text = "↗",
+                                icon = MiuixIcons.Regular.Share,
                                 contentDescription = stringResource(R.string.cover_preview_share),
                                 onClick = {
                                     scope.launch {
@@ -338,7 +346,7 @@ internal fun CoverPreviewDialog(
 
 @Composable
 private fun CoverPreviewAction(
-    text: String,
+    icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit
 ) {
@@ -350,12 +358,11 @@ private fun CoverPreviewAction(
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 3.dp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(24.dp)
         )
     }
 }
@@ -466,6 +473,7 @@ private suspend fun loadCoverBitmapCopy(context: Context, model: Any): Bitmap? =
         val source = (model as? Bitmap) ?: context.imageLoader.execute(
             ImageRequest.Builder(context)
                 .data(model)
+                .size(Size.ORIGINAL)
                 .build()
         ).image?.toBitmap()
         source?.copy(Bitmap.Config.ARGB_8888, false)

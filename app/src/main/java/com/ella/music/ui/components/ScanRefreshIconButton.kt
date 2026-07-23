@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.SearchDevice
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -37,7 +37,7 @@ fun ScanRefreshIconButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = MiuixIcons.Regular.Refresh,
+            imageVector = MiuixIcons.Regular.SearchDevice,
             contentDescription = contentDescription,
             tint = if (enabled) {
                 MiuixTheme.colorScheme.onSurface

@@ -146,6 +146,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
+import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Playlist
@@ -759,12 +760,12 @@ fun EllaApp(
         SettingsManager.BOTTOM_DOCK_ITEM_HOME to BottomDockTab(
             route = Screen.Home.route,
             label = stringResource(R.string.tab_home),
-            icon = MiuixIcons.Regular.Music
+            icon = MiuixIcons.Regular.Home
         ),
         SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY to BottomDockTab(
             route = Screen.Library.route,
             label = stringResource(R.string.tab_library),
-            icon = MiuixIcons.Regular.Playlist
+            icon = MiuixIcons.Regular.Music
         ),
         SettingsManager.BOTTOM_DOCK_ITEM_PLAYLISTS to BottomDockTab(
             route = Screen.Playlists.createRoute(fromDock = true),
