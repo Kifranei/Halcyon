@@ -100,6 +100,11 @@ class MusicRepository(private val context: Context) {
             instance ?: synchronized(this) {
                 instance ?: MusicRepository(context.applicationContext).also { instance = it }
             }
+
+        /** Releases repository caches without creating the repository just to trim memory. */
+        fun clearMemoryCachesIfInitialized() {
+            instance?.clearCache()
+        }
     }
 
     data class LyricFormatAvailability(

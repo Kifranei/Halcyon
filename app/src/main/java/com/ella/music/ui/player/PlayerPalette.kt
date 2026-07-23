@@ -61,6 +61,16 @@ private object PaletteCoverBitmapCache {
             cache.put(key, bitmap)
         }
     }
+
+    fun clear() {
+        synchronized(cache) {
+            cache.evictAll()
+        }
+    }
+}
+
+internal fun clearPlayerPaletteMemoryCache() {
+    PaletteCoverBitmapCache.clear()
 }
 
 private fun Bitmap.bitmapSizeInKb(): Int {
