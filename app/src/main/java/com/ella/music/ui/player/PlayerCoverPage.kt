@@ -520,13 +520,15 @@ internal fun CoverPlayerPage(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .fillMaxWidth()
-                                .height(220.dp)
+                                // Fade the full-bleed artwork into the content surface before the
+                                // layout switches from the cover box to the detail column.
+                                .height(280.dp)
                                 .background(
                                     Brush.verticalGradient(
                                         colorStops = arrayOf(
                                             0.0f to Color.Transparent,
-                                            0.48f to pagePalette.middle.copy(alpha = 0.42f),
-                                            0.78f to pagePalette.middle.copy(alpha = 0.86f),
+                                            0.40f to pagePalette.middle.copy(alpha = 0.30f),
+                                            0.72f to pagePalette.middle.copy(alpha = 0.82f),
                                             1.0f to pagePalette.middle
                                         )
                                     )

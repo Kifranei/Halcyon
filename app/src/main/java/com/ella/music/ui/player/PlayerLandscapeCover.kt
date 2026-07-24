@@ -655,44 +655,64 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
         }
 
         Row(modifier = Modifier.fillMaxSize()) {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxHeight()
+                    // Keep this half unchanged so the right-side top controls retain their position.
                     .weight(0.50f)
-                    .graphicsLayer { translationX = dragOffset.value * 0.32f }
-                    .coverSwipeModifier(),
-                contentAlignment = Alignment.Center
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (foregroundDynamicCoverSource != null) {
-                    DynamicCoverVideo(
-                        source = foregroundDynamicCoverSource,
-                        isPlaying = isPlaying,
-                        onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
-                        modifier = Modifier.fillMaxSize(),
-                        cornerRadiusDp = 14f
-                    )
-                } else {
-                    PhoneLandscapeCoverImage(
-                        song = song,
-                        embeddedCover = embeddedCover,
-                        showHiResLogo = showHiResLogo,
-                        hiResLogoUri = hiResLogoUri,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
                 Box(
                     modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.Black.copy(alpha = 0.08f),
-                                    0.52f to Color.Transparent,
-                                    0.84f to palette.middle.copy(alpha = 0.36f),
-                                    1.00f to palette.middle.copy(alpha = 0.78f)
-                                )
-                            )
+                        .fillMaxWidth(0.82f)
+                        .widthIn(max = 300.dp)
+                        .weight(1f)
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(22.dp))
+                        .graphicsLayer { translationX = dragOffset.value * 0.32f }
+                        .coverSwipeModifier(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (foregroundDynamicCoverSource != null) {
+                        DynamicCoverVideo(
+                            source = foregroundDynamicCoverSource,
+                            isPlaying = isPlaying,
+                            onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
+                            modifier = Modifier.fillMaxSize(),
+                            cornerRadiusDp = 22f
                         )
+                    } else {
+                        PhoneLandscapeCoverImage(
+                            song = song,
+                            embeddedCover = embeddedCover,
+                            showHiResLogo = showHiResLogo,
+                            hiResLogoUri = hiResLogoUri,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                // Follow the compact RawS hierarchy: title, then the seek bar. The artist is
+                // intentionally omitted in phone landscape to leave the lyrics area uncluttered.
+                PlayerSongTitleText(
+                    text = song?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.app_name),
+                    color = palette.onBackground.copy(alpha = 0.96f),
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = fontFamily,
+                    modifier = Modifier.fillMaxWidth(0.86f)
+                )
+                GlowSeekBar(
+                    value = if (duration > 0L) currentPosition.toFloat() / duration.toFloat() else 0f,
+                    onSeek = onSeek,
+                    accent = palette.accent,
+                    allowTapSeek = playerTapSeekEnabled,
+                    modifier = Modifier
+                        .fillMaxWidth(0.86f)
+                        .padding(top = 4.dp)
                 )
             }
 
@@ -741,58 +761,6 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                     PlayerHeaderAction(kind = PlayerHeaderActionKind.More, onClick = onToggleMenu)
                 }
 
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(top = 18.dp, end = 220.dp),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    PlayerSongTitleText(
-                        text = song?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.app_name),
-                        color = palette.onBackground.copy(alpha = 0.96f),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = fontFamily,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    PlayerMarqueeText(
-                        text = song?.artist?.takeIf { it.isNotBlank() } ?: stringResource(R.string.player_unknown_artist),
-                        color = palette.onBackground.copy(alpha = 0.58f),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = fontFamily,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp)
-                    )
-                    annotation.takeIf { it.isNotBlank() }?.let { text ->
-                        PlayerMarqueeText(
-                            text = text,
-                            color = palette.onBackground.copy(alpha = 0.44f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = fontFamily,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 2.dp)
-                        )
-                    }
-                }
-
-                GlowSeekBar(
-                    value = if (duration > 0L) currentPosition.toFloat() / duration.toFloat() else 0f,
-                    onSeek = onSeek,
-                    accent = palette.accent,
-                    allowTapSeek = playerTapSeekEnabled,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .fillMaxWidth()
-                        .padding(start = 0.dp, end = 0.dp, bottom = 8.dp)
-                        .height(24.dp)
-                )
-
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -800,7 +768,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                         .widthIn(max = 900.dp)
                         .windowInsetsPadding(WindowInsets.statusBars)
                         .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(top = 106.dp, bottom = 42.dp)
+                        .padding(top = 82.dp, bottom = 24.dp)
                         .playerLyricPerspective(
                             enabled = lyricPerspectiveEffect,
                             angle = lyricPerspectiveYAngle,

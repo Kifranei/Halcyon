@@ -16,8 +16,9 @@ internal fun playerContentSurfaceBrush(
 ): Brush {
     return Brush.verticalGradient(
         colorStops = arrayOf(
-            0.0f to palette.middle.copy(alpha = 0.70f),
-            0.16f to palette.middle.copy(alpha = 0.82f),
+            // This joins the immersive cover's bottom gradient at the exact same color.
+            0.0f to palette.middle,
+            0.16f to palette.middle.copy(alpha = 0.94f),
             1.0f to palette.middle.copy(alpha = 0.90f)
         )
     )
