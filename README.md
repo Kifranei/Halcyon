@@ -73,6 +73,7 @@
 - 提供桌面歌词悬浮窗、状态栏歌词、媒体通知歌词、词幕、SuperLyricApi 和 Lyric Getter API 集成。
 - 状态栏歌词的长文本会带间隔连续循环，避免滚动结束时闪跳。
 - 支持歌词卡片分享、字体导入与系统字体选择器、歌词偏移、歌词点击跳转和副行内容配置。
+- 内置全屏歌词打轴器：支持逐行 / 逐词打点、固定底部传输控制、撤销 / 重做、V1 / V2 / V1000 对唱角色、翻译、音译、`x-bg` 背景人声，并可内嵌或导出 LRC、ELRC、TTML。
 
 ### 🌐 WebDAV、Navidrome、Emby 与 LX 在线音乐
 
@@ -257,7 +258,7 @@ Halcyon 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各�
 - **LySy** — 为内置原生 Kotlin / Compose 歌词打轴页提供交互与时间轴算法参考（MIT；不引入其 Web 源码或依赖）。
 - **Lyrico** — 为外部标签编辑器适配、歌曲标签读取和日志页面交互提供参考。
 - **LX Music Mobile** — 提供 LX Music API 兼容实现与测试参考。
-- **RawS Music** — 提供 10 段均衡器、BiQuad 参数均衡与 DSP 核心参考。
+- **RawS Music** — 为 10 段均衡器、BiQuad 参数均衡、360° 环绕 / 全景音、等响度、动态均衡/齿音抑制、Moog 梯形滤波器与峰值保护提供 Apache-2.0 的算法参考与 Kotlin 移植基础。
 - **光锥音乐** — 界面设计与功能实现参考。
 - 感谢 Halcyon 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、lyrico-audiotag / Lyrico、TagLib、163KeyDecrypter、Kyant Backdrop、Coil、OkHttp、Reorderable、accompanist-lyrics-core、LySy、Beautiful Lyrics、RawS Music 以及其它开源项目。
 

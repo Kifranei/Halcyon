@@ -194,6 +194,35 @@ class SettingsManager(private val context: Context) {
         val KEY_SURROUND_360_ENABLED = booleanPreferencesKey("audio_surround_360_enabled")
         val KEY_SURROUND_360_INTENSITY = intPreferencesKey("audio_surround_360_intensity")
         val KEY_SURROUND_360_ROTATION_SPEED = intPreferencesKey("audio_surround_360_rotation_speed")
+        val KEY_PANORAMIC_360_ENABLED = booleanPreferencesKey("audio_panoramic_360_enabled")
+        val KEY_PANORAMIC_360_INTENSITY = intPreferencesKey("audio_panoramic_360_intensity")
+        val KEY_PANORAMIC_360_AZIMUTH_DEGREES = intPreferencesKey("audio_panoramic_360_azimuth_degrees")
+        val KEY_PANORAMIC_360_ELEVATION_DEGREES = intPreferencesKey("audio_panoramic_360_elevation_degrees")
+        val KEY_LOUDNESS_BALANCE_ENABLED = booleanPreferencesKey("audio_loudness_balance_enabled")
+        val KEY_LOUDNESS_PERCENT = intPreferencesKey("audio_loudness_percent")
+        val KEY_CHANNEL_BALANCE = intPreferencesKey("audio_channel_balance")
+        val KEY_CROSSFEED_ENABLED = booleanPreferencesKey("audio_crossfeed_enabled")
+        val KEY_CROSSFEED_LOW_CUT_HZ = intPreferencesKey("audio_crossfeed_low_cut_hz")
+        val KEY_CROSSFEED_HIGH_CUT_HZ = intPreferencesKey("audio_crossfeed_high_cut_hz")
+        val KEY_CROSSFEED_ATTENUATION_TENTHS_DB = intPreferencesKey("audio_crossfeed_attenuation_tenths_db")
+        val KEY_MONO_BASS_ENABLED = booleanPreferencesKey("audio_mono_bass_enabled")
+        val KEY_MONO_BASS_CROSSOVER_HZ = intPreferencesKey("audio_mono_bass_crossover_hz")
+        val KEY_MONO_BASS_AMOUNT = intPreferencesKey("audio_mono_bass_amount")
+        val KEY_SPEAKER_OUTPUT_ENABLED = booleanPreferencesKey("audio_speaker_output_enabled")
+        val KEY_SPEAKER_OUTPUT_MODE = intPreferencesKey("audio_speaker_output_mode")
+        val KEY_SPEAKER_OUTPUT_STRENGTH = intPreferencesKey("audio_speaker_output_strength")
+        val KEY_DYNAMIC_EQ_ENABLED = booleanPreferencesKey("audio_dynamic_eq_enabled")
+        val KEY_DYNAMIC_EQ_INTENSITY = intPreferencesKey("audio_dynamic_eq_intensity")
+        val KEY_DE_ESSER_AMOUNT = intPreferencesKey("audio_de_esser_amount")
+        val KEY_DE_ESSER_FREQUENCY_HZ = intPreferencesKey("audio_de_esser_frequency_hz")
+        val KEY_MOOG_LADDER_ENABLED = booleanPreferencesKey("audio_moog_ladder_enabled")
+        val KEY_MOOG_LADDER_MODE = intPreferencesKey("audio_moog_ladder_mode")
+        val KEY_MOOG_LADDER_CUTOFF_HZ = intPreferencesKey("audio_moog_ladder_cutoff_hz")
+        val KEY_MOOG_LADDER_RESONANCE = intPreferencesKey("audio_moog_ladder_resonance")
+        val KEY_MOOG_LADDER_DRIVE_DB = intPreferencesKey("audio_moog_ladder_drive_db")
+        val KEY_MOOG_LADDER_MIX = intPreferencesKey("audio_moog_ladder_mix")
+        val KEY_PEAK_LIMITER_ENABLED = booleanPreferencesKey("audio_peak_limiter_enabled")
+        val KEY_PLATFORM_SPATIAL_AUDIO_ENABLED = booleanPreferencesKey("audio_platform_spatial_audio_enabled")
         val KEY_USB_DAC_MODE = booleanPreferencesKey("usb_dac_mode")
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_MUSIC_VIDEO_SYNC_ENABLED = booleanPreferencesKey("music_video_sync_enabled")
@@ -962,6 +991,164 @@ class SettingsManager(private val context: Context) {
                 AudioEffectSettings.SURROUND_360_ROTATION_MAX
             )
         }
+    val panoramic360Enabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PANORAMIC_360_ENABLED] ?: false }
+    val panoramic360Intensity: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PANORAMIC_360_INTENSITY] ?: 50).coerceIn(
+                AudioEffectSettings.PANORAMIC_360_INTENSITY_MIN,
+                AudioEffectSettings.PANORAMIC_360_INTENSITY_MAX
+            )
+        }
+    val panoramic360AzimuthDegrees: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PANORAMIC_360_AZIMUTH_DEGREES] ?: 0).coerceIn(
+                AudioEffectSettings.PANORAMIC_360_AZIMUTH_MIN,
+                AudioEffectSettings.PANORAMIC_360_AZIMUTH_MAX
+            )
+        }
+    val panoramic360ElevationDegrees: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PANORAMIC_360_ELEVATION_DEGREES] ?: 0).coerceIn(
+                AudioEffectSettings.PANORAMIC_360_ELEVATION_MIN,
+                AudioEffectSettings.PANORAMIC_360_ELEVATION_MAX
+            )
+        }
+    val loudnessBalanceEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LOUDNESS_BALANCE_ENABLED] ?: false }
+    val loudnessPercent: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_LOUDNESS_PERCENT] ?: 35).coerceIn(
+                AudioEffectSettings.LOUDNESS_PERCENT_MIN,
+                AudioEffectSettings.LOUDNESS_PERCENT_MAX
+            )
+        }
+    val channelBalance: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_CHANNEL_BALANCE] ?: 0).coerceIn(
+                AudioEffectSettings.CHANNEL_BALANCE_MIN,
+                AudioEffectSettings.CHANNEL_BALANCE_MAX
+            )
+        }
+    val crossfeedEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_CROSSFEED_ENABLED] ?: false }
+    val crossfeedLowCutHz: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_CROSSFEED_LOW_CUT_HZ] ?: 300).coerceIn(
+                AudioEffectSettings.CROSSFEED_LOW_CUT_MIN_HZ,
+                AudioEffectSettings.CROSSFEED_LOW_CUT_MAX_HZ
+            )
+        }
+    val crossfeedHighCutHz: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_CROSSFEED_HIGH_CUT_HZ] ?: 2_000).coerceIn(
+                AudioEffectSettings.CROSSFEED_HIGH_CUT_MIN_HZ,
+                AudioEffectSettings.CROSSFEED_HIGH_CUT_MAX_HZ
+            )
+        }
+    val crossfeedAttenuationTenthsDb: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_CROSSFEED_ATTENUATION_TENTHS_DB] ?: 60).coerceIn(
+                AudioEffectSettings.CROSSFEED_ATTENUATION_MIN_TENTHS_DB,
+                AudioEffectSettings.CROSSFEED_ATTENUATION_MAX_TENTHS_DB
+            )
+        }
+    val monoBassEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MONO_BASS_ENABLED] ?: false }
+    val monoBassCrossoverHz: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MONO_BASS_CROSSOVER_HZ] ?: 120).coerceIn(
+                AudioEffectSettings.MONO_BASS_CROSSOVER_MIN_HZ,
+                AudioEffectSettings.MONO_BASS_CROSSOVER_MAX_HZ
+            )
+        }
+    val monoBassAmount: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MONO_BASS_AMOUNT] ?: 100).coerceIn(
+                AudioEffectSettings.MONO_BASS_AMOUNT_MIN,
+                AudioEffectSettings.MONO_BASS_AMOUNT_MAX
+            )
+        }
+    val speakerOutputEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SPEAKER_OUTPUT_ENABLED] ?: false }
+    val speakerOutputMode: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_SPEAKER_OUTPUT_MODE] ?: AudioEffectSettings.SPEAKER_OUTPUT_MODE_ELASTICITY).coerceIn(
+                AudioEffectSettings.SPEAKER_OUTPUT_MODE_ELASTICITY,
+                AudioEffectSettings.SPEAKER_OUTPUT_MODE_WIDE
+            )
+        }
+    val speakerOutputStrength: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_SPEAKER_OUTPUT_STRENGTH] ?: 82).coerceIn(
+                AudioEffectSettings.SPEAKER_OUTPUT_STRENGTH_MIN,
+                AudioEffectSettings.SPEAKER_OUTPUT_STRENGTH_MAX
+            )
+        }
+    val dynamicEqEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_DYNAMIC_EQ_ENABLED] ?: false }
+    val dynamicEqIntensity: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_DYNAMIC_EQ_INTENSITY] ?: 50).coerceIn(
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MIN,
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MAX
+            )
+        }
+    val deEsserAmount: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_DE_ESSER_AMOUNT] ?: 45).coerceIn(
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MIN,
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MAX
+            )
+        }
+    val deEsserFrequencyHz: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_DE_ESSER_FREQUENCY_HZ] ?: 6_500).coerceIn(
+                AudioEffectSettings.DE_ESSER_FREQUENCY_MIN_HZ,
+                AudioEffectSettings.DE_ESSER_FREQUENCY_MAX_HZ
+            )
+        }
+    val moogLadderEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MOOG_LADDER_ENABLED] ?: false }
+    val moogLadderMode: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MOOG_LADDER_MODE] ?: AudioEffectSettings.MOOG_LADDER_MODE_LOW_PASS_24).coerceIn(
+                AudioEffectSettings.MOOG_LADDER_MODE_LOW_PASS_24,
+                AudioEffectSettings.MOOG_LADDER_MODE_NOTCH
+            )
+        }
+    val moogLadderCutoffHz: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MOOG_LADDER_CUTOFF_HZ] ?: 12_000).coerceIn(
+                AudioEffectSettings.MOOG_LADDER_CUTOFF_MIN_HZ,
+                AudioEffectSettings.MOOG_LADDER_CUTOFF_MAX_HZ
+            )
+        }
+    val moogLadderResonance: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MOOG_LADDER_RESONANCE] ?: 20).coerceIn(
+                AudioEffectSettings.MOOG_LADDER_RESONANCE_MIN,
+                AudioEffectSettings.MOOG_LADDER_RESONANCE_MAX
+            )
+        }
+    val moogLadderDriveDb: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MOOG_LADDER_DRIVE_DB] ?: 0).coerceIn(
+                AudioEffectSettings.MOOG_LADDER_DRIVE_MIN_DB,
+                AudioEffectSettings.MOOG_LADDER_DRIVE_MAX_DB
+            )
+        }
+    val moogLadderMix: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MOOG_LADDER_MIX] ?: 100).coerceIn(
+                AudioEffectSettings.MOOG_LADDER_MIX_MIN,
+                AudioEffectSettings.MOOG_LADDER_MIX_MAX
+            )
+        }
+    val peakLimiterEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PEAK_LIMITER_ENABLED] ?: true }
+    val platformSpatialAudioEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLATFORM_SPATIAL_AUDIO_ENABLED] ?: false }
     private data class CustomDspSettings(
         val eqQ: Int,
         val bassDb: Int,
@@ -973,18 +1160,145 @@ class SettingsManager(private val context: Context) {
         val stereoWidth: Int,
         val surround360Enabled: Boolean,
         val surround360Intensity: Int,
-        val surround360RotationSpeed: Int
+        val surround360RotationSpeed: Int,
+        val panoramic360Enabled: Boolean,
+        val panoramic360Intensity: Int,
+        val panoramic360AzimuthDegrees: Int,
+        val panoramic360ElevationDegrees: Int,
+        val loudnessBalanceEnabled: Boolean,
+        val loudnessPercent: Int,
+        val channelBalance: Int,
+        val crossfeedEnabled: Boolean,
+        val crossfeedLowCutHz: Int,
+        val crossfeedHighCutHz: Int,
+        val crossfeedAttenuationTenthsDb: Int,
+        val monoBassEnabled: Boolean,
+        val monoBassCrossoverHz: Int,
+        val monoBassAmount: Int,
+        val speakerOutputEnabled: Boolean,
+        val speakerOutputMode: Int,
+        val speakerOutputStrength: Int,
+        val dynamicEqEnabled: Boolean,
+        val dynamicEqIntensity: Int,
+        val deEsserAmount: Int,
+        val deEsserFrequencyHz: Int,
+        val moogLadderEnabled: Boolean,
+        val moogLadderMode: Int,
+        val moogLadderCutoffHz: Int,
+        val moogLadderResonance: Int,
+        val moogLadderDriveDb: Int,
+        val moogLadderMix: Int,
+        val peakLimiterEnabled: Boolean
     )
+    private data class SpatialEnhancementSettings(
+        val loudnessBalanceEnabled: Boolean,
+        val loudnessPercent: Int,
+        val channelBalance: Int,
+        val crossfeedEnabled: Boolean,
+        val crossfeedLowCutHz: Int,
+        val crossfeedHighCutHz: Int,
+        val crossfeedAttenuationTenthsDb: Int,
+        val monoBassEnabled: Boolean,
+        val monoBassCrossoverHz: Int,
+        val monoBassAmount: Int,
+        val speakerOutputEnabled: Boolean,
+        val speakerOutputMode: Int,
+        val speakerOutputStrength: Int,
+        val dynamicEqEnabled: Boolean,
+        val dynamicEqIntensity: Int,
+        val deEsserAmount: Int,
+        val deEsserFrequencyHz: Int,
+        val moogLadderEnabled: Boolean,
+        val moogLadderMode: Int,
+        val moogLadderCutoffHz: Int,
+        val moogLadderResonance: Int,
+        val moogLadderDriveDb: Int,
+        val moogLadderMix: Int,
+        val peakLimiterEnabled: Boolean
+    )
+    private val spatialEnhancements: Flow<SpatialEnhancementSettings> = combine(
+        combine(loudnessBalanceEnabled, loudnessPercent, channelBalance) { enabled, loudness, balance ->
+            Triple(enabled, loudness, balance)
+        },
+        combine(crossfeedEnabled, crossfeedLowCutHz, crossfeedHighCutHz, crossfeedAttenuationTenthsDb) { enabled, low, high, attenuation ->
+            listOf(if (enabled) 1 else 0, low, high, attenuation)
+        },
+        combine(monoBassEnabled, monoBassCrossoverHz, monoBassAmount) { enabled, crossover, amount ->
+            Triple(enabled, crossover, amount)
+        },
+        combine(speakerOutputEnabled, speakerOutputMode, speakerOutputStrength) { enabled, mode, strength ->
+            Triple(enabled, mode, strength)
+        },
+        combine(
+            combine(dynamicEqEnabled, dynamicEqIntensity, deEsserAmount, deEsserFrequencyHz) { enabled, intensity, deEsser, frequency ->
+                listOf(if (enabled) 1 else 0, intensity, deEsser, frequency)
+            },
+            combine(moogLadderEnabled, moogLadderMode, moogLadderCutoffHz) { enabled, mode, cutoff ->
+                listOf(if (enabled) 1 else 0, mode, cutoff)
+            },
+            combine(moogLadderResonance, moogLadderDriveDb, moogLadderMix) { resonance, drive, mix ->
+                listOf(resonance, drive, mix)
+            },
+            peakLimiterEnabled
+        ) { dynamicEq, moogPrimary, moogSecondary, limiter ->
+            listOf(
+                dynamicEq[0], dynamicEq[1], dynamicEq[2], dynamicEq[3],
+                moogPrimary[0], moogPrimary[1], moogPrimary[2], moogSecondary[0], moogSecondary[1], moogSecondary[2],
+                if (limiter) 1 else 0
+            )
+        }
+    ) { loudness, crossfeed, monoBass, speaker, dynamicEq ->
+        SpatialEnhancementSettings(
+            loudnessBalanceEnabled = loudness.first,
+            loudnessPercent = loudness.second,
+            channelBalance = loudness.third,
+            crossfeedEnabled = crossfeed[0] == 1,
+            crossfeedLowCutHz = crossfeed[1],
+            crossfeedHighCutHz = crossfeed[2],
+            crossfeedAttenuationTenthsDb = crossfeed[3],
+            monoBassEnabled = monoBass.first,
+            monoBassCrossoverHz = monoBass.second,
+            monoBassAmount = monoBass.third,
+            speakerOutputEnabled = speaker.first,
+            speakerOutputMode = speaker.second,
+            speakerOutputStrength = speaker.third,
+            dynamicEqEnabled = dynamicEq[0] == 1,
+            dynamicEqIntensity = dynamicEq[1],
+            deEsserAmount = dynamicEq[2],
+            deEsserFrequencyHz = dynamicEq[3],
+            moogLadderEnabled = dynamicEq[4] == 1,
+            moogLadderMode = dynamicEq[5],
+            moogLadderCutoffHz = dynamicEq[6],
+            moogLadderResonance = dynamicEq[7],
+            moogLadderDriveDb = dynamicEq[8],
+            moogLadderMix = dynamicEq[9],
+            peakLimiterEnabled = dynamicEq[10] == 1
+        )
+    }
     private val toneAndDynamics: Flow<CustomDspSettings> = combine(
         combine(eqQ, toneBassDb, toneTrebleDb) { q, bass, treble -> Triple(q, bass, treble) },
         combine(compressorEnabled, compressorThresholdDb, compressorRatio, compressorMakeupDb) { en, th, ra, mk ->
             listOf(if (en) 1 else 0, th, ra, mk)
         },
         stereoWidth,
-        combine(surround360Enabled, surround360Intensity, surround360RotationSpeed) { enabled, intensity, speed ->
-            Triple(enabled, intensity, speed)
-        }
-    ) { tone, comp, width, surround ->
+        combine(
+            combine(surround360Enabled, surround360Intensity, surround360RotationSpeed) { enabled, intensity, speed ->
+                Triple(enabled, intensity, speed)
+            },
+            combine(
+                panoramic360Enabled,
+                panoramic360Intensity,
+                panoramic360AzimuthDegrees,
+                panoramic360ElevationDegrees
+            ) { enabled, intensity, azimuth, elevation ->
+                listOf(if (enabled) 1 else 0, intensity, azimuth, elevation)
+            }
+        ) { surround, panoramic -> surround to panoramic
+        },
+        spatialEnhancements
+    ) { tone, comp, width, spatial, enhancements ->
+        val surround = spatial.first
+        val panoramic = spatial.second
         CustomDspSettings(
             eqQ = tone.first,
             bassDb = tone.second,
@@ -996,7 +1310,35 @@ class SettingsManager(private val context: Context) {
             stereoWidth = width,
             surround360Enabled = surround.first,
             surround360Intensity = surround.second,
-            surround360RotationSpeed = surround.third
+            surround360RotationSpeed = surround.third,
+            panoramic360Enabled = panoramic[0] == 1,
+            panoramic360Intensity = panoramic[1],
+            panoramic360AzimuthDegrees = panoramic[2],
+            panoramic360ElevationDegrees = panoramic[3],
+            loudnessBalanceEnabled = enhancements.loudnessBalanceEnabled,
+            loudnessPercent = enhancements.loudnessPercent,
+            channelBalance = enhancements.channelBalance,
+            crossfeedEnabled = enhancements.crossfeedEnabled,
+            crossfeedLowCutHz = enhancements.crossfeedLowCutHz,
+            crossfeedHighCutHz = enhancements.crossfeedHighCutHz,
+            crossfeedAttenuationTenthsDb = enhancements.crossfeedAttenuationTenthsDb,
+            monoBassEnabled = enhancements.monoBassEnabled,
+            monoBassCrossoverHz = enhancements.monoBassCrossoverHz,
+            monoBassAmount = enhancements.monoBassAmount,
+            speakerOutputEnabled = enhancements.speakerOutputEnabled,
+            speakerOutputMode = enhancements.speakerOutputMode,
+            speakerOutputStrength = enhancements.speakerOutputStrength,
+            dynamicEqEnabled = enhancements.dynamicEqEnabled,
+            dynamicEqIntensity = enhancements.dynamicEqIntensity,
+            deEsserAmount = enhancements.deEsserAmount,
+            deEsserFrequencyHz = enhancements.deEsserFrequencyHz,
+            moogLadderEnabled = enhancements.moogLadderEnabled,
+            moogLadderMode = enhancements.moogLadderMode,
+            moogLadderCutoffHz = enhancements.moogLadderCutoffHz,
+            moogLadderResonance = enhancements.moogLadderResonance,
+            moogLadderDriveDb = enhancements.moogLadderDriveDb,
+            moogLadderMix = enhancements.moogLadderMix,
+            peakLimiterEnabled = enhancements.peakLimiterEnabled
         )
     }
     val usbDacMode: Flow<Boolean> =
@@ -1027,6 +1369,34 @@ class SettingsManager(private val context: Context) {
             surround360Enabled = dsp.surround360Enabled,
             surround360Intensity = dsp.surround360Intensity,
             surround360RotationSpeed = dsp.surround360RotationSpeed,
+            panoramic360Enabled = dsp.panoramic360Enabled,
+            panoramic360Intensity = dsp.panoramic360Intensity,
+            panoramic360AzimuthDegrees = dsp.panoramic360AzimuthDegrees,
+            panoramic360ElevationDegrees = dsp.panoramic360ElevationDegrees,
+            loudnessBalanceEnabled = dsp.loudnessBalanceEnabled,
+            loudnessPercent = dsp.loudnessPercent,
+            channelBalance = dsp.channelBalance,
+            crossfeedEnabled = dsp.crossfeedEnabled,
+            crossfeedLowCutHz = dsp.crossfeedLowCutHz,
+            crossfeedHighCutHz = dsp.crossfeedHighCutHz,
+            crossfeedAttenuationDbTenths = dsp.crossfeedAttenuationTenthsDb,
+            monoBassEnabled = dsp.monoBassEnabled,
+            monoBassCrossoverHz = dsp.monoBassCrossoverHz,
+            monoBassAmount = dsp.monoBassAmount,
+            speakerOutputEnabled = dsp.speakerOutputEnabled,
+            speakerOutputMode = dsp.speakerOutputMode,
+            speakerOutputStrength = dsp.speakerOutputStrength,
+            dynamicEqEnabled = dsp.dynamicEqEnabled,
+            dynamicEqIntensity = dsp.dynamicEqIntensity,
+            deEsserAmount = dsp.deEsserAmount,
+            deEsserFrequencyHz = dsp.deEsserFrequencyHz,
+            moogLadderEnabled = dsp.moogLadderEnabled,
+            moogLadderMode = dsp.moogLadderMode,
+            moogLadderCutoffHz = dsp.moogLadderCutoffHz,
+            moogLadderResonance = dsp.moogLadderResonance,
+            moogLadderDriveDb = dsp.moogLadderDriveDb,
+            moogLadderMix = dsp.moogLadderMix,
+            peakLimiterEnabled = dsp.peakLimiterEnabled,
             bassBoostEnabled = bass.first,
             bassBoostStrength = bass.second,
             virtualizerEnabled = virt.first,
@@ -1772,7 +2142,10 @@ class SettingsManager(private val context: Context) {
     }
 
     suspend fun setSurround360Enabled(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_SURROUND_360_ENABLED] = enabled }
+        context.dataStore.edit {
+            it[KEY_SURROUND_360_ENABLED] = enabled
+            if (enabled) it[KEY_PANORAMIC_360_ENABLED] = false
+        }
     }
 
     suspend fun setSurround360Intensity(intensity: Int) {
@@ -1791,6 +2164,225 @@ class SettingsManager(private val context: Context) {
                 AudioEffectSettings.SURROUND_360_ROTATION_MAX
             )
         }
+    }
+
+    suspend fun setPanoramic360Enabled(enabled: Boolean) {
+        context.dataStore.edit {
+            it[KEY_PANORAMIC_360_ENABLED] = enabled
+            if (enabled) it[KEY_SURROUND_360_ENABLED] = false
+        }
+    }
+
+    suspend fun setPanoramic360Intensity(intensity: Int) {
+        context.dataStore.edit {
+            it[KEY_PANORAMIC_360_INTENSITY] = intensity.coerceIn(
+                AudioEffectSettings.PANORAMIC_360_INTENSITY_MIN,
+                AudioEffectSettings.PANORAMIC_360_INTENSITY_MAX
+            )
+        }
+    }
+
+    suspend fun setPanoramic360AzimuthDegrees(degrees: Int) {
+        context.dataStore.edit {
+            it[KEY_PANORAMIC_360_AZIMUTH_DEGREES] = degrees.coerceIn(
+                AudioEffectSettings.PANORAMIC_360_AZIMUTH_MIN,
+                AudioEffectSettings.PANORAMIC_360_AZIMUTH_MAX
+            )
+        }
+    }
+
+    suspend fun setPanoramic360ElevationDegrees(degrees: Int) {
+        context.dataStore.edit {
+            it[KEY_PANORAMIC_360_ELEVATION_DEGREES] = degrees.coerceIn(
+                AudioEffectSettings.PANORAMIC_360_ELEVATION_MIN,
+                AudioEffectSettings.PANORAMIC_360_ELEVATION_MAX
+            )
+        }
+    }
+
+    suspend fun setLoudnessBalanceEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LOUDNESS_BALANCE_ENABLED] = enabled }
+    }
+
+    suspend fun setLoudnessPercent(percent: Int) {
+        context.dataStore.edit {
+            it[KEY_LOUDNESS_PERCENT] = percent.coerceIn(
+                AudioEffectSettings.LOUDNESS_PERCENT_MIN,
+                AudioEffectSettings.LOUDNESS_PERCENT_MAX
+            )
+        }
+    }
+
+    suspend fun setChannelBalance(balance: Int) {
+        context.dataStore.edit {
+            it[KEY_CHANNEL_BALANCE] = balance.coerceIn(
+                AudioEffectSettings.CHANNEL_BALANCE_MIN,
+                AudioEffectSettings.CHANNEL_BALANCE_MAX
+            )
+        }
+    }
+
+    suspend fun setCrossfeedEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_CROSSFEED_ENABLED] = enabled }
+    }
+
+    suspend fun setCrossfeedLowCutHz(hz: Int) {
+        context.dataStore.edit {
+            it[KEY_CROSSFEED_LOW_CUT_HZ] = hz.coerceIn(
+                AudioEffectSettings.CROSSFEED_LOW_CUT_MIN_HZ,
+                AudioEffectSettings.CROSSFEED_LOW_CUT_MAX_HZ
+            )
+        }
+    }
+
+    suspend fun setCrossfeedHighCutHz(hz: Int) {
+        context.dataStore.edit {
+            it[KEY_CROSSFEED_HIGH_CUT_HZ] = hz.coerceIn(
+                AudioEffectSettings.CROSSFEED_HIGH_CUT_MIN_HZ,
+                AudioEffectSettings.CROSSFEED_HIGH_CUT_MAX_HZ
+            )
+        }
+    }
+
+    suspend fun setCrossfeedAttenuationTenthsDb(tenthsDb: Int) {
+        context.dataStore.edit {
+            it[KEY_CROSSFEED_ATTENUATION_TENTHS_DB] = tenthsDb.coerceIn(
+                AudioEffectSettings.CROSSFEED_ATTENUATION_MIN_TENTHS_DB,
+                AudioEffectSettings.CROSSFEED_ATTENUATION_MAX_TENTHS_DB
+            )
+        }
+    }
+
+    suspend fun setMonoBassEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MONO_BASS_ENABLED] = enabled }
+    }
+
+    suspend fun setMonoBassCrossoverHz(hz: Int) {
+        context.dataStore.edit {
+            it[KEY_MONO_BASS_CROSSOVER_HZ] = hz.coerceIn(
+                AudioEffectSettings.MONO_BASS_CROSSOVER_MIN_HZ,
+                AudioEffectSettings.MONO_BASS_CROSSOVER_MAX_HZ
+            )
+        }
+    }
+
+    suspend fun setMonoBassAmount(amount: Int) {
+        context.dataStore.edit {
+            it[KEY_MONO_BASS_AMOUNT] = amount.coerceIn(
+                AudioEffectSettings.MONO_BASS_AMOUNT_MIN,
+                AudioEffectSettings.MONO_BASS_AMOUNT_MAX
+            )
+        }
+    }
+
+    suspend fun setSpeakerOutputEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SPEAKER_OUTPUT_ENABLED] = enabled }
+    }
+
+    suspend fun setSpeakerOutputMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_SPEAKER_OUTPUT_MODE] = mode.coerceIn(
+                AudioEffectSettings.SPEAKER_OUTPUT_MODE_ELASTICITY,
+                AudioEffectSettings.SPEAKER_OUTPUT_MODE_WIDE
+            )
+        }
+    }
+
+    suspend fun setSpeakerOutputStrength(strength: Int) {
+        context.dataStore.edit {
+            it[KEY_SPEAKER_OUTPUT_STRENGTH] = strength.coerceIn(
+                AudioEffectSettings.SPEAKER_OUTPUT_STRENGTH_MIN,
+                AudioEffectSettings.SPEAKER_OUTPUT_STRENGTH_MAX
+            )
+        }
+    }
+
+    suspend fun setDynamicEqEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_DYNAMIC_EQ_ENABLED] = enabled }
+    }
+
+    suspend fun setDynamicEqIntensity(intensity: Int) {
+        context.dataStore.edit {
+            it[KEY_DYNAMIC_EQ_INTENSITY] = intensity.coerceIn(
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MIN,
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MAX
+            )
+        }
+    }
+
+    suspend fun setDeEsserAmount(amount: Int) {
+        context.dataStore.edit {
+            it[KEY_DE_ESSER_AMOUNT] = amount.coerceIn(
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MIN,
+                AudioEffectSettings.DYNAMIC_EQ_PERCENT_MAX
+            )
+        }
+    }
+
+    suspend fun setDeEsserFrequencyHz(frequencyHz: Int) {
+        context.dataStore.edit {
+            it[KEY_DE_ESSER_FREQUENCY_HZ] = frequencyHz.coerceIn(
+                AudioEffectSettings.DE_ESSER_FREQUENCY_MIN_HZ,
+                AudioEffectSettings.DE_ESSER_FREQUENCY_MAX_HZ
+            )
+        }
+    }
+
+    suspend fun setMoogLadderEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MOOG_LADDER_ENABLED] = enabled }
+    }
+
+    suspend fun setMoogLadderMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_MOOG_LADDER_MODE] = mode.coerceIn(
+                AudioEffectSettings.MOOG_LADDER_MODE_LOW_PASS_24,
+                AudioEffectSettings.MOOG_LADDER_MODE_NOTCH
+            )
+        }
+    }
+
+    suspend fun setMoogLadderCutoffHz(cutoffHz: Int) {
+        context.dataStore.edit {
+            it[KEY_MOOG_LADDER_CUTOFF_HZ] = cutoffHz.coerceIn(
+                AudioEffectSettings.MOOG_LADDER_CUTOFF_MIN_HZ,
+                AudioEffectSettings.MOOG_LADDER_CUTOFF_MAX_HZ
+            )
+        }
+    }
+
+    suspend fun setMoogLadderResonance(resonance: Int) {
+        context.dataStore.edit {
+            it[KEY_MOOG_LADDER_RESONANCE] = resonance.coerceIn(
+                AudioEffectSettings.MOOG_LADDER_RESONANCE_MIN,
+                AudioEffectSettings.MOOG_LADDER_RESONANCE_MAX
+            )
+        }
+    }
+
+    suspend fun setMoogLadderDriveDb(driveDb: Int) {
+        context.dataStore.edit {
+            it[KEY_MOOG_LADDER_DRIVE_DB] = driveDb.coerceIn(
+                AudioEffectSettings.MOOG_LADDER_DRIVE_MIN_DB,
+                AudioEffectSettings.MOOG_LADDER_DRIVE_MAX_DB
+            )
+        }
+    }
+
+    suspend fun setMoogLadderMix(mix: Int) {
+        context.dataStore.edit {
+            it[KEY_MOOG_LADDER_MIX] = mix.coerceIn(
+                AudioEffectSettings.MOOG_LADDER_MIX_MIN,
+                AudioEffectSettings.MOOG_LADDER_MIX_MAX
+            )
+        }
+    }
+
+    suspend fun setPeakLimiterEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PEAK_LIMITER_ENABLED] = enabled }
+    }
+
+    suspend fun setPlatformSpatialAudioEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLATFORM_SPATIAL_AUDIO_ENABLED] = enabled }
     }
 
     suspend fun setUsbDacMode(enabled: Boolean) {
@@ -2880,6 +3472,15 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_EQ_ENABLED)
             setBoolean(KEY_COMP_ENABLED)
             setBoolean(KEY_SURROUND_360_ENABLED)
+            setBoolean(KEY_PANORAMIC_360_ENABLED)
+            setBoolean(KEY_LOUDNESS_BALANCE_ENABLED)
+            setBoolean(KEY_CROSSFEED_ENABLED)
+            setBoolean(KEY_MONO_BASS_ENABLED)
+            setBoolean(KEY_SPEAKER_OUTPUT_ENABLED)
+            setBoolean(KEY_DYNAMIC_EQ_ENABLED)
+            setBoolean(KEY_MOOG_LADDER_ENABLED)
+            setBoolean(KEY_PEAK_LIMITER_ENABLED)
+            setBoolean(KEY_PLATFORM_SPATIAL_AUDIO_ENABLED)
             setBoolean(KEY_BASS_BOOST_ENABLED)
             setBoolean(KEY_VIRTUALIZER_ENABLED)
             setBoolean(KEY_LYRIC_SHARE_USE_LYRIC_FONT)
@@ -2899,6 +3500,26 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_STEREO_WIDTH)
             setInt(KEY_SURROUND_360_INTENSITY)
             setInt(KEY_SURROUND_360_ROTATION_SPEED)
+            setInt(KEY_PANORAMIC_360_INTENSITY)
+            setInt(KEY_PANORAMIC_360_AZIMUTH_DEGREES)
+            setInt(KEY_PANORAMIC_360_ELEVATION_DEGREES)
+            setInt(KEY_LOUDNESS_PERCENT)
+            setInt(KEY_CHANNEL_BALANCE)
+            setInt(KEY_CROSSFEED_LOW_CUT_HZ)
+            setInt(KEY_CROSSFEED_HIGH_CUT_HZ)
+            setInt(KEY_CROSSFEED_ATTENUATION_TENTHS_DB)
+            setInt(KEY_MONO_BASS_CROSSOVER_HZ)
+            setInt(KEY_MONO_BASS_AMOUNT)
+            setInt(KEY_SPEAKER_OUTPUT_MODE)
+            setInt(KEY_SPEAKER_OUTPUT_STRENGTH)
+            setInt(KEY_DYNAMIC_EQ_INTENSITY)
+            setInt(KEY_DE_ESSER_AMOUNT)
+            setInt(KEY_DE_ESSER_FREQUENCY_HZ)
+            setInt(KEY_MOOG_LADDER_MODE)
+            setInt(KEY_MOOG_LADDER_CUTOFF_HZ)
+            setInt(KEY_MOOG_LADDER_RESONANCE)
+            setInt(KEY_MOOG_LADDER_DRIVE_DB)
+            setInt(KEY_MOOG_LADDER_MIX)
             setInt(KEY_BASS_BOOST_STRENGTH)
             setInt(KEY_VIRTUALIZER_STRENGTH)
             setInt(KEY_REVERB_PRESET)

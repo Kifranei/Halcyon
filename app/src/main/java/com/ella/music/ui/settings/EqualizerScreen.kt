@@ -79,6 +79,38 @@ fun EqualizerScreen(
     val surround360Enabled by settingsManager.surround360Enabled.collectAsState(initial = false)
     val surround360Intensity by settingsManager.surround360Intensity.collectAsState(initial = 50)
     val surround360RotationSpeed by settingsManager.surround360RotationSpeed.collectAsState(initial = 30)
+    val panoramic360Enabled by settingsManager.panoramic360Enabled.collectAsState(initial = false)
+    val panoramic360Intensity by settingsManager.panoramic360Intensity.collectAsState(initial = 50)
+    val panoramic360AzimuthDegrees by settingsManager.panoramic360AzimuthDegrees.collectAsState(initial = 0)
+    val panoramic360ElevationDegrees by settingsManager.panoramic360ElevationDegrees.collectAsState(initial = 0)
+    val loudnessBalanceEnabled by settingsManager.loudnessBalanceEnabled.collectAsState(initial = false)
+    val loudnessPercent by settingsManager.loudnessPercent.collectAsState(initial = 35)
+    val channelBalance by settingsManager.channelBalance.collectAsState(initial = 0)
+    val crossfeedEnabled by settingsManager.crossfeedEnabled.collectAsState(initial = false)
+    val crossfeedLowCutHz by settingsManager.crossfeedLowCutHz.collectAsState(initial = 300)
+    val crossfeedHighCutHz by settingsManager.crossfeedHighCutHz.collectAsState(initial = 2_000)
+    val crossfeedAttenuationTenthsDb by settingsManager.crossfeedAttenuationTenthsDb.collectAsState(initial = 60)
+    val monoBassEnabled by settingsManager.monoBassEnabled.collectAsState(initial = false)
+    val monoBassCrossoverHz by settingsManager.monoBassCrossoverHz.collectAsState(initial = 120)
+    val monoBassAmount by settingsManager.monoBassAmount.collectAsState(initial = 100)
+    val speakerOutputEnabled by settingsManager.speakerOutputEnabled.collectAsState(initial = false)
+    val speakerOutputMode by settingsManager.speakerOutputMode.collectAsState(initial = AudioEffectSettings.SPEAKER_OUTPUT_MODE_ELASTICITY)
+    val speakerOutputStrength by settingsManager.speakerOutputStrength.collectAsState(initial = 82)
+    val dynamicEqEnabled by settingsManager.dynamicEqEnabled.collectAsState(initial = false)
+    val dynamicEqIntensity by settingsManager.dynamicEqIntensity.collectAsState(initial = 50)
+    val deEsserAmount by settingsManager.deEsserAmount.collectAsState(initial = 45)
+    val deEsserFrequencyHz by settingsManager.deEsserFrequencyHz.collectAsState(initial = 6_500)
+    val moogLadderEnabled by settingsManager.moogLadderEnabled.collectAsState(initial = false)
+    val moogLadderMode by settingsManager.moogLadderMode.collectAsState(initial = AudioEffectSettings.MOOG_LADDER_MODE_LOW_PASS_24)
+    val moogLadderCutoffHz by settingsManager.moogLadderCutoffHz.collectAsState(initial = 12_000)
+    val moogLadderResonance by settingsManager.moogLadderResonance.collectAsState(initial = 20)
+    val moogLadderDriveDb by settingsManager.moogLadderDriveDb.collectAsState(initial = 0)
+    val moogLadderMix by settingsManager.moogLadderMix.collectAsState(initial = 100)
+    val peakLimiterEnabled by settingsManager.peakLimiterEnabled.collectAsState(initial = true)
+    val platformSpatialRequested by settingsManager.platformSpatialAudioEnabled.collectAsState(initial = false)
+    val platformSpatialSnapshot = remember(platformSpatialRequested, surround360Enabled, panoramic360Enabled) {
+        com.ella.music.player.AndroidSpatialAudio.snapshot(context)
+    }
     val reverbPreset by settingsManager.reverbPreset.collectAsState(initial = AudioEffectSettings.REVERB_PRESET_OFF)
 
     val accent = MiuixTheme.colorScheme.primary
@@ -299,6 +331,117 @@ fun EqualizerScreen(
                     }
                 }
 
+                SmallTitle(text = stringResource(R.string.equalizer_section_dynamic_eq))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_dynamic_eq_enable),
+                            summary = stringResource(R.string.equalizer_dynamic_eq_summary),
+                            checked = dynamicEqEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setDynamicEqEnabled(it) } }
+                        )
+                        if (dynamicEqEnabled) {
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_dynamic_eq_intensity),
+                                valueText = "$dynamicEqIntensity%",
+                                value = dynamicEqIntensity,
+                                range = AudioEffectSettings.DYNAMIC_EQ_PERCENT_MIN..AudioEffectSettings.DYNAMIC_EQ_PERCENT_MAX,
+                                onChange = { scope.launch { settingsManager.setDynamicEqIntensity(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_deesser_amount),
+                                valueText = "$deEsserAmount%",
+                                value = deEsserAmount,
+                                range = AudioEffectSettings.DYNAMIC_EQ_PERCENT_MIN..AudioEffectSettings.DYNAMIC_EQ_PERCENT_MAX,
+                                onChange = { scope.launch { settingsManager.setDeEsserAmount(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_deesser_frequency),
+                                valueText = "$deEsserFrequencyHz Hz",
+                                value = deEsserFrequencyHz,
+                                range = AudioEffectSettings.DE_ESSER_FREQUENCY_MIN_HZ..AudioEffectSettings.DE_ESSER_FREQUENCY_MAX_HZ,
+                                onChange = { scope.launch { settingsManager.setDeEsserFrequencyHz(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setDynamicEqEnabled(false)
+                        settingsManager.setDynamicEqIntensity(50)
+                        settingsManager.setDeEsserAmount(45)
+                        settingsManager.setDeEsserFrequencyHz(6_500)
+                    }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_moog_ladder))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_moog_ladder_enable),
+                            summary = stringResource(R.string.equalizer_moog_ladder_summary),
+                            checked = moogLadderEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setMoogLadderEnabled(it) } }
+                        )
+                        if (moogLadderEnabled) {
+                            WindowSpinnerPreference(
+                                title = stringResource(R.string.equalizer_moog_ladder_mode),
+                                items = moogLadderModeEntries(),
+                                selectedIndex = moogLadderMode,
+                                onSelectedIndexChange = { scope.launch { settingsManager.setMoogLadderMode(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_moog_ladder_cutoff),
+                                valueText = "$moogLadderCutoffHz Hz",
+                                value = moogLadderCutoffHz,
+                                range = AudioEffectSettings.MOOG_LADDER_CUTOFF_MIN_HZ..AudioEffectSettings.MOOG_LADDER_CUTOFF_MAX_HZ,
+                                onChange = { scope.launch { settingsManager.setMoogLadderCutoffHz(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_moog_ladder_resonance),
+                                valueText = "$moogLadderResonance%",
+                                value = moogLadderResonance,
+                                range = AudioEffectSettings.MOOG_LADDER_RESONANCE_MIN..AudioEffectSettings.MOOG_LADDER_RESONANCE_MAX,
+                                onChange = { scope.launch { settingsManager.setMoogLadderResonance(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_moog_ladder_drive),
+                                valueText = "$moogLadderDriveDb dB",
+                                value = moogLadderDriveDb,
+                                range = AudioEffectSettings.MOOG_LADDER_DRIVE_MIN_DB..AudioEffectSettings.MOOG_LADDER_DRIVE_MAX_DB,
+                                onChange = { scope.launch { settingsManager.setMoogLadderDriveDb(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_moog_ladder_mix),
+                                valueText = "$moogLadderMix%",
+                                value = moogLadderMix,
+                                range = AudioEffectSettings.MOOG_LADDER_MIX_MIN..AudioEffectSettings.MOOG_LADDER_MIX_MAX,
+                                onChange = { scope.launch { settingsManager.setMoogLadderMix(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setMoogLadderEnabled(false)
+                        settingsManager.setMoogLadderMode(AudioEffectSettings.MOOG_LADDER_MODE_LOW_PASS_24)
+                        settingsManager.setMoogLadderCutoffHz(12_000)
+                        settingsManager.setMoogLadderResonance(20)
+                        settingsManager.setMoogLadderDriveDb(0)
+                        settingsManager.setMoogLadderMix(100)
+                    }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_peak_limiter))
+                SettingsCardGroup {
+                    SwitchPreference(
+                        title = stringResource(R.string.equalizer_peak_limiter_enable),
+                        summary = stringResource(R.string.equalizer_peak_limiter_summary),
+                        checked = peakLimiterEnabled,
+                        onCheckedChange = { scope.launch { settingsManager.setPeakLimiterEnabled(it) } }
+                    )
+                }
+
                 SmallTitle(text = stringResource(R.string.equalizer_section_stereo))
                 SettingsCardGroup {
                     EqControlSlider(
@@ -345,6 +488,211 @@ fun EqualizerScreen(
                         settingsManager.setSurround360Enabled(false)
                         settingsManager.setSurround360Intensity(50)
                         settingsManager.setSurround360RotationSpeed(30)
+                    }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_panoramic_360))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_panoramic_360_enable),
+                            summary = stringResource(R.string.equalizer_panoramic_360_summary),
+                            checked = panoramic360Enabled,
+                            onCheckedChange = { scope.launch { settingsManager.setPanoramic360Enabled(it) } }
+                        )
+                        if (panoramic360Enabled) {
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_panoramic_360_intensity),
+                                valueText = "$panoramic360Intensity%",
+                                value = panoramic360Intensity,
+                                range = AudioEffectSettings.PANORAMIC_360_INTENSITY_MIN..AudioEffectSettings.PANORAMIC_360_INTENSITY_MAX,
+                                onChange = { scope.launch { settingsManager.setPanoramic360Intensity(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_panoramic_360_azimuth),
+                                valueText = "$panoramic360AzimuthDegrees deg",
+                                value = panoramic360AzimuthDegrees,
+                                range = AudioEffectSettings.PANORAMIC_360_AZIMUTH_MIN..AudioEffectSettings.PANORAMIC_360_AZIMUTH_MAX,
+                                onChange = { scope.launch { settingsManager.setPanoramic360AzimuthDegrees(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_panoramic_360_elevation),
+                                valueText = "$panoramic360ElevationDegrees deg",
+                                value = panoramic360ElevationDegrees,
+                                range = AudioEffectSettings.PANORAMIC_360_ELEVATION_MIN..AudioEffectSettings.PANORAMIC_360_ELEVATION_MAX,
+                                onChange = { scope.launch { settingsManager.setPanoramic360ElevationDegrees(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setPanoramic360Enabled(false)
+                        settingsManager.setPanoramic360Intensity(50)
+                        settingsManager.setPanoramic360AzimuthDegrees(0)
+                        settingsManager.setPanoramic360ElevationDegrees(0)
+                    }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_platform_spatial))
+                SettingsCardGroup {
+                    SwitchPreference(
+                        title = stringResource(R.string.equalizer_platform_spatial_enable),
+                        summary = when {
+                            surround360Enabled || panoramic360Enabled -> stringResource(R.string.equalizer_platform_spatial_custom_active)
+                            platformSpatialSnapshot.usable -> stringResource(R.string.equalizer_platform_spatial_available)
+                            else -> stringResource(R.string.equalizer_platform_spatial_unavailable)
+                        },
+                        checked = platformSpatialRequested,
+                        enabled = !surround360Enabled && !panoramic360Enabled && platformSpatialSnapshot.apiSupported,
+                        onCheckedChange = { scope.launch { settingsManager.setPlatformSpatialAudioEnabled(it) } }
+                    )
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_loudness))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_loudness_enable),
+                            summary = stringResource(R.string.equalizer_loudness_summary),
+                            checked = loudnessBalanceEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setLoudnessBalanceEnabled(it) } }
+                        )
+                        if (loudnessBalanceEnabled) {
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_loudness_amount),
+                                valueText = "$loudnessPercent%",
+                                value = loudnessPercent,
+                                range = AudioEffectSettings.LOUDNESS_PERCENT_MIN..AudioEffectSettings.LOUDNESS_PERCENT_MAX,
+                                onChange = { scope.launch { settingsManager.setLoudnessPercent(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_channel_balance),
+                                valueText = channelBalanceLabel(channelBalance),
+                                value = channelBalance,
+                                range = AudioEffectSettings.CHANNEL_BALANCE_MIN..AudioEffectSettings.CHANNEL_BALANCE_MAX,
+                                onChange = { scope.launch { settingsManager.setChannelBalance(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setLoudnessBalanceEnabled(false)
+                        settingsManager.setLoudnessPercent(35)
+                        settingsManager.setChannelBalance(0)
+                    }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_crossfeed))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_crossfeed_enable),
+                            summary = stringResource(R.string.equalizer_crossfeed_summary),
+                            checked = crossfeedEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setCrossfeedEnabled(it) } }
+                        )
+                        if (crossfeedEnabled) {
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_crossfeed_low_cut),
+                                valueText = "$crossfeedLowCutHz Hz",
+                                value = crossfeedLowCutHz,
+                                range = AudioEffectSettings.CROSSFEED_LOW_CUT_MIN_HZ..AudioEffectSettings.CROSSFEED_LOW_CUT_MAX_HZ,
+                                onChange = { scope.launch { settingsManager.setCrossfeedLowCutHz(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_crossfeed_high_cut),
+                                valueText = "$crossfeedHighCutHz Hz",
+                                value = crossfeedHighCutHz,
+                                range = AudioEffectSettings.CROSSFEED_HIGH_CUT_MIN_HZ..AudioEffectSettings.CROSSFEED_HIGH_CUT_MAX_HZ,
+                                onChange = { scope.launch { settingsManager.setCrossfeedHighCutHz(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_crossfeed_attenuation),
+                                valueText = String.format(Locale.ROOT, "%.1f dB", crossfeedAttenuationTenthsDb / 10f),
+                                value = crossfeedAttenuationTenthsDb,
+                                range = AudioEffectSettings.CROSSFEED_ATTENUATION_MIN_TENTHS_DB..AudioEffectSettings.CROSSFEED_ATTENUATION_MAX_TENTHS_DB,
+                                onChange = { scope.launch { settingsManager.setCrossfeedAttenuationTenthsDb(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setCrossfeedEnabled(false)
+                        settingsManager.setCrossfeedLowCutHz(300)
+                        settingsManager.setCrossfeedHighCutHz(2_000)
+                        settingsManager.setCrossfeedAttenuationTenthsDb(60)
+                    }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_mono_bass))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_mono_bass_enable),
+                            summary = stringResource(R.string.equalizer_mono_bass_summary),
+                            checked = monoBassEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setMonoBassEnabled(it) } }
+                        )
+                        if (monoBassEnabled) {
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_mono_bass_crossover),
+                                valueText = "$monoBassCrossoverHz Hz",
+                                value = monoBassCrossoverHz,
+                                range = AudioEffectSettings.MONO_BASS_CROSSOVER_MIN_HZ..AudioEffectSettings.MONO_BASS_CROSSOVER_MAX_HZ,
+                                onChange = { scope.launch { settingsManager.setMonoBassCrossoverHz(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_mono_bass_amount),
+                                valueText = "$monoBassAmount%",
+                                value = monoBassAmount,
+                                range = AudioEffectSettings.MONO_BASS_AMOUNT_MIN..AudioEffectSettings.MONO_BASS_AMOUNT_MAX,
+                                onChange = { scope.launch { settingsManager.setMonoBassAmount(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setMonoBassEnabled(false)
+                        settingsManager.setMonoBassCrossoverHz(120)
+                        settingsManager.setMonoBassAmount(100)
+                    }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_speaker))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_speaker_enable),
+                            summary = stringResource(R.string.equalizer_speaker_summary),
+                            checked = speakerOutputEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setSpeakerOutputEnabled(it) } }
+                        )
+                        if (speakerOutputEnabled) {
+                            WindowSpinnerPreference(
+                                title = stringResource(R.string.equalizer_speaker_mode),
+                                items = speakerOutputModeEntries(),
+                                selectedIndex = speakerOutputMode,
+                                onSelectedIndexChange = { scope.launch { settingsManager.setSpeakerOutputMode(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_speaker_strength),
+                                valueText = "$speakerOutputStrength%",
+                                value = speakerOutputStrength,
+                                range = AudioEffectSettings.SPEAKER_OUTPUT_STRENGTH_MIN..AudioEffectSettings.SPEAKER_OUTPUT_STRENGTH_MAX,
+                                onChange = { scope.launch { settingsManager.setSpeakerOutputStrength(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setSpeakerOutputEnabled(false)
+                        settingsManager.setSpeakerOutputMode(AudioEffectSettings.SPEAKER_OUTPUT_MODE_ELASTICITY)
+                        settingsManager.setSpeakerOutputStrength(82)
                     }
                 }
 
@@ -488,6 +836,29 @@ private fun reverbPresetEntries(): List<Pair<Int, String>> = listOf(
 )
 
 private fun formatGainDbInt(db: Int): String = if (db > 0) "+$db dB" else "$db dB"
+
+@Composable
+private fun channelBalanceLabel(balance: Int): String = when {
+    balance < 0 -> stringResource(R.string.equalizer_channel_balance_left, -balance)
+    balance > 0 -> stringResource(R.string.equalizer_channel_balance_right, balance)
+    else -> stringResource(R.string.equalizer_channel_balance_center)
+}
+
+@Composable
+private fun speakerOutputModeEntries(): List<DropdownItem> = listOf(
+    DropdownItem(title = stringResource(R.string.equalizer_speaker_mode_elasticity)),
+    DropdownItem(title = stringResource(R.string.equalizer_speaker_mode_powerful)),
+    DropdownItem(title = stringResource(R.string.equalizer_speaker_mode_wide))
+)
+
+@Composable
+private fun moogLadderModeEntries(): List<DropdownItem> = listOf(
+    DropdownItem(title = stringResource(R.string.equalizer_moog_ladder_mode_low_pass_24)),
+    DropdownItem(title = stringResource(R.string.equalizer_moog_ladder_mode_low_pass_12)),
+    DropdownItem(title = stringResource(R.string.equalizer_moog_ladder_mode_high_pass_24)),
+    DropdownItem(title = stringResource(R.string.equalizer_moog_ladder_mode_band_pass_12)),
+    DropdownItem(title = stringResource(R.string.equalizer_moog_ladder_mode_notch))
+)
 
 private fun List<Int>.toDisplayBandLevels(caps: com.ella.music.player.EqualizerCapabilities): List<Int> {
     if (size == caps.displayBandCount) return this

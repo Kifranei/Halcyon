@@ -291,10 +291,18 @@ class PlaybackService : MediaLibraryService() {
             "Audio output backend=${playbackOutputSettings.backend}, bitDepth=${playbackOutputSettings.bitDepth}, sampleRate=${playbackOutputSettings.sampleRate}"
         )
 
-        val mediaAudioAttributes = AudioAttributes.Builder()
-            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-            .setUsage(C.USAGE_MEDIA)
-            .build()
+        var customSurroundEnabled = runBlocking(Dispatchers.IO) {
+            settingsManager.audioEffectSettings.first().let { it.surround360Enabled || it.panoramic360Enabled }
+        }
+        var platformSpatialRequested = runBlocking(Dispatchers.IO) {
+            settingsManager.platformSpatialAudioEnabled.first()
+        }
+        fun resolvedAudioAttributes(): AudioAttributes = AndroidSpatialAudio.mediaAttributes(
+            context = this,
+            platformRequested = platformSpatialRequested,
+            customSpatialRenderer = customSurroundEnabled
+        )
+        var mediaAudioAttributes = resolvedAudioAttributes()
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(mediaAudioAttributes, handleAudioFocus)
             .setHandleAudioBecomingNoisy(true)
@@ -339,7 +347,20 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         serviceScope.launch {
-            settingsManager.audioEffectSettings.collect { settings ->
+            combine(
+                settingsManager.audioEffectSettings,
+                settingsManager.platformSpatialAudioEnabled
+            ) { settings, platformSpatial -> settings to platformSpatial }.collect { (settings, platformSpatial) ->
+                val customSpatialEnabled = settings.surround360Enabled || settings.panoramic360Enabled
+                val attributesNeedUpdate = customSurroundEnabled != customSpatialEnabled ||
+                    platformSpatialRequested != platformSpatial
+                customSurroundEnabled = customSpatialEnabled
+                platformSpatialRequested = platformSpatial
+                if (attributesNeedUpdate) {
+                    mediaAudioAttributes = resolvedAudioAttributes()
+                    player.setAudioAttributes(mediaAudioAttributes, handleAudioFocus)
+                    crossfadePlaybackCoordinator?.setAudioAttributes(mediaAudioAttributes)
+                }
                 audioEffectController.apply(settings)
                 equalizerAudioProcessor.setSettings(
                     EqualizerSettings(
@@ -358,7 +379,35 @@ class PlaybackService : MediaLibraryService() {
                         reverbPreset = settings.reverbPreset,
                         surround360Enabled = settings.surround360Enabled,
                         surround360Intensity = settings.surround360Intensity.toFloat(),
-                        surround360RotationSpeed = settings.surround360RotationSpeed.toFloat()
+                        surround360RotationSpeed = settings.surround360RotationSpeed.toFloat(),
+                        panoramic360Enabled = settings.panoramic360Enabled,
+                        panoramic360Intensity = settings.panoramic360Intensity.toFloat(),
+                        panoramic360AzimuthDegrees = settings.panoramic360AzimuthDegrees.toFloat(),
+                        panoramic360ElevationDegrees = settings.panoramic360ElevationDegrees.toFloat(),
+                        loudnessBalanceEnabled = settings.loudnessBalanceEnabled,
+                        loudnessPercent = settings.loudnessPercent.toFloat(),
+                        channelBalance = settings.channelBalance.toFloat(),
+                        crossfeedEnabled = settings.crossfeedEnabled,
+                        crossfeedLowCutHz = settings.crossfeedLowCutHz.toFloat(),
+                        crossfeedHighCutHz = settings.crossfeedHighCutHz.toFloat(),
+                        crossfeedAttenuationDb = settings.crossfeedAttenuationDbTenths / 10f,
+                        monoBassEnabled = settings.monoBassEnabled,
+                        monoBassCrossoverHz = settings.monoBassCrossoverHz.toFloat(),
+                        monoBassAmount = settings.monoBassAmount.toFloat(),
+                        speakerOutputEnabled = settings.speakerOutputEnabled,
+                        speakerOutputMode = settings.speakerOutputMode,
+                        speakerOutputStrength = settings.speakerOutputStrength.toFloat(),
+                        dynamicEqEnabled = settings.dynamicEqEnabled,
+                        dynamicEqIntensity = settings.dynamicEqIntensity.toFloat(),
+                        deEsserAmount = settings.deEsserAmount.toFloat(),
+                        deEsserFrequencyHz = settings.deEsserFrequencyHz.toFloat(),
+                        moogLadderEnabled = settings.moogLadderEnabled,
+                        moogLadderMode = settings.moogLadderMode,
+                        moogLadderCutoffHz = settings.moogLadderCutoffHz.toFloat(),
+                        moogLadderResonance = settings.moogLadderResonance.toFloat(),
+                        moogLadderDriveDb = settings.moogLadderDriveDb.toFloat(),
+                        moogLadderMix = settings.moogLadderMix.toFloat(),
+                        peakLimiterEnabled = settings.peakLimiterEnabled
                     )
                 )
             }

@@ -190,19 +190,11 @@ internal fun SongMoreTagActionSheets(
     }
 
     lyricTimingEditorSong?.let { song ->
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = stringResource(R.string.song_more_lyric_timing),
-            onDismissRequest = { onLyricTimingEditorSongChange(null) }
-        ) {
-            LyricTimingEditorSheet(
-                song = song,
-                mainViewModel = mainViewModel,
-                playerViewModel = playerViewModel,
-                onDismiss = { onLyricTimingEditorSongChange(null) },
-                onWritePermissionRequired = onWritePermissionRequired
-            )
+        // The timing workflow has dense word cells and fixed transport controls, so it lives in
+        // a dedicated full-screen activity rather than a gesture-dismissable bottom sheet.
+        LaunchedEffect(song.id, song.path) {
+            context.startActivity(LyricTimingEditorLauncher.createIntent(context, song))
+            onLyricTimingEditorSongChange(null)
         }
     }
 }

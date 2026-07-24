@@ -92,6 +92,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".LyricTimingEditorActivity"
+            android:exported="false"
+            android:enableOnBackInvokedCallback="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Ella" />
+
         <activity-alias
             android:name="com.ella.music.DefaultLauncherAlias"
             android:enabled="true"

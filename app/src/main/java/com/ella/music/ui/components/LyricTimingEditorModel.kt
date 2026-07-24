@@ -59,8 +59,10 @@ internal fun String.toLyricTimingLines(existing: List<LyricTimingLine>): List<Ly
         .toList()
     // The free-form text area represents primary vocals only. Keep independent x-bg paragraphs
     // that arrived from an existing TTML/ELRC file, even though they have no primary text row.
-    return (editedPrimaryLines + existing.filter { it.text.isBlank() && !it.backgroundText.isNullOrBlank() })
-        .sortedBy { it.timeMs ?: Long.MAX_VALUE }
+    // Keep the text-editor order while timing. Sorting here used to reshuffle unfinished lines
+    // after each tap, which made sequential line and word timing unreliable. Exporters sort only
+    // when they need chronological output.
+    return editedPrimaryLines + existing.filter { it.text.isBlank() && !it.backgroundText.isNullOrBlank() }
 }
 
 internal fun List<LyricTimingLine>.toEmbeddedLrc(): String =
@@ -218,4 +220,52 @@ internal fun Long.toTimingDisplay(): String {
     val seconds = (milliseconds % 60_000L) / 1_000L
     val fraction = (milliseconds % 1_000L) / 10L
     return "%02d:%02d.%02d".format(minutes, seconds, fraction)
+}
+
+/** Creates editable word cells while retaining spaces in the serialized TTML text. */
+internal fun LyricTimingLine.withGeneratedWords(startMs: Long, endMs: Long): LyricTimingLine {
+    if (words.isNotEmpty() || text.isBlank()) return this
+    val tokens = text.timingTokens()
+    if (tokens.isEmpty()) return this
+    val safeStart = startMs.coerceAtLeast(0L)
+    val safeEnd = endMs.coerceAtLeast(safeStart + tokens.size)
+    val span = (safeEnd - safeStart).toDouble() / tokens.size
+    return copy(
+        words = tokens.mapIndexed { index, token ->
+            val wordStart = (safeStart + span * index).toLong()
+            val wordEnd = if (index == tokens.lastIndex) safeEnd else (safeStart + span * (index + 1)).toLong()
+            LyricWord(token, wordStart, wordEnd.coerceAtLeast(wordStart + 1L))
+        }
+    )
+}
+
+private fun String.timingTokens(): List<String> {
+    val tokens = mutableListOf<String>()
+    val buffer = StringBuilder()
+    fun flush() {
+        if (buffer.isNotEmpty()) {
+            tokens += buffer.toString()
+            buffer.clear()
+        }
+    }
+    for (char in this) {
+        when {
+            char.isWhitespace() -> {
+                buffer.append(char)
+                flush()
+            }
+            Character.UnicodeScript.of(char.code) in setOf(
+                Character.UnicodeScript.HAN,
+                Character.UnicodeScript.HIRAGANA,
+                Character.UnicodeScript.KATAKANA,
+                Character.UnicodeScript.HANGUL
+            ) -> {
+                flush()
+                tokens += char.toString()
+            }
+            else -> buffer.append(char)
+        }
+    }
+    flush()
+    return tokens
 }

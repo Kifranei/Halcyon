@@ -4,8 +4,16 @@ import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import com.ella.music.dsp.Compressor
+import com.ella.music.dsp.Crossfeed
+import com.ella.music.dsp.DynamicEq
+import com.ella.music.dsp.LoudnessBalance
+import com.ella.music.dsp.MonoBass
+import com.ella.music.dsp.MoogLadderFilter
+import com.ella.music.dsp.Panoramic360
+import com.ella.music.dsp.PeakLimiter
 import com.ella.music.dsp.Reverb
 import com.ella.music.dsp.ShelfEqualizer
+import com.ella.music.dsp.SpeakerOutput
 import com.ella.music.dsp.StereoWidener
 import com.ella.music.dsp.Surround360
 import com.ella.music.dsp.TenBandEqualizer
@@ -33,7 +41,35 @@ data class EqualizerSettings(
     val reverbPreset: Int = 0,
     val surround360Enabled: Boolean = false,
     val surround360Intensity: Float = 50f,
-    val surround360RotationSpeed: Float = 30f
+    val surround360RotationSpeed: Float = 30f,
+    val panoramic360Enabled: Boolean = false,
+    val panoramic360Intensity: Float = 50f,
+    val panoramic360AzimuthDegrees: Float = 0f,
+    val panoramic360ElevationDegrees: Float = 0f,
+    val loudnessBalanceEnabled: Boolean = false,
+    val loudnessPercent: Float = 35f,
+    val channelBalance: Float = 0f,
+    val crossfeedEnabled: Boolean = false,
+    val crossfeedLowCutHz: Float = 300f,
+    val crossfeedHighCutHz: Float = 2_000f,
+    val crossfeedAttenuationDb: Float = 6f,
+    val monoBassEnabled: Boolean = false,
+    val monoBassCrossoverHz: Float = 120f,
+    val monoBassAmount: Float = 100f,
+    val speakerOutputEnabled: Boolean = false,
+    val speakerOutputMode: Int = 0,
+    val speakerOutputStrength: Float = 82f,
+    val dynamicEqEnabled: Boolean = false,
+    val dynamicEqIntensity: Float = 50f,
+    val deEsserAmount: Float = 45f,
+    val deEsserFrequencyHz: Float = 6_500f,
+    val moogLadderEnabled: Boolean = false,
+    val moogLadderMode: Int = 0,
+    val moogLadderCutoffHz: Float = 12_000f,
+    val moogLadderResonance: Float = 20f,
+    val moogLadderDriveDb: Float = 0f,
+    val moogLadderMix: Float = 100f,
+    val peakLimiterEnabled: Boolean = true
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -51,7 +87,35 @@ data class EqualizerSettings(
             reverbPreset == other.reverbPreset &&
             surround360Enabled == other.surround360Enabled &&
             surround360Intensity == other.surround360Intensity &&
-            surround360RotationSpeed == other.surround360RotationSpeed
+            surround360RotationSpeed == other.surround360RotationSpeed &&
+            panoramic360Enabled == other.panoramic360Enabled &&
+            panoramic360Intensity == other.panoramic360Intensity &&
+            panoramic360AzimuthDegrees == other.panoramic360AzimuthDegrees &&
+            panoramic360ElevationDegrees == other.panoramic360ElevationDegrees &&
+            loudnessBalanceEnabled == other.loudnessBalanceEnabled &&
+            loudnessPercent == other.loudnessPercent &&
+            channelBalance == other.channelBalance &&
+            crossfeedEnabled == other.crossfeedEnabled &&
+            crossfeedLowCutHz == other.crossfeedLowCutHz &&
+            crossfeedHighCutHz == other.crossfeedHighCutHz &&
+            crossfeedAttenuationDb == other.crossfeedAttenuationDb &&
+            monoBassEnabled == other.monoBassEnabled &&
+            monoBassCrossoverHz == other.monoBassCrossoverHz &&
+            monoBassAmount == other.monoBassAmount &&
+            speakerOutputEnabled == other.speakerOutputEnabled &&
+            speakerOutputMode == other.speakerOutputMode &&
+            speakerOutputStrength == other.speakerOutputStrength &&
+            dynamicEqEnabled == other.dynamicEqEnabled &&
+            dynamicEqIntensity == other.dynamicEqIntensity &&
+            deEsserAmount == other.deEsserAmount &&
+            deEsserFrequencyHz == other.deEsserFrequencyHz &&
+            moogLadderEnabled == other.moogLadderEnabled &&
+            moogLadderMode == other.moogLadderMode &&
+            moogLadderCutoffHz == other.moogLadderCutoffHz &&
+            moogLadderResonance == other.moogLadderResonance &&
+            moogLadderDriveDb == other.moogLadderDriveDb &&
+            moogLadderMix == other.moogLadderMix &&
+            peakLimiterEnabled == other.peakLimiterEnabled
     }
 
     override fun hashCode(): Int {
@@ -69,6 +133,34 @@ data class EqualizerSettings(
         result = 31 * result + surround360Enabled.hashCode()
         result = 31 * result + surround360Intensity.hashCode()
         result = 31 * result + surround360RotationSpeed.hashCode()
+        result = 31 * result + panoramic360Enabled.hashCode()
+        result = 31 * result + panoramic360Intensity.hashCode()
+        result = 31 * result + panoramic360AzimuthDegrees.hashCode()
+        result = 31 * result + panoramic360ElevationDegrees.hashCode()
+        result = 31 * result + loudnessBalanceEnabled.hashCode()
+        result = 31 * result + loudnessPercent.hashCode()
+        result = 31 * result + channelBalance.hashCode()
+        result = 31 * result + crossfeedEnabled.hashCode()
+        result = 31 * result + crossfeedLowCutHz.hashCode()
+        result = 31 * result + crossfeedHighCutHz.hashCode()
+        result = 31 * result + crossfeedAttenuationDb.hashCode()
+        result = 31 * result + monoBassEnabled.hashCode()
+        result = 31 * result + monoBassCrossoverHz.hashCode()
+        result = 31 * result + monoBassAmount.hashCode()
+        result = 31 * result + speakerOutputEnabled.hashCode()
+        result = 31 * result + speakerOutputMode
+        result = 31 * result + speakerOutputStrength.hashCode()
+        result = 31 * result + dynamicEqEnabled.hashCode()
+        result = 31 * result + dynamicEqIntensity.hashCode()
+        result = 31 * result + deEsserAmount.hashCode()
+        result = 31 * result + deEsserFrequencyHz.hashCode()
+        result = 31 * result + moogLadderEnabled.hashCode()
+        result = 31 * result + moogLadderMode
+        result = 31 * result + moogLadderCutoffHz.hashCode()
+        result = 31 * result + moogLadderResonance.hashCode()
+        result = 31 * result + moogLadderDriveDb.hashCode()
+        result = 31 * result + moogLadderMix.hashCode()
+        result = 31 * result + peakLimiterEnabled.hashCode()
         return result
     }
 
@@ -96,6 +188,14 @@ class EqualizerAudioProcessor : AudioProcessor {
     private val stereoWidener = StereoWidener()
     private var reverb: Reverb? = null
     private var surround360: Surround360? = null
+    private var panoramic360: Panoramic360? = null
+    private var loudnessBalance: LoudnessBalance? = null
+    private var crossfeed: Crossfeed? = null
+    private var monoBass: MonoBass? = null
+    private var speakerOutput: SpeakerOutput? = null
+    private var dynamicEq: DynamicEq? = null
+    private var moogLadder: MoogLadderFilter? = null
+    private var peakLimiter: PeakLimiter? = null
 
     private var outputBuffer: ByteBuffer = EMPTY_BUFFER
     private var inputEnded = false
@@ -129,6 +229,14 @@ class EqualizerAudioProcessor : AudioProcessor {
         compressor = Compressor(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
         reverb = Reverb(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
         surround360 = Surround360(inputAudioFormat.sampleRate)
+        panoramic360 = Panoramic360(inputAudioFormat.sampleRate)
+        loudnessBalance = LoudnessBalance(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
+        crossfeed = Crossfeed(inputAudioFormat.sampleRate)
+        monoBass = MonoBass(inputAudioFormat.sampleRate)
+        speakerOutput = SpeakerOutput(inputAudioFormat.sampleRate)
+        dynamicEq = DynamicEq(inputAudioFormat.sampleRate)
+        moogLadder = MoogLadderFilter(inputAudioFormat.sampleRate)
+        peakLimiter = PeakLimiter(inputAudioFormat.sampleRate)
         applySettings(force = true)
         return outputAudioFormat
     }
@@ -165,10 +273,24 @@ class EqualizerAudioProcessor : AudioProcessor {
 
         eq.process(tempFloatBuffer, frames)
         shelf?.process(tempFloatBuffer, frames)
+        loudnessBalance?.process(tempFloatBuffer, frames)
+        monoBass?.process(tempFloatBuffer, frames, channels)
+        dynamicEq?.process(tempFloatBuffer, frames, channels)
+        moogLadder?.process(tempFloatBuffer, frames, channels)
         compressor?.process(tempFloatBuffer, frames)
-        stereoWidener.process(tempFloatBuffer, frames, channels)
         reverb?.process(tempFloatBuffer, frames)
-        surround360?.process(tempFloatBuffer, frames, channels)
+        // The spatial stage is intentionally exclusive: stacking crossfeed or width after 360
+        // spatialization destroys the binaural cues those effects rely on.
+        if (settingsRef.get().panoramic360Enabled) {
+            panoramic360?.process(tempFloatBuffer, frames, channels)
+        } else if (settingsRef.get().surround360Enabled) {
+            surround360?.process(tempFloatBuffer, frames, channels)
+        } else {
+            crossfeed?.process(tempFloatBuffer, frames, channels)
+            stereoWidener.process(tempFloatBuffer, frames, channels)
+        }
+        speakerOutput?.process(tempFloatBuffer, frames, channels)
+        peakLimiter?.process(tempFloatBuffer, frames, channels)
 
         // float -> 16-bit PCM, matching RawS-Music's conversion sign handling.
         outputBuffer = replaceOutputBuffer(remaining)
@@ -209,6 +331,14 @@ class EqualizerAudioProcessor : AudioProcessor {
         compressor?.reset()
         reverb?.reset()
         surround360?.reset()
+        panoramic360?.reset()
+        loudnessBalance?.reset()
+        crossfeed?.reset()
+        monoBass?.reset()
+        speakerOutput?.reset()
+        dynamicEq?.reset()
+        moogLadder?.reset()
+        peakLimiter?.reset()
         applySettings(force = true)
     }
 
@@ -221,6 +351,14 @@ class EqualizerAudioProcessor : AudioProcessor {
         compressor = null
         reverb = null
         surround360 = null
+        panoramic360 = null
+        loudnessBalance = null
+        crossfeed = null
+        monoBass = null
+        speakerOutput = null
+        dynamicEq = null
+        moogLadder = null
+        peakLimiter = null
         reusableOutputBuffer = null
     }
 
@@ -251,6 +389,48 @@ class EqualizerAudioProcessor : AudioProcessor {
             azimuthDegrees = 0f,
             rotationDegreesPerSecond = settings.surround360RotationSpeed
         )
+        panoramic360?.setParams(
+            enabled = settings.panoramic360Enabled,
+            intensityPercent = settings.panoramic360Intensity,
+            azimuthDegrees = settings.panoramic360AzimuthDegrees,
+            elevationDegrees = settings.panoramic360ElevationDegrees
+        )
+        loudnessBalance?.setParams(
+            enabled = settings.loudnessBalanceEnabled,
+            loudnessPercent = settings.loudnessPercent,
+            balancePercent = settings.channelBalance
+        )
+        crossfeed?.setParams(
+            enabled = settings.crossfeedEnabled,
+            lowCutHz = settings.crossfeedLowCutHz,
+            highCutHz = settings.crossfeedHighCutHz,
+            attenuationDb = settings.crossfeedAttenuationDb
+        )
+        monoBass?.setParams(
+            enabled = settings.monoBassEnabled,
+            crossoverHz = settings.monoBassCrossoverHz,
+            amountPercent = settings.monoBassAmount
+        )
+        speakerOutput?.setParams(
+            enabled = settings.speakerOutputEnabled,
+            mode = settings.speakerOutputMode,
+            strengthPercent = settings.speakerOutputStrength
+        )
+        dynamicEq?.setParams(
+            enabled = settings.dynamicEqEnabled,
+            intensityPercent = settings.dynamicEqIntensity,
+            deEsserPercent = settings.deEsserAmount,
+            deEsserFrequencyHz = settings.deEsserFrequencyHz
+        )
+        moogLadder?.setParams(
+            enabled = settings.moogLadderEnabled,
+            mode = settings.moogLadderMode,
+            cutoffHz = settings.moogLadderCutoffHz,
+            resonancePercent = settings.moogLadderResonance,
+            driveDb = settings.moogLadderDriveDb,
+            mixPercent = settings.moogLadderMix
+        )
+        peakLimiter?.setEnabled(settings.peakLimiterEnabled)
         lastAppliedSettings = settings
     }
 

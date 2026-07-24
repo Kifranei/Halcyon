@@ -28,10 +28,11 @@ internal class CrossfadePlaybackCoordinator(
     private val context: Context,
     private val primary: ExoPlayer,
     private val dataSourceFactory: DataSource.Factory,
-    private val audioAttributes: AudioAttributes,
+    audioAttributes: AudioAttributes,
     private val secondaryRenderersFactory: () -> EllaRenderersFactory,
     private val scope: CoroutineScope
 ) {
+    private var audioAttributes: AudioAttributes = audioAttributes
     private data class ActiveTransition(
         val sourceMediaId: String,
         val targetMediaId: String,
@@ -106,6 +107,12 @@ internal class CrossfadePlaybackCoordinator(
                 }
             }
         }
+    }
+
+    fun setAudioAttributes(attributes: AudioAttributes) {
+        if (audioAttributes == attributes) return
+        audioAttributes = attributes
+        secondary?.setAudioAttributes(attributes, false)
     }
 
     fun release() {

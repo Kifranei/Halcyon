@@ -95,6 +95,34 @@ class BiQuadFilter {
         setCoeffs(b0d, b1d, b2d, a0d, a1d, a2d)
     }
 
+    /** Second-order Butterworth-style low-pass filter using the RBJ cookbook equations. */
+    fun setLowPass(sampleRate: Float, frequency: Float, q: Float = 0.707f) {
+        val w0 = (2.0 * PI * frequency.coerceIn(10f, sampleRate * 0.45f) / sampleRate).coerceIn(0.00000001, 3.0013)
+        val cosW0 = cos(w0)
+        val alpha = sin(w0) / (2.0 * q.coerceAtLeast(0.0001f).toDouble())
+        val b0d = (1.0 - cosW0) / 2.0
+        val b1d = 1.0 - cosW0
+        val b2d = b0d
+        val a0d = 1.0 + alpha
+        val a1d = -2.0 * cosW0
+        val a2d = 1.0 - alpha
+        setCoeffs(b0d, b1d, b2d, a0d, a1d, a2d)
+    }
+
+    /** Second-order Butterworth-style high-pass filter using the RBJ cookbook equations. */
+    fun setHighPass(sampleRate: Float, frequency: Float, q: Float = 0.707f) {
+        val w0 = (2.0 * PI * frequency.coerceIn(10f, sampleRate * 0.45f) / sampleRate).coerceIn(0.00000001, 3.0013)
+        val cosW0 = cos(w0)
+        val alpha = sin(w0) / (2.0 * q.coerceAtLeast(0.0001f).toDouble())
+        val b0d = (1.0 + cosW0) / 2.0
+        val b1d = -(1.0 + cosW0)
+        val b2d = b0d
+        val a0d = 1.0 + alpha
+        val a1d = -2.0 * cosW0
+        val a2d = 1.0 - alpha
+        setCoeffs(b0d, b1d, b2d, a0d, a1d, a2d)
+    }
+
     private fun setCoeffs(b0d: Double, b1d: Double, b2d: Double, a0d: Double, a1d: Double, a2d: Double) {
         b0 = (b0d / a0d).toFloat()
         b1 = (b1d / a0d).toFloat()
