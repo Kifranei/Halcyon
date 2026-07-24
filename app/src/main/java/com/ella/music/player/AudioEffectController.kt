@@ -26,6 +26,9 @@ data class AudioEffectSettings(
     val compressorRatio: Int = 2,
     val compressorMakeupDb: Int = 0,
     val stereoWidth: Int = 100,
+    val surround360Enabled: Boolean = false,
+    val surround360Intensity: Int = 50,
+    val surround360RotationSpeed: Int = 30,
     val bassBoostEnabled: Boolean = false,
     val bassBoostStrength: Int = 0,
     val virtualizerEnabled: Boolean = false,
@@ -49,6 +52,10 @@ data class AudioEffectSettings(
         const val COMP_MAKEUP_MAX_DB = 24
         const val STEREO_WIDTH_MIN = 0
         const val STEREO_WIDTH_MAX = 200
+        const val SURROUND_360_INTENSITY_MIN = 0
+        const val SURROUND_360_INTENSITY_MAX = 100
+        const val SURROUND_360_ROTATION_MIN = 0
+        const val SURROUND_360_ROTATION_MAX = 360
         const val REVERB_PRESET_OFF = 0
         const val REVERB_PRESET_STUDIO = 10
         const val REVERB_PRESET_SMALL_ROOM = 1

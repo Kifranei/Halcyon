@@ -188,6 +188,9 @@ class SettingsManager(private val context: Context) {
         val KEY_COMP_RATIO = intPreferencesKey("audio_comp_ratio")
         val KEY_COMP_MAKEUP_DB = intPreferencesKey("audio_comp_makeup_db")
         val KEY_STEREO_WIDTH = intPreferencesKey("audio_stereo_width")
+        val KEY_SURROUND_360_ENABLED = booleanPreferencesKey("audio_surround_360_enabled")
+        val KEY_SURROUND_360_INTENSITY = intPreferencesKey("audio_surround_360_intensity")
+        val KEY_SURROUND_360_ROTATION_SPEED = intPreferencesKey("audio_surround_360_rotation_speed")
         val KEY_USB_DAC_MODE = booleanPreferencesKey("usb_dac_mode")
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_MUSIC_VIDEO_SYNC_ENABLED = booleanPreferencesKey("music_video_sync_enabled")
@@ -934,6 +937,22 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { (it[KEY_COMP_MAKEUP_DB] ?: 0).coerceIn(AudioEffectSettings.COMP_MAKEUP_MIN_DB, AudioEffectSettings.COMP_MAKEUP_MAX_DB) }
     val stereoWidth: Flow<Int> =
         context.dataStore.data.map { (it[KEY_STEREO_WIDTH] ?: 100).coerceIn(AudioEffectSettings.STEREO_WIDTH_MIN, AudioEffectSettings.STEREO_WIDTH_MAX) }
+    val surround360Enabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SURROUND_360_ENABLED] ?: false }
+    val surround360Intensity: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_SURROUND_360_INTENSITY] ?: 50).coerceIn(
+                AudioEffectSettings.SURROUND_360_INTENSITY_MIN,
+                AudioEffectSettings.SURROUND_360_INTENSITY_MAX
+            )
+        }
+    val surround360RotationSpeed: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_SURROUND_360_ROTATION_SPEED] ?: 30).coerceIn(
+                AudioEffectSettings.SURROUND_360_ROTATION_MIN,
+                AudioEffectSettings.SURROUND_360_ROTATION_MAX
+            )
+        }
     private data class CustomDspSettings(
         val eqQ: Int,
         val bassDb: Int,
@@ -942,15 +961,21 @@ class SettingsManager(private val context: Context) {
         val compThresholdDb: Int,
         val compRatio: Int,
         val compMakeupDb: Int,
-        val stereoWidth: Int
+        val stereoWidth: Int,
+        val surround360Enabled: Boolean,
+        val surround360Intensity: Int,
+        val surround360RotationSpeed: Int
     )
     private val toneAndDynamics: Flow<CustomDspSettings> = combine(
         combine(eqQ, toneBassDb, toneTrebleDb) { q, bass, treble -> Triple(q, bass, treble) },
         combine(compressorEnabled, compressorThresholdDb, compressorRatio, compressorMakeupDb) { en, th, ra, mk ->
             listOf(if (en) 1 else 0, th, ra, mk)
         },
-        stereoWidth
-    ) { tone, comp, width ->
+        stereoWidth,
+        combine(surround360Enabled, surround360Intensity, surround360RotationSpeed) { enabled, intensity, speed ->
+            Triple(enabled, intensity, speed)
+        }
+    ) { tone, comp, width, surround ->
         CustomDspSettings(
             eqQ = tone.first,
             bassDb = tone.second,
@@ -959,7 +984,10 @@ class SettingsManager(private val context: Context) {
             compThresholdDb = comp[1],
             compRatio = comp[2],
             compMakeupDb = comp[3],
-            stereoWidth = width
+            stereoWidth = width,
+            surround360Enabled = surround.first,
+            surround360Intensity = surround.second,
+            surround360RotationSpeed = surround.third
         )
     }
     val usbDacMode: Flow<Boolean> =
@@ -987,6 +1015,9 @@ class SettingsManager(private val context: Context) {
             compressorRatio = dsp.compRatio,
             compressorMakeupDb = dsp.compMakeupDb,
             stereoWidth = dsp.stereoWidth,
+            surround360Enabled = dsp.surround360Enabled,
+            surround360Intensity = dsp.surround360Intensity,
+            surround360RotationSpeed = dsp.surround360RotationSpeed,
             bassBoostEnabled = bass.first,
             bassBoostStrength = bass.second,
             virtualizerEnabled = virt.first,
@@ -1729,6 +1760,28 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setStereoWidth(width: Int) {
         context.dataStore.edit { it[KEY_STEREO_WIDTH] = width.coerceIn(AudioEffectSettings.STEREO_WIDTH_MIN, AudioEffectSettings.STEREO_WIDTH_MAX) }
+    }
+
+    suspend fun setSurround360Enabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SURROUND_360_ENABLED] = enabled }
+    }
+
+    suspend fun setSurround360Intensity(intensity: Int) {
+        context.dataStore.edit {
+            it[KEY_SURROUND_360_INTENSITY] = intensity.coerceIn(
+                AudioEffectSettings.SURROUND_360_INTENSITY_MIN,
+                AudioEffectSettings.SURROUND_360_INTENSITY_MAX
+            )
+        }
+    }
+
+    suspend fun setSurround360RotationSpeed(speed: Int) {
+        context.dataStore.edit {
+            it[KEY_SURROUND_360_ROTATION_SPEED] = speed.coerceIn(
+                AudioEffectSettings.SURROUND_360_ROTATION_MIN,
+                AudioEffectSettings.SURROUND_360_ROTATION_MAX
+            )
+        }
     }
 
     suspend fun setUsbDacMode(enabled: Boolean) {
@@ -2814,6 +2867,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_SLEEP_TIMER_STOP_AFTER_CURRENT)
             setBoolean(KEY_EQ_ENABLED)
             setBoolean(KEY_COMP_ENABLED)
+            setBoolean(KEY_SURROUND_360_ENABLED)
             setBoolean(KEY_BASS_BOOST_ENABLED)
             setBoolean(KEY_VIRTUALIZER_ENABLED)
             setBoolean(KEY_LYRIC_SHARE_USE_LYRIC_FONT)
@@ -2831,6 +2885,8 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_COMP_RATIO)
             setInt(KEY_COMP_MAKEUP_DB)
             setInt(KEY_STEREO_WIDTH)
+            setInt(KEY_SURROUND_360_INTENSITY)
+            setInt(KEY_SURROUND_360_ROTATION_SPEED)
             setInt(KEY_BASS_BOOST_STRENGTH)
             setInt(KEY_VIRTUALIZER_STRENGTH)
             setInt(KEY_REVERB_PRESET)

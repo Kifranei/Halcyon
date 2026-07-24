@@ -46,6 +46,7 @@ private fun String.isAiSettingKey(): Boolean =
 
 private fun String.isEqualizerSettingKey(): Boolean =
     startsWith("audio_eq_") ||
+        startsWith("audio_surround_360_") ||
         startsWith("audio_bass_boost_") ||
         startsWith("audio_virtualizer_") ||
         startsWith("audio_reverb_")

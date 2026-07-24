@@ -7,6 +7,7 @@ import com.ella.music.dsp.Compressor
 import com.ella.music.dsp.Reverb
 import com.ella.music.dsp.ShelfEqualizer
 import com.ella.music.dsp.StereoWidener
+import com.ella.music.dsp.Surround360
 import com.ella.music.dsp.TenBandEqualizer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -29,7 +30,10 @@ data class EqualizerSettings(
     val compressorRatio: Float = 2f,
     val compressorMakeupDb: Float = 0f,
     val stereoWidth: Float = 1f,
-    val reverbPreset: Int = 0
+    val reverbPreset: Int = 0,
+    val surround360Enabled: Boolean = false,
+    val surround360Intensity: Float = 50f,
+    val surround360RotationSpeed: Float = 30f
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -44,7 +48,10 @@ data class EqualizerSettings(
             compressorRatio == other.compressorRatio &&
             compressorMakeupDb == other.compressorMakeupDb &&
             stereoWidth == other.stereoWidth &&
-            reverbPreset == other.reverbPreset
+            reverbPreset == other.reverbPreset &&
+            surround360Enabled == other.surround360Enabled &&
+            surround360Intensity == other.surround360Intensity &&
+            surround360RotationSpeed == other.surround360RotationSpeed
     }
 
     override fun hashCode(): Int {
@@ -59,6 +66,9 @@ data class EqualizerSettings(
         result = 31 * result + compressorMakeupDb.hashCode()
         result = 31 * result + stereoWidth.hashCode()
         result = 31 * result + reverbPreset
+        result = 31 * result + surround360Enabled.hashCode()
+        result = 31 * result + surround360Intensity.hashCode()
+        result = 31 * result + surround360RotationSpeed.hashCode()
         return result
     }
 
@@ -85,6 +95,7 @@ class EqualizerAudioProcessor : AudioProcessor {
     private var compressor: Compressor? = null
     private val stereoWidener = StereoWidener()
     private var reverb: Reverb? = null
+    private var surround360: Surround360? = null
 
     private var outputBuffer: ByteBuffer = EMPTY_BUFFER
     private var inputEnded = false
@@ -117,6 +128,7 @@ class EqualizerAudioProcessor : AudioProcessor {
         shelf = ShelfEqualizer(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
         compressor = Compressor(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
         reverb = Reverb(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
+        surround360 = Surround360(inputAudioFormat.sampleRate)
         applySettings(force = true)
         return outputAudioFormat
     }
@@ -156,6 +168,7 @@ class EqualizerAudioProcessor : AudioProcessor {
         compressor?.process(tempFloatBuffer, frames)
         stereoWidener.process(tempFloatBuffer, frames, channels)
         reverb?.process(tempFloatBuffer, frames)
+        surround360?.process(tempFloatBuffer, frames, channels)
 
         // float -> 16-bit PCM, matching RawS-Music's conversion sign handling.
         outputBuffer = replaceOutputBuffer(remaining)
@@ -195,6 +208,7 @@ class EqualizerAudioProcessor : AudioProcessor {
         shelf?.reset()
         compressor?.reset()
         reverb?.reset()
+        surround360?.reset()
         applySettings(force = true)
     }
 
@@ -206,6 +220,7 @@ class EqualizerAudioProcessor : AudioProcessor {
         shelf = null
         compressor = null
         reverb = null
+        surround360 = null
         reusableOutputBuffer = null
     }
 
@@ -230,6 +245,12 @@ class EqualizerAudioProcessor : AudioProcessor {
         )
         stereoWidener.setWidth(settings.stereoWidth)
         reverb?.setPreset(settings.reverbPreset)
+        surround360?.setParams(
+            enabled = settings.surround360Enabled,
+            intensityPercent = settings.surround360Intensity,
+            azimuthDegrees = 0f,
+            rotationDegreesPerSecond = settings.surround360RotationSpeed
+        )
         lastAppliedSettings = settings
     }
 

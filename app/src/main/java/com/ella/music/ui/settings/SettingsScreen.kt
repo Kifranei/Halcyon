@@ -334,7 +334,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_enable_coloros_lock_screen_lyric), stringResource(R.string.settings_enable_coloros_lock_screen_lyric_summary), "ColorOS 锁屏岛 歌词 lyricInfo MediaMetadata OPPO 一加") { onNavigateToHighlightedLyricSettings("coloros_lock_screen_lyric") },
         entry(stringResource(R.string.settings_lyric_plugin_sources), stringResource(R.string.settings_lyric_plugin_sources_summary), "在线歌词 匹配 插件 三级页") { onNavigateToHighlightedLyricSettings("lyric_plugin_sources") },
         entry(stringResource(R.string.settings_audio), stringResource(R.string.settings_audio_summary), "播放 解码 随机 音频焦点") { onNavigateToHighlightedAudioSettings("audio_playback") },
-        entry(stringResource(R.string.equalizer_screen_title), stringResource(R.string.settings_audio_equalizer_summary), "均衡器 EQ 三级页") { onNavigateToHighlightedEqualizer("equalizer") },
+        entry(stringResource(R.string.equalizer_screen_title), stringResource(R.string.settings_audio_equalizer_summary), "均衡器、360 环绕音、音场") { onNavigateToHighlightedEqualizer("equalizer") },
         entry(stringResource(R.string.settings_integrations), stringResource(R.string.settings_integrations_summary), "AI OpenAI MCP 集成") { onNavigateToHighlightedIntegrationSettings("ai") },
         entry(stringResource(R.string.settings_backup), stringResource(R.string.settings_backup_summary), "备份 恢复 WebDAV 数据") { onNavigateToHighlightedBackupSettings("backup_settings") },
         entry(stringResource(R.string.settings_logs), stringResource(R.string.settings_logs_summary), "日志 logcat 崩溃 警告") { onNavigateToLogs() },

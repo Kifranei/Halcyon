@@ -59,7 +59,7 @@ internal fun LandscapeProgressRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = formatTime(currentPosition),
+            text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: formatTime(currentPosition),
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = palette.onBackground.copy(alpha = 0.72f)
@@ -75,7 +75,7 @@ internal fun LandscapeProgressRow(
                 .padding(horizontal = 12.dp)
         )
         Text(
-            text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: if (showTotalDuration) {
+            text = if (showTotalDuration) {
                 formatTime(duration.coerceAtLeast(0L))
             } else {
                 "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"
@@ -181,7 +181,7 @@ internal fun PlayerProgressBlock(
         )
         Box(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = formatTime(currentPosition),
+                text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: formatTime(currentPosition),
                 fontSize = 14.sp,
                 color = palette.onBackground.copy(alpha = 0.72f),
                 modifier = Modifier.align(Alignment.CenterStart)
@@ -216,7 +216,7 @@ internal fun PlayerProgressBlock(
                 )
             }
             Text(
-                text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: if (showTotalDuration) {
+                text = if (showTotalDuration) {
                     formatTime(duration.coerceAtLeast(0L))
                 } else {
                     "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"

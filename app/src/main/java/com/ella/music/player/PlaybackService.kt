@@ -355,7 +355,10 @@ class PlaybackService : MediaLibraryService() {
                         compressorRatio = settings.compressorRatio.toFloat(),
                         compressorMakeupDb = settings.compressorMakeupDb.toFloat(),
                         stereoWidth = settings.stereoWidth / 100f,
-                        reverbPreset = settings.reverbPreset
+                        reverbPreset = settings.reverbPreset,
+                        surround360Enabled = settings.surround360Enabled,
+                        surround360Intensity = settings.surround360Intensity.toFloat(),
+                        surround360RotationSpeed = settings.surround360RotationSpeed.toFloat()
                     )
                 )
             }

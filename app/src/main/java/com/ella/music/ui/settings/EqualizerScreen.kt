@@ -76,6 +76,9 @@ fun EqualizerScreen(
     val compressorRatio by settingsManager.compressorRatio.collectAsState(initial = 2)
     val compressorMakeupDb by settingsManager.compressorMakeupDb.collectAsState(initial = 0)
     val stereoWidth by settingsManager.stereoWidth.collectAsState(initial = 100)
+    val surround360Enabled by settingsManager.surround360Enabled.collectAsState(initial = false)
+    val surround360Intensity by settingsManager.surround360Intensity.collectAsState(initial = 50)
+    val surround360RotationSpeed by settingsManager.surround360RotationSpeed.collectAsState(initial = 30)
     val reverbPreset by settingsManager.reverbPreset.collectAsState(initial = AudioEffectSettings.REVERB_PRESET_OFF)
 
     val accent = MiuixTheme.colorScheme.primary
@@ -308,6 +311,41 @@ fun EqualizerScreen(
                 }
                 SectionResetLink(accent) {
                     scope.launch { settingsManager.setStereoWidth(100) }
+                }
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_surround_360))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_surround_360_enable),
+                            summary = stringResource(R.string.equalizer_surround_360_summary),
+                            checked = surround360Enabled,
+                            onCheckedChange = { scope.launch { settingsManager.setSurround360Enabled(it) } }
+                        )
+                        if (surround360Enabled) {
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_surround_360_intensity),
+                                valueText = "$surround360Intensity%",
+                                value = surround360Intensity,
+                                range = AudioEffectSettings.SURROUND_360_INTENSITY_MIN..AudioEffectSettings.SURROUND_360_INTENSITY_MAX,
+                                onChange = { scope.launch { settingsManager.setSurround360Intensity(it) } }
+                            )
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_surround_360_rotation),
+                                valueText = "$surround360RotationSpeed deg/s",
+                                value = surround360RotationSpeed,
+                                range = AudioEffectSettings.SURROUND_360_ROTATION_MIN..AudioEffectSettings.SURROUND_360_ROTATION_MAX,
+                                onChange = { scope.launch { settingsManager.setSurround360RotationSpeed(it) } }
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setSurround360Enabled(false)
+                        settingsManager.setSurround360Intensity(50)
+                        settingsManager.setSurround360RotationSpeed(30)
+                    }
                 }
 
                 SmallTitle(text = stringResource(R.string.equalizer_reverb))
