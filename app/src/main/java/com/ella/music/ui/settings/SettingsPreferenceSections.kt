@@ -260,6 +260,7 @@ internal fun SettingsTagScrapingSection(
 
     val editorAskEveryTime = stringResource(R.string.settings_editor_ask_every_time)
     val editorBuiltinCustomTag = stringResource(R.string.settings_editor_builtin_custom_tag)
+    val editorBuiltinLyricTiming = stringResource(R.string.settings_editor_builtin_lyric_timing)
     val editorLunaBeatMetadata = stringResource(R.string.settings_editor_lunabeat_metadata)
     val editorMusicTag = stringResource(R.string.settings_editor_music_tag)
     val editorLunaBeatLyricTiming = stringResource(R.string.settings_editor_lunabeat_lyric_timing)
@@ -272,6 +273,7 @@ internal fun SettingsTagScrapingSection(
     )
     val lyricTimingEditorOptions = listOf(
         TagEditorOptionIds.ASK_EACH_TIME to editorAskEveryTime,
+        TagEditorOptionIds.BUILTIN_LYRIC_TIMING to editorBuiltinLyricTiming,
         TagEditorOptionIds.LUNABEAT_LYRIC_TIMING to editorLunaBeatLyricTiming
     )
     val metadataEditorIndex = metadataEditorOptions

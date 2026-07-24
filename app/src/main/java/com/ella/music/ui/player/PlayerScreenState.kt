@@ -26,6 +26,7 @@ internal class PlayerScreenUiState(
     tagEditorSong: Song? = null,
     tagEditorKind: TagEditorOptionKind = TagEditorOptionKind.Metadata,
     metadataEditorSong: Song? = null,
+    lyricTimingEditorSong: Song? = null,
     dynamicCoverFailedPath: String? = null,
     lyricMatchSong: Song? = null,
     musicVideoVisible: Boolean = false
@@ -45,6 +46,7 @@ internal class PlayerScreenUiState(
     var tagEditorSong by mutableStateOf(tagEditorSong)
     var tagEditorKind by mutableStateOf(tagEditorKind)
     var metadataEditorSong by mutableStateOf(metadataEditorSong)
+    var lyricTimingEditorSong by mutableStateOf(lyricTimingEditorSong)
     var pendingWriteRetry by mutableStateOf<(suspend () -> Unit)?>(null)
     var dynamicCoverFailedPath by mutableStateOf(dynamicCoverFailedPath)
     var lyricMatchSong by mutableStateOf(lyricMatchSong)

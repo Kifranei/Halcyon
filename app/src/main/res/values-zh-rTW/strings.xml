@@ -1834,4 +1834,23 @@
     <string name="settings_song_rating_display_stars">以星星數顯示評分</string>
     <string name="settings_song_rating_display_stars_summary">在喜歡圖示旁顯示每個評分點的星星</string>
     <string name="settings_song_rating_display_number_summary">在喜歡圖示旁顯示星星和評分數字</string>
+    <string name="about_summary_lysy">原生歌詞打軸頁的互動與時間軸演算法參考（MIT）</string>
+    <string name="settings_editor_builtin_lyric_timing">內建歌詞打軸</string>
+    <string name="tag_editor_builtin_lyric_timing_summary">依目前播放進度逐行打軸，並寫入內嵌 LRC</string>
+    <string name="lyric_timing_editor_text">歌詞文字</string>
+    <string name="lyric_timing_editor_text_summary">可直接貼上純文字；每一行對應一句歌詞</string>
+    <string name="lyric_timing_editor_current_position">目前播放時間：%1$s</string>
+    <string name="lyric_timing_editor_tap_to_time">依目前時間打點</string>
+    <string name="lyric_timing_editor_undo">復原</string>
+    <string name="lyric_timing_editor_shift_all">整體偏移</string>
+    <string name="lyric_timing_editor_selected_line">目前句：%1$d / %2$d</string>
+    <string name="lyric_timing_editor_unset_lines">還有 %1$d 句未打軸</string>
+    <string name="lyric_timing_editor_saved">歌詞打軸已寫入歌曲內嵌 LRC</string>
+    <string name="lyric_timing_editor_no_lines">請先輸入至少一行歌詞</string>
+    <string name="lyric_timing_editor_complete_lines">請先為全部歌詞打軸</string>
+    <string name="playlist_song_sort_file_size">檔案大小</string>
+    <string name="settings_music_video_sync">同步播放靜音 MV</string>
+    <string name="settings_music_video_sync_summary">播放歌曲時同步靜音 MV；關閉後不掃描 MV，也不顯示播放頁 MV 入口</string>
+    <string name="player_detail_music_video">MV</string>
+    <string name="player_music_video_landscape">橫向</string>
 </resources>

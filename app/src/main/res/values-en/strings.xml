@@ -749,6 +749,7 @@
     <string name="common_import">Import</string>
     <string name="settings_editor_ask_every_time">Ask every time</string>
     <string name="settings_editor_builtin_custom_tag">Built-in metadata editor</string>
+    <string name="settings_editor_builtin_lyric_timing">Built-in lyric timing</string>
     <string name="settings_editor_lunabeat_metadata">LunaBeat (metadata editor)</string>
     <string name="settings_editor_music_tag">Music Tag</string>
     <string name="settings_editor_lunabeat_lyric_timing">LunaBeat (lyric timing)</string>
@@ -757,6 +758,18 @@
     <string name="tag_editor_lunabeat_lyric_timing_summary">Open LunaBeat lyric timing editor</string>
     <string name="tag_editor_music_tag_summary">Send a content Uri to Music Tag for editing</string>
     <string name="tag_editor_builtin_custom_tag_summary">Edit song metadata in Halcyon</string>
+    <string name="tag_editor_builtin_lyric_timing_summary">Time lyrics line by line with the current playback position and write embedded LRC</string>
+    <string name="lyric_timing_editor_text">Lyrics text</string>
+    <string name="lyric_timing_editor_text_summary">Paste plain text directly; each line becomes one lyric line</string>
+    <string name="lyric_timing_editor_current_position">Current playback time: %1$s</string>
+    <string name="lyric_timing_editor_tap_to_time">Time at current position</string>
+    <string name="lyric_timing_editor_undo">Undo</string>
+    <string name="lyric_timing_editor_shift_all">Shift all</string>
+    <string name="lyric_timing_editor_selected_line">Selected line: %1$d / %2$d</string>
+    <string name="lyric_timing_editor_unset_lines">%1$d lines still need timing</string>
+    <string name="lyric_timing_editor_saved">Lyric timing was written as embedded LRC</string>
+    <string name="lyric_timing_editor_no_lines">Enter at least one lyric line first</string>
+    <string name="lyric_timing_editor_complete_lines">Time every lyric line before saving</string>
     <string name="tag_editor_open_failed">Unable to open tag editor</string>
     <string name="settings_color_white">White</string>
     <string name="settings_color_silver_gray">Silver gray</string>
@@ -1505,6 +1518,7 @@
     <!-- i18n: About screen acknowledgements and open-source project summaries -->
     <string name="about_summary_betterlyrics">Reference for player cover blur background and lyric visual effects</string>
     <string name="about_summary_beautiful_lyrics">Reference for dynamic backgrounds, fullscreen lyrics, and lyric visual experience</string>
+    <string name="about_summary_lysy">Interaction and timeline-algorithm reference for the native lyric-timing screen (MIT)</string>
     <string name="about_title_lightcone">Lightcone Music</string>
     <string name="about_summary_lightcone">Reference for some UI visuals and effects</string>
     <string name="about_summary_miuix">MIUI/HyperOS-style Compose UI component library (Apache-2.0)</string>
@@ -1833,4 +1847,9 @@
     <string name="settings_song_rating_display_stars">Show ratings as stars</string>
     <string name="settings_song_rating_display_stars_summary">Display a star for each rating point beside favorites</string>
     <string name="settings_song_rating_display_number_summary">Display a star with the rating number beside favorites</string>
+    <string name="playlist_song_sort_file_size">File size</string>
+    <string name="settings_music_video_sync">Sync silent MV playback</string>
+    <string name="settings_music_video_sync_summary">Sync a silent MV during song playback; when disabled, MVs are not scanned or shown in the player.</string>
+    <string name="player_detail_music_video">MV</string>
+    <string name="player_music_video_landscape">Landscape</string>
 </resources>

@@ -92,6 +92,7 @@ fun SongMoreActionHost(
     var tagEditorSong by remember { mutableStateOf<Song?>(null) }
     var tagEditorKind by remember { mutableStateOf(TagEditorOptionKind.Metadata) }
     var metadataEditorSong by remember { mutableStateOf<Song?>(null) }
+    var lyricTimingEditorSong by remember { mutableStateOf<Song?>(null) }
     var ratingSong by remember { mutableStateOf<Song?>(null) }
     var infoSong by remember { mutableStateOf<Song?>(null) }
     var aiSong by remember { mutableStateOf<Song?>(null) }
@@ -394,6 +395,7 @@ fun SongMoreActionHost(
         context = context,
         scope = scope,
         mainViewModel = mainViewModel,
+        playerViewModel = playerViewModel,
         tagEditorSong = tagEditorSong,
         onTagEditorSongChange = { tagEditorSong = it },
         tagEditorKind = tagEditorKind,
@@ -403,6 +405,8 @@ fun SongMoreActionHost(
         lyricTimingTitle = lyricTimingTitle,
         metadataEditorSong = metadataEditorSong,
         onMetadataEditorSongChange = { metadataEditorSong = it },
+        lyricTimingEditorSong = lyricTimingEditorSong,
+        onLyricTimingEditorSongChange = { lyricTimingEditorSong = it },
         onWritePermissionRequired = { error, retry ->
             pendingWriteRetry = retry
             writePermissionLauncher.launch(

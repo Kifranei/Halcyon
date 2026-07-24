@@ -55,6 +55,8 @@ internal fun PlayerScreenSheetHost(
     lyricTimingEditorId: String,
     metadataEditorSong: Song?,
     onMetadataEditorSongChange: (Song?) -> Unit,
+    lyricTimingEditorSong: Song?,
+    onLyricTimingEditorSongChange: (Song?) -> Unit,
     onWritePermissionRequired: (WritePermissionRequiredException, suspend () -> Unit) -> Unit,
     playlistPickerSong: Song?,
     onPlaylistPickerSongChange: (Song?) -> Unit,
@@ -122,6 +124,7 @@ internal fun PlayerScreenSheetHost(
         context = context,
         scope = scope,
         mainViewModel = mainViewModel,
+        playerViewModel = playerViewModel,
         tagEditorSong = tagEditorSong,
         onTagEditorSongChange = onTagEditorSongChange,
         tagEditorKind = tagEditorKind,
@@ -131,6 +134,8 @@ internal fun PlayerScreenSheetHost(
         lyricTimingTitle = stringResource(R.string.song_more_lyric_timing),
         metadataEditorSong = metadataEditorSong,
         onMetadataEditorSongChange = onMetadataEditorSongChange,
+        lyricTimingEditorSong = lyricTimingEditorSong,
+        onLyricTimingEditorSongChange = onLyricTimingEditorSongChange,
         onWritePermissionRequired = onWritePermissionRequired
     )
 

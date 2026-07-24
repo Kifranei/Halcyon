@@ -1458,6 +1458,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun reloadCurrentLyrics() {
+        val song = currentSong.value ?: return
+        viewModelScope.launch { reloadLyrics(song, force = true) }
+    }
+
     fun toggleCurrentSongFavorite() {
         val song = currentSong.value ?: return
         viewModelScope.launch {

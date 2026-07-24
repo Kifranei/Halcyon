@@ -10,6 +10,7 @@ import com.ella.music.R
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.model.Song
 import com.ella.music.viewmodel.MainViewModel
+import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -18,6 +19,7 @@ internal fun SongMoreTagActionSheets(
     context: Context,
     scope: CoroutineScope,
     mainViewModel: MainViewModel,
+    playerViewModel: PlayerViewModel,
     tagEditorSong: Song?,
     onTagEditorSongChange: (Song?) -> Unit,
     tagEditorKind: TagEditorOptionKind,
@@ -27,6 +29,8 @@ internal fun SongMoreTagActionSheets(
     lyricTimingTitle: String,
     metadataEditorSong: Song?,
     onMetadataEditorSongChange: (Song?) -> Unit,
+    lyricTimingEditorSong: Song?,
+    onLyricTimingEditorSongChange: (Song?) -> Unit,
     onWritePermissionRequired: (WritePermissionRequiredException, suspend () -> Unit) -> Unit
 ) {
     tagEditorSong?.let { song ->
@@ -40,10 +44,23 @@ internal fun SongMoreTagActionSheets(
                 sourceSong = song
             )
         }
+        val builtinLyricTimingOption = remember(song.id, tagEditorKind) {
+            TagEditorOption(
+                id = TagEditorOptionIds.BUILTIN_LYRIC_TIMING,
+                label = context.getString(R.string.settings_editor_builtin_lyric_timing),
+                summary = context.getString(R.string.tag_editor_builtin_lyric_timing_summary),
+                kind = TagEditorOptionKind.LyricTiming,
+                intents = emptyList(),
+                sourceSong = song
+            )
+        }
         val tagOptions = remember(song.id, song.path, song.mimeType, tagEditorKind, builtinOption) {
             val external = buildTagEditorOptions(context, song)
                 .filter { it.kind == tagEditorKind }
-            if (tagEditorKind == TagEditorOptionKind.Metadata) listOf(builtinOption) + external else external
+            when (tagEditorKind) {
+                TagEditorOptionKind.Metadata -> listOf(builtinOption) + external
+                TagEditorOptionKind.LyricTiming -> listOf(builtinLyricTimingOption) + external
+            }
         }
         val preferredEditorId = if (tagEditorKind == TagEditorOptionKind.LyricTiming) {
             lyricTimingEditorId
@@ -55,10 +72,10 @@ internal fun SongMoreTagActionSheets(
         }
         LaunchedEffect(song.id, preferredEditorId, preferredOption, tagEditorKind) {
             if (preferredEditorId.isNotBlank() && preferredOption != null) {
-                if (preferredOption.id == TagEditorOptionIds.BUILTIN_CUSTOM_TAG) {
-                    onMetadataEditorSongChange(song)
-                } else {
-                    launchTagEditorOption(context, preferredOption)
+                when (preferredOption.id) {
+                    TagEditorOptionIds.BUILTIN_CUSTOM_TAG -> onMetadataEditorSongChange(song)
+                    TagEditorOptionIds.BUILTIN_LYRIC_TIMING -> onLyricTimingEditorSongChange(song)
+                    else -> launchTagEditorOption(context, preferredOption)
                 }
                 onTagEditorSongChange(null)
             }
@@ -74,10 +91,10 @@ internal fun SongMoreTagActionSheets(
                 options = tagOptions,
                 onDismiss = { onTagEditorSongChange(null) },
                 onOptionClick = { option ->
-                    if (option.id == TagEditorOptionIds.BUILTIN_CUSTOM_TAG) {
-                        onMetadataEditorSongChange(song)
-                    } else {
-                        launchTagEditorOption(context, option)
+                    when (option.id) {
+                        TagEditorOptionIds.BUILTIN_CUSTOM_TAG -> onMetadataEditorSongChange(song)
+                        TagEditorOptionIds.BUILTIN_LYRIC_TIMING -> onLyricTimingEditorSongChange(song)
+                        else -> launchTagEditorOption(context, option)
                     }
                     onTagEditorSongChange(null)
                 }
@@ -168,6 +185,23 @@ internal fun SongMoreTagActionSheets(
                         }
                     }
                 }
+            )
+        }
+    }
+
+    lyricTimingEditorSong?.let { song ->
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.song_more_lyric_timing),
+            onDismissRequest = { onLyricTimingEditorSongChange(null) }
+        ) {
+            LyricTimingEditorSheet(
+                song = song,
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onDismiss = { onLyricTimingEditorSongChange(null) },
+                onWritePermissionRequired = onWritePermissionRequired
             )
         }
     }

@@ -1834,4 +1834,23 @@
     <string name="settings_song_rating_display_stars">평점을 별로 표시</string>
     <string name="settings_song_rating_display_stars_summary">평점마다 별 하나를 표시합니다</string>
     <string name="settings_song_rating_display_number_summary">별과 평점 숫자를 표시합니다</string>
+    <string name="about_summary_lysy">Interaction and timeline-algorithm reference for the native lyric-timing screen (MIT)</string>
+    <string name="settings_editor_builtin_lyric_timing">Built-in lyric timing</string>
+    <string name="tag_editor_builtin_lyric_timing_summary">Time lyrics line by line with the current playback position and write embedded LRC</string>
+    <string name="lyric_timing_editor_text">Lyrics text</string>
+    <string name="lyric_timing_editor_text_summary">Paste plain text directly; each line becomes one lyric line</string>
+    <string name="lyric_timing_editor_current_position">Current playback time: %1$s</string>
+    <string name="lyric_timing_editor_tap_to_time">Time at current position</string>
+    <string name="lyric_timing_editor_undo">Undo</string>
+    <string name="lyric_timing_editor_shift_all">Shift all</string>
+    <string name="lyric_timing_editor_selected_line">Selected line: %1$d / %2$d</string>
+    <string name="lyric_timing_editor_unset_lines">%1$d lines still need timing</string>
+    <string name="lyric_timing_editor_saved">Lyric timing was written as embedded LRC</string>
+    <string name="lyric_timing_editor_no_lines">Enter at least one lyric line first</string>
+    <string name="lyric_timing_editor_complete_lines">Time every lyric line before saving</string>
+    <string name="playlist_song_sort_file_size">File size</string>
+    <string name="settings_music_video_sync">Sync silent MV playback</string>
+    <string name="settings_music_video_sync_summary">Sync a silent MV during song playback; when disabled, MVs are not scanned or shown in the player.</string>
+    <string name="player_detail_music_video">MV</string>
+    <string name="player_music_video_landscape">Landscape</string>
 </resources>

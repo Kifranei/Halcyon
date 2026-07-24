@@ -873,6 +873,8 @@ fun PlayerScreen(
                 lyricTimingEditorId = lyricTimingEditorId,
                 metadataEditorSong = uiState.metadataEditorSong,
                 onMetadataEditorSongChange = { uiState.metadataEditorSong = it },
+                lyricTimingEditorSong = uiState.lyricTimingEditorSong,
+                onLyricTimingEditorSongChange = { uiState.lyricTimingEditorSong = it },
                 onWritePermissionRequired = { error, retry ->
                     uiState.pendingWriteRetry = retry
                     deletePermissionLauncher.launch(

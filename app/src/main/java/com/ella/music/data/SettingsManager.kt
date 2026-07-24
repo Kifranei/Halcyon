@@ -2781,6 +2781,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)
+            setBoolean(KEY_MUSIC_VIDEO_SYNC_ENABLED)
             setBoolean(KEY_ARTIST_COVER_CAROUSEL)
             setBoolean(KEY_STARTUP_POSTER_ENABLED)
             setBoolean(KEY_APP_WALLPAPER_ENABLED)

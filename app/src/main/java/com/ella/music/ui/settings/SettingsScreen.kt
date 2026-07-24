@@ -99,7 +99,15 @@ fun SettingsScreen(
     )
     val searchResults = remember(searchQuery, searchEntries) {
         val query = searchQuery.trim()
-        if (query.isBlank()) emptyList() else searchEntries.filter { it.matches(query) }.take(16)
+        if (query.isBlank()) {
+            emptyList()
+        } else {
+            searchEntries
+                .mapNotNull { entry -> entry.matchScore(query)?.let { score -> entry to score } }
+                .sortedWith(compareByDescending<Pair<SettingsSearchEntry, Int>> { it.second }.thenBy { it.first.title })
+                .map { it.first }
+                .take(24)
+        }
     }
     Column(
         modifier = Modifier
@@ -263,11 +271,16 @@ private data class SettingsSearchEntry(
     val keywords: String,
     val onClick: () -> Unit
 ) {
-    fun matches(query: String): Boolean {
-        val haystack = "$title $summary $keywords"
-        return query.split(Regex("""\s+"""))
-            .filter { it.isNotBlank() }
-            .all { haystack.contains(it, ignoreCase = true) }
+    fun matchScore(query: String): Int? {
+        val terms = query.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        if (terms.isEmpty()) return null
+        val titleMatches = terms.count { title.contains(it, ignoreCase = true) }
+        val keywordMatches = terms.count { keywords.contains(it, ignoreCase = true) }
+        val summaryMatches = terms.count { summary.contains(it, ignoreCase = true) }
+        if (titleMatches + keywordMatches + summaryMatches < terms.size) return null
+
+        // A direct setting-name match should remain ahead of a broad category hit.
+        return titleMatches * 100 + keywordMatches * 10 + summaryMatches
     }
 }
 
@@ -305,8 +318,18 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_auto_show_search_keyboard), stringResource(R.string.settings_auto_show_search_keyboard_summary), "搜索 输入法 键盘 自动弹出") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_font_settings), stringResource(R.string.settings_lyric_font), "字体 歌词字体 三级页") { onNavigateToHighlightedAppearanceSettings("lyric_font") },
         entry(stringResource(R.string.settings_library_source), stringResource(R.string.settings_library_source_summary), "音乐来源 音乐库来源 本地 Navidrome Emby 远程 曲库") { onNavigateToHighlightedLibrarySettings("library_source") },
-        entry(stringResource(R.string.settings_library_scan), stringResource(R.string.settings_library_scan_summary), "音乐库 扫描 标签 全标签 搜索 分隔符") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_library_scan), stringResource(R.string.settings_library_scan_summary), "音乐库 扫描 标签 全标签 搜索 分隔符 艺术家 歌手") { onNavigateToHighlightedLibrarySettings("scan") },
         entry(stringResource(R.string.settings_scan_folders), stringResource(R.string.settings_scan_folders_summary), "文件夹 USB 隐藏目录 三级页") { onNavigateToHighlightedScanFolders("scan_folders") },
+        entry(stringResource(R.string.settings_full_tag_search), stringResource(R.string.settings_full_tag_search_summary_on), "全字段 全字段搜索 全标签 标签 元数据 作曲 作词 注释 别名 自定义标签 扫描 速度") { onNavigateToHighlightedScanFolders("scan_media_source") },
+        entry(stringResource(R.string.settings_show_album_artists), stringResource(R.string.settings_show_album_artists_summary), "艺术家 歌手 歌者 artist singer performer 专辑艺术家 发行专辑") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_artist_cover_folder), stringResource(R.string.settings_artist_cover_folder_summary), "艺术家 歌手 artist 封面 动态封面 视频封面 mp4 轮播 图片目录") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_artist_cover_carousel), stringResource(R.string.settings_artist_cover_carousel_summary), "艺术家 歌手 artist 封面 动态封面 轮播") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_artist_separators), stringResource(R.string.settings_artist_separators_summary), "艺术家 歌手 artist 分隔符 feat 合作 作曲 作词") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_artist_protected_names), stringResource(R.string.settings_artist_protected_names_summary), "艺术家 歌手 artist 不拆分 分隔符 保护名称") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_search_all_song_match_types), stringResource(R.string.settings_search_all_song_match_types_summary), "搜索 所有 歌曲 艺术家 歌手 专辑 专辑艺术家 元数据 歌词") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_search_all_categories), stringResource(R.string.settings_search_all_categories_summary), "搜索 所有 分类 艺术家 歌手 文件夹 作曲 作词 流派 年份") { onNavigateToHighlightedLibrarySettings("scan") },
+        entry(stringResource(R.string.settings_library_tile_artist), stringResource(R.string.settings_library_tile_artist_summary), "首页 艺术家 歌手 artist 音乐库 宫格") { onNavigateToHomeDisplaySettings("home_sections") },
+        entry(stringResource(R.string.settings_lyric_timing_editor), stringResource(R.string.settings_editor_builtin_lyric_timing), "歌词 打轴 时间轴 LRC 内置 编辑器 LySy") { onNavigateToHighlightedLibrarySettings("tag_scraping") },
         entry(stringResource(R.string.settings_lyrics), stringResource(R.string.settings_lyrics_summary), "歌词 词幕 桌面歌词 状态栏 蓝牙 ColorOS") { onNavigateToHighlightedLyricSettings("lyric_basic") },
         entry(stringResource(R.string.settings_enable_coloros_lock_screen_lyric), stringResource(R.string.settings_enable_coloros_lock_screen_lyric_summary), "ColorOS 锁屏岛 歌词 lyricInfo MediaMetadata OPPO 一加") { onNavigateToHighlightedLyricSettings("coloros_lock_screen_lyric") },
         entry(stringResource(R.string.settings_lyric_plugin_sources), stringResource(R.string.settings_lyric_plugin_sources_summary), "在线歌词 匹配 插件 三级页") { onNavigateToHighlightedLyricSettings("lyric_plugin_sources") },

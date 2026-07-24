@@ -846,6 +846,7 @@
     <string name="common_import">导入</string>
     <string name="settings_editor_ask_every_time">每次选择</string>
     <string name="settings_editor_builtin_custom_tag">内置元数据编辑器</string>
+    <string name="settings_editor_builtin_lyric_timing">内置歌词打轴</string>
     <string name="settings_editor_lunabeat_metadata">LunaBeat（编辑元数据）</string>
     <string name="settings_editor_music_tag">音乐标签</string>
     <string name="settings_editor_lunabeat_lyric_timing">LunaBeat（歌词打轴）</string>
@@ -854,6 +855,18 @@
     <string name="tag_editor_lunabeat_lyric_timing_summary">打开 LunaBeat 的歌词打轴页面</string>
     <string name="tag_editor_music_tag_summary">通过 content Uri 交给音乐标签编辑</string>
     <string name="tag_editor_builtin_custom_tag_summary">用 Halcyon 编辑歌曲元数据</string>
+    <string name="tag_editor_builtin_lyric_timing_summary">在 Halcyon 中按播放进度为逐行歌词打轴，并写入歌曲内嵌 LRC</string>
+    <string name="lyric_timing_editor_text">歌词文本</string>
+    <string name="lyric_timing_editor_text_summary">可直接粘贴纯文本；每行对应一条歌词</string>
+    <string name="lyric_timing_editor_current_position">当前播放时间：%1$s</string>
+    <string name="lyric_timing_editor_tap_to_time">按当前时间打点</string>
+    <string name="lyric_timing_editor_undo">撤销</string>
+    <string name="lyric_timing_editor_shift_all">整体偏移</string>
+    <string name="lyric_timing_editor_selected_line">当前句：%1$d / %2$d</string>
+    <string name="lyric_timing_editor_unset_lines">还有 %1$d 句未打轴</string>
+    <string name="lyric_timing_editor_saved">歌词打轴已写入歌曲内嵌 LRC</string>
+    <string name="lyric_timing_editor_no_lines">请先输入至少一行歌词</string>
+    <string name="lyric_timing_editor_complete_lines">请先为全部歌词打轴</string>
     <string name="tag_editor_open_failed">无法打开标签编辑器</string>
     <string name="settings_color_white">白色</string>
     <string name="settings_color_silver_gray">银灰</string>
@@ -1698,6 +1711,7 @@
     <!-- i18n: About screen acknowledgements and open-source project summaries -->
     <string name="about_summary_betterlyrics">播放页封面模糊背景和歌词视觉效果参考</string>
     <string name="about_summary_beautiful_lyrics">动态背景、全屏歌词与歌词视觉体验参考</string>
+    <string name="about_summary_lysy">原生歌词打轴页的交互与时间轴算法参考（MIT）</string>
     <string name="about_title_lightcone">光锥音乐</string>
     <string name="about_summary_lightcone">部分界面视觉与 UI 效果参考</string>
     <string name="about_summary_miuix">MIUI/HyperOS 风格 Compose UI 组件库（Apache-2.0）</string>
