@@ -815,6 +815,8 @@
     <string name="settings_custom_image_save_failed">Не удалось сохранить пользовательское изображение.</string>
     <string name="settings_player_immersive_cover">Захватывающая обложка альбома</string>
     <string name="settings_player_immersive_cover_summary">Расширьте обложку альбома до верхней части плеера; отключите его, чтобы использовать компактную закругленную обложку</string>
+    <string name="settings_player_cover_content_color">Использовать цвета обложки для содержимого</string>
+    <string name="settings_player_cover_content_color_summary">Применять акцентный цвет обложки к тексту и значкам плеера, текста песни и сведений о треке</string>
     <string name="settings_player_tap_seek">Нажмите индикатор выполнения, чтобы найти</string>
     <string name="settings_player_tap_seek_summary">Если отключено, только перетаскивание изменяет ход воспроизведения. Если эта функция включена, нажатие в любом месте индикатора выполнения страницы воспроизведения приведет к прямому поиску.</string>
     <string name="settings_player_show_total_duration">Показывать общую продолжительность песни на индикаторе выполнения</string>

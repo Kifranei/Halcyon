@@ -17,6 +17,7 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.SongItem
+import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 import com.ella.music.ui.artist.rememberArtistCoverModel
 import com.ella.music.ui.artist.selectArtistCoverSong
 import com.ella.music.viewmodel.MainViewModel
@@ -223,7 +224,12 @@ internal fun LibrarySearchResultsPane(
                     MetadataCategoryResultRow(
                         item = item,
                         displayName = if (categoryType == "folder") item.name.substringAfterLast('/').ifBlank { item.name } else item.name,
-                        coverModel = item.representativeSong?.coverUrl?.takeIf { it.isNotBlank() }
+                        coverModel = selectMetadataCategoryCoverSong(songs, categoryType, item.name)
+                            ?.let { song ->
+                                song.coverUrl.takeIf { it.isNotBlank() }
+                                    ?: song.albumId.takeIf { it > 0L }?.let(mainViewModel::getAlbumArtUri)
+                            }
+                            ?: item.representativeSong?.coverUrl?.takeIf { it.isNotBlank() }
                             ?: item.coverAlbumIds.firstOrNull()?.let(mainViewModel::getAlbumArtUri),
                         roundCover = categoryType in listOf("composer", "arranger", "lyricist"),
                         query = trimmedQuery,

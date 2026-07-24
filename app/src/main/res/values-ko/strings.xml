@@ -817,6 +817,8 @@
     <string name="settings_custom_image_save_failed">사용자 지정 이미지를 저장하지 못했습니다</string>
     <string name="settings_player_immersive_cover">몰입형 앨범 커버</string>
     <string name="settings_player_immersive_cover_summary">앨범 커버를 플레이어 상단까지 확장합니다. 작고 둥근 커버 레이아웃을 사용하려면 끄세요.</string>
+    <string name="settings_player_cover_content_color">콘텐츠에 커버 색상 사용</string>
+    <string name="settings_player_cover_content_color_summary">플레이어, 가사 및 곡 정보 화면의 텍스트와 아이콘에 커버 강조 색상을 적용합니다</string>
     <string name="settings_player_tap_seek">이동하려면 진행 표시줄을 탭하세요</string>
     <string name="settings_player_tap_seek_summary">끄면 드래그만 하면 재생 진행이 변경됩니다. 켜져 있으면 재생 페이지 진행률 표시줄의 아무 곳이나 탭하면 바로 이동합니다.</string>
     <string name="settings_player_show_total_duration">진행률 표시줄에 총 곡 재생 시간 표시</string>

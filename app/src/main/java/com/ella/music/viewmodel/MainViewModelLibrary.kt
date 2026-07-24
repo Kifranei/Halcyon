@@ -12,6 +12,7 @@ import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
+import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 
 internal fun buildArtists(
     songs: List<Song>,
@@ -73,14 +74,16 @@ internal fun buildMetadataCategoryItems(
     }
     return groups.values
         .map { item ->
+            val coverSong = selectMetadataCategoryCoverSong(item.songs, type, item.name)
             MetadataCategoryItem(
                 name = item.name,
                 songCount = item.songCount,
                 albumCount = item.albumIds.size,
                 duration = item.duration,
                 dateModified = item.dateModified,
-                coverAlbumIds = item.coverAlbumIds,
-                representativeSong = item.representativeSongWithCover ?: item.firstSong
+                coverAlbumIds = listOfNotNull(coverSong?.albumId?.takeIf { it > 0L }) +
+                    item.coverAlbumIds.filterNot { it == coverSong?.albumId },
+                representativeSong = coverSong ?: item.firstSong
             )
         }
         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
@@ -99,12 +102,14 @@ private class MetadataCategoryAccumulator(
     private val coverAlbumIdSet = linkedSetOf<Long>()
     val coverAlbumIds: List<Long>
         get() = coverAlbumIdSet.toList()
+    val songs = mutableListOf<Song>()
     var firstSong: Song? = null
         private set
     var representativeSongWithCover: Song? = null
         private set
 
     fun add(song: Song) {
+        songs += song
         songCount += 1
         duration += song.duration
         if (song.dateModified > dateModified) dateModified = song.dateModified

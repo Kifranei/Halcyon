@@ -84,6 +84,9 @@ import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.requestPinnedEllaShortcut
+import com.ella.music.ui.components.shareLocalSongs
+import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import java.text.SimpleDateFormat
@@ -106,6 +109,8 @@ import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Forward
+import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.basic.Search
 import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.basic.Switch
@@ -178,7 +183,7 @@ fun FolderPlaylistsScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingBulkDelete by remember { mutableStateOf<List<FolderPlaylist>?>(null) }
-    var showSelectionActions by remember { mutableStateOf(false) }
+    var pendingSortAnchor by remember { mutableStateOf<Triple<String, Int, FolderPlaylistSortMode>?>(null) }
     val userPlaylists by mainViewModel.playlists.collectAsState()
 
     val songCountMap = remember(playlists, songs) {
@@ -260,7 +265,31 @@ fun FolderPlaylistsScreen(
         val selecting = id !in selectedPlaylistIds
         selectedPlaylistIds = if (selecting) selectedPlaylistIds + id else selectedPlaylistIds - id
         updateAnchors(id, selecting)
-        if (selectedPlaylistIds.isEmpty()) exitSelection()
+    }
+
+    fun selectedSongsFor(playlist: FolderPlaylist): List<Song> =
+        songs.songsForFolderPlaylist(playlist.folders)
+
+    fun preserveListAnchorForSortChange(mode: FolderPlaylistSortMode) {
+        val anchorId = filteredPlaylists.getOrNull(listState.firstVisibleItemIndex)?.id
+        val anchorOffset = listState.firstVisibleItemScrollOffset
+        // Wait for the selected sort mode to reach the list before restoring the anchor. Without
+        // the target mode, the effect can run against the old order and clear the pending anchor.
+        pendingSortAnchor = anchorId?.let { Triple(it, anchorOffset, mode) }
+        LibrarySortUiState.pendingFolderPlaylistListSortIndex = mode.ordinal
+        LibrarySortUiState.folderPlaylistListSortIndex = mode.ordinal
+        scope.launch {
+            mainViewModel.settingsManager.setFolderPlaylistListSortIndex(mode.ordinal)
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(filteredPlaylists, pendingSortAnchor, sortMode) {
+        val (anchorId, anchorOffset, targetSortMode) = pendingSortAnchor ?: return@LaunchedEffect
+        if (sortMode != targetSortMode) return@LaunchedEffect
+        filteredPlaylists.indexOfFirst { it.id == anchorId }
+            .takeIf { it >= 0 }
+            ?.let { index -> listState.scrollToItem(index, anchorOffset) }
+        pendingSortAnchor = null
     }
 
     fun selectAllPlaylists() {
@@ -338,11 +367,55 @@ fun FolderPlaylistsScreen(
             },
             actions = {
                 if (selectionMode) {
-                    IconButton(onClick = { if (selectedPlaylistIds.isNotEmpty()) showSelectionActions = true }) {
+                    IconButton(onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) playerViewModel.setPlaylist(selected, 0)
+                        exitSelection()
+                    }) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.More,
-                            contentDescription = stringResource(R.string.player_quick_more),
-                            tint = MiuixTheme.colorScheme.onSurface,
+                            imageVector = MiuixIcons.Regular.Play,
+                            contentDescription = stringResource(R.string.common_play),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) {
+                            playerViewModel.playNext(selected)
+                            Toast.makeText(context, R.string.song_more_added_to_play_next, Toast.LENGTH_SHORT).show()
+                            exitSelection()
+                        }
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Forward,
+                            contentDescription = stringResource(R.string.song_more_play_next),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) {
+                            playerViewModel.addToPlaylist(selected)
+                            Toast.makeText(context, R.string.song_more_added_to_queue, Toast.LENGTH_SHORT).show()
+                            exitSelection()
+                        }
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Playlist,
+                            contentDescription = stringResource(R.string.common_add_to_queue),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        selectedActionSongs().takeIf { it.isNotEmpty() }?.let { playlistPickerSongs = it }
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Add,
+                            contentDescription = stringResource(R.string.player_add_to_playlist),
+                            tint = MiuixTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -414,11 +487,7 @@ fun FolderPlaylistsScreen(
                                 )
                             ),
                             selectedMode = sortMode,
-                            onSelect = { mode ->
-                                LibrarySortUiState.pendingFolderPlaylistListSortIndex = mode.ordinal
-                                LibrarySortUiState.folderPlaylistListSortIndex = mode.ordinal
-                                scope.launch { mainViewModel.settingsManager.setFolderPlaylistListSortIndex(mode.ordinal) }
-                            }
+                            onSelect = ::preserveListAnchorForSortChange
                         )
                     )
                 }
@@ -573,6 +642,30 @@ fun FolderPlaylistsScreen(
                 EllaMiuixMenuItem(
                     text = stringResource(R.string.folder_playlist_more_share),
                     onClick = {
+                        shareLocalSongs(context, selectedSongsFor(playlist))
+                        moreMenuTarget = null
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.song_more_add_to_playlist),
+                    onClick = {
+                        playlistPickerSongs = selectedSongsFor(playlist)
+                        moreMenuTarget = null
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.common_add_to_queue),
+                    onClick = {
+                        playerViewModel.addToPlaylist(selectedSongsFor(playlist))
+                        Toast.makeText(context, R.string.song_more_added_to_queue, Toast.LENGTH_SHORT).show()
+                        moreMenuTarget = null
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.song_more_play_next),
+                    onClick = {
+                        playerViewModel.playNext(selectedSongsFor(playlist))
+                        Toast.makeText(context, R.string.song_more_added_to_play_next, Toast.LENGTH_SHORT).show()
                         moreMenuTarget = null
                     }
                 )
@@ -581,6 +674,24 @@ fun FolderPlaylistsScreen(
                     onClick = {
                         editorTarget = playlist
                         showEditor = true
+                        moreMenuTarget = null
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.common_add_desktop_shortcut),
+                    onClick = {
+                        val ok = requestPinnedEllaShortcut(
+                            context = context,
+                            id = "folder_playlist_${playlist.id}",
+                            label = playlist.name,
+                            route = Screen.FolderPlaylistDetail.createRoute(playlist.id)
+                        )
+                        Toast.makeText(
+                            context,
+                            if (ok) context.getString(R.string.playlist_shortcut_requested, playlist.name)
+                            else context.getString(R.string.playlist_shortcut_unsupported),
+                            Toast.LENGTH_SHORT
+                        ).show()
                         moreMenuTarget = null
                     }
                 )
@@ -641,68 +752,6 @@ fun FolderPlaylistsScreen(
                 pendingDelete = null
             }
         )
-    }
-
-    if (showSelectionActions) {
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = stringResource(R.string.folder_playlist_selected_playlists, selectedPlaylistIds.size),
-            onDismissRequest = { showSelectionActions = false }
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_play),
-                    onClick = {
-                        val selected = selectedActionSongs()
-                        if (selected.isNotEmpty()) playerViewModel.setPlaylist(selected, 0)
-                        showSelectionActions = false
-                        exitSelection()
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_play_next),
-                    onClick = {
-                        val selected = selectedActionSongs()
-                        if (selected.isNotEmpty()) {
-                            playerViewModel.playNext(selected)
-                            Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                        }
-                        showSelectionActions = false
-                        exitSelection()
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_to_queue),
-                    onClick = {
-                        val selected = selectedActionSongs()
-                        if (selected.isNotEmpty()) {
-                            playerViewModel.addToPlaylist(selected)
-                            Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
-                        }
-                        showSelectionActions = false
-                        exitSelection()
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.player_add_to_playlist),
-                    onClick = {
-                        val selected = selectedActionSongs()
-                        if (selected.isNotEmpty()) playlistPickerSongs = selected
-                        showSelectionActions = false
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_delete),
-                    danger = true,
-                    onClick = {
-                        val targets = playlists.filter { it.id in selectedPlaylistIds }
-                        if (targets.isNotEmpty()) pendingBulkDelete = targets
-                        showSelectionActions = false
-                    }
-                )
-            }
-        }
     }
 
     playlistPickerSongs?.let { songsToAdd ->
@@ -962,7 +1011,6 @@ fun FolderPlaylistDetailScreen(
         val next = if (selecting) currentSelectedKeys + key else currentSelectedKeys - key
         setSelectedKeys(next)
         updateAnchorsForManualSelection(key, selecting)
-        if (next.isEmpty()) exitSelection()
     }
 
     fun selectAllCurrent() {

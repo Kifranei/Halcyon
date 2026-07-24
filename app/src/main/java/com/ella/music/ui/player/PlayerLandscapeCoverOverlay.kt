@@ -254,7 +254,7 @@ internal fun LandscapeCoverPlaybackOverlay(
                                 ) {
                                     CenteredPlayPauseGlyph(
                                         isPlaying = isPlaying,
-                                        tint = Color.White.copy(alpha = 0.96f),
+                                        tint = LocalPlayerContentColor.current.copy(alpha = 0.96f),
                                         modifier = Modifier.size(42.dp)
                                     )
                                 }

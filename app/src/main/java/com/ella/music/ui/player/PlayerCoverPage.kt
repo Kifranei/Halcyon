@@ -669,7 +669,7 @@ internal fun CoverPlayerPage(
                                 isPlaying = isPlaying,
                                 positionMs = currentPosition,
                                 opacity = visualizerOpacity,
-                                accent = Color.White.copy(alpha = 0.86f),
+                                accent = pagePalette.onBackground.copy(alpha = 0.86f),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(30.dp)

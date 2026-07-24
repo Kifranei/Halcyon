@@ -106,6 +106,7 @@ fun SettingsScreen(
                 .mapNotNull { entry -> entry.matchScore(query)?.let { score -> entry to score } }
                 .sortedWith(compareByDescending<Pair<SettingsSearchEntry, Int>> { it.second }.thenBy { it.first.title })
                 .map { it.first }
+                .distinctBy { it.title }
                 .take(24)
         }
     }
@@ -321,6 +322,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_player_show_total_duration), stringResource(R.string.settings_player_show_total_duration_summary), "进度条 总时长 剩余时间 播放时间 拖动预览") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_player_tap_seek), stringResource(R.string.settings_player_tap_seek_summary), "进度条 点击 跳转 拖动") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_player_immersive_cover), stringResource(R.string.settings_player_immersive_cover_summary), "沉浸 播放页 封面 全屏") { onNavigateToHighlightedAppearanceSettings("appearance") },
+        entry(stringResource(R.string.settings_player_cover_content_color), stringResource(R.string.settings_player_cover_content_color_summary), "封面取色 内容 文字 图标 播放页 歌词页 歌曲详情") { onNavigateToHighlightedAppearanceSettings("player_cover_content_color") },
         entry(stringResource(R.string.settings_beautiful_lyrics_background), stringResource(R.string.settings_beautiful_lyrics_background_summary), "Apple Music 动态背景 歌词页 流光 取色") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_library_source), stringResource(R.string.settings_library_source_summary), "音乐来源 音乐库来源 本地 Navidrome Emby 远程 曲库") { onNavigateToHighlightedLibrarySettings("library_source") },
         entry(stringResource(R.string.settings_library_scan), stringResource(R.string.settings_library_scan_summary), "音乐库 扫描 标签 全标签 搜索 分隔符 艺术家 歌手") { onNavigateToHighlightedLibrarySettings("scan") },
@@ -352,5 +354,72 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_backup), stringResource(R.string.settings_backup_summary), "备份 恢复 WebDAV 自动备份 播放记录 设置") { onNavigateToHighlightedBackupSettings("backup_settings") },
         entry(stringResource(R.string.settings_logs), stringResource(R.string.settings_logs_summary), "日志 logcat 崩溃 警告") { onNavigateToLogs() },
         entry(stringResource(R.string.about), BuildConfig.VERSION_NAME, "版本 更新 关于") { onNavigateToAbout() }
+    ) + settingsSearchAliases(
+        entry = ::entry,
+        onAppearance = onNavigateToHighlightedAppearanceSettings,
+        onHome = onNavigateToHomeDisplaySettings,
+        onLibrary = onNavigateToHighlightedLibrarySettings,
+        onLyrics = onNavigateToHighlightedLyricSettings,
+        onAudio = onNavigateToHighlightedAudioSettings,
+        onBackup = onNavigateToHighlightedBackupSettings,
+        onEqualizer = onNavigateToHighlightedEqualizer,
+        onIntegration = onNavigateToHighlightedIntegrationSettings,
+        onLyricFont = onNavigateToLyricFont,
+        onLyricPlugins = onNavigateToLyricPluginSources,
+        onLogs = onNavigateToLogs,
+        onAbout = onNavigateToAbout
     )
 }
+
+@Composable
+private fun settingsSearchAliases(
+    entry: (String, String, String, () -> Unit) -> SettingsSearchEntry,
+    onAppearance: (String) -> Unit,
+    onHome: (String) -> Unit,
+    onLibrary: (String) -> Unit,
+    onLyrics: (String) -> Unit,
+    onAudio: (String) -> Unit,
+    onBackup: (String) -> Unit,
+    onEqualizer: (String) -> Unit,
+    onIntegration: (String) -> Unit,
+    onLyricFont: () -> Unit,
+    onLyricPlugins: () -> Unit,
+    onLogs: () -> Unit,
+    onAbout: () -> Unit
+): List<SettingsSearchEntry> = listOf(
+    entry(stringResource(R.string.settings_app_wallpaper), stringResource(R.string.settings_app_wallpaper_summary), "壁纸 图片 背景 模糊 毛玻璃 透明") { onAppearance("wallpaper") },
+    entry(stringResource(R.string.settings_app_icon), stringResource(R.string.settings_app_icon_summary), "图标 启动器 图标包 anime loli") { onAppearance("app_icon") },
+    entry(stringResource(R.string.settings_player_immersive_cover), stringResource(R.string.settings_player_immersive_cover_summary), "沉浸播放页 封面取色 文字 图标 背景 动态背景") { onAppearance("player_immersive") },
+    entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "动态封面 视频封面 MV mp4") { onAppearance("dynamic_cover") },
+    entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 显示 项目 排序 隐藏 宫格") { onHome("home_sections") },
+    entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 卡片 颜色 渐变 置顶") { onHome("home_tile_colors") },
+    entry(stringResource(R.string.settings_scan_folders), stringResource(R.string.settings_scan_folders_summary), "扫描 文件夹 排除 隐藏目录 存储权限") { onLibrary("scan") },
+    entry(stringResource(R.string.settings_auto_scan_local_playlists), stringResource(R.string.settings_auto_scan_local_playlists_summary), "自动扫描 本地歌单 m3u 播放列表") { onLibrary("scan") },
+    entry(stringResource(R.string.settings_min_duration_filter), stringResource(R.string.settings_min_duration_filter_summary), "扫描 最小时长 过滤 短音频") { onLibrary("scan") },
+    entry(stringResource(R.string.settings_tag_ignore_case), stringResource(R.string.settings_tag_ignore_case_summary), "标签 大小写 忽略 英文") { onLibrary("tag_scraping") },
+    entry(stringResource(R.string.settings_metadata_editor), "MusicTag LunaBeat 内置编辑器", "元数据 标签 编辑 ID3 FLAC") { onLibrary("tag_scraping") },
+    entry(stringResource(R.string.settings_editor_ask_every_time), "选择标签和歌词编辑器", "编辑器 每次询问 MusicTag LunaBeat") { onLibrary("tag_scraping") },
+    entry(stringResource(R.string.settings_song_rating_display_stars), stringResource(R.string.settings_song_rating_display_stars_summary), "评分 星级 五星 列表") { onLibrary("scan") },
+    entry(stringResource(R.string.settings_lyric_timing_editor), stringResource(R.string.settings_editor_builtin_lyric_timing), "打轴 歌词 时间轴 LRC ELRC TTML LySy") { onLibrary("tag_scraping") },
+    entry(stringResource(R.string.settings_font_screen_title), stringResource(R.string.settings_lyric_font), "歌词 字体 原文 翻译 CJK 西文 导入") { onLyricFont() },
+    entry(stringResource(R.string.settings_lyric_plugin_sources), stringResource(R.string.settings_lyric_plugin_sources_summary), "歌词 源 插件 导入 在线 匹配") { onLyricPlugins() },
+    entry(stringResource(R.string.settings_lyric_line_blacklist), stringResource(R.string.settings_lyric_line_blacklist_summary), "歌词 黑名单 过滤 行") { onLyrics("lyric_basic") },
+    entry(stringResource(R.string.settings_player_lyric_text_align), stringResource(R.string.settings_lyric_scale_summary), "歌词 对齐 左 中 右 大小 缩放") { onLyrics("lyric_basic") },
+    entry(stringResource(R.string.settings_mini_player_cover_rotation), stringResource(R.string.settings_mini_player_cover_rotation_summary), "迷你播放器 封面 旋转") { onLyrics("mini_lyrics") },
+    entry(stringResource(R.string.settings_enable_bluetooth_lyric), stringResource(R.string.settings_enable_bluetooth_lyric_summary), "蓝牙 歌词 设备") { onLyrics("lyric_output") },
+    entry(stringResource(R.string.settings_enable_flyme_ticker), stringResource(R.string.settings_enable_flyme_ticker_summary), "Flyme 魅族 状态栏 歌词") { onLyrics("lyric_output") },
+    entry(stringResource(R.string.settings_enable_lyric_getter), stringResource(R.string.settings_enable_lyric_getter_summary), "歌词 获取器 广播") { onLyrics("lyric_output") },
+    entry(stringResource(R.string.settings_heads_up_lyric_notifications), stringResource(R.string.settings_heads_up_lyric_notifications_summary), "通知 横幅 歌词") { onLyrics("lyric_output") },
+    entry(stringResource(R.string.settings_usb_dac_mode), stringResource(R.string.settings_usb_dac_mode_summary), "USB DAC 独占 输出 采样率 位深") { onAudio("audio_output") },
+    entry(stringResource(R.string.settings_decoder), stringResource(R.string.settings_audio_decoder_auto_summary), "解码 FFmpeg 系统 音频焦点") { onAudio("audio_system") },
+    entry(stringResource(R.string.equalizer_screen_title), stringResource(R.string.settings_audio_equalizer_summary), "均衡器 EQ 音效") { onEqualizer("equalizer") },
+    entry(stringResource(R.string.equalizer_surround_360_enable), stringResource(R.string.equalizer_surround_360_summary), "360 环绕音 空间音频 全景") { onEqualizer("equalizer") },
+    entry(stringResource(R.string.equalizer_crossfeed_enable), stringResource(R.string.equalizer_crossfeed_summary), "串音 耳机 crossfeed") { onEqualizer("equalizer") },
+    entry(stringResource(R.string.equalizer_compressor_enable), "压缩器动态范围控制", "压缩器 compressor 阈值 比率") { onEqualizer("equalizer") },
+    entry(stringResource(R.string.settings_openai_model), stringResource(R.string.settings_openai_model_summary), "OpenAI AI 模型 GPT API") { onIntegration("ai") },
+    entry(stringResource(R.string.settings_mcp_server), stringResource(R.string.settings_mcp_server_summary), "MCP 服务 本地 端口") { onIntegration("mcp") },
+    entry(stringResource(R.string.settings_lastfm), stringResource(R.string.settings_lastfm_summary), "Last.fm scrobble 听歌记录") { onIntegration("lastfm") },
+    entry(stringResource(R.string.settings_backup), stringResource(R.string.settings_backup_summary), "备份 恢复 WebDAV 自动备份") { onBackup("backup_settings") },
+    entry(stringResource(R.string.settings_logs), stringResource(R.string.settings_logs_summary), "日志 崩溃 调试 logcat") { onLogs() },
+    entry(stringResource(R.string.about), BuildConfig.VERSION_NAME, "版本 更新 开源协议 第三方许可") { onAbout() }
+)

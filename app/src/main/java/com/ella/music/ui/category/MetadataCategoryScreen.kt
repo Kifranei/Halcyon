@@ -105,6 +105,7 @@ import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.components.requestPinnedEllaShortcut
+import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 import com.ella.music.ui.folder.FolderBlockDialog
 import com.ella.music.ui.folder.normalizeFolderPath
 import com.ella.music.ui.folder.toFolderSettingList
@@ -242,7 +243,6 @@ fun MetadataCategoryScreen(
         val next = if (selecting) selectedNames + name else selectedNames - name
         selectedNames = next
         updateRangeAnchorsForManualSelection(name, selecting)
-        if (next.isEmpty()) selectionMode = false
     }
     fun selectedActionSongs(): List<Song> =
         selectedNames
@@ -549,15 +549,19 @@ fun MetadataCategoryScreen(
                         )
                     }
                     items(displayedItems, key = { it.name }) { item ->
-                        val albumArtUri = remember(item.coverAlbumIds) {
-                            item.coverAlbumIds.firstOrNull()?.let(mainViewModel::getAlbumArtUri)
+                        val coverSong = remember(songs, type, item.name) {
+                            selectMetadataCategoryCoverSong(songs, type, item.name) ?: item.representativeSong
+                        }
+                        val albumArtUri = remember(coverSong?.albumId, item.coverAlbumIds) {
+                            coverSong?.albumId?.takeIf { it > 0L }?.let(mainViewModel::getAlbumArtUri)
+                                ?: item.coverAlbumIds.firstOrNull()?.let(mainViewModel::getAlbumArtUri)
                         }
                         MetadataCategoryCard(
                             type = type,
                             item = item,
                             sortMode = sortMode,
                             albumArtUri = albumArtUri,
-                            representativeSong = item.representativeSong,
+                            representativeSong = coverSong,
                             loadCoverArt = if (type.prefersEmbeddedCategoryCardCover()) mainViewModel::getAlbumCoverArtBitmap else null,
                             selectionMode = selectionMode,
                             selected = item.name in selectedNames,

@@ -7,6 +7,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -129,6 +133,7 @@ fun PlaylistDetailScreen(
     var selectionMode by remember { mutableStateOf(false) }
     var selectedSongKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var draggedSongKey by remember { mutableStateOf<String?>(null) }
+    var pressedDragHandleSongKey by remember { mutableStateOf<String?>(null) }
     var rangeAnchorSongKey by remember { mutableStateOf<String?>(null) }
     var rangeTargetSongKey by remember { mutableStateOf<String?>(null) }
     val sortedSongs = remember(songs, sortMode) { songs.sortedForPlaylistDetail(sortMode) }
@@ -139,6 +144,7 @@ fun PlaylistDetailScreen(
         selectionMode = false
         selectedSongKeys = emptySet()
         draggedSongKey = null
+        pressedDragHandleSongKey = null
     }
     val reorderEnabled = !isRemoteReadOnly &&
         playlist?.isFiveStarRating != true &&
@@ -241,7 +247,6 @@ fun PlaylistDetailScreen(
         val next = if (selecting) selectedSongKeys + key else selectedSongKeys - key
         selectedSongKeys = next
         updateRangeAnchorsForManualSelection(key, selecting)
-        if (next.isEmpty()) selectionMode = false
     }
     fun selectAllDisplayedSongs() {
         val displayedKeys = displayedSongs.mapTo(mutableSetOf()) { it.playlistIdentityKey() }
@@ -535,18 +540,25 @@ fun PlaylistDetailScreen(
                                 manualOrder.map { it.playlistIdentityKey() }
                             )
                         }
+                        val songKey = song.playlistIdentityKey()
+                        // Record the down event before combinedClickable's long-press callback.
+                        // This makes a hold on an unselected row's drag handle a drag-only action.
                         val dragHandleModifier = Modifier
-                            .draggableHandle(
-                                onDragStarted = { draggedSongKey = song.playlistIdentityKey() },
-                                onDragStopped = {
-                                    draggedSongKey = null
-                                    settleManualOrder()
+                            .pointerInput(songKey) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    pressedDragHandleSongKey = songKey
+                                    waitForUpOrCancellation()
+                                    if (pressedDragHandleSongKey == songKey) {
+                                        pressedDragHandleSongKey = null
+                                    }
                                 }
-                            )
+                            }
                             .longPressDraggableHandle(
-                                onDragStarted = { draggedSongKey = song.playlistIdentityKey() },
+                                onDragStarted = { draggedSongKey = songKey },
                                 onDragStopped = {
                                     draggedSongKey = null
+                                    pressedDragHandleSongKey = null
                                     settleManualOrder()
                                 }
                             )
@@ -576,8 +588,8 @@ fun PlaylistDetailScreen(
                                 }
                             },
                             onLongClick = {
+                                if (pressedDragHandleSongKey == songKey) return@SongItem
                                 selectionMode = true
-                                val songKey = song.playlistIdentityKey()
                                 selectedSongKeys = selectedSongKeys + songKey
                                 updateRangeAnchorsForManualSelection(songKey, selectedNow = true)
                             },

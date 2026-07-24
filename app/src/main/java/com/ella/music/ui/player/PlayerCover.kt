@@ -262,7 +262,7 @@ internal fun HiResLogoBadge(
         )
         Text(
             text = "AUDIO",
-            color = Color.White.copy(alpha = 0.92f),
+            color = LocalPlayerContentColor.current.copy(alpha = 0.92f),
             fontSize = 5.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1

@@ -93,6 +93,7 @@ import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.rememberSongDeleteRequester
+import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 import com.ella.music.ui.components.toFastIndexSection
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -264,7 +265,8 @@ fun AlbumDetailScreen(
                 name = year,
                 songs = mainViewModel.getSongsForMetadataCategory("year", year),
                 mainViewModel = mainViewModel,
-                fallbackSong = albumSongs.firstOrNull()
+                fallbackSong = albumSongs.firstOrNull(),
+                categoryType = "year"
             )
         }
     }
@@ -274,7 +276,8 @@ fun AlbumDetailScreen(
                 name = genre,
                 songs = mainViewModel.getSongsForMetadataCategory("genre", genre),
                 mainViewModel = mainViewModel,
-                fallbackSong = albumSongs.firstOrNull()
+                fallbackSong = albumSongs.firstOrNull(),
+                categoryType = "genre"
             )
         }
     }
@@ -297,7 +300,8 @@ fun AlbumDetailScreen(
                 name = composer,
                 songs = mainViewModel.getSongsForMetadataCategory("composer", composer),
                 mainViewModel = mainViewModel,
-                fallbackSong = albumSongs.firstOrNull()
+                fallbackSong = albumSongs.firstOrNull(),
+                categoryType = "composer"
             )
         }
     }
@@ -307,7 +311,8 @@ fun AlbumDetailScreen(
                 name = arranger,
                 songs = mainViewModel.getSongsForMetadataCategory("arranger", arranger),
                 mainViewModel = mainViewModel,
-                fallbackSong = albumSongs.firstOrNull()
+                fallbackSong = albumSongs.firstOrNull(),
+                categoryType = "arranger"
             )
         }
     }
@@ -317,7 +322,8 @@ fun AlbumDetailScreen(
                 name = lyricist,
                 songs = mainViewModel.getSongsForMetadataCategory("lyricist", lyricist),
                 mainViewModel = mainViewModel,
-                fallbackSong = albumSongs.firstOrNull()
+                fallbackSong = albumSongs.firstOrNull(),
+                categoryType = "lyricist"
             )
         }
     }
@@ -368,7 +374,6 @@ fun AlbumDetailScreen(
         val next = if (selecting) selectedIds + song.id else selectedIds - song.id
         selectedIds = next
         updateRangeAnchorsForManualSelection(song.id, selecting)
-        if (next.isEmpty()) selectionMode = false
     }
     fun selectedSongs(): List<Song> = sortedAlbumSongs.filter { it.id in selectedIds }
     val selectedVisibleCount = remember(selectedIds, sortedAlbumSongs) {
@@ -1038,10 +1043,13 @@ private fun buildAlbumMetadataDisplayItem(
     songs: List<Song>,
     mainViewModel: MainViewModel,
     fallbackSong: Song?,
+    categoryType: String? = null,
     artistCoverName: String? = null,
     artistCoverSong: Song? = null
 ): AlbumMetadataDisplayItem {
-    val representativeSong = songs.firstOrNull() ?: fallbackSong
+    val representativeSong = categoryType?.let { selectMetadataCategoryCoverSong(songs, it, name) }
+        ?: songs.firstOrNull()
+        ?: fallbackSong
     return AlbumMetadataDisplayItem(
         name = name,
         songCount = songs.size,

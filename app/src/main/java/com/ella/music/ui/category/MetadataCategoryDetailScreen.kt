@@ -224,7 +224,6 @@ fun MetadataCategoryDetailScreen(
         val selecting = songId !in selectedIds
         selectedIds = if (selecting) selectedIds + songId else selectedIds - songId
         updateRangeAnchorsForManualSelection(songId, selecting)
-        if (selectedIds.isEmpty()) selectionMode = false
     }
     val showAlbumTab = type == "genre" || type == "year" || type in PERSON_METADATA_CATEGORY_TYPES
     val shouldBuildAlbumTabContent = showAlbumTab && selectedTab == MetadataDetailTab.Albums

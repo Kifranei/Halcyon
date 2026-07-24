@@ -837,6 +837,8 @@
     <string name="settings_custom_image_save_failed">儲存自訂圖片失敗</string>
     <string name="settings_player_immersive_cover">沉浸專輯封面</string>
     <string name="settings_player_immersive_cover_summary">開啟後播放頁封面延伸到頂部；關閉後使用收斂的圓角封面版面</string>
+    <string name="settings_player_cover_content_color">封面取色用於內容</string>
+    <string name="settings_player_cover_content_color_summary">將播放頁、歌詞頁和歌曲詳情頁的文字與圖示改為封面強調色</string>
     <string name="settings_player_tap_seek">點一下進度列調整播放進度</string>
     <string name="settings_player_tap_seek_summary">關閉後只能拖曳進度列調整；開啟後可直接點一下播放頁進度列任何位置調整播放進度</string>
     <string name="settings_player_show_total_duration">進度列顯示歌曲總長度</string>

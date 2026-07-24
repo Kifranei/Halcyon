@@ -109,8 +109,14 @@ fun FolderScreen(
     val pinnedFolderPaths by mainViewModel.settingsManager.pinnedKeysFlow("folder").collectAsState(initial = emptyList())
     val folderSortIndex by mainViewModel.settingsManager.folderListSortIndex.collectAsState(initial = LibrarySortUiState.folderListSortIndex)
     val folderSortMode = FolderListSortMode.entries.getOrElse(folderSortIndex) { FolderListSortMode.Name }
+    val folderDetailSongSortIndex by mainViewModel.settingsManager.folderDetailSongSortIndex.collectAsState(
+        initial = LibrarySortUiState.folderDetailSongSortIndex
+    )
     LaunchedEffect(folderSortIndex) {
         LibrarySortUiState.folderListSortIndex = folderSortIndex
+    }
+    LaunchedEffect(folderDetailSongSortIndex) {
+        LibrarySortUiState.folderDetailSongSortIndex = folderDetailSongSortIndex
     }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
     var folderMenuTarget by remember { mutableStateOf<FolderTreeEntry?>(null) }
@@ -125,7 +131,11 @@ fun FolderScreen(
     val rootSongs = songs
     val rootChildFolders = remember(songs, rootFolderPath) { songs.childFoldersOf(context, rootFolderPath) }
     fun songsForFolder(folder: FolderTreeEntry): List<com.ella.music.data.model.Song> =
-        songs.recursiveSongsInFolder(folder.path)
+        songs.recursiveSongsInFolder(folder.path).sortedForFolderDetail(
+            FolderSongSortMode.entries.getOrElse(
+                folderDetailSongSortIndex
+            ) { FolderSongSortMode.Title }
+        )
 
     BackHandler(enabled = sortExpanded || searchExpanded || folderToBlock != null || folderMenuTarget != null) {
         when {

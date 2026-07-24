@@ -400,7 +400,6 @@ fun ArtistScreen(
         val next = if (selecting) selectedIds + id else selectedIds - id
         selectedIds = next
         updateRangeAnchorsForManualSelection(id, selecting)
-        if (next.isEmpty()) selectionMode = false
     }
     val selectedVisibleCount = remember(selectedIds, currentSelectionIds) {
         currentSelectionIds.count { it in selectedIds }

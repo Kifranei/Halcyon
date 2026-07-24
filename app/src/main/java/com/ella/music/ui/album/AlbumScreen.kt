@@ -214,7 +214,6 @@ fun AlbumScreen(
         val next = if (selecting) selectedAlbumIds + album.id else selectedAlbumIds - album.id
         selectedAlbumIds = next
         updateRangeAnchorsForManualSelection(album.id, selecting)
-        if (next.isEmpty()) selectionMode = false
     }
     fun selectedAlbumSongs(): List<Song> {
         if (selectedAlbumIds.isEmpty()) return emptyList()

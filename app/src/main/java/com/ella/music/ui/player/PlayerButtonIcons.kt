@@ -22,9 +22,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.More
 
 internal enum class PlayerHeaderActionKind {
     Favorite,
@@ -106,20 +103,6 @@ internal fun QuickActionIcon(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    val miuixIcon = when (kind) {
-        PlayerQuickActionKind.Info -> MiuixIcons.Demibold.Info
-        PlayerQuickActionKind.More -> MiuixIcons.Demibold.More
-        else -> null
-    }
-    if (miuixIcon != null) {
-        Icon(
-            imageVector = miuixIcon,
-            contentDescription = null,
-            tint = color,
-            modifier = modifier
-        )
-        return
-    }
     Canvas(modifier = modifier) {
         val stroke = size.minDimension * 0.10f
         val cx = size.width / 2f
@@ -148,8 +131,8 @@ internal fun QuickActionIcon(
                 drawLine(color, Offset(size.width * 0.22f, size.height * 0.78f), Offset(size.width * 0.40f, size.height * 0.72f), stroke, cap = StrokeCap.Round)
             }
             PlayerQuickActionKind.More -> {
-                listOf(0.25f, 0.5f, 0.75f).forEach { x ->
-                    drawCircle(color = color, radius = stroke * 0.95f, center = Offset(size.width * x, cy))
+                listOf(0.25f, 0.5f, 0.75f).forEach { y ->
+                    drawCircle(color = color, radius = stroke * 0.95f, center = Offset(cx, size.height * y))
                 }
             }
             PlayerQuickActionKind.Add -> {

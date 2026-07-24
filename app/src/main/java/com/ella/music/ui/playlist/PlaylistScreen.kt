@@ -367,7 +367,6 @@ fun PlaylistScreen(
         val next = if (selecting) selectedPlaylistIds + playlist.id else selectedPlaylistIds - playlist.id
         selectedPlaylistIds = next
         updateRangeAnchorsForManualSelection(playlist.id, selecting)
-        if (next.isEmpty()) selectionMode = false
     }
     fun selectedPlaylists(): List<UserPlaylist> =
         displayedCustomPlaylists.filter { !it.isRemote && it.id in selectedPlaylistIds }

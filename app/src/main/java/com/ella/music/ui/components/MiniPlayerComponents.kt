@@ -591,7 +591,7 @@ internal fun PlayerQueueListIcon(
             if (contentDescription != null) this.contentDescription = contentDescription
         }
     ) {
-        val stroke = 2.5.dp.toPx()
+        val stroke = 2.3.dp.toPx()
         val startX = size.width * 0.18f
         val endX = size.width * 0.82f
         listOf(0.27f, 0.50f, 0.73f).forEachIndexed { index, yFraction ->

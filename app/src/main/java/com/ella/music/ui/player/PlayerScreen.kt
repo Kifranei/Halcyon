@@ -238,6 +238,7 @@ fun PlayerScreen(
     val musicVideoSyncEnabled = playerSettings.musicVideoSyncEnabled
     val dynamicCoverCustomFolders = playerSettings.dynamicCoverCustomFolders
     val immersiveAlbumCover = playerSettings.immersiveAlbumCover
+    val coverContentColor = playerSettings.coverContentColor
     val playerBackgroundEnabled = playerSettings.playerBackgroundEnabled
     val playerBackgroundUri = playerSettings.playerBackgroundUri
     val playerBackgroundOpacity = playerSettings.playerBackgroundOpacity / 100f
@@ -341,8 +342,16 @@ fun PlayerScreen(
     )
     val embeddedCover = songPresentation.embeddedCover
     val paletteBitmap = songPresentation.paletteBitmap
-    val palette = songPresentation.palette
-    val lyricPalette = songPresentation.lyricPalette
+    val palette = if (coverContentColor) {
+        songPresentation.palette.withCoverContentColor()
+    } else {
+        songPresentation.palette
+    }
+    val lyricPalette = if (coverContentColor) {
+        songPresentation.lyricPalette.withCoverContentColor()
+    } else {
+        songPresentation.lyricPalette
+    }
     val audioInfo = songPresentation.audioInfo
     val tagInfo = songPresentation.tagInfo
     val songAnnotation = songPresentation.annotation

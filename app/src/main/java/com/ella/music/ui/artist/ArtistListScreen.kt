@@ -306,7 +306,6 @@ fun ArtistListScreen(
         val next = if (selecting) selectedArtistKeys + key else selectedArtistKeys - key
         selectedArtistKeys = next
         updateRangeAnchorsForManualSelection(key, selecting)
-        if (next.isEmpty()) selectionMode = false
     }
     fun selectedArtistSongs(): List<Song> {
         if (selectedArtistKeys.isEmpty()) return emptyList()

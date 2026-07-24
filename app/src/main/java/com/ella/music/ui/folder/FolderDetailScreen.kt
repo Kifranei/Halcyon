@@ -226,7 +226,6 @@ fun FolderDetailScreen(
         val selecting = songId !in selectedIds
         selectedIds = if (selecting) selectedIds + songId else selectedIds - songId
         updateRangeAnchorsForManualSelection(songId, selecting)
-        if (selectedIds.isEmpty()) selectionMode = false
     }
     val sortedSongIndexByIdForSelection = remember(sortedSongs) {
         buildMap {
@@ -767,7 +766,10 @@ fun FolderDetailScreen(
         }
 
         folderMenuTarget?.let { folder ->
-            val folderSongs = remember(songs, folder.path) { songs.recursiveSongsInFolder(folder.path) }
+            // Folder actions follow the same order the user sees in this folder, not MediaStore order.
+            val folderSongs = remember(songs, folder.path, sortMode) {
+                songs.recursiveSongsInFolder(folder.path).sortedForFolderDetail(sortMode)
+            }
             val isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) }
             FolderActionSheet(
                 title = folder.name,

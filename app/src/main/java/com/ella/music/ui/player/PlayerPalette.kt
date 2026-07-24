@@ -281,6 +281,14 @@ internal fun Color.boosted(): Color {
     )
 }
 
+/** Accent-colored player content with a luminance floor so text and icons remain legible. */
+internal fun PlayerPalette.coverContentColor(): Color = accent.boosted().let { accentColor ->
+    if (isLight) accentColor.darken(0.28f) else accentColor.lighten(0.16f)
+}
+
+internal fun PlayerPalette.withCoverContentColor(): PlayerPalette =
+    copy(onBackground = coverContentColor())
+
 private fun Color.toPlayerAccent(): Color {
     val r = (red * 255f).toInt().coerceIn(0, 255)
     val g = (green * 255f).toInt().coerceIn(0, 255)

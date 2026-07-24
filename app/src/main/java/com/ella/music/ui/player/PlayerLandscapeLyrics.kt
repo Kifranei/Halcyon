@@ -250,7 +250,7 @@ internal fun LandscapeLyricsOverlay(
             Icon(
                 imageVector = MiuixIcons.Regular.Photos,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.92f),
+                tint = LocalPlayerContentColor.current.copy(alpha = 0.92f),
                 modifier = Modifier.size(topIconSize)
             )
         }
@@ -265,7 +265,7 @@ internal fun LandscapeLyricsOverlay(
             contentAlignment = Alignment.Center
         ) {
             CloseIcon(
-                color = Color.White.copy(alpha = 0.92f),
+                color = LocalPlayerContentColor.current.copy(alpha = 0.92f),
                 modifier = Modifier.size(topIconSize)
             )
         }
