@@ -6,8 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * The MV surface owns a second, muted ExoPlayer.  Keep its clock available to the player controls
- * instead of accidentally seeking the audio player while the MV is visible.
+ * Keeps the active MV surface synchronized to the audio player's clock.
  */
 internal data class MusicVideoPlaybackSnapshot(
     val positionMs: Long = 0L,
@@ -20,6 +19,8 @@ internal object MusicVideoPlaybackBridge {
         val snapshot: MutableStateFlow<MusicVideoPlaybackSnapshot> =
             MutableStateFlow(MusicVideoPlaybackSnapshot()),
         @Volatile var playWhenReady: Boolean = false,
+        @Volatile var syncPositionMs: Long? = null,
+        @Volatile var syncDurationMs: Long? = null,
         @Volatile var player: Player? = null
     )
 
@@ -38,6 +39,7 @@ internal object MusicVideoPlaybackBridge {
         val entry = entries.getOrPut(keyFor(source)) { Entry() }
         entry.player = player
         player.playWhenReady = entry.playWhenReady
+        applySync(entry, player)
         publish(source, player)
     }
 
@@ -85,4 +87,42 @@ internal object MusicVideoPlaybackBridge {
         val entry = entries.getOrPut(keyFor(resolvedSource)) { Entry() }
         setPlaying(resolvedSource, !entry.playWhenReady)
     }
+
+    fun syncToAudio(
+        source: DynamicCoverSource,
+        positionMs: Long,
+        audioDurationMs: Long?,
+        playing: Boolean
+    ) {
+        if (source.role != PlayerVideoRole.MusicVideo) return
+        val entry = entries.getOrPut(keyFor(source)) { Entry() }
+        entry.syncPositionMs = positionMs.coerceAtLeast(0L)
+        entry.syncDurationMs = audioDurationMs?.coerceAtLeast(0L)
+        entry.playWhenReady = playing
+        entry.player?.let { player ->
+            applySync(entry, player)
+            publish(source, player)
+        }
+    }
+
+    private fun applySync(entry: Entry, player: Player) {
+        val requestedPosition = entry.syncPositionMs ?: return
+        val audioDuration = entry.syncDurationMs ?: Long.MAX_VALUE
+        val videoDuration = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+        val target = if (requestedPosition >= videoDuration) {
+            (videoDuration - 1L).coerceAtLeast(0L)
+        } else {
+            requestedPosition.coerceAtMost(audioDuration)
+        }
+        // Normal playback advances on the video player's own clock. Seeking every UI position
+        // update caused decoder flushes and made MV playback visibly stutter.
+        if (kotlin.math.abs(player.currentPosition - target) > MUSIC_VIDEO_RESYNC_TOLERANCE_MS ||
+            (!entry.playWhenReady && player.currentPosition != target)
+        ) {
+            player.seekTo(target)
+        }
+        player.playWhenReady = entry.playWhenReady && requestedPosition < videoDuration && requestedPosition < audioDuration
+    }
+
+    private const val MUSIC_VIDEO_RESYNC_TOLERANCE_MS = 750L
 }

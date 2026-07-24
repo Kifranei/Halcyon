@@ -69,7 +69,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.clipToBounds
@@ -289,11 +288,10 @@ fun MiniPlayer(
                 onClick = onShowQueue,
                 modifier = Modifier.size(36.dp)
             ) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Playlist,
+                PlayerQueueListIcon(
                     contentDescription = stringResource(R.string.player_queue_title),
-                    tint = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(18.dp)
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

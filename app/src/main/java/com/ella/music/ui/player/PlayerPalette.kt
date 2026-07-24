@@ -136,25 +136,10 @@ internal data class PlayerPalette(
         fun seedColor(bitmap: Bitmap?): Color? = representativeAccent(bitmap)?.toPlayerAccent()
 
         fun pairFrom(bitmap: Bitmap?, light: Boolean = false): Pair<PlayerPalette, PlayerPalette> {
-            val fallback = if (light) LightDefault else Default
-            val representative = representativeAccent(bitmap) ?: return fallback to fallback
-            val accent = representative.toPlayerAccent()
-            return if (light) {
-                val palette = lightPalette(accent)
-                palette to palette
-            } else {
-                PlayerPalette(
-                    top = accent.darken(0.40f),
-                    middle = accent.darken(0.66f),
-                    bottom = accent.darken(0.86f),
-                    accent = accent
-                ) to PlayerPalette(
-                    top = accent.darken(0.42f),
-                    middle = accent.darken(0.68f),
-                    bottom = accent.darken(0.88f),
-                    accent = accent
-                )
-            }
+            // The cover and lyric surfaces share one background underneath the page transition.
+            // Returning one palette prevents a visible color jump when immersive lyrics opens.
+            val palette = fromCoverBackground(bitmap, light)
+            return palette to palette
         }
 
         fun fromCoverBackground(bitmap: Bitmap?, light: Boolean = false): PlayerPalette {

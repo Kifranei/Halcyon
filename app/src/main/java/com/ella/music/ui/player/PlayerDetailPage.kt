@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -33,6 +35,8 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.formatPlaybackDuration
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ella.music.ui.components.ExplicitSongTitle
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -66,8 +70,12 @@ internal fun PlayerDetailPage(
     onNeteaseSong: () -> Unit,
     onNeteaseArtist: (String) -> Unit,
     onNeteaseAlbum: () -> Unit,
+    musicVideoEnabled: Boolean = false,
+    musicVideoCustomFolders: List<String> = emptyList(),
+    onMusicVideo: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val composerNames = remember(tagInfo?.composer, song?.composer) {
         splitArtistNames(tagInfo?.composer?.ifBlank { song?.composer.orEmpty() }.orEmpty())
     }
@@ -151,6 +159,26 @@ internal fun PlayerDetailPage(
     }
     val genreSongs = remember(genre, effectiveLibrarySongs) {
         effectiveLibrarySongs.filter { it.genre.matchesGenreName(genreCategoryName) }
+    }
+    val musicVideoSource by produceState<DynamicCoverSource?>(
+        initialValue = null,
+        song?.dynamicCoverResolutionKey(),
+        musicVideoEnabled,
+        musicVideoCustomFolders
+    ) {
+        value = if (musicVideoEnabled && song != null) {
+            withContext(Dispatchers.IO) { song.musicVideoSource(context, musicVideoCustomFolders) }
+        } else {
+            null
+        }
+    }
+    val musicVideoDurationMs by produceState(
+        initialValue = 0L,
+        musicVideoSource?.failureKey
+    ) {
+        value = musicVideoSource?.let { source ->
+            withContext(Dispatchers.IO) { context.readMusicVideoDurationMs(source.uri) }
+        } ?: 0L
     }
 
     if (showNeteaseArtistPicker) {
@@ -252,6 +280,22 @@ internal fun PlayerDetailPage(
                             coverModel = song?.coverUrl?.takeIf { it.isNotBlank() }
                                 ?: song?.albumId?.let(albumArtForAlbum),
                             onClick = onAlbum
+                        )
+                    }
+                }
+            }
+
+            musicVideoSource?.let { source ->
+                item {
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_detail_music_video)) {
+                        PlayerDetailGroupedActionRow(
+                            title = song?.title.orEmpty(),
+                            summary = listOf(
+                                song?.artist.orEmpty().ifBlank { stringResource(R.string.player_unknown_artist) },
+                                musicVideoDurationMs.formatPlaybackDuration()
+                            ).joinToString(" · "),
+                            coverModel = source.uri,
+                            onClick = onMusicVideo
                         )
                     }
                 }

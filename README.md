@@ -29,7 +29,7 @@
 
 **Halcyon** 是一款基于 **Jetpack Compose、Miuix 和 AndroidX Media3** 构建的 Android 本地音乐播放器。
 
-它以本地音乐和歌词体验为核心，提供 MIUI / HyperOS 风格界面、逐字歌词、桌面歌词、状态栏歌词、动态封面、应用内均衡器、Monet 动态取色、在线歌词匹配、WebDAV / Navidrome / Emby 远程曲库、LX Music API 在线音源、音乐库统计、完整应用数据备份和高度可定制的播放页体验。
+它以本地音乐和歌词体验为核心，提供 MIUI / HyperOS 风格界面、Compose 逐字歌词、桌面歌词、状态栏歌词、动态封面、应用内均衡器、Monet 动态取色、在线歌词匹配、WebDAV / Navidrome / Emby 远程曲库、LX Music API 在线音源、Last.fm 听歌历史、音乐库统计、完整应用数据备份和高度可定制的播放页体验。
 
 ---
 
@@ -38,11 +38,13 @@
 ### 🎵 音乐库与歌单
 
 - 支持本地媒体库与自定义文件夹扫描，提供专辑、艺术家、文件夹、流派、年份、作曲家和作词家等多维度浏览；长按扫描按钮可触发完整读取标签的重扫。
+- 首次扫描前会询问是否启用全标签搜索：启用后可搜索作曲、作词、注释、别名和自定义标签；关闭后使用更快的基础媒体库扫描，仅搜索歌名、艺术家、专辑等基本信息。
 - 音乐库来源可在本地、Navidrome 和 Emby 间切换，切换后会刷新当前来源，避免继续显示上一来源的歌曲。
 - 提供独立音乐库搜索页，支持歌曲、专辑、歌手、歌词、重复歌曲和全标签搜索，支持搜索历史、批量选择和范围选择。
 - 支持本地歌单、收藏歌单、五星歌曲、歌单导入 / 导出、桌面快捷方式和自定义拖拽排序。
 - 专辑识别会同时考虑专辑名与专辑艺术家，避免不同艺术家的同名专辑互相合并。
 - 支持音乐库统计分析、听歌日历、播放次数排行、听歌时长排行、格式分布和音质分布。
+- 支持 Last.fm 授权、完整历史同步、自动 Scrobble 与本地 / Last.fm / 合并听歌历史视图；敏感凭据由 Android Keystore 加密且不会写入备份。
 - 音乐库分析支持缓存与扫描后预热，较大的本地曲库也能更快打开统计页面。
 
 ### 🖼 播放页与动态封面
@@ -54,10 +56,12 @@
 - 艺术家静态封面按自定义资源、独占/合作专辑艺术家、独占/合作歌曲艺术家的顺序选择。
 - 支持全局自定义壁纸、开屏海报、自定义 Hi-Res 标识和播放页按钮轮廓。
 - 支持 Beautiful Lyrics 风格动态背景，可应用于歌词页、平板横屏播放页和横屏封面页，并提供速度、模糊和亮度调节。
+- Compose 歌词页支持 Apple Music 风格动态背景、逐词上浮、平滑重排及沉浸式歌词 / 播放页之间的一致过渡。
 - 支持 Monet 动态取色，可从系统壁纸或当前歌曲封面生成全局强调色。
 - 非沉浸播放页可为 Hi-Res / MQ 音质歌曲显示封面角标。
 - 播放页支持跟手下拉关闭、动态背景、模糊背景、封面左右滑切歌和横屏队列封面切换；平板横屏可在底部播放条和紧凑导航条显示当前歌词。
-- 支持显示歌曲MV，请将”歌曲文件名-MV.mp4”或“歌曲文件名_MV.mp4”放到与歌曲同目录，播放到有MV的歌曲时候会显示MV按钮。
+- 支持显示歌曲 MV；请将“歌曲文件名-MV.mp4”或“歌曲文件名_MV.mp4”放到与歌曲同目录。播放 MV 时会暂停歌曲音频并使用 MV 声音，切回歌曲后继续音乐播放；支持横屏打开 MV。
+- 长按播放页封面可预览原图，支持双击缩放、单指拖动、分享和保存。
 
 ### 🎤 歌词体验
 
@@ -80,6 +84,7 @@
 ### 🎚 音效、解码、标签与音质
 
 - 提供应用内软件 10 段参数均衡器，不依赖系统 Equalizer，并根据设备能力显示低音增强和虚拟化选项。
+- 支持原生 Oboe 音频输出和 USB DAC 独占模式，并提供可调时长的交叉淡入淡出播放。
 - 本地音频标签读取使用 lyrico-audiotag 主路径，支持常见音频格式的封面、基础标签、内嵌歌词和多值标签读取。
 - 内置标签编辑器支持编辑基础标签、歌词和歌曲封面。
 - 提供系统解码、FFmpeg 解码和自动解码模式，提升 ALAC / AAC / M4A 等格式兼容性。
@@ -88,13 +93,15 @@
 
 ### 🎨 界面与扩展
 
-- 基于 Miuix 0.9.3 构建 MIUI / HyperOS 风格界面，包含悬浮底部导航、迷你播放器、模糊 / 液态玻璃效果和统一的弹窗样式。
-- 支持 12 种界面语言、应用内语言切换、GitHub 更新页、应用日志、完整应用数据备份 / 恢复和 Prism Music 听歌历史导出。
+- 基于 Miuix 0.9.3 构建 MIUI / HyperOS 风格界面，包含悬浮底部导航、迷你播放器、模糊 / 液态玻璃效果和统一的弹窗样式；深色系统下启动界面保持深色，避免启动遮罩闪白。
+- 支持 8 种界面语言、应用内语言切换、GitHub 更新页、应用日志、完整应用数据备份 / 恢复和 Prism Music 听歌历史导出。
+- 支持切换应用图标、配置长按桌面图标的快捷方式、在首页分类卡片创建快捷方式，以及紧凑 / 扩展两种桌面播放小组件。
 - 支持歌曲信息查看、标签编辑、歌词打轴软件跳转、外部标签编辑器适配和 AI 歌曲解读。
 - 支持 MediaSession 自定义命令，通知 / 控制中心可显示收藏和播放模式按钮。
 
 ### 🤖 AI 与 MCP
 
+- 支持 OpenAI 曲库听歌助手：可根据本地曲库、最近播放和听歌统计生成推荐歌单、回答音乐偏好；只会读取曲库并播放本地歌曲，不会删除或修改文件。
 - 内置 MCP 服务器，基于官方 Kotlin SDK、Ktor CIO 和 Streamable HTTP，可让 Claude Desktop 等 MCP Host 控制 Halcyon 播放。
 - 开启路径：设置 → MCP 服务器 → 开启；连接地址：`http://<设备IP>:8384/mcp`。
 - 当前提供 10 个 tools：`play_song`、`search_music`、`get_now_playing`、`skip_next`、`skip_previous`、`toggle_play_pause`、`toggle_shuffle`、`seek_to`、`get_queue`、`get_library_stats`。
@@ -200,7 +207,7 @@ RELEASE_KEY_PASSWORD
 
 如果未设置这些变量，会使用项目根目录下的 `release.jks`。如果没有可用的 release keystore，本地 release 构建默认失败；在 CI 或显式设置 `ALLOW_DEBUG_SIGNED_RELEASE=true` 时，会改用 debug 签名产出 release APK，便于 GitHub Actions 提供可测试安装包。
 
-日常开发建议使用 `assembleDebug` 验证；`fastRelease` / release 构建仅在发版时使用。默认 native 库走预编译 `.so` 打包，如需更新 FFmpeg 或 lyrico-audiotag native，再手动运行对应脚本重新生成。发版后请同步推送 GitHub、GitLab 与 Codeberg 远端。
+日常开发建议使用 `assembleDebug` 验证；`fastRelease` / release 构建仅在发版时使用。默认 native 库走预编译 `.so` 打包，如需更新 FFmpeg 或 lyrico-audiotag native，再手动运行对应脚本重新生成。发版后请同步推送 GitHub 与 GitLab 远端。
 
 ---
 
@@ -264,18 +271,6 @@ Halcyon 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各�
 <img src="./fundingimg/alipay.jpg" alt="支付宝" width="200" />
 <img src="./fundingimg/weixin.png" alt="微信赞赏码" width="200" />
 
-## ⭐ Star History
-
-<p align="center">
-  <a href="https://www.star-history.com/#Kifranei/Halcyon&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Kifranei/Halcyon&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Kifranei/Halcyon&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Kifranei/Halcyon&type=Date" width="600" />
-    </picture>
-  </a>
-</p>
-
 ---
 
 ## 👀 访问统计
@@ -283,3 +278,21 @@ Halcyon 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各�
 <p align="center">
   <img src="https://count.getloli.com/get/@kifranei_halcyon?theme=capoo-2" alt="Visitor Count" />
 </p>
+
+---
+## 友情推广链接
+
+- [Lyrico](https://github.com/Replica0110/Lyrico)
+- 强大的歌曲标签编辑工具，同样使用 Miuix 构建，支持匹配歌词、封面、ReplayGain、网易云注释等。
+
+- [RawS Music](https://github.com/QFDY-GZC/RawS-Music)
+  一个支持 USB DAC 独占，且支持EQ、环绕音效等的开源本地播放器，同样使用 Miuix 构建，推荐试试。
+
+- [词幕](https://github.com/tomakino/Lyricon)
+  为 Android 提供逐字和对唱显示的状态栏歌词插件。需要启用 Xposed 或 LSPosed 框架。
+
+- [棱镜音乐](https://github.com/Ryderwe/PrismMusic-Release)
+由 leguan 开发的本地播放器。播放页面等也非常美观，推荐一试。
+
+- [LunaBeat](https://github.com/2755337087/LunaBeat)
+可以在手机上实现歌词打轴，同时也是具有美观的播放和歌词页面的播放器。支持为歌曲匹配歌词。

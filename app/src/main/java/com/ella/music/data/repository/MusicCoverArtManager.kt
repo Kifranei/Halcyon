@@ -129,13 +129,14 @@ internal class MusicCoverArtManager(
     }
 
     /**
-     * Returns the original embedded image bytes for full-screen preview/save/share.  Keeping this
-     * separate from [getCoverArtBitmap] prevents a 1200px rendering bitmap from being mistaken
-     * for the source image.
+     * Returns the unscaled source for detail surfaces and export. Keeping this separate from
+     * [getCoverArtBitmap] prevents a rendering bitmap from being mistaken for the source image.
      */
     fun getOriginalCoverModel(song: Song): Any? {
-        return getCoverArt(song)
-            ?: song.coverUrl.takeIf { it.isNotBlank() }
+        // Online artwork is the actual source for remote songs. For local files prefer embedded
+        // bytes, but do not let a stale embedded thumbnail replace an explicitly supplied cover.
+        return song.coverUrl.takeIf { it.isNotBlank() }
+            ?: getCoverArt(song)
             ?: getAlbumArtUri(song.albumId)
     }
 

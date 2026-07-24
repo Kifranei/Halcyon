@@ -19,6 +19,15 @@ internal enum class AlbumSortMode(val labelRes: Int) {
     DurationAsc(R.string.playlist_song_sort_duration)
 }
 
+internal fun AlbumSortMode.isDescending(): Boolean = when (this) {
+    AlbumSortMode.YearDesc,
+    AlbumSortMode.NameDesc,
+    AlbumSortMode.ArtistDesc,
+    AlbumSortMode.SongCount,
+    AlbumSortMode.Duration -> true
+    else -> false
+}
+
 internal fun Album.summaryForSort(context: android.content.Context, sortMode: AlbumSortMode, duration: Long): String {
     if (sortMode == AlbumSortMode.Artist || sortMode == AlbumSortMode.ArtistDesc) {
         return buildList {

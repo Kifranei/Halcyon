@@ -405,6 +405,7 @@ fun ArtistListScreen(
                         }
                     }
                 },
+                titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
                 actions = {
                     if (selectionMode) {
                         IconButton(onClick = {
@@ -586,7 +587,11 @@ fun ArtistListScreen(
                 ) {
                     item {
                         Text(
-                            text = stringResource(R.string.artist_list_summary, filteredArtists.size, stringResource(sortMode.labelRes)),
+                            text = stringResource(
+                                R.string.artist_list_summary,
+                                filteredArtists.size,
+                                com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
+                            ),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

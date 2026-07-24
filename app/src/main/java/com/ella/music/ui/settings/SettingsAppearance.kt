@@ -64,6 +64,9 @@ internal fun SettingsAppearanceSection(
     val hideSystemBars by settingsManager.hideSystemBars.collectAsState(initial = false)
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = false)
     val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = "")
+    val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
+        initial = SettingsManager.DEFAULT_STARTUP_POSTER_DURATION_MS
+    )
     val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = false)
     val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = "")
     val appWallpaperOpacity by settingsManager.appWallpaperOpacity.collectAsState(initial = 100)
@@ -81,6 +84,7 @@ internal fun SettingsAppearanceSection(
     val homeCardColor by settingsManager.homeCardColor.collectAsState(initial = "")
     val homeCardOpacity by settingsManager.homeCardOpacity.collectAsState(initial = 58)
     val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
+    val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectAsState(initial = false)
     val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectAsState(initial = "")
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
     val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
@@ -270,6 +274,7 @@ internal fun SettingsAppearanceSection(
         onImagePersisted = settingsManager::setHiResLogoUri
     )
     val dynamicCoverPermissionLauncher = rememberDynamicCoverPermissionLauncher(settingsManager)
+    val musicVideoSyncPermissionLauncher = rememberMusicVideoSyncPermissionLauncher(settingsManager)
     val dynamicCoverFolderPicker = rememberDynamicCoverFolderPicker(
         currentFolders = dynamicCoverCustomFolders,
         settingsManager = settingsManager
@@ -381,6 +386,19 @@ internal fun SettingsAppearanceSection(
                 onCheckedChange = {
                     scope.launch { settingsManager.setStartupPosterEnabled(it) }
                 }
+            )
+            SettingsIntSliderPreference(
+                title = stringResource(R.string.settings_startup_poster_duration),
+                summary = stringResource(R.string.settings_startup_poster_duration_summary),
+                value = startupPosterDurationMs / 100,
+                valueRange = 1..30,
+                valueText = stringResource(
+                    R.string.settings_startup_poster_duration_value,
+                    startupPosterDurationMs / 1_000f
+                ),
+                enabled = startupPosterEnabled && startupPosterUri.isNotBlank(),
+                steps = 28,
+                onValueChange = { scope.launch { settingsManager.setStartupPosterDurationMs(it * 100) } }
             )
             ArrowPreference(
                 title = stringResource(R.string.settings_startup_poster_image),
@@ -609,6 +627,14 @@ internal fun SettingsAppearanceSection(
                 checked = dynamicCoverEnabled,
                 onCheckedChange = {
                     setDynamicCoverEnabled(context, scope, settingsManager, dynamicCoverPermissionLauncher, it)
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_sync),
+                summary = stringResource(R.string.settings_music_video_sync_summary),
+                checked = musicVideoSyncEnabled,
+                onCheckedChange = {
+                    setMusicVideoSyncEnabled(context, scope, settingsManager, musicVideoSyncPermissionLauncher, it)
                 }
             )
             ArrowPreference(

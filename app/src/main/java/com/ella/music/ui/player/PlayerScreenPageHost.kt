@@ -1,12 +1,14 @@
 package com.ella.music.ui.player
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 
 @Composable
 internal fun PlayerPagerSyncEffects(
@@ -56,18 +58,24 @@ internal fun PlayerScreenPageHost(
     modifier: Modifier = Modifier
 ) {
     if (immersiveAlbumCover) {
-        if (showLyrics) {
+        // Keep the cover resident so its image/video state is not recreated after lyrics close,
+        // but hide it immediately before composing the lyric page. This prevents the cover's mini
+        // lyric layer from showing underneath the full lyric layer.
+        Box(modifier = modifier.fillMaxSize()) {
+            coverPage(
+                onShowImmersiveLyrics,
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = if (showLyrics) 0f else 1f }
+            )
+            if (showLyrics) {
             lyricsPage(
                 onDismissImmersiveLyrics,
                 true,
                 true,
-                modifier.fillMaxSize()
+                Modifier.fillMaxSize()
             )
-        } else {
-            coverPage(
-                onShowImmersiveLyrics,
-                modifier.fillMaxSize()
-            )
+            }
         }
     } else {
         // Only intercept back to return the pager to the cover page while the player surface is
@@ -82,7 +90,9 @@ internal fun PlayerScreenPageHost(
             state = pagerState,
             modifier = modifier.fillMaxSize(),
             userScrollEnabled = userScrollEnabled,
-            beyondViewportPageCount = 0
+            // Keep adjacent pages alive while swiping so the cover never briefly tears down
+            // before returning from lyrics or details.
+            beyondViewportPageCount = 1
         ) { page ->
             when (page) {
                 PLAYER_PAGE_COVER -> coverPage(

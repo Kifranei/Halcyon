@@ -453,7 +453,7 @@ fun PlaylistDetailScreen(
                 item {
                     PlaylistPlayAllBar(
                         songCount = displayedSongs.size,
-                        sortLabel = stringResource(sortMode.labelRes),
+                        sortLabel = com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending()),
                         onPlayAll = {
                             if (displayedSongs.isNotEmpty()) {
                                 playerViewModel.setPlaylist(displayedSongs, 0)

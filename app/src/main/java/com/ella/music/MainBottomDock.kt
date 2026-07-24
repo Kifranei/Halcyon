@@ -124,6 +124,8 @@ internal fun FloatingBottomControls(
     val queueLocked by playerViewModel.queueLocked.collectAsState()
     val repeatMode by playerViewModel.repeatMode.collectAsState()
     val userPlaylists by mainViewModel.playlists.collectAsState()
+    val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
+    val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val currentSongKey = currentSong?.playlistIdentityKey()
     val effectiveMode = if (showMiniPlayer && canCompact) bottomDockMode else BottomDockMode.Expanded
     AnimatedContent(
@@ -284,6 +286,9 @@ internal fun FloatingBottomControls(
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
                 queueLocked = queueLocked,
+                favoriteSongKeys = favoriteSongKeys,
+                loadSongRating = mainViewModel::getSongRating,
+                ratingRevision = ratingRevision,
                 onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
                 onToggleQueueLock = { playerViewModel.toggleQueueLock() },
                 onSongClick = { index ->

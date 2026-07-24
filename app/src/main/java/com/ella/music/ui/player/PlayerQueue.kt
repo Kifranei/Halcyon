@@ -1,6 +1,7 @@
 package com.ella.music.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -55,9 +56,11 @@ import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.ExplicitSongTitle
+import com.ella.music.ui.components.RatingStarIcon
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.DragGestureDetector
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -107,6 +110,9 @@ internal fun PlayerQueueMenu(
     shuffleEnabled: Boolean,
     repeatMode: Int,
     queueLocked: Boolean,
+    favoriteSongKeys: Set<String> = emptySet(),
+    loadSongRating: (Song) -> Int = { 0 },
+    ratingRevision: Int = 0,
     onCyclePlaybackMode: () -> Unit,
     onToggleQueueLock: () -> Unit,
     onSongClick: (Int) -> Unit,
@@ -292,6 +298,17 @@ internal fun PlayerQueueMenu(
                         }
                         val queueSong = item.song
                         val isCurrentSong = queueSong.playlistIdentityKey() == currentSongKey
+                        val isFavorite = queueSong.playlistIdentityKey() in favoriteSongKeys
+                        val rating by androidx.compose.runtime.produceState(
+                            initialValue = 0,
+                            queueSong.id,
+                            queueSong.dateModified,
+                            ratingRevision
+                        ) {
+                            value = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                loadSongRating(queueSong).coerceIn(0, 5)
+                            }
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -315,15 +332,39 @@ internal fun PlayerQueueMenu(
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                ExplicitSongTitle(
-                                    title = queueSong.title,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isCurrentSong) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    ExplicitSongTitle(
+                                        title = queueSong.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isCurrentSong) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (isFavorite) {
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        HeartIcon(
+                                            color = Color(0xFFFF4D6D),
+                                            filled = true,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                    if (rating > 0) {
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        RatingStarIcon(
+                                            filled = true,
+                                            tint = Color(0xFFFFB703),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text(
+                                            text = rating.toString(),
+                                            fontSize = 11.sp,
+                                            color = Color(0xFFFFB703)
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = queueSong.artist,
                                     fontSize = 11.sp,
@@ -460,22 +501,10 @@ private fun QueuePlaybackModeIcon(
     repeatMode: Int,
     color: Color
 ) {
-    val iconRes = when {
-        shuffleEnabled -> R.drawable.ic_shuffle
-        repeatMode == Player.REPEAT_MODE_ONE -> R.drawable.ic_repeat_one
-        repeatMode == Player.REPEAT_MODE_ALL -> R.drawable.ic_repeat
-        else -> R.drawable.ic_playback_order
-    }
-    val label = when {
-        shuffleEnabled -> stringResource(R.string.player_playback_mode_shuffle)
-        repeatMode == Player.REPEAT_MODE_ONE -> stringResource(R.string.player_playback_mode_repeat_one)
-        repeatMode == Player.REPEAT_MODE_ALL -> stringResource(R.string.player_playback_mode_repeat_all)
-        else -> stringResource(R.string.player_playback_mode_in_order)
-    }
-    Icon(
-        painter = painterResource(id = iconRes),
-        contentDescription = label,
-        tint = color,
+    PlaybackModeIcon(
+        shuffleEnabled = shuffleEnabled,
+        repeatMode = repeatMode,
+        color = color,
         modifier = Modifier.size(20.dp)
     )
 }

@@ -65,32 +65,11 @@ internal fun MetadataCategorySortMode.availableFor(type: String): Boolean {
 }
 
 @Composable
-internal fun MetadataCategorySortMode.displayLabel(type: String): String {
-    val context = LocalContext.current
-    return when {
-        type == "year" && this == MetadataCategorySortMode.Name -> context.getString(R.string.category_sort_year_asc)
-        type == "year" && this == MetadataCategorySortMode.NameDesc -> context.getString(R.string.category_sort_year_desc)
-        type in PERSON_METADATA_CATEGORY_TYPES && this == MetadataCategorySortMode.AlbumCount -> context.getString(R.string.category_sort_participating_albums)
-        else -> context.getString(when (this) {
-            MetadataCategorySortMode.Name -> R.string.category_sort_name
-            MetadataCategorySortMode.NameDesc -> R.string.category_sort_name
-            MetadataCategorySortMode.SongCount -> R.string.playlist_sort_song_count
-            MetadataCategorySortMode.SongCountAsc -> R.string.playlist_sort_song_count
-            MetadataCategorySortMode.AlbumCount,
-            MetadataCategorySortMode.AlbumCountAsc -> R.string.category_sort_album_count
-            MetadataCategorySortMode.Duration,
-            MetadataCategorySortMode.DurationAsc -> R.string.playlist_sort_duration
-            MetadataCategorySortMode.DateModified -> R.string.playlist_song_sort_date_modified
-            MetadataCategorySortMode.DateModifiedAsc -> R.string.category_sort_date_modified_asc
-        }).let { base ->
-            if (this == MetadataCategorySortMode.NameDesc) {
-                "$base · ${context.getString(R.string.common_sort_descending)}"
-            } else {
-                base
-            }
-        }
-    }
-}
+internal fun MetadataCategorySortMode.displayLabel(type: String): String =
+    com.ella.music.ui.components.sortLabel(
+        field = sortField().displayLabel(type),
+        descending = isDescending()
+    )
 
 internal fun List<MetadataCategoryItem>.sortedForCategory(
     type: String,
@@ -204,6 +183,17 @@ internal enum class MetadataDetailSongSortMode {
     DurationAsc
 }
 
+internal fun MetadataDetailSongSortMode.isDescending(): Boolean = when (this) {
+    MetadataDetailSongSortMode.AlbumTrackDesc,
+    MetadataDetailSongSortMode.TitleDesc,
+    MetadataDetailSongSortMode.FileNameDesc,
+    MetadataDetailSongSortMode.Duration,
+    MetadataDetailSongSortMode.YearDesc,
+    MetadataDetailSongSortMode.DateAdded,
+    MetadataDetailSongSortMode.DateModified -> true
+    else -> false
+}
+
 @Composable
 internal fun MetadataDetailSongSortMode.label(): String {
     val context = LocalContext.current
@@ -300,6 +290,18 @@ internal enum class MetadataDetailAlbumSortMode {
 }
 
 @Composable
+internal fun MetadataDetailSongSortMode.displayLabel(): String =
+    com.ella.music.ui.components.sortLabel(label(), isDescending())
+
+internal fun MetadataDetailAlbumSortMode.isDescending(): Boolean = when (this) {
+    MetadataDetailAlbumSortMode.YearDesc,
+    MetadataDetailAlbumSortMode.SongCount,
+    MetadataDetailAlbumSortMode.Duration,
+    MetadataDetailAlbumSortMode.NameDesc -> true
+    else -> false
+}
+
+@Composable
 internal fun MetadataDetailAlbumSortMode.label(): String {
     val context = LocalContext.current
     return context.getString(when (this) {
@@ -313,6 +315,10 @@ internal fun MetadataDetailAlbumSortMode.label(): String {
         MetadataDetailAlbumSortMode.NameDesc -> R.string.category_sort_album_name
     })
 }
+
+@Composable
+internal fun MetadataDetailAlbumSortMode.displayLabel(): String =
+    com.ella.music.ui.components.sortLabel(label(), isDescending())
 
 internal fun List<Album>.sortedForMetadataAlbumDetail(
     mode: MetadataDetailAlbumSortMode,

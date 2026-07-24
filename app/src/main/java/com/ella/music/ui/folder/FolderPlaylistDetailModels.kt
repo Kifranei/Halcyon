@@ -48,6 +48,27 @@ internal enum class FolderPlaylistFolderSortMode(@param:StringRes val labelRes: 
     DurationAsc(R.string.playlist_sort_duration)
 }
 
+internal fun FolderPlaylistSongSortMode.isDescending(): Boolean = when (this) {
+    FolderPlaylistSongSortMode.Custom,
+    FolderPlaylistSongSortMode.TitleDesc,
+    FolderPlaylistSongSortMode.FileNameDesc,
+    FolderPlaylistSongSortMode.Duration,
+    FolderPlaylistSongSortMode.YearDesc,
+    FolderPlaylistSongSortMode.DateAdded,
+    FolderPlaylistSongSortMode.DateModified -> true
+    else -> false
+}
+
+internal fun FolderPlaylistFolderSortMode.isDescending(): Boolean = when (this) {
+    FolderPlaylistFolderSortMode.CustomDesc,
+    FolderPlaylistFolderSortMode.NameDesc,
+    FolderPlaylistFolderSortMode.SongCount,
+    FolderPlaylistFolderSortMode.AlbumCount,
+    FolderPlaylistFolderSortMode.Duration,
+    FolderPlaylistFolderSortMode.DateModified -> true
+    else -> false
+}
+
 internal data class FolderPlaylistFolderEntry(
     val path: String,
     val displayName: String,

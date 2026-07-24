@@ -90,6 +90,19 @@ class LyricIndexPolicyTest {
     }
 
     @Test
+    fun retainsPreviousVisibleLineDuringGapBeforeNextLine() {
+        val lyrics = listOf(
+            LyricLine(timeMs = 0L, text = "First line", endMs = 1_000L),
+            LyricLine(timeMs = 2_000L, text = "Second line")
+        )
+
+        assertEquals(
+            0,
+            currentLyricIndexAt(positionMs = 1_500L, lyrics = lyrics, suppressLeadingZero = false).index
+        )
+    }
+
+    @Test
     fun ttmlWordTimingIsStillDisplayable() {
         val lyrics = listOf(
             LyricLine(

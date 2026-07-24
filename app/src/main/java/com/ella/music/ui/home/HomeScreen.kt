@@ -66,6 +66,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.StarRate
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.NeteaseKeyInfo
 import com.ella.music.data.decodeNeteaseKey
@@ -172,7 +174,7 @@ fun LibraryScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
-    var ratingFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selectedRatings) }
     var favoriteFilter by remember { mutableStateOf(false) }
     val sortIndex by settingsManager.librarySongSortIndex.collectAsState(initial = LibrarySortUiState.librarySongSortIndex)
     val sortMode = HomeSortMode.entries.getOrElse(sortIndex) { HomeSortMode.Title }
@@ -423,7 +425,7 @@ fun LibraryScreen(
                             if (songs.isNotEmpty()) {
                                 IconButton(onClick = { ratingFilterExpanded = !ratingFilterExpanded }) {
                                     Icon(
-                                        painter = painterResource(R.drawable.ic_rating_star_fill),
+                                        painter = painterResource(id = R.drawable.ic_rating_star_half),
                                         contentDescription = stringResource(R.string.song_more_set_rating),
                                         tint = if (ratingFilter.isNotEmpty() || ratingFilterExpanded) {
                                             MiuixTheme.colorScheme.primary
@@ -528,7 +530,9 @@ fun LibraryScreen(
                                         text = stringResource(field.labelRes),
                                         defaultDirection = when (field) {
                                             HomeSortField.DateAdded,
-                                            HomeSortField.DateModified -> SortDirection.Descending
+                                            HomeSortField.DateModified,
+                                            HomeSortField.Duration,
+                                            HomeSortField.FileSize -> SortDirection.Descending
                                             else -> SortDirection.Ascending
                                         }
                                     )
@@ -594,6 +598,7 @@ fun LibraryScreen(
                 selectedRatings = ratingFilter,
                 onRatingsChange = {
                     ratingFilter = it
+                    HomeRatingFilterUiState.selectedRatings = it
                 }
             )
         }
@@ -717,8 +722,9 @@ fun LibraryScreen(
                                     R.string.library_song_count_sorted,
                                     sortedSongs.size,
                                     listOfNotNull(
-                                        stringResource(sortMode.sortField().labelRes) + " · " + stringResource(
-                                            if (sortMode.isDescending()) R.string.common_sort_descending else R.string.common_sort_ascending
+                                        com.ella.music.ui.components.sortLabel(
+                                            sortMode.sortField().labelRes,
+                                            sortMode.isDescending()
                                         ),
                                         ratingFilter.summaryLabel(context),
                                     stringResource(R.string.favorite_filter).takeIf { favoriteFilter }
@@ -849,6 +855,7 @@ fun LibraryScreen(
             onDismissAction = { actionSong = null },
             onNavigateToAlbum = onNavigateToAlbum,
             onNavigateToArtist = onNavigateToArtist,
+            showSongTitleInSheetHeader = false,
             onDeleteSong = { song -> requestDeleteSongs(listOf(song)) }
         )
 

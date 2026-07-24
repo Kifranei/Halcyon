@@ -3,6 +3,8 @@ package com.ella.music.ui.player
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -42,14 +44,20 @@ import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.EllaMiuixMenuItem
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.round
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 internal fun PlayerActionMenuHeader(
     song: Song?,
     onArtist: () -> Unit,
-    onAlbum: () -> Unit
+    onAlbum: () -> Unit,
+    onPreviewCover: () -> Unit
 ) {
     val title = song?.let {
         it.title.ifBlank { it.fileName.ifBlank { stringResource(R.string.player_unknown_song) } }
@@ -65,7 +73,9 @@ internal fun PlayerActionMenuHeader(
         SmallCover(
             song = song,
             embeddedCover = null,
-            modifier = Modifier.size(68.dp)
+            modifier = Modifier
+                .size(68.dp)
+                .combinedClickable(onClick = {}, onLongClick = onPreviewCover)
         )
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -235,17 +245,17 @@ internal fun PlayerActionMenuGroup(content: @Composable ColumnScope.() -> Unit) 
 @Composable
 internal fun HalfSheetTitle(title: String, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "‹",
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Bold,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .clip(CircleShape)
-                .clickable(onClick = onBack)
-                .padding(horizontal = 12.dp, vertical = 2.dp)
-        )
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Back,
+                contentDescription = stringResource(R.string.common_back),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
         Text(
             text = title,
             fontSize = 22.sp,

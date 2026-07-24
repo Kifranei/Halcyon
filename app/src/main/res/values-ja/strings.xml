@@ -776,6 +776,7 @@
     <string name="library_search_artist_summary">%1$d 曲 · %2$d 枚の参加アルバム</string>
     <string name="library_search_lyric_prefix">歌詞：</string>
     <string name="rating_filter_all">全評価</string>
+    <string name="rating_filter_rated">評価済みすべて</string>
     <string name="rating_filter_unrated">未評価</string>
     <string name="rating_filter_star">%1$d スター</string>
     <string name="favorite_filter">お気に入り</string>
@@ -789,6 +790,9 @@
     <string name="settings_dynamic_cover_permission_denied">動画権限が付与されていません。アニメーションカバーを無効にしました</string>
     <string name="settings_startup_poster">起動ポスター</string>
     <string name="settings_startup_poster_summary">有効にして画像を選択すると、Halcyon を開くたびに約 3 秒間表示されます</string>
+    <string name="settings_startup_poster_duration">起動ポスターの表示時間</string>
+    <string name="settings_startup_poster_duration_summary">アプリを開くたびにポスターを表示する時間を設定します</string>
+    <string name="settings_startup_poster_duration_value">%1$.1f 秒</string>
     <string name="settings_startup_poster_image">起動ポスター画像を選択</string>
     <string name="settings_app_wallpaper">グローバルカスタム壁紙</string>
     <string name="settings_app_wallpaper_summary">ライブラリ、アルバム、プレイリスト、フォルダなどのページの背景にカスタム壁紙を表示</string>
@@ -1823,8 +1827,10 @@
     <string name="settings_cover_export_folder_remove">カバー保存フォルダを消去</string>
     <string name="settings_cover_export_folder_remove_summary">今後のカバーを Pictures/Halcyon に保存します</string>
     <string name="settings_cover_export_folder_cleared">カバー保存フォルダを消去しました</string>
-    <string name="settings_search_all_categories">すべてタブの楽曲カテゴリ</string>
-    <string name="settings_search_all_categories_summary">すべてタブ内の楽曲カテゴリのみに影響します。</string>
+    <string name="settings_search_all_categories">すべてタブのカテゴリ結果</string>
+    <string name="settings_search_all_categories_summary">すべてタブ内のカテゴリ結果のみに影響します。</string>
+    <string name="settings_search_all_song_match_types">すべてタブの楽曲一致グループ</string>
+    <string name="settings_search_all_song_match_types_summary">すべてタブに表示する楽曲一致グループを選びます。楽曲タブや他のタブには影響しません。</string>
     <string name="settings_song_rating_display_stars">評価を星で表示</string>
     <string name="settings_song_rating_display_stars_summary">評価点ごとに星を表示します</string>
     <string name="settings_song_rating_display_number_summary">星と評価数を表示します</string>

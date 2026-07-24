@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -157,11 +158,12 @@ internal fun SongMetadataEditorSheet(
     var ttmlLyrics by remember(initialTtmlLyrics) { mutableStateOf(initialTtmlLyrics) }
     var rating by remember(tagInfo) { mutableStateOf(tagInfo?.rating ?: 0) }
     val currentCover by produceState<Any?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
-        value = withContext(Dispatchers.IO) { mainViewModel.getMetadataEditorCoverArtBitmap(song) }
+        value = withContext(Dispatchers.IO) { mainViewModel.getOriginalCoverModel(song) }
     }
     var selectedCover by remember(song.id) { mutableStateOf<AudioCoverInfo?>(null) }
     var selectedCoverPreview by remember(song.id) { mutableStateOf<Any?>(null) }
     var coverChanged by remember(song.id) { mutableStateOf(false) }
+    var coverPreviewVisible by remember(song.id) { mutableStateOf(false) }
     val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -203,9 +205,11 @@ internal fun SongMetadataEditorSheet(
                     modifier = Modifier
                         .fillMaxWidth(0.52f)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp)),
+                        .clip(RoundedCornerShape(16.dp))
+                        .combinedClickable(onClick = {}, onLongClick = { coverPreviewVisible = true }),
                     contentScale = ContentScale.Crop,
-                    sizePx = 1600
+                    sizePx = 3000,
+                    loadOriginal = true
                 )
             } else {
                 Text(
@@ -502,6 +506,18 @@ internal fun SongMetadataEditorSheet(
                     showLyricoMatch = false
                 }
             )
+        }
+    }
+    if (coverPreviewVisible) {
+        val previewModel = selectedCoverPreview ?: currentCover
+        if (previewModel != null) {
+            CoverPreviewDialog(
+                model = previewModel,
+                title = title.ifBlank { song.title.ifBlank { song.fileName } },
+                onDismiss = { coverPreviewVisible = false }
+            )
+        } else {
+            coverPreviewVisible = false
         }
     }
 }

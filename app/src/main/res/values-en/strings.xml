@@ -876,7 +876,10 @@
     <string name="library_search_match_comment">Comment</string>
     <string name="library_search_match_alias">Alias</string>
     <string name="library_search_match_tag">Tag</string>
+    <string name="settings_search_all_song_match_types">Song match groups in Search All</string>
+    <string name="settings_search_all_song_match_types_summary">Choose which song match groups appear in the All tab. This does not affect the Songs tab or other tabs.</string>
     <string name="rating_filter_all">All ratings</string>
+    <string name="rating_filter_rated">All rated</string>
     <string name="rating_filter_unrated">Unrated</string>
     <string name="rating_filter_star">%1$d stars</string>
     <string name="favorite_filter">Favorites</string>
@@ -896,6 +899,9 @@
     <string name="settings_dynamic_cover_folder_saved">Dynamic cover folder added</string>
     <string name="settings_startup_poster">Startup poster</string>
     <string name="settings_startup_poster_summary">After enabling and choosing an image, show it for about 3 seconds whenever Halcyon opens</string>
+    <string name="settings_startup_poster_duration">Startup poster duration</string>
+    <string name="settings_startup_poster_duration_summary">Set how long the poster remains visible when the app opens</string>
+    <string name="settings_startup_poster_duration_value">%1$.1f sec</string>
     <string name="settings_startup_poster_image">Choose startup poster image</string>
     <string name="settings_app_wallpaper">Global custom wallpaper</string>
     <string name="settings_app_wallpaper_summary">Show a custom wallpaper behind library, album, playlist, folder, and similar pages</string>

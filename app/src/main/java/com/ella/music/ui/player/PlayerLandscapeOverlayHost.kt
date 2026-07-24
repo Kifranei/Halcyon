@@ -22,6 +22,8 @@ internal fun PlayerLandscapeOverlayHost(
     coverMode: Boolean,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    musicVideoEnabled: Boolean,
+    musicVideoVisible: Boolean,
     song: Song?,
     embeddedCover: Bitmap?,
     paletteBitmap: Bitmap?,
@@ -94,6 +96,8 @@ internal fun PlayerLandscapeOverlayHost(
     val landscapeDynamicCoverSource by produceState<DynamicCoverSource?>(
         initialValue = null,
         dynamicCoverEnabled,
+        musicVideoEnabled,
+        musicVideoVisible,
         dynamicCoverCustomFolders,
         dynamicCoverSongKey,
         dynamicCoverFailedPath
@@ -104,11 +108,31 @@ internal fun PlayerLandscapeOverlayHost(
         } else {
             value = null
             value = withContext(Dispatchers.IO) {
-                current.dynamicCoverSource(
-                    context,
-                    includeExternalFiles = dynamicCoverEnabled,
-                    customRootPaths = dynamicCoverCustomFolders
-                )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+                if (musicVideoEnabled && musicVideoVisible) {
+                    current.musicVideoSource(
+                        context,
+                        customRootPaths = dynamicCoverCustomFolders
+                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+                } else {
+                    current.dynamicCoverSource(
+                        context,
+                        includeExternalFiles = dynamicCoverEnabled,
+                        customRootPaths = dynamicCoverCustomFolders
+                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+                }
+            }
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(
+        landscapeDynamicCoverSource?.failureKey,
+        currentPosition,
+        duration,
+        isPlaying,
+        musicVideoVisible
+    ) {
+        if (musicVideoVisible) {
+            landscapeDynamicCoverSource?.let { source ->
+                MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
             }
         }
     }

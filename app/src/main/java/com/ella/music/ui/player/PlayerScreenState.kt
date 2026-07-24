@@ -28,9 +28,7 @@ internal class PlayerScreenUiState(
     metadataEditorSong: Song? = null,
     dynamicCoverFailedPath: String? = null,
     lyricMatchSong: Song? = null,
-    musicVideoVisible: Boolean = false,
-    resumeMusicAfterVideo: Boolean = false,
-    startMusicVideoPlaying: Boolean = false
+    musicVideoVisible: Boolean = false
 ) {
     var menuExpanded by mutableStateOf(menuExpanded)
     var dynamicCoverSheetSong by mutableStateOf(dynamicCoverSheetSong)
@@ -51,8 +49,6 @@ internal class PlayerScreenUiState(
     var dynamicCoverFailedPath by mutableStateOf(dynamicCoverFailedPath)
     var lyricMatchSong by mutableStateOf(lyricMatchSong)
     var musicVideoVisible by mutableStateOf(musicVideoVisible)
-    var resumeMusicAfterVideo by mutableStateOf(resumeMusicAfterVideo)
-    var startMusicVideoPlaying by mutableStateOf(startMusicVideoPlaying)
 }
 
 internal class PlayerLandscapeUiState(

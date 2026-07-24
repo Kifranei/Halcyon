@@ -24,9 +24,7 @@ import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.MoreCircle
-import top.yukonga.miuix.kmp.icon.extended.Share
-import top.yukonga.miuix.kmp.icon.extended.Stopwatch
+import top.yukonga.miuix.kmp.icon.extended.More
 
 internal enum class PlayerHeaderActionKind {
     Favorite,
@@ -109,10 +107,8 @@ internal fun QuickActionIcon(
     modifier: Modifier = Modifier
 ) {
     val miuixIcon = when (kind) {
-        PlayerQuickActionKind.Info -> MiuixIcons.Regular.Info
-        PlayerQuickActionKind.Share -> MiuixIcons.Regular.Share
-        PlayerQuickActionKind.Timer -> MiuixIcons.Regular.Stopwatch
-        PlayerQuickActionKind.More -> MiuixIcons.Regular.MoreCircle
+        PlayerQuickActionKind.Info -> MiuixIcons.Demibold.Info
+        PlayerQuickActionKind.More -> MiuixIcons.Demibold.More
         else -> null
     }
     if (miuixIcon != null) {
@@ -235,8 +231,9 @@ internal fun PlayerHeaderAction(
                 tint = if (selected) Color(0xFFFF4D6D) else LocalPlayerContentColor.current.copy(alpha = 0.92f),
                 modifier = Modifier.size(25.dp)
             )
-            PlayerHeaderActionKind.More -> MoreIcon(
-                color = LocalPlayerContentColor.current.copy(alpha = 0.90f),
+            PlayerHeaderActionKind.More -> QuickActionIcon(
+                kind = PlayerQuickActionKind.More,
+                color = LocalPlayerContentColor.current.copy(alpha = 0.96f),
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -271,20 +268,6 @@ internal fun HeartIcon(
                     cap = StrokeCap.Round
                 )
             )
-        }
-    }
-}
-
-@Composable
-internal fun MoreIcon(
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        val radius = size.minDimension * 0.09f
-        val centerX = size.width / 2f
-        listOf(0.25f, 0.50f, 0.75f).forEach { y ->
-            drawCircle(color = color, radius = radius, center = Offset(centerX, size.height * y))
         }
     }
 }

@@ -49,20 +49,6 @@ internal fun SongMoreActionSheet(
         SongMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
         SongMenuItem(stringResource(R.string.song_more_view_song_info), onInfo)
         SongMenuItem(stringResource(R.string.song_more_set_rating), onRating)
-        SongMenuItem(
-            stringResource(
-                R.string.song_more_artist_entry,
-                song.artist.ifBlank { stringResource(R.string.player_unknown_artist) }
-            ),
-            onArtist
-        )
-        SongMenuItem(
-            stringResource(
-                R.string.song_more_album_entry,
-                song.album.ifBlank { stringResource(R.string.player_unknown_album) }
-            ),
-            onAlbum
-        )
         if (onEditTag != null) {
             SongMenuItem(stringResource(R.string.song_more_edit_tags_title), onEditTag)
         }

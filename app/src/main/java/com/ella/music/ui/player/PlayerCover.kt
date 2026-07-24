@@ -55,14 +55,15 @@ import androidx.compose.ui.text.font.FontWeight
 internal fun FullBleedCover(
     song: Song?,
     embeddedCover: Bitmap?,
+    coverModel: Any? = null,
     cornerRadius: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
-    val coverModel = resolveCoverPreviewModel(song, embeddedCover)
+    val resolvedCoverModel = coverModel ?: resolveCoverPreviewModel(song, embeddedCover)
     Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
-        if (coverModel != null) {
+        if (resolvedCoverModel != null) {
             PlayerCoverImage(
-                model = coverModel,
+                model = resolvedCoverModel,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,

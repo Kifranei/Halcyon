@@ -21,6 +21,16 @@ internal enum class AlbumDetailSongSortMode(val labelRes: Int) {
     DurationAsc(R.string.playlist_song_sort_duration)
 }
 
+internal fun AlbumDetailSongSortMode.isDescending(): Boolean = when (this) {
+    AlbumDetailSongSortMode.TrackDesc,
+    AlbumDetailSongSortMode.TitleDesc,
+    AlbumDetailSongSortMode.FileNameDesc,
+    AlbumDetailSongSortMode.Duration,
+    AlbumDetailSongSortMode.DateAdded,
+    AlbumDetailSongSortMode.DateModified -> true
+    else -> false
+}
+
 internal data class AlbumDiscGroup(
     val discNumber: Int,
     val songs: List<Song>

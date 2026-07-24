@@ -157,6 +157,7 @@ class SettingsManager(private val context: Context) {
         val KEY_MINI_PLAYER_COVER_ROTATION = booleanPreferencesKey("mini_player_cover_rotation")
         val KEY_MINI_PLAYER_LYRICS_ENABLED = booleanPreferencesKey("mini_player_lyrics_enabled")
         val KEY_MINI_PLAYER_RIGHT_BUTTON = intPreferencesKey("mini_player_right_button")
+        val KEY_PLAYER_PROGRESS_INFO_INDEX = intPreferencesKey("player_progress_info_index")
         val KEY_TRANSPORT_BUTTON_OUTLINES = booleanPreferencesKey("transport_button_outlines")
         val KEY_PLAYER_TAP_SEEK_ENABLED = booleanPreferencesKey("player_tap_seek_enabled")
         val KEY_PLAYER_SHOW_TOTAL_DURATION = booleanPreferencesKey("player_show_total_duration")
@@ -189,11 +190,13 @@ class SettingsManager(private val context: Context) {
         val KEY_STEREO_WIDTH = intPreferencesKey("audio_stereo_width")
         val KEY_USB_DAC_MODE = booleanPreferencesKey("usb_dac_mode")
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
+        val KEY_MUSIC_VIDEO_SYNC_ENABLED = booleanPreferencesKey("music_video_sync_enabled")
         val KEY_DYNAMIC_COVER_CUSTOM_FOLDERS = stringPreferencesKey("dynamic_cover_custom_folders")
         val KEY_ARTIST_COVER_FOLDER_URI = stringPreferencesKey("artist_cover_folder_uri")
         val KEY_ARTIST_COVER_CAROUSEL = booleanPreferencesKey("artist_cover_carousel")
         val KEY_STARTUP_POSTER_ENABLED = booleanPreferencesKey("startup_poster_enabled")
         val KEY_STARTUP_POSTER_URI = stringPreferencesKey("startup_poster_uri")
+        val KEY_STARTUP_POSTER_DURATION_MS = intPreferencesKey("startup_poster_duration_ms")
         val KEY_APP_WALLPAPER_ENABLED = booleanPreferencesKey("app_wallpaper_enabled")
         val KEY_APP_WALLPAPER_URI = stringPreferencesKey("app_wallpaper_uri")
         val KEY_APP_WALLPAPER_OPACITY = intPreferencesKey("app_wallpaper_opacity")
@@ -311,6 +314,7 @@ class SettingsManager(private val context: Context) {
         val KEY_FULL_TAG_SEARCH_PROMPT_HANDLED = booleanPreferencesKey("full_tag_search_prompt_handled")
         val KEY_COVER_EXPORT_FOLDER_URI = stringPreferencesKey("cover_export_folder_uri")
         val KEY_SEARCH_ALL_CATEGORY_TYPES = stringPreferencesKey("search_all_category_types")
+        val KEY_SEARCH_ALL_SONG_MATCH_TYPES = stringPreferencesKey("search_all_song_match_types")
         val KEY_SONG_RATING_DISPLAY_MODE = intPreferencesKey("song_rating_display_mode")
         val KEY_INITIAL_SCAN_PROMPT_HANDLED = booleanPreferencesKey("initial_scan_prompt_handled")
         val KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED = booleanPreferencesKey("local_playlist_scan_prompt_handled")
@@ -518,9 +522,17 @@ class SettingsManager(private val context: Context) {
         const val LYRIC_SECONDARY_PRONUNCIATION = 2
         const val MINI_PLAYER_RIGHT_NEXT = 0
         const val MINI_PLAYER_RIGHT_QUEUE = 1
+        const val STARTUP_POSTER_DURATION_MIN_MS = 100
+        const val STARTUP_POSTER_DURATION_MAX_MS = 3_000
+        // Keep the established three-second default; the new control lets users shorten it.
+        const val DEFAULT_STARTUP_POSTER_DURATION_MS = 3_000
         const val SONG_RATING_DISPLAY_STAR_NUMBER = 0
         const val SONG_RATING_DISPLAY_STARS = 1
         val SEARCH_ALL_CATEGORY_TYPES = setOf("folder", "composer", "arranger", "lyricist", "genre", "year")
+        val SEARCH_ALL_SONG_MATCH_TYPES = setOf(
+            "title", "artist", "album", "album_artist", "genre", "year", "composer", "arranger",
+            "lyricist", "file_name", "comment", "alias", "tag", "lyrics"
+        )
 
         const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
         const val DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
@@ -855,6 +867,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_MINI_PLAYER_LYRICS_ENABLED] ?: true }
     val miniPlayerRightButton: Flow<Int> =
         context.dataStore.data.map { it[KEY_MINI_PLAYER_RIGHT_BUTTON] ?: MINI_PLAYER_RIGHT_NEXT }
+    val playerProgressInfoIndex: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_PLAYER_PROGRESS_INFO_INDEX] ?: 0).coerceAtLeast(0) }
     val transportButtonOutlines: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_TRANSPORT_BUTTON_OUTLINES] ?: false }
     val playerTapSeekEnabled: Flow<Boolean> =
@@ -982,6 +996,8 @@ class SettingsManager(private val context: Context) {
     }
     val dynamicCoverEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_DYNAMIC_COVER_ENABLED] ?: false }
+    val musicVideoSyncEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MUSIC_VIDEO_SYNC_ENABLED] ?: false }
     val dynamicCoverCustomFoldersRaw: Flow<String> =
         context.dataStore.data.map { normalizeDynamicCoverCustomFolders(it[KEY_DYNAMIC_COVER_CUSTOM_FOLDERS]) }
     val dynamicCoverCustomFolders: Flow<List<String>> =
@@ -997,6 +1013,11 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_STARTUP_POSTER_ENABLED] ?: false }
     val startupPosterUri: Flow<String> =
         context.dataStore.data.map { it[KEY_STARTUP_POSTER_URI] ?: "" }
+    val startupPosterDurationMs: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_STARTUP_POSTER_DURATION_MS] ?: DEFAULT_STARTUP_POSTER_DURATION_MS)
+                .coerceIn(STARTUP_POSTER_DURATION_MIN_MS, STARTUP_POSTER_DURATION_MAX_MS)
+        }
     val appWallpaperEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_APP_WALLPAPER_ENABLED] ?: false }
     val appWallpaperUri: Flow<String> =
@@ -1253,6 +1274,9 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_COVER_EXPORT_FOLDER_URI] ?: "" }
     val searchAllCategoryTypes: Flow<Set<String>> = context.dataStore.data.map {
         parseSearchAllCategoryTypes(it[KEY_SEARCH_ALL_CATEGORY_TYPES])
+    }
+    val searchAllSongMatchTypes: Flow<Set<String>> = context.dataStore.data.map {
+        parseSearchAllSongMatchTypes(it[KEY_SEARCH_ALL_SONG_MATCH_TYPES])
     }
     val songRatingDisplayMode: Flow<Int> = context.dataStore.data.map {
         (it[KEY_SONG_RATING_DISPLAY_MODE] ?: SONG_RATING_DISPLAY_STAR_NUMBER)
@@ -1600,6 +1624,10 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_MINI_PLAYER_RIGHT_BUTTON] = mode.coerceIn(MINI_PLAYER_RIGHT_NEXT, MINI_PLAYER_RIGHT_QUEUE) }
     }
 
+    suspend fun setPlayerProgressInfoIndex(index: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_PROGRESS_INFO_INDEX] = index.coerceAtLeast(0) }
+    }
+
     suspend fun setTransportButtonOutlines(enabled: Boolean) {
         context.dataStore.edit { it[KEY_TRANSPORT_BUTTON_OUTLINES] = enabled }
     }
@@ -1732,6 +1760,10 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_DYNAMIC_COVER_ENABLED] = enabled }
     }
 
+    suspend fun setMusicVideoSyncEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MUSIC_VIDEO_SYNC_ENABLED] = enabled }
+    }
+
     suspend fun setDynamicCoverCustomFolders(folders: String) {
         context.dataStore.edit { prefs ->
             val normalized = normalizeDynamicCoverCustomFolders(folders)
@@ -1770,6 +1802,15 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit {
             val safeUri = uri.trim()
             if (safeUri.isBlank()) it.remove(KEY_STARTUP_POSTER_URI) else it[KEY_STARTUP_POSTER_URI] = safeUri
+        }
+    }
+
+    suspend fun setStartupPosterDurationMs(durationMs: Int) {
+        context.dataStore.edit {
+            it[KEY_STARTUP_POSTER_DURATION_MS] = durationMs.coerceIn(
+                STARTUP_POSTER_DURATION_MIN_MS,
+                STARTUP_POSTER_DURATION_MAX_MS
+            )
         }
     }
 
@@ -2603,6 +2644,16 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setSearchAllSongMatchTypeEnabled(type: String, enabled: Boolean) {
+        val normalized = type.trim().lowercase()
+        if (normalized !in SEARCH_ALL_SONG_MATCH_TYPES) return
+        context.dataStore.edit { prefs ->
+            val current = parseSearchAllSongMatchTypes(prefs[KEY_SEARCH_ALL_SONG_MATCH_TYPES])
+            val next = if (enabled) current + normalized else current - normalized
+            prefs[KEY_SEARCH_ALL_SONG_MATCH_TYPES] = next.sorted().joinToString(",")
+        }
+    }
+
     suspend fun setSongRatingDisplayMode(mode: Int) {
         context.dataStore.edit {
             it[KEY_SONG_RATING_DISPLAY_MODE] = mode.coerceIn(
@@ -2826,6 +2877,7 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_SORT_PLAYLIST_DETAIL_SONG)
             setInt(KEY_CATEGORY_GRID_COLUMNS)
             setInt(KEY_MINI_PLAYER_LYRIC_SECONDARY)
+            setInt(KEY_PLAYER_PROGRESS_INFO_INDEX)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_POSITION)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_WIDTH)
@@ -2839,6 +2891,7 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_OPACITY)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_COLOR)
             setInt(KEY_SLEEP_TIMER_CUSTOM_MINUTES)
+            setInt(KEY_STARTUP_POSTER_DURATION_MS)
             setInt(KEY_APP_WALLPAPER_OPACITY)
             setInt(KEY_APP_WALLPAPER_DIM)
             setInt(KEY_APP_WALLPAPER_CONTENT_OVERLAY)
@@ -2959,6 +3012,7 @@ class SettingsManager(private val context: Context) {
             setString(KEY_ARTIST_COVER_FOLDER_URI)
             setString(KEY_COVER_EXPORT_FOLDER_URI)
             setString(KEY_SEARCH_ALL_CATEGORY_TYPES)
+            setString(KEY_SEARCH_ALL_SONG_MATCH_TYPES)
 
             fun clearMissingCustomImage(
                 enabledKey: Preferences.Key<Boolean>,
@@ -3045,6 +3099,15 @@ class SettingsManager(private val context: Context) {
             .filter { it in SEARCH_ALL_CATEGORY_TYPES }
             .toSet()
         return if (raw == null) SEARCH_ALL_CATEGORY_TYPES else saved
+    }
+
+    private fun parseSearchAllSongMatchTypes(raw: String?): Set<String> {
+        val saved = raw.orEmpty()
+            .split(',')
+            .map { it.trim().lowercase() }
+            .filter { it in SEARCH_ALL_SONG_MATCH_TYPES }
+            .toSet()
+        return if (raw == null) SEARCH_ALL_SONG_MATCH_TYPES else saved
     }
 
     suspend fun setDecoderMode(mode: Int) {

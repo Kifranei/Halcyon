@@ -87,9 +87,27 @@ internal data class SongSearchResult(
 }
 
 internal data class SongSearchMatch(
+    val type: SearchSongMatchType,
     val labelRes: Int,
     val value: String
 )
+
+internal enum class SearchSongMatchType(val storageKey: String, val labelRes: Int) {
+    Title("title", R.string.library_search_match_title),
+    Artist("artist", R.string.library_search_match_artist),
+    Album("album", R.string.library_search_match_album),
+    AlbumArtist("album_artist", R.string.library_search_match_album_artist),
+    Genre("genre", R.string.library_search_match_genre),
+    Year("year", R.string.library_search_match_year),
+    Composer("composer", R.string.library_search_match_composer),
+    Arranger("arranger", R.string.library_search_match_arranger),
+    Lyricist("lyricist", R.string.library_search_match_lyricist),
+    FileName("file_name", R.string.library_search_match_file_name),
+    Comment("comment", R.string.library_search_match_comment),
+    Alias("alias", R.string.library_search_match_alias),
+    Tag("tag", R.string.library_search_match_tag),
+    Lyrics("lyrics", R.string.library_search_lyrics)
+}
 
 internal data class SongSearchGroupEntry(
     val result: SongSearchResult,
@@ -104,8 +122,14 @@ internal data class LibrarySearchFacetResults(
     val categoriesByType: Map<String, List<MetadataCategoryItem>> = emptyMap()
 )
 
-internal fun SongSearchResult.toSearchGroupEntries(filter: SearchFilter): List<Pair<Int, SongSearchGroupEntry>> {
+internal fun SongSearchResult.toSearchGroupEntries(
+    filter: SearchFilter,
+    enabledAllSongMatchTypes: Set<String>
+): List<Pair<Int, SongSearchGroupEntry>> {
     if (lyricSnippet != null) {
+        if (filter == SearchFilter.All && SearchSongMatchType.Lyrics.storageKey !in enabledAllSongMatchTypes) {
+            return emptyList()
+        }
         return listOf(
             R.string.library_search_lyrics to SongSearchGroupEntry(
                 result = this,
@@ -124,7 +148,12 @@ internal fun SongSearchResult.toSearchGroupEntries(filter: SearchFilter): List<P
             )
         )
     }
-    return matches.mapIndexed { index, match ->
+    val visibleMatches = if (filter == SearchFilter.All) {
+        matches.filter { it.type.storageKey in enabledAllSongMatchTypes }
+    } else {
+        matches
+    }
+    return visibleMatches.mapIndexed { index, match ->
         match.labelRes to SongSearchGroupEntry(
             result = this,
             match = match,
@@ -141,31 +170,31 @@ internal fun Song.directSearchMatches(
     val target = query.trim()
     if (target.isBlank()) return emptyList()
     return buildList {
-        addMatch(R.string.library_search_match_title, title, target)
-        addMatch(R.string.library_search_match_artist, artist, target)
-        addMatch(R.string.library_search_match_album, album, target)
-        addMatch(R.string.library_search_match_album_artist, albumArtist, target)
-        addMatch(R.string.library_search_match_genre, genre, target)
-        addMatch(R.string.library_search_match_year, year, target)
-        addMatch(R.string.library_search_match_composer, composer, target)
-        addMatch(R.string.library_search_match_arranger, arranger, target)
-        addMatch(R.string.library_search_match_lyricist, lyricist, target)
-        addMatch(R.string.library_search_match_file_name, fileName, target)
-        tagInfo?.displayComment?.let { addMatch(R.string.library_search_match_comment, it, target) }
+        addMatch(SearchSongMatchType.Title, title, target)
+        addMatch(SearchSongMatchType.Artist, artist, target)
+        addMatch(SearchSongMatchType.Album, album, target)
+        addMatch(SearchSongMatchType.AlbumArtist, albumArtist, target)
+        addMatch(SearchSongMatchType.Genre, genre, target)
+        addMatch(SearchSongMatchType.Year, year, target)
+        addMatch(SearchSongMatchType.Composer, composer, target)
+        addMatch(SearchSongMatchType.Arranger, arranger, target)
+        addMatch(SearchSongMatchType.Lyricist, lyricist, target)
+        addMatch(SearchSongMatchType.FileName, fileName, target)
+        tagInfo?.displayComment?.let { addMatch(SearchSongMatchType.Comment, it, target) }
         decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty())
             ?.aliases
             .orEmpty()
-            .forEach { alias -> addMatch(R.string.library_search_match_alias, alias, target) }
+            .forEach { alias -> addMatch(SearchSongMatchType.Alias, alias, target) }
         if (includeSnapshotTag && isEmpty()) {
-            add(SongSearchMatch(R.string.library_search_match_tag, target))
+            add(SongSearchMatch(SearchSongMatchType.Tag, SearchSongMatchType.Tag.labelRes, target))
         }
     }
 }
 
-private fun MutableList<SongSearchMatch>.addMatch(labelRes: Int, value: String, query: String) {
+private fun MutableList<SongSearchMatch>.addMatch(type: SearchSongMatchType, value: String, query: String) {
     val trimmed = value.trim()
     if (trimmed.isNotBlank() && trimmed.contains(query, ignoreCase = true)) {
-        add(SongSearchMatch(labelRes, trimmed))
+        add(SongSearchMatch(type, type.labelRes, trimmed))
     }
 }
 

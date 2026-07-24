@@ -20,7 +20,11 @@ internal enum class HomeSortMode(val labelRes: Int) {
     YearAsc(R.string.playlist_song_sort_year_asc),
     YearDesc(R.string.playlist_song_sort_year_desc),
     TitleDesc(R.string.playlist_song_sort_title),
-    FileNameDesc(R.string.playlist_song_sort_file_name)
+    FileNameDesc(R.string.playlist_song_sort_file_name),
+    Duration(R.string.playlist_song_sort_duration),
+    DurationAsc(R.string.playlist_song_sort_duration),
+    FileSize(R.string.playlist_song_sort_file_size),
+    FileSizeAsc(R.string.playlist_song_sort_file_size)
 }
 
 internal enum class HomeSortField(val labelRes: Int) {
@@ -28,7 +32,9 @@ internal enum class HomeSortField(val labelRes: Int) {
     FileName(R.string.playlist_song_sort_file_name),
     DateAdded(R.string.playlist_song_sort_date_added),
     DateModified(R.string.playlist_song_sort_date_modified),
-    Year(R.string.playlist_song_sort_year)
+    Year(R.string.playlist_song_sort_year),
+    Duration(R.string.playlist_song_sort_duration),
+    FileSize(R.string.playlist_song_sort_file_size)
 }
 
 internal fun HomeSortMode.sortField(): HomeSortField = when (this) {
@@ -42,6 +48,10 @@ internal fun HomeSortMode.sortField(): HomeSortField = when (this) {
     HomeSortMode.DateModifiedAsc -> HomeSortField.DateModified
     HomeSortMode.YearAsc,
     HomeSortMode.YearDesc -> HomeSortField.Year
+    HomeSortMode.Duration,
+    HomeSortMode.DurationAsc -> HomeSortField.Duration
+    HomeSortMode.FileSize,
+    HomeSortMode.FileSizeAsc -> HomeSortField.FileSize
 }
 
 internal fun HomeSortMode.isDescending(): Boolean = when (this) {
@@ -49,7 +59,9 @@ internal fun HomeSortMode.isDescending(): Boolean = when (this) {
     HomeSortMode.FileNameDesc,
     HomeSortMode.DateAdded,
     HomeSortMode.DateModified,
-    HomeSortMode.YearDesc -> true
+    HomeSortMode.YearDesc,
+    HomeSortMode.Duration,
+    HomeSortMode.FileSize -> true
     else -> false
 }
 
@@ -59,6 +71,8 @@ internal fun HomeSortField.toMode(descending: Boolean = false): HomeSortMode = w
     HomeSortField.DateAdded -> if (descending) HomeSortMode.DateAdded else HomeSortMode.DateAddedAsc
     HomeSortField.DateModified -> if (descending) HomeSortMode.DateModified else HomeSortMode.DateModifiedAsc
     HomeSortField.Year -> if (descending) HomeSortMode.YearDesc else HomeSortMode.YearAsc
+    HomeSortField.Duration -> if (descending) HomeSortMode.Duration else HomeSortMode.DurationAsc
+    HomeSortField.FileSize -> if (descending) HomeSortMode.FileSize else HomeSortMode.FileSizeAsc
 }
 
 internal fun HomeSortMode.songDisplaySpec(): SongDisplaySpec =
@@ -110,6 +124,7 @@ private object HomeSortResultCache {
                 .mix(song.dateAdded)
                 .mix(song.dateModified)
                 .mix(song.fileSize)
+                .mix(song.duration)
                 .mix(song.title.hashCode().toLong())
                 .mix(song.fileName.hashCode().toLong())
                 .mix(song.album.hashCode().toLong())
@@ -143,6 +158,10 @@ private fun HomeSortMode.toSongSortSpec(): SortSpec<SongSortField> =
             HomeSortMode.DateAddedAsc -> SongSortField.DateAdded
             HomeSortMode.DateModified,
             HomeSortMode.DateModifiedAsc -> SongSortField.DateModified
+            HomeSortMode.Duration,
+            HomeSortMode.DurationAsc -> SongSortField.Duration
+            HomeSortMode.FileSize,
+            HomeSortMode.FileSizeAsc -> SongSortField.FileSize
         },
         direction = if (isDescending()) SortDirection.Descending else SortDirection.Ascending
     )

@@ -501,8 +501,10 @@
     <string name="settings_full_tag_search">全标签搜索</string>
     <string name="settings_full_tag_search_summary_on">扫描时读取完整音频标签，搜索支持作曲、作词、注释、别名和自定义标签</string>
     <string name="settings_full_tag_search_summary_off">关闭后直接使用 Android 媒体库扫描，搜索仅匹配基础元数据</string>
-    <string name="settings_search_all_categories">搜索“所有”页的歌曲分类</string>
-    <string name="settings_search_all_categories_summary">仅控制“所有”标签页中显示的文件夹、作曲等歌曲分类，不影响对应独立标签页或歌曲搜索。</string>
+    <string name="settings_search_all_categories">搜索“所有”页的分类结果</string>
+    <string name="settings_search_all_categories_summary">仅控制“所有”标签页中显示的文件夹、作曲等分类结果，不影响对应独立标签页或歌曲搜索。</string>
+    <string name="settings_search_all_song_match_types">搜索“所有”页的歌曲分类</string>
+    <string name="settings_search_all_song_match_types_summary">控制“所有”标签页内按歌名、别名、注释、文件名、歌词等分类显示的歌曲结果；不影响“歌曲”或其它独立标签页。</string>
     <string name="settings_song_rating_display_stars">列表评分显示为星星数</string>
     <string name="settings_song_rating_display_stars_summary">显示与喜欢图标等高的多颗星星</string>
     <string name="settings_song_rating_display_number_summary">显示一颗星星和较大的评分数字</string>
@@ -552,8 +554,8 @@
     <string name="folder_detail_header_summary">%1$d 个子目录 · %2$d 首歌曲</string>
     <string name="folder_detail_search_placeholder">搜索歌曲、艺术家、专辑或文件名</string>
     <string name="folder_detail_empty">该文件夹没有音乐文件</string>
-    <string name="folder_detail_current_summary">%1$d 个子目录 · %2$d 首当前目录歌曲</string>
-    <string name="folder_detail_search_summary">%1$d 首匹配歌曲 · 含子目录</string>
+    <string name="folder_detail_current_summary">%1$d 个子目录 · %2$d 首当前目录歌曲 · %3$s</string>
+    <string name="folder_detail_search_summary">%1$d 首匹配歌曲 · 含子目录 · %2$s</string>
     <string name="folder_child_summary">%1$d 首歌曲 · %2$s</string>
     <string name="webdav_library_title">WebDAV 音乐库</string>
     <string name="webdav_settings">WebDAV 设置</string>
@@ -985,6 +987,7 @@
     <string name="library_search_match_alias">别名</string>
     <string name="library_search_match_tag">标签</string>
     <string name="rating_filter_all">全部星级</string>
+    <string name="rating_filter_rated">全部评分</string>
     <string name="rating_filter_unrated">未评分</string>
     <string name="rating_filter_star">%1$d 星</string>
     <string name="favorite_filter">喜欢</string>
@@ -1004,6 +1007,9 @@
     <string name="settings_dynamic_cover_folder_saved">已添加动态封面文件夹</string>
     <string name="settings_startup_poster">开屏海报</string>
     <string name="settings_startup_poster_summary">开启并选择图片后，每次打开 Halcyon 时显示约 3 秒</string>
+    <string name="settings_startup_poster_duration">开屏海报时长</string>
+    <string name="settings_startup_poster_duration_summary">设置每次启动时显示海报的时长</string>
+    <string name="settings_startup_poster_duration_value">%1$.1f 秒</string>
     <string name="settings_startup_poster_image">选择开屏海报图片</string>
     <string name="settings_app_wallpaper">全局自定义壁纸</string>
     <string name="settings_app_wallpaper_summary">在音乐库、专辑、歌单、文件夹等页面背后显示自定义壁纸</string>
@@ -1412,6 +1418,11 @@
     <string name="playlist_song_sort_title">歌曲名称</string>
     <string name="playlist_song_sort_file_name">文件名</string>
     <string name="playlist_song_sort_duration">歌曲时长</string>
+    <string name="playlist_song_sort_file_size">文件大小</string>
+    <string name="settings_music_video_sync">同步播放无声 MV</string>
+    <string name="settings_music_video_sync_summary">播放歌曲时同步无声 MV；关闭后不扫描 MV，也不显示播放页 MV 入口</string>
+    <string name="player_detail_music_video">MV</string>
+    <string name="player_music_video_landscape">横屏</string>
     <string name="playlist_song_sort_year">发行时间</string>
     <string name="playlist_song_sort_year_asc">发行时间正序</string>
     <string name="playlist_song_sort_year_desc">发行时间倒序</string>

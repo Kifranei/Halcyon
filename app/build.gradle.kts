@@ -16,7 +16,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-val appVersionName = "1.2.1"
+val appVersionName = "1.2.2"
 
 fun variantChannelMarker(variantName: String): String =
     when (variantName.lowercase(Locale.US)) {
@@ -115,7 +115,7 @@ android {
         applicationId = "com.ella.music"
         minSdk = 29
         targetSdk = 37
-        versionCode = 29
+        versionCode = 30
         versionName = appVersionName
         externalNativeBuild {
             cmake {
@@ -271,6 +271,7 @@ dependencies {
     implementation("com.github.HChenX:SuperLyricApi:3.4")
     implementation(libs.backdrop)
     implementation(libs.reorderable)
+    implementation(libs.compose.material.icons.extended)
     implementation(project(":lyrico-audiotag"))
     implementation("wang.harlon.quickjs:wrapper-android:2.4.0")
     implementation(project(":ffmpeg-decoder"))

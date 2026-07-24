@@ -641,9 +641,18 @@ fun FolderDetailScreen(
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
                         text = if (searchQuery.isBlank()) {
-                            stringResource(R.string.folder_detail_current_summary, childFolders.size, sortedSongs.size)
+                            stringResource(
+                                R.string.folder_detail_current_summary,
+                                childFolders.size,
+                                sortedSongs.size,
+                                com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
+                            )
                         } else {
-                            stringResource(R.string.folder_detail_search_summary, sortedSongs.size)
+                            stringResource(
+                                R.string.folder_detail_search_summary,
+                                sortedSongs.size,
+                                com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
+                            )
                         },
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -765,8 +774,8 @@ fun FolderDetailScreen(
                 isPinned = isPinned,
                 onDismiss = { folderMenuTarget = null },
                 onTogglePin = {
-                    scope.launch { mainViewModel.settingsManager.setPinned("folder", folder.path, !isPinned) }
                     folderMenuTarget = null
+                    scope.launch { mainViewModel.settingsManager.setPinned("folder", folder.path, !isPinned) }
                 },
                 onShare = {
                     shareLocalSongs(context, folderSongs)

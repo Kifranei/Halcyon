@@ -127,6 +127,7 @@ fun ScanSettingsScreen(
                     }
                 }
             },
+            titleStartPadding = if (showBackButton) 64.dp else 20.dp,
             actions = {
                 ScanRefreshIconButton(
                     enabled = !isScanning,

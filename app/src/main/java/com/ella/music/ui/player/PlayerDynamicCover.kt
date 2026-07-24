@@ -14,7 +14,9 @@ import android.view.ViewOutlineProvider
 import androidx.documentfile.provider.DocumentFile
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -53,11 +55,6 @@ internal data class DynamicCoverSource(
     val role: PlayerVideoRole = PlayerVideoRole.DynamicCover
 )
 
-internal data class PlayerVideoSources(
-    val dynamicCover: DynamicCoverSource? = null,
-    val musicVideo: DynamicCoverSource? = null
-)
-
 internal fun Song.dynamicCoverResolutionKey(): String =
     listOf(
         playlistIdentityKey(),
@@ -74,6 +71,8 @@ internal fun DynamicCoverVideo(
     source: DynamicCoverSource,
     isPlaying: Boolean,
     playAudio: Boolean = false,
+    syncPositionMs: Long? = null,
+    syncDurationMs: Long? = null,
     onPlaybackError: () -> Unit,
     modifier: Modifier = Modifier,
     cornerRadiusDp: Float = 14f,
@@ -96,6 +95,7 @@ internal fun DynamicCoverVideo(
     }
 
     val context = LocalContext.current
+    val followsAudioClock = source.role == PlayerVideoRole.MusicVideo
     val playbackMemoryKey = remember(source.failureKey, source.playbackOwnerKey) {
         DynamicCoverPlaybackMemory.activate(
             ownerKey = source.playbackOwnerKey.ifBlank { source.failureKey },
@@ -108,8 +108,8 @@ internal fun DynamicCoverVideo(
 
     val exoPlayer = remember(playbackMemoryKey) {
         ExoPlayer.Builder(context).build().apply {
-            repeatMode = Media3Player.REPEAT_MODE_ALL
-            // Dynamic covers stay silent, while an explicitly selected MV owns its own audio.
+            repeatMode = if (followsAudioClock) Media3Player.REPEAT_MODE_OFF else Media3Player.REPEAT_MODE_ALL
+            // Video artwork and music videos stay silent; audio always comes from the main player.
             volume = if (playAudio) 1f else 0f
             setMediaItem(MediaItem.fromUri(source.uri))
             prepare()
@@ -155,9 +155,33 @@ internal fun DynamicCoverVideo(
         }
     }
 
-    DisposableEffect(isPlaying, playAudio, exoPlayer) {
+    val latestSyncPositionMs by rememberUpdatedState(syncPositionMs)
+    val latestSyncDurationMs by rememberUpdatedState(syncDurationMs)
+    LaunchedEffect(exoPlayer, followsAudioClock, syncPositionMs, syncDurationMs, isPlaying) {
+        if (!followsAudioClock || latestSyncPositionMs == null) return@LaunchedEffect
+        val audioLimit = latestSyncDurationMs?.coerceAtLeast(0L) ?: Long.MAX_VALUE
+        val videoDuration = exoPlayer.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+        val unclampedTarget = latestSyncPositionMs!!.coerceAtLeast(0L)
+        val target = if (unclampedTarget >= videoDuration) {
+            // Seeking exactly to duration can clear the video surface on some decoders.
+            // Keep the final decoded frame visible after a short MV has ended.
+            (videoDuration - 1L).coerceAtLeast(0L)
+        } else {
+            unclampedTarget.coerceAtMost(audioLimit)
+        }
+        // Let ExoPlayer advance smoothly between occasional audio-clock corrections. Re-seeking
+        // on every Compose position tick flushes the decoder and makes the MV look choppy.
+        if (kotlin.math.abs(exoPlayer.currentPosition - target) > MUSIC_VIDEO_RESYNC_TOLERANCE_MS ||
+            (!isPlaying && exoPlayer.currentPosition != target)
+        ) {
+            exoPlayer.seekTo(target)
+        }
+        exoPlayer.playWhenReady = isPlaying && unclampedTarget < videoDuration && unclampedTarget < audioLimit
+    }
+
+    DisposableEffect(isPlaying, playAudio, followsAudioClock, exoPlayer) {
         exoPlayer.volume = if (playAudio) 1f else 0f
-        exoPlayer.playWhenReady = isPlaying
+        if (!followsAudioClock) exoPlayer.playWhenReady = isPlaying
         onDispose { }
     }
 
@@ -196,10 +220,12 @@ internal fun DynamicCoverVideo(
             view.clipToOutline = true
             view.hideController()
             exoPlayer.volume = if (playAudio) 1f else 0f
-            exoPlayer.playWhenReady = isPlaying
+            if (!followsAudioClock) exoPlayer.playWhenReady = isPlaying
         }
     )
 }
+
+private const val MUSIC_VIDEO_RESYNC_TOLERANCE_MS = 750L
 
 internal fun Song.dynamicCoverSource(
     context: Context,
@@ -687,6 +713,18 @@ private fun Context.readDynamicCoverAspectRatio(uri: Uri): Float? =
             displayWidth.toFloat() / displayHeight.toFloat()
         }
     }.getOrNull()
+
+internal fun Context.readMusicVideoDurationMs(uri: Uri): Long =
+    runCatching {
+        MediaMetadataRetriever().useCompat { retriever ->
+            if (uri.scheme.equals("content", ignoreCase = true)) {
+                retriever.setDataSource(this, uri)
+            } else {
+                retriever.setDataSource(uri.path.orEmpty())
+            }
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        }
+    }.getOrDefault(0L)
 
 private fun String.toSafeDynamicCoverName(): String {
     return trim()

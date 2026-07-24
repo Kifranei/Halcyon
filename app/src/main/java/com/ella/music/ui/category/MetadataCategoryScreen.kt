@@ -341,6 +341,7 @@ fun MetadataCategoryScreen(
                         }
                     }
                 },
+                titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
                 actions = {
                     if (selectionMode) {
                         IconButton(onClick = {

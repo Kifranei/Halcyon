@@ -25,6 +25,7 @@ internal data class PlayerScreenSettings(
     val audioVisualizerEnabled: Boolean = false,
     val audioVisualizerOpacity: Int = 100,
     val dynamicCoverEnabled: Boolean = false,
+    val musicVideoSyncEnabled: Boolean = false,
     val dynamicCoverCustomFolders: List<String> = emptyList(),
     val immersiveAlbumCover: Boolean = false,
     val playerBackgroundEnabled: Boolean = false,
@@ -59,6 +60,7 @@ private data class PlayerSettingsGroupA(
     val audioVisualizerEnabled: Boolean,
     val audioVisualizerOpacity: Int,
     val dynamicCoverEnabled: Boolean,
+    val musicVideoSyncEnabled: Boolean,
     val dynamicCoverCustomFolders: List<String>
 )
 
@@ -154,9 +156,10 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         }
         val dynamicCoverSettings = combine(
             settingsManager.dynamicCoverEnabled,
+            settingsManager.musicVideoSyncEnabled,
             settingsManager.dynamicCoverCustomFolders
-        ) { enabled, customFolders ->
-            enabled to customFolders
+        ) { enabled, musicVideoEnabled, customFolders ->
+            Triple(enabled, musicVideoEnabled, customFolders)
         }
         val groupA = combine(
             settingsManager.playerTapSeekEnabled,
@@ -172,7 +175,8 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 audioVisualizerEnabled = visualizerState.enabled,
                 audioVisualizerOpacity = visualizerState.opacity,
                 dynamicCoverEnabled = dynamicCover.first,
-                dynamicCoverCustomFolders = dynamicCover.second
+                musicVideoSyncEnabled = dynamicCover.second,
+                dynamicCoverCustomFolders = dynamicCover.third
             )
         }
         val groupBBase = combine(
@@ -283,6 +287,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 audioVisualizerEnabled = a.audioVisualizerEnabled,
                 audioVisualizerOpacity = a.audioVisualizerOpacity,
                 dynamicCoverEnabled = a.dynamicCoverEnabled,
+                musicVideoSyncEnabled = a.musicVideoSyncEnabled,
                 dynamicCoverCustomFolders = a.dynamicCoverCustomFolders,
                 immersiveAlbumCover = b.immersiveAlbumCover,
                 playerBackgroundEnabled = b.playerBackgroundEnabled,

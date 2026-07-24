@@ -1,3 +1,29 @@
+# 1.2.2
+
+From tag `1.2.1` to `1.2.2`.
+
+中文更新日志
+- 重构逐字歌词为 Compose 实现，新增 / 完善 Apple Music 风格动态歌词背景、逐词上浮、平滑重排和沉浸歌词页过渡；优化桌面歌词、状态栏歌词、TTML / ELRC 及歌词字体体验。
+- 大幅完善播放页与动态封面：统一沉浸与非沉浸取色，修复动态封面匹配、切换与预览问题；原图预览支持缩放、跟手拖动、分享和保存，播放页 / 队列补全评分、收藏和播放模式等交互。
+- 完善 MV 播放：预加载静音 MV，进入 MV 时暂停歌曲音频并使用视频声音，退出后恢复歌曲；修复切歌残留、横屏入口和进度同步问题。
+- 首次扫描会询问是否启用全标签搜索；全标签模式可搜索完整元数据，快速模式改用基础媒体库扫描以提升大曲库速度，并避免冷启动或后台重复自动扫描。
+- 新增 Last.fm 历史：支持授权、完整历史同步、自动 Scrobble、离线缓存和本地 / Last.fm / 合并历史视图；凭据由 Android Keystore 加密且不写入备份。
+- 新增 OpenAI 曲库听歌助手与首页 AI 推荐入口，可根据本地曲库、最近播放和听歌统计推荐歌曲或解释偏好；仅允许读取曲库和播放本地歌曲。
+- 新增交叉淡入淡出、原生 Oboe 音频输出、USB DAC 独占、紧凑 / 扩展桌面播放小组件、可配置的应用图标与桌面快捷方式。
+- 优化专辑 / 艺术家元数据、封面预览、歌曲评分、歌单拖拽与排序、搜索滚动恢复、文件夹交互和听歌统计等音乐库体验。
+- 改善 Android / HyperOS 系统适配：深色启动界面避免系统遮罩闪白，接入内存回收回调，修复启动恢复、预测性返回、蓝牙自动播放和多项播放器稳定性问题。
+
+English Changelog
+- Rebuilt word-by-word lyrics with Compose and added / refined Apple Music-style dynamic lyric backgrounds, word lift, smooth relayout, and immersive lyric transitions; desktop lyrics, status-bar lyrics, TTML / ELRC, and lyric-font behavior were also improved.
+- Extensively refined the player and dynamic covers: immersive and non-immersive palette handling is now aligned, dynamic-cover matching / switching / preview issues are fixed, original-cover preview supports zoom, direct panning, sharing, and saving, and player / queue rating, favorite, and playback-mode interactions are completed.
+- Improved MV playback: silent MVs are preloaded, entering MV pauses the song audio and uses the video audio, and leaving it resumes the track; fixed track-change residue, landscape entry, and progress synchronization.
+- The first scan now asks whether to enable full-tag search. Full-tag mode searches complete metadata, while fast mode uses the basic media-library scanner for large libraries and avoids repeated automatic scans during cold start or in the background.
+- Added Last.fm listening history with authorization, full-history sync, automatic scrobbling, offline cache, and Local / Last.fm / combined views. Credentials are encrypted with Android Keystore and excluded from backups.
+- Added an OpenAI library listening assistant and a home AI recommendation entry. It recommends songs or explains preferences from the local library, recent plays, and listening statistics, and is limited to reading the library and playing local songs.
+- Added crossfade, native Oboe output, USB DAC exclusive mode, compact / expanded playback widgets, configurable app icons, and launcher shortcuts.
+- Improved album / artist metadata, cover preview, song ratings, playlist reordering and sorting, search scroll restoration, folder interactions, and listening statistics.
+- Improved Android / HyperOS integration: a dark launch screen avoids bright flashes beneath system masks, memory-trim callbacks are handled, and startup restore, predictive back, Bluetooth auto-play, and player stability have been fixed in multiple places.
+
 # 1.2.1
 
 From tag `1.2.0` to `1.2.1`.

@@ -775,6 +775,7 @@
     <string name="library_search_artist_summary">Песни %1$d · Альбомы с участием %2$d</string>
     <string name="library_search_lyric_prefix">Текст: </string>
     <string name="rating_filter_all">Все рейтинги</string>
+    <string name="rating_filter_rated">Все оцененные</string>
     <string name="rating_filter_unrated">Без оценки</string>
     <string name="rating_filter_star">%1$d звезды</string>
     <string name="favorite_filter">Избранное</string>
@@ -787,6 +788,9 @@
     <string name="settings_dynamic_cover_permission_denied">Разрешение на видео не предоставлено, динамическая обложка отключена.</string>
     <string name="settings_startup_poster">Плакат стартапа</string>
     <string name="settings_startup_poster_summary">После включения и выбора изображения показывайте его примерно 3 секунды каждый раз, когда открывается Halcyon.</string>
+    <string name="settings_startup_poster_duration">Длительность стартового плаката</string>
+    <string name="settings_startup_poster_duration_summary">Задаёт время показа плаката при открытии приложения</string>
+    <string name="settings_startup_poster_duration_value">%1$.1f с</string>
     <string name="settings_startup_poster_image">Выберите изображение постера стартапа</string>
     <string name="settings_app_wallpaper">Глобальные пользовательские обои</string>
     <string name="settings_app_wallpaper_summary">Показывать пользовательские обои позади библиотеки, альбома, списка воспроизведения, папки и подобных страниц.</string>
@@ -1810,8 +1814,10 @@
     <string name="settings_cover_export_folder_remove">Очистить папку обложек</string>
     <string name="settings_cover_export_folder_remove_summary">Сохранять новые обложки в Pictures/Halcyon</string>
     <string name="settings_cover_export_folder_cleared">Папка обложек очищена</string>
-    <string name="settings_search_all_categories">Категории песен во вкладке Все</string>
-    <string name="settings_search_all_categories_summary">Влияет только на категории песен во вкладке Все.</string>
+    <string name="settings_search_all_categories">Результаты категорий во вкладке Все</string>
+    <string name="settings_search_all_categories_summary">Влияет только на результаты категорий во вкладке Все.</string>
+    <string name="settings_search_all_song_match_types">Группы совпадений песен во вкладке Все</string>
+    <string name="settings_search_all_song_match_types_summary">Выберите группы совпадений песен для вкладки Все. Вкладка Песни и другие вкладки не изменятся.</string>
     <string name="settings_song_rating_display_stars">Показывать рейтинг звездами</string>
     <string name="settings_song_rating_display_stars_summary">Показывать звезду за каждый балл</string>
     <string name="settings_song_rating_display_number_summary">Показывать звезду и число рейтинга</string>

@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +62,7 @@ import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
@@ -76,8 +78,8 @@ internal fun CoverPlayerPage(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    musicVideoSyncEnabled: Boolean,
     musicVideoVisible: Boolean,
-    musicVideoInitialPlaying: Boolean,
     immersiveAlbumCover: Boolean,
     playerBackgroundEnabled: Boolean,
     playerBackgroundUri: String,
@@ -128,6 +130,9 @@ internal fun CoverPlayerPage(
     menuExpanded: Boolean,
     queueExpanded: Boolean,
     playlist: List<Song>,
+    favoriteSongKeys: Set<String> = emptySet(),
+    loadSongRating: (Song) -> Int = { 0 },
+    ratingRevision: Int = 0,
     sleepTimerEndRealtimeMs: Long?,
     stopAfterCurrentEnabled: Boolean,
     sleepTimerCustomMinutes: Int,
@@ -147,6 +152,7 @@ internal fun CoverPlayerPage(
     onPlayerKeepScreenOnChange: (Boolean) -> Unit,
     onDynamicCoverFailed: (String) -> Unit,
     onToggleMusicVideo: () -> Unit,
+    onOpenMusicVideoLandscape: () -> Unit,
     onMatchDynamicCover: () -> Unit,
     onToggleMenu: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -242,8 +248,8 @@ internal fun CoverPlayerPage(
     // composition janked every song change (even when no cover exists). Resolve it off the main
     // thread, only while the player page is shown. Clear the previous source first so a song
     // switch never keeps rendering the old video's PlayerView while the next source is resolving.
-    val videoSources by produceState(
-        initialValue = PlayerVideoSources(),
+    val resolvedDynamicCover by produceState<DynamicCoverSource?>(
+        initialValue = null,
         dynamicCoverEnabled,
         dynamicCoverCustomFolders,
         dynamicCoverSongKey,
@@ -251,59 +257,42 @@ internal fun CoverPlayerPage(
     ) {
         val current = song
         if (current == null) {
-            value = PlayerVideoSources()
+            value = null
         } else {
-            value = PlayerVideoSources()
+            value = null
             value = withContext(Dispatchers.IO) {
-                PlayerVideoSources(
-                    dynamicCover = current.dynamicCoverSource(
-                        context,
-                        includeExternalFiles = dynamicCoverEnabled,
-                        customRootPaths = dynamicCoverCustomFolders
-                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath },
-                    musicVideo = current.musicVideoSource(
-                        context,
-                        customRootPaths = dynamicCoverCustomFolders
-                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
-                )
+                current.dynamicCoverSource(
+                    context,
+                    includeExternalFiles = dynamicCoverEnabled,
+                    customRootPaths = dynamicCoverCustomFolders
+                )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
             }
         }
     }
-    // Stable local so the null-checked usages below can smart-cast (delegated props can't).
-    val resolvedDynamicCover = videoSources.dynamicCover
-    val resolvedMusicVideo = videoSources.musicVideo
-    val displayedDynamicCover = if (musicVideoVisible) resolvedMusicVideo else resolvedDynamicCover
-    val musicVideoPlayback by remember(resolvedMusicVideo?.playbackOwnerKey, resolvedMusicVideo?.failureKey) {
-        MusicVideoPlaybackBridge.snapshot(resolvedMusicVideo)
-    }.collectAsState()
-    // Show MV immediately on toggle, even while ExoPlayer is still discovering its duration.
-    // The seek bar becomes seekable as soon as that duration arrives through the bridge.
-    val controlsMusicVideo = musicVideoVisible && resolvedMusicVideo != null
-    LaunchedEffect(controlsMusicVideo, resolvedMusicVideo?.failureKey) {
-        if (controlsMusicVideo) {
-            // The MV player can be created after the main player is paused. Remember its desired
-            // state now so attach() starts the video as soon as Media3 is ready.
-            MusicVideoPlaybackBridge.setPlaying(resolvedMusicVideo, musicVideoInitialPlaying)
+    // Resolve MV separately.  Its lookup can be relatively expensive, and must never delay the
+    // regular dynamic-cover lookup or prevent it from reaching the screen.
+    val resolvedMusicVideo by produceState<DynamicCoverSource?>(
+        initialValue = null,
+        musicVideoSyncEnabled,
+        dynamicCoverCustomFolders,
+        dynamicCoverSongKey,
+        dynamicCoverFailedPath
+    ) {
+        val current = song
+        value = if (current == null || !musicVideoSyncEnabled) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                current.musicVideoSource(
+                    context,
+                    customRootPaths = dynamicCoverCustomFolders
+                )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+            }
         }
     }
-    LaunchedEffect(musicVideoVisible, resolvedMusicVideo) {
-        // A missing/unreadable MV must not leave the regular audio player paused.
-        if (musicVideoVisible && resolvedMusicVideo == null) onToggleMusicVideo()
-    }
-    val controlPosition = if (controlsMusicVideo) musicVideoPlayback.positionMs else currentPosition
-    val controlDuration = if (controlsMusicVideo) musicVideoPlayback.durationMs else duration
-    val controlIsPlaying = if (controlsMusicVideo) musicVideoPlayback.playWhenReady else isPlaying
-    val onControlSeek: (Float) -> Unit = if (controlsMusicVideo) {
-        { progress -> MusicVideoPlaybackBridge.seekToProgress(resolvedMusicVideo, progress) }
-    } else {
-        onSeek
-    }
-    val onControlPlayPause: () -> Unit = if (controlsMusicVideo) {
-        { MusicVideoPlaybackBridge.togglePlayback(resolvedMusicVideo) }
-    } else {
-        onPlayPause
-    }
-    val portraitDynamicCover = displayedDynamicCover?.aspectRatio?.let { it < 0.92f } == true
+    val displayedDynamicCover = resolvedDynamicCover
+    val portraitDynamicCover = (if (musicVideoVisible) resolvedMusicVideo else displayedDynamicCover)
+        ?.aspectRatio?.let { it < 0.92f } == true
     val coverSwipeModifier = if (coverSwipeEnabled) {
         rememberCoverSwipeModifier(
             onSwipePrevious = onSwipePrevious,
@@ -390,6 +379,9 @@ internal fun CoverPlayerPage(
                 queueExpanded = queueExpanded,
                 playlist = playlist,
                 queueLocked = queueLocked,
+                favoriteSongKeys = favoriteSongKeys,
+                loadSongRating = loadSongRating,
+                ratingRevision = ratingRevision,
                 audioSessionId = audioSessionId,
                 visualizerEnabled = visualizerEnabled,
                 visualizerOpacity = visualizerOpacity,
@@ -460,11 +452,39 @@ internal fun CoverPlayerPage(
                             .then(coverSwipeModifier),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (displayedDynamicCover != null) {
+                        androidx.compose.runtime.LaunchedEffect(
+                            resolvedMusicVideo?.failureKey,
+                            currentPosition,
+                            duration,
+                            isPlaying
+                        ) {
+                            resolvedMusicVideo?.let { source ->
+                                MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
+                            }
+                        }
+                        // Keep MV silent and on the audio clock while its surface is hidden.
+                        resolvedMusicVideo?.let { source ->
+                            DynamicCoverVideo(
+                                source = source,
+                                isPlaying = isPlaying,
+                                syncPositionMs = currentPosition,
+                                syncDurationMs = duration,
+                                onPlaybackError = { onDynamicCoverFailed(source.failureKey) },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { alpha = if (musicVideoVisible) 1f else 0.001f },
+                                cornerRadiusDp = 0f,
+                                resizeMode = if (portraitDynamicCover) {
+                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                } else {
+                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                }
+                            )
+                        }
+                        if (!musicVideoVisible && displayedDynamicCover != null) {
                             DynamicCoverVideo(
                                 source = displayedDynamicCover,
-                                isPlaying = controlIsPlaying,
-                                playAudio = controlsMusicVideo,
+                                isPlaying = isPlaying,
                                 onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 0f,
@@ -474,10 +494,11 @@ internal fun CoverPlayerPage(
                                     androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 }
                             )
-                        } else {
+                        } else if (!musicVideoVisible || resolvedMusicVideo == null) {
                             FullBleedCover(
                                 song = song,
                                 embeddedCover = embeddedCover,
+                                coverModel = resolvedStaticCoverPreviewModel,
                                 cornerRadius = immersiveCoverCornerRadius,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -602,30 +623,33 @@ internal fun CoverPlayerPage(
                             Spacer(modifier = Modifier.weight(1f))
                         }
                         PlayerProgressBlock(
-                            currentPosition = controlPosition,
-                            duration = controlDuration,
+                            currentPosition = currentPosition,
+                            duration = duration,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
-                            playbackModeLabel = if (controlsMusicVideo) "MV" else null,
+                            playbackModeLabel = if (musicVideoVisible) "MV" else null,
                             palette = pagePalette,
                             allowTapSeek = playerTapSeekEnabled,
                             showTotalDuration = playerShowTotalDuration,
-                            onSeek = onControlSeek
+                            onSeek = onSeek
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         PlayerTransportControls(
-                            isPlaying = controlIsPlaying,
+                            isPlaying = isPlaying,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             palette = pagePalette,
                             queueExpanded = queueExpanded,
                             playlist = playlist,
+                            favoriteSongKeys = favoriteSongKeys,
+                            loadSongRating = loadSongRating,
+                            ratingRevision = ratingRevision,
                             currentSongKey = song?.playlistIdentityKey(),
                             queueLocked = queueLocked,
                             onCyclePlaybackMode = onCyclePlaybackMode,
                             onToggleQueueLock = playerViewModel::toggleQueueLock,
                             onPrevious = onPrevious,
-                            onPlayPause = onControlPlayPause,
+                            onPlayPause = onPlayPause,
                             onNext = onNext,
                             onToggleQueue = onToggleQueue,
                             onDismissQueue = onDismissQueue,
@@ -703,11 +727,34 @@ internal fun CoverPlayerPage(
                                 .then(coverSwipeModifier),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (displayedDynamicCover != null) {
+                            androidx.compose.runtime.LaunchedEffect(
+                                resolvedMusicVideo?.failureKey,
+                                currentPosition,
+                                duration,
+                                isPlaying
+                            ) {
+                                resolvedMusicVideo?.let { source ->
+                                    MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
+                                }
+                            }
+                            // Keep MV silent and synchronized behind the current cover.
+                            resolvedMusicVideo?.let { source ->
+                                DynamicCoverVideo(
+                                    source = source,
+                                    isPlaying = isPlaying,
+                                    syncPositionMs = currentPosition,
+                                    syncDurationMs = duration,
+                                    onPlaybackError = { onDynamicCoverFailed(source.failureKey) },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer { alpha = if (musicVideoVisible) 1f else 0.001f },
+                                    cornerRadiusDp = 14f
+                                )
+                            }
+                            if (!musicVideoVisible && displayedDynamicCover != null) {
                                 DynamicCoverVideo(
                                     source = displayedDynamicCover,
-                                    isPlaying = controlIsPlaying,
-                                    playAudio = controlsMusicVideo,
+                                    isPlaying = isPlaying,
                                     onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                     modifier = Modifier.fillMaxSize(),
                                     cornerRadiusDp = 14f
@@ -720,7 +767,7 @@ internal fun CoverPlayerPage(
                                             .padding(10.dp)
                                     )
                                 }
-                            } else {
+                            } else if (!musicVideoVisible || resolvedMusicVideo == null) {
                                 AlbumArtView(
                                     song = song,
                                     embeddedCover = embeddedCover,
@@ -730,14 +777,40 @@ internal fun CoverPlayerPage(
                                     hiResLogoUri = hiResLogoUri,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            } else if (showHiResLogo) {
+                                HiResLogoBadge(
+                                    logoUri = hiResLogoUri,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(10.dp)
+                                )
                             }
                             if (resolvedMusicVideo != null) {
+                                if (musicVideoVisible) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(top = 10.dp, end = 60.dp)
+                                            .size(42.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(pagePalette.middle.copy(alpha = 0.62f))
+                                            .clickable(onClick = onOpenMusicVideoLandscape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_music_video_landscape),
+                                            contentDescription = stringResource(R.string.player_music_video_landscape),
+                                            tint = pagePalette.onBackground.copy(alpha = 0.94f),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .padding(10.dp)
                                         .size(42.dp)
-                                        .clip(CircleShape)
+                                .clip(RoundedCornerShape(14.dp))
                                         .background(pagePalette.middle.copy(alpha = 0.62f))
                                         .clickable(onClick = onToggleMusicVideo),
                                     contentAlignment = Alignment.Center
@@ -819,30 +892,33 @@ internal fun CoverPlayerPage(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         PlayerProgressBlock(
-                            currentPosition = controlPosition,
-                            duration = controlDuration,
+                            currentPosition = currentPosition,
+                            duration = duration,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
-                            playbackModeLabel = if (controlsMusicVideo) "MV" else null,
+                            playbackModeLabel = if (musicVideoVisible) "MV" else null,
                             palette = pagePalette,
                             allowTapSeek = playerTapSeekEnabled,
                             showTotalDuration = playerShowTotalDuration,
-                            onSeek = onControlSeek
+                            onSeek = onSeek
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         PlayerTransportControls(
-                            isPlaying = controlIsPlaying,
+                            isPlaying = isPlaying,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             palette = pagePalette,
                             queueExpanded = queueExpanded,
                             playlist = playlist,
+                            favoriteSongKeys = favoriteSongKeys,
+                            loadSongRating = loadSongRating,
+                            ratingRevision = ratingRevision,
                             currentSongKey = song?.playlistIdentityKey(),
                             queueLocked = queueLocked,
                             onCyclePlaybackMode = onCyclePlaybackMode,
                             onToggleQueueLock = playerViewModel::toggleQueueLock,
                             onPrevious = onPrevious,
-                            onPlayPause = onControlPlayPause,
+                            onPlayPause = onPlayPause,
                             onNext = onNext,
                             onToggleQueue = onToggleQueue,
                             onDismissQueue = onDismissQueue,
@@ -937,6 +1013,11 @@ internal fun CoverPlayerPage(
             onVisualizerOpacityChange = onVisualizerOpacityChange,
             onPlayerKeepScreenOnChange = onPlayerKeepScreenOnChange,
             onCycleRemoteStreamQuality = playerViewModel::cycleRemoteStreamQuality,
+            onPreviewCover = {
+                resolvedStaticCoverPreviewModel?.let { model ->
+                    previewCover = PlayerCoverPreview(model = model, title = song?.title.orEmpty())
+                }
+            },
             initialPage = actionMenuInitialPage
         )
         previewCover?.let { cover ->

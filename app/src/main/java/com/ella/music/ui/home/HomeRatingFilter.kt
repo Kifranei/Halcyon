@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -21,12 +24,17 @@ import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+/** Keeps the library rating choice while moving between tabs, but resets with the app process. */
+internal object HomeRatingFilterUiState {
+    var selectedRatings by mutableStateOf<Set<Int>>(emptySet())
+}
+
 @Composable
 internal fun StarRatingFilterRow(
     selectedRatings: Set<Int>,
     onRatingsChange: (Set<Int>) -> Unit
 ) {
-    val allSelected = selectedRatings.isEmpty()
+    val allSelected = selectedRatings.isEmpty() || selectedRatings == ALL_RATED_FILTER
     val unratedOnly = selectedRatings == setOf(0)
     Row(
         modifier = Modifier
@@ -36,12 +44,21 @@ internal fun StarRatingFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         StarRatingPill(
-            // Tri-state: lit = all songs; tap → dim = unrated only; tap again → all.
-            text = stringResource(R.string.rating_filter_all),
+            // Cycle all songs → unrated → all rated, without losing a full five-star selection.
+            text = stringResource(
+                if (selectedRatings == ALL_RATED_FILTER) R.string.rating_filter_rated
+                else R.string.rating_filter_all
+            ),
             selected = allSelected,
             dim = unratedOnly,
             onClick = {
-                onRatingsChange(if (selectedRatings.isEmpty()) setOf(0) else emptySet())
+                onRatingsChange(
+                    when (selectedRatings) {
+                        emptySet<Int>() -> setOf(0)
+                        setOf(0) -> ALL_RATED_FILTER
+                        else -> emptySet()
+                    }
+                )
             }
         )
         (1..5).forEach { rating ->
@@ -70,8 +87,10 @@ private fun Set<Int>.toggleRating(rating: Int): Set<Int> {
 
 internal fun Set<Int>.normalizedRatingFilter(): Set<Int> {
     val normalized = filter { it in 1..5 }.toSortedSet()
-    return if (normalized.isEmpty() || normalized.size == 5) emptySet() else normalized
+    return normalized
 }
+
+private val ALL_RATED_FILTER: Set<Int> = (1..5).toSet()
 
 internal fun Set<Int>.summaryLabel(context: Context): String? {
     if (isEmpty()) return null

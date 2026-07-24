@@ -69,7 +69,6 @@ import com.ella.music.ui.artist.selectArtistCoverSong
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.ArtistPickerSheet
-import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CoverPreviewDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
@@ -93,7 +92,6 @@ import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
-import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.toFastIndexSection
 import com.ella.music.viewmodel.MainViewModel
@@ -185,23 +183,15 @@ fun AlbumDetailScreen(
         }
     }
     val albumArtUri = mainViewModel.getAlbumArtUri(album?.artAlbumId ?: albumSongs.firstOrNull()?.albumId ?: 0L)
-    val albumCoverState = rememberSongArtworkState(
-        song = albumSongs.firstOrNull(),
-        albumArtUri = albumArtUri,
-        loadCoverArt = mainViewModel::getLargeCoverArtBitmap,
-        usage = ArtworkUsage.ArtistImage,
-        showDefaultWhenMissing = false
-    )
-    val albumCoverModel = albumCoverState.model
     val albumPreviewModel by produceState<Any?>(
-        initialValue = albumCoverModel,
+        initialValue = albumArtUri,
         albumSongs.firstOrNull()?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
     ) {
         value = withContext(Dispatchers.IO) {
-            albumSongs.firstOrNull()?.let(mainViewModel::getOriginalCoverModel) ?: albumCoverModel
+            albumSongs.firstOrNull()?.let(mainViewModel::getOriginalCoverModel) ?: albumArtUri
         }
     }
-    var coverPreviewVisible by remember(albumCoverModel) { mutableStateOf(false) }
+    var coverPreviewVisible by remember(albumPreviewModel) { mutableStateOf(false) }
     val neteaseAlbumUrl by produceState<String?>(initialValue = null, albumId, albumSongs) {
         value = mainViewModel.getNeteaseAlbumUrlForAlbum(albumId)
     }
@@ -520,7 +510,7 @@ fun AlbumDetailScreen(
                         R.string.album_sort_summary,
                         sortedAlbumSongs.size,
                         albumDuration.formatPlaybackDuration(),
-                        stringResource(sortMode.labelRes)
+                        com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
                     ),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,

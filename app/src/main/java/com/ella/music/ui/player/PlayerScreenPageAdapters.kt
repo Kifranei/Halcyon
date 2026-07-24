@@ -46,9 +46,10 @@ internal fun CoverPageContent(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    musicVideoSyncEnabled: Boolean,
     musicVideoVisible: Boolean,
-    musicVideoInitialPlaying: Boolean,
     onMusicVideoVisibleChange: (Boolean) -> Unit,
+    onOpenMusicVideoLandscape: () -> Unit,
     immersiveAlbumCover: Boolean,
     playerBackgroundEnabled: Boolean,
     playerBackgroundUri: String,
@@ -101,6 +102,9 @@ internal fun CoverPageContent(
     queueExpanded: Boolean,
     onQueueExpandedChange: (Boolean) -> Unit,
     playlist: List<Song>,
+    favoriteSongKeys: Set<String> = emptySet(),
+    loadSongRating: (Song) -> Int = { 0 },
+    ratingRevision: Int = 0,
     sleepTimerEndRealtimeMs: Long?,
     stopAfterCurrentEnabled: Boolean,
     sleepTimerCustomMinutes: Int,
@@ -174,11 +178,12 @@ internal fun CoverPageContent(
         dynamicCoverFailedPath = dynamicCoverFailedPath,
         dynamicCoverEnabled = dynamicCoverEnabled,
         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+        musicVideoSyncEnabled = musicVideoSyncEnabled,
         musicVideoVisible = musicVideoVisible,
-        musicVideoInitialPlaying = musicVideoInitialPlaying,
         onToggleMusicVideo = {
             onMusicVideoVisibleChange(!musicVideoVisible)
         },
+        onOpenMusicVideoLandscape = onOpenMusicVideoLandscape,
         immersiveAlbumCover = immersiveAlbumCover,
         playerBackgroundEnabled = playerBackgroundEnabled,
         playerBackgroundUri = playerBackgroundUri,
@@ -229,6 +234,9 @@ internal fun CoverPageContent(
         menuExpanded = menuExpanded,
         queueExpanded = queueExpanded,
         playlist = playlist,
+        favoriteSongKeys = favoriteSongKeys,
+        loadSongRating = loadSongRating,
+        ratingRevision = ratingRevision,
         sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
         stopAfterCurrentEnabled = stopAfterCurrentEnabled,
         sleepTimerCustomMinutes = sleepTimerCustomMinutes,
@@ -687,6 +695,9 @@ internal fun DetailPageContent(
     onNavigateToArtist: (String) -> Unit,
     onNavigateToMetadataCategory: (String, String) -> Unit,
     openNetease: (String?) -> Unit,
+    musicVideoEnabled: Boolean,
+    musicVideoCustomFolders: List<String>,
+    onOpenMusicVideo: () -> Unit,
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -725,6 +736,9 @@ internal fun DetailPageContent(
         onNeteaseSong = { openNetease(neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let(::neteaseSongUrl)) },
         onNeteaseArtist = { id -> openNetease(neteaseArtistUrl(id)) },
         onNeteaseAlbum = { openNetease(neteaseInfo?.albumId?.takeIf { it.isNotBlank() }?.let(::neteaseAlbumUrl)) },
+        musicVideoEnabled = musicVideoEnabled,
+        musicVideoCustomFolders = musicVideoCustomFolders,
+        onMusicVideo = onOpenMusicVideo,
         modifier = modifier
     )
 }

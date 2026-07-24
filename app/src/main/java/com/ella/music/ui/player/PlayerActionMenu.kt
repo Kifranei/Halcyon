@@ -95,6 +95,7 @@ internal fun PlayerActionMenu(
     onVisualizerOpacityChange: (Int) -> Unit,
     onPlayerKeepScreenOnChange: (Boolean) -> Unit,
     onCycleRemoteStreamQuality: () -> Unit,
+    onPreviewCover: () -> Unit,
     initialPage: PlayerActionSheetPage = PlayerActionSheetPage.Main,
     modifier: Modifier = Modifier
 ) {
@@ -111,7 +112,8 @@ internal fun PlayerActionMenu(
                 PlayerActionMenuHeader(
                     song = song,
                     onArtist = onArtist,
-                    onAlbum = onAlbum
+                    onAlbum = onAlbum,
+                    onPreviewCover = onPreviewCover
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 PlayerActionShortcutRow(

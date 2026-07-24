@@ -15,8 +15,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,10 +36,11 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.ui.components.PlayerQueueListIcon
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Playlist
 
 @Composable
 internal fun LandscapeProgressRow(
@@ -147,7 +150,10 @@ internal fun PlayerProgressBlock(
     onSeek: (Float) -> Unit
 ) {
     val context = LocalContext.current
-    var infoMode by remember(audioInfo, bluetoothDeviceName, playbackModeLabel) { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val savedInfoMode by settingsManager.playerProgressInfoIndex.collectAsState(initial = 0)
+    var infoMode by remember { mutableIntStateOf(0) }
     var previewProgress by remember { mutableStateOf<Float?>(null) }
     val infoLabels = remember(audioInfo, bluetoothDeviceName, playbackModeLabel) {
         buildList {
@@ -160,6 +166,9 @@ internal fun PlayerProgressBlock(
                 bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let(::add)
             }
         }.distinct()
+    }
+    androidx.compose.runtime.LaunchedEffect(savedInfoMode, infoLabels.size) {
+        infoMode = if (infoLabels.isEmpty()) 0 else savedInfoMode % infoLabels.size
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         GlowSeekBar(
@@ -190,7 +199,11 @@ internal fun PlayerProgressBlock(
                         .pointerInput(infoLabels, bluetoothDeviceName) {
                             detectTapGestures(
                                 onTap = {
-                                    if (infoLabels.size > 1) infoMode = (infoMode + 1) % infoLabels.size
+                                    if (infoLabels.size > 1) {
+                                        val nextMode = (infoMode + 1) % infoLabels.size
+                                        infoMode = nextMode
+                                        scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
+                                    }
                                 },
                                 onLongPress = {
                                     if (!bluetoothDeviceName.isNullOrBlank()) {
@@ -226,6 +239,9 @@ internal fun PlayerTransportControls(
     playlist: List<Song>,
     currentSongKey: String?,
     queueLocked: Boolean,
+    favoriteSongKeys: Set<String> = emptySet(),
+    loadSongRating: (Song) -> Int = { 0 },
+    ratingRevision: Int = 0,
     onCyclePlaybackMode: () -> Unit,
     onToggleQueueLock: () -> Unit,
     onPrevious: () -> Unit,
@@ -249,14 +265,18 @@ internal fun PlayerTransportControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         PlayerTransportIconButton(onClick = onCyclePlaybackMode) {
-            PlaybackModeIcon(shuffleEnabled = shuffleEnabled, repeatMode = repeatMode, accent = palette.accent)
+            PlaybackModeIcon(
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                color = palette.onBackground.copy(alpha = 0.92f)
+            )
         }
         PlayerTransportIconButton(onClick = onPrevious) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_skip_previous),
                 contentDescription = stringResource(R.string.common_previous),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         Box(
@@ -270,7 +290,7 @@ internal fun PlayerTransportControls(
             CenteredPlayPauseGlyph(
                 isPlaying = isPlaying,
                 tint = palette.onBackground.copy(alpha = 0.96f),
-                modifier = Modifier.size(if (isPlaying) 38.dp else 40.dp)
+                modifier = Modifier.size(if (isPlaying) 34.dp else 36.dp)
             )
         }
         PlayerTransportIconButton(onClick = onNext) {
@@ -278,15 +298,13 @@ internal fun PlayerTransportControls(
                 painter = painterResource(id = R.drawable.ic_skip_next),
                 contentDescription = stringResource(R.string.common_next),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         Box(contentAlignment = Alignment.Center) {
             PlayerTransportIconButton(onClick = onToggleQueue) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Playlist,
-                    contentDescription = stringResource(R.string.player_queue_title),
-                    tint = palette.onBackground.copy(alpha = 0.58f),
+                PlayerQueueListIcon(
+                    color = palette.onBackground.copy(alpha = 0.92f),
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -297,6 +315,9 @@ internal fun PlayerTransportControls(
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
                 queueLocked = queueLocked,
+                favoriteSongKeys = favoriteSongKeys,
+                loadSongRating = loadSongRating,
+                ratingRevision = ratingRevision,
                 onCyclePlaybackMode = onCyclePlaybackMode,
                 onToggleQueueLock = onToggleQueueLock,
                 onDismiss = onDismissQueue,

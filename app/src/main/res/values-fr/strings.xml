@@ -776,6 +776,7 @@
     <string name="library_search_artist_summary">%1$d titres · %2$d albums avec participation</string>
     <string name="library_search_lyric_prefix">Paroles : </string>
     <string name="rating_filter_all">Toutes les notes</string>
+    <string name="rating_filter_rated">Tous les titres notés</string>
     <string name="rating_filter_unrated">Non noté</string>
     <string name="rating_filter_star">%1$d étoiles</string>
     <string name="favorite_filter">Favoris</string>
@@ -789,6 +790,9 @@
     <string name="settings_dynamic_cover_permission_denied">Autorisation vidéo non accordée, la pochette dynamique a été désactivée</string>
     <string name="settings_startup_poster">Affiche de démarrage</string>
     <string name="settings_startup_poster_summary">Après activation et sélection d’une image, l’afficher pendant environ 3 secondes à chaque ouverture de Halcyon</string>
+    <string name="settings_startup_poster_duration">Durée de l’affiche de démarrage</string>
+    <string name="settings_startup_poster_duration_summary">Définit la durée d’affichage de l’affiche à l’ouverture de l’application</string>
+    <string name="settings_startup_poster_duration_value">%1$.1f s</string>
     <string name="settings_startup_poster_image">Choisir l’image d’affiche de démarrage</string>
     <string name="settings_app_wallpaper">Fond d’écran personnalisé global</string>
     <string name="settings_app_wallpaper_summary">Afficher un fond personnalisé derrière la bibliothèque, les albums, playlists, dossiers et pages similaires</string>
@@ -1823,8 +1827,10 @@
     <string name="settings_cover_export_folder_remove">Effacer le dossier des pochettes</string>
     <string name="settings_cover_export_folder_remove_summary">Enregistrer les prochaines pochettes dans Pictures/Halcyon</string>
     <string name="settings_cover_export_folder_cleared">Dossier des pochettes efface</string>
-    <string name="settings_search_all_categories">Categories dans l onglet Tout</string>
-    <string name="settings_search_all_categories_summary">Affecte uniquement les categories de l onglet Tout.</string>
+    <string name="settings_search_all_categories">Résultats par catégorie dans l onglet Tout</string>
+    <string name="settings_search_all_categories_summary">Affecte uniquement les résultats par catégorie dans l onglet Tout.</string>
+    <string name="settings_search_all_song_match_types">Groupes de correspondances dans l onglet Tout</string>
+    <string name="settings_search_all_song_match_types_summary">Choisissez les groupes de chansons affichés dans l onglet Tout. Les autres onglets ne sont pas affectés.</string>
     <string name="settings_song_rating_display_stars">Afficher les notes en etoiles</string>
     <string name="settings_song_rating_display_stars_summary">Afficher une etoile par point de note</string>
     <string name="settings_song_rating_display_number_summary">Afficher une etoile et le nombre de la note</string>

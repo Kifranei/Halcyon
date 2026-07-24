@@ -159,7 +159,8 @@ fun HomeScreen(
         EllaSmallTopAppBar(
             title = stringResource(R.string.home_title),
             color = pageBackground,
-            centeredTitle = true,
+            titleStartPadding = 20.dp,
+            titleEndPadding = 68.dp,
             actions = {
                 IconButton(onClick = onNavigateToSettings) {
                     Icon(

@@ -27,7 +27,9 @@ import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
+import com.ella.music.ui.playlist.wallpaperAwarePlaylistCardColor
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -52,12 +54,17 @@ internal fun FolderPlaylistCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        cornerRadius = 16.dp
+        cornerRadius = 16.dp,
+        colors = CardDefaults.defaultColors(
+            color = if (selected) {
+                MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
+            } else {
+                wallpaperAwarePlaylistCardColor()
+            }
+        )
     ) {
         Row(
-            modifier = Modifier.background(
-                if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
-            ).padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (selectionMode) {

@@ -7,6 +7,7 @@ internal enum class SongSortField {
     Title,
     FileName,
     Duration,
+    FileSize,
     DateAdded,
     DateModified,
     Year,
@@ -56,6 +57,9 @@ internal object LibraryListSorter {
             )
             SongSortField.Duration -> SortedListResult(
                 songs.sortedWithDirection(sortSpec.direction, compareBy<Song> { it.duration })
+            )
+            SongSortField.FileSize -> SortedListResult(
+                songs.sortedWithDirection(sortSpec.direction, compareBy<Song> { it.fileSize })
             )
             SongSortField.DateAdded -> SortedListResult(
                 songs.sortedWithDirection(sortSpec.direction, compareBy<Song> { it.dateAdded })

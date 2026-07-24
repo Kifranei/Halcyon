@@ -128,6 +128,7 @@ import com.ella.music.ui.components.shareLyricCard
 import com.ella.music.ui.components.shareLyricVideoFile
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
+import com.ella.music.ui.settings.rememberMusicVideoSyncPermissionLauncher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
@@ -234,6 +235,7 @@ fun PlayerScreen(
     val audioVisualizerEnabled = playerSettings.audioVisualizerEnabled
     val audioVisualizerOpacity = playerSettings.audioVisualizerOpacity / 100f
     val dynamicCoverEnabled = playerSettings.dynamicCoverEnabled
+    val musicVideoSyncEnabled = playerSettings.musicVideoSyncEnabled
     val dynamicCoverCustomFolders = playerSettings.dynamicCoverCustomFolders
     val immersiveAlbumCover = playerSettings.immersiveAlbumCover
     val playerBackgroundEnabled = playerSettings.playerBackgroundEnabled
@@ -267,6 +269,7 @@ fun PlayerScreen(
     val lyricPerspectiveYAngle = playerSettings.lyricPerspectiveYAngle
     val playerLyricTextAlign = playerSettings.playerLyricTextAlign
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
+    val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val sleepTimerEndRealtimeMs by playerViewModel.sleepTimerEndRealtimeMs.collectAsState()
     val stopAfterCurrentEnabled by playerViewModel.stopAfterCurrentEnabled.collectAsState()
     val currentLyricLine = lyrics.getOrNull(currentLyricIndex)
@@ -274,22 +277,7 @@ fun PlayerScreen(
         ?.takeIf { it.hasMiniLyric() }
         ?: lyrics.firstOrNull { it.hasMiniLyric() }
     val uiState = rememberPlayerScreenUiState()
-    val musicVideoPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            uiState.resumeMusicAfterVideo = isPlaying
-            uiState.startMusicVideoPlaying = isPlaying
-            if (isPlaying) playerViewModel.pauseForMusicVideo()
-            uiState.musicVideoVisible = true
-        } else {
-            Toast.makeText(
-                context,
-                context.getString(R.string.settings_dynamic_cover_permission_denied),
-                Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
+    val musicVideoPermissionLauncher = rememberMusicVideoSyncPermissionLauncher(settingsManager)
     val landscapeState = rememberPlayerLandscapeUiState()
     val visualizerPermissionState = rememberPlayerVisualizerPermissionState(
         context = context,
@@ -355,7 +343,6 @@ fun PlayerScreen(
     val paletteBitmap = songPresentation.paletteBitmap
     val palette = songPresentation.palette
     val lyricPalette = songPresentation.lyricPalette
-    val playerSurfacePalette = if (immersiveAlbumCover && showLyrics) lyricPalette else palette
     val audioInfo = songPresentation.audioInfo
     val tagInfo = songPresentation.tagInfo
     val songAnnotation = songPresentation.annotation
@@ -443,12 +430,7 @@ fun PlayerScreen(
         }
     }
     LaunchedEffect(song?.dynamicCoverResolutionKey()) {
-        if (uiState.musicVideoVisible && uiState.resumeMusicAfterVideo) {
-            playerViewModel.resumeAfterMusicVideo()
-        }
         uiState.musicVideoVisible = false
-        uiState.resumeMusicAfterVideo = false
-        uiState.startMusicVideoPlaying = false
         // Clear all remembered video positions so the next/previous song's MV or
         // dynamic cover starts from the beginning instead of resuming a stale position.
         DynamicCoverPlaybackMemory.clearAll()
@@ -503,49 +485,27 @@ fun PlayerScreen(
     ) { dismissingPlayer ->
         Box(modifier = Modifier.fillMaxSize()) {
           CompositionLocalProvider(
-              LocalPlayerContentColor provides playerSurfacePalette.onBackground,
+              LocalPlayerContentColor provides palette.onBackground,
               LocalPlayerSurfaceActive provides playerVisible
           ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                playerSurfacePalette.top,
-                                playerSurfacePalette.middle,
-                                playerSurfacePalette.bottom
-                            )
-                        )
-                    )
+            // Keep one background composed for both pages. Recreating Apple/Beautiful Lyrics
+            // backgrounds while opening lyrics was the white flash seen on immersive players.
+            SharedPlayerPageBackground(
+                song = song,
+                embeddedCover = embeddedCover,
+                paletteBitmap = paletteBitmap,
+                palette = palette,
+                currentPositionMs = currentPosition,
+                isPlaying = isPlaying,
+                playerBackgroundEnabled = playerBackgroundEnabled,
+                playerBackgroundUri = playerBackgroundUri,
+                playerBackgroundOpacity = playerBackgroundOpacity,
+                playerBackgroundDim = playerBackgroundDim,
+                beautifulLyricsBackground = beautifulLyricsBackground,
+                dynamicFlowEnabled = playerDynamicFlowEnabled,
+                useBlurBackground = false,
+                modifier = Modifier.fillMaxSize()
             )
-            // The immersive flow effect is a dark wash; skip it under a light player theme so the
-            // light gradient stays light.
-            if (!playerLight) {
-                ImmersiveCoverBackground(
-                    palette = playerSurfacePalette,
-                    flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            if (!immersiveAlbumCover) {
-                SharedPlayerPageBackground(
-                    song = song,
-                    embeddedCover = embeddedCover,
-                    paletteBitmap = paletteBitmap,
-                    palette = lyricPalette,
-                    currentPositionMs = currentPosition,
-                    isPlaying = isPlaying,
-                    playerBackgroundEnabled = playerBackgroundEnabled,
-                    playerBackgroundUri = playerBackgroundUri,
-                    playerBackgroundOpacity = playerBackgroundOpacity,
-                    playerBackgroundDim = playerBackgroundDim,
-                    beautifulLyricsBackground = beautifulLyricsBackground,
-                    dynamicFlowEnabled = playerDynamicFlowEnabled,
-                    useBlurBackground = false,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
 
             PlayerScreenPageHost(
                 immersiveAlbumCover = immersiveAlbumCover,
@@ -574,25 +534,23 @@ fun PlayerScreen(
                         dynamicCoverFailedPath = uiState.dynamicCoverFailedPath,
                         dynamicCoverEnabled = dynamicCoverEnabled,
                         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+                        musicVideoSyncEnabled = musicVideoSyncEnabled,
                         musicVideoVisible = uiState.musicVideoVisible,
-                        musicVideoInitialPlaying = uiState.startMusicVideoPlaying,
                         onMusicVideoVisibleChange = { visible ->
-                            val needsVideoPermission = visible &&
-                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED
-                            if (needsVideoPermission) {
+                            if (!musicVideoSyncEnabled) {
+                                uiState.musicVideoVisible = false
+                            } else if (visible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
                                 musicVideoPermissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
                             } else {
-                                if (visible) {
-                                    uiState.resumeMusicAfterVideo = isPlaying
-                                    uiState.startMusicVideoPlaying = isPlaying
-                                    if (isPlaying) playerViewModel.pauseForMusicVideo()
-                                } else if (uiState.resumeMusicAfterVideo) {
-                                    playerViewModel.resumeAfterMusicVideo()
-                                    uiState.resumeMusicAfterVideo = false
-                                    uiState.startMusicVideoPlaying = false
-                                }
                                 uiState.musicVideoVisible = visible
+                            }
+                        },
+                        onOpenMusicVideoLandscape = {
+                            if (musicVideoSyncEnabled) {
+                                uiState.musicVideoVisible = true
+                                landscapeState.coverMode = true
+                                landscapeState.expanded = true
                             }
                         },
                         immersiveAlbumCover = immersiveAlbumCover,
@@ -611,7 +569,7 @@ fun PlayerScreen(
                         repeatMode = repeatMode,
                         audioInfo = audioInfo,
                         palette = palette,
-                        lyricPalette = lyricPalette,
+                        lyricPalette = palette,
                         lyrics = lyrics,
                         lyricsLoading = lyricsLoading,
                         currentLyricIndex = currentLyricIndex,
@@ -647,6 +605,9 @@ fun PlayerScreen(
                         queueExpanded = uiState.queueExpanded,
                         onQueueExpandedChange = { uiState.queueExpanded = it },
                         playlist = playlist,
+                        favoriteSongKeys = favoriteSongKeys,
+                        loadSongRating = mainViewModel::getSongRating,
+                        ratingRevision = ratingRevision,
                         sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
                         stopAfterCurrentEnabled = stopAfterCurrentEnabled,
                         sleepTimerCustomMinutes = sleepTimerCustomMinutes,
@@ -672,9 +633,6 @@ fun PlayerScreen(
                             uiState.dynamicCoverFailedPath = it
                             if (uiState.musicVideoVisible) {
                                 uiState.musicVideoVisible = false
-                                if (uiState.resumeMusicAfterVideo) playerViewModel.resumeAfterMusicVideo()
-                                uiState.resumeMusicAfterVideo = false
-                                uiState.startMusicVideoPlaying = false
                             }
                         },
                         onDynamicCoverSheetSongChange = { uiState.dynamicCoverSheetSong = it },
@@ -696,7 +654,7 @@ fun PlayerScreen(
                         navigateToArtistOrChoose = ::navigateToArtistOrChoose,
                         onShowLyrics = onShowLyrics,
                         onSwipePrevious = { playerViewModel.skipToPreviousTrack() },
-                        drawBackground = immersiveAlbumCover,
+                        drawBackground = false,
                         modifier = pageModifier
                     )
                 },
@@ -730,7 +688,7 @@ fun PlayerScreen(
                         lyricPerspectiveEffect = lyricPerspectiveEffect,
                         lyricPerspectiveYAngle = lyricPerspectiveYAngle,
                         lyricTextAlign = playerLyricTextAlign,
-                        lyricPalette = lyricPalette,
+                        lyricPalette = palette,
                         isPlaying = isPlaying,
                         playerBackgroundEnabled = playerBackgroundEnabled,
                         playerBackgroundUri = playerBackgroundUri,
@@ -751,7 +709,7 @@ fun PlayerScreen(
                         enableSwipeDismiss = enableSwipeDismiss,
                         backEnabled = backEnabled,
                         immersiveAlbumCover = immersiveAlbumCover,
-                        drawBackground = immersiveAlbumCover,
+                        drawBackground = false,
                         modifier = pageModifier
                     )
                 },
@@ -765,7 +723,7 @@ fun PlayerScreen(
                         neteaseInfo = neteaseInfo,
                         librarySongs = librarySongs,
                         albumArtForAlbum = mainViewModel::getAlbumArtUri,
-                        lyricPalette = lyricPalette,
+                        lyricPalette = palette,
                         currentPosition = currentPosition,
                         isPlaying = isPlaying,
                         beautifulLyricsBackground = beautifulLyricsBackground,
@@ -779,7 +737,13 @@ fun PlayerScreen(
                         onNavigateToArtist = onNavigateToArtist,
                         onNavigateToMetadataCategory = onNavigateToMetadataCategory,
                         openNetease = ::openNetease,
-                        drawBackground = immersiveAlbumCover,
+                        musicVideoEnabled = musicVideoSyncEnabled,
+                        musicVideoCustomFolders = dynamicCoverCustomFolders,
+                        onOpenMusicVideo = {
+                            uiState.musicVideoVisible = true
+                            scope.launch { playerPagerState.animateScrollToPage(PLAYER_PAGE_COVER) }
+                        },
+                        drawBackground = false,
                         modifier = pageModifier
                     )
                 },
@@ -793,6 +757,8 @@ fun PlayerScreen(
                 coverMode = landscapeState.coverMode,
                 dynamicCoverEnabled = dynamicCoverEnabled,
                 dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+                musicVideoEnabled = musicVideoSyncEnabled,
+                musicVideoVisible = uiState.musicVideoVisible,
                 song = song,
                 embeddedCover = embeddedCover,
                 paletteBitmap = paletteBitmap,

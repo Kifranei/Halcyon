@@ -7,10 +7,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -62,6 +65,7 @@ fun SongMoreActionHost(
     showAddToQueue: Boolean = true,
     resolveSongForAction: (suspend (Song) -> Song)? = null,
     onDeleteSong: ((Song) -> Unit)? = null,
+    showSongTitleInSheetHeader: Boolean = true,
     extraTopContent: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -156,7 +160,11 @@ fun SongMoreActionHost(
         EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
-            title = song.title.toSongTitlePresentation().text.ifBlank { actionSheetTitle },
+            title = if (showSongTitleInSheetHeader) {
+                song.title.toSongTitlePresentation().text.ifBlank { actionSheetTitle }
+            } else {
+                actionSheetTitle
+            },
             onDismissRequest = ::closeAction
         ) {
             SongMoreActionSheet(
@@ -165,7 +173,26 @@ fun SongMoreActionHost(
                     SongMoreCoverPreview(
                         song = song,
                         coverModel = actionCoverModel,
-                        onPreview = { coverPreviewSong = song }
+                        onPreview = { coverPreviewSong = song },
+                        onArtist = {
+                            val artists = splitArtistNames(song.artist)
+                                .distinctBy { it.tagIdentityKey() }
+                            when (artists.size) {
+                                0 -> Toast.makeText(context, noArtistJump, Toast.LENGTH_SHORT).show()
+                                1 -> onNavigateToArtist(artists.first())
+                                else -> artistChoices = artists
+                            }
+                            closeAction()
+                        },
+                        onAlbum = {
+                            val albumId = song.albumIdentityId()
+                            if (albumId > 0L) {
+                                onNavigateToAlbum(albumId)
+                                closeAction()
+                            } else {
+                                Toast.makeText(context, noAlbumJump, Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
                     extraTopContent?.invoke(this)
                 },
@@ -421,34 +448,67 @@ fun SongMoreActionHost(
 private fun SongMoreCoverPreview(
     song: Song,
     coverModel: Any?,
-    onPreview: () -> Unit
+    onPreview: () -> Unit,
+    onArtist: () -> Unit,
+    onAlbum: () -> Unit
 ) {
-    if (coverModel == null) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        SafeCoverImage(
-            model = coverModel,
-            contentDescription = null,
+        Box(
             modifier = Modifier
                 .size(72.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .combinedClickable(onClick = {}, onLongClick = onPreview),
-            contentScale = ContentScale.Crop,
-            sizePx = 3000,
-            loadOriginal = true
-        )
+                .then(
+                    if (coverModel != null) {
+                        Modifier.combinedClickable(onClick = {}, onLongClick = onPreview)
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            if (coverModel != null) {
+                SafeCoverImage(
+                    model = coverModel,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    sizePx = 3000,
+                    loadOriginal = true
+                )
+            } else {
+                DefaultAlbumCover(modifier = Modifier.fillMaxSize())
+            }
+        }
         Spacer(modifier = Modifier.width(12.dp))
-        Box(modifier = Modifier.weight(1f).padding(top = 4.dp)) {
+        Column(modifier = Modifier.weight(1f).padding(top = 2.dp)) {
             Text(
-                text = song.album.ifBlank { song.artist },
+                text = song.title.ifBlank { song.fileName },
+                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurface,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = song.artist.ifBlank { stringResource(R.string.player_unknown_artist) },
                 color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(onClick = onArtist)
+            )
+            Text(
+                text = song.album.ifBlank { stringResource(R.string.player_unknown_album) },
+                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(onClick = onAlbum)
             )
         }
     }

@@ -25,6 +25,17 @@ internal enum class ArtistDetailSongSortMode(@param:StringRes val labelRes: Int)
     DurationAsc(R.string.artist_sort_duration)
 }
 
+internal fun ArtistDetailSongSortMode.isDescending(): Boolean = when (this) {
+    ArtistDetailSongSortMode.TitleDesc,
+    ArtistDetailSongSortMode.AlbumTrackDesc,
+    ArtistDetailSongSortMode.FileNameDesc,
+    ArtistDetailSongSortMode.Duration,
+    ArtistDetailSongSortMode.DateAdded,
+    ArtistDetailSongSortMode.DateModified,
+    ArtistDetailSongSortMode.YearDesc -> true
+    else -> false
+}
+
 internal fun List<Song>.sortedForArtistDetail(mode: ArtistDetailSongSortMode): List<Song> {
     return when (mode) {
         ArtistDetailSongSortMode.Title -> sortedBy { it.title.lowercase(Locale.ROOT) }
@@ -64,6 +75,14 @@ internal enum class ArtistDetailAlbumSortMode(@param:StringRes val labelRes: Int
     SongCountAsc(R.string.artist_sort_song_count),
     DurationAsc(R.string.artist_sort_duration),
     NameDesc(R.string.artist_sort_album_name)
+}
+
+internal fun ArtistDetailAlbumSortMode.isDescending(): Boolean = when (this) {
+    ArtistDetailAlbumSortMode.YearDesc,
+    ArtistDetailAlbumSortMode.SongCount,
+    ArtistDetailAlbumSortMode.Duration,
+    ArtistDetailAlbumSortMode.NameDesc -> true
+    else -> false
 }
 
 internal fun List<Album>.sortedForArtistAlbumDetail(

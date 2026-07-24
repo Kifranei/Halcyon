@@ -533,7 +533,11 @@ fun ArtistScreen(
                 ArtistTab.Songs -> {
                     item {
                         Text(
-                            text = stringResource(R.string.artist_song_count_sorted, sortedArtistSongs.size, stringResource(sortMode.labelRes)),
+                            text = stringResource(
+                                R.string.artist_song_count_sorted,
+                                sortedArtistSongs.size,
+                                com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
+                            ),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -580,7 +584,11 @@ fun ArtistScreen(
                 ArtistTab.ParticipatedAlbums -> {
                     item {
                         Text(
-                            text = stringResource(R.string.artist_participated_album_count_sorted, sortedParticipatedAlbums.size, stringResource(albumSortMode.labelRes)),
+                            text = stringResource(
+                                R.string.artist_participated_album_count_sorted,
+                                sortedParticipatedAlbums.size,
+                                com.ella.music.ui.components.sortLabel(albumSortMode.labelRes, albumSortMode.isDescending())
+                            ),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -623,7 +631,11 @@ fun ArtistScreen(
                 ArtistTab.ReleaseAlbums -> {
                     item {
                         Text(
-                            text = stringResource(R.string.artist_release_album_count_sorted, sortedReleaseAlbums.size, stringResource(albumSortMode.labelRes)),
+                            text = stringResource(
+                                R.string.artist_release_album_count_sorted,
+                                sortedReleaseAlbums.size,
+                                com.ella.music.ui.components.sortLabel(albumSortMode.labelRes, albumSortMode.isDescending())
+                            ),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

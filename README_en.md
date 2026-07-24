@@ -29,7 +29,7 @@
 
 **Halcyon** is an Android local music player built with **Jetpack Compose, Miuix, and AndroidX Media3**.
 
-It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, word-by-word lyrics, floating lyrics, status-bar lyrics, dynamic covers, an in-app equalizer, Monet dynamic color, online lyric matching, WebDAV / Navidrome / Emby remote libraries, LX Music API sources, library analytics, full app-data backup, and a highly customizable player experience.
+It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, Compose word-by-word lyrics, floating lyrics, status-bar lyrics, dynamic covers, an in-app equalizer, Monet dynamic color, online lyric matching, WebDAV / Navidrome / Emby remote libraries, LX Music API sources, Last.fm listening history, library analytics, full app-data backup, and a highly customizable player experience.
 
 ---
 
@@ -38,11 +38,13 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 ### 🎵 Library & Playlists
 
 - Supports local MediaStore scanning and custom folder scanning, with browsing by album, artist, folder, genre, year, composer, and lyricist; long-press the scan button to trigger a deep full-tag rescan.
+- Before the first scan, choose whether to enable full-tag search. It searches composer, lyricist, comments, aliases, and custom tags, while the faster basic MediaStore scan searches title, artist, album, and other core metadata only.
 - The library source can switch between Local, Navidrome, and Emby, and the visible library refreshes to the selected source instead of keeping songs from the previous source.
 - Provides a dedicated library search page with song, album, artist, lyric, duplicate-song, and full-tag search, plus search history, multi-select, and range selection.
 - Supports local playlists, favorites, five-star songs, playlist import / export, desktop shortcuts, and custom drag sorting.
 - Album grouping uses both album name and album artist to avoid merging same-name albums from different artists.
 - Includes library analytics, listening calendar, play-count ranking, listening-duration ranking, format distribution, and quality distribution.
+- Supports Last.fm authorization, full-history sync, automatic scrobbling, and Local / Last.fm / combined listening-history views. Sensitive credentials are encrypted with Android Keystore and excluded from backups.
 - Library analytics are cached and prewarmed after scanning, so larger local libraries can open the statistics page faster.
 
 ### 🖼 Player UI & Dynamic Covers
@@ -54,10 +56,12 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Static artist artwork is selected in this order: custom asset, sole/collaborative album artist, then sole/collaborative song artist.
 - Supports global custom wallpapers, launch posters, custom Hi-Res badges, and optional player button outlines.
 - Supports Beautiful Lyrics-style dynamic backgrounds for the lyrics page, tablet landscape player, and landscape cover page, with speed, blur, and brightness controls.
+- The Compose lyrics page supports an Apple Music-style dynamic background, word-lift animation, smooth relayout, and consistent transitions between immersive lyrics and the player.
 - Supports Monet dynamic color derived from the system wallpaper or the current song cover.
 - Non-immersive player covers can show a Hi-Res / MQ badge.
 - The player supports pull-down dismissal, dynamic backgrounds, blurred cover backgrounds, cover swipe-to-skip, and landscape queue-cover switching; tablet landscape docks can show the current lyric.
-- Supports displaying the song's music video (MV). Please place "SongFileName-MV.mp4" or "SongFileName_MV.mp4" in the same directory as the song. When playing a song that has an MV, the MV button will be displayed.
+- Supports displaying a song's music video (MV). Place "SongFileName-MV.mp4" or "SongFileName_MV.mp4" beside the song. Playing an MV pauses the music track and uses the MV audio; switching back resumes the song. MVs can also be opened in landscape.
+- Long-press player artwork to preview the original cover, with double-tap zoom, one-finger panning, sharing, and saving.
 
 ### 🎤 Lyrics
 
@@ -80,6 +84,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 ### 🎚 Audio Effects, Decoding, Tags & Quality
 
 - Includes an in-app software 10-band parametric equalizer that does not depend on the system Equalizer, with bass boost and virtualizer shown based on device capability.
+- Supports the native Oboe output backend and USB DAC exclusive mode, plus configurable crossfade playback.
 - Uses lyrico-audiotag as the primary local metadata path, supporting artwork, basic tags, embedded lyrics, and multi-value tags for common audio formats.
 - The built-in tag editor supports editing basic tags, lyrics, and embedded artwork.
 - Provides system, FFmpeg, and automatic decoding modes for better ALAC / AAC / M4A compatibility.
@@ -88,13 +93,15 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 
 ### 🎨 UI & Integrations
 
-- Built with Miuix 0.9.3 for a MIUI / HyperOS-inspired interface, including floating bottom navigation, MiniPlayer, blur / Liquid Glass effects, and unified sheets.
-- Supports 12 interface languages, in-app language switching, GitHub update page, app logs, full app-data backup / restore, and Prism Music listening-history export.
+- Built with Miuix 0.9.3 for a MIUI / HyperOS-inspired interface, including floating bottom navigation, MiniPlayer, blur / Liquid Glass effects, and unified sheets. The launch screen follows the dark system theme to avoid a bright flash under system launch masks.
+- Supports 8 interface languages, in-app language switching, GitHub update page, app logs, full app-data backup / restore, and Prism Music listening-history export.
+- Supports switching app icons, configuring long-press launcher shortcuts, pinning home-category shortcuts, and compact / expanded playback widgets.
 - Supports song information, tag editing, lyric timing tools, external tag-editor adaptation, and AI song interpretation.
 - Supports MediaSession custom commands for favorite and playback-mode controls in notifications / control centers.
 
 ### 🤖 AI & MCP
 
+- Includes an OpenAI library listening assistant that can make recommendations from the local library, recent plays, and listening statistics, or explain listening preferences. It can only read the library and play local songs; it cannot delete or modify files.
 - Includes an MCP server built with the official Kotlin SDK, Ktor CIO, and Streamable HTTP, allowing MCP hosts such as Claude Desktop to control Halcyon playback.
 - Enable it from Settings → MCP server, then connect to `http://<device-ip>:8384/mcp`.
 - Available tools: `play_song`, `search_music`, `get_now_playing`, `skip_next`, `skip_previous`, `toggle_play_pause`, `toggle_shuffle`, `seek_to`, `get_queue`, and `get_library_stats`.
@@ -200,7 +207,7 @@ RELEASE_KEY_PASSWORD
 
 If these variables are not set, the build uses `release.jks` in the project root. If no usable release keystore is available, local release builds fail by default; in CI or when `ALLOW_DEBUG_SIGNED_RELEASE=true` is set explicitly, the release APK is produced with the debug signing key for testable GitHub Actions artifacts.
 
-For daily development, use `assembleDebug` for validation. `fastRelease` / release builds are intended for release preparation only. Native libraries are packaged from prebuilt `.so` files by default; rerun the corresponding scripts only when updating FFmpeg or lyrico-audiotag native outputs. Release commits and tags should be synchronized to GitHub, GitLab, and Codeberg.
+For daily development, use `assembleDebug` for validation. `fastRelease` / release builds are intended for release preparation only. Native libraries are packaged from prebuilt `.so` files by default; rerun the corresponding scripts only when updating FFmpeg or lyrico-audiotag native outputs. Release commits and tags should be synchronized to GitHub and GitLab.
 
 ---
 
@@ -255,22 +262,27 @@ The Halcyon main project is licensed under **Apache-2.0**. Third-party component
 
 ---
 
-## ⭐ Star History
-
-<p align="center">
-  <a href="https://www.star-history.com/#Kifranei/Halcyon&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Kifranei/Halcyon&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Kifranei/Halcyon&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Kifranei/Halcyon&type=Date" width="600" />
-    </picture>
-  </a>
-</p>
-
----
-
 ## 👀 Visitor Count
 
 <p align="center">
   <img src="https://count.getloli.com/get/@kifranei_halcyon?theme=capoo-2" alt="Visitor Count" />
 </p>
+
+---
+
+## Community Recommendations
+
+- [Lyrico](https://github.com/Replica0110/Lyrico)
+  A powerful Miuix-based music tag editor with lyric and cover matching, ReplayGain, NetEase Music comments, and more.
+
+- [RawS Music](https://github.com/QFDY-GZC/RawS-Music)
+  An open-source Miuix-based local player with USB DAC exclusive mode, EQ, surround effects, and more.
+
+- [Lyricon](https://github.com/tomakino/Lyricon)
+  An Android status-bar lyric plugin with word-by-word and duet display. Xposed or LSPosed is required.
+
+- [Prism Music](https://github.com/Ryderwe/PrismMusic-Release)
+  A local music player by leguan with a beautifully designed playback experience.
+
+- [LunaBeat](https://github.com/2755337087/LunaBeat)
+  A mobile lyric timing editor and music player with polished player and lyric pages. It can also match lyrics for songs.

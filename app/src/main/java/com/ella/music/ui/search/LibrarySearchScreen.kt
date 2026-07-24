@@ -71,6 +71,9 @@ fun LibrarySearchScreen(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
     val searchAllCategoryTypes by settingsManager.searchAllCategoryTypes.collectAsState(initial = SettingsManager.SEARCH_ALL_CATEGORY_TYPES)
+    val searchAllSongMatchTypes by settingsManager.searchAllSongMatchTypes.collectAsState(
+        initial = SettingsManager.SEARCH_ALL_SONG_MATCH_TYPES
+    )
     val scanExcludeFolders by settingsManager.scanExcludeFolders.collectAsState(initial = "")
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
     var query by rememberSaveable(initialQuery) { mutableStateOf(initialQuery.orEmpty()) }
@@ -346,13 +349,18 @@ fun LibrarySearchScreen(
     val visibleAlbumCount = if (filter in listOf(SearchFilter.All, SearchFilter.Albums)) albumResults.size else 0
     val visibleArtistCount = if (filter in listOf(SearchFilter.All, SearchFilter.Artists)) artistResults.size else 0
     val visiblePlaylistCount = if (filter in listOf(SearchFilter.All, SearchFilter.Playlists)) playlistResults.size else 0
-    val visibleResultCount = songResults.size + visibleAlbumCount + visibleArtistCount + visiblePlaylistCount + categoryResultsCount
-    val songResultGroups = remember(songResults, filter) {
+    val songResultGroups = remember(songResults, filter, searchAllSongMatchTypes) {
         songResults
-            .flatMap { it.toSearchGroupEntries(filter) }
+            .flatMap { it.toSearchGroupEntries(filter, searchAllSongMatchTypes) }
             .groupBy({ it.first }, { it.second })
             .map { it.key to it.value }
     }
+    val displayedSongResults = remember(songResultGroups) {
+        songResultGroups
+            .flatMap { (_, entries) -> entries.map { it.result } }
+            .distinctBy { it.song.searchIdentityKey() }
+    }
+    val visibleResultCount = displayedSongResults.size + visibleAlbumCount + visibleArtistCount + visiblePlaylistCount + categoryResultsCount
 
     LaunchedEffect(filter, trimmedQuery) {
         selectionMode = false
@@ -361,9 +369,9 @@ fun LibrarySearchScreen(
         rangeTargetSongKey = null
     }
 
-    val displayedSongIndexByKey = remember(songResults) {
+    val displayedSongIndexByKey = remember(displayedSongResults) {
         buildMap {
-            songResults.forEachIndexed { index, result -> put(result.song.searchIdentityKey(), index) }
+            displayedSongResults.forEachIndexed { index, result -> put(result.song.searchIdentityKey(), index) }
         }
     }
     val rangeSelectionAvailable = remember(
@@ -407,14 +415,14 @@ fun LibrarySearchScreen(
     }
 
     fun toggleSelectAllSongResults() {
-        val allKeys = songResults.mapTo(mutableSetOf()) { it.song.searchIdentityKey() }
+        val allKeys = displayedSongResults.mapTo(mutableSetOf()) { it.song.searchIdentityKey() }
         selectedSongKeys = if (allKeys.isNotEmpty() && allKeys.all { it in selectedSongKeys }) {
             rangeAnchorSongKey = null
             rangeTargetSongKey = null
             emptySet()
         } else {
-            rangeAnchorSongKey = songResults.firstOrNull()?.song?.searchIdentityKey()
-            rangeTargetSongKey = songResults.lastOrNull()?.song?.searchIdentityKey()
+            rangeAnchorSongKey = displayedSongResults.firstOrNull()?.song?.searchIdentityKey()
+            rangeTargetSongKey = displayedSongResults.lastOrNull()?.song?.searchIdentityKey()
             allKeys
         }
     }
@@ -426,13 +434,13 @@ fun LibrarySearchScreen(
         val targetIndex = displayedSongIndexByKey[target] ?: return
         if (anchorIndex == targetIndex) return
         val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selectedSongKeys = selectedSongKeys + bounds.map { songResults[it].song.searchIdentityKey() }
+        selectedSongKeys = selectedSongKeys + bounds.map { displayedSongResults[it].song.searchIdentityKey() }
         rangeAnchorSongKey = target
         rangeTargetSongKey = null
     }
 
     fun selectedSearchSongs(): List<Song> =
-        songResults
+        displayedSongResults
             .map { it.song }
             .distinctBy { it.searchIdentityKey() }
             .filter { it.searchIdentityKey() in selectedSongKeys }
@@ -520,7 +528,7 @@ fun LibrarySearchScreen(
             filter = filter,
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,
-            songResultsCount = songResults.size,
+            songResultsCount = displayedSongResults.size,
             albumResultsCount = albumResults.size,
             artistResultsCount = artistResults.size,
             playlistResultsCount = playlistResults.size,
@@ -538,9 +546,9 @@ fun LibrarySearchScreen(
         if (selectionMode) {
             LibrarySearchSelectionToolbar(
                 selectedCount = selectedSongKeys.size,
-                totalCount = songResults.size,
+                totalCount = displayedSongResults.size,
                 rangeEnabled = rangeSelectionAvailable,
-                allSelected = songResults.isNotEmpty() && songResults.all { it.song.searchIdentityKey() in selectedSongKeys },
+                allSelected = displayedSongResults.isNotEmpty() && displayedSongResults.all { it.song.searchIdentityKey() in selectedSongKeys },
                 onRangeSelect = ::applyRangeSelection,
                 onSelectAll = ::toggleSelectAllSongResults,
                 onPlayNext = {
@@ -594,7 +602,7 @@ fun LibrarySearchScreen(
             selectionMode = selectionMode,
             selectedSongKeys = selectedSongKeys,
             songSelectionAvailable = songSelectionAvailable,
-            songResults = songResults,
+            songResults = displayedSongResults,
             songResultGroups = songResultGroups,
             albumResults = albumResults,
             artistResults = artistResults,

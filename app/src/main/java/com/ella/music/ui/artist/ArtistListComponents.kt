@@ -158,6 +158,15 @@ internal enum class ArtistSortMode(@param:StringRes val labelRes: Int) {
     DurationAsc(R.string.artist_list_sort_duration)
 }
 
+internal fun ArtistSortMode.isDescending(): Boolean = when (this) {
+    ArtistSortMode.NameDesc,
+    ArtistSortMode.SongCount,
+    ArtistSortMode.AlbumCount,
+    ArtistSortMode.ReleaseAlbumCount,
+    ArtistSortMode.Duration -> true
+    else -> false
+}
+
 internal fun Artist.summaryForSort(
     sortMode: ArtistSortMode,
     duration: Long,

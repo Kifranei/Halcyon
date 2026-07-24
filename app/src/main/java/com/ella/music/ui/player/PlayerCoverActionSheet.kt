@@ -87,6 +87,7 @@ internal fun PlayerCoverActionSheet(
     onVisualizerOpacityChange: (Int) -> Unit,
     onPlayerKeepScreenOnChange: (Boolean) -> Unit,
     onCycleRemoteStreamQuality: () -> Unit,
+    onPreviewCover: () -> Unit,
     initialPage: PlayerActionSheetPage
 ) {
     if (!show) return
@@ -174,6 +175,7 @@ internal fun PlayerCoverActionSheet(
             onVisualizerOpacityChange = onVisualizerOpacityChange,
             onPlayerKeepScreenOnChange = onPlayerKeepScreenOnChange,
             onCycleRemoteStreamQuality = onCycleRemoteStreamQuality,
+            onPreviewCover = onPreviewCover,
             initialPage = initialPage
         )
     }

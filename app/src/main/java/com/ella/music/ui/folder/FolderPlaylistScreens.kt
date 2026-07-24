@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -89,6 +90,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
@@ -458,7 +461,11 @@ fun FolderPlaylistsScreen(
                     text = if (selectionMode) {
                         stringResource(R.string.library_selected_fraction, selectedPlaylistIds.size, filteredPlaylists.size)
                     } else {
-                        stringResource(R.string.folder_playlist_list_summary_sorted, filteredPlaylists.size, stringResource(sortMode.labelRes))
+                        stringResource(
+                            R.string.folder_playlist_list_summary_sorted,
+                            filteredPlaylists.size,
+                            com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
+                        )
                     },
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -875,12 +882,16 @@ fun FolderPlaylistDetailScreen(
             currentSong?.playlistIdentityKey()?.let(displayedSongIndexByKey::get) ?: -1
         }
     }
-    val currentSortLabel = stringResource(
-        when (selectedTab) {
-            FolderPlaylistTab.Songs -> songSortMode.labelRes
-            FolderPlaylistTab.Folders -> folderSortMode.labelRes
-        }
-    )
+    val currentSortLabel = when (selectedTab) {
+        FolderPlaylistTab.Songs -> com.ella.music.ui.components.sortLabel(
+            songSortMode.labelRes,
+            songSortMode.isDescending()
+        )
+        FolderPlaylistTab.Folders -> com.ella.music.ui.components.sortLabel(
+            folderSortMode.labelRes,
+            folderSortMode.isDescending()
+        )
+    }
 
     // ---- Multi-select helpers (shared by the Songs and Folders tabs) ----
     val displayedKeysForTab: List<String> = when (selectedTab) {
@@ -1582,17 +1593,22 @@ private fun FolderPlaylistEditorSheet(
                 folder.substringAfterLast('/').contains(searchQuery, ignoreCase = true)
         }
     }
-    val editorFolderStats = remember(availableFolders, songs) {
-        availableFolders.associateWith { folder ->
-            val normalizedFolder = folder.normalizeFolderPath()
-            val folderSongs = songs.filter { song ->
-                val songFolder = song.folderPath().normalizeFolderPath()
-                songFolder == normalizedFolder || songFolder.startsWith("${normalizedFolder.trimEnd('/')}/")
+    // Calculating every nested folder's stats can be expensive in a large library. Keep the
+    // editor sheet responsive, then fill the optional sort data after it has appeared.
+    val editorFolderStats by produceState<Map<String, EditorFolderStats>>(
+        initialValue = emptyMap(),
+        availableFolders,
+        songs
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val songsByFolder = songs.groupBy { it.folderPath().normalizeFolderPath() }
+            availableFolders.associateWith { folder ->
+                val folderSongs = songsByFolder[folder.normalizeFolderPath()].orEmpty()
+                EditorFolderStats(
+                    songCount = folderSongs.size,
+                    dateModified = folderSongs.maxOfOrNull(Song::dateModified) ?: 0L
+                )
             }
-            EditorFolderStats(
-                songCount = folderSongs.size,
-                dateModified = folderSongs.maxOfOrNull(Song::dateModified) ?: 0L
-            )
         }
     }
 
@@ -1635,9 +1651,7 @@ private fun FolderPlaylistEditorSheet(
         }
         sortedFilteredFolders.associateWith { folder ->
             val normalized = folder.normalizeFolderPath()
-            (firstByFolder[normalized]
-                ?: songs.firstOrNull { it.folderPath().normalizeFolderPath().startsWith(normalized) })
-                .folderPlaylistCoverModel()
+            firstByFolder[normalized].folderPlaylistCoverModel()
         }
     }
 

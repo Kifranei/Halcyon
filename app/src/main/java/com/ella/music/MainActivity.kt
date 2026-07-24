@@ -676,6 +676,9 @@ fun EllaApp(
     val appWallpaperDim by settingsManager.appWallpaperDim.collectAsState(initial = 30)
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = false)
     val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = "")
+    val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
+        initial = SettingsManager.DEFAULT_STARTUP_POSTER_DURATION_MS
+    )
     val notificationPermissionPromptHandled by settingsManager.notificationPermissionPromptHandled.collectAsState(initial = false)
     var showStartupPoster by rememberSaveable { mutableStateOf(true) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -691,9 +694,9 @@ fun EllaApp(
         }
     }
 
-    LaunchedEffect(startupPosterEnabled, startupPosterUri) {
+    LaunchedEffect(startupPosterEnabled, startupPosterUri, startupPosterDurationMs) {
         if (startupPosterEnabled && startupPosterUri.isNotBlank() && showStartupPoster) {
-            kotlinx.coroutines.delay(3_000L)
+            kotlinx.coroutines.delay(startupPosterDurationMs.toLong())
             showStartupPoster = false
         }
     }

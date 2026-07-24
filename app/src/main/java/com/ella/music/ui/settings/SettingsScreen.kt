@@ -110,7 +110,7 @@ fun SettingsScreen(
         EllaSmallTopAppBar(
             title = stringResource(R.string.settings),
             color = pageBackground,
-            centeredTitle = true,
+            centeredTitle = showBackButton,
             navigationIcon = {
                 if (showBackButton) {
                     IconButton(onClick = onBack) {

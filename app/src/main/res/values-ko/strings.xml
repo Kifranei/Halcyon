@@ -776,6 +776,7 @@
     <string name="library_search_artist_summary">%1$d곡 · %2$d 참여 앨범</string>
     <string name="library_search_lyric_prefix">가사:</string>
     <string name="rating_filter_all">모든 평가</string>
+    <string name="rating_filter_rated">평가된 항목 모두</string>
     <string name="rating_filter_unrated">평가 없음</string>
     <string name="rating_filter_star">%1$d점</string>
     <string name="favorite_filter">즐겨찾기</string>
@@ -789,6 +790,9 @@
     <string name="settings_dynamic_cover_permission_denied">동영상 권한이 부여되지 않았으며 다이내믹 커버가 비활성화되었습니다.</string>
     <string name="settings_startup_poster">시작 포스터</string>
     <string name="settings_startup_poster_summary">이미지를 활성화하고 선택한 후 Halcyon가 열릴 때마다 약 3초 동안 표시합니다.</string>
+    <string name="settings_startup_poster_duration">시작 포스터 표시 시간</string>
+    <string name="settings_startup_poster_duration_summary">앱을 열 때 포스터를 표시할 시간을 설정합니다</string>
+    <string name="settings_startup_poster_duration_value">%1$.1f초</string>
     <string name="settings_startup_poster_image">시작 포스터 이미지 선택</string>
     <string name="settings_app_wallpaper">전체 사용자 지정 배경화면</string>
     <string name="settings_app_wallpaper_summary">라이브러리, 앨범, 재생목록, 폴더 및 유사한 페이지 뒤에 사용자 지정 배경화면 표시</string>
@@ -1823,8 +1827,10 @@
     <string name="settings_cover_export_folder_remove">커버 저장 폴더 지우기</string>
     <string name="settings_cover_export_folder_remove_summary">다음 커버를 Pictures/Halcyon에 저장합니다</string>
     <string name="settings_cover_export_folder_cleared">커버 저장 폴더가 지워졌습니다</string>
-    <string name="settings_search_all_categories">전체 검색 탭의 곡 분류</string>
-    <string name="settings_search_all_categories_summary">전체 탭의 곡 분류에만 적용됩니다.</string>
+    <string name="settings_search_all_categories">전체 검색 탭의 분류 결과</string>
+    <string name="settings_search_all_categories_summary">전체 탭의 분류 결과에만 적용됩니다.</string>
+    <string name="settings_search_all_song_match_types">전체 검색 탭의 곡 일치 그룹</string>
+    <string name="settings_search_all_song_match_types_summary">전체 탭에 표시할 곡 일치 그룹을 선택합니다. 곡 및 다른 탭에는 영향을 주지 않습니다.</string>
     <string name="settings_song_rating_display_stars">평점을 별로 표시</string>
     <string name="settings_song_rating_display_stars_summary">평점마다 별 하나를 표시합니다</string>
     <string name="settings_song_rating_display_number_summary">별과 평점 숫자를 표시합니다</string>

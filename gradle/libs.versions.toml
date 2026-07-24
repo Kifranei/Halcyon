@@ -16,6 +16,7 @@ lyricon-provider = "0.1.70"
 lyric-getter-api = "7.0.0"
 backdrop = "1.0.6"
 reorderable = "3.1.0"
+materialIcons = "1.7.3"
 mcp = "0.13.0"
 ktor = "3.5.0"
 kotlinx-serialization = "1.7.3"
@@ -40,6 +41,7 @@ lyricon-provider = { module = "io.github.proify.lyricon:provider", version.ref =
 lyric-getter-api = { module = "com.github.HChenX:Lyric-Getter-Api", version.ref = "lyric-getter-api" }
 backdrop = { module = "io.github.kyant0:backdrop", version.ref = "backdrop" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "materialIcons" }
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version.ref = "miuix" }
 miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }

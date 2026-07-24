@@ -14,9 +14,10 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,14 +38,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -72,8 +72,6 @@ import com.ella.music.data.SettingsManager
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,8 +79,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Download
-import top.yukonga.miuix.kmp.icon.extended.Share
 
 /** Full-resolution cover preview shared by the player and album pages. */
 @Composable
@@ -100,65 +96,8 @@ internal fun CoverPreviewDialog(
     var doubleTapTargetScale by remember(model) { mutableFloatStateOf(1f) }
     var doubleTapTargetOffset by remember(model) { mutableStateOf(Offset.Zero) }
     var doubleTapRequest by remember(model) { mutableIntStateOf(0) }
-    val transformState = rememberTransformableState { centroid, zoomChange, panChange, _ ->
-        val previousScale = scale
-        val nextScale = (previousScale * zoomChange).coerceIn(
-            COVER_MIN_SCALE,
-            COVER_GESTURE_MAX_SCALE
-        )
-        val viewportCenter = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
-        val focalPoint = centroid.takeIf { it != Offset.Unspecified } ?: viewportCenter
-        val scaledOffset = coverPreviewZoomOffsetForFocalPoint(
-            currentOffset = offset,
-            currentScale = previousScale,
-            targetScale = nextScale,
-            focalPoint = focalPoint,
-            viewportSize = viewportSize
-        )
-        scale = nextScale
-        // Keep panning in the same coordinate space as the finger while a gesture is active.
-        // Clamping each sampled delta made large artwork feel as though it had friction even
-        // in the middle of the image.  The settle animation below is the only place that puts
-        // the image back inside its real edge bounds.
-        offset = scaledOffset + panChange
-    }
-
-    LaunchedEffect(transformState) {
-        snapshotFlow { transformState.isTransformInProgress }
-            .distinctUntilChanged()
-            .collectLatest { transforming ->
-                if (!transforming) {
-                    val settledScale = scale.coerceIn(1f, COVER_MAX_SCALE)
-                    val initialScale = scale
-                    val initialOffset = offset
-                    val settledOffset = if (settledScale <= 1f) {
-                        Offset.Zero
-                    } else {
-                        initialOffset.coerceWithin(
-                            coverPreviewPanBounds(
-                                resolution = resolution,
-                                viewportSize = viewportSize,
-                                scale = settledScale
-                            )
-                        )
-                    }
-                    if (initialScale != settledScale || initialOffset != settledOffset) {
-                        animateCoverTransform(
-                            initialScale = initialScale,
-                            targetScale = settledScale,
-                            initialOffset = initialOffset,
-                            targetOffset = settledOffset
-                        ) { animatedScale, animatedOffset ->
-                            scale = animatedScale
-                            offset = animatedOffset
-                        }
-                        scale = settledScale
-                        offset = settledOffset
-                    }
-                }
-            }
-    }
-
+    val latestScale by rememberUpdatedState(scale)
+    val latestOffset by rememberUpdatedState(offset)
     LaunchedEffect(doubleTapRequest) {
         if (doubleTapRequest == 0) return@LaunchedEffect
         val initialScale = scale
@@ -182,6 +121,33 @@ internal fun CoverPreviewDialog(
         offset = doubleTapTargetOffset
     }
     val controlsVisible = scale <= 1.01f
+    fun handleDoubleTap(tapPosition: Offset) {
+        val targetScale = if (scale > 1.01f) {
+            1f
+        } else {
+            COVER_DOUBLE_TAP_SCALE
+        }
+        val targetOffset = if (targetScale <= 1f) {
+            Offset.Zero
+        } else {
+            coverPreviewZoomOffsetForFocalPoint(
+                currentOffset = offset,
+                currentScale = scale,
+                targetScale = targetScale,
+                focalPoint = tapPosition,
+                viewportSize = viewportSize
+            ).coerceWithin(
+                coverPreviewPanBounds(
+                    resolution = resolution,
+                    viewportSize = viewportSize,
+                    scale = targetScale
+                )
+            )
+        }
+        doubleTapTargetScale = targetScale
+        doubleTapTargetOffset = targetOffset
+        doubleTapRequest++
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -216,43 +182,30 @@ internal fun CoverPreviewDialog(
                         translationX = offset.x
                         translationY = offset.y
                     }
-                    .transformable(
-                        state = transformState,
-                        // Preserve ordinary taps at the original scale; panning becomes active
-                        // only after the cover has actually been enlarged.
-                        canPan = { scale > 1f }
+            )
+
+            // This layer deliberately stays outside the scaled artwork. Pointer coordinates on a
+            // graphicsLayer are transformed with the content; at 5x that made a 100 px finger
+            // drag arrive as only 20 px. Keeping detection in screen coordinates makes panning
+            // stay exactly 1:1 at every zoom level.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .coverPreviewGestures(
+                        currentScale = { latestScale },
+                        currentOffset = { latestOffset },
+                        viewportSize = viewportSize,
+                        onTransform = { nextScale, nextOffset ->
+                            scale = nextScale
+                            offset = nextOffset
+                        },
+                        onSettle = { settledScale, settledOffset ->
+                            scale = settledScale
+                            offset = settledOffset
+                        },
+                        resolution = resolution,
+                        onDoubleTap = ::handleDoubleTap
                     )
-                    .pointerInput(model, viewportSize, resolution) {
-                        detectTapGestures(
-                            onDoubleTap = { tapPosition ->
-                                val targetScale = if (scale > 1.01f) {
-                                    1f
-                                } else {
-                                    COVER_DOUBLE_TAP_SCALE
-                                }
-                                val targetOffset = if (targetScale <= 1f) {
-                                    Offset.Zero
-                                } else {
-                                    coverPreviewZoomOffsetForFocalPoint(
-                                        currentOffset = offset,
-                                        currentScale = scale,
-                                        targetScale = targetScale,
-                                        focalPoint = tapPosition,
-                                        viewportSize = viewportSize
-                                    ).coerceWithin(
-                                        coverPreviewPanBounds(
-                                            resolution = resolution,
-                                            viewportSize = viewportSize,
-                                            scale = targetScale
-                                        )
-                                    )
-                                }
-                                doubleTapTargetScale = targetScale
-                                doubleTapTargetOffset = targetOffset
-                                doubleTapRequest++
-                            }
-                        )
-                    }
             )
 
             if (controlsVisible) {
@@ -270,8 +223,8 @@ internal fun CoverPreviewDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CoverPreviewAction(
-                            icon = MiuixIcons.Regular.Back,
                             contentDescription = stringResource(R.string.cover_preview_back),
+                            action = CoverPreviewActionKind.Back,
                             onClick = onDismiss
                         )
                         Text(
@@ -287,8 +240,8 @@ internal fun CoverPreviewDialog(
                         )
                         Row {
                             CoverPreviewAction(
-                                icon = MiuixIcons.Regular.Download,
                                 contentDescription = stringResource(R.string.cover_preview_save),
+                                action = CoverPreviewActionKind.Save,
                                 onClick = {
                                     scope.launch {
                                         val saved = saveCoverToPictures(context, model, title)
@@ -305,8 +258,8 @@ internal fun CoverPreviewDialog(
                             )
                             Spacer(modifier = Modifier.size(8.dp))
                             CoverPreviewAction(
-                                icon = MiuixIcons.Regular.Share,
                                 contentDescription = stringResource(R.string.cover_preview_share),
+                                action = CoverPreviewActionKind.Share,
                                 onClick = {
                                     scope.launch {
                                         val shared = writeAndShareCover(context, model, title)
@@ -346,23 +299,86 @@ internal fun CoverPreviewDialog(
 
 @Composable
 private fun CoverPreviewAction(
-    icon: ImageVector,
     contentDescription: String,
+    action: CoverPreviewActionKind,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .size(46.dp)
-            .background(Color.Black.copy(alpha = 0.42f), CircleShape)
+            .background(Color.Black.copy(alpha = 0.42f), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(24.dp)
+        when (action) {
+            CoverPreviewActionKind.Back -> Icon(
+                imageVector = MiuixIcons.Regular.Back,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+            CoverPreviewActionKind.Share -> {
+                // Reuse the rounded share glyph used by the player quick actions.
+                PlayerCoverPreviewShareIcon(modifier = Modifier.size(24.dp))
+            }
+            CoverPreviewActionKind.Save -> PlayerCoverPreviewSaveIcon(modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+private enum class CoverPreviewActionKind { Back, Save, Share }
+
+@Composable
+private fun PlayerCoverPreviewShareIcon(modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val stroke = size.minDimension * 0.10f
+        val a = Offset(size.width * 0.26f, size.height * 0.58f)
+        val b = Offset(size.width * 0.68f, size.height * 0.30f)
+        val c = Offset(size.width * 0.70f, size.height * 0.74f)
+        drawLine(Color.White, a, b, stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(Color.White, a, c, stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        listOf(a, b, c).forEach { point ->
+            drawCircle(color = Color.White, radius = stroke * 1.35f, center = point)
+        }
+    }
+}
+
+@Composable
+private fun PlayerCoverPreviewSaveIcon(modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val stroke = size.minDimension * 0.105f
+        val left = size.width * 0.23f
+        val right = size.width * 0.77f
+        val top = size.height * 0.16f
+        val bottom = size.height * 0.84f
+        drawRoundRect(
+            color = Color.White,
+            topLeft = androidx.compose.ui.geometry.Offset(left, top),
+            size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(stroke * 1.5f, stroke * 1.5f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)
+        )
+        drawLine(
+            color = Color.White,
+            start = androidx.compose.ui.geometry.Offset(size.width * 0.50f, size.height * 0.29f),
+            end = androidx.compose.ui.geometry.Offset(size.width * 0.50f, size.height * 0.61f),
+            strokeWidth = stroke,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+        drawLine(
+            color = Color.White,
+            start = androidx.compose.ui.geometry.Offset(size.width * 0.37f, size.height * 0.50f),
+            end = androidx.compose.ui.geometry.Offset(size.width * 0.50f, size.height * 0.63f),
+            strokeWidth = stroke,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+        drawLine(
+            color = Color.White,
+            start = androidx.compose.ui.geometry.Offset(size.width * 0.63f, size.height * 0.50f),
+            end = androidx.compose.ui.geometry.Offset(size.width * 0.50f, size.height * 0.63f),
+            strokeWidth = stroke,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round
         )
     }
 }
@@ -479,7 +495,7 @@ private suspend fun loadCoverBitmapCopy(context: Context, model: Any): Bitmap? =
         source?.copy(Bitmap.Config.ARGB_8888, false)
     }
 
-private fun coverPreviewPanBounds(
+internal fun coverPreviewPanBounds(
     resolution: CoverResolution?,
     viewportSize: ComposeIntSize,
     scale: Float
@@ -503,8 +519,10 @@ private fun coverPreviewPanBounds(
         fittedWidth = height * imageRatio
     }
     return Offset(
-        x = ((fittedWidth * scale - fittedWidth) / 2f).coerceAtLeast(0f),
-        y = ((fittedHeight * scale - fittedHeight) / 2f).coerceAtLeast(0f)
+        // The graphics layer enlarges the full viewport, while the artwork itself may be fitted
+        // inside it. Keep the fitted image covering the viewport, not merely its original bounds.
+        x = ((fittedWidth * scale - width) / 2f).coerceAtLeast(0f),
+        y = ((fittedHeight * scale - height) / 2f).coerceAtLeast(0f)
     )
 }
 
@@ -512,6 +530,111 @@ private fun Offset.coerceWithin(bounds: Offset): Offset = Offset(
     x = x.coerceIn(-bounds.x, bounds.x),
     y = y.coerceIn(-bounds.y, bounds.y)
 )
+
+private fun Modifier.coverPreviewGestures(
+    currentScale: () -> Float,
+    currentOffset: () -> Offset,
+    viewportSize: ComposeIntSize,
+    resolution: CoverResolution?,
+    onTransform: (scale: Float, offset: Offset) -> Unit,
+    onSettle: (scale: Float, offset: Offset) -> Unit,
+    onDoubleTap: (Offset) -> Unit
+): Modifier = pointerInput(viewportSize, resolution) {
+    var lastTapUpTime = Long.MIN_VALUE
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        var transformed = false
+        var usedMultiplePointers = false
+        var lastUpPosition: Offset? = null
+        var lastUpTime = 0L
+        var gestureScale = currentScale()
+        var gestureOffset = currentOffset()
+
+        do {
+            val event = awaitPointerEvent()
+            val pressed = event.changes.filter { it.pressed }
+            if (pressed.isNotEmpty()) {
+                usedMultiplePointers = usedMultiplePointers || pressed.size > 1
+                val zoomChange = event.calculateZoom()
+                // With one finger, calculatePan is the raw screen-space delta. The gesture
+                // layer is outside graphicsLayer, so this remains a true 1:1 translation even
+                // after the artwork has been enlarged to 5x.
+                val panChange = if (pressed.size > 1) {
+                    event.calculatePan()
+                } else {
+                    val change = pressed.first()
+                    change.position - change.previousPosition
+                }
+                val hasZoom = zoomChange != 1f
+                // Transformable delays one-finger panning while it waits to decide whether a
+                // second finger will join. Once enlarged, use the raw drag delta so artwork
+                // moves exactly with the finger even at the maximum zoom.
+                val hasPan = gestureScale > 1.01f && panChange != Offset.Zero
+                if (hasZoom || hasPan) {
+                    val nextScale = if (hasZoom) {
+                        (gestureScale * zoomChange).coerceIn(COVER_MIN_SCALE, COVER_GESTURE_MAX_SCALE)
+                    } else {
+                        gestureScale
+                    }
+                    val centroid = pressed.fold(Offset.Zero) { total, change -> total + change.position } /
+                        pressed.size.toFloat()
+                    val scaledOffset = if (hasZoom) {
+                        coverPreviewZoomOffsetForFocalPoint(
+                            currentOffset = gestureOffset,
+                            currentScale = gestureScale,
+                            targetScale = nextScale,
+                            focalPoint = centroid,
+                            viewportSize = viewportSize
+                        )
+                    } else {
+                        gestureOffset
+                    }
+                    gestureScale = nextScale
+                    gestureOffset = scaledOffset + if (hasPan) panChange else Offset.Zero
+                    onTransform(gestureScale, gestureOffset)
+                    event.changes.forEach { it.consume() }
+                    transformed = true
+                }
+            }
+            event.changes.firstOrNull { it.changedToUpIgnoreConsumed() }?.let { up ->
+                lastUpPosition = up.position
+                lastUpTime = up.uptimeMillis
+            }
+        } while (event.changes.any { it.pressed })
+
+        if (transformed) {
+            val settledScale = gestureScale.coerceIn(1f, COVER_MAX_SCALE)
+            val settledOffset = if (settledScale <= 1f) {
+                Offset.Zero
+            } else {
+                gestureOffset.coerceWithin(
+                    coverPreviewPanBounds(
+                        resolution = resolution,
+                        viewportSize = viewportSize,
+                        scale = settledScale
+                    )
+                )
+            }
+            onSettle(settledScale, settledOffset)
+        }
+
+        // One recognizer owns both double-tap and transform input. The former two-layer version
+        // allowed the tap recognizer to consume the same stream that panning needed, introducing
+        // an inconsistent delay after zooming.
+        val tapUpPosition = lastUpPosition
+        if (!transformed && !usedMultiplePointers && tapUpPosition != null) {
+            val isDoubleTap = lastUpTime - lastTapUpTime in 0..viewConfiguration.doubleTapTimeoutMillis
+            if (isDoubleTap) {
+                onDoubleTap(tapUpPosition)
+                lastTapUpTime = Long.MIN_VALUE
+            } else {
+                lastTapUpTime = lastUpTime
+            }
+        } else {
+            lastTapUpTime = Long.MIN_VALUE
+        }
+    }
+}
 
 internal fun coverPreviewZoomOffsetForFocalPoint(
     currentOffset: Offset,
@@ -559,7 +682,7 @@ private suspend fun animateCoverTransform(
     }
 }
 
-private data class CoverResolution(val width: Int, val height: Int)
+internal data class CoverResolution(val width: Int, val height: Int)
 
 private const val COVER_MIN_SCALE = 0.82f
 // 5× stays below the overly aggressive 6× experiment while still providing a larger

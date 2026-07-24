@@ -28,6 +28,16 @@ internal enum class PlaylistSortMode(val labelRes: Int) {
     DurationAsc(R.string.playlist_sort_duration)
 }
 
+internal fun PlaylistSortMode.isDescending(): Boolean = when (this) {
+    PlaylistSortMode.CustomDesc,
+    PlaylistSortMode.UpdatedAt,
+    PlaylistSortMode.CreatedAt,
+    PlaylistSortMode.NameDesc,
+    PlaylistSortMode.SongCount,
+    PlaylistSortMode.Duration -> true
+    else -> false
+}
+
 internal fun List<UserPlaylist>.sortedForPlaylistList(mode: PlaylistSortMode): List<UserPlaylist> {
     return when (mode) {
         PlaylistSortMode.Custom -> this
@@ -145,6 +155,18 @@ internal enum class PlaylistSongSortMode(val labelRes: Int) {
     TitleDesc(R.string.playlist_song_sort_title),
     FileNameDesc(R.string.playlist_song_sort_file_name),
     DurationAsc(R.string.playlist_song_sort_duration)
+}
+
+internal fun PlaylistSongSortMode.isDescending(): Boolean = when (this) {
+    PlaylistSongSortMode.CustomDesc,
+    PlaylistSongSortMode.AddedAtDesc,
+    PlaylistSongSortMode.TitleDesc,
+    PlaylistSongSortMode.FileNameDesc,
+    PlaylistSongSortMode.Duration,
+    PlaylistSongSortMode.YearDesc,
+    PlaylistSongSortMode.DateAdded,
+    PlaylistSongSortMode.DateModified -> true
+    else -> false
 }
 
 internal fun List<Song>.sortedForPlaylistDetail(mode: PlaylistSongSortMode): List<Song> {

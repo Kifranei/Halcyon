@@ -119,6 +119,47 @@ internal fun setDynamicCoverEnabled(
     }
 }
 
+@Composable
+internal fun rememberMusicVideoSyncPermissionLauncher(
+    settingsManager: SettingsManager
+): ActivityResultLauncher<String> {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    return rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        scope.launch { settingsManager.setMusicVideoSyncEnabled(granted) }
+        if (!granted) handleDynamicCoverPermissionDenied(context)
+    }
+}
+
+internal fun setMusicVideoSyncEnabled(
+    context: Context,
+    scope: CoroutineScope,
+    settingsManager: SettingsManager,
+    permissionLauncher: ActivityResultLauncher<String>,
+    enabled: Boolean
+) {
+    if (!enabled) {
+        scope.launch { settingsManager.setMusicVideoSyncEnabled(false) }
+        return
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_MEDIA_VIDEO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            scope.launch { settingsManager.setMusicVideoSyncEnabled(true) }
+        } else {
+            scope.launch { settingsManager.setMusicVideoSyncEnabled(false) }
+            permissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
+        }
+    } else {
+        scope.launch { settingsManager.setMusicVideoSyncEnabled(true) }
+    }
+}
+
 private fun handleDynamicCoverPermissionDenied(context: Context) {
     val activity = context as? Activity
     val shouldShowRationale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activity != null) {

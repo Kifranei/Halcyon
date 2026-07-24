@@ -309,6 +309,7 @@ fun AlbumScreen(
                         }
                     }
                 },
+                titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
                 actions = {
                     if (selectionMode) {
                         IconButton(onClick = {
@@ -554,7 +555,7 @@ fun AlbumScreen(
                         text = stringResource(
                             R.string.album_list_summary,
                             sortedAlbums.size,
-                            stringResource(sortMode.labelRes)
+                            com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
                         ),
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,

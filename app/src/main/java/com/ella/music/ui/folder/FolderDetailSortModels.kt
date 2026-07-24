@@ -26,6 +26,16 @@ internal enum class FolderSongSortMode(val labelRes: Int) {
     DurationAsc(R.string.playlist_song_sort_duration)
 }
 
+internal fun FolderSongSortMode.isDescending(): Boolean = when (this) {
+    FolderSongSortMode.TitleDesc,
+    FolderSongSortMode.FileNameDesc,
+    FolderSongSortMode.Duration,
+    FolderSongSortMode.DateAdded,
+    FolderSongSortMode.DateModified,
+    FolderSongSortMode.YearDesc -> true
+    else -> false
+}
+
 internal fun List<Song>.sortedForFolderDetail(mode: FolderSongSortMode): List<Song> =
     LibraryListSorter.sortSongs(this, mode.toSongSortSpec()).items
 

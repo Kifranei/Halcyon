@@ -52,3 +52,14 @@ internal fun List<FolderPlaylist>.sortedForFolderPlaylists(
         .sortedBy { pinnedRank[it.id] ?: Int.MAX_VALUE }
     return pinned + sorted.filterNot { it.id in pinnedSet }
 }
+
+internal fun FolderPlaylistSortMode.isDescending(): Boolean = when (this) {
+    FolderPlaylistSortMode.Custom,
+    FolderPlaylistSortMode.DateUpdated,
+    FolderPlaylistSortMode.DateCreatedDesc,
+    FolderPlaylistSortMode.FolderCount,
+    FolderPlaylistSortMode.SongCount,
+    FolderPlaylistSortMode.Duration,
+    FolderPlaylistSortMode.NameDesc -> true
+    else -> false
+}

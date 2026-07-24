@@ -28,9 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -52,6 +50,8 @@ import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
 import kotlinx.coroutines.delay
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.StarRate
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -165,7 +165,7 @@ internal fun PlaylistRow(
                         Icon(
                             imageVector = when {
                                 playlist.isFavorites -> MiuixIcons.Regular.FavoritesFill
-                                playlist.isFiveStarRating -> FiveStarPlaylistIcon
+                                playlist.isFiveStarRating -> Icons.Rounded.StarRate
                                 else -> MiuixIcons.Regular.Playlist
                             },
                             contentDescription = null,
@@ -183,7 +183,7 @@ internal fun PlaylistRow(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (playlist.isFavorites) MiuixIcons.Regular.FavoritesFill else FiveStarPlaylistIcon,
+                                imageVector = if (playlist.isFavorites) MiuixIcons.Regular.FavoritesFill else Icons.Rounded.StarRate,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.size(12.dp)
@@ -249,30 +249,6 @@ internal fun PlaylistRow(
             }
         }
     }
-}
-
-private val FiveStarPlaylistIcon: ImageVector by lazy {
-    ImageVector.Builder(
-        name = "FiveStarPlaylist",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f
-    ).apply {
-        path(fill = SolidColor(Color.Black)) {
-            moveTo(12f, 2.4f)
-            lineTo(14.96f, 8.38f)
-            lineTo(21.56f, 9.34f)
-            lineTo(16.78f, 13.99f)
-            lineTo(17.91f, 20.56f)
-            lineTo(12f, 17.46f)
-            lineTo(6.09f, 20.56f)
-            lineTo(7.22f, 13.99f)
-            lineTo(2.44f, 9.34f)
-            lineTo(9.04f, 8.38f)
-            close()
-        }
-    }.build()
 }
 
 @Composable

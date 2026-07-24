@@ -85,6 +85,7 @@ internal fun PlaylistScreenTopBar(
                     }
                 }
             },
+            titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
             actions = {
                 if (selectionMode) {
                     IconButton(onClick = onExportSelectedClick) {
@@ -252,7 +253,7 @@ internal fun PlaylistListSummaryRow(
             text = stringResource(
                 R.string.playlist_list_summary,
                 playlistCount,
-                stringResource(sortMode.labelRes)
+                com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
             ),
             fontSize = 13.sp,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,

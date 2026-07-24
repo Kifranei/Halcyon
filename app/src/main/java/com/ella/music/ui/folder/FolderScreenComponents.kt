@@ -70,24 +70,29 @@ internal fun FolderListRow(
             tint = MiuixTheme.colorScheme.primary,
             modifier = Modifier.size(42.dp)
         )
-        if (isPinned) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Pin,
-                contentDescription = stringResource(R.string.common_pin_to_top),
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = folder.name,
-                fontSize = 17.sp,
-                lineHeight = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = folder.name,
+                    fontSize = 17.sp,
+                    lineHeight = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isPinned) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Pin,
+                        contentDescription = stringResource(R.string.common_pin_to_top),
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .size(16.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${folder.summaryFor(context, sortMode)} · ${folder.path}",

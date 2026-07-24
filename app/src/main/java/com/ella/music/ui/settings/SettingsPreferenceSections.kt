@@ -369,6 +369,9 @@ internal fun SettingsScanSection(
     val searchAllCategoryTypes by settingsManager.searchAllCategoryTypes.collectAsState(
         initial = SettingsManager.SEARCH_ALL_CATEGORY_TYPES
     )
+    val searchAllSongMatchTypes by settingsManager.searchAllSongMatchTypes.collectAsState(
+        initial = SettingsManager.SEARCH_ALL_SONG_MATCH_TYPES
+    )
     val songRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
@@ -470,6 +473,12 @@ internal fun SettingsScanSection(
                     scope.launch { settingsManager.setSearchAllCategoryTypeEnabled(type, enabled) }
                 }
             )
+            SearchAllSongMatchTypesPreference(
+                enabledTypes = searchAllSongMatchTypes,
+                onEnabledChange = { type, enabled ->
+                    scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
+                }
+            )
             SwitchPreference(
                 title = stringResource(R.string.settings_song_rating_display_stars),
                 summary = if (songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS) {
@@ -558,6 +567,49 @@ private fun SearchAllCategoryTypesPreference(
         )
         top.yukonga.miuix.kmp.basic.Text(
             text = stringResource(R.string.settings_search_all_categories_summary),
+            color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            fontSize = 12.sp,
+            modifier = androidx.compose.ui.Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp)
+        )
+        options.forEach { (type, labelRes) ->
+            SwitchPreference(
+                title = stringResource(labelRes),
+                checked = type in enabledTypes,
+                onCheckedChange = { onEnabledChange(type, it) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchAllSongMatchTypesPreference(
+    enabledTypes: Set<String>,
+    onEnabledChange: (String, Boolean) -> Unit
+) {
+    val options = listOf(
+        "title" to R.string.library_search_match_title,
+        "artist" to R.string.library_search_match_artist,
+        "album" to R.string.library_search_match_album,
+        "album_artist" to R.string.library_search_match_album_artist,
+        "genre" to R.string.library_search_match_genre,
+        "year" to R.string.library_search_match_year,
+        "composer" to R.string.library_search_match_composer,
+        "arranger" to R.string.library_search_match_arranger,
+        "lyricist" to R.string.library_search_match_lyricist,
+        "file_name" to R.string.library_search_match_file_name,
+        "comment" to R.string.library_search_match_comment,
+        "alias" to R.string.library_search_match_alias,
+        "tag" to R.string.library_search_match_tag,
+        "lyrics" to R.string.library_search_lyrics
+    )
+    Column {
+        top.yukonga.miuix.kmp.basic.Text(
+            text = stringResource(R.string.settings_search_all_song_match_types),
+            color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurface,
+            modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+        top.yukonga.miuix.kmp.basic.Text(
+            text = stringResource(R.string.settings_search_all_song_match_types_summary),
             color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurfaceVariantSummary,
             fontSize = 12.sp,
             modifier = androidx.compose.ui.Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp)

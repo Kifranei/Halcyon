@@ -171,6 +171,7 @@ fun FolderScreen(
                         }
                     }
                 },
+                titleStartPadding = if (showBackButton) 64.dp else 20.dp,
                 actions = {
                     IconButton(onClick = onNavigateToScanSettings) {
                         Icon(
@@ -293,8 +294,8 @@ fun FolderScreen(
                 onDismiss = { folderMenuTarget = null },
                 onTogglePin = {
                     val isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) }
-                    scope.launch { mainViewModel.settingsManager.setPinned("folder", folder.path, !isPinned) }
                     folderMenuTarget = null
+                    scope.launch { mainViewModel.settingsManager.setPinned("folder", folder.path, !isPinned) }
                 },
                 onShare = {
                     shareLocalSongs(context, songsForFolder(folder))

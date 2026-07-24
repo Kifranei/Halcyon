@@ -725,9 +725,19 @@ fun MetadataCategoryDetailScreen(
                         val summaryText = if (selectionMode) {
                             stringResource(R.string.library_selected_fraction, selectedIds.size, currentSelectionIds.size)
                         } else if (selectedTab == MetadataDetailTab.Albums) {
-                            stringResource(R.string.category_album_summary, sortedAlbums.size, type.categoryTitle(), albumSortMode.label())
+                            stringResource(
+                                R.string.category_album_summary,
+                                sortedAlbums.size,
+                                type.categoryTitle(),
+                                albumSortMode.displayLabel()
+                            )
                         } else {
-                            stringResource(R.string.category_song_summary, sortedSongs.size, type.categoryTitle(), sortMode.label())
+                            stringResource(
+                                R.string.category_song_summary,
+                                sortedSongs.size,
+                                type.categoryTitle(),
+                                sortMode.displayLabel()
+                            )
                         }
                         if (type in PERSON_METADATA_CATEGORY_TYPES) {
                             Row(

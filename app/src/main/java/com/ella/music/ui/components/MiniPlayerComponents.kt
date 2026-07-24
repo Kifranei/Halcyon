@@ -49,6 +49,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.Dp
@@ -579,19 +581,25 @@ internal data class MiniPlayerTextState(
 )
 
 @Composable
-internal fun QueueListIcon(
+internal fun PlayerQueueListIcon(
     color: Color,
+    contentDescription: String? = null,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
+    Canvas(
+        modifier = modifier.semantics {
+            if (contentDescription != null) this.contentDescription = contentDescription
+        }
+    ) {
         val stroke = 2.5.dp.toPx()
-        val startX = size.width * 0.22f
-        val endX = size.width * 0.78f
-        listOf(0.30f, 0.50f, 0.70f).forEach { yFraction ->
+        val startX = size.width * 0.18f
+        val endX = size.width * 0.82f
+        listOf(0.27f, 0.50f, 0.73f).forEachIndexed { index, yFraction ->
+            val lineEnd = if (index == 2) size.width * 0.60f else endX
             drawLine(
                 color = color,
                 start = androidx.compose.ui.geometry.Offset(startX, size.height * yFraction),
-                end = androidx.compose.ui.geometry.Offset(endX, size.height * yFraction),
+                end = androidx.compose.ui.geometry.Offset(lineEnd, size.height * yFraction),
                 strokeWidth = stroke,
                 cap = StrokeCap.Round
             )

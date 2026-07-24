@@ -46,7 +46,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Messages
+import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
@@ -98,7 +98,7 @@ internal fun AiMixCard(
             }
             IconButton(onClick = onChat) {
                 Icon(
-                    imageVector = MiuixIcons.Regular.Messages,
+                    imageVector = MiuixIcons.Regular.Community,
                     contentDescription = stringResource(R.string.home_ai_chat_open),
                     tint = Color.White.copy(alpha = 0.92f),
                     modifier = Modifier.size(26.dp)
