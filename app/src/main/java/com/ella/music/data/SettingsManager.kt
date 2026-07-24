@@ -108,7 +108,10 @@ class SettingsManager(private val context: Context) {
         val KEY_STATUS_BAR_ALLOW_PHONETIC = booleanPreferencesKey("status_bar_allow_phonetic")
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
         val KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_hide_when_paused")
+        val KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_hide_in_landscape")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_MODE = booleanPreferencesKey("desktop_lyric_status_bar_mode")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_status_bar_hide_when_paused")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_status_bar_hide_in_landscape")
         val KEY_DESKTOP_LYRIC_WIDTH = intPreferencesKey("desktop_lyric_width")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET = intPreferencesKey("desktop_lyric_status_bar_top_offset")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_POSITION = intPreferencesKey("desktop_lyric_status_bar_position")
@@ -707,7 +710,10 @@ class SettingsManager(private val context: Context) {
 
     val desktopLyricEnabled get() = desktopLyricSettings.desktopLyricEnabled
     val desktopLyricHideWhenPaused get() = desktopLyricSettings.desktopLyricHideWhenPaused
+    val desktopLyricHideInLandscape get() = desktopLyricSettings.desktopLyricHideInLandscape
     val desktopLyricStatusBarMode get() = desktopLyricSettings.desktopLyricStatusBarMode
+    val desktopLyricStatusBarHideWhenPaused get() = desktopLyricSettings.desktopLyricStatusBarHideWhenPaused
+    val desktopLyricStatusBarHideInLandscape get() = desktopLyricSettings.desktopLyricStatusBarHideInLandscape
     val desktopLyricWidth get() = desktopLyricSettings.desktopLyricWidth
     val desktopLyricStatusBarTopOffset get() = desktopLyricSettings.desktopLyricStatusBarTopOffset
     val desktopLyricStatusBarPosition get() = desktopLyricSettings.desktopLyricStatusBarPosition
@@ -732,7 +738,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setDesktopLyricEnabled(enabled: Boolean) = desktopLyricSettings.setDesktopLyricEnabled(enabled)
     suspend fun setDesktopLyricHideWhenPaused(enabled: Boolean) = desktopLyricSettings.setDesktopLyricHideWhenPaused(enabled)
+    suspend fun setDesktopLyricHideInLandscape(enabled: Boolean) = desktopLyricSettings.setDesktopLyricHideInLandscape(enabled)
     suspend fun setDesktopLyricStatusBarMode(enabled: Boolean) = desktopLyricSettings.setDesktopLyricStatusBarMode(enabled)
+    suspend fun setDesktopLyricStatusBarHideWhenPaused(enabled: Boolean) = desktopLyricSettings.setDesktopLyricStatusBarHideWhenPaused(enabled)
+    suspend fun setDesktopLyricStatusBarHideInLandscape(enabled: Boolean) = desktopLyricSettings.setDesktopLyricStatusBarHideInLandscape(enabled)
     suspend fun setDesktopLyricWidth(widthPercent: Int) = desktopLyricSettings.setDesktopLyricWidth(widthPercent)
     suspend fun setDesktopLyricStatusBarTopOffset(offsetDp: Int) = desktopLyricSettings.setDesktopLyricStatusBarTopOffset(offsetDp)
     suspend fun setDesktopLyricStatusBarPosition(position: Int) = desktopLyricSettings.setDesktopLyricStatusBarPosition(position)
@@ -2796,7 +2805,10 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_STATUS_BAR_ALLOW_PHONETIC)
             setBoolean(KEY_DESKTOP_LYRIC_ENABLED)
             setBoolean(KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED)
+            setBoolean(KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE)
             setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_MODE)
+            setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED)
+            setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE)
             setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_MERGE_SECONDARY)
             setBoolean(KEY_DESKTOP_LYRIC_LOCKED)
             setBoolean(KEY_SUPER_LYRIC_ENABLED)

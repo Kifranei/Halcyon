@@ -146,6 +146,12 @@
     <string name="notification_channel_heads_up_lyrics_description">Flyme가 아닌 장치에서 Android 헤드업 알림을 통해 가사를 표시합니다.</string>
     <string name="settings_floating_lyric_hide_when_paused">일시중지 시 데스크톱 가사 숨기기</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">재생이 일시 중지된 동안 플로팅 가사를 숨겼다가 재생이 다시 시작되면 복원합니다.</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">가로 모드에서 데스크톱 가사 숨기기</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">가로 모드에서는 일반 데스크톱 가사를 숨기고 세로 모드에서 다시 표시합니다</string>
+    <string name="settings_status_lyric_hide_when_paused">일시중지 시 상태 표시줄 가사 숨기기</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">일시중지 중에는 플로팅 상태 표시줄 가사를 숨기고 재생 시 다시 표시합니다</string>
+    <string name="settings_status_lyric_hide_in_landscape">가로 모드에서 상태 표시줄 가사 숨기기</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">가로 모드에서는 플로팅 상태 표시줄 가사를 숨기고 세로 모드에서 다시 표시합니다</string>
     <string name="settings_status_lyric_top_offset_value">상태 가사 상단 오프셋 %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">컷아웃 및 상태 표시줄을 위한 추가 수직 공간 확보</string>
 

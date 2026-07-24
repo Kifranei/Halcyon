@@ -145,6 +145,12 @@
     <string name="notification_channel_heads_up_lyrics_description">Показывает тексты песен через уведомления Android на устройствах, отличных от Flyme.</string>
     <string name="settings_floating_lyric_hide_when_paused">Скрыть тексты песен на рабочем столе во время паузы</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">Скрыть плавающие тексты песен, когда воспроизведение приостановлено, а затем восстановить их, когда воспроизведение возобновится.</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">Скрывать текст на рабочем столе в альбомной ориентации</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">Скрывать обычный текст на рабочем столе в альбомной ориентации и восстанавливать в портретной</string>
+    <string name="settings_status_lyric_hide_when_paused">Скрывать текст в строке состояния на паузе</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">Скрывать плавающий текст в строке состояния на паузе и восстанавливать при продолжении</string>
+    <string name="settings_status_lyric_hide_in_landscape">Скрывать текст в строке состояния в альбомной ориентации</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">Скрывать плавающий текст в строке состояния в альбомной ориентации и восстанавливать в портретной</string>
     <string name="settings_status_lyric_top_offset_value">Статус текста, верхнее смещение %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">Оставьте дополнительное вертикальное пространство для вырезов и строки состояния.</string>
 

@@ -144,6 +144,12 @@
     <string name="notification_channel_heads_up_lyrics_description">Shows lyrics via Android heads-up notifications on non-Flyme devices</string>
     <string name="settings_floating_lyric_hide_when_paused">Hide desktop lyrics when paused</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">Hide floating lyrics while playback is paused, then restore them when playback resumes</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">Hide desktop lyrics in landscape</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">Hide normal desktop lyrics in landscape and restore them in portrait</string>
+    <string name="settings_status_lyric_hide_when_paused">Hide status bar lyrics when paused</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">Hide floating status bar lyrics while playback is paused, then restore them when playback resumes</string>
+    <string name="settings_status_lyric_hide_in_landscape">Hide status bar lyrics in landscape</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">Hide floating status bar lyrics in landscape and restore them in portrait</string>
     <string name="settings_status_lyric_top_offset_value">Status lyric top offset %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">Reserve extra vertical space for cutouts and the status bar</string>
     <string name="settings_status_lyric_width_value">Status lyric width %1$d%%</string>

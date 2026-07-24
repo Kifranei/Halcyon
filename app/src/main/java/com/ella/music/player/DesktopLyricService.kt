@@ -68,6 +68,8 @@ class DesktopLyricService : Service() {
     private var opacityPercent = 100
     private var lyricTextColor = Color.WHITE
     private var statusBarMode = false
+    private var hideWhenPaused = true
+    private var hideInLandscape = false
     private var desktopLyricWidthPercent = 72
     private var statusBarTopOffsetDp = 16
     private var statusBarPosition = SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_CENTER
@@ -618,9 +620,21 @@ class DesktopLyricService : Service() {
         }
     }
 
-    private suspend fun readSettingsFromStore(): DesktopLyricSettingsSnapshot = DesktopLyricSettingsSnapshot(
+    private suspend fun readSettingsFromStore(): DesktopLyricSettingsSnapshot {
+        val currentStatusBarMode = settingsManager.desktopLyricStatusBarMode.first()
+        return DesktopLyricSettingsSnapshot(
         locked = settingsManager.desktopLyricLocked.first(),
-        statusBarMode = settingsManager.desktopLyricStatusBarMode.first(),
+        statusBarMode = currentStatusBarMode,
+        hideWhenPaused = if (currentStatusBarMode) {
+            settingsManager.desktopLyricStatusBarHideWhenPaused.first()
+        } else {
+            settingsManager.desktopLyricHideWhenPaused.first()
+        },
+        hideInLandscape = if (currentStatusBarMode) {
+            settingsManager.desktopLyricStatusBarHideInLandscape.first()
+        } else {
+            settingsManager.desktopLyricHideInLandscape.first()
+        },
         desktopLyricWidthPercent = settingsManager.desktopLyricWidth.first(),
         statusBarTopOffsetDp = settingsManager.desktopLyricStatusBarTopOffset.first(),
         statusBarPosition = settingsManager.desktopLyricStatusBarPosition.first(),
@@ -654,11 +668,19 @@ class DesktopLyricService : Service() {
         appleMusicWordLiftEnabled = settingsManager.appleMusicLyricsWordLift.first(),
         savedX = settingsManager.desktopLyricX.first(),
         savedY = settingsManager.desktopLyricY.first()
-    )
+        )
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateStatusBarModeVisibility()
+    }
 
     private fun applySettingsSnapshot(settings: DesktopLyricSettingsSnapshot) {
         locked = settings.locked
         statusBarMode = settings.statusBarMode
+        hideWhenPaused = settings.hideWhenPaused
+        hideInLandscape = settings.hideInLandscape
         desktopLyricWidthPercent = settings.desktopLyricWidthPercent
         statusBarTopOffsetDp = settings.statusBarTopOffsetDp
         statusBarPosition = settings.statusBarPosition
@@ -747,13 +769,13 @@ class DesktopLyricService : Service() {
     }
 
     private fun updateStatusBarModeVisibility() {
-        if (!statusBarMode) {
-            rootView?.visibility = View.VISIBLE
-            return
-        }
         val isPlaying = controller?.isPlaying ?: true
-        rootView?.visibility = if (isPlaying) View.VISIBLE else View.GONE
+        rootView?.visibility = if (shouldHideOverlay(isPlaying)) View.GONE else View.VISIBLE
     }
+
+    private fun shouldHideOverlay(isPlaying: Boolean): Boolean =
+        (hideWhenPaused && !isPlaying) ||
+            (hideInLandscape && resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
 
     private fun persistPosition(x: Int, y: Int) {
         savedX = x
@@ -804,6 +826,8 @@ class DesktopLyricService : Service() {
     private data class DesktopLyricSettingsSnapshot(
         val locked: Boolean,
         val statusBarMode: Boolean,
+        val hideWhenPaused: Boolean,
+        val hideInLandscape: Boolean,
         val desktopLyricWidthPercent: Int,
         val statusBarTopOffsetDp: Int,
         val statusBarPosition: Int,

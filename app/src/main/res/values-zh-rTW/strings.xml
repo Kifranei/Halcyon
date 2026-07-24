@@ -141,6 +141,12 @@
     <string name="notification_channel_heads_up_lyrics_description">在非 Flyme 裝置上透過系統橫幅通知顯示歌詞</string>
     <string name="settings_floating_lyric_hide_when_paused">桌面歌詞暫停時隱藏</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">暫停播放時隱藏懸浮歌詞，恢復播放後自動顯示</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">桌面歌詞橫向時隱藏</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">裝置橫向時隱藏一般桌面歌詞，回到直向後自動顯示</string>
+    <string name="settings_status_lyric_hide_when_paused">狀態列歌詞暫停時隱藏</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">暫停播放時隱藏狀態列浮動歌詞，恢復播放後自動顯示</string>
+    <string name="settings_status_lyric_hide_in_landscape">狀態列歌詞橫向時隱藏</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">裝置橫向時隱藏狀態列浮動歌詞，回到直向後自動顯示</string>
     <string name="settings_status_lyric_top_offset_value">狀態列歌詞上方偏移 %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">為挖孔螢幕與狀態列預留額外垂直空間</string>
 

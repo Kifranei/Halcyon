@@ -146,6 +146,12 @@
     <string name="notification_channel_heads_up_lyrics_description">Flyme 以外のデバイスでは、システム通知で歌詞を表示します</string>
     <string name="settings_floating_lyric_hide_when_paused">一時停止時にデスクトップ歌詞を非表示</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">再生一時停止時にフローティング歌詞を非表示にし、再生再開時に自動的に表示します</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">横向きでデスクトップ歌詞を非表示</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">横向きでは通常のデスクトップ歌詞を隠し、縦向きで再表示します</string>
+    <string name="settings_status_lyric_hide_when_paused">一時停止時にステータスバー歌詞を非表示</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">一時停止中はフローティングステータスバー歌詞を隠し、再生再開時に表示します</string>
+    <string name="settings_status_lyric_hide_in_landscape">横向きでステータスバー歌詞を非表示</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">横向きではフローティングステータスバー歌詞を隠し、縦向きで再表示します</string>
     <string name="settings_status_lyric_top_offset_value">ステータスバー歌詞の上部オフセット %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">パンチホール画面やステータスバー向けに、上方向の余白を確保します</string>
 

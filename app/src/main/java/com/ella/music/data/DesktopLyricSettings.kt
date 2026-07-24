@@ -12,7 +12,10 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     companion object {
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
         val KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_hide_when_paused")
+        val KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_hide_in_landscape")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_MODE = booleanPreferencesKey("desktop_lyric_status_bar_mode")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_status_bar_hide_when_paused")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_status_bar_hide_in_landscape")
         val KEY_DESKTOP_LYRIC_WIDTH = intPreferencesKey("desktop_lyric_width")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET = intPreferencesKey("desktop_lyric_status_bar_top_offset")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_POSITION = intPreferencesKey("desktop_lyric_status_bar_position")
@@ -38,7 +41,10 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
 
     val desktopLyricEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_ENABLED] ?: false }
     val desktopLyricHideWhenPaused: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED] ?: true }
+    val desktopLyricHideInLandscape: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE] ?: false }
     val desktopLyricStatusBarMode: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MODE] ?: false }
+    val desktopLyricStatusBarHideWhenPaused: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED] ?: true }
+    val desktopLyricStatusBarHideInLandscape: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE] ?: false }
     val desktopLyricWidth: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_WIDTH] ?: 72).coerceIn(40, 100) }
     val desktopLyricStatusBarTopOffset: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET] ?: 16).coerceIn(0, 120) }
     val desktopLyricStatusBarPosition: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_POSITION] ?: SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_CENTER).coerceIn(0, 2) }
@@ -69,8 +75,20 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
         dataStore.edit { it[KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED] = enabled }
     }
 
+    suspend fun setDesktopLyricHideInLandscape(enabled: Boolean) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE] = enabled }
+    }
+
     suspend fun setDesktopLyricStatusBarMode(enabled: Boolean) {
         dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MODE] = enabled }
+    }
+
+    suspend fun setDesktopLyricStatusBarHideWhenPaused(enabled: Boolean) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED] = enabled }
+    }
+
+    suspend fun setDesktopLyricStatusBarHideInLandscape(enabled: Boolean) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE] = enabled }
     }
 
     suspend fun setDesktopLyricWidth(widthPercent: Int) {

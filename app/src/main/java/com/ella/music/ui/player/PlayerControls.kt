@@ -58,12 +58,24 @@ internal fun LandscapeProgressRow(
             .padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: formatTime(currentPosition),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = palette.onBackground.copy(alpha = 0.72f)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = formatTime(currentPosition),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                // Keep the real position visible while previewing a seek target.
+                color = palette.onBackground.copy(alpha = if (previewProgress == null) 0.72f else 0.48f)
+            )
+            previewProgress?.let { progress ->
+                Text(
+                    text = formatTime((duration * progress).toLong()),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.onBackground.copy(alpha = 0.82f),
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        }
         GlowSeekBar(
             value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
             onSeek = onSeek,
@@ -75,7 +87,7 @@ internal fun LandscapeProgressRow(
                 .padding(horizontal = 12.dp)
         )
         Text(
-            text = if (showTotalDuration) {
+            text = if (showTotalDuration || previewProgress != null) {
                 formatTime(duration.coerceAtLeast(0L))
             } else {
                 "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"
@@ -180,12 +192,25 @@ internal fun PlayerProgressBlock(
             modifier = Modifier.fillMaxWidth()
         )
         Box(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = previewProgress?.let { formatTime((duration * it).toLong()) } ?: formatTime(currentPosition),
-                fontSize = 14.sp,
-                color = palette.onBackground.copy(alpha = 0.72f),
-                modifier = Modifier.align(Alignment.CenterStart)
-            )
+            Row(
+                modifier = Modifier.align(Alignment.CenterStart),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formatTime(currentPosition),
+                    fontSize = 14.sp,
+                    // Do not replace the current time: the adjacent label is the seek preview.
+                    color = palette.onBackground.copy(alpha = if (previewProgress == null) 0.72f else 0.48f)
+                )
+                previewProgress?.let { progress ->
+                    Text(
+                        text = formatTime((duration * progress).toLong()),
+                        fontSize = 14.sp,
+                        color = palette.onBackground.copy(alpha = 0.82f),
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
             if (infoLabels.isNotEmpty()) {
                 val infoText = infoLabels[infoMode % infoLabels.size]
                 Text(
@@ -216,7 +241,7 @@ internal fun PlayerProgressBlock(
                 )
             }
             Text(
-                text = if (showTotalDuration) {
+                text = if (showTotalDuration || previewProgress != null) {
                     formatTime(duration.coerceAtLeast(0L))
                 } else {
                     "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"

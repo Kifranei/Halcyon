@@ -146,6 +146,12 @@
     <string name="notification_channel_heads_up_lyrics_description">Zeigt Liedtexte über Android-Heads-up-Benachrichtigungen auf Nicht-Flyme-Geräten</string>
     <string name="settings_floating_lyric_hide_when_paused">Desktop-Lyrics bei Pause ausblenden</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">Schwebenden Liedtext ausblenden, solange die Wiedergabe pausiert ist, und beim Fortsetzen wieder anzeigen</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">Desktop-Lyrics im Querformat ausblenden</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">Normale Desktop-Lyrics im Querformat ausblenden und im Hochformat wieder anzeigen</string>
+    <string name="settings_status_lyric_hide_when_paused">Statusleisten-Lyrics bei Pause ausblenden</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">Schwebende Statusleisten-Lyrics während der Pause ausblenden und beim Fortsetzen wieder anzeigen</string>
+    <string name="settings_status_lyric_hide_in_landscape">Statusleisten-Lyrics im Querformat ausblenden</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">Schwebende Statusleisten-Lyrics im Querformat ausblenden und im Hochformat wieder anzeigen</string>
     <string name="settings_status_lyric_top_offset_value">Oberer Versatz der Statusleisten-Lyrics %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">Zusätzlichen vertikalen Platz für Displayausschnitte und Statusleiste reservieren</string>
 

@@ -28,6 +28,7 @@ object LibrarySortUiState {
     var folderDetailSongSortIndex by mutableIntStateOf(0)
     var pendingFolderDetailSongSortIndex by mutableStateOf<Int?>(null)
     var folderPlaylistListSortIndex by mutableIntStateOf(2)
+    var pendingFolderPlaylistListSortIndex by mutableStateOf<Int?>(null)
     var playlistListSortIndex by mutableIntStateOf(2)
     var playlistCustomOrderIds by mutableStateOf<List<String>>(emptyList())
     var pendingPlaylistListSortIndex by mutableStateOf<Int?>(null)
@@ -61,6 +62,7 @@ object LibrarySortUiState {
         folderDetailSongSortIndex = settingsManager.folderDetailSongSortIndex.first()
         pendingFolderDetailSongSortIndex = null
         folderPlaylistListSortIndex = settingsManager.folderPlaylistListSortIndex.first()
+        pendingFolderPlaylistListSortIndex = null
         playlistListSortIndex = settingsManager.playlistListSortIndex.first()
         playlistCustomOrderIds = settingsManager.playlistCustomOrder.first()
         pendingPlaylistListSortIndex = null

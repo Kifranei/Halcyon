@@ -125,8 +125,19 @@ fun FolderPlaylistsScreen(
     val scope = rememberCoroutineScope()
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
-    val sortIndex by mainViewModel.settingsManager.folderPlaylistListSortIndex.collectAsState(initial = 2)
+    val persistedSortIndex by mainViewModel.settingsManager.folderPlaylistListSortIndex.collectAsState(
+        initial = LibrarySortUiState.folderPlaylistListSortIndex
+    )
+    val sortIndex = LibrarySortUiState.pendingFolderPlaylistListSortIndex ?: persistedSortIndex
     val sortMode = FolderPlaylistSortMode.entries.getOrElse(sortIndex) { FolderPlaylistSortMode.DateCreatedDesc }
+    androidx.compose.runtime.LaunchedEffect(sortIndex) {
+        LibrarySortUiState.folderPlaylistListSortIndex = sortIndex
+    }
+    androidx.compose.runtime.LaunchedEffect(persistedSortIndex) {
+        if (LibrarySortUiState.pendingFolderPlaylistListSortIndex == persistedSortIndex) {
+            LibrarySortUiState.pendingFolderPlaylistListSortIndex = null
+        }
+    }
     val pinnedPlaylistIds by mainViewModel.settingsManager.pinnedKeysFlow("folder_playlist").collectAsState(initial = emptyList())
     val availableFolders = remember(songs) { songs.availableFolderPlaylistFolders() }
     var editorTarget by remember { mutableStateOf<FolderPlaylist?>(null) }
@@ -404,6 +415,7 @@ fun FolderPlaylistsScreen(
                             ),
                             selectedMode = sortMode,
                             onSelect = { mode ->
+                                LibrarySortUiState.pendingFolderPlaylistListSortIndex = mode.ordinal
                                 LibrarySortUiState.folderPlaylistListSortIndex = mode.ordinal
                                 scope.launch { mainViewModel.settingsManager.setFolderPlaylistListSortIndex(mode.ordinal) }
                             }

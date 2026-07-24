@@ -146,6 +146,12 @@
     <string name="notification_channel_heads_up_lyrics_description">Affiche les paroles via les notifications flottantes Android sur les appareils non Flyme</string>
     <string name="settings_floating_lyric_hide_when_paused">Masquer les paroles flottantes en pause</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">Masquer les paroles flottantes lorsque la lecture est en pause, puis les restaurer à la reprise</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">Masquer les paroles du bureau en paysage</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">Masquer les paroles du bureau en paysage et les restaurer en portrait</string>
+    <string name="settings_status_lyric_hide_when_paused">Masquer les paroles de la barre d’état en pause</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">Masquer les paroles flottantes de la barre d’état pendant la pause, puis les restaurer à la reprise</string>
+    <string name="settings_status_lyric_hide_in_landscape">Masquer les paroles de la barre d’état en paysage</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">Masquer les paroles flottantes de la barre d’état en paysage et les restaurer en portrait</string>
     <string name="settings_status_lyric_top_offset_value">Décalage haut des paroles d’état %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">Réserver un espace vertical supplémentaire pour les découpes et la barre d’état</string>
 

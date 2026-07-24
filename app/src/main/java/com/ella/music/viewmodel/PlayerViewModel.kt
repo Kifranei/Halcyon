@@ -232,6 +232,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var statusBarAllowPhoneticEnabled = false
     private var tickerHideNotificationEnabled = false
     private var desktopLyricHideWhenPausedEnabled = false
+    private var desktopLyricStatusBarModeEnabled = false
+    private var desktopLyricStatusBarHideWhenPausedEnabled = false
     private var superLyricTranslationEnabled = true
     private var superLyricPronunciationEnabled = false
     private var lyricSourceMode = SettingsManager.LYRIC_SOURCE_AUTO
@@ -378,21 +380,41 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun initDesktopLyric() {
         viewModelScope.launch {
             val enabled = settingsManager.desktopLyricEnabled.first()
+            desktopLyricStatusBarModeEnabled = settingsManager.desktopLyricStatusBarMode.first()
             desktopLyricHideWhenPausedEnabled = settingsManager.desktopLyricHideWhenPaused.first()
+            desktopLyricStatusBarHideWhenPausedEnabled = settingsManager.desktopLyricStatusBarHideWhenPaused.first()
             desktopLyricBridge.setEnabled(enabled)
             if (enabled) resendDesktopLyric()
         }
         viewModelScope.launch {
             settingsManager.desktopLyricHideWhenPaused.distinctUntilChanged().collect { enabled ->
                 desktopLyricHideWhenPausedEnabled = enabled
-                if (enabled && !isPlaying.value) {
+                if (!desktopLyricStatusBarModeEnabled && enabled && !isPlaying.value) {
                     desktopLyricBridge.clearLyric()
                 } else {
                     resendDesktopLyric()
                 }
             }
         }
+        viewModelScope.launch {
+            settingsManager.desktopLyricStatusBarMode.distinctUntilChanged().collect { statusBarMode ->
+                desktopLyricStatusBarModeEnabled = statusBarMode
+                if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) desktopLyricBridge.clearLyric()
+                else resendDesktopLyric()
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.desktopLyricStatusBarHideWhenPaused.distinctUntilChanged().collect { enabled ->
+                desktopLyricStatusBarHideWhenPausedEnabled = enabled
+                if (desktopLyricStatusBarModeEnabled && enabled && !isPlaying.value) desktopLyricBridge.clearLyric()
+                else resendDesktopLyric()
+            }
+        }
     }
+
+    private fun activeDesktopLyricHideWhenPaused(): Boolean =
+        if (desktopLyricStatusBarModeEnabled) desktopLyricStatusBarHideWhenPausedEnabled
+        else desktopLyricHideWhenPausedEnabled
 
     private fun initSuperLyric() {
         viewModelScope.launch {
@@ -795,7 +817,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     bluetoothLyricRetryJob?.cancel()
                     lyricGetterBridge.clearLyric()
                     tickerBridge.clearLyric()
-                    if (desktopLyricHideWhenPausedEnabled) {
+                    if (activeDesktopLyricHideWhenPaused()) {
                         desktopLyricBridge.clearLyric()
                     }
                     superLyricBridge.sendStop()
@@ -848,7 +870,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         seekExternalLyricSyncJob?.cancel()
                         seekExternalLyricSyncJob = null
                         tickerBridge.clearLyric()
-                        if (desktopLyricHideWhenPausedEnabled) {
+                        if (activeDesktopLyricHideWhenPaused()) {
                             desktopLyricBridge.clearLyric()
                         } else {
                             resendDesktopLyric()
@@ -972,7 +994,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun resendDesktopLyric() {
         if (!desktopLyricBridge.isEnabled()) return
-        if (desktopLyricHideWhenPausedEnabled && !isPlaying.value) return
+        if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) return
         val index = _currentLyricIndex.value
         val currentLyrics = _lyrics.value
         desktopLyricBridge.sendLyric(
@@ -985,7 +1007,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun updateDesktopLyricFrame() {
         if (!desktopLyricBridge.isEnabled()) return
-        if (desktopLyricHideWhenPausedEnabled && !isPlaying.value) return
+        if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) return
         val index = _currentLyricIndex.value
         val line = _lyrics.value.getOrNull(index) ?: return
         desktopLyricBridge.sendLyric(line, currentPosition.value, _showLyricTranslation.value, _showLyricPronunciation.value)
@@ -1652,7 +1674,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             settingsManager.setDesktopLyricHideWhenPaused(enabled)
             desktopLyricHideWhenPausedEnabled = enabled
-            if (enabled && !isPlaying.value) {
+            desktopLyricBridge.applySettings()
+            if (!desktopLyricStatusBarModeEnabled && enabled && !isPlaying.value) {
                 desktopLyricBridge.clearLyric()
             } else {
                 resendDesktopLyric()

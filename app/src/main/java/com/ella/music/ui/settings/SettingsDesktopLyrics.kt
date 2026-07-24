@@ -48,7 +48,10 @@ internal fun SettingsDesktopLyricControls(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectSettingsState(initialValue = false)
     val desktopLyricHideWhenPaused by settingsManager.desktopLyricHideWhenPaused.collectSettingsState(initialValue = false)
+    val desktopLyricHideInLandscape by settingsManager.desktopLyricHideInLandscape.collectSettingsState(initialValue = false)
     val desktopLyricStatusBarMode by settingsManager.desktopLyricStatusBarMode.collectSettingsState(initialValue = false)
+    val desktopLyricStatusBarHideWhenPaused by settingsManager.desktopLyricStatusBarHideWhenPaused.collectSettingsState(initialValue = false)
+    val desktopLyricStatusBarHideInLandscape by settingsManager.desktopLyricStatusBarHideInLandscape.collectSettingsState(initialValue = false)
     val desktopLyricWidth by settingsManager.desktopLyricWidth.collectSettingsState(initialValue = 72)
     val desktopLyricStatusBarTopOffset by settingsManager.desktopLyricStatusBarTopOffset.collectSettingsState(initialValue = 16)
     val desktopLyricStatusBarPosition by settingsManager.desktopLyricStatusBarPosition.collectSettingsState(initialValue = SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_CENTER)
@@ -170,11 +173,50 @@ internal fun SettingsDesktopLyricControls(
     SwitchPreference(
         title = stringResource(R.string.settings_floating_lyric_hide_when_paused),
         summary = stringResource(R.string.settings_floating_lyric_hide_when_paused_summary),
-        enabled = desktopLyricEnabled,
+        enabled = desktopLyricEnabled && !desktopLyricStatusBarMode,
         checked = desktopLyricHideWhenPaused,
         onCheckedChange = { enabled ->
             playerViewModel?.setDesktopLyricHideWhenPaused(enabled)
                 ?: scope.launch { settingsManager.setDesktopLyricHideWhenPaused(enabled) }
+        }
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.settings_desktop_lyric_hide_in_landscape),
+        summary = stringResource(R.string.settings_desktop_lyric_hide_in_landscape_summary),
+        enabled = desktopLyricEnabled && !desktopLyricStatusBarMode,
+        checked = desktopLyricHideInLandscape,
+        onCheckedChange = { enabled ->
+            scope.launch {
+                settingsManager.setDesktopLyricHideInLandscape(enabled)
+                applyDesktopLyricSettings()
+            }
+        }
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.settings_status_lyric_hide_when_paused),
+        summary = stringResource(R.string.settings_status_lyric_hide_when_paused_summary),
+        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
+        checked = desktopLyricStatusBarHideWhenPaused,
+        onCheckedChange = { enabled ->
+            scope.launch {
+                settingsManager.setDesktopLyricStatusBarHideWhenPaused(enabled)
+                applyDesktopLyricSettings()
+            }
+        }
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.settings_status_lyric_hide_in_landscape),
+        summary = stringResource(R.string.settings_status_lyric_hide_in_landscape_summary),
+        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
+        checked = desktopLyricStatusBarHideInLandscape,
+        onCheckedChange = { enabled ->
+            scope.launch {
+                settingsManager.setDesktopLyricStatusBarHideInLandscape(enabled)
+                applyDesktopLyricSettings()
+            }
         }
     )
 

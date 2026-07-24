@@ -148,6 +148,12 @@
     <string name="notification_channel_heads_up_lyrics_description">在非 Flyme 设备上通过系统浮动通知显示歌词</string>
     <string name="settings_floating_lyric_hide_when_paused">桌面歌词暂停时隐藏</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">暂停播放时隐藏悬浮歌词，恢复播放后自动显示</string>
+    <string name="settings_desktop_lyric_hide_in_landscape">桌面歌词横屏时隐藏</string>
+    <string name="settings_desktop_lyric_hide_in_landscape_summary">设备横屏时隐藏普通桌面歌词，返回竖屏后自动显示</string>
+    <string name="settings_status_lyric_hide_when_paused">状态栏歌词暂停时隐藏</string>
+    <string name="settings_status_lyric_hide_when_paused_summary">暂停播放时隐藏悬浮窗状态栏歌词，恢复播放后自动显示</string>
+    <string name="settings_status_lyric_hide_in_landscape">状态栏歌词横屏时隐藏</string>
+    <string name="settings_status_lyric_hide_in_landscape_summary">设备横屏时隐藏悬浮窗状态栏歌词，返回竖屏后自动显示</string>
     <string name="settings_status_lyric_top_offset_value">状态栏歌词顶部偏移 %1$ddp</string>
     <string name="settings_status_lyric_top_offset_summary">为挖孔屏和状态栏预留额外垂直距离</string>
     <string name="settings_status_lyric_width_value">状态栏歌词宽度 %1$d%%</string>
