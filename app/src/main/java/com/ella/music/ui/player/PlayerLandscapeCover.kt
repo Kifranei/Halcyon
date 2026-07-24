@@ -667,9 +667,10 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.82f)
-                        .widthIn(max = 300.dp)
-                        .weight(1f)
+                        // Leave a clear title lane below the cover on short phone landscapes.
+                        .fillMaxWidth(0.72f)
+                        .widthIn(max = 250.dp)
+                        .weight(0.88f, fill = false)
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(22.dp))
                         .graphicsLayer { translationX = dragOffset.value * 0.32f }
@@ -694,7 +695,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 // Follow the compact RawS hierarchy: title, then the seek bar. The artist is
                 // intentionally omitted in phone landscape to leave the lyrics area uncluttered.
                 PlayerSongTitleText(
@@ -703,7 +704,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                     fontSize = 19.sp,
                     fontWeight = FontWeight.ExtraBold,
                     fontFamily = fontFamily,
-                    modifier = Modifier.fillMaxWidth(0.86f)
+                    modifier = Modifier.fillMaxWidth(0.90f)
                 )
                 GlowSeekBar(
                     value = if (duration > 0L) currentPosition.toFloat() / duration.toFloat() else 0f,
@@ -726,7 +727,8 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(top = 16.dp),
+                        // Stay below the status bar, but keep these controls visually higher.
+                        .padding(top = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {

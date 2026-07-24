@@ -1939,6 +1939,8 @@
     <string name="equalizer_speaker_mode_wide">Wide</string>
     <string name="equalizer_speaker_strength">Enhancement strength</string>
     <string name="lyric_timing_editor_word_grid">Word timing</string>
+    <string name="lyric_timing_editor_mode_line">Line</string>
+    <string name="lyric_timing_editor_mode_word">Word</string>
     <string name="lyric_timing_editor_line_text">Original lyrics</string>
     <string name="lyric_timing_editor_pronunciation">Romanization / phonetics</string>
     <string name="lyric_timing_editor_translation">Translation</string>
@@ -1950,4 +1952,5 @@
     <string name="lyric_timing_editor_undo_unavailable">Nothing to undo</string>
     <string name="lyric_timing_editor_redo">Redo</string>
     <string name="lyric_timing_editor_redo_unavailable">Nothing to redo</string>
+    <string name="player_replay_gain_badge">Gain %1$s</string>
 </resources>

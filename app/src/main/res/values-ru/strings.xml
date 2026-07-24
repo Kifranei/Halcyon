@@ -1921,6 +1921,8 @@
     <string name="equalizer_speaker_mode_wide">宽广</string>
     <string name="equalizer_speaker_strength">增强强度</string>
     <string name="lyric_timing_editor_word_grid">逐词时间</string>
+    <string name="lyric_timing_editor_mode_line">Строка</string>
+    <string name="lyric_timing_editor_mode_word">Слово</string>
     <string name="lyric_timing_editor_line_text">原文歌词</string>
     <string name="lyric_timing_editor_pronunciation">音译 / 罗马音</string>
     <string name="lyric_timing_editor_translation">翻译歌词</string>
@@ -1938,4 +1940,5 @@
     <string name="equalizer_panoramic_360_intensity">全景强度</string>
     <string name="equalizer_panoramic_360_azimuth">水平角度</string>
     <string name="equalizer_panoramic_360_elevation">垂直角度</string>
+    <string name="player_replay_gain_badge">Усиление %1$s</string>
 </resources>

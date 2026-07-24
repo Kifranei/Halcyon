@@ -1293,7 +1293,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun scheduleSeekExternalLyricSync(positionMs: Long) {
         if (!lyriconBridge.isEnabled() && !superLyricBridge.isEnabled()) return
         seekExternalLyricSyncJob?.cancel()
-        seekExternalLyricSyncJob = viewModelScope.launch {
+        seekExternalLyricSyncJob = viewModelScope.launch(Dispatchers.IO) {
             delay(SEEK_EXTERNAL_LYRIC_SYNC_DEBOUNCE_MS)
             lyriconBridge.seekTo(positionMs)
             if (!isPlaying.value || !superLyricBridge.isEnabled()) return@launch

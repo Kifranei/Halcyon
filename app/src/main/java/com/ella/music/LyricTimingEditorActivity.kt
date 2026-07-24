@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -402,11 +405,21 @@ private fun LyricTimingEditorScreen(
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
-    Column(Modifier.fillMaxSize().background(pageBackground)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
         EllaSmallTopAppBar(
             title = song.title.ifBlank { song.fileName },
             subtitle = song.artist,
             color = pageBackground,
+            // The activity already consumes the status-bar inset. Avoid applying it again in
+            // the app bar, which previously let the title sit under the system status bar.
+            defaultWindowInsetsPadding = false,
+            titleWindowInsetsPadding = false,
+            titleEndPadding = 152.dp,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back), tint = MiuixTheme.colorScheme.onSurface)
@@ -555,8 +568,16 @@ private fun EditorModeAndFormatBar(
 ) {
     Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            EllaMiuixChip("Line", timingMode == TimingMode.Line, { onTimingModeChange(TimingMode.Line) })
-            EllaMiuixChip("Word", timingMode == TimingMode.Word, { onTimingModeChange(TimingMode.Word) })
+            EllaMiuixChip(
+                stringResource(R.string.lyric_timing_editor_mode_line),
+                timingMode == TimingMode.Line,
+                { onTimingModeChange(TimingMode.Line) }
+            )
+            EllaMiuixChip(
+                stringResource(R.string.lyric_timing_editor_mode_word),
+                timingMode == TimingMode.Word,
+                { onTimingModeChange(TimingMode.Word) }
+            )
             Spacer(Modifier.weight(1f))
             LyricTimingFormat.entries.forEach { format ->
                 EllaMiuixChip(format.name.uppercase(), embedFormat == format, { onEmbedFormatChange(format) }, horizontalPadding = 10.dp)
@@ -722,7 +743,11 @@ private fun TimingTransportBar(
         Row(verticalAlignment = Alignment.CenterVertically) {
             EllaMiuixActionRow(
                 actions = listOf(
-                    EllaMiuixAction(if (isPlaying) "Pause" else "Play", primary = true, onClick = onTogglePlay),
+                    EllaMiuixAction(
+                        stringResource(if (isPlaying) R.string.common_pause else R.string.common_play),
+                        primary = true,
+                        onClick = onTogglePlay
+                    ),
                     EllaMiuixAction("-2s", onClick = onSeekBack),
                     EllaMiuixAction("+2s", onClick = onSeekForward)
                 ),
@@ -748,7 +773,10 @@ private fun TimingTransportBar(
         )
         EllaMiuixActionRow(
             actions = LyricTimingFormat.entries.map { format ->
-                EllaMiuixAction("Export ${format.name.uppercase()}", onClick = { onExport(format) })
+                EllaMiuixAction(
+                    "${stringResource(R.string.common_export)} ${format.name.uppercase()}",
+                    onClick = { onExport(format) }
+                )
             },
             spacing = 6.dp
         )

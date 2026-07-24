@@ -516,14 +516,11 @@ private fun miniPlayerWordProgress(
     val lastWordEndMs = words.maxOfOrNull { it.endMs } ?: return fallback ?: 0f
     if (positionMs >= lastWordEndMs) return 1f
 
-    var cursor = 0
     var highlightedRight = 0f
-    words.forEach { word ->
-        val wordText = word.text
-        if (wordText.isEmpty()) return@forEach
-        val start = text.indexOf(wordText, startIndex = cursor)
-        if (start < 0) return fallback ?: 0f
-        val endExclusive = (start + wordText.length).coerceAtMost(text.length)
+    val wordRanges = miniPlayerWordCharacterRanges(text, words)
+    words.zip(wordRanges).forEach { (word, range) ->
+        val start = range.first
+        val endExclusive = range.last + 1
         if (endExclusive <= start) return@forEach
 
         val wordLeft = textLayout.getBoundingBox(start).left
@@ -539,10 +536,69 @@ private fun miniPlayerWordProgress(
                 )
             }
         }
-        cursor = endExclusive
     }
 
     return (highlightedRight / textLayout.size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+}
+
+/**
+ * Match TTML/ELRC words to the exact text rendered by the mini player. Some sources differ only
+ * in whitespace, punctuation, Unicode apostrophes, or a cleaned display string. Preserve the
+ * timed word path in all of those cases instead of falling back to a whole-line sweep.
+ */
+internal fun miniPlayerWordCharacterRanges(text: String, words: List<LyricWord>): List<IntRange> {
+    if (text.isEmpty() || words.isEmpty()) return emptyList()
+
+    var cursor = 0
+    return words.mapIndexed { index, word ->
+        val match = word.text.takeIf { it.isNotEmpty() }
+            ?.let { text.indexOf(it, startIndex = cursor) }
+            ?.takeIf { it >= 0 }
+            ?.let { start -> MiniPlayerWordMatch(start, start + word.text.length) }
+            ?: findNormalizedWordMatch(text, word.text, cursor)
+        val remainingWords = (words.size - index).coerceAtLeast(1)
+        val start = (match?.start ?: cursor).coerceIn(0, text.length)
+        val endExclusive = if (match != null) {
+            match.endExclusive.coerceIn(start, text.length)
+        } else {
+            // A malformed word token must not demote the entire line to linear highlighting.
+            // Split the remaining displayed characters in source order as a stable fallback.
+            (start + ((text.length - start).toFloat() / remainingWords).toInt().coerceAtLeast(1))
+                .coerceAtMost(text.length)
+        }
+        cursor = endExclusive
+        start until endExclusive
+    }
+}
+
+private data class MiniPlayerWordMatch(val start: Int, val endExclusive: Int)
+
+private fun findNormalizedWordMatch(text: String, word: String, cursor: Int): MiniPlayerWordMatch? {
+    val normalizedWord = word.normalizedMiniLyricToken()
+    if (normalizedWord.isEmpty()) return null
+
+    val compactText = StringBuilder()
+    val originalIndexes = mutableListOf<Int>()
+    for (index in cursor.coerceAtLeast(0) until text.length) {
+        val character = text[index]
+        if (character.isLetterOrDigit()) {
+            compactText.append(character.lowercaseChar())
+            originalIndexes += index
+        }
+    }
+    val compactStart = compactText.indexOf(normalizedWord)
+    if (compactStart < 0) return null
+    val compactEnd = compactStart + normalizedWord.length
+    return MiniPlayerWordMatch(
+        start = originalIndexes[compactStart],
+        endExclusive = originalIndexes[compactEnd - 1] + 1
+    )
+}
+
+private fun String.normalizedMiniLyricToken(): String = buildString {
+    this@normalizedMiniLyricToken.forEach { character ->
+        if (character.isLetterOrDigit()) append(character.lowercaseChar())
+    }
 }
 
 private fun miniMarqueeProgress(

@@ -18,6 +18,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,10 +35,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 internal fun PlayerDismissMotionHost(
@@ -55,6 +54,7 @@ internal fun PlayerDismissMotionHost(
     val latestOnDismiss by rememberUpdatedState(onDismiss)
     val dragDismissOffset = remember { Animatable(0f) }
     var dismissingPlayer by remember { mutableStateOf(false) }
+    var predictiveGestureGeneration by remember { mutableIntStateOf(0) }
     val topDragLimitPx = with(density) { 132.dp.toPx() }
     val dismissThresholdPx = with(density) { 240.dp.toPx() }
     val dismissVelocityThresholdPx = with(density) { 1250.dp.toPx() }
@@ -90,6 +90,7 @@ internal fun PlayerDismissMotionHost(
         onDispose { onDismissProgressChange(0f) }
     }
     PredictiveBackHandler(enabled = backEnabled) { progress ->
+        val gestureGeneration = ++predictiveGestureGeneration
         try {
             dragDismissOffset.stop()
             progress.collect { backEvent ->
@@ -108,7 +109,12 @@ internal fun PlayerDismissMotionHost(
                 latestOnDismiss()
             }
         } catch (_: CancellationException) {
-            withContext(NonCancellable) {
+            // Do not use NonCancellable here. On ColorOS a cancelled predictive gesture can be
+            // followed immediately by another one; a non-cancellable rebound held the handler
+            // on the old gesture and left the player frozen on the system's last preview frame.
+            scope.launch {
+                dragDismissOffset.stop()
+                if (gestureGeneration != predictiveGestureGeneration || dismissingPlayer) return@launch
                 dragDismissOffset.animateTo(
                     targetValue = 0f,
                     animationSpec = spring(

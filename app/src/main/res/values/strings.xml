@@ -928,6 +928,8 @@
     <string name="tag_editor_builtin_custom_tag_summary">用 Halcyon 编辑歌曲元数据</string>
     <string name="tag_editor_builtin_lyric_timing_summary">在 Halcyon 中按播放进度为逐行歌词打轴，并写入歌曲内嵌 LRC</string>
     <string name="lyric_timing_editor_word_grid">逐词时间</string>
+    <string name="lyric_timing_editor_mode_line">逐行</string>
+    <string name="lyric_timing_editor_mode_word">逐词</string>
     <string name="lyric_timing_editor_line_text">原文歌词</string>
     <string name="lyric_timing_editor_pronunciation">音译 / 罗马音</string>
     <string name="lyric_timing_editor_translation">翻译歌词</string>
@@ -963,6 +965,7 @@
     <string name="lyric_timing_editor_export">导出歌词文件</string>
     <string name="lyric_timing_editor_exported">歌词文件已导出</string>
     <string name="lyric_timing_editor_export_failed">无法导出歌词文件</string>
+    <string name="player_replay_gain_badge">增益 %1$s</string>
     <string name="tag_editor_open_failed">无法打开标签编辑器</string>
     <string name="settings_color_white">白色</string>
     <string name="settings_color_silver_gray">银灰</string>

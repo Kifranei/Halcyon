@@ -38,6 +38,7 @@ import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.PlayerQueueListIcon
 import kotlinx.coroutines.launch
+import java.util.Locale
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -179,6 +180,12 @@ internal fun PlayerProgressBlock(
             }
         }.distinct()
     }
+    val replayGainLabel = audioInfo?.replayGainDb?.let { gain ->
+        stringResource(
+            R.string.player_replay_gain_badge,
+            String.format(Locale.US, "%+.2f dB", gain)
+        )
+    }
     androidx.compose.runtime.LaunchedEffect(savedInfoMode, infoLabels.size) {
         infoMode = if (infoLabels.isEmpty()) 0 else savedInfoMode % infoLabels.size
     }
@@ -211,34 +218,50 @@ internal fun PlayerProgressBlock(
                     )
                 }
             }
-            if (infoLabels.isNotEmpty()) {
-                val infoText = infoLabels[infoMode % infoLabels.size]
-                Text(
-                    text = infoText,
-                    fontSize = 12.sp,
-                    color = palette.onBackground.copy(alpha = 0.62f),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(palette.onBackground.copy(alpha = 0.10f))
-                        .pointerInput(infoLabels, bluetoothDeviceName) {
-                            detectTapGestures(
-                                onTap = {
-                                    if (infoLabels.size > 1) {
-                                        val nextMode = (infoMode + 1) % infoLabels.size
-                                        infoMode = nextMode
-                                        scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
+            Row(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (infoLabels.isNotEmpty()) {
+                    val infoText = infoLabels[infoMode % infoLabels.size]
+                    Text(
+                        text = infoText,
+                        fontSize = 12.sp,
+                        color = palette.onBackground.copy(alpha = 0.62f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.onBackground.copy(alpha = 0.10f))
+                            .pointerInput(infoLabels, bluetoothDeviceName) {
+                                detectTapGestures(
+                                    onTap = {
+                                        if (infoLabels.size > 1) {
+                                            val nextMode = (infoMode + 1) % infoLabels.size
+                                            infoMode = nextMode
+                                            scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
+                                        }
+                                    },
+                                    onLongPress = {
+                                        if (!bluetoothDeviceName.isNullOrBlank()) {
+                                            openSystemOutputSwitcher(context)
+                                        }
                                     }
-                                },
-                                onLongPress = {
-                                    if (!bluetoothDeviceName.isNullOrBlank()) {
-                                        openSystemOutputSwitcher(context)
-                                    }
-                                }
-                            )
-                        }
-                        .padding(horizontal = 10.dp, vertical = 3.dp)
-                )
+                                )
+                            }
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    )
+                }
+                replayGainLabel?.let { label ->
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        color = palette.onBackground.copy(alpha = 0.72f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.accent.copy(alpha = 0.16f))
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    )
+                }
             }
             Text(
                 text = if (showTotalDuration || previewProgress != null) {

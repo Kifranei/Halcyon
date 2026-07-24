@@ -66,7 +66,8 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     }
     return AudioQualitySummary(
         compactLabel = compact,
-        detailLabel = detailedAudioInfo(info, bitDepth),
+        // ReplayGain is shown as its own player chip so it never stretches the codec capsule.
+        detailLabel = detailedAudioInfo(info, bitDepth, includeReplayGain = false),
         listTag = tag,
         analyticsLabel = analytics,
         showMobius = isAppleLossless || isSq || isHiRes || isMq
@@ -116,7 +117,11 @@ internal fun dolbyAtmosVariant(raw: String): String? {
     }
 }
 
-private fun detailedAudioInfo(info: AudioInfo, bitDepth: Int): String {
+private fun detailedAudioInfo(
+    info: AudioInfo,
+    bitDepth: Int,
+    includeReplayGain: Boolean = true
+): String {
     val parts = mutableListOf<String>()
     val normalizedFormat = normalizedAudioFormat(info.format)
     parts += normalizedFormat.lowercase()
@@ -134,8 +139,10 @@ private fun detailedAudioInfo(info: AudioInfo, bitDepth: Int): String {
     }
     if (bitDepth > 0) parts += "${bitDepth}bits"
     if (info.channels > 0) parts += "${info.channels}ch"
-    info.replayGainDb?.let { gain ->
-        parts += String.format(Locale.US, "%+.2f dB", gain)
+    if (includeReplayGain) {
+        info.replayGainDb?.let { gain ->
+            parts += String.format(Locale.US, "%+.2f dB", gain)
+        }
     }
     return parts.joinToString(" / ")
 }

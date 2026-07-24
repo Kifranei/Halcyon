@@ -39,6 +39,7 @@ fun EllaSmallTopAppBar(
     centeredTitle: Boolean = false,
     titleStartPadding: Dp = 64.dp,
     titleEndPadding: Dp = 128.dp,
+    titleWindowInsetsPadding: Boolean = true,
     bottomContent: @Composable () -> Unit = {},
 ) {
     if (centeredTitle) {
@@ -88,7 +89,7 @@ fun EllaSmallTopAppBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopStart)
-                .windowInsetsPadding(WindowInsets.systemBars)
+                .then(if (titleWindowInsetsPadding) Modifier.windowInsetsPadding(WindowInsets.systemBars) else Modifier)
                 .padding(start = titleStartPadding, end = titleEndPadding, top = 12.dp)
         )
     }
