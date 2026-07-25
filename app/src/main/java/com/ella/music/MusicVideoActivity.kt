@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -107,10 +108,13 @@ import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.icon.extended.Trim
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Mic
+import top.yukonga.miuix.kmp.icon.basic.Check
 
 /** Independent, audible MV player used exclusively by the song-detail MV action. */
 class MusicVideoActivity : ComponentActivity() {
     internal var activePlayer: ExoPlayer? = null
+    private var landscapeImmersive = false
+    private var resumeAfterArtistNavigation = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -145,7 +149,43 @@ class MusicVideoActivity : ComponentActivity() {
         super.onStop()
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && landscapeImmersive) applyLandscapeImmersiveMode()
+    }
+
+    internal fun setLandscapeImmersive(enabled: Boolean) {
+        landscapeImmersive = enabled
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (enabled) applyLandscapeImmersiveMode()
+        else WindowCompat.getInsetsController(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+    }
+
+    private fun applyLandscapeImmersiveMode() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    internal fun pauseForArtistNavigation() {
+        resumeAfterArtistNavigation = true
+        activePlayer?.pause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (resumeAfterArtistNavigation) {
+            resumeAfterArtistNavigation = false
+            activePlayer?.play()
+        }
+    }
+
     override fun onDestroy() {
+        landscapeImmersive = false
+        WindowCompat.getInsetsController(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
         activePlayer?.release()
         activePlayer = null
         super.onDestroy()
@@ -177,6 +217,7 @@ private fun DetailMusicVideoScreen(
     var controlsLocked by remember { mutableStateOf(false) }
     var captionOffset by remember { mutableStateOf<Offset?>(null) }
     var showCaptureActions by remember { mutableStateOf(false) }
+    var controlsVisible by remember { mutableStateOf(true) }
     val captureSubtitles by SettingsManager.getInstance(context).musicVideoCaptureSubtitles.collectAsState(initial = false)
     val repository = remember(context) { MusicRepository.getInstance(context) }
     val lyricsNeeded = captionsEnabled || ktvLyricsEnabled
@@ -240,21 +281,19 @@ private fun DetailMusicVideoScreen(
         } else {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
-        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
-        WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
-            if (landscape) {
-                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                hide(WindowInsetsCompat.Type.systemBars())
-            } else {
-                show(WindowInsetsCompat.Type.systemBars())
-            }
+        controlsVisible = true
+        activity.setLandscapeImmersive(landscape)
+    }
+    LaunchedEffect(landscape, controlsVisible, isPlaying) {
+        if (landscape && controlsVisible && isPlaying) {
+            delay(3_000L)
+            controlsVisible = false
         }
     }
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-                .show(WindowInsetsCompat.Type.systemBars())
+            activity.setLandscapeImmersive(false)
         }
     }
     val captionsAvailable = song.duration > 0L && duration > 0L && abs(song.duration - duration) <= 10_000L
@@ -278,6 +317,7 @@ private fun DetailMusicVideoScreen(
                 accompanimentEnabled = accompanimentEnabled,
                 controlsLocked = controlsLocked,
                 captionOffset = captionOffset,
+                controlsVisible = controlsVisible,
                 onBack = { player.pause(); onBack() },
                 onTogglePlay = { if (player.isPlaying) player.pause() else player.play() },
                 onSeek = { player.seekTo(it) },
@@ -294,7 +334,8 @@ private fun DetailMusicVideoScreen(
                 onToggleLock = { controlsLocked = !controlsLocked },
                 onPortrait = { landscape = false },
                 onCapture = { showCaptureActions = true },
-                onShare = { MusicVideoLauncher.share(context, source, song.title) }
+                onShare = { MusicVideoLauncher.share(context, source, song.title) },
+                onControlsVisibleChange = { controlsVisible = it }
             )
         } else {
             PortraitMusicVideoLayout(
@@ -318,18 +359,22 @@ private fun DetailMusicVideoScreen(
                 },
                 onDismiss = { showCaptureActions = false },
                 onSave = {
+                    val capturePosition = player.currentPosition
+                    val captureLyrics = lyrics
                     activity.lifecycleScope.launch {
                         val saved = withContext(Dispatchers.IO) {
-                            captureVideoFrame(context, source, player.currentPosition, captureSubtitles, lyrics)
+                            captureVideoFrame(context, source, capturePosition, captureSubtitles, captureLyrics)
                         }
                         Toast.makeText(context, if (saved) R.string.music_video_capture_saved else R.string.music_video_capture_failed, Toast.LENGTH_SHORT).show()
                     }
                     showCaptureActions = false
                 },
                 onShare = {
+                    val capturePosition = player.currentPosition
+                    val captureLyrics = lyrics
                     activity.lifecycleScope.launch {
                         val file = withContext(Dispatchers.IO) {
-                            captureVideoFrameFile(context, source, player.currentPosition, captureSubtitles, lyrics)
+                            captureVideoFrameFile(context, source, capturePosition, captureSubtitles, captureLyrics)
                         }
                         if (file != null) MusicVideoLauncher.share(context, Uri.fromFile(file), song.title)
                     }
@@ -398,6 +443,7 @@ private fun LandscapeMusicVideoLayout(
     accompanimentEnabled: Boolean,
     controlsLocked: Boolean,
     captionOffset: Offset?,
+    controlsVisible: Boolean,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -408,23 +454,33 @@ private fun LandscapeMusicVideoLayout(
     onToggleLock: () -> Unit,
     onPortrait: () -> Unit,
     onCapture: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onControlsVisibleChange: (Boolean) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         VideoSurface(
             player = player,
+            modifier = Modifier.fillMaxSize()
+        )
+        // Keep the whole view tappable; controls sit above this layer and retain their own actions.
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(onTogglePlay) { detectTapGestures(onDoubleTap = { onTogglePlay() }) }
+                .pointerInput(onTogglePlay, controlsVisible) {
+                    detectTapGestures(
+                        onTap = { onControlsVisibleChange(!controlsVisible) },
+                        onDoubleTap = { onTogglePlay() }
+                    )
+                }
         )
-        if (ktvLyricsEnabled) {
+        if (controlsVisible && ktvLyricsEnabled) {
             MusicVideoKtvLyrics(
                 lyrics = lyrics,
                 position = position,
                 videoAspectRatio = videoAspectRatio,
                 modifier = Modifier.fillMaxSize()
             )
-        } else if (captionsEnabled) {
+        } else if (controlsVisible && captionsEnabled) {
             MusicVideoCaptions(
                 lyrics = lyrics,
                 position = position,
@@ -435,7 +491,7 @@ private fun LandscapeMusicVideoLayout(
                 modifier = Modifier.fillMaxSize()
             )
         }
-        if (!controlsLocked) {
+        if (controlsVisible && !controlsLocked) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -447,7 +503,13 @@ private fun LandscapeMusicVideoLayout(
                     VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
                     Text(song.title.ifBlank { song.fileName }, color = ComposeColor.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
                     ArtistChip(song = song)
-                    VideoIconButton(MiuixIcons.Regular.Share, stringResource(R.string.common_share), onShare)
+                    IconButton(onClick = onShare) {
+                        com.ella.music.ui.player.QuickActionIcon(
+                            kind = com.ella.music.ui.player.PlayerQuickActionKind.Share,
+                            color = ComposeColor.White,
+                            modifier = Modifier.size(25.dp)
+                        )
+                    }
                     IconButton(onClick = onPortrait) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(R.drawable.ic_music_video_landscape),
@@ -464,25 +526,22 @@ private fun LandscapeMusicVideoLayout(
                     duration = duration,
                     onTogglePlay = onTogglePlay,
                     onSeek = onSeek,
+                    secondaryTrailingLabel = stringResource(R.string.music_video_accompaniment),
+                    onSecondaryTrailing = onToggleAccompaniment,
+                    secondaryTrailingSelected = accompanimentEnabled,
                     trailingLabel = stringResource(R.string.music_video_captions),
                     onTrailing = onToggleCaptions,
                     trailingSelected = captionsEnabled,
                     showTrailing = captionsAvailable
                 )
             }
-            Row(
+            Column(
                 modifier = Modifier
-                    .align(Alignment.Center)
+                    .align(Alignment.CenterEnd)
                     .windowInsetsPadding(WindowInsets.displayCutout)
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(end = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                VideoTextButton(
-                    text = stringResource(R.string.music_video_accompaniment),
-                    onClick = onToggleAccompaniment,
-                    selected = accompanimentEnabled
-                )
                 VideoIconButton(
                     MiuixIcons.Regular.Mic,
                     stringResource(R.string.music_video_ktv),
@@ -491,7 +550,7 @@ private fun LandscapeMusicVideoLayout(
                 )
                 VideoIconButton(MiuixIcons.Regular.Trim, stringResource(R.string.music_video_capture), onCapture)
             }
-        } else {
+        } else if (controlsVisible) {
             VideoTextButton(
                 text = stringResource(R.string.music_video_unlock),
                 onClick = onToggleLock,
@@ -570,6 +629,9 @@ private fun VideoTransport(
     duration: Long,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
+    secondaryTrailingLabel: String? = null,
+    onSecondaryTrailing: (() -> Unit)? = null,
+    secondaryTrailingSelected: Boolean = false,
     trailingLabel: String,
     trailingIconRes: Int? = null,
     onTrailing: () -> Unit,
@@ -589,6 +651,14 @@ private fun VideoTransport(
                 .padding(horizontal = 8.dp)
         )
         Text(duration.formatVideoTime(), color = ComposeColor.White.copy(alpha = 0.85f), fontSize = 12.sp)
+        if (secondaryTrailingLabel != null && onSecondaryTrailing != null) {
+            VideoTextButton(
+                secondaryTrailingLabel,
+                onSecondaryTrailing,
+                selected = secondaryTrailingSelected,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
         if (trailingIconRes != null) {
             IconButton(onClick = onTrailing, modifier = Modifier.padding(start = 8.dp)) {
                 Icon(
@@ -744,12 +814,57 @@ private fun CaptureChoiceOverlay(
     Box(modifier = Modifier.fillMaxSize().background(ComposeColor.Black.copy(alpha = 0.58f)).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
         Column(modifier = Modifier.width(260.dp).clip(RoundedCornerShape(20.dp)).background(ComposeColor(0xFF252833)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.music_video_capture), color = ComposeColor.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            VideoTextButton(if (includeCaptions) stringResource(R.string.music_video_capture_with_captions) else stringResource(R.string.music_video_capture_without_captions), { onIncludeCaptionsChange(!includeCaptions) }, selected = includeCaptions)
+            CaptureCaptionCheckbox(
+                checked = includeCaptions,
+                label = stringResource(R.string.music_video_capture_with_captions),
+                onCheckedChange = onIncludeCaptionsChange
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 VideoTextButton(stringResource(R.string.common_save), onSave, modifier = Modifier.weight(1f))
                 VideoTextButton(stringResource(R.string.common_share), onShare, modifier = Modifier.weight(1f))
             }
         }
+    }
+}
+
+@Composable
+private fun CaptureCaptionCheckbox(
+    checked: Boolean,
+    label: String,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val activeColor = ComposeColor(0xFF4D7CFE)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(if (checked) activeColor else ComposeColor.Transparent)
+                .border(1.5.dp, if (checked) activeColor else ComposeColor.White.copy(alpha = 0.68f), RoundedCornerShape(5.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) {
+                Icon(
+                    imageVector = MiuixIcons.Basic.Check,
+                    contentDescription = null,
+                    tint = ComposeColor.White,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+        }
+        Text(
+            text = label,
+            color = ComposeColor.White,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(start = 10.dp)
+        )
     }
 }
 
@@ -760,13 +875,11 @@ private fun Long.formatVideoTime(): String {
 
 private fun openArtistFromVideo(context: Context, artist: String) {
     if (artist.isBlank()) return
+    (context as? MusicVideoActivity)?.pauseForArtistNavigation()
     context.startActivity(Intent(context, MainActivity::class.java).apply {
         action = Intent.ACTION_VIEW
         data = Uri.parse("halcyon://artist/${Uri.encode(artist)}")
     })
-    // Artist navigation leaves the MV route permanently, so release its decoder rather than
-    // leaving a paused activity and surface in the back stack.
-    (context as? MusicVideoActivity)?.finish()
 }
 
 private fun captureVideoFrame(

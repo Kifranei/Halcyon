@@ -148,7 +148,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Photos
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun PlayerScreen(
@@ -324,15 +323,9 @@ fun PlayerScreen(
     fun requestDeleteSong(targetSong: Song) {
         uiState.deleteConfirmSong = targetSong
     }
-    val playerBackgroundTheme by settingsManager.playerBackgroundTheme
-        .collectAsState(initial = SettingsManager.PLAYER_BG_THEME_FOLLOW_SYSTEM)
-    val playerLight = when (playerBackgroundTheme) {
-        SettingsManager.PLAYER_BG_THEME_LIGHT -> true
-        SettingsManager.PLAYER_BG_THEME_DARK -> false
-        // Follow the app's effective theme (which itself follows the system or an in-app override),
-        // not the raw OS dark mode, so the player tracks an in-app light/dark switch too.
-        else -> MiuixTheme.colorScheme.background.luminance() >= 0.5f
-    }
+    // The cover-derived flow always starts from a dark surface. It preserves readable white text
+    // above bright artwork while still exposing the cover palette through accents and progress.
+    val playerLight = false
     val songPresentation = rememberPlayerSongPresentationState(
         context = context,
         song = song,
@@ -550,7 +543,9 @@ fun PlayerScreen(
                         dynamicCoverEnabled = dynamicCoverEnabled,
                         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
                         musicVideoSyncEnabled = musicVideoSyncEnabled,
-                        musicVideoVisible = uiState.musicVideoVisible,
+                        // The landscape host owns its MV decoder while expanded. Keeping the
+                        // portrait surface composed underneath created a second video pipeline.
+                        musicVideoVisible = uiState.musicVideoVisible && !landscapeState.expanded,
                         onMusicVideoVisibleChange = { visible ->
                             if (!musicVideoSyncEnabled) {
                                 uiState.musicVideoVisible = false
@@ -565,6 +560,7 @@ fun PlayerScreen(
                             if (musicVideoSyncEnabled) {
                                 uiState.musicVideoVisible = true
                                 landscapeState.coverMode = true
+                                landscapeState.openedFromMusicVideo = true
                                 landscapeState.expanded = true
                             }
                         },
@@ -654,7 +650,14 @@ fun PlayerScreen(
                         onPlaylistPickerSongChange = { uiState.playlistPickerSong = it },
                         onPlaylistPickerSongsChange = { uiState.playlistPickerSongs = it },
                         onLandscapeCoverModeChange = { landscapeState.coverMode = it },
-                        onLandscapeExpandedChange = { landscapeState.expanded = it },
+                        onLandscapeExpandedChange = {
+                            // The More-menu landscape action is a cover player, never an MV.
+                            if (it) {
+                                uiState.musicVideoVisible = false
+                                landscapeState.openedFromMusicVideo = false
+                            }
+                            landscapeState.expanded = it
+                        },
                         onSongInfoExpandedChange = { uiState.songInfoExpanded = it },
                         onRatingSheetSongChange = { uiState.ratingSheetSong = it },
                         onAiSheetSongChange = { uiState.aiSheetSong = it },
@@ -777,6 +780,7 @@ fun PlayerScreen(
                 dynamicCoverCustomFolders = dynamicCoverCustomFolders,
                 musicVideoEnabled = musicVideoSyncEnabled,
                 musicVideoVisible = uiState.musicVideoVisible,
+                hideNeighborCoversInitially = landscapeState.openedFromMusicVideo,
                 song = song,
                 embeddedCover = embeddedCover,
                 paletteBitmap = paletteBitmap,
@@ -857,6 +861,7 @@ fun PlayerScreen(
                 onDismiss = {
                     landscapeState.expanded = false
                     landscapeState.coverMode = false
+                    landscapeState.openedFromMusicVideo = false
                 }
             )
           }

@@ -486,12 +486,12 @@ internal fun CoverPlayerPage(
                             duration,
                             isPlaying
                         ) {
-                            resolvedMusicVideo?.let { source ->
+                            if (musicVideoVisible) resolvedMusicVideo?.let { source ->
                                 MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
                             }
                         }
                         // Keep MV silent and on the audio clock while its surface is hidden.
-                        resolvedMusicVideo?.let { source ->
+                        if (musicVideoVisible) resolvedMusicVideo?.let { source ->
                             DynamicCoverVideo(
                                 source = source,
                                 isPlaying = isPlaying,
@@ -706,7 +706,7 @@ internal fun CoverPlayerPage(
                                 isPlaying = isPlaying,
                                 positionMs = currentPosition,
                                 opacity = visualizerOpacity,
-                                accent = pagePalette.onBackground.copy(alpha = 0.86f),
+                                accent = pagePalette.accent.copy(alpha = 0.88f),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(30.dp)
@@ -774,12 +774,12 @@ internal fun CoverPlayerPage(
                                 duration,
                                 isPlaying
                             ) {
-                                resolvedMusicVideo?.let { source ->
+                                if (musicVideoVisible) resolvedMusicVideo?.let { source ->
                                     MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
                                 }
                             }
                             // Keep MV silent and synchronized behind the current cover.
-                            resolvedMusicVideo?.let { source ->
+                            if (musicVideoVisible) resolvedMusicVideo?.let { source ->
                                 DynamicCoverVideo(
                                     source = source,
                                     isPlaying = isPlaying,
@@ -935,6 +935,7 @@ internal fun CoverPlayerPage(
                             onTimer = onOpenTimer,
                             onEditMetadata = onOpenMetadataEditor,
                             onMore = onToggleMenu,
+                            accent = pagePalette.accent,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(12.dp))

@@ -97,6 +97,7 @@ internal fun LandscapeCoverPlaybackOverlay(
     coverSwipeEnabled: Boolean,
     flowEffectMode: Int,
     beautifulLyricsBackground: Boolean,
+    hideNeighborCoversInitially: Boolean,
     onDynamicCoverFailed: (String) -> Unit,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
@@ -133,7 +134,10 @@ internal fun LandscapeCoverPlaybackOverlay(
     val dragOffset = remember { Animatable(0f) }
     var coverControlsVisible by remember(songKey) { mutableStateOf(false) }
     var coverControlsInteraction by remember(songKey) { mutableStateOf(0) }
-    var hideNeighborCovers by remember(songKey) { mutableStateOf(false) }
+    // Entering through the cover's MV rotation starts in the focused, Spotify-like layout.
+    var hideNeighborCovers by remember(songKey, hideNeighborCoversInitially) {
+        mutableStateOf(hideNeighborCoversInitially)
+    }
     var ktvLyricsEnabled by remember(songKey) { mutableStateOf(false) }
     LaunchedEffect(coverControlsVisible, coverControlsInteraction) {
         if (coverControlsVisible) {
@@ -397,7 +401,7 @@ internal fun LandscapeCoverPlaybackOverlay(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 26.dp, start = 28.dp),
+                    .padding(top = 12.dp, start = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 LandscapeOverlayIconButton(

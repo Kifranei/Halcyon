@@ -43,6 +43,7 @@ internal fun PlayerQuickActionRow(
     onTimer: () -> Unit,
     onEditMetadata: () -> Unit,
     onMore: () -> Unit,
+    accent: Color? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -50,11 +51,11 @@ internal fun PlayerQuickActionRow(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        PlayerQuickAction(stringResource(R.string.player_quick_info), PlayerQuickActionKind.Info, onSongInfo)
-        PlayerQuickAction(stringResource(R.string.player_quick_share), PlayerQuickActionKind.Share, onShareSong)
-        PlayerQuickAction(stringResource(R.string.player_quick_timer), PlayerQuickActionKind.Timer, onTimer)
-        PlayerQuickAction(stringResource(R.string.player_quick_edit), PlayerQuickActionKind.Edit, onEditMetadata)
-        PlayerQuickAction(stringResource(R.string.player_quick_more), PlayerQuickActionKind.More, onMore)
+        PlayerQuickAction(stringResource(R.string.player_quick_info), PlayerQuickActionKind.Info, onSongInfo, accent)
+        PlayerQuickAction(stringResource(R.string.player_quick_share), PlayerQuickActionKind.Share, onShareSong, accent)
+        PlayerQuickAction(stringResource(R.string.player_quick_timer), PlayerQuickActionKind.Timer, onTimer, accent)
+        PlayerQuickAction(stringResource(R.string.player_quick_edit), PlayerQuickActionKind.Edit, onEditMetadata, accent)
+        PlayerQuickAction(stringResource(R.string.player_quick_more), PlayerQuickActionKind.More, onMore, accent)
     }
 }
 
@@ -74,7 +75,8 @@ internal enum class PlayerQuickActionKind {
 internal fun PlayerQuickAction(
     label: String,
     kind: PlayerQuickActionKind,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    accent: Color? = null
 ) {
     Box(
         contentAlignment = Alignment.Center,
@@ -90,7 +92,7 @@ internal fun PlayerQuickAction(
         ) {
             QuickActionIcon(
                 kind = kind,
-                color = LocalPlayerContentColor.current.copy(alpha = 0.9f),
+                color = accent ?: LocalPlayerContentColor.current.copy(alpha = 0.9f),
                 modifier = Modifier.size(19.dp)
             )
         }

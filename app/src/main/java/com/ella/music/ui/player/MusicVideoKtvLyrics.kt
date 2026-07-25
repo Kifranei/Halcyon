@@ -1,8 +1,7 @@
 package com.ella.music.ui.player
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +22,10 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.primaryEndMs
 import top.yukonga.miuix.kmp.basic.Text
 
-/** KTV-style current and upcoming lyrics, aligned to the same fitted video frame as PlayerView. */
+/**
+ * KTV lyrics reserve the lower video frame for the line being sung and keep the next line above
+ * it. This avoids obscuring the picture with a conventional centered lyric stack.
+ */
 @Composable
 internal fun MusicVideoKtvLyrics(
     lyrics: List<LyricLine>,
@@ -41,30 +43,43 @@ internal fun MusicVideoKtvLyrics(
             videoAspectRatio >= screenRatio -> Modifier.fillMaxWidth().aspectRatio(videoAspectRatio)
             else -> Modifier.fillMaxHeight().aspectRatio(videoAspectRatio)
         }.align(Alignment.Center)
-        Column(
-            modifier = frameModifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 42.dp, vertical = 38.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Box(
+            modifier = frameModifier.align(Alignment.Center)
         ) {
-            KtvLyricLine(line = current, nextLine = next, position = position)
-            next?.takeIf { it.text.isNotBlank() }?.let {
+            next?.takeIf { it.text.isNotBlank() }?.let { nextLine ->
                 Text(
-                    text = it.text,
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 23.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    text = nextLine.text,
+                    color = Color.White.copy(alpha = 0.94f),
+                    fontSize = 27.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.End,
+                    maxLines = 2,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .fillMaxWidth(0.72f)
+                        .padding(end = 38.dp, bottom = 108.dp)
                 )
             }
+            KtvLyricLine(
+                line = current,
+                nextLine = next,
+                position = position,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(0.82f)
+                    .padding(start = 38.dp, bottom = 38.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun KtvLyricLine(line: LyricLine, nextLine: LyricLine?, position: Long) {
+private fun KtvLyricLine(
+    line: LyricLine,
+    nextLine: LyricLine?,
+    position: Long,
+    modifier: Modifier = Modifier
+) {
     val text = line.text.ifBlank { line.backgroundText.orEmpty() }
     if (text.isBlank()) return
     val completedWordCount = line.words.count { it.endMs <= position }
@@ -73,23 +88,31 @@ private fun KtvLyricLine(line: LyricLine, nextLine: LyricLine?, position: Long) 
     val annotated = buildAnnotatedString {
         if (hasWordTiming) {
             line.words.forEachIndexed { index, word ->
-                withStyle(SpanStyle(color = if (index < completedWordCount) Color(0xFF62E968) else Color.White)) {
+                withStyle(SpanStyle(color = if (index < completedWordCount) Color(0xFFFFE600) else Color(0xFF2F6BFF))) {
                     append(word.text)
                 }
             }
         } else {
             val end = line.primaryEndMs(nextLine)
-            withStyle(SpanStyle(color = if (position >= end) Color(0xFF62E968) else Color.White)) {
-                append(text)
+            val progress = ((position - line.timeMs).toFloat() / (end - line.timeMs).coerceAtLeast(1L))
+                .coerceIn(0f, 1f)
+            val split = (text.length * progress).toInt().coerceIn(0, text.length)
+            withStyle(SpanStyle(color = Color(0xFFFFE600))) { append(text.take(split)) }
+            withStyle(SpanStyle(color = Color(0xFF2F6BFF))) { append(text.drop(split)) }
+            if (text.isEmpty()) {
+                withStyle(SpanStyle(color = Color(0xFF2F6BFF))) {
+                    append(text)
+                }
             }
         }
     }
     Text(
         text = annotated,
         color = Color.White,
-        fontSize = 31.sp,
+        fontSize = 43.sp,
         fontWeight = FontWeight.ExtraBold,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
+        textAlign = TextAlign.Start,
+        maxLines = 2,
+        modifier = modifier
     )
 }

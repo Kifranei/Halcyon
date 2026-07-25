@@ -24,6 +24,7 @@ internal fun PlayerLandscapeOverlayHost(
     dynamicCoverCustomFolders: List<String>,
     musicVideoEnabled: Boolean,
     musicVideoVisible: Boolean,
+    hideNeighborCoversInitially: Boolean,
     song: Song?,
     embeddedCover: Bitmap?,
     paletteBitmap: Bitmap?,
@@ -171,6 +172,7 @@ internal fun PlayerLandscapeOverlayHost(
             coverSwipeEnabled = coverSwipeEnabled,
             flowEffectMode = flowEffectMode,
             beautifulLyricsBackground = beautifulLyricsBackground,
+            hideNeighborCoversInitially = hideNeighborCoversInitially,
             onDynamicCoverFailed = onDynamicCoverFailed,
             isFavorite = isFavorite,
             onToggleFavorite = onToggleFavorite,
@@ -183,7 +185,14 @@ internal fun PlayerLandscapeOverlayHost(
             onCyclePlaybackMode = onCyclePlaybackMode,
             onPrevious = onPrevious,
             onSwipePrevious = onSwipePrevious,
-            onPlayPause = onPlayPause,
+            onPlayPause = {
+                // The MV uses its own silent decoder. Pause it immediately rather than waiting
+                // for the audio state to propagate through the player view model.
+                if (musicVideoVisible) {
+                    MusicVideoPlaybackBridge.setPlaying(landscapeDynamicCoverSource, !isPlaying)
+                }
+                onPlayPause()
+            },
             onNext = onNext,
             onQueueSongClick = onQueueSongClick,
             onRemoveQueueSong = onRemoveQueueSong,

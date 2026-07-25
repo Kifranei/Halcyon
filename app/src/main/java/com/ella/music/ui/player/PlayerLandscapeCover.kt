@@ -528,7 +528,7 @@ internal fun LandscapeCoverPlayerPage(
             isPlaying = isPlaying,
             positionMs = currentPosition,
             opacity = visualizerOpacity,
-            accent = palette.onBackground.copy(alpha = 0.72f),
+            accent = palette.accent.copy(alpha = 0.78f),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
