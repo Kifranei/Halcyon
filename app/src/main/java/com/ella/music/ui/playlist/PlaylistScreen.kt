@@ -6,6 +6,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -113,6 +117,7 @@ fun PlaylistScreen(
     var selectionMode by remember { mutableStateOf(false) }
     var selectedPlaylistIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var draggedPlaylistId by remember { mutableStateOf<String?>(null) }
+    var pressedDragHandlePlaylistId by remember { mutableStateOf<String?>(null) }
     var showExportAllFormatSheet by remember { mutableStateOf(false) }
     var pendingExportAllFormat by remember { mutableStateOf<PlaylistExportFormat?>(null) }
     var playlistMenuTarget by remember { mutableStateOf<UserPlaylist?>(null) }
@@ -681,11 +686,23 @@ fun PlaylistScreen(
                         state = reorderableLazyListState,
                         key = playlist.id
                     ) { isDragging ->
+                        // The reorder handle must not turn an unselected row into a selection.
                         val dragHandleModifier = Modifier
+                            .pointerInput(playlist.id) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    pressedDragHandlePlaylistId = playlist.id
+                                    waitForUpOrCancellation()
+                                    if (pressedDragHandlePlaylistId == playlist.id) {
+                                        pressedDragHandlePlaylistId = null
+                                    }
+                                }
+                            }
                             .draggableHandle(
                                 onDragStarted = { draggedPlaylistId = playlist.id },
                                 onDragStopped = {
                                     draggedPlaylistId = null
+                                    pressedDragHandlePlaylistId = null
                                     persistManualPlaylistOrder()
                                 }
                             )
@@ -693,6 +710,7 @@ fun PlaylistScreen(
                                 onDragStarted = { draggedPlaylistId = playlist.id },
                                 onDragStopped = {
                                     draggedPlaylistId = null
+                                    pressedDragHandlePlaylistId = null
                                     persistManualPlaylistOrder()
                                 }
                             )
@@ -715,6 +733,7 @@ fun PlaylistScreen(
                                 null
                             } else {
                                 {
+                                    if (pressedDragHandlePlaylistId == playlist.id) return@PlaylistRow
                                     if (selectionMode) {
                                         if (shouldSelectPlaylistOnLongPress(true, playlist.id in selectedPlaylistIds)) {
                                             togglePlaylistSelection(playlist)

@@ -92,6 +92,7 @@ import com.ella.music.viewmodel.PlayerViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -115,6 +116,12 @@ import top.yukonga.miuix.kmp.icon.basic.Search
 import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private data class FolderPlaylistSortAnchor(
+    val playlistId: String,
+    val offset: Int,
+    val targetSortMode: FolderPlaylistSortMode
+)
 
 @Composable
 fun FolderPlaylistsScreen(
@@ -183,7 +190,7 @@ fun FolderPlaylistsScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingBulkDelete by remember { mutableStateOf<List<FolderPlaylist>?>(null) }
-    var pendingSortAnchor by remember { mutableStateOf<Triple<String, Int, FolderPlaylistSortMode>?>(null) }
+    var pendingSortAnchor by remember { mutableStateOf<FolderPlaylistSortAnchor?>(null) }
     val userPlaylists by mainViewModel.playlists.collectAsState()
 
     val songCountMap = remember(playlists, songs) {
@@ -271,11 +278,15 @@ fun FolderPlaylistsScreen(
         songs.songsForFolderPlaylist(playlist.folders)
 
     fun preserveListAnchorForSortChange(mode: FolderPlaylistSortMode) {
-        val anchorId = filteredPlaylists.getOrNull(listState.firstVisibleItemIndex)?.id
+        // LazyColumn may already be reconciling an earlier sort when the menu is tapped. Its
+        // visible key is stable across every ordering, unlike firstVisibleItemIndex.
+        val anchorId = listState.layoutInfo.visibleItemsInfo
+            .firstOrNull()
+            ?.key as? String
+            ?: filteredPlaylists.getOrNull(listState.firstVisibleItemIndex)?.id
         val anchorOffset = listState.firstVisibleItemScrollOffset
-        // Wait for the selected sort mode to reach the list before restoring the anchor. Without
-        // the target mode, the effect can run against the old order and clear the pending anchor.
-        pendingSortAnchor = anchorId?.let { Triple(it, anchorOffset, mode) }
+        // Keep the same card under the reader after sorting rather than retaining a raw index.
+        pendingSortAnchor = anchorId?.let { FolderPlaylistSortAnchor(it, anchorOffset, mode) }
         LibrarySortUiState.pendingFolderPlaylistListSortIndex = mode.ordinal
         LibrarySortUiState.folderPlaylistListSortIndex = mode.ordinal
         scope.launch {
@@ -284,11 +295,16 @@ fun FolderPlaylistsScreen(
     }
 
     androidx.compose.runtime.LaunchedEffect(filteredPlaylists, pendingSortAnchor, sortMode) {
-        val (anchorId, anchorOffset, targetSortMode) = pendingSortAnchor ?: return@LaunchedEffect
-        if (sortMode != targetSortMode) return@LaunchedEffect
-        filteredPlaylists.indexOfFirst { it.id == anchorId }
+        val anchor = pendingSortAnchor ?: return@LaunchedEffect
+        if (sortMode != anchor.targetSortMode) return@LaunchedEffect
+        // Sorting changes the item order during LazyColumn's next layout. Restore after that
+        // layout has committed; otherwise its own key reconciliation can overwrite the seek and
+        // place the list at its end (#374).
+        androidx.compose.runtime.withFrameNanos { }
+        androidx.compose.runtime.withFrameNanos { }
+        filteredPlaylists.indexOfFirst { it.id == anchor.playlistId }
             .takeIf { it >= 0 }
-            ?.let { index -> listState.scrollToItem(index, anchorOffset) }
+            ?.let { index -> listState.scrollToItem(index, anchor.offset) }
         pendingSortAnchor = null
     }
 

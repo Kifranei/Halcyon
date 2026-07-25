@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,9 +59,8 @@ import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.Song
-import com.ella.music.ui.components.EllaMiuixAction
-import com.ella.music.ui.components.EllaMiuixActionRow
 import com.ella.music.ui.components.EllaMiuixChip
+import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.LyricTimingEditorLauncher
@@ -88,6 +88,13 @@ import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.File
+import top.yukonga.miuix.kmp.icon.extended.Pause
+import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.extended.Undo
+import top.yukonga.miuix.kmp.icon.extended.Redo
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class LyricTimingEditorActivity : ComponentActivity() {
@@ -166,6 +173,7 @@ private fun LyricTimingEditorScreen(
     var embedFormat by remember(song.path) { mutableStateOf(LyricTimingFormat.Ttml) }
     var initialized by remember(song.path) { mutableStateOf(false) }
     var pendingExportFormat by remember(song.path) { mutableStateOf<LyricTimingFormat?>(null) }
+    var showExportFormatDialog by remember(song.path) { mutableStateOf(false) }
     var pendingWriteRetry by remember { mutableStateOf<(suspend () -> Unit)?>(null) }
     var undoSnapshots by remember(song.path) { mutableStateOf(emptyList<List<LyricTimingLine>>()) }
     var redoSnapshots by remember(song.path) { mutableStateOf(emptyList<List<LyricTimingLine>>()) }
@@ -412,27 +420,36 @@ private fun LyricTimingEditorScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = song.title.ifBlank { song.fileName },
-            subtitle = song.artist,
+            title = stringResource(R.string.settings_lyric_timing_editor),
             color = pageBackground,
-            // The activity already consumes the status-bar inset. Avoid applying it again in
-            // the app bar, which previously let the title sit under the system status bar.
             defaultWindowInsetsPadding = false,
             titleWindowInsetsPadding = false,
-            titleEndPadding = 152.dp,
+            titleEndPadding = 120.dp,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back), tint = MiuixTheme.colorScheme.onSurface)
                 }
             },
             actions = {
-                EllaMiuixActionRow(
-                    actions = listOf(
-                        EllaMiuixAction(stringResource(R.string.common_save), primary = true, onClick = { scope.launch { saveTiming() } })
-                    ),
-                    modifier = Modifier.padding(end = 8.dp)
-                )
+                IconButton(onClick = { showExportFormatDialog = true }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Download,
+                        contentDescription = stringResource(R.string.common_export),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                }
+                IconButton(onClick = { scope.launch { saveTiming() } }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Ok,
+                        contentDescription = stringResource(R.string.common_save),
+                        tint = MiuixTheme.colorScheme.primary
+                    )
+                }
             }
+        )
+        EditorSongInfo(
+            title = song.title.ifBlank { song.fileName },
+            artist = song.artist
         )
         EditorModeAndFormatBar(
             timingMode = timingMode,
@@ -522,16 +539,49 @@ private fun LyricTimingEditorScreen(
                 else applyLineStart(moveToNext = true)
             },
             onSetEnd = { if (timingMode == TimingMode.Word) applyWordStart(endWord = true) else applyLineEnd() },
-            onAdjust = ::adjustSelected,
-            onExport = { format ->
-                if (currentLines().any { it.timeMs == null }) {
-                    Toast.makeText(context, R.string.lyric_timing_editor_complete_lines, Toast.LENGTH_SHORT).show()
-                } else {
-                    pendingExportFormat = format
-                    exportLauncher.launch(exportName(format))
+            onAdjust = ::adjustSelected
+        )
+    }
+
+    if (showExportFormatDialog) {
+        EllaMiuixDialog(
+            show = true,
+            title = stringResource(R.string.lyric_timing_editor_export),
+            summary = stringResource(R.string.lyric_timing_editor_embed_format),
+            onDismissRequest = { showExportFormatDialog = false }
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                LyricTimingFormat.entries.forEach { format ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                showExportFormatDialog = false
+                                if (currentLines().any { it.timeMs == null }) {
+                                    Toast.makeText(context, R.string.lyric_timing_editor_complete_lines, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    pendingExportFormat = format
+                                    exportLauncher.launch(exportName(format))
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(format.name.uppercase(), fontWeight = FontWeight.SemiBold)
+                        Icon(
+                            imageVector = MiuixIcons.Regular.File,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
-        )
+        }
     }
 }
 
@@ -541,21 +591,51 @@ private const val MAX_EDITOR_HISTORY = 32
 private fun EditorHistoryBar(canUndo: Boolean, canRedo: Boolean, onUndo: () -> Unit, onRedo: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.End
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        EllaMiuixActionRow(
-            actions = listOf(
-                EllaMiuixAction(
-                    if (canUndo) stringResource(R.string.lyric_timing_editor_undo) else stringResource(R.string.lyric_timing_editor_undo_unavailable),
-                    onClick = { if (canUndo) onUndo() }
-                ),
-                EllaMiuixAction(
-                    if (canRedo) stringResource(R.string.lyric_timing_editor_redo) else stringResource(R.string.lyric_timing_editor_redo_unavailable),
-                    onClick = { if (canRedo) onRedo() }
-                )
-            ),
-            spacing = 6.dp
+        IconButton(onClick = { if (canUndo) onUndo() }) {
+            Icon(
+                MiuixIcons.Regular.Undo,
+                stringResource(R.string.lyric_timing_editor_undo),
+                tint = if (canUndo) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.38f)
+            )
+        }
+        IconButton(onClick = { if (canRedo) onRedo() }) {
+            Icon(
+                MiuixIcons.Regular.Redo,
+                stringResource(R.string.lyric_timing_editor_redo),
+                tint = if (canRedo) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.38f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditorSongInfo(title: String, artist: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 58.dp)
+            .padding(horizontal = 18.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = title,
+            color = MiuixTheme.colorScheme.onSurface,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
+        if (artist.isNotBlank()) {
+            Text(
+                text = artist,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -729,8 +809,7 @@ private fun TimingTransportBar(
     onSetStart: () -> Unit,
     onSetContinuous: () -> Unit,
     onSetEnd: () -> Unit,
-    onAdjust: (Long) -> Unit,
-    onExport: (LyricTimingFormat) -> Unit
+    onAdjust: (Long) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -740,47 +819,83 @@ private fun TimingTransportBar(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            EllaMiuixActionRow(
-                actions = listOf(
-                    EllaMiuixAction(
-                        stringResource(if (isPlaying) R.string.common_pause else R.string.common_play),
-                        primary = true,
-                        onClick = onTogglePlay
-                    ),
-                    EllaMiuixAction("-2s", onClick = onSeekBack),
-                    EllaMiuixAction("+2s", onClick = onSeekForward)
-                ),
-                modifier = Modifier.weight(1f),
-                spacing = 6.dp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EditorTransportTextButton("-2s", onSeekBack)
+            IconButton(onClick = onTogglePlay) {
+                Icon(
+                    imageVector = if (isPlaying) MiuixIcons.Regular.Pause else MiuixIcons.Regular.Play,
+                    contentDescription = stringResource(if (isPlaying) R.string.common_pause else R.string.common_play),
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            EditorTransportTextButton("+2s", onSeekForward)
+            Text(
+                currentPosition.toTimingDisplay(),
+                color = MiuixTheme.colorScheme.onSurface,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 2.dp)
             )
-            Text(currentPosition.toTimingDisplay(), color = MiuixTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
         }
         Slider(
             value = currentPosition.toFloat().coerceIn(0f, duration.coerceAtLeast(1L).toFloat()),
             onValueChange = { onSeekTo(it.toLong().coerceIn(0L, duration.coerceAtLeast(0L))) },
             valueRange = 0f..duration.coerceAtLeast(1L).toFloat()
         )
-        EllaMiuixActionRow(
-            actions = listOf(
-                EllaMiuixAction("-50", onClick = { onAdjust(-50L) }),
-                EllaMiuixAction(stringResource(R.string.lyric_timing_editor_start), primary = lineAvailable, onClick = onSetStart),
-                EllaMiuixAction(stringResource(R.string.lyric_timing_editor_continuous), primary = lineAvailable, onClick = onSetContinuous),
-                EllaMiuixAction(stringResource(R.string.lyric_timing_editor_end), primary = timingMode == TimingMode.Word && wordsAvailable, onClick = onSetEnd),
-                EllaMiuixAction("+50", onClick = { onAdjust(50L) })
-            ),
-            spacing = 6.dp
-        )
-        EllaMiuixActionRow(
-            actions = LyricTimingFormat.entries.map { format ->
-                EllaMiuixAction(
-                    "${stringResource(R.string.common_export)} ${format.name.uppercase()}",
-                    onClick = { onExport(format) }
-                )
-            },
-            spacing = 6.dp
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EditorTransportTextButton("-50", { onAdjust(-50L) })
+            EditorTransportTextButton(
+                stringResource(R.string.lyric_timing_editor_start),
+                onSetStart,
+                primary = lineAvailable,
+                modifier = Modifier.weight(1f)
+            )
+            EditorTransportTextButton(
+                stringResource(R.string.lyric_timing_editor_continuous),
+                onSetContinuous,
+                primary = lineAvailable,
+                modifier = Modifier.weight(1f)
+            )
+            EditorTransportTextButton(
+                stringResource(R.string.lyric_timing_editor_end),
+                onSetEnd,
+                primary = timingMode == TimingMode.Word && wordsAvailable,
+                modifier = Modifier.weight(1f)
+            )
+            EditorTransportTextButton("+50", { onAdjust(50L) })
+        }
     }
+}
+
+@Composable
+private fun EditorTransportTextButton(
+    text: String,
+    onClick: () -> Unit,
+    primary: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        color = if (primary) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (primary) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    )
 }
 
 private val ttmlTagAliases = listOf("TTML LYRICS", "TTML LYRIC", "TTMLLYRICS", "TTMLLYRIC", "TTML")

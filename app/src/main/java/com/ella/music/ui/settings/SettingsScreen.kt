@@ -106,7 +106,7 @@ fun SettingsScreen(
                 .mapNotNull { entry -> entry.matchScore(query)?.let { score -> entry to score } }
                 .sortedWith(compareByDescending<Pair<SettingsSearchEntry, Int>> { it.second }.thenBy { it.first.title })
                 .map { it.first }
-                .distinctBy { it.title }
+                .distinctBy { "${it.title}\\u0000${it.summary}" }
                 .take(24)
         }
     }
@@ -321,6 +321,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "视频封面 动态封面 mp4 MV 文件夹 相册权限") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_player_show_total_duration), stringResource(R.string.settings_player_show_total_duration_summary), "进度条 总时长 剩余时间 播放时间 拖动预览") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_player_tap_seek), stringResource(R.string.settings_player_tap_seek_summary), "进度条 点击 跳转 拖动") { onNavigateToHighlightedAppearanceSettings("appearance") },
+        entry(stringResource(R.string.settings_transport_button_outlines), stringResource(R.string.settings_transport_button_outlines_summary), "播放页 控制 按钮 轮廓 外框 描边") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_player_immersive_cover), stringResource(R.string.settings_player_immersive_cover_summary), "沉浸 播放页 封面 全屏") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_player_cover_content_color), stringResource(R.string.settings_player_cover_content_color_summary), "封面取色 内容 文字 图标 播放页 歌词页 歌曲详情") { onNavigateToHighlightedAppearanceSettings("player_cover_content_color") },
         entry(stringResource(R.string.settings_beautiful_lyrics_background), stringResource(R.string.settings_beautiful_lyrics_background_summary), "Apple Music 动态背景 歌词页 流光 取色") { onNavigateToHighlightedAppearanceSettings("appearance") },
@@ -368,7 +369,65 @@ private fun settingsSearchEntries(
         onLyricPlugins = onNavigateToLyricPluginSources,
         onLogs = onNavigateToLogs,
         onAbout = onNavigateToAbout
+    ) + settingsSearchFallbackEntries(
+        entry = ::entry,
+        onAppearance = onNavigateToHighlightedAppearanceSettings,
+        onHome = onNavigateToHomeDisplaySettings,
+        onLibrary = onNavigateToHighlightedLibrarySettings,
+        onLyrics = onNavigateToHighlightedLyricSettings,
+        onAudio = onNavigateToHighlightedAudioSettings,
+        onBackup = onNavigateToHighlightedBackupSettings,
+        onIntegration = onNavigateToHighlightedIntegrationSettings
     )
+}
+
+/**
+ * Most settings are declared in their own preference sections. Keep a resource-backed safety net
+ * here so a newly added setting cannot silently be omitted from global search again (#376).
+ */
+@Composable
+private fun settingsSearchFallbackEntries(
+    entry: (String, String, String, () -> Unit) -> SettingsSearchEntry,
+    onAppearance: (String) -> Unit,
+    onHome: (String) -> Unit,
+    onLibrary: (String) -> Unit,
+    onLyrics: (String) -> Unit,
+    onAudio: (String) -> Unit,
+    onBackup: (String) -> Unit,
+    onIntegration: (String) -> Unit
+): List<SettingsSearchEntry> {
+    val resources = LocalContext.current.resources
+    return R.string::class.java.fields
+        .asSequence()
+        .mapNotNull { field ->
+            val name = field.name
+            if (!name.startsWith("settings_") || name.endsWith("_summary")) return@mapNotNull null
+            val id = runCatching { field.getInt(null) }.getOrNull() ?: return@mapNotNull null
+            val title = runCatching { resources.getString(id) }.getOrNull()?.trim().orEmpty()
+            if (title.isBlank() || title.contains("%")) return@mapNotNull null
+            val route = when {
+                name.contains("backup") -> { { onBackup("backup_settings") } }
+                name.contains("openai") || name.contains("mcp") || name.contains("lastfm") ||
+                    name.contains("ai_") -> { { onIntegration("ai") } }
+                name.contains("lyric") || name.contains("desktop") || name.contains("status_") ||
+                    name.contains("coloros") || name.contains("flyme") -> { { onLyrics("lyric_basic") } }
+                name.contains("audio") || name.contains("decoder") || name.contains("usb") ||
+                    name.contains("crossfade") || name.contains("replay") || name.contains("gapless") ||
+                    name.contains("shuffle") || name.contains("playback") || name.contains("previous_button") ||
+                    name.contains("resume_") || name.contains("startup_play") -> { { onAudio("audio_playback") } }
+                name.contains("scan") || name.contains("library") || name.contains("metadata") ||
+                    name.contains("tag_") || name.contains("artist_") || name.contains("genre_") ||
+                    name.contains("full_tag") -> { { onLibrary("scan") } }
+                name.contains("home_") || name.contains("bottom_dock") || name.contains("category_grid") -> {
+                    { onHome("home_sections") }
+                }
+                else -> { { onAppearance("appearance") } }
+            }
+            val summaryId = resources.getIdentifier("${name}_summary", "string", resources.getResourcePackageName(id))
+            val summary = if (summaryId != 0) resources.getString(summaryId) else ""
+            entry(title, summary, name.removePrefix("settings_").replace('_', ' '), route)
+        }
+        .toList()
 }
 
 @Composable

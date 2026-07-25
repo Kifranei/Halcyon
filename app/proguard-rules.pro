@@ -16,6 +16,12 @@
 # Lyric Getter's Xposed module finds and hooks the public API by class and member names.
 -keep class cn.lyric.getter.api.** { *; }
 
+# Settings search enumerates setting resources to keep new preferences discoverable. R8 must retain
+# these reflected fields in minified builds.
+-keepclassmembers class com.ella.music.R$string {
+    public static int settings_*;
+}
+
 
 # FFmpeg native symbols use Java_androidx_media3_decoder_ffmpeg_* names.
 -keep class androidx.media3.decoder.ffmpeg.FfmpegAudioDecoder { *; }
