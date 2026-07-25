@@ -25,6 +25,7 @@ internal fun PlayerQueueSheet(
     onSongClick: (Int) -> Unit,
     onRemoveSong: (Int) -> Unit,
     onMoveSong: (Int, Int) -> Unit,
+    onRandomizeQueue: () -> Unit,
     onAddQueueToPlaylist: () -> Unit,
     onClearQueue: () -> Unit
 ) {
@@ -50,6 +51,7 @@ internal fun PlayerQueueSheet(
             onSongClick = onSongClick,
             onRemoveSong = onRemoveSong,
             onMoveSong = onMoveSong,
+            onRandomizeQueue = onRandomizeQueue,
             onAddQueueToPlaylist = onAddQueueToPlaylist,
             onClearQueue = onClearQueue,
             modifier = Modifier.fillMaxWidth()

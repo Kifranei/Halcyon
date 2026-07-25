@@ -322,6 +322,14 @@
     <string name="lyric_video_share_cancel">Cancel</string>
     <string name="aspect_pro_requires_local_audio">Aspect Pro requires a local audio file</string>
     <string name="aspect_pro_open_failed">Could not open Aspect Pro. Make sure it is installed</string>
+    <string name="kaspek_open_failed">Could not open Kaspek. Make sure it is installed</string>
+    <string name="media_info_open_failed">Could not open MediaInfo. Make sure it is installed</string>
+    <string name="spectrum_open_external">Open with Aspect Pro / Kaspek</string>
+    <string name="spectrum_open_aspect_pro">Open with Aspect Pro</string>
+    <string name="spectrum_open_kaspek">Open with Kaspek</string>
+    <string name="spectrum_scanning">Scanning audio and generating spectrogram…</string>
+    <string name="spectrum_rescan">Scan again</string>
+    <string name="spectrum_scan_failed">Could not generate a spectrogram. Check that the audio file is still available.</string>
 
     <string name="player_need_record_audio_permission">Audio recording permission is required to enable visualization</string>
     <string name="player_visualizer_immersive_only">Visualization is available in immersive cover mode or landscape playback on large-screen devices</string>
@@ -952,8 +960,6 @@
     <string name="settings_custom_image_save_failed">Failed to save custom image</string>
     <string name="settings_player_immersive_cover">Immersive album cover</string>
     <string name="settings_player_immersive_cover_summary">Extend the album cover to the top of the player; disable it to use the compact rounded cover layout</string>
-    <string name="settings_player_cover_content_color">Use cover colors for content</string>
-    <string name="settings_player_cover_content_color_summary">Apply the cover accent color to text and icons on the player, lyrics, and song details pages</string>
     <string name="settings_player_title_position">Non-immersive player title position</string>
     <string name="settings_player_title_position_below_cover">Below cover</string>
     <string name="settings_player_title_position_above_cover">Above cover</string>
@@ -1355,6 +1361,7 @@
     <string name="song_more_play_next">Play next</string>
     <string name="song_more_view_spectrum">View spectrum</string>
     <string name="song_more_view_song_info">View song info</string>
+    <string name="song_more_open_media_info">View with MediaInfo</string>
     <string name="song_more_artist_entry">Artist: %1$s</string>
     <string name="song_more_album_entry">Album: %1$s</string>
     <string name="song_more_create_playlist">Create playlist</string>
@@ -1545,6 +1552,7 @@
     <string name="about_summary_miuix">MIUI/HyperOS-style Compose UI component library (Apache-2.0)</string>
     <string name="about_summary_media3">Playback, media session, and ExoPlayer extensions (Apache-2.0)</string>
     <string name="about_summary_ffmpeg">Software decoding for ALAC and other audio formats (LGPL-2.1)</string>
+    <string name="about_summary_ffmpegkit">Local format conversion and multi-track export (LGPL-3.0)</string>
     <string name="about_summary_lyricon">Subtitle Provider API and status bar lyrics (Apache-2.0)</string>
     <string name="about_summary_superlyricapi">SuperLyric lyric publishing API (LGPL-2.1)</string>
     <string name="about_summary_lyricgetter">Lyric Getter original lyric delivery API (LGPL-2.1)</string>
@@ -1556,6 +1564,41 @@
     <string name="about_summary_lxmusic">Online music source and API adaptation reference (Apache-2.0)</string>
     <string name="about_summary_accompanist_lyrics_core">Lyric parsing and TTML/LRC structure reference (Apache-2.0)</string>
     <string name="about_summary_raws_music">10-band equalizer, BiQuad parametric EQ, and DSP core reference (Apache-2.0)</string>
+
+    <!-- i18n: Local audio tools -->
+    <string name="song_more_audio_tools">Audio tools</string>
+    <string name="audio_tools_convert">Format conversion</string>
+    <string name="audio_tools_track_separation">Export audio streams</string>
+    <string name="audio_tools_track_separation_summary">Exports independent audio streams from multi-track media; it does not perform AI vocal/instrumental separation.</string>
+    <string name="audio_tools_stream_export">Export audio streams</string>
+    <string name="audio_tools_stream_export_summary">Exports audio streams inside a media file. This is not CUE album splitting or AI vocal/instrumental separation.</string>
+    <string name="audio_tools_cue_split">Split CUE album</string>
+    <string name="audio_tools_cue_split_summary">Select a CUE file to split a whole-album audio file by INDEX 01, export FLAC, and write track tags.</string>
+    <string name="audio_tools_cue_reading">Reading CUE and matching whole-album audio…</string>
+    <string name="audio_tools_cue_choose_audio">Choose the correct whole-album file.</string>
+    <string name="audio_tools_cue_choose_other_audio">Choose whole-album file</string>
+    <string name="audio_tools_cue_start">Start splitting</string>
+    <string name="audio_tools_cue_splitting">Splitting CUE album…</string>
+    <string name="audio_tools_exporting_streams">Exporting audio streams…</string>
+    <string name="audio_tools_choose_format">Choose output format</string>
+    <string name="audio_tools_format_mp3">MP3</string>
+    <string name="audio_tools_format_m4a">M4A (AAC)</string>
+    <string name="audio_tools_format_ogg">OGG (Vorbis)</string>
+    <string name="audio_tools_format_opus">Opus</string>
+    <string name="audio_tools_format_flac">FLAC</string>
+    <string name="audio_tools_format_wav">WAV</string>
+    <string name="audio_tools_detecting_tracks">Detecting audio tracks…</string>
+    <string name="audio_tools_no_multiple_tracks">No multiple audio tracks available to export</string>
+    <string name="audio_tools_track">Track %1$d</string>
+    <string name="audio_tools_export_all_tracks">Export all tracks</string>
+    <string name="audio_tools_converting">Converting…</string>
+    <string name="audio_tools_separating">Exporting audio tracks…</string>
+    <string name="audio_tools_processing_summary">Keep the app open. Files are saved in Music/Halcyon when complete.</string>
+    <string name="audio_tools_saved">Saved %1$d file(s)</string>
+    <string name="audio_tools_failed">Processing failed: %1$s</string>
+    <string name="audio_tools_local_only">Audio tools support local songs only</string>
+    <string name="lyric_timing_editor_generate_words">Split words</string>
+    <string name="player_randomize_queue">Randomize order</string>
 
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">Import failed: HTTP %1$d</string>
@@ -1882,8 +1925,22 @@
     <string name="playlist_song_sort_file_size">File size</string>
     <string name="settings_music_video_sync">Sync silent MV playback</string>
     <string name="settings_music_video_sync_summary">Sync a silent MV during song playback; when disabled, MVs are not scanned or shown in the player.</string>
+    <string name="settings_music_video_capture_subtitles">Include captions in MV captures</string>
+    <string name="settings_music_video_capture_subtitles_summary">Overlay the current external lyric caption in screenshots from the song-detail MV.</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">Landscape</string>
+    <string name="player_landscape_hide_covers">Hide other covers</string>
+    <string name="music_video_captions">Captions</string>
+    <string name="music_video_ktv">KTV lyrics</string>
+    <string name="music_video_accompaniment">Accompaniment (experimental)</string>
+    <string name="music_video_lock">Lock screen</string>
+    <string name="music_video_unlock">Unlock</string>
+    <string name="music_video_capture">Capture</string>
+    <string name="music_video_capture_with_captions">Capture with captions</string>
+    <string name="music_video_capture_without_captions">Capture without captions</string>
+    <string name="music_video_capture_saved">Capture saved to Pictures/Halcyon</string>
+    <string name="music_video_capture_failed">Capture failed</string>
+    <string name="music_video_play_failed">MV playback failed</string>
     <string name="equalizer_section_dynamic_eq">Dynamic EQ &amp; De-essing</string>
     <string name="equalizer_dynamic_eq_enable">Enable dynamic EQ</string>
     <string name="equalizer_dynamic_eq_summary">Adjust bass and vocal presence from program loudness, with linked stereo de-essing.</string>

@@ -56,68 +56,37 @@ internal fun RatingSheet(
     onDismiss: () -> Unit,
     onRatingSelected: (Int) -> Unit
 ) {
+    var rating by remember(currentRating) { mutableStateOf(currentRating.coerceIn(0, 5)) }
     SongSheetColumn {
-        RatingMenuItem(
-            rating = 0,
-            selected = currentRating <= 0,
-            onClick = { onRatingSelected(0) }
-        )
-        (1..5).forEach { rating ->
-            RatingMenuItem(
-                rating = rating,
-                selected = currentRating == rating,
-                onClick = { onRatingSelected(rating) }
-            )
-        }
-        SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
-    }
-}
-
-@Composable
-private fun RatingMenuItem(
-    rating: Int,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.78f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (selected) {
-            Icon(
-                imageVector = MiuixIcons.Basic.Check,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-        } else {
-            Spacer(modifier = Modifier.size(18.dp))
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        if (rating == 0) {
-            Text(
-                text = stringResource(R.string.song_more_rating_none),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface
-            )
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                (1..5).forEach { star ->
-                    RatingStarIcon(
-                        filled = star <= rating,
-                        tint = if (star <= rating) MiuixTheme.colorScheme.primary
-                        else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.size(21.dp)
-                    )
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            (1..5).forEach { star ->
+                RatingStarIcon(
+                    filled = star <= rating,
+                    tint = if (star <= rating) {
+                        MiuixTheme.colorScheme.primary
+                    } else {
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    },
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { rating = if (rating == star) 0 else star }
+                        .padding(7.dp)
+                )
             }
         }
+        EllaMiuixSheetActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.common_save),
+            onCancel = onDismiss,
+            onConfirm = { onRatingSelected(rating) },
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
+        )
     }
 }
 

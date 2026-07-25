@@ -36,8 +36,7 @@ internal fun PlayerLibraryActionSheets(
                 currentRating = mainViewModel.getSongRating(currentSong),
                 onDismiss = { onRatingSheetSongChange(null) },
                 onRatingSelected = { rating ->
-                    // The write can require MediaStore permission or take a moment on slow I/O;
-                    // close the chooser first so the selected rating never blocks navigation.
+                    // The save button commits the staged star selection before closing the sheet.
                     onRatingSheetSongChange(null)
                     scope.launch {
                         val result = mainViewModel.writeSongRating(currentSong, rating)

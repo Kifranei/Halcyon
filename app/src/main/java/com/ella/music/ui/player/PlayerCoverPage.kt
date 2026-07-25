@@ -313,7 +313,30 @@ internal fun CoverPlayerPage(
         val showHiResLogo = hiResLogoEnabled && audioInfo?.isHiResLogoTrack() == true
         val titleAboveCover = !immersiveAlbumCover &&
             playerTitlePosition == com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
-        val pagePalette = palette
+        // Credits/annotations can add several lines above or below the cover. Reserve that space
+        // from the artwork first, never from the fixed transport area near the gesture bar.
+        val constrainedPortraitContent = !immersiveAlbumCover &&
+            (annotation.isNotBlank() || maxHeight < 840.dp)
+        val nonImmersiveCoverFraction = when {
+            constrainedPortraitContent && titleAboveCover -> 0.76f
+            constrainedPortraitContent -> 0.82f
+            titleAboveCover -> 0.88f
+            else -> 0.92f
+        }
+        // The player has a fixed transport area at the bottom.  Cap the artwork against the
+        // available height as well as width so metadata or a credit line never pushes controls
+        // into the gesture navigation area.
+        val nonImmersiveCoverSize = minOf(
+            ((maxWidth - 56.dp).coerceAtLeast(0.dp)) * nonImmersiveCoverFraction,
+            maxHeight * if (constrainedPortraitContent) 0.36f else 0.42f
+        )
+        // Credits reserve artwork space, but must not turn the lyric preview into an unusable
+        // single strip. Only genuinely compact windows use the compact lyric presentation.
+        val compactNonImmersiveLyrics = compactWindow
+        // The shared player background may be a bright wallpaper or cover.  Its extracted
+        // foreground color is not a reliable contrast signal, so use the root safety color
+        // consistently for every page component that receives a palette directly.
+        val pagePalette = palette.copy(onBackground = LocalPlayerContentColor.current)
         val showCustomPlayerBackground =
             playerBackgroundEnabled && playerBackgroundUri.isNotBlank() && (useWidePlayer || !immersiveAlbumCover)
         if (drawBackground && !useWidePlayer && !immersiveAlbumCover) {
@@ -404,6 +427,7 @@ internal fun CoverPlayerPage(
                 onQueueSongClick = onQueueSongClick,
                 onRemoveQueueSong = onRemoveQueueSong,
                 onMoveQueueSong = onMoveQueueSong,
+                onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
                 onAddQueueToPlaylist = onAddQueueToPlaylist,
                 onClearQueue = onClearQueue,
                 onLineClick = onShowLyrics,
@@ -412,6 +436,10 @@ internal fun CoverPlayerPage(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
+            val immersiveCoverHeight = minOf(
+                maxWidth,
+                maxHeight * if (annotation.isNotBlank()) 0.42f else 0.47f
+            )
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -426,7 +454,7 @@ internal fun CoverPlayerPage(
                                 if (portraitDynamicCover) {
                                     Modifier.weight(1f)
                                 } else {
-                                    Modifier.aspectRatio(1f)
+                                    Modifier.height(immersiveCoverHeight)
                                 }
                             )
                             .graphicsLayer {
@@ -506,15 +534,23 @@ internal fun CoverPlayerPage(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.White.copy(alpha = 0.18f),
-                                            Color.White.copy(alpha = 0.06f),
-                                            Color.White.copy(alpha = 0.16f)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = if (pagePalette.isLight) {
+                                        listOf(
+                                            Color.White.copy(alpha = 0.20f),
+                                            Color.White.copy(alpha = 0.12f),
+                                            Color.White.copy(alpha = 0.34f)
                                         )
-                                    )
+                                    } else {
+                                        listOf(
+                                            Color.Black.copy(alpha = 0.22f),
+                                            Color.Black.copy(alpha = 0.12f),
+                                            Color.Black.copy(alpha = 0.38f)
+                                        )
+                                    }
                                 )
+                            )
                         )
                         Box(
                             modifier = Modifier
@@ -658,6 +694,7 @@ internal fun CoverPlayerPage(
                             onQueueSongClick = onQueueSongClick,
                             onRemoveQueueSong = onRemoveQueueSong,
                             onMoveQueueSong = onMoveQueueSong,
+                            onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
                             onAddQueueToPlaylist = onAddQueueToPlaylist,
                             onClearQueue = onClearQueue,
                             modifier = Modifier.requiredHeight(76.dp)
@@ -687,7 +724,8 @@ internal fun CoverPlayerPage(
                             .padding(horizontal = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Spacer(modifier = Modifier.height(22.dp))
+                        // Keep the cover slightly higher while reserving a stable bottom area.
+                        Spacer(modifier = Modifier.height(2.dp))
                         if (titleAboveCover) {
                             PlayerCoverTitleRow(
                                 song = song,
@@ -697,15 +735,16 @@ internal fun CoverPlayerPage(
                                 isFavorite = isFavorite,
                                 onArtist = onArtist,
                                 onToggleFavorite = onToggleFavorite,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .width(nonImmersiveCoverSize)
+                                    .align(Alignment.CenterHorizontally)
                             )
                             Spacer(modifier = Modifier.height(14.dp))
                         }
                         val coverShape = RoundedCornerShape(14.dp)
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
+                                .size(nonImmersiveCoverSize)
                                 .graphicsLayer {
                                     shape = coverShape
                                     clip = true
@@ -836,7 +875,9 @@ internal fun CoverPlayerPage(
                                 isFavorite = isFavorite,
                                 onArtist = onArtist,
                                 onToggleFavorite = onToggleFavorite,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .width(nonImmersiveCoverSize)
+                                    .align(Alignment.CenterHorizontally)
                             )
                         }
 
@@ -855,14 +896,14 @@ internal fun CoverPlayerPage(
                                 fontScale = fontScale,
                                 secondaryFontScale = secondaryFontScale,
                                 lyricTextAlign = lyricTextAlign,
-                                compact = compactWindow,
+                                compact = compactNonImmersiveLyrics,
                                 contentColor = pagePalette.onBackground,
                                 wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(
-                                        if (compactWindow) {
+                                        if (compactNonImmersiveLyrics) {
                                             miniLyricsCompactHeight()
                                         } else {
                                             miniLyricsPreviewHeight(compact = true)
@@ -877,13 +918,17 @@ internal fun CoverPlayerPage(
                                 onClick = onShowLyrics,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(if (compactWindow) 40.dp else 150.dp)
+                                    .height(if (compactNonImmersiveLyrics) 40.dp else 150.dp)
                             )
                         } else {
                             Spacer(modifier = Modifier.height(12.dp))
                         }
 
+                        // Give flexible space to the upper content, then keep the action row
+                        // attached to progress and transport. This is stable with or without a
+                        // credit line and never takes height away from playback controls.
                         Spacer(modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.height(if (compactNonImmersiveLyrics) 8.dp else 12.dp))
                         PlayerQuickActionRow(
                             onSongInfo = onSongInfo,
                             onShareSong = onShareSong,
@@ -892,7 +937,7 @@ internal fun CoverPlayerPage(
                             onMore = onToggleMenu,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         PlayerProgressBlock(
                             currentPosition = currentPosition,
                             duration = duration,
@@ -927,6 +972,7 @@ internal fun CoverPlayerPage(
                             onQueueSongClick = onQueueSongClick,
                             onRemoveQueueSong = onRemoveQueueSong,
                             onMoveQueueSong = onMoveQueueSong,
+                            onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
                             onAddQueueToPlaylist = onAddQueueToPlaylist,
                             onClearQueue = onClearQueue,
                             modifier = Modifier.requiredHeight(92.dp)

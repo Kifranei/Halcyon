@@ -300,6 +300,7 @@ internal fun PlayerTransportControls(
     onQueueSongClick: (Int) -> Unit,
     onRemoveQueueSong: (Int) -> Unit,
     onMoveQueueSong: (Int, Int) -> Unit,
+    onRandomizeQueue: () -> Unit,
     onAddQueueToPlaylist: () -> Unit,
     onClearQueue: () -> Unit,
     modifier: Modifier = Modifier
@@ -372,6 +373,7 @@ internal fun PlayerTransportControls(
                 onSongClick = onQueueSongClick,
                 onRemoveSong = onRemoveQueueSong,
                 onMoveSong = onMoveQueueSong,
+                onRandomizeQueue = onRandomizeQueue,
                 onAddQueueToPlaylist = onAddQueueToPlaylist,
                 onClearQueue = onClearQueue
             )

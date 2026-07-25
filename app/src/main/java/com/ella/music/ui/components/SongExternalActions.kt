@@ -18,12 +18,44 @@ import java.io.File
 
 private const val ASPECT_PRO_PACKAGE = "com.andrewkhandr.aspectpro"
 private const val ASPECT_PRO_ACTIVITY = "com.andrewkhandr.aspectpro.MainActivity"
+private const val KASPEK_PACKAGE = "ka.spek"
+private const val MEDIA_INFO_PACKAGE = "net.mediaarea.mediainfo"
+private const val MEDIA_INFO_ACTIVITY = "net.mediaarea.mediainfo.ReportListActivity"
 
 fun openSongSpectrumWithAspectPro(context: Context, song: Song) {
+    openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.AspectPro)
+}
+
+fun openSongSpectrumWithKaspek(context: Context, song: Song) {
+    openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.Kaspek)
+}
+
+private enum class SpectrumExternalApp {
+    AspectPro,
+    Kaspek
+}
+
+private fun openSongSpectrumWithExternalApp(
+    context: Context,
+    song: Song,
+    target: SpectrumExternalApp
+) {
     if (song.path.isHttpAudioSource()) {
         Toast.makeText(context, context.getString(R.string.aspect_pro_requires_local_audio), Toast.LENGTH_SHORT).show()
         return
     }
+    if (target == SpectrumExternalApp.Kaspek) {
+        // Kaspek does not declare an ACTION_VIEW intent filter, so an external file URI cannot
+        // be delivered to it. Launch its public entry point instead of showing a false failure.
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(KASPEK_PACKAGE)
+        if (launchIntent == null) {
+            Toast.makeText(context, context.getString(R.string.kaspek_open_failed), Toast.LENGTH_SHORT).show()
+        } else {
+            context.startActivity(launchIntent)
+        }
+        return
+    }
+
     val uri = song.aspectProUri(context)
     val mimeType = song.aspectMimeType()
     val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -39,6 +71,25 @@ fun openSongSpectrumWithAspectPro(context: Context, song: Song) {
         context.startActivity(intent)
     }.onFailure {
         Toast.makeText(context, context.getString(R.string.aspect_pro_open_failed), Toast.LENGTH_SHORT).show()
+    }
+}
+
+/** Opens the installed MediaInfo viewer with the same scoped-storage read grant. */
+fun openSongWithMediaInfo(context: Context, song: Song) {
+    if (song.path.isHttpAudioSource()) {
+        Toast.makeText(context, context.getString(R.string.aspect_pro_requires_local_audio), Toast.LENGTH_SHORT).show()
+        return
+    }
+    val uri = song.localShareUri(context)
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        component = ComponentName(MEDIA_INFO_PACKAGE, MEDIA_INFO_ACTIVITY)
+        setDataAndType(uri, song.shareMimeType())
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        clipData = ClipData.newUri(context.contentResolver, song.title, uri)
+    }
+    runCatching { context.startActivity(intent) }.onFailure {
+        Toast.makeText(context, context.getString(R.string.media_info_open_failed), Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -154,6 +205,7 @@ private fun Song.shareMimeType(): String {
         lowerName.endsWith(".ogg") || lowerName.endsWith(".oga") -> "audio/ogg"
         lowerName.endsWith(".opus") -> "audio/opus"
         lowerName.endsWith(".wav") || lowerName.endsWith(".wave") -> "audio/wav"
+        lowerName.endsWith(".ape") -> "audio/x-ape"
         else -> "audio/*"
     }
 }

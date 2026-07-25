@@ -72,7 +72,7 @@ internal fun PlayerDetailPage(
     onNeteaseAlbum: () -> Unit,
     musicVideoEnabled: Boolean = false,
     musicVideoCustomFolders: List<String> = emptyList(),
-    onMusicVideo: () -> Unit = {},
+    onMusicVideo: (DynamicCoverSource) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -179,6 +179,14 @@ internal fun PlayerDetailPage(
         value = musicVideoSource?.let { source ->
             withContext(Dispatchers.IO) { context.readMusicVideoDurationMs(source.uri) }
         } ?: 0L
+    }
+    val musicVideoPreviewFrame by produceState<Bitmap?>(
+        initialValue = null,
+        musicVideoSource?.failureKey
+    ) {
+        value = musicVideoSource?.let { source ->
+            withContext(Dispatchers.IO) { context.readMusicVideoPreviewFrame(source.uri) }
+        }
     }
 
     if (showNeteaseArtistPicker) {
@@ -294,8 +302,11 @@ internal fun PlayerDetailPage(
                                 song?.artist.orEmpty().ifBlank { stringResource(R.string.player_unknown_artist) },
                                 musicVideoDurationMs.formatPlaybackDuration()
                             ).joinToString(" · "),
-                            coverModel = source.uri,
-                            onClick = onMusicVideo
+                            // Video stills are deliberately shown in a wide frame, rather than
+                            // pretending the MV is square album artwork.
+                            coverModel = musicVideoPreviewFrame ?: source.uri,
+                            coverAspectRatio = 16f / 9f,
+                            onClick = { onMusicVideo(source) }
                         )
                     }
                 }

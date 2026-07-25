@@ -11,6 +11,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // FFmpegKit's archived Android artifacts are mirrored here after their original
+        // distribution repository was retired.
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
         maven { url = uri("https://jitpack.io") }
     }
 }

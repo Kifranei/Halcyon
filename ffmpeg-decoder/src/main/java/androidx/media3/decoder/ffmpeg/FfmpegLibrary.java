@@ -148,6 +148,12 @@ public final class FfmpegLibrary {
         return "pcm_mulaw";
       case MimeTypes.AUDIO_ALAW:
         return "pcm_alaw";
+      // Android/Media3 has no platform MIME constant for Monkey's Audio. The media scanner uses
+      // audio/x-ape, and FFmpeg's bundled apedec handles its compressed frames.
+      case "audio/x-ape":
+      case "audio/ape":
+      case "application/ape":
+        return "ape";
       case MimeTypes.VIDEO_H264:
         return "h264";
       case MimeTypes.VIDEO_H265:

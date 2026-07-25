@@ -132,6 +132,7 @@ internal fun LandscapeCoverPlayerPage(
     onQueueSongClick: (Int) -> Unit,
     onRemoveQueueSong: (Int) -> Unit,
     onMoveQueueSong: (Int, Int) -> Unit,
+    onRandomizeQueue: () -> Unit,
     onAddQueueToPlaylist: () -> Unit,
     onClearQueue: () -> Unit,
     onLineClick: () -> Unit,
@@ -466,6 +467,7 @@ internal fun LandscapeCoverPlayerPage(
                     onQueueSongClick = onQueueSongClick,
                     onRemoveQueueSong = onRemoveQueueSong,
                     onMoveQueueSong = onMoveQueueSong,
+                    onRandomizeQueue = onRandomizeQueue,
                     onAddQueueToPlaylist = onAddQueueToPlaylist,
                     onClearQueue = onClearQueue
                 )
@@ -598,6 +600,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     val swipeThresholdPx = with(LocalDensity.current) { 84.dp.toPx() }
     val swipeScope = rememberCoroutineScope()
     val dragOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+    var previewProgress by remember(song?.id, song?.path) { mutableStateOf<Float?>(null) }
     val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
 
     fun Modifier.coverSwipeModifier(): Modifier {
@@ -701,10 +704,38 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                     onSeek = onSeek,
                     accent = palette.accent,
                     allowTapSeek = playerTapSeekEnabled,
+                    onPreviewProgressChange = { previewProgress = it },
                     modifier = Modifier
                         .fillMaxWidth(0.86f)
                         .padding(top = 4.dp)
                 )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(0.86f)
+                        .padding(top = 3.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = formatTime(currentPosition),
+                            fontSize = 12.sp,
+                            color = palette.onBackground.copy(alpha = if (previewProgress == null) 0.76f else 0.48f)
+                        )
+                        previewProgress?.let { progress ->
+                            Text(
+                                text = formatTime((duration * progress).toLong()),
+                                fontSize = 12.sp,
+                                color = palette.onBackground.copy(alpha = 0.84f),
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = formatTime(duration.coerceAtLeast(0L)),
+                        fontSize = 12.sp,
+                        color = palette.onBackground.copy(alpha = 0.76f)
+                    )
+                }
             }
 
             Box(
@@ -722,9 +753,21 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                     horizontalAlignment = Alignment.End
                 ) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        // Keep the title in the same lane as playback controls on compact phones.
+                        PlayerSongTitleText(
+                            text = song?.title?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.app_name),
+                            color = palette.onBackground.copy(alpha = 0.96f),
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = fontFamily,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.weight(1f)
+                        )
                         CompactLandscapeIconButton(onClick = onPrevious) {
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_skip_previous),
@@ -749,17 +792,6 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                             )
                         }
                     }
-                    PlayerSongTitleText(
-                        text = song?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.app_name),
-                        color = palette.onBackground.copy(alpha = 0.96f),
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = fontFamily,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier
-                            .widthIn(max = 300.dp)
-                            .padding(top = 5.dp)
-                    )
                 }
 
                 Box(
@@ -769,7 +801,9 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                         .widthIn(max = 900.dp)
                         .windowInsetsPadding(WindowInsets.statusBars)
                         .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(top = 118.dp, bottom = 24.dp)
+                        // The compact landscape title/playback row only needs a short lane;
+                        // a 118dp gap made the lyric panel look detached from it.
+                        .padding(top = 82.dp, bottom = 24.dp)
                         .playerLyricPerspective(
                             enabled = lyricPerspectiveEffect,
                             angle = lyricPerspectiveYAngle,

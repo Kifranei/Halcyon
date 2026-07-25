@@ -25,7 +25,6 @@ import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.player.DesktopLyricBridge
 import com.ella.music.player.ExoPlayerManager
-import com.ella.music.player.isM4aOrAppleLosslessOrAAC
 import com.ella.music.player.LyricGetterBridge
 import com.ella.music.player.LyriconBridge
 import com.ella.music.player.MediaNotificationLyricPatchPolicy
@@ -1397,6 +1396,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.movePlaylistItem(fromIndex, toIndex)
+    }
+
+    fun randomizePlaylistOrder(): Boolean {
+        if (queueLocked.value) return false
+        lazyOnlineQueueController.clear()
+        return playerManager.randomizePlaylistOrder()
     }
 
     fun clearPlaylist() {

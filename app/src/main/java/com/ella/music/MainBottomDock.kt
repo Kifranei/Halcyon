@@ -297,6 +297,7 @@ internal fun FloatingBottomControls(
                 },
                 onRemoveSong = { index -> playerViewModel.removeFromPlaylist(index) },
                 onMoveSong = { fromIndex, toIndex -> playerViewModel.movePlaylistItem(fromIndex, toIndex) },
+                onRandomizeQueue = { playerViewModel.randomizePlaylistOrder() },
                 onAddQueueToPlaylist = {
                     queueSheetExpanded = false
                     queueSongsToAdd = playlist

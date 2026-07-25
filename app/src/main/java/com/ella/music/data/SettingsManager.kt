@@ -171,7 +171,6 @@ class SettingsManager(private val context: Context) {
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_PLAYER_IMMERSIVE_COVER = booleanPreferencesKey("player_immersive_cover")
-        val KEY_PLAYER_COVER_CONTENT_COLOR = booleanPreferencesKey("player_cover_content_color")
         val KEY_HIDE_SYSTEM_BARS = booleanPreferencesKey("hide_system_bars")
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
@@ -227,6 +226,7 @@ class SettingsManager(private val context: Context) {
         val KEY_USB_DAC_MODE = booleanPreferencesKey("usb_dac_mode")
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_MUSIC_VIDEO_SYNC_ENABLED = booleanPreferencesKey("music_video_sync_enabled")
+        val KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES = booleanPreferencesKey("music_video_capture_subtitles")
         val KEY_DYNAMIC_COVER_CUSTOM_FOLDERS = stringPreferencesKey("dynamic_cover_custom_folders")
         val KEY_ARTIST_COVER_FOLDER_URI = stringPreferencesKey("artist_cover_folder_uri")
         val KEY_ARTIST_COVER_CAROUSEL = booleanPreferencesKey("artist_cover_carousel")
@@ -934,8 +934,6 @@ class SettingsManager(private val context: Context) {
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     val playerImmersiveCover: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: false }
-    val playerCoverContentColor: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYER_COVER_CONTENT_COLOR] ?: false }
 
     val hideSystemBars: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }
@@ -1411,6 +1409,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_DYNAMIC_COVER_ENABLED] ?: false }
     val musicVideoSyncEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_SYNC_ENABLED] ?: false }
+    val musicVideoCaptureSubtitles: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] ?: false }
     val dynamicCoverCustomFoldersRaw: Flow<String> =
         context.dataStore.data.map { normalizeDynamicCoverCustomFolders(it[KEY_DYNAMIC_COVER_CUSTOM_FOLDERS]) }
     val dynamicCoverCustomFolders: Flow<List<String>> =
@@ -2053,9 +2053,6 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_PLAYER_IMMERSIVE_COVER] = enabled }
     }
 
-    suspend fun setPlayerCoverContentColor(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_PLAYER_COVER_CONTENT_COLOR] = enabled }
-    }
 
     suspend fun setHideSystemBars(enabled: Boolean) {
         context.dataStore.edit { it[KEY_HIDE_SYSTEM_BARS] = enabled }
@@ -2423,6 +2420,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setMusicVideoSyncEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MUSIC_VIDEO_SYNC_ENABLED] = enabled }
+    }
+
+    suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] = enabled }
     }
 
     suspend fun setDynamicCoverCustomFolders(folders: String) {
@@ -3441,12 +3442,12 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_PLAYER_KEEP_SCREEN_ON)
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
-            setBoolean(KEY_PLAYER_COVER_CONTENT_COLOR)
             setBoolean(KEY_HIDE_SYSTEM_BARS)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_SYNC_ENABLED)
+            setBoolean(KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES)
             setBoolean(KEY_ARTIST_COVER_CAROUSEL)
             setBoolean(KEY_STARTUP_POSTER_ENABLED)
             setBoolean(KEY_APP_WALLPAPER_ENABLED)

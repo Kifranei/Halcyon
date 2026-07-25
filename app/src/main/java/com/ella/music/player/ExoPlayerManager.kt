@@ -42,6 +42,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.util.Collections
 import kotlin.random.Random
 
 class ExoPlayerManager(private val context: Context) {
@@ -710,6 +711,50 @@ class ExoPlayerManager(private val context: Context) {
             _duration.value = _currentSong.value?.duration ?: 0L
         }
         savePlaybackQueue(force = true)
+    }
+
+    /**
+     * Materializes a new visible queue order. Unlike playback shuffle this deliberately changes
+     * the queue itself, while retaining the currently playing media item and its position.
+     */
+    fun randomizePlaylistOrder(): Boolean {
+        if (_queueLocked.value || playlist.size < 2 || virtualPlaylistCurrentIndex != null) return false
+        val controller = activeController() ?: return false
+        val current = resolveCurrentPlaybackSong(controller) ?: return false
+        val shuffled = playlist.toMutableList()
+        // A new seed on each invocation avoids pseudo-shuffle returning the same list twice.
+        val random = Random(SystemClock.elapsedRealtimeNanos())
+        var attempts = 0
+        do {
+            shuffled.shuffle(random)
+            attempts++
+        } while (shuffled == playlist && attempts < 8)
+        // A two-item queue has a 50% chance of returning unchanged. Guarantee a visible reorder
+        // whenever there is more than one item, including duplicate Song identities.
+        if (shuffled == playlist) {
+            Collections.rotate(shuffled, 1)
+        }
+        val currentIndex = shuffled.indexOfFirst { it.isSamePlaybackIdentity(current) }
+        if (currentIndex < 0) return false
+        val positionMs = controller.currentPosition.coerceAtLeast(0L)
+        val wasPlaying = controller.isPlaying
+        reorderingPlaylistForShuffle = true
+        try {
+            clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+            // Random order is a concrete queue operation, not a playback-mode toggle. Preserve
+            // the user's shuffle preference while Media3 itself remains in ordered traversal.
+            controller.shuffleModeEnabled = false
+            resetPlayNextForwardStack()
+            applyControllerPlaylistOrder(controller, shuffled, currentIndex, positionMs, wasPlaying)
+            playlist.clear()
+            playlist.addAll(shuffled)
+            _playlist.value = shuffled
+            updateCurrentSong()
+            savePlaybackQueue(force = true)
+            return true
+        } finally {
+            reorderingPlaylistForShuffle = false
+        }
     }
 
     fun clearPlaylist() {
@@ -1385,7 +1430,7 @@ class ExoPlayerManager(private val context: Context) {
         // every AAC/ALAC track made rapid skips visibly stall and contradicted the setting's
         // "fallback only when unsupported" contract. We only pay that cost after a real decode
         // failure, then retain the FFmpeg override for the remaining connected session.
-        if (!song.isM4aOrAppleLosslessOrAAC()) return false
+        if (!song.isM4aOrAppleLosslessOrAACOrApe()) return false
         if (settingsManager.decoderMode.first() != DECODER_MODE_AUTO) return false
         if (PlaybackService.decoderModeOverride.value == DECODER_MODE_FFMPEG_PREFER) return false
 
@@ -1975,18 +2020,21 @@ class ExoPlayerManager(private val context: Context) {
     }
 }
 
-internal fun Song.isM4aOrAppleLosslessOrAAC(): Boolean {
+internal fun Song.isM4aOrAppleLosslessOrAACOrApe(): Boolean {
     val ext = path.substringAfterLast('.', "").lowercase()
     val mime = mimeType.lowercase()
     return when {
-        ext == "m4a" || ext == "mp4" || ext == "aac" -> true
+        ext == "m4a" || ext == "mp4" || ext == "aac" || ext == "ape" -> true
         ext == "alac" -> true
         mime in setOf(
             "audio/mp4",
             "audio/x-m4a",
             "audio/aac",
             "audio/mp4a-latm",
-            "audio/alac"
+            "audio/alac",
+            "audio/x-ape",
+            "audio/ape",
+            "application/ape"
         ) -> true
         else -> false
     }

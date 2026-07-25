@@ -121,7 +121,7 @@ if (-not (Test-Path (Join-Path $NDK_PATH "toolchains\llvm\prebuilt\linux-x86_64"
     Write-Host "Using Linux NDK for WSL: $NDK_PATH"
 }
 
-$ENABLED_DECODERS = @("alac", "aac", "mp3", "vorbis", "opus", "flac", "ac3", "eac3", "truehd", "dca", "amrnb", "amrwb", "pcm_mulaw", "pcm_alaw")
+$ENABLED_DECODERS = @("alac", "aac", "ape", "mp3", "vorbis", "opus", "flac", "ac3", "eac3", "truehd", "dca", "amrnb", "amrwb", "pcm_mulaw", "pcm_alaw")
 
 Write-Host "=== Building FFmpeg for Android ==="
 Write-Host "Module path: $FFMPEG_MODULE_PATH"

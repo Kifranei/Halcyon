@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -158,6 +159,7 @@ private fun LyricTimingEditorScreen(
         loadedLyrics
     }
     val isCurrentSong = currentSong?.let { it.id == song.id && it.path == song.path } == true
+    val isPlayerPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
 
     // Timing must follow the song being edited. The former sheet showed the global player time
     // even when another song was playing, so a tap could write a timestamp from the wrong track.
@@ -177,6 +179,8 @@ private fun LyricTimingEditorScreen(
     var pendingWriteRetry by remember { mutableStateOf<(suspend () -> Unit)?>(null) }
     var undoSnapshots by remember(song.path) { mutableStateOf(emptyList<List<LyricTimingLine>>()) }
     var redoSnapshots by remember(song.path) { mutableStateOf(emptyList<List<LyricTimingLine>>()) }
+    var followPlayback by remember(song.path) { mutableStateOf(true) }
+    val lyricListState = rememberLazyListState()
 
     LaunchedEffect(sourceLyrics, initialized) {
         if (!initialized && sourceLyrics.isNotEmpty()) {
@@ -199,6 +203,29 @@ private fun LyricTimingEditorScreen(
         ?.words
         .orEmpty()
     val selectedWordIndex = selectedWord.coerceIn(0, selectedWords.lastIndex.coerceAtLeast(0))
+    val activeLineIndex = remember(lines, currentPosition) {
+        lines.indexOfLast { line ->
+            val start = line.timeMs ?: return@indexOfLast false
+            start <= currentPosition && (line.endMs == null || currentPosition < line.endMs)
+        }.takeIf { it >= 0 }
+            ?: lines.indexOfLast { (it.timeMs ?: Long.MAX_VALUE) <= currentPosition }.takeIf { it >= 0 }
+    }
+    val activeWordIndex = activeLineIndex?.let { index ->
+        lines[index].withGeneratedWords(
+            lines[index].timeMs ?: 0L,
+            lines[index].endMs ?: (lines[index].timeMs ?: 0L) + 3_000L
+        ).words.indexOfLast { word ->
+            word.startMs <= currentPosition && currentPosition < word.endMs
+        }.takeIf { it >= 0 }
+    }
+
+    // Follow the audio clock until the user deliberately edits another line. The extra list
+    // header is item zero, hence the one-item offset when bringing the active line into view.
+    LaunchedEffect(activeLineIndex, followPlayback, isPlayerPlaying) {
+        if (followPlayback && isPlayerPlaying && activeLineIndex != null) {
+            lyricListState.animateScrollToItem(activeLineIndex + 1)
+        }
+    }
 
     fun updateLines(
         next: List<LyricTimingLine>,
@@ -473,6 +500,7 @@ private fun LyricTimingEditorScreen(
             )
         } else {
             LazyColumn(
+                state = lyricListState,
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -489,7 +517,9 @@ private fun LyricTimingEditorScreen(
                         index = index,
                         line = line,
                         selected = index == selectedIndex,
+                        active = index == activeLineIndex,
                         onClick = {
+                            followPlayback = false
                             selectedLine = index
                             selectedWord = 0
                             if (isCurrentSong) line.timeMs?.let(playerViewModel::seekTo)
@@ -500,6 +530,7 @@ private fun LyricTimingEditorScreen(
                             line = line,
                             timingMode = timingMode,
                             selectedWord = selectedWordIndex,
+                            activeWord = if (index == activeLineIndex) activeWordIndex else null,
                             onSelectWord = { selectedWord = it },
                             onRoleChange = ::changeRole,
                             onLineChange = { text -> updateSelected { it.copy(text = text) } },
@@ -515,6 +546,20 @@ private fun LyricTimingEditorScreen(
                                         backgroundWords = if (background == current.backgroundText) current.backgroundWords else emptyList()
                                     )
                                 }, selectedIndex, selectedWordIndex)
+                            },
+                            onGenerateWords = {
+                                val current = lines[selectedIndex]
+                                val start = current.timeMs ?: currentPosition
+                                updateLines(
+                                    lines.toMutableList().also {
+                                        it[selectedIndex] = current.withGeneratedWords(
+                                            start,
+                                            current.endMs ?: start + 3_000L
+                                        )
+                                    },
+                                    selectedIndex,
+                                    selectedWordIndex
+                                )
                             }
                         )
                     }
@@ -525,7 +570,7 @@ private fun LyricTimingEditorScreen(
         TimingTransportBar(
             currentPosition = currentPosition,
             duration = song.duration,
-            isPlaying = playerViewModel.isPlaying.collectAsStateWithLifecycle().value,
+            isPlaying = isPlayerPlaying,
             timingMode = timingMode,
             lineAvailable = selected != null,
             wordsAvailable = selectedWords.isNotEmpty(),
@@ -539,7 +584,13 @@ private fun LyricTimingEditorScreen(
                 else applyLineStart(moveToNext = true)
             },
             onSetEnd = { if (timingMode == TimingMode.Word) applyWordStart(endWord = true) else applyLineEnd() },
-            onAdjust = ::adjustSelected
+            onAdjust = ::adjustSelected,
+            onLocatePlayback = {
+                followPlayback = true
+                activeLineIndex?.let { index ->
+                    scope.launch { lyricListState.animateScrollToItem(index + 1) }
+                }
+            }
         )
     }
 
@@ -667,13 +718,25 @@ private fun EditorModeAndFormatBar(
 }
 
 @Composable
-private fun TimingLineCard(index: Int, line: LyricTimingLine, selected: Boolean, onClick: () -> Unit) {
+private fun TimingLineCard(
+    index: Int,
+    line: LyricTimingLine,
+    selected: Boolean,
+    active: Boolean,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .padding(horizontal = 14.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.18f) else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.74f))
+            .background(
+                when {
+                    active -> MiuixTheme.colorScheme.primary.copy(alpha = 0.26f)
+                    selected -> MiuixTheme.colorScheme.primary.copy(alpha = 0.18f)
+                    else -> MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.74f)
+                }
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -682,7 +745,8 @@ private fun TimingLineCard(index: Int, line: LyricTimingLine, selected: Boolean,
         Text("${index + 1}", color = MiuixTheme.colorScheme.onSurfaceVariantSummary, fontSize = 12.sp)
         Text(
             text = listOfNotNull(line.agent?.uppercase(), line.text, line.backgroundText?.let { "x-bg: $it" }).joinToString("  "),
-            color = MiuixTheme.colorScheme.onSurface,
+            color = if (active) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
             fontSize = 15.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -697,6 +761,7 @@ private fun TimingLineEditor(
     line: LyricTimingLine,
     timingMode: TimingMode,
     selectedWord: Int,
+    activeWord: Int?,
     onSelectWord: (Int) -> Unit,
     onRoleChange: (String?) -> Unit,
     onLineChange: (String) -> Unit,
@@ -704,7 +769,8 @@ private fun TimingLineEditor(
     onPronunciationChange: (String) -> Unit,
     onBackgroundStart: () -> Unit,
     onBackgroundEnd: () -> Unit,
-    onBackgroundChange: (String) -> Unit
+    onBackgroundChange: (String) -> Unit,
+    onGenerateWords: () -> Unit
 ) {
     Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -743,13 +809,26 @@ private fun TimingLineEditor(
         )
         if (timingMode == TimingMode.Word) {
             val displayWords = line.withGeneratedWords(line.timeMs ?: 0L, line.endMs ?: (line.timeMs ?: 0L) + 3_000L).words
-            Text(
-                text = stringResource(R.string.lyric_timing_editor_word_grid),
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
-            )
-            WordTimingGrid(displayWords, selectedWord, onSelectWord)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.lyric_timing_editor_word_grid),
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.weight(1f)
+                )
+                if (line.words.isEmpty()) {
+                    EllaMiuixChip(
+                        stringResource(R.string.lyric_timing_editor_generate_words),
+                        false,
+                        onGenerateWords,
+                        horizontalPadding = 10.dp
+                    )
+                }
+            }
+            WordTimingGrid(displayWords, selectedWord, activeWord, onSelectWord)
         }
         EllaMiuixTextField(
             value = line.backgroundText.orEmpty(),
@@ -768,7 +847,12 @@ private fun TimingLineEditor(
 }
 
 @Composable
-private fun WordTimingGrid(words: List<LyricWord>, selectedWord: Int, onSelectWord: (Int) -> Unit) {
+private fun WordTimingGrid(
+    words: List<LyricWord>,
+    selectedWord: Int,
+    activeWord: Int?,
+    onSelectWord: (Int) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         words.chunked(3).forEachIndexed { row, rowWords ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -778,7 +862,13 @@ private fun WordTimingGrid(words: List<LyricWord>, selectedWord: Int, onSelectWo
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (index == selectedWord) MiuixTheme.colorScheme.primary.copy(alpha = 0.20f) else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f))
+                            .background(
+                                when {
+                                    index == activeWord -> MiuixTheme.colorScheme.primary.copy(alpha = 0.28f)
+                                    index == selectedWord -> MiuixTheme.colorScheme.primary.copy(alpha = 0.20f)
+                                    else -> MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f)
+                                }
+                            )
                             .clickable { onSelectWord(index) }
                             .padding(vertical = 7.dp, horizontal = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -809,7 +899,8 @@ private fun TimingTransportBar(
     onSetStart: () -> Unit,
     onSetContinuous: () -> Unit,
     onSetEnd: () -> Unit,
-    onAdjust: (Long) -> Unit
+    onAdjust: (Long) -> Unit,
+    onLocatePlayback: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -841,6 +932,15 @@ private fun TimingTransportBar(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 2.dp)
             )
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onLocatePlayback) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_my_location),
+                    contentDescription = stringResource(R.string.player_locate_current_song),
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(23.dp)
+                )
+            }
         }
         Slider(
             value = currentPosition.toFloat().coerceIn(0f, duration.coerceAtLeast(1L).toFloat()),

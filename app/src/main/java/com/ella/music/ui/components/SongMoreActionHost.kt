@@ -93,6 +93,7 @@ fun SongMoreActionHost(
     var tagEditorKind by remember { mutableStateOf(TagEditorOptionKind.Metadata) }
     var metadataEditorSong by remember { mutableStateOf<Song?>(null) }
     var lyricTimingEditorSong by remember { mutableStateOf<Song?>(null) }
+    var audioToolsSong by remember { mutableStateOf<Song?>(null) }
     var ratingSong by remember { mutableStateOf<Song?>(null) }
     var infoSong by remember { mutableStateOf<Song?>(null) }
     var aiSong by remember { mutableStateOf<Song?>(null) }
@@ -225,7 +226,7 @@ fun SongMoreActionHost(
                     }
                 },
                 onSpectrum = {
-                    openSongSpectrumWithAspectPro(context, song)
+                    context.startActivity(SpectrumViewerLauncher.createIntent(context, song))
                     closeAction()
                 },
                 onInfo = {
@@ -270,6 +271,12 @@ fun SongMoreActionHost(
                     {
                         tagEditorKind = TagEditorOptionKind.LyricTiming
                         tagEditorSong = song
+                        closeAction()
+                    }
+                } else null,
+                onAudioTools = if (showLocalFileActions) {
+                    {
+                        audioToolsSong = song
                         closeAction()
                     }
                 } else null,
@@ -414,6 +421,14 @@ fun SongMoreActionHost(
             )
         }
     )
+
+    audioToolsSong?.let { song ->
+        SongAudioToolsSheet(
+            song = song,
+            onDismiss = { audioToolsSong = null },
+            onExported = { mainViewModel.scanMusic() }
+        )
+    }
 
     SongMoreInfoActionSheets(
         context = context,

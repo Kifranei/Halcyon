@@ -29,6 +29,8 @@
         <package android:name="com.example.LyricBox" />
         <package android:name="com.xjcheng.musictageditor" />
         <package android:name="com.andrewkhandr.aspectpro" />
+        <package android:name="ka.spek" />
+        <package android:name="net.mediaarea.mediainfo" />
         <package android:name="com.android.musicfx" />
         <package android:name="com.miui.misound" />
         <package android:name="com.miui.player" />
@@ -97,6 +99,20 @@
             android:exported="false"
             android:enableOnBackInvokedCallback="true"
             android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Ella" />
+
+        <activity
+            android:name=".SpectrumViewerActivity"
+            android:exported="false"
+            android:enableOnBackInvokedCallback="true"
+            android:theme="@style/Theme.Ella" />
+
+        <activity
+            android:name=".MusicVideoActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:enableOnBackInvokedCallback="true"
             android:theme="@style/Theme.Ella" />
 
         <activity-alias

@@ -118,6 +118,7 @@ internal fun PlayerQueueMenu(
     onSongClick: (Int) -> Unit,
     onRemoveSong: (Int) -> Unit,
     onMoveSong: (Int, Int) -> Unit,
+    onRandomizeQueue: () -> Unit,
     onAddQueueToPlaylist: () -> Unit,
     onClearQueue: () -> Unit,
     modifier: Modifier = Modifier
@@ -209,6 +210,22 @@ internal fun PlayerQueueMenu(
                         },
                         modifier = Modifier.size(18.dp)
                     )
+                }
+                if (!queueLocked && playlist.size > 1) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .playerNoIndicationClick(onRandomizeQueue),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_shuffle),
+                            contentDescription = stringResource(R.string.player_randomize_queue),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier

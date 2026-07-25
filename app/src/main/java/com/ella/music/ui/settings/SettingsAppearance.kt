@@ -85,11 +85,11 @@ internal fun SettingsAppearanceSection(
     val homeCardOpacity by settingsManager.homeCardOpacity.collectAsState(initial = 58)
     val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectAsState(initial = false)
+    val musicVideoCaptureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
     val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectAsState(initial = "")
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
     val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
     val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = false)
-    val playerCoverContentColor by settingsManager.playerCoverContentColor.collectAsState(initial = false)
     val transportButtonOutlines by settingsManager.transportButtonOutlines.collectAsState(initial = false)
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectAsState(initial = true)
     val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectAsState(initial = false)
@@ -638,6 +638,14 @@ internal fun SettingsAppearanceSection(
                     setMusicVideoSyncEnabled(context, scope, settingsManager, musicVideoSyncPermissionLauncher, it)
                 }
             )
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_capture_subtitles),
+                summary = stringResource(R.string.settings_music_video_capture_subtitles_summary),
+                checked = musicVideoCaptureSubtitles,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setMusicVideoCaptureSubtitles(it) }
+                }
+            )
             ArrowPreference(
                 title = stringResource(R.string.settings_dynamic_cover_custom_folders),
                 summary = if (dynamicCoverCustomFolders.isBlank()) {
@@ -694,14 +702,6 @@ internal fun SettingsAppearanceSection(
                 checked = playerImmersiveCover,
                 onCheckedChange = {
                     scope.launch { settingsManager.setPlayerImmersiveCover(it) }
-                }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_cover_content_color),
-                summary = stringResource(R.string.settings_player_cover_content_color_summary),
-                checked = playerCoverContentColor,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setPlayerCoverContentColor(it) }
                 }
             )
             WindowSpinnerPreference(

@@ -15,6 +15,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -152,26 +153,48 @@ private fun MiniPlayerTextRow(
     lyricTiming: MiniPlayerLyricTiming?,
     wordTiming: List<LyricWord>
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AutoScrollingMiniText(
-            text = text,
-            fontSize = fontSize,
-            fontWeight = fontWeight,
-            color = color,
-            enabled = enabled,
-            highlightWithProgress = highlightWithProgress,
-            fallbackProgress = fallbackProgress,
-            smoothedPositionMs = smoothedPositionMs,
-            lyricTiming = lyricTiming,
-            wordTiming = wordTiming,
-            modifier = Modifier.weight(1f)
-        )
-        if (explicit) {
-            Spacer(modifier = Modifier.width(4.dp))
-            ExplicitBadge(contentColor = color, height = 12.dp)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val textMeasurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        val textStyle = remember(fontSize, fontWeight) {
+            TextStyle(fontSize = fontSize.sp, fontWeight = fontWeight)
+        }
+        val measuredTextWidth = remember(text, textStyle, textMeasurer, density) {
+            with(density) {
+                textMeasurer.measure(
+                    text = AnnotatedString(text),
+                    style = textStyle,
+                    maxLines = 1,
+                    softWrap = false
+                ).size.width.toDp()
+            }
+        }
+        // Avoid reserving the whole row for a short title: the advisory badge belongs right
+        // beside its title, while an overflowing title still receives all remaining marquee room.
+        val badgeReservation = if (explicit) 20.dp else 0.dp
+        val textWidth = measuredTextWidth.coerceAtLeast(1.dp)
+            .coerceAtMost((maxWidth - badgeReservation).coerceAtLeast(1.dp))
+        Row(
+            modifier = Modifier.width(textWidth + badgeReservation),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AutoScrollingMiniText(
+                text = text,
+                fontSize = fontSize,
+                fontWeight = fontWeight,
+                color = color,
+                enabled = enabled,
+                highlightWithProgress = highlightWithProgress,
+                fallbackProgress = fallbackProgress,
+                smoothedPositionMs = smoothedPositionMs,
+                lyricTiming = lyricTiming,
+                wordTiming = wordTiming,
+                modifier = Modifier.width(textWidth)
+            )
+            if (explicit) {
+                Spacer(modifier = Modifier.width(2.dp))
+                ExplicitBadge(contentColor = color, height = 12.dp)
+            }
         }
     }
 }

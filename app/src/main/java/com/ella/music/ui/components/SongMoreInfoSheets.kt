@@ -49,6 +49,7 @@ fun SongInfoSheet(
     song: Song,
     audioInfoLoader: (Song) -> AudioInfo,
     tagInfoLoader: (Song) -> SongTagInfo,
+    onOpenMediaInfo: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -161,6 +162,7 @@ fun SongInfoSheet(
         SongInfoRow(stringResource(R.string.song_more_detail_added_time), song.dateAdded.formatSongDateTime())
         SongInfoRow(stringResource(R.string.song_more_detail_file_name), song.fileName.ifBlank { song.path.substringAfterLast('/') })
         SongInfoRow(stringResource(R.string.song_more_detail_path), song.path)
+        SongMenuItem(stringResource(R.string.song_more_open_media_info), onOpenMediaInfo)
     }
 }
 

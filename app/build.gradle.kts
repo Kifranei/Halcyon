@@ -208,6 +208,8 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            // FFmpegKit and the app's native audio path both use the shared C++ runtime.
+            pickFirsts += setOf("**/libc++_shared.so")
         }
     }
 }
@@ -269,6 +271,8 @@ dependencies {
     implementation(libs.lyricon.provider)
     implementation(libs.lyric.getter.api)
     implementation("com.github.HChenX:SuperLyricApi:3.4")
+    // Full LGPL build supplies muxers and encoders for the local conversion tool.
+    implementation("com.arthenica:ffmpeg-kit-full:6.0-2.LTS")
     implementation(libs.backdrop)
     implementation(libs.reorderable)
     implementation(libs.compose.material.icons.extended)

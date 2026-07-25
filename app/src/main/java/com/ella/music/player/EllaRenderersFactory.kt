@@ -8,6 +8,12 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import android.os.Handler
+import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
+import java.util.ArrayList
 import com.ella.music.data.SettingsManager
 
 /**
@@ -18,14 +24,47 @@ import com.ella.music.data.SettingsManager
 class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
 
     private var equalizerAudioProcessor: EqualizerAudioProcessor? = null
+    private var extraAudioProcessors: List<AudioProcessor> = emptyList()
     private var playbackOutputSettings: PlaybackOutputSettings = PlaybackOutputSettings()
 
     fun setEqualizerAudioProcessor(processor: EqualizerAudioProcessor?) {
         this.equalizerAudioProcessor = processor
     }
 
+    /** Adds lightweight, route-specific DSP without changing the app-wide EQ settings. */
+    fun setExtraAudioProcessors(processors: List<AudioProcessor>) {
+        extraAudioProcessors = processors
+    }
+
     fun setPlaybackOutputSettings(settings: PlaybackOutputSettings) {
         this.playbackOutputSettings = settings
+    }
+
+    override fun buildAudioRenderers(
+        context: Context,
+        extensionRendererMode: Int,
+        mediaCodecSelector: MediaCodecSelector,
+        enableDecoderFallback: Boolean,
+        audioSink: AudioSink,
+        eventHandler: Handler,
+        eventListener: AudioRendererEventListener,
+        out: ArrayList<Renderer>
+    ) {
+        super.buildAudioRenderers(
+            context,
+            extensionRendererMode,
+            mediaCodecSelector,
+            enableDecoderFallback,
+            audioSink,
+            eventHandler,
+            eventListener,
+            out
+        )
+        if (extensionRendererMode == EXTENSION_RENDERER_MODE_OFF) return
+        val existing = out.indexOfFirst { it is FfmpegAudioRenderer }
+        if (existing >= 0) return
+        val renderer = FfmpegAudioRenderer(eventHandler, eventListener, audioSink)
+        if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) out.add(0, renderer) else out.add(renderer)
     }
 
     override fun buildAudioSink(
@@ -35,6 +74,7 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
     ): AudioSink? {
         val processors = buildList {
             equalizerAudioProcessor?.let { add(it) }
+            addAll(extraAudioProcessors)
             if (playbackOutputSettings.needsFormatProcessor) {
                 add(OutputFormatAudioProcessor(playbackOutputSettings))
             }

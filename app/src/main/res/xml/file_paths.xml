@@ -10,6 +10,9 @@
         name="lyric_video_share"
         path="lyric_video_share/" />
     <cache-path
+        name="music_video_capture"
+        path="music_video_capture/" />
+    <cache-path
         name="cover_share"
         path="cover_share/" />
     <external-path

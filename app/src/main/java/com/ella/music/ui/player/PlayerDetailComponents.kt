@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -125,6 +127,7 @@ internal fun PlayerDetailGroupedActionRow(
     summary: String,
     coverModel: Any? = null,
     circularCover: Boolean = false,
+    coverAspectRatio: Float = 1f,
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
@@ -140,7 +143,8 @@ internal fun PlayerDetailGroupedActionRow(
         if (coverModel != null) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
+                    .height(52.dp)
+                    .aspectRatio(coverAspectRatio)
                     .clip(coverShape)
                     .background(LocalPlayerContentColor.current.copy(alpha = 0.10f))
             ) {

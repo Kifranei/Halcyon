@@ -349,6 +349,14 @@
     <string name="lyric_video_share_cancel">取消</string>
     <string name="aspect_pro_requires_local_audio">Aspect Pro 需要本地音频文件</string>
     <string name="aspect_pro_open_failed">未能打开 Aspect Pro，请确认已安装</string>
+    <string name="kaspek_open_failed">未能打开 Kaspek，请确认已安装</string>
+    <string name="media_info_open_failed">未能打开 MediaInfo，请确认已安装</string>
+    <string name="spectrum_open_external">使用 Aspect Pro / Kaspek 打开</string>
+    <string name="spectrum_open_aspect_pro">使用 Aspect Pro 打开</string>
+    <string name="spectrum_open_kaspek">使用 Kaspek 打开</string>
+    <string name="spectrum_scanning">正在扫描音频并生成声谱图…</string>
+    <string name="spectrum_rescan">重新扫描</string>
+    <string name="spectrum_scan_failed">无法生成声谱图，请确认音频文件仍可访问。</string>
 
     <string name="player_need_record_audio_permission">需要录音权限才能开启音频可视化</string>
     <string name="player_visualizer_immersive_only">沉浸封面或大屏横屏播放时才能使用可视化</string>
@@ -1172,8 +1180,6 @@
     <string name="settings_custom_image_save_failed">保存自定义图片失败</string>
     <string name="settings_player_immersive_cover">沉浸专辑封面</string>
     <string name="settings_player_immersive_cover_summary">开启后播放页封面延伸到顶部；关闭后使用收敛的圆角封面布局</string>
-    <string name="settings_player_cover_content_color">封面取色用于内容</string>
-    <string name="settings_player_cover_content_color_summary">将播放页、歌词页和歌曲详情页的文字与图标改为封面强调色</string>
     <string name="settings_player_title_position">非沉浸播放页标题位置</string>
     <string name="settings_player_title_position_below_cover">封面下方</string>
     <string name="settings_player_title_position_above_cover">封面上方</string>
@@ -1535,8 +1541,22 @@
     <string name="playlist_song_sort_file_size">文件大小</string>
     <string name="settings_music_video_sync">同步播放无声 MV</string>
     <string name="settings_music_video_sync_summary">播放歌曲时同步无声 MV；关闭后不扫描 MV，也不显示播放页 MV 入口</string>
+    <string name="settings_music_video_capture_subtitles">MV 截图包含字幕</string>
+    <string name="settings_music_video_capture_subtitles_summary">在歌曲详情页有声 MV 的截图中叠加当前外挂字幕</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">横屏</string>
+    <string name="player_landscape_hide_covers">隐藏无关封面</string>
+    <string name="music_video_captions">字幕</string>
+    <string name="music_video_ktv">KTV 歌词</string>
+    <string name="music_video_accompaniment">伴奏（实验）</string>
+    <string name="music_video_lock">锁定屏幕</string>
+    <string name="music_video_unlock">解除锁定</string>
+    <string name="music_video_capture">截图</string>
+    <string name="music_video_capture_with_captions">截图包含字幕</string>
+    <string name="music_video_capture_without_captions">截图不包含字幕</string>
+    <string name="music_video_capture_saved">截图已保存到图片/Halcyon</string>
+    <string name="music_video_capture_failed">截图失败</string>
+    <string name="music_video_play_failed">MV 播放失败</string>
     <string name="playlist_song_sort_year">发行时间</string>
     <string name="playlist_song_sort_year_asc">发行时间正序</string>
     <string name="playlist_song_sort_year_desc">发行时间倒序</string>
@@ -1597,6 +1617,7 @@
     <string name="song_more_play_next">下一首播放</string>
     <string name="song_more_view_spectrum">查看频谱</string>
     <string name="song_more_view_song_info">查看歌曲信息</string>
+    <string name="song_more_open_media_info">使用 MediaInfo 查看</string>
     <string name="song_more_artist_entry">艺术家：%1$s</string>
     <string name="song_more_album_entry">专辑：%1$s</string>
     <string name="song_more_create_playlist">新建歌单</string>
@@ -1818,6 +1839,7 @@
     <string name="about_summary_miuix">MIUI/HyperOS 风格 Compose UI 组件库（Apache-2.0）</string>
     <string name="about_summary_media3">播放、媒体会话与 ExoPlayer 扩展（Apache-2.0）</string>
     <string name="about_summary_ffmpeg">ALAC 等音频格式软件解码（LGPL-2.1）</string>
+    <string name="about_summary_ffmpegkit">本地格式转换与多音轨导出（LGPL-3.0）</string>
     <string name="about_summary_lyricon">词幕 Provider API 与状态栏歌词（Apache-2.0）</string>
     <string name="about_summary_superlyricapi">SuperLyric 歌词发布 API（LGPL-2.1）</string>
     <string name="about_summary_lyricgetter">Lyric Getter 原文歌词传递 API（LGPL-2.1）</string>
@@ -1829,6 +1851,41 @@
     <string name="about_summary_lxmusic">在线音乐源与 API 适配参考（Apache-2.0）</string>
     <string name="about_summary_accompanist_lyrics_core">歌词解析与 TTML/LRC 结构参考（Apache-2.0）</string>
     <string name="about_summary_raws_music">10 段均衡器、BiQuad 参数均衡与 DSP 核心参考（Apache-2.0）</string>
+
+    <!-- i18n: Local audio tools -->
+    <string name="song_more_audio_tools">音频工具</string>
+    <string name="audio_tools_convert">格式转换</string>
+    <string name="audio_tools_track_separation">多音频流导出</string>
+    <string name="audio_tools_track_separation_summary">导出多音频流媒体中的单独音频流，不会进行人声/伴奏 AI 分离</string>
+    <string name="audio_tools_stream_export">多音频流导出</string>
+    <string name="audio_tools_stream_export_summary">导出媒体文件内的独立音频流；这不是 CUE 整轨分轨，也不会进行人声/伴奏 AI 分离</string>
+    <string name="audio_tools_cue_split">CUE 整轨分轨</string>
+    <string name="audio_tools_cue_split_summary">选择 CUE 后按 INDEX 01 切割整轨，默认转为 FLAC 并写入歌曲标签</string>
+    <string name="audio_tools_cue_reading">正在读取 CUE 和匹配整轨文件…</string>
+    <string name="audio_tools_cue_choose_audio">请选择正确的整轨文件</string>
+    <string name="audio_tools_cue_choose_other_audio">从文件中选择整轨</string>
+    <string name="audio_tools_cue_start">开始分轨</string>
+    <string name="audio_tools_cue_splitting">正在 CUE 分轨…</string>
+    <string name="audio_tools_exporting_streams">正在导出音频流…</string>
+    <string name="audio_tools_choose_format">选择输出格式</string>
+    <string name="audio_tools_format_mp3">MP3</string>
+    <string name="audio_tools_format_m4a">M4A (AAC)</string>
+    <string name="audio_tools_format_ogg">OGG (Vorbis)</string>
+    <string name="audio_tools_format_opus">Opus</string>
+    <string name="audio_tools_format_flac">FLAC</string>
+    <string name="audio_tools_format_wav">WAV</string>
+    <string name="audio_tools_detecting_tracks">正在检测音轨…</string>
+    <string name="audio_tools_no_multiple_tracks">未检测到可分离的多个音轨</string>
+    <string name="audio_tools_track">音轨 %1$d</string>
+    <string name="audio_tools_export_all_tracks">导出全部音轨</string>
+    <string name="audio_tools_converting">正在转换…</string>
+    <string name="audio_tools_separating">正在导出音轨…</string>
+    <string name="audio_tools_processing_summary">请保持应用打开，完成后将保存到音乐/Halcyon 文件夹</string>
+    <string name="audio_tools_saved">已保存 %1$d 个文件</string>
+    <string name="audio_tools_failed">处理失败：%1$s</string>
+    <string name="audio_tools_local_only">音频工具仅支持本地歌曲</string>
+    <string name="lyric_timing_editor_generate_words">一键分词</string>
+    <string name="player_randomize_queue">随机排序</string>
 
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">导入失败: HTTP %1$d</string>

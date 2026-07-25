@@ -238,7 +238,6 @@ fun PlayerScreen(
     val musicVideoSyncEnabled = playerSettings.musicVideoSyncEnabled
     val dynamicCoverCustomFolders = playerSettings.dynamicCoverCustomFolders
     val immersiveAlbumCover = playerSettings.immersiveAlbumCover
-    val coverContentColor = playerSettings.coverContentColor
     val playerBackgroundEnabled = playerSettings.playerBackgroundEnabled
     val playerBackgroundUri = playerSettings.playerBackgroundUri
     val playerBackgroundOpacity = playerSettings.playerBackgroundOpacity / 100f
@@ -342,16 +341,8 @@ fun PlayerScreen(
     )
     val embeddedCover = songPresentation.embeddedCover
     val paletteBitmap = songPresentation.paletteBitmap
-    val palette = if (coverContentColor) {
-        songPresentation.palette.withCoverContentColor()
-    } else {
-        songPresentation.palette
-    }
-    val lyricPalette = if (coverContentColor) {
-        songPresentation.lyricPalette.withCoverContentColor()
-    } else {
-        songPresentation.lyricPalette
-    }
+    val palette = songPresentation.palette
+    val lyricPalette = songPresentation.lyricPalette
     val audioInfo = songPresentation.audioInfo
     val tagInfo = songPresentation.tagInfo
     val songAnnotation = songPresentation.annotation
@@ -494,7 +485,9 @@ fun PlayerScreen(
     ) { dismissingPlayer ->
         Box(modifier = Modifier.fillMaxSize()) {
           CompositionLocalProvider(
-              LocalPlayerContentColor provides palette.onBackground,
+              // The shared background can be a wallpaper or a very bright cover. Its palette is
+              // not a reliable contrast signal, so always use white above the safety veil below.
+              LocalPlayerContentColor provides Color.White,
               LocalPlayerSurfaceActive provides playerVisible
           ) {
             // Keep one background composed for both pages. Recreating Apple/Beautiful Lyrics
@@ -514,6 +507,19 @@ fun PlayerScreen(
                 dynamicFlowEnabled = playerDynamicFlowEnabled,
                 useBlurBackground = false,
                 modifier = Modifier.fillMaxSize()
+            )
+            // Content color and icon color may follow cover extraction. A stable neutral veil
+            // keeps both readable without muting the cover itself into an opaque background.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.34f),
+                            0.48f to Color.Black.copy(alpha = 0.18f),
+                            1f to Color.Black.copy(alpha = 0.42f)
+                        )
+                    )
             )
 
             PlayerScreenPageHost(
@@ -746,11 +752,14 @@ fun PlayerScreen(
                         onNavigateToArtist = onNavigateToArtist,
                         onNavigateToMetadataCategory = onNavigateToMetadataCategory,
                         openNetease = ::openNetease,
-                        musicVideoEnabled = musicVideoSyncEnabled,
+                        // Detail-page MVs are an independent, audible player. The sync switch
+                        // only controls the silent MV surface on the main playback page.
+                        musicVideoEnabled = dynamicCoverEnabled,
                         musicVideoCustomFolders = dynamicCoverCustomFolders,
-                        onOpenMusicVideo = {
-                            uiState.musicVideoVisible = true
-                            scope.launch { playerPagerState.animateScrollToPage(PLAYER_PAGE_COVER) }
+                        onOpenMusicVideo = { source ->
+                            uiState.musicVideoVisible = false
+                            playerViewModel.pauseForMusicVideo()
+                            com.ella.music.MusicVideoLauncher.open(context, song, source)
                         },
                         drawBackground = false,
                         modifier = pageModifier

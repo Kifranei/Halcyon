@@ -83,6 +83,7 @@ internal fun SongMoreInfoActionSheets(
                 song = song,
                 audioInfoLoader = mainViewModel::getAudioInfo,
                 tagInfoLoader = mainViewModel::getSongTagInfo,
+                onOpenMediaInfo = { openSongWithMediaInfo(context, song) },
                 onDismiss = { onInfoSongChange(null) }
             )
         }

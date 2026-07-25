@@ -314,6 +314,11 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://ffmpeg.org") },
                     )
                     BasicComponent(
+                        title = "FFmpegKit",
+                        summary = stringResource(R.string.about_summary_ffmpegkit),
+                        onClick = { uriHandler.openUri("https://github.com/arthenica/ffmpeg-kit") },
+                    )
+                    BasicComponent(
                         title = "Lyricon",
                         summary = stringResource(R.string.about_summary_lyricon),
                         onClick = { uriHandler.openUri("https://github.com/proify/lyricon") },

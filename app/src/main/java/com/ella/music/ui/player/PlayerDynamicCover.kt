@@ -1,6 +1,7 @@
 package com.ella.music.ui.player
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Outline
 import android.graphics.Color
 import android.media.MediaExtractor
@@ -24,7 +25,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
+import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
@@ -106,10 +109,21 @@ internal fun DynamicCoverVideo(
         DynamicCoverPlaybackMemory.restore(playbackMemoryKey)
     }
 
-    val exoPlayer = remember(playbackMemoryKey) {
-        ExoPlayer.Builder(context).build().apply {
+    val exoPlayer = remember(playbackMemoryKey, playAudio) {
+        val trackSelector = DefaultTrackSelector(context).apply {
+            if (!playAudio) {
+                parameters = buildUponParameters()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                    .build()
+            }
+        }
+        ExoPlayer.Builder(context)
+            .setTrackSelector(trackSelector)
+            .build()
+            .apply {
             repeatMode = if (followsAudioClock) Media3Player.REPEAT_MODE_OFF else Media3Player.REPEAT_MODE_ALL
-            // Video artwork and music videos stay silent; audio always comes from the main player.
+            // Video artwork and synced playback-page MVs have no selected audio track. This is
+            // stronger than volume=0 and prevents their audio from entering screen recordings.
             volume = if (playAudio) 1f else 0f
             setMediaItem(MediaItem.fromUri(source.uri))
             prepare()
@@ -725,6 +739,55 @@ internal fun Context.readMusicVideoDurationMs(uri: Uri): Long =
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
         }
     }.getOrDefault(0L)
+
+/**
+ * Builds a useful MV thumbnail instead of accepting a common all-black opening frame. The frame
+ * remains uncropped here; the detail row supplies its required 16:9 presentation box.
+ */
+internal fun Context.readMusicVideoPreviewFrame(uri: Uri): Bitmap? =
+    runCatching {
+        MediaMetadataRetriever().useCompat { retriever ->
+            if (uri.scheme.equals("content", ignoreCase = true)) {
+                retriever.setDataSource(this, uri)
+            } else {
+                retriever.setDataSource(uri.path.orEmpty())
+            }
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?: 0L
+            val scanLimitMs = durationMs.coerceAtMost(12_000L)
+            var selected: Bitmap? = null
+            var timestampMs = 0L
+            while (timestampMs <= scanLimitMs && selected == null) {
+                val frame = retriever.getFrameAtTime(
+                    timestampMs * 1_000L,
+                    MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                )
+                if (frame != null) {
+                    if (frame.isVisiblyLit()) selected = frame else frame.recycle()
+                }
+                timestampMs += 400L
+            }
+            selected ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+        }
+    }.getOrNull()
+
+private fun Bitmap.isVisiblyLit(): Boolean {
+    val stepX = (width / 20).coerceAtLeast(1)
+    val stepY = (height / 12).coerceAtLeast(1)
+    var total = 0L
+    var count = 0
+    for (x in 0 until width step stepX) {
+        for (y in 0 until height step stepY) {
+            val color = getPixel(x, y)
+            total += (android.graphics.Color.red(color) * 30L +
+                android.graphics.Color.green(color) * 59L +
+                android.graphics.Color.blue(color) * 11L) / 100L
+            count++
+        }
+    }
+    return count > 0 && total / count > 14L
+}
 
 private fun String.toSafeDynamicCoverName(): String {
     return trim()
