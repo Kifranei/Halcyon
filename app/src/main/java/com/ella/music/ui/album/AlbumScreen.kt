@@ -66,6 +66,7 @@ import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
+import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyGridScrollIndicator
@@ -114,10 +115,7 @@ fun AlbumScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var selectionMode by remember { mutableStateOf(false) }
-    var selectedAlbumIds by remember { mutableStateOf(setOf<Long>()) }
-    var rangeAnchorAlbumId by remember { mutableStateOf<Long?>(null) }
-    var rangeTargetAlbumId by remember { mutableStateOf<Long?>(null) }
+    val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var albumMenuTarget by remember { mutableStateOf<Album?>(null) }
@@ -188,85 +186,28 @@ fun AlbumScreen(
         }
     }
 
-    fun finishSelectionMode() {
-        selectionMode = false
-        selectedAlbumIds = emptySet()
-        rangeAnchorAlbumId = null
-        rangeTargetAlbumId = null
-    }
-    fun updateRangeAnchorsForManualSelection(albumId: Long, selectedNow: Boolean) {
-        if (selectedNow) {
-            when {
-                rangeAnchorAlbumId == null -> rangeAnchorAlbumId = albumId
-                rangeAnchorAlbumId == albumId -> Unit
-                else -> rangeTargetAlbumId = albumId
-            }
-        } else {
-            if (rangeTargetAlbumId == albumId) rangeTargetAlbumId = null
-            if (rangeAnchorAlbumId == albumId) {
-                rangeAnchorAlbumId = rangeTargetAlbumId ?: selectedAlbumIds.firstOrNull { it != albumId }
-                rangeTargetAlbumId = null
-            }
-        }
-    }
-    fun toggleAlbumSelection(album: Album) {
-        val selecting = album.id !in selectedAlbumIds
-        val next = if (selecting) selectedAlbumIds + album.id else selectedAlbumIds - album.id
-        selectedAlbumIds = next
-        updateRangeAnchorsForManualSelection(album.id, selecting)
-    }
     fun selectedAlbumSongs(): List<Song> {
-        if (selectedAlbumIds.isEmpty()) return emptyList()
-        return songs.filter { song -> song.albumIdentityId() in selectedAlbumIds }.distinctBy { it.id }
+        if (selection.selectedIds.isEmpty()) return emptyList()
+        return songs.filter { song -> song.albumIdentityId() in selection.selectedIds }.distinctBy { it.id }
+    }
+    val sortedAlbumIds = remember(sortedAlbums) {
+        sortedAlbums.map { it.id }
     }
     val albumIndexById = remember(sortedAlbums) {
         buildMap {
             sortedAlbums.forEachIndexed { index, album -> put(album.id, index) }
         }
     }
-    val selectedVisibleAlbumCount = remember(selectedAlbumIds, sortedAlbums) {
-        sortedAlbums.count { it.id in selectedAlbumIds }
+    val selectedVisibleAlbumCount = remember(selection.selectedIds, sortedAlbums) {
+        sortedAlbums.count { it.id in selection.selectedIds }
     }
-    val rangeSelectionAvailable = remember(albumIndexById, selectedAlbumIds, rangeAnchorAlbumId, rangeTargetAlbumId) {
-        val anchor = rangeAnchorAlbumId
-        val target = rangeTargetAlbumId
-        anchor != null &&
-            target != null &&
-            anchor != target &&
-            anchor in selectedAlbumIds &&
-            target in selectedAlbumIds &&
-            anchor in albumIndexById &&
-            target in albumIndexById
-    }
-    fun applyRangeSelection() {
-        val anchor = rangeAnchorAlbumId ?: return
-        val target = rangeTargetAlbumId ?: return
-        val anchorIndex = albumIndexById[anchor] ?: return
-        val targetIndex = albumIndexById[target] ?: return
-        if (anchorIndex == targetIndex) return
-        val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selectedAlbumIds = selectedAlbumIds + bounds.map { sortedAlbums[it].id }
-        rangeAnchorAlbumId = target
-        rangeTargetAlbumId = null
-    }
-    fun toggleSelectAllVisibleAlbums() {
-        if (sortedAlbums.isEmpty()) return
-        val ids = sortedAlbums.mapTo(mutableSetOf()) { it.id }
-        if (ids.all { it in selectedAlbumIds }) {
-            selectedAlbumIds = selectedAlbumIds - ids
-            rangeAnchorAlbumId = null
-            rangeTargetAlbumId = null
-        } else {
-            selectedAlbumIds = selectedAlbumIds + ids
-            rangeAnchorAlbumId = sortedAlbums.firstOrNull()?.id
-            rangeTargetAlbumId = sortedAlbums.lastOrNull()?.id
-        }
-        selectionMode = true
+    val rangeSelectionAvailable = remember(selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId, albumIndexById) {
+        selection.isRangeSelectionAvailable(albumIndexById)
     }
 
-    BackHandler(enabled = selectionMode || searchExpanded || sortExpanded) {
+    BackHandler(enabled = selection.selectionMode || searchExpanded || sortExpanded) {
         when {
-            selectionMode -> finishSelectionMode()
+            selection.selectionMode -> selection.finishSelectionMode()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
@@ -274,12 +215,12 @@ fun AlbumScreen(
             sortExpanded -> sortExpanded = false
         }
     }
-    LaunchedEffect(selectionMode, sortedAlbums) {
-        if (!selectionMode) return@LaunchedEffect
+    LaunchedEffect(selection.selectionMode, sortedAlbums) {
+        if (!selection.selectionMode) return@LaunchedEffect
         val visibleIds = sortedAlbums.mapTo(mutableSetOf()) { it.id }
-        selectedAlbumIds = selectedAlbumIds.filterTo(mutableSetOf()) { it in visibleIds }
-        if (rangeAnchorAlbumId !in visibleIds) rangeAnchorAlbumId = selectedAlbumIds.firstOrNull()
-        if (rangeTargetAlbumId !in visibleIds) rangeTargetAlbumId = null
+        selection.selectedIds = selection.selectedIds.filterTo(mutableSetOf()) { it in visibleIds }
+        if (selection.rangeAnchorId !in visibleIds) selection.rangeAnchorId = selection.selectedIds.firstOrNull()
+        if (selection.rangeTargetId !in visibleIds) selection.rangeTargetId = null
     }
 
     Column(
@@ -290,8 +231,8 @@ fun AlbumScreen(
     ) {
         Box {
             EllaSmallTopAppBar(
-                title = if (selectionMode) {
-                    stringResource(R.string.library_selected_fraction, selectedAlbumIds.size, sortedAlbums.size)
+                title = if (selection.selectionMode) {
+                    stringResource(R.string.library_selected_fraction, selection.selectedIds.size, sortedAlbums.size)
                 } else {
                     stringResource(R.string.tab_album)
                 },
@@ -308,14 +249,14 @@ fun AlbumScreen(
                         }
                     }
                 },
-                titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
+                titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
                 actions = {
-                    if (selectionMode) {
+                    if (selection.selectionMode) {
                         IconButton(onClick = {
                             val selectedSongs = selectedAlbumSongs()
                             if (selectedSongs.isNotEmpty()) {
                                 playerViewModel.playNext(selectedSongs)
-                                finishSelectionMode()
+                                selection.finishSelectionMode()
                             }
                         }) {
                             Icon(
@@ -349,10 +290,10 @@ fun AlbumScreen(
                         }
                     } else {
                     IconButton(onClick = {
-                        selectionMode = true
-                        selectedAlbumIds = emptySet()
-                        rangeAnchorAlbumId = null
-                        rangeTargetAlbumId = null
+                        selection.selectionMode = true
+                        selection.selectedIds = emptySet()
+                        selection.rangeAnchorId = null
+                        selection.rangeTargetId = null
                     }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.SelectAll,
@@ -580,19 +521,19 @@ fun AlbumScreen(
                                     .takeIf { gridCoversEnabled && it > 0L }
                                     ?.let(mainViewModel::getAlbumArtUri)
                             }
-                            val selected = album.id in selectedAlbumIds
+                            val selected = album.id in selection.selectedIds
                             AlbumCard(
                                 album = album,
                                 albumArtUri = albumArtUri,
                                 representativeSong = representativeSong,
                                 loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
                                 summary = album.summaryForSort(context, sortMode, albumDurations[album.id] ?: 0L),
-                                selectionMode = selectionMode,
+                                selectionMode = selection.selectionMode,
                                 selected = selected,
                                 isPinned = album.id.toString() in pinnedAlbumKeys,
                                 onClick = {
-                                    if (selectionMode) {
-                                        toggleAlbumSelection(album)
+                                    if (selection.selectionMode) {
+                                        selection.toggleSelection(album.id)
                                     } else {
                                         onAlbumClick(
                                             album.id,
@@ -602,8 +543,8 @@ fun AlbumScreen(
                                     }
                                 },
                                 onLongClick = {
-                                    if (selectionMode) {
-                                        toggleAlbumSelection(album)
+                                    if (selection.selectionMode) {
+                                        selection.toggleSelection(album.id)
                                         return@AlbumCard
                                     }
                                     albumMenuTarget = album
@@ -644,11 +585,11 @@ fun AlbumScreen(
                     )
                 }
                 FloatingSelectionControls(
-                    visible = selectionMode && sortedAlbums.isNotEmpty(),
+                    visible = selection.selectionMode && sortedAlbums.isNotEmpty(),
                     rangeEnabled = rangeSelectionAvailable,
                     allSelected = sortedAlbums.isNotEmpty() && selectedVisibleAlbumCount == sortedAlbums.size,
-                    onRangeSelect = ::applyRangeSelection,
-                    onSelectAll = ::toggleSelectAllVisibleAlbums,
+                    onRangeSelect = { selection.applyRangeSelection(sortedAlbumIds, albumIndexById) },
+                    onSelectAll = { selection.toggleSelectAll(sortedAlbumIds) },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
@@ -681,7 +622,7 @@ fun AlbumScreen(
                         mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd, appendToEnd)
                     }
                     playlistPickerSongs = null
-                    finishSelectionMode()
+                    selection.finishSelectionMode()
                 }
             )
         }
@@ -694,7 +635,7 @@ fun AlbumScreen(
                 mainViewModel.createPlaylistOrShowDuplicateToast(context, playlistName) { playlist ->
                     mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
                     createPlaylistSongs = null
-                    finishSelectionMode()
+                    selection.finishSelectionMode()
                 }
             }
         )

@@ -66,6 +66,7 @@ import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
+import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
@@ -204,10 +205,7 @@ fun ArtistListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var selectionMode by remember { mutableStateOf(false) }
-    var selectedArtistKeys by remember { mutableStateOf(setOf<String>()) }
-    var rangeAnchorArtistKey by remember { mutableStateOf<String?>(null) }
-    var rangeTargetArtistKey by remember { mutableStateOf<String?>(null) }
+    val selection = rememberLibrarySelectionState<String>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var artistMenuTarget by remember { mutableStateOf<Artist?>(null) }
@@ -279,90 +277,32 @@ fun ArtistListScreen(
         }
     }
 
-    fun finishSelectionMode() {
-        selectionMode = false
-        selectedArtistKeys = emptySet()
-        rangeAnchorArtistKey = null
-        rangeTargetArtistKey = null
-    }
-    fun updateRangeAnchorsForManualSelection(artistKey: String, selectedNow: Boolean) {
-        if (selectedNow) {
-            when {
-                rangeAnchorArtistKey == null -> rangeAnchorArtistKey = artistKey
-                rangeAnchorArtistKey == artistKey -> Unit
-                else -> rangeTargetArtistKey = artistKey
-            }
-        } else {
-            if (rangeTargetArtistKey == artistKey) rangeTargetArtistKey = null
-            if (rangeAnchorArtistKey == artistKey) {
-                rangeAnchorArtistKey = rangeTargetArtistKey ?: selectedArtistKeys.firstOrNull { it != artistKey }
-                rangeTargetArtistKey = null
-            }
-        }
-    }
-    fun toggleArtistSelection(artist: Artist) {
-        val key = artist.name.tagIdentityKey()
-        val selecting = key !in selectedArtistKeys
-        val next = if (selecting) selectedArtistKeys + key else selectedArtistKeys - key
-        selectedArtistKeys = next
-        updateRangeAnchorsForManualSelection(key, selecting)
-    }
     fun selectedArtistSongs(): List<Song> {
-        if (selectedArtistKeys.isEmpty()) return emptyList()
+        if (selection.selectedIds.isEmpty()) return emptyList()
         return songs.filter { song ->
             val names = if (showAlbumArtists) splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
             else splitArtistNames(song.artist)
-            names.any { it.tagIdentityKey() in selectedArtistKeys }
+            names.any { it.tagIdentityKey() in selection.selectedIds }
         }.distinctBy { it.id }
+    }
+    val filteredArtistKeys = remember(filteredArtists) {
+        filteredArtists.map { it.name.tagIdentityKey() }
     }
     val artistIndexByKey = remember(filteredArtists) {
         buildMap {
             filteredArtists.forEachIndexed { index, artist -> put(artist.name.tagIdentityKey(), index) }
         }
     }
-    val selectedVisibleArtistCount = remember(selectedArtistKeys, filteredArtists) {
-        filteredArtists.count { it.name.tagIdentityKey() in selectedArtistKeys }
+    val selectedVisibleArtistCount = remember(selection.selectedIds, filteredArtists) {
+        filteredArtists.count { it.name.tagIdentityKey() in selection.selectedIds }
     }
-    val rangeSelectionAvailable = remember(artistIndexByKey, selectedArtistKeys, rangeAnchorArtistKey, rangeTargetArtistKey) {
-        val anchor = rangeAnchorArtistKey
-        val target = rangeTargetArtistKey
-        anchor != null &&
-            target != null &&
-            anchor != target &&
-            anchor in selectedArtistKeys &&
-            target in selectedArtistKeys &&
-            anchor in artistIndexByKey &&
-            target in artistIndexByKey
-    }
-    fun applyRangeSelection() {
-        val anchor = rangeAnchorArtistKey ?: return
-        val target = rangeTargetArtistKey ?: return
-        val anchorIndex = artistIndexByKey[anchor] ?: return
-        val targetIndex = artistIndexByKey[target] ?: return
-        if (anchorIndex == targetIndex) return
-        val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selectedArtistKeys = selectedArtistKeys + bounds.map { filteredArtists[it].name.tagIdentityKey() }
-        rangeAnchorArtistKey = target
-        rangeTargetArtistKey = null
-    }
-    fun toggleSelectAllVisibleArtists() {
-        if (filteredArtists.isEmpty()) return
-        val keys = filteredArtists.mapTo(mutableSetOf()) { it.name.tagIdentityKey() }
-        if (keys.all { it in selectedArtistKeys }) {
-            selectedArtistKeys = selectedArtistKeys - keys
-            rangeAnchorArtistKey = null
-            rangeTargetArtistKey = null
-        } else {
-            selectedArtistKeys = selectedArtistKeys + keys
-            rangeAnchorArtistKey = filteredArtists.firstOrNull()?.name?.tagIdentityKey()
-            rangeTargetArtistKey = filteredArtists.lastOrNull()?.name?.tagIdentityKey()
-        }
-        selectionMode = true
+    val rangeSelectionAvailable = remember(selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId, artistIndexByKey) {
+        selection.isRangeSelectionAvailable(artistIndexByKey)
     }
 
-    BackHandler(enabled = selectionMode || searchExpanded || sortExpanded) {
+    BackHandler(enabled = selection.selectionMode || searchExpanded || sortExpanded) {
         when {
-            selectionMode -> finishSelectionMode()
+            selection.selectionMode -> selection.finishSelectionMode()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
@@ -370,12 +310,12 @@ fun ArtistListScreen(
             sortExpanded -> sortExpanded = false
         }
     }
-    LaunchedEffect(selectionMode, filteredArtists) {
-        if (!selectionMode) return@LaunchedEffect
+    LaunchedEffect(selection.selectionMode, filteredArtists) {
+        if (!selection.selectionMode) return@LaunchedEffect
         val visibleKeys = filteredArtists.mapTo(mutableSetOf()) { it.name.tagIdentityKey() }
-        selectedArtistKeys = selectedArtistKeys.filterTo(mutableSetOf()) { it in visibleKeys }
-        if (rangeAnchorArtistKey !in visibleKeys) rangeAnchorArtistKey = selectedArtistKeys.firstOrNull()
-        if (rangeTargetArtistKey !in visibleKeys) rangeTargetArtistKey = null
+        selection.selectedIds = selection.selectedIds.filterTo(mutableSetOf()) { it in visibleKeys }
+        if (selection.rangeAnchorId !in visibleKeys) selection.rangeAnchorId = selection.selectedIds.firstOrNull()
+        if (selection.rangeTargetId !in visibleKeys) selection.rangeTargetId = null
     }
 
     Column(
@@ -386,15 +326,15 @@ fun ArtistListScreen(
     ) {
         Box {
             EllaSmallTopAppBar(
-                title = if (selectionMode) {
-                    stringResource(R.string.library_selected_fraction, selectedArtistKeys.size, filteredArtists.size)
+                title = if (selection.selectionMode) {
+                    stringResource(R.string.library_selected_fraction, selection.selectedIds.size, filteredArtists.size)
                 } else {
                     stringResource(R.string.category_artist)
                 },
                 color = ellaPageBackground(),
                 navigationIcon = {
-                    if (showBackButton || selectionMode) {
-                        IconButton(onClick = { if (selectionMode) finishSelectionMode() else onBack() }) {
+                    if (showBackButton || selection.selectionMode) {
+                        IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
                             Icon(
                                 imageVector = MiuixIcons.Regular.Back,
                                 contentDescription = stringResource(R.string.common_back),
@@ -404,14 +344,14 @@ fun ArtistListScreen(
                         }
                     }
                 },
-                titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
+                titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
                 actions = {
-                    if (selectionMode) {
+                    if (selection.selectionMode) {
                         IconButton(onClick = {
                             val selectedSongs = selectedArtistSongs()
                             if (selectedSongs.isNotEmpty()) {
                                 playerViewModel.playNext(selectedSongs)
-                                finishSelectionMode()
+                                selection.finishSelectionMode()
                             }
                         }) {
                             Icon(
@@ -445,10 +385,10 @@ fun ArtistListScreen(
                         }
                     } else {
                         IconButton(onClick = {
-                            selectionMode = true
-                            selectedArtistKeys = emptySet()
-                            rangeAnchorArtistKey = null
-                            rangeTargetArtistKey = null
+                            selection.selectionMode = true
+                            selection.selectedIds = emptySet()
+                            selection.rangeAnchorId = null
+                            selection.rangeTargetId = null
                         }) {
                             Icon(
                                 imageVector = MiuixIcons.Regular.SelectAll,
@@ -598,7 +538,7 @@ fun ArtistListScreen(
                     }
                     items(filteredArtists, key = { it.name }) { artist ->
                         val artistKey = artist.name.tagIdentityKey()
-                        val selected = artistKey in selectedArtistKeys
+                        val selected = artistKey in selection.selectedIds
                         val isPinned = artistKey in pinnedArtistKeys
                         ArtistRow(
                             artist = artist,
@@ -606,7 +546,7 @@ fun ArtistListScreen(
                             mainViewModel = mainViewModel,
                             artistCoverFolderUri = artistCoverFolderUri,
                             coversEnabled = listCoversEnabled,
-                            selectionMode = selectionMode,
+                            selectionMode = selection.selectionMode,
                             selected = selected,
                             summary = artist.summaryForSort(
                                 sortMode = sortMode,
@@ -616,11 +556,11 @@ fun ArtistListScreen(
                             ),
                             isPinned = isPinned,
                             onClick = {
-                                if (selectionMode) toggleArtistSelection(artist) else onArtistClick(artist.name)
+                                if (selection.selectionMode) selection.toggleSelection(artistKey) else onArtistClick(artist.name)
                             },
                             onLongClick = {
-                                if (selectionMode) {
-                                    toggleArtistSelection(artist)
+                                if (selection.selectionMode) {
+                                    selection.toggleSelection(artistKey)
                                     return@ArtistRow
                                 }
                                 artistMenuTarget = artist
@@ -653,11 +593,11 @@ fun ArtistListScreen(
                     )
                 }
                 FloatingSelectionControls(
-                    visible = selectionMode && filteredArtists.isNotEmpty(),
+                    visible = selection.selectionMode && filteredArtists.isNotEmpty(),
                     rangeEnabled = rangeSelectionAvailable,
                     allSelected = filteredArtists.isNotEmpty() && selectedVisibleArtistCount == filteredArtists.size,
-                    onRangeSelect = ::applyRangeSelection,
-                    onSelectAll = ::toggleSelectAllVisibleArtists,
+                    onRangeSelect = { selection.applyRangeSelection(filteredArtistKeys, artistIndexByKey) },
+                    onSelectAll = { selection.toggleSelectAll(filteredArtistKeys) },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
@@ -690,7 +630,7 @@ fun ArtistListScreen(
                         mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd, appendToEnd)
                     }
                     playlistPickerSongs = null
-                    finishSelectionMode()
+                    selection.finishSelectionMode()
                 }
             )
         }
@@ -703,7 +643,7 @@ fun ArtistListScreen(
                 mainViewModel.createPlaylistOrShowDuplicateToast(context, playlistName) { playlist ->
                     mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
                     createPlaylistSongs = null
-                    finishSelectionMode()
+                    selection.finishSelectionMode()
                 }
             }
         )

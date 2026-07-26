@@ -28,6 +28,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.folder.toFolderSettingList
 import com.ella.music.ui.navigation.Screen
@@ -88,10 +89,7 @@ fun LibrarySearchScreen(
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var history by remember { mutableStateOf(loadSearchHistory(context)) }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
-    var selectionMode by remember { mutableStateOf(false) }
-    var selectedSongKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var rangeAnchorSongKey by remember { mutableStateOf<String?>(null) }
-    var rangeTargetSongKey by remember { mutableStateOf<String?>(null) }
+    val selection = rememberLibrarySelectionState<String>()
 
     val trimmedQuery = query.trim()
     val songSelectionAvailable = filter in listOf(SearchFilter.Songs, SearchFilter.Lyrics)
@@ -363,87 +361,37 @@ fun LibrarySearchScreen(
     val visibleResultCount = displayedSongResults.size + visibleAlbumCount + visibleArtistCount + visiblePlaylistCount + categoryResultsCount
 
     LaunchedEffect(filter, trimmedQuery) {
-        selectionMode = false
-        selectedSongKeys = emptySet()
-        rangeAnchorSongKey = null
-        rangeTargetSongKey = null
+        selection.finishSelectionMode()
     }
 
-    val displayedSongIndexByKey = remember(displayedSongResults) {
+    val displayedSongKeys = remember(displayedSongResults) {
+        displayedSongResults.map { it.song.searchIdentityKey() }
+    }
+    val displayedSongIndexByKey = remember(displayedSongKeys) {
         buildMap {
-            displayedSongResults.forEachIndexed { index, result -> put(result.song.searchIdentityKey(), index) }
+            displayedSongKeys.forEachIndexed { index, key -> put(key, index) }
         }
     }
-    val rangeSelectionAvailable = remember(
-        displayedSongIndexByKey,
-        selectedSongKeys,
-        rangeAnchorSongKey,
-        rangeTargetSongKey
-    ) {
-        val anchor = rangeAnchorSongKey
-        val target = rangeTargetSongKey
-        anchor != null &&
-            target != null &&
-            anchor != target &&
-            anchor in selectedSongKeys &&
-            target in selectedSongKeys &&
-            anchor in displayedSongIndexByKey &&
-            target in displayedSongIndexByKey
-    }
-
-    fun updateRangeAnchorsForManualSelection(songKey: String, selectedNow: Boolean) {
-        if (selectedNow) {
-            when {
-                rangeAnchorSongKey == null -> rangeAnchorSongKey = songKey
-                rangeAnchorSongKey == songKey -> Unit
-                else -> rangeTargetSongKey = songKey
-            }
-        } else {
-            if (rangeTargetSongKey == songKey) rangeTargetSongKey = null
-            if (rangeAnchorSongKey == songKey) {
-                rangeAnchorSongKey = rangeTargetSongKey ?: selectedSongKeys.firstOrNull { it != songKey }
-                rangeTargetSongKey = null
-            }
-        }
-    }
-
-    fun toggleSongSelection(song: Song) {
-        val key = song.searchIdentityKey()
-        val selecting = key !in selectedSongKeys
-        selectedSongKeys = if (selecting) selectedSongKeys + key else selectedSongKeys - key
-        updateRangeAnchorsForManualSelection(key, selecting)
-    }
+    val rangeSelectionAvailable = selection.isRangeSelectionAvailable(displayedSongIndexByKey)
 
     fun toggleSelectAllSongResults() {
         val allKeys = displayedSongResults.mapTo(mutableSetOf()) { it.song.searchIdentityKey() }
-        selectedSongKeys = if (allKeys.isNotEmpty() && allKeys.all { it in selectedSongKeys }) {
-            rangeAnchorSongKey = null
-            rangeTargetSongKey = null
+        selection.selectedIds = if (allKeys.isNotEmpty() && allKeys.all { it in selection.selectedIds }) {
+            selection.rangeAnchorId = null
+            selection.rangeTargetId = null
             emptySet()
         } else {
-            rangeAnchorSongKey = displayedSongResults.firstOrNull()?.song?.searchIdentityKey()
-            rangeTargetSongKey = displayedSongResults.lastOrNull()?.song?.searchIdentityKey()
+            selection.rangeAnchorId = displayedSongResults.firstOrNull()?.song?.searchIdentityKey()
+            selection.rangeTargetId = displayedSongResults.lastOrNull()?.song?.searchIdentityKey()
             allKeys
         }
-    }
-
-    fun applyRangeSelection() {
-        val anchor = rangeAnchorSongKey ?: return
-        val target = rangeTargetSongKey ?: return
-        val anchorIndex = displayedSongIndexByKey[anchor] ?: return
-        val targetIndex = displayedSongIndexByKey[target] ?: return
-        if (anchorIndex == targetIndex) return
-        val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selectedSongKeys = selectedSongKeys + bounds.map { displayedSongResults[it].song.searchIdentityKey() }
-        rangeAnchorSongKey = target
-        rangeTargetSongKey = null
     }
 
     fun selectedSearchSongs(): List<Song> =
         displayedSongResults
             .map { it.song }
             .distinctBy { it.searchIdentityKey() }
-            .filter { it.searchIdentityKey() in selectedSongKeys }
+            .filter { it.searchIdentityKey() in selection.selectedIds }
 
     fun selectedOrToast(): List<Song> {
         val selected = selectedSearchSongs()
@@ -451,13 +399,6 @@ fun LibrarySearchScreen(
             Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
         }
         return selected
-    }
-
-    fun finishSelectionMode() {
-        selectionMode = false
-        selectedSongKeys = emptySet()
-        rangeAnchorSongKey = null
-        rangeTargetSongKey = null
     }
 
     fun commitSearch(text: String = query) {
@@ -497,8 +438,8 @@ fun LibrarySearchScreen(
     }
 
     BackHandler {
-        if (selectionMode) {
-            finishSelectionMode()
+        if (selection.selectionMode) {
+            selection.finishSelectionMode()
         } else {
             onBack()
         }
@@ -543,20 +484,20 @@ fun LibrarySearchScreen(
             duplicatesOnly = duplicatesOnly,
             onToggle = { duplicatesOnly = !duplicatesOnly }
         )
-        if (selectionMode) {
+        if (selection.selectionMode) {
             LibrarySearchSelectionToolbar(
-                selectedCount = selectedSongKeys.size,
+                selectedCount = selection.selectedIds.size,
                 totalCount = displayedSongResults.size,
                 rangeEnabled = rangeSelectionAvailable,
-                allSelected = displayedSongResults.isNotEmpty() && displayedSongResults.all { it.song.searchIdentityKey() in selectedSongKeys },
-                onRangeSelect = ::applyRangeSelection,
+                allSelected = displayedSongResults.isNotEmpty() && displayedSongResults.all { it.song.searchIdentityKey() in selection.selectedIds },
+                onRangeSelect = { selection.applyRangeSelection(displayedSongKeys, displayedSongIndexByKey) },
                 onSelectAll = ::toggleSelectAllSongResults,
                 onPlayNext = {
                     val selected = selectedOrToast()
                     if (selected.isNotEmpty()) {
                         playerViewModel.playNext(selected)
                         Toast.makeText(context, R.string.song_more_added_to_play_next, Toast.LENGTH_SHORT).show()
-                        finishSelectionMode()
+                        selection.finishSelectionMode()
                     }
                 },
                 onAddToPlaylist = {
@@ -570,7 +511,7 @@ fun LibrarySearchScreen(
                     if (selected.isNotEmpty()) {
                         playerViewModel.addToPlaylist(selected)
                         Toast.makeText(context, R.string.song_more_added_to_queue, Toast.LENGTH_SHORT).show()
-                        finishSelectionMode()
+                        selection.finishSelectionMode()
                     }
                 },
                 onShare = {
@@ -583,7 +524,7 @@ fun LibrarySearchScreen(
                     val selected = selectedOrToast()
                     if (selected.isNotEmpty()) pendingDeleteSongs = selected
                 },
-                onFinishSelection = ::finishSelectionMode
+                onFinishSelection = selection::finishSelectionMode
             )
         }
         LibrarySearchResultsPane(
@@ -599,8 +540,8 @@ fun LibrarySearchScreen(
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,
             history = history,
-            selectionMode = selectionMode,
-            selectedSongKeys = selectedSongKeys,
+            selectionMode = selection.selectionMode,
+            selectedSongKeys = selection.selectedIds,
             songSelectionAvailable = songSelectionAvailable,
             songResults = displayedSongResults,
             songResultGroups = songResultGroups,
@@ -623,12 +564,12 @@ fun LibrarySearchScreen(
                 saveSearchHistory(context, history)
             },
             onClearHistoryRequest = { showClearHistoryConfirm = true },
-            onToggleSongSelection = ::toggleSongSelection,
+            onToggleSongSelection = { song -> selection.toggleSelection(song.searchIdentityKey()) },
             onEnterSongSelection = { song ->
-                selectionMode = true
+                selection.selectionMode = true
                 val songKey = song.searchIdentityKey()
-                selectedSongKeys = selectedSongKeys + songKey
-                updateRangeAnchorsForManualSelection(songKey, selectedNow = true)
+                selection.selectedIds = selection.selectedIds + songKey
+                selection.updateRangeAnchorsForManualSelection(songKey, selectedNow = true)
             },
             onSongAction = { actionSong = it },
             onActionTarget = { actionTarget = it },
@@ -664,7 +605,7 @@ fun LibrarySearchScreen(
         pendingDeleteSongs = pendingDeleteSongs,
         onPendingDeleteSongsChange = { pendingDeleteSongs = it },
         onRequestDeleteSongs = requestDeleteSongs,
-        onFinishSelectionMode = ::finishSelectionMode,
+        onFinishSelectionMode = selection::finishSelectionMode,
         songsForActionTarget = ::songsForActionTarget,
         shortcutIdForActionTarget = ::shortcutIdForActionTarget,
         shortcutRouteForActionTarget = ::shortcutRouteForActionTarget,

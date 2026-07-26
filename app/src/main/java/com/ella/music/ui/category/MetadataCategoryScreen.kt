@@ -81,6 +81,7 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
+import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.components.DoubleTapScrollOverlay
@@ -176,10 +177,7 @@ fun MetadataCategoryScreen(
     }
     var searchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var selectionMode by remember { mutableStateOf(false) }
-    var selectedNames by remember { mutableStateOf(setOf<String>()) }
-    var rangeAnchorName by remember { mutableStateOf<String?>(null) }
-    var rangeTargetName by remember { mutableStateOf<String?>(null) }
+    val selection = rememberLibrarySelectionState<String>()
     var categoryMenuItem by remember { mutableStateOf<MetadataCategoryItem?>(null) }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
@@ -217,35 +215,8 @@ fun MetadataCategoryScreen(
             currentSelectionKeys.forEachIndexed { index, name -> put(name, index) }
         }
     }
-    fun clearSelection() {
-        selectedNames = emptySet()
-        rangeAnchorName = null
-        rangeTargetName = null
-        selectionMode = false
-    }
-    fun updateRangeAnchorsForManualSelection(name: String, selectedNow: Boolean) {
-        if (selectedNow) {
-            when {
-                rangeAnchorName == null -> rangeAnchorName = name
-                rangeAnchorName == name -> Unit
-                else -> rangeTargetName = name
-            }
-        } else {
-            if (rangeTargetName == name) rangeTargetName = null
-            if (rangeAnchorName == name) {
-                rangeAnchorName = rangeTargetName ?: selectedNames.firstOrNull { it != name }
-                rangeTargetName = null
-            }
-        }
-    }
-    fun toggleSelection(name: String) {
-        val selecting = name !in selectedNames
-        val next = if (selecting) selectedNames + name else selectedNames - name
-        selectedNames = next
-        updateRangeAnchorsForManualSelection(name, selecting)
-    }
     fun selectedActionSongs(): List<Song> =
-        selectedNames
+        selection.selectedIds
             .asSequence()
             .flatMap { categoryName -> mainViewModel.getSongsForMetadataCategory(type, categoryName).asSequence() }
             .distinctBy { it.playlistIdentityKey() }
@@ -253,44 +224,25 @@ fun MetadataCategoryScreen(
     fun toggleSelectAllVisibleItems() {
         if (currentSelectionKeys.isEmpty()) return
         val visible = currentSelectionKeys.toSet()
-        if (visible.all { it in selectedNames }) {
-            selectedNames = selectedNames - visible
-            rangeAnchorName = null
-            rangeTargetName = null
+        if (visible.all { it in selection.selectedIds }) {
+            selection.selectedIds = selection.selectedIds - visible
+            selection.rangeAnchorId = null
+            selection.rangeTargetId = null
         } else {
-            selectedNames = selectedNames + visible
+            selection.selectedIds = selection.selectedIds + visible
         }
-        selectionMode = selectedNames.isNotEmpty()
+        selection.selectionMode = selection.selectedIds.isNotEmpty()
     }
-    val selectedVisibleCount = remember(selectedNames, currentSelectionKeys) {
-        currentSelectionKeys.count { it in selectedNames }
+    val selectedVisibleCount = remember(selection.selectedIds, currentSelectionKeys) {
+        currentSelectionKeys.count { it in selection.selectedIds }
     }
-    val rangeSelectionAvailable = remember(currentSelectionIndexByName, selectedNames, rangeAnchorName, rangeTargetName) {
-        val anchor = rangeAnchorName
-        val target = rangeTargetName
-        anchor != null &&
-            target != null &&
-            anchor != target &&
-            anchor in selectedNames &&
-            target in selectedNames &&
-            anchor in currentSelectionIndexByName &&
-            target in currentSelectionIndexByName
+    val rangeSelectionAvailable = remember(currentSelectionIndexByName, selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId) {
+        selection.isRangeSelectionAvailable(currentSelectionIndexByName)
     }
-    fun applyRangeSelection() {
-        val anchor = rangeAnchorName ?: return
-        val target = rangeTargetName ?: return
-        val anchorIndex = currentSelectionIndexByName[anchor] ?: return
-        val targetIndex = currentSelectionIndexByName[target] ?: return
-        if (anchorIndex == targetIndex) return
-        val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selectedNames = selectedNames + bounds.map { currentSelectionKeys[it] }
-        rangeAnchorName = target
-        rangeTargetName = null
-    }
-    BackHandler(enabled = selectionMode || sortExpanded || searchExpanded || folderToBlock != null) {
+    BackHandler(enabled = selection.selectionMode || sortExpanded || searchExpanded || folderToBlock != null) {
         when {
             folderToBlock != null -> folderToBlock = null
-            selectionMode -> clearSelection()
+            selection.selectionMode -> selection.finishSelectionMode()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
@@ -298,10 +250,10 @@ fun MetadataCategoryScreen(
             sortExpanded -> sortExpanded = false
         }
     }
-    LaunchedEffect(selectionMode, currentSelectionKeys) {
-        if (!selectionMode) return@LaunchedEffect
+    LaunchedEffect(selection.selectionMode, currentSelectionKeys) {
+        if (!selection.selectionMode) return@LaunchedEffect
         val visibleKeys = currentSelectionKeys.toSet()
-        selectedNames = selectedNames.filterTo(linkedSetOf()) { it in visibleKeys }
+        selection.selectedIds = selection.selectedIds.filterTo(linkedSetOf()) { it in visibleKeys }
     }
     LaunchedEffect(type, sortIndex) {
         LibrarySortUiState.updateMetadataCategorySortIndex(type, sortIndex)
@@ -323,15 +275,15 @@ fun MetadataCategoryScreen(
         ) {
         Box {
             EllaSmallTopAppBar(
-                title = if (selectionMode) {
-                    context.getString(R.string.library_selected_fraction, selectedNames.size, currentSelectionKeys.size)
+                title = if (selection.selectionMode) {
+                    context.getString(R.string.library_selected_fraction, selection.selectedIds.size, currentSelectionKeys.size)
                 } else {
                     type.categoryTitle()
                 },
                 color = pageBackground,
                 navigationIcon = {
                     if (showBackButton) {
-                        IconButton(onClick = { if (selectionMode) clearSelection() else onBack() }) {
+                        IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
                             Icon(
                                 imageVector = MiuixIcons.Regular.Back,
                                 contentDescription = stringResource(R.string.common_back),
@@ -341,9 +293,9 @@ fun MetadataCategoryScreen(
                         }
                     }
                 },
-                titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
+                titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
                 actions = {
-                    if (selectionMode) {
+                    if (selection.selectionMode) {
                         IconButton(onClick = {
                             val selectedSongs = selectedActionSongs()
                             if (selectedSongs.isEmpty()) {
@@ -351,7 +303,7 @@ fun MetadataCategoryScreen(
                             } else {
                                 playerViewModel.playNext(selectedSongs)
                                 Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                                clearSelection()
+                                selection.finishSelectionMode()
                             }
                         }) {
                             Icon(
@@ -395,8 +347,8 @@ fun MetadataCategoryScreen(
                         }
                     } else {
                         IconButton(onClick = {
-                            selectionMode = true
-                            selectedNames = emptySet()
+                            selection.selectionMode = true
+                            selection.selectedIds = emptySet()
                         }) {
                             Icon(
                                 imageVector = MiuixIcons.Regular.SelectAll,
@@ -563,15 +515,15 @@ fun MetadataCategoryScreen(
                             albumArtUri = albumArtUri,
                             representativeSong = coverSong,
                             loadCoverArt = if (type.prefersEmbeddedCategoryCardCover()) mainViewModel::getAlbumCoverArtBitmap else null,
-                            selectionMode = selectionMode,
-                            selected = item.name in selectedNames,
+                            selectionMode = selection.selectionMode,
+                            selected = item.name in selection.selectedIds,
                             isPinned = item.name in pinnedCategoryKeys,
                             onClick = {
-                                if (selectionMode) toggleSelection(item.name) else onCategoryClick(item.name)
+                                if (selection.selectionMode) selection.toggleSelection(item.name) else onCategoryClick(item.name)
                             },
                             onLongClick = {
-                                if (selectionMode) {
-                                    toggleSelection(item.name)
+                                if (selection.selectionMode) {
+                                    selection.toggleSelection(item.name)
                                 } else {
                                     categoryMenuItem = item
                                 }
@@ -603,10 +555,10 @@ fun MetadataCategoryScreen(
                     )
                 }
                 FloatingSelectionControls(
-                    visible = selectionMode && currentSelectionKeys.isNotEmpty(),
+                    visible = selection.selectionMode && currentSelectionKeys.isNotEmpty(),
                     rangeEnabled = rangeSelectionAvailable,
                     allSelected = currentSelectionKeys.isNotEmpty() && selectedVisibleCount == currentSelectionKeys.size,
-                    onRangeSelect = ::applyRangeSelection,
+                    onRangeSelect = { selection.applyRangeSelection(currentSelectionKeys, currentSelectionIndexByName) },
                     onSelectAll = ::toggleSelectAllVisibleItems,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)

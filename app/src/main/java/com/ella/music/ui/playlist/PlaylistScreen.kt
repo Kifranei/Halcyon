@@ -58,6 +58,7 @@ import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
+import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.components.ellaPageBackground
@@ -110,8 +111,7 @@ fun PlaylistScreen(
     var showImportModeSheet by remember { mutableStateOf(false) }
     var playlistPendingDelete by remember { mutableStateOf<UserPlaylist?>(null) }
     var playlistsPendingDelete by remember { mutableStateOf<List<UserPlaylist>>(emptyList()) }
-    var selectionMode by remember { mutableStateOf(false) }
-    var selectedPlaylistIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val selection = rememberLibrarySelectionState<String>()
     var draggedPlaylistId by remember { mutableStateOf<String?>(null) }
     var pressedDragHandlePlaylistId by remember { mutableStateOf<String?>(null) }
     var showExportAllFormatSheet by remember { mutableStateOf(false) }
@@ -123,8 +123,6 @@ fun PlaylistScreen(
     var playlistsToExport by remember { mutableStateOf<List<UserPlaylist>>(emptyList()) }
     var showExportFormatSheet by remember { mutableStateOf(false) }
     var pendingExportFormat by remember { mutableStateOf<PlaylistExportFormat?>(null) }
-    var rangeAnchorPlaylistId by remember { mutableStateOf<String?>(null) }
-    var rangeTargetPlaylistId by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     RestoreListScrollAfterSearch(
         searchExpanded = searchExpanded,
@@ -165,7 +163,7 @@ fun PlaylistScreen(
             else -> storedCustomPlaylists.sortedForPlaylistList(playlistSortMode)
         }
     }
-    val reorderEnabled = selectionMode &&
+    val reorderEnabled = selection.selectionMode &&
         playlistSortMode == PlaylistSortMode.Custom &&
         searchQuery.isBlank() &&
         customPlaylists.none { it.isRemote }
@@ -174,13 +172,13 @@ fun PlaylistScreen(
         val query = searchQuery.trim()
         if (query.isBlank()) customPlaylistsSource else customPlaylistsSource.filter { it.matchesPlaylistSearch(query) }
     }
-    val draggedSelectionIds = remember(draggedPlaylistId, selectedPlaylistIds, displayedCustomPlaylists) {
+    val draggedSelectionIds = remember(draggedPlaylistId, selection.selectedIds, displayedCustomPlaylists) {
         val draggedId = draggedPlaylistId
-        if (draggedId == null || draggedId !in selectedPlaylistIds) {
+        if (draggedId == null || draggedId !in selection.selectedIds) {
             emptySet()
         } else {
             displayedCustomPlaylists
-                .filter { it.id in selectedPlaylistIds && !it.isRemote }
+                .filter { it.id in selection.selectedIds && !it.isRemote }
                 .mapTo(mutableSetOf()) { it.id }
         }
     }
@@ -341,36 +339,15 @@ fun PlaylistScreen(
         }
     }
     fun finishSelectionMode() {
-        selectionMode = false
-        selectedPlaylistIds = emptySet()
+        selection.finishSelectionMode()
         draggedPlaylistId = null
-        rangeAnchorPlaylistId = null
-        rangeTargetPlaylistId = null
-    }
-    fun updateRangeAnchorsForManualSelection(playlistId: String, selectedNow: Boolean) {
-        if (selectedNow) {
-            when {
-                rangeAnchorPlaylistId == null -> rangeAnchorPlaylistId = playlistId
-                rangeAnchorPlaylistId == playlistId -> Unit
-                else -> rangeTargetPlaylistId = playlistId
-            }
-        } else {
-            if (rangeTargetPlaylistId == playlistId) rangeTargetPlaylistId = null
-            if (rangeAnchorPlaylistId == playlistId) {
-                rangeAnchorPlaylistId = rangeTargetPlaylistId ?: selectedPlaylistIds.firstOrNull { it != playlistId }
-                rangeTargetPlaylistId = null
-            }
-        }
     }
     fun togglePlaylistSelection(playlist: UserPlaylist) {
         if (playlist.isRemote) return
-        val selecting = playlist.id !in selectedPlaylistIds
-        val next = if (selecting) selectedPlaylistIds + playlist.id else selectedPlaylistIds - playlist.id
-        selectedPlaylistIds = next
-        updateRangeAnchorsForManualSelection(playlist.id, selecting)
+        selection.toggleSelection(playlist.id)
     }
     fun selectedPlaylists(): List<UserPlaylist> =
-        displayedCustomPlaylists.filter { !it.isRemote && it.id in selectedPlaylistIds }
+        displayedCustomPlaylists.filter { !it.isRemote && it.id in selection.selectedIds }
     fun selectedPlaylistSongs(): List<com.ella.music.data.model.Song> =
         selectedPlaylists()
             .flatMap { mainViewModel.playlistSongs(it) }
@@ -380,53 +357,30 @@ fun PlaylistScreen(
             displayedCustomPlaylists.forEachIndexed { index, playlist -> put(playlist.id, index) }
         }
     }
-    val selectedVisiblePlaylistCount = remember(selectedPlaylistIds, displayedCustomPlaylists) {
-        displayedCustomPlaylists.count { it.id in selectedPlaylistIds }
+    val selectedVisiblePlaylistCount = remember(selection.selectedIds, displayedCustomPlaylists) {
+        displayedCustomPlaylists.count { it.id in selection.selectedIds }
     }
     val playlistRangeSelectionAvailable = remember(
         playlistIndexById,
-        selectedPlaylistIds,
-        rangeAnchorPlaylistId,
-        rangeTargetPlaylistId
+        selection.selectedIds,
+        selection.rangeAnchorId,
+        selection.rangeTargetId
     ) {
-        val anchor = rangeAnchorPlaylistId
-        val target = rangeTargetPlaylistId
-        anchor != null &&
-            target != null &&
-            anchor != target &&
-            anchor in selectedPlaylistIds &&
-            target in selectedPlaylistIds &&
-            anchor in playlistIndexById &&
-            target in playlistIndexById
+        selection.isRangeSelectionAvailable(playlistIndexById)
     }
     fun applyPlaylistRangeSelection() {
-        val anchor = rangeAnchorPlaylistId ?: return
-        val target = rangeTargetPlaylistId ?: return
+        val anchor = selection.rangeAnchorId ?: return
+        val target = selection.rangeTargetId ?: return
         val anchorIndex = playlistIndexById[anchor] ?: return
         val targetIndex = playlistIndexById[target] ?: return
         if (anchorIndex == targetIndex) return
         val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selectedPlaylistIds = selectedPlaylistIds + bounds
+        selection.selectedIds = selection.selectedIds + bounds
             .map { displayedCustomPlaylists[it] }
             .filterNot { it.isRemote }
             .map { it.id }
-        rangeAnchorPlaylistId = target
-        rangeTargetPlaylistId = null
-    }
-    fun toggleSelectAllDisplayedPlaylists() {
-        val editablePlaylists = displayedCustomPlaylists.filterNot { it.isRemote }
-        if (editablePlaylists.isEmpty()) return
-        val ids = editablePlaylists.mapTo(mutableSetOf()) { it.id }
-        if (ids.all { it in selectedPlaylistIds }) {
-            selectedPlaylistIds = selectedPlaylistIds - ids
-            rangeAnchorPlaylistId = null
-            rangeTargetPlaylistId = null
-        } else {
-            selectedPlaylistIds = selectedPlaylistIds + ids
-            rangeAnchorPlaylistId = editablePlaylists.firstOrNull()?.id
-            rangeTargetPlaylistId = editablePlaylists.lastOrNull()?.id
-        }
-        selectionMode = true
+        selection.rangeAnchorId = target
+        selection.rangeTargetId = null
     }
     fun persistManualPlaylistOrder() {
         mainViewModel.reorderPlaylists(manualCustomPlaylists.map(UserPlaylist::id))
@@ -448,16 +402,16 @@ fun PlaylistScreen(
             manualCustomPlaylists = manualCustomPlaylists.moveSelectedItemsAsBlock(
                 from = sourceIndex,
                 to = targetIndex,
-                selectedKeys = selectedPlaylistIds,
+                selectedKeys = selection.selectedIds,
                 keyOf = UserPlaylist::id
             )
             manualCustomOrderDirty = true
         }
     )
 
-    BackHandler(enabled = selectionMode || sortExpanded || searchExpanded) {
+    BackHandler(enabled = selection.selectionMode || sortExpanded || searchExpanded) {
         when {
-            selectionMode -> finishSelectionMode()
+            selection.selectionMode -> finishSelectionMode()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
@@ -465,12 +419,12 @@ fun PlaylistScreen(
             sortExpanded -> sortExpanded = false
         }
     }
-    LaunchedEffect(selectionMode, displayedCustomPlaylists) {
-        if (!selectionMode) return@LaunchedEffect
+    LaunchedEffect(selection.selectionMode, displayedCustomPlaylists) {
+        if (!selection.selectionMode) return@LaunchedEffect
         val visibleIds = displayedCustomPlaylists.mapTo(mutableSetOf()) { it.id }
-        selectedPlaylistIds = selectedPlaylistIds.filterTo(mutableSetOf()) { it in visibleIds }
-        if (rangeAnchorPlaylistId !in visibleIds) rangeAnchorPlaylistId = selectedPlaylistIds.firstOrNull()
-        if (rangeTargetPlaylistId !in visibleIds) rangeTargetPlaylistId = null
+        selection.selectedIds = selection.selectedIds.filterTo(mutableSetOf()) { it in visibleIds }
+        if (selection.rangeAnchorId !in visibleIds) selection.rangeAnchorId = selection.selectedIds.firstOrNull()
+        if (selection.rangeTargetId !in visibleIds) selection.rangeTargetId = null
     }
 
     Column(
@@ -480,8 +434,8 @@ fun PlaylistScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
             PlaylistScreenTopBar(
-                selectionMode = selectionMode,
-                selectedCount = selectedPlaylistIds.size,
+                selectionMode = selection.selectionMode,
+                selectedCount = selection.selectedIds.size,
                 totalCount = displayedCustomPlaylists.size,
                 showBackButton = showBackButton,
                 sortItems = directionalSortModeDropdownItems(
@@ -524,7 +478,7 @@ fun PlaylistScreen(
                         saveScope.launch { mainViewModel.settingsManager.setPlaylistListSortIndex(mode.ordinal) }
                     }
                 ),
-            onBackClick = { if (selectionMode) finishSelectionMode() else onBack() },
+            onBackClick = { if (selection.selectionMode) finishSelectionMode() else onBack() },
             onExportSelectedClick = {
                 val targets = selectedPlaylists()
                 if (targets.isEmpty()) {
@@ -563,7 +517,7 @@ fun PlaylistScreen(
                 }
             },
             onDeleteSelectedClick = {
-                val targets = storedCustomPlaylists.filter { it.id in selectedPlaylistIds }
+                val targets = storedCustomPlaylists.filter { it.id in selection.selectedIds }
                 if (targets.isNotEmpty()) playlistsPendingDelete = targets
             },
             onSearchClick = {
@@ -657,13 +611,13 @@ fun PlaylistScreen(
                 PlaylistListSummaryRow(
                     playlistCount = displayedCustomPlaylists.size,
                     sortMode = playlistSortMode,
-                    selectionMode = selectionMode,
+                    selectionMode = selection.selectionMode,
                     onCreateClick = { showCreateDialog = true },
                     onSelectAllClick = {
-                        selectionMode = true
-                        selectedPlaylistIds = emptySet()
-                        rangeAnchorPlaylistId = null
-                        rangeTargetPlaylistId = null
+                        selection.selectionMode = true
+                        selection.selectedIds = emptySet()
+                        selection.rangeAnchorId = null
+                        selection.rangeTargetId = null
                     }
                 )
             }
@@ -699,13 +653,13 @@ fun PlaylistScreen(
                         PlaylistRow(
                             playlist = playlist,
                             coverModel = playlistCoverModels[playlist.id],
-                            selectionMode = selectionMode,
-                            selected = playlist.id in selectedPlaylistIds,
+                            selectionMode = selection.selectionMode,
+                            selected = playlist.id in selection.selectedIds,
                             draggedSelectionCount = draggedSelectionIds
                                 .size
                                 .takeIf { isDragging && playlist.id == draggedPlaylistId && it > 1 },
                             onClick = {
-                                if (selectionMode) {
+                                if (selection.selectionMode) {
                                     togglePlaylistSelection(playlist)
                                 } else {
                                     onPlaylistClick(playlist.id)
@@ -716,18 +670,18 @@ fun PlaylistScreen(
                             } else {
                                 {
                                     if (pressedDragHandlePlaylistId == playlist.id) return@PlaylistRow
-                                    if (selectionMode) {
-                                        if (shouldSelectPlaylistOnLongPress(true, playlist.id in selectedPlaylistIds)) {
+                                    if (selection.selectionMode) {
+                                        if (shouldSelectPlaylistOnLongPress(true, playlist.id in selection.selectedIds)) {
                                             togglePlaylistSelection(playlist)
                                         }
                                     } else {
-                                        selectionMode = true
-                                        selectedPlaylistIds = selectedPlaylistIds + playlist.id
-                                        updateRangeAnchorsForManualSelection(playlist.id, selectedNow = true)
+                                        selection.selectionMode = true
+                                        selection.selectedIds = selection.selectedIds + playlist.id
+                                        selection.updateRangeAnchorsForManualSelection(playlist.id, selectedNow = true)
                                     }
                                 }
                             },
-                            onMore = if (selectionMode || playlist.isRemote) null else { { playlistMenuTarget = playlist } },
+                            onMore = if (selection.selectionMode || playlist.isRemote) null else { { playlistMenuTarget = playlist } },
                             trailingContent = if (reorderEnabled) {
                                 {
                                     PlaylistDragHandle(
@@ -764,12 +718,12 @@ fun PlaylistScreen(
                 )
             }
             FloatingSelectionControls(
-                visible = selectionMode && displayedCustomPlaylists.isNotEmpty(),
+                visible = selection.selectionMode && displayedCustomPlaylists.isNotEmpty(),
                 rangeEnabled = playlistRangeSelectionAvailable,
                 allSelected = displayedCustomPlaylists.any { !it.isRemote } &&
                     selectedVisiblePlaylistCount == displayedCustomPlaylists.count { !it.isRemote },
                 onRangeSelect = ::applyPlaylistRangeSelection,
-                onSelectAll = ::toggleSelectAllDisplayedPlaylists,
+                onSelectAll = { selection.toggleSelectAll(displayedCustomPlaylists.filterNot { it.isRemote }.map { it.id }) },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 22.dp, bottom = 176.dp)
