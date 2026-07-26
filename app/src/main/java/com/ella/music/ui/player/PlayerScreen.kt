@@ -8,7 +8,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,8 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
@@ -398,7 +395,10 @@ fun PlayerScreen(
     ) { dismissingPlayer ->
         Box(modifier = Modifier.fillMaxSize()) {
           CompositionLocalProvider(
-              LocalPlayerContentColor provides if (coverContentColor) palette.onBackground else Color.White,
+              // With cover colouring off, palette is the neutral variant: dark content on a
+              // light player background, white on a dark one (the pre-1.2.3 behaviour). A
+              // hardcoded white fallback made light backgrounds unreadable.
+              LocalPlayerContentColor provides palette.onBackground,
               LocalPlayerSurfaceActive provides playerVisible
           ) {
             // Keep one background composed for both pages. Recreating Apple/Beautiful Lyrics
@@ -419,20 +419,6 @@ fun PlayerScreen(
                 useBlurBackground = false,
                 modifier = Modifier.fillMaxSize()
             )
-            if (!coverContentColor) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Black.copy(alpha = 0.34f),
-                                0.48f to Color.Black.copy(alpha = 0.18f),
-                                1f to Color.Black.copy(alpha = 0.42f)
-                            )
-                        )
-                )
-            }
-
             PlayerScreenPageHost(
                 immersiveAlbumCover = immersiveAlbumCover,
                 showLyrics = showLyrics,
