@@ -50,6 +50,33 @@ internal fun rememberDynamicCoverFolderPicker(
 }
 
 @Composable
+internal fun rememberMusicVideoFolderPicker(
+    currentFolders: String,
+    settingsManager: SettingsManager
+): ActivityResultLauncher<Uri?> {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    return rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val readWrite = readOnly or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, readWrite)
+        }.recoverCatching {
+            context.contentResolver.takePersistableUriPermission(uri, readOnly)
+        }
+        val updated = (currentFolders.lineSequence().map(String::trim) + sequenceOf(uri.toString()))
+            .filter(String::isNotBlank)
+            .distinct()
+            .joinToString("\n")
+        scope.launch { settingsManager.setMusicVideoCustomFolders(updated) }
+        Toast.makeText(context, context.getString(R.string.settings_music_video_folder_saved), Toast.LENGTH_SHORT).show()
+    }
+}
+
+@Composable
 internal fun rememberAppearanceImagePicker(
     currentUri: String,
     imageName: String,

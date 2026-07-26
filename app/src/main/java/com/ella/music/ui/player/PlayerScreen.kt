@@ -140,6 +140,7 @@ fun PlayerScreen(
     val dynamicCoverEnabled = playerSettings.dynamicCoverEnabled
     val musicVideoSyncEnabled = playerSettings.musicVideoSyncEnabled
     val dynamicCoverCustomFolders = playerSettings.dynamicCoverCustomFolders
+    val musicVideoCustomFolders = playerSettings.musicVideoCustomFolders
     val immersiveAlbumCover = playerSettings.immersiveAlbumCover
     val coverContentColor = playerSettings.coverContentColor
     val playerBackgroundEnabled = playerSettings.playerBackgroundEnabled
@@ -446,6 +447,7 @@ fun PlayerScreen(
                         dynamicCoverFailedPath = uiState.dynamicCoverFailedPath,
                         dynamicCoverEnabled = dynamicCoverEnabled,
                         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+                        musicVideoCustomFolders = musicVideoCustomFolders,
                         musicVideoSyncEnabled = musicVideoSyncEnabled,
                         // The landscape host owns its MV decoder while expanded. Keeping the
                         // portrait surface composed underneath created a second video pipeline.
@@ -663,7 +665,8 @@ fun PlayerScreen(
                         // Detail-page MVs are an independent, audible player. The sync switch
                         // only controls the silent MV surface on the main playback page.
                         musicVideoEnabled = dynamicCoverEnabled,
-                        musicVideoCustomFolders = dynamicCoverCustomFolders,
+                        musicVideoCustomFolders = musicVideoCustomFolders,
+                        dynamicCoverCustomFolders = dynamicCoverCustomFolders,
                         onOpenMusicVideo = { source ->
                             uiState.musicVideoVisible = false
                             playerViewModel.pauseForMusicVideo()
@@ -683,6 +686,7 @@ fun PlayerScreen(
                 coverMode = landscapeState.coverMode,
                 dynamicCoverEnabled = dynamicCoverEnabled,
                 dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+                musicVideoCustomFolders = musicVideoCustomFolders,
                 musicVideoEnabled = musicVideoSyncEnabled,
                 musicVideoVisible = uiState.musicVideoVisible,
                 hideNeighborCoversInitially = landscapeState.openedFromMusicVideo,

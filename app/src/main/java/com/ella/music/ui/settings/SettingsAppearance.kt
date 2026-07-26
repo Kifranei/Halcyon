@@ -62,6 +62,7 @@ internal fun SettingsAppearanceSection(
     val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectAsState(initial = false)
     val musicVideoCaptureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
     val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectAsState(initial = "")
+    val musicVideoCustomFolders by settingsManager.musicVideoCustomFoldersRaw.collectAsState(initial = "")
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
     val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
     val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = false)
@@ -254,6 +255,10 @@ internal fun SettingsAppearanceSection(
     val musicVideoSyncPermissionLauncher = rememberMusicVideoSyncPermissionLauncher(settingsManager)
     val dynamicCoverFolderPicker = rememberDynamicCoverFolderPicker(
         currentFolders = dynamicCoverCustomFolders,
+        settingsManager = settingsManager
+    )
+    val musicVideoFolderPicker = rememberMusicVideoFolderPicker(
+        currentFolders = musicVideoCustomFolders,
         settingsManager = settingsManager
     )
 
@@ -622,6 +627,27 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setMusicVideoCaptureSubtitles(it) }
                 }
             )
+            ArrowPreference(
+                title = stringResource(R.string.settings_music_video_custom_folders),
+                summary = if (musicVideoCustomFolders.isBlank()) {
+                    stringResource(R.string.settings_music_video_custom_folders_summary)
+                } else {
+                    stringResource(
+                        R.string.settings_music_video_custom_folders_selected,
+                        musicVideoCustomFolders.lineSequence().filter { it.isNotBlank() }.count()
+                    )
+                },
+                onClick = { musicVideoFolderPicker.launch(null) }
+            )
+            if (musicVideoCustomFolders.isNotBlank()) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_music_video_custom_folders_remove),
+                    summary = stringResource(R.string.settings_music_video_custom_folders_remove_summary),
+                    onClick = {
+                        scope.launch { settingsManager.setMusicVideoCustomFolders("") }
+                    }
+                )
+            }
             ArrowPreference(
                 title = stringResource(R.string.settings_dynamic_cover_custom_folders),
                 summary = if (dynamicCoverCustomFolders.isBlank()) {

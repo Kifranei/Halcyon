@@ -1920,6 +1920,12 @@
     <string name="playlist_song_sort_file_size">檔案大小</string>
     <string name="settings_music_video_sync">同步播放靜音 MV</string>
     <string name="settings_music_video_sync_summary">播放歌曲時同步靜音 MV；關閉後不掃描 MV，也不顯示播放頁 MV 入口</string>
+    <string name="settings_music_video_custom_folders">MV 資料夾</string>
+    <string name="settings_music_video_custom_folders_summary">選擇存放 MV 的資料夾；影片依「歌手 - 歌名」或「歌名」命名，無需 _MV 後綴</string>
+    <string name="settings_music_video_custom_folders_selected">已選擇 %1$d 個 MV 資料夾</string>
+    <string name="settings_music_video_custom_folders_remove">清除 MV 資料夾</string>
+    <string name="settings_music_video_custom_folders_remove_summary">移除已選擇的 MV 資料夾</string>
+    <string name="settings_music_video_folder_saved">已新增 MV 資料夾</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">橫向</string>
     <string name="player_landscape_hide_covers">隱藏其他封面</string>

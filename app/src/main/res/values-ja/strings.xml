@@ -1920,6 +1920,12 @@
     <string name="playlist_song_sort_file_size">File size</string>
     <string name="settings_music_video_sync">Sync silent MV playback</string>
     <string name="settings_music_video_sync_summary">Sync a silent MV during song playback; when disabled, MVs are not scanned or shown in the player.</string>
+    <string name="settings_music_video_custom_folders">MV フォルダ</string>
+    <string name="settings_music_video_custom_folders_summary">MV を保存したフォルダを選択。動画は「アーティスト - 曲名」または「曲名」で命名（_MV サフィックスは任意）</string>
+    <string name="settings_music_video_custom_folders_selected">%1$d 個の MV フォルダを選択済み</string>
+    <string name="settings_music_video_custom_folders_remove">MV フォルダをクリア</string>
+    <string name="settings_music_video_custom_folders_remove_summary">選択した MV フォルダを削除</string>
+    <string name="settings_music_video_folder_saved">MV フォルダを追加しました</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">Landscape</string>
     <string name="player_landscape_hide_covers">他のカバーを隠す</string>

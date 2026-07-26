@@ -1927,6 +1927,12 @@
     <string name="playlist_song_sort_file_size">File size</string>
     <string name="settings_music_video_sync">Sync silent MV playback</string>
     <string name="settings_music_video_sync_summary">Sync a silent MV during song playback; when disabled, MVs are not scanned or shown in the player.</string>
+    <string name="settings_music_video_custom_folders">MV folders</string>
+    <string name="settings_music_video_custom_folders_summary">Choose folders that hold your MVs. Name videos “Artist - Title” or “Title”; the _MV suffix is optional.</string>
+    <string name="settings_music_video_custom_folders_selected">%1$d MV folders selected</string>
+    <string name="settings_music_video_custom_folders_remove">Clear MV folders</string>
+    <string name="settings_music_video_custom_folders_remove_summary">Remove selected MV folders</string>
+    <string name="settings_music_video_folder_saved">MV folder added</string>
     <string name="settings_music_video_capture_subtitles">Include captions in MV captures</string>
     <string name="settings_music_video_capture_subtitles_summary">Overlay the current external lyric caption in screenshots from the song-detail MV.</string>
     <string name="player_detail_music_video">MV</string>

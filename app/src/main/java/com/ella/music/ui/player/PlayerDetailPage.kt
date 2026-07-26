@@ -71,6 +71,7 @@ internal fun PlayerDetailPage(
     onNeteaseAlbum: () -> Unit,
     musicVideoEnabled: Boolean = false,
     musicVideoCustomFolders: List<String> = emptyList(),
+    dynamicCoverCustomFolders: List<String> = emptyList(),
     onMusicVideo: (DynamicCoverSource) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -163,10 +164,17 @@ internal fun PlayerDetailPage(
         initialValue = null,
         song?.dynamicCoverResolutionKey(),
         musicVideoEnabled,
-        musicVideoCustomFolders
+        musicVideoCustomFolders,
+        dynamicCoverCustomFolders
     ) {
         value = if (musicVideoEnabled && song != null) {
-            withContext(Dispatchers.IO) { song.musicVideoSource(context, musicVideoCustomFolders) }
+            withContext(Dispatchers.IO) {
+                song.musicVideoSource(
+                    context,
+                    customRootPaths = dynamicCoverCustomFolders,
+                    musicVideoCustomFolders = musicVideoCustomFolders
+                )
+            }
         } else {
             null
         }

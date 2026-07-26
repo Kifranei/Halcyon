@@ -1543,6 +1543,12 @@
     <string name="playlist_song_sort_file_size">文件大小</string>
     <string name="settings_music_video_sync">同步播放无声 MV</string>
     <string name="settings_music_video_sync_summary">播放歌曲时同步无声 MV；关闭后不扫描 MV，也不显示播放页 MV 入口</string>
+    <string name="settings_music_video_custom_folders">MV 文件夹</string>
+    <string name="settings_music_video_custom_folders_summary">选择存放 MV 的文件夹；视频按“歌手 - 歌名”或“歌名”命名，无需 _MV 后缀</string>
+    <string name="settings_music_video_custom_folders_selected">已选择 %1$d 个 MV 文件夹</string>
+    <string name="settings_music_video_custom_folders_remove">清除 MV 文件夹</string>
+    <string name="settings_music_video_custom_folders_remove_summary">移除已选择的 MV 文件夹</string>
+    <string name="settings_music_video_folder_saved">已添加 MV 文件夹</string>
     <string name="settings_music_video_capture_subtitles">MV 截图包含字幕</string>
     <string name="settings_music_video_capture_subtitles_summary">在歌曲详情页有声 MV 的截图中叠加当前外挂字幕</string>
     <string name="player_detail_music_video">MV</string>

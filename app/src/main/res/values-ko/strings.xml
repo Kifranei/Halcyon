@@ -1920,6 +1920,12 @@
     <string name="playlist_song_sort_file_size">File size</string>
     <string name="settings_music_video_sync">Sync silent MV playback</string>
     <string name="settings_music_video_sync_summary">Sync a silent MV during song playback; when disabled, MVs are not scanned or shown in the player.</string>
+    <string name="settings_music_video_custom_folders">MV 폴더</string>
+    <string name="settings_music_video_custom_folders_summary">MV가 들어 있는 폴더를 선택하세요. 동영상 이름은 “아티스트 - 곡명” 또는 “곡명”으로 지정(_MV 접미사는 선택 사항)</string>
+    <string name="settings_music_video_custom_folders_selected">MV 폴더 %1$d개 선택됨</string>
+    <string name="settings_music_video_custom_folders_remove">MV 폴더 지우기</string>
+    <string name="settings_music_video_custom_folders_remove_summary">선택한 MV 폴더 제거</string>
+    <string name="settings_music_video_folder_saved">MV 폴더가 추가됨</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">Landscape</string>
     <string name="player_landscape_hide_covers">다른 커버 숨기기</string>

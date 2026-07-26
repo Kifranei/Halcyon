@@ -22,6 +22,7 @@ internal fun PlayerLandscapeOverlayHost(
     coverMode: Boolean,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    musicVideoCustomFolders: List<String>,
     musicVideoEnabled: Boolean,
     musicVideoVisible: Boolean,
     hideNeighborCoversInitially: Boolean,
@@ -100,6 +101,7 @@ internal fun PlayerLandscapeOverlayHost(
         musicVideoEnabled,
         musicVideoVisible,
         dynamicCoverCustomFolders,
+        musicVideoCustomFolders,
         dynamicCoverSongKey,
         dynamicCoverFailedPath
     ) {
@@ -112,7 +114,8 @@ internal fun PlayerLandscapeOverlayHost(
                 if (musicVideoEnabled && musicVideoVisible) {
                     current.musicVideoSource(
                         context,
-                        customRootPaths = dynamicCoverCustomFolders
+                        customRootPaths = dynamicCoverCustomFolders,
+                        musicVideoCustomFolders = musicVideoCustomFolders
                     )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
                 } else {
                     current.dynamicCoverSource(

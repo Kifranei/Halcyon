@@ -46,6 +46,7 @@ internal fun CoverPageContent(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    musicVideoCustomFolders: List<String>,
     musicVideoSyncEnabled: Boolean,
     musicVideoVisible: Boolean,
     onMusicVideoVisibleChange: (Boolean) -> Unit,
@@ -179,6 +180,7 @@ internal fun CoverPageContent(
         dynamicCoverFailedPath = dynamicCoverFailedPath,
         dynamicCoverEnabled = dynamicCoverEnabled,
         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+        musicVideoCustomFolders = musicVideoCustomFolders,
         musicVideoSyncEnabled = musicVideoSyncEnabled,
         musicVideoVisible = musicVideoVisible,
         onToggleMusicVideo = {
@@ -699,6 +701,7 @@ internal fun DetailPageContent(
     openNetease: (String?) -> Unit,
     musicVideoEnabled: Boolean,
     musicVideoCustomFolders: List<String>,
+    dynamicCoverCustomFolders: List<String>,
     onOpenMusicVideo: (DynamicCoverSource) -> Unit,
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
@@ -740,6 +743,7 @@ internal fun DetailPageContent(
         onNeteaseAlbum = { openNetease(neteaseInfo?.albumId?.takeIf { it.isNotBlank() }?.let(::neteaseAlbumUrl)) },
         musicVideoEnabled = musicVideoEnabled,
         musicVideoCustomFolders = musicVideoCustomFolders,
+        dynamicCoverCustomFolders = dynamicCoverCustomFolders,
         onMusicVideo = onOpenMusicVideo,
         modifier = modifier
     )

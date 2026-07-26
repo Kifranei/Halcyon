@@ -76,6 +76,7 @@ internal fun CoverPlayerPage(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    musicVideoCustomFolders: List<String>,
     musicVideoSyncEnabled: Boolean,
     musicVideoVisible: Boolean,
     immersiveAlbumCover: Boolean,
@@ -274,6 +275,7 @@ internal fun CoverPlayerPage(
         initialValue = null,
         musicVideoSyncEnabled,
         dynamicCoverCustomFolders,
+        musicVideoCustomFolders,
         dynamicCoverSongKey,
         dynamicCoverFailedPath
     ) {
@@ -284,7 +286,8 @@ internal fun CoverPlayerPage(
             withContext(Dispatchers.IO) {
                 current.musicVideoSource(
                     context,
-                    customRootPaths = dynamicCoverCustomFolders
+                    customRootPaths = dynamicCoverCustomFolders,
+                    musicVideoCustomFolders = musicVideoCustomFolders
                 )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
             }
         }

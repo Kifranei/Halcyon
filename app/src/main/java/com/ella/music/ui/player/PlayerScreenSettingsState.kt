@@ -27,6 +27,7 @@ internal data class PlayerScreenSettings(
     val dynamicCoverEnabled: Boolean = false,
     val musicVideoSyncEnabled: Boolean = false,
     val dynamicCoverCustomFolders: List<String> = emptyList(),
+    val musicVideoCustomFolders: List<String> = emptyList(),
     val immersiveAlbumCover: Boolean = false,
     val coverContentColor: Boolean = false,
     val playerBackgroundEnabled: Boolean = false,
@@ -62,7 +63,15 @@ private data class PlayerSettingsGroupA(
     val audioVisualizerOpacity: Int,
     val dynamicCoverEnabled: Boolean,
     val musicVideoSyncEnabled: Boolean,
-    val dynamicCoverCustomFolders: List<String>
+    val dynamicCoverCustomFolders: List<String>,
+    val musicVideoCustomFolders: List<String>
+)
+
+private data class PlayerSettingsDynamicCover(
+    val dynamicCoverEnabled: Boolean,
+    val musicVideoSyncEnabled: Boolean,
+    val dynamicCoverCustomFolders: List<String>,
+    val musicVideoCustomFolders: List<String>
 )
 
 private data class PlayerSettingsVisualizer(
@@ -164,9 +173,10 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         val dynamicCoverSettings = combine(
             settingsManager.dynamicCoverEnabled,
             settingsManager.musicVideoSyncEnabled,
-            settingsManager.dynamicCoverCustomFolders
-        ) { enabled, musicVideoEnabled, customFolders ->
-            Triple(enabled, musicVideoEnabled, customFolders)
+            settingsManager.dynamicCoverCustomFolders,
+            settingsManager.musicVideoCustomFolders
+        ) { enabled, musicVideoEnabled, customFolders, musicVideoFolders ->
+            PlayerSettingsDynamicCover(enabled, musicVideoEnabled, customFolders, musicVideoFolders)
         }
         val groupA = combine(
             settingsManager.playerTapSeekEnabled,
@@ -181,9 +191,10 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 lyricSourceMode = lyricSource,
                 audioVisualizerEnabled = visualizerState.enabled,
                 audioVisualizerOpacity = visualizerState.opacity,
-                dynamicCoverEnabled = dynamicCover.first,
-                musicVideoSyncEnabled = dynamicCover.second,
-                dynamicCoverCustomFolders = dynamicCover.third
+                dynamicCoverEnabled = dynamicCover.dynamicCoverEnabled,
+                musicVideoSyncEnabled = dynamicCover.musicVideoSyncEnabled,
+                dynamicCoverCustomFolders = dynamicCover.dynamicCoverCustomFolders,
+                musicVideoCustomFolders = dynamicCover.musicVideoCustomFolders
             )
         }
         val playerBackground = combine(
@@ -303,6 +314,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 dynamicCoverEnabled = a.dynamicCoverEnabled,
                 musicVideoSyncEnabled = a.musicVideoSyncEnabled,
                 dynamicCoverCustomFolders = a.dynamicCoverCustomFolders,
+                musicVideoCustomFolders = a.musicVideoCustomFolders,
                 immersiveAlbumCover = b.immersiveAlbumCover,
                 coverContentColor = b.coverContentColor,
                 playerBackgroundEnabled = b.playerBackgroundEnabled,

@@ -31,6 +31,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.splitArtistNames
 import com.ella.music.ui.components.SafeCoverImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -250,8 +251,7 @@ internal fun Song.dynamicCoverSource(
         dynamicCoverVideoFile(
             context = context,
             customRootPaths = customRootPaths,
-            includeExternalFiles = includeExternalFiles,
-            musicVideoOnly = false
+            includeExternalFiles = includeExternalFiles
         )?.let { file ->
             file.toDynamicCoverSource(
                 context = context,
@@ -259,8 +259,7 @@ internal fun Song.dynamicCoverSource(
             )
         } ?: dynamicCoverDocumentSource(
             context = context,
-            customRootPaths = customRootPaths,
-            musicVideoOnly = false
+            customRootPaths = customRootPaths
         ) ?: legacyEmbeddedAnimatedImageSource(context)
             ?: embeddedDynamicVideoSource(context)
     } else {
@@ -271,20 +270,24 @@ internal fun Song.dynamicCoverSource(
 
 internal fun Song.musicVideoSource(
     context: Context,
-    customRootPaths: List<String> = emptyList()
+    customRootPaths: List<String> = emptyList(),
+    musicVideoCustomFolders: List<String> = emptyList()
 ): DynamicCoverSource? {
-    val resolvedSource = dynamicCoverVideoFile(
+    // Dedicated MV folders win: files there are named for MVs directly ("Artist - Title.mp4",
+    // no _MV suffix required) so they are the least ambiguous user intent.
+    val resolvedSource = musicVideoCustomFolderSource(
+        context = context,
+        musicVideoCustomFolders = musicVideoCustomFolders
+    ) ?: musicVideoLocalFile(
         context = context,
         customRootPaths = customRootPaths,
-        includeExternalFiles = true,
-        musicVideoOnly = true
+        includeExternalFiles = true
     )?.toDynamicCoverSource(
         context = context,
         role = PlayerVideoRole.MusicVideo
-    ) ?: dynamicCoverDocumentSource(
+    ) ?: musicVideoDocumentSource(
         context = context,
-        customRootPaths = customRootPaths,
-        musicVideoOnly = true
+        customRootPaths = customRootPaths
     )
     return resolvedSource?.copy(playbackOwnerKey = dynamicCoverResolutionKey())
 }
@@ -390,8 +393,7 @@ private fun Song.hasPlayableEmbeddedVideoTrack(context: Context, uri: Uri): Bool
 private fun Song.dynamicCoverVideoFile(
     context: Context,
     customRootPaths: List<String>,
-    includeExternalFiles: Boolean,
-    musicVideoOnly: Boolean
+    includeExternalFiles: Boolean
 ): File? {
     val songFile = path
         .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
@@ -431,8 +433,7 @@ private fun Song.dynamicCoverVideoFile(
         .filter { it.isNotBlank() }
         .distinct()
     val songCandidates = (songNameCandidates + safeSongNameCandidates).distinct()
-    val musicVideoSongCandidates = buildLandscapeMusicVideoNameCandidates(songCandidates)
-    val selectedSongCandidates = playerVideoNameCandidates(songCandidates, musicVideoOnly)
+    val selectedSongCandidates = playerVideoNameCandidates(songCandidates, musicVideoOnly = false)
     val albumNameCandidates = listOf(
         albumName,
         albumKey,
@@ -445,17 +446,13 @@ private fun Song.dynamicCoverVideoFile(
     val folderCandidates = songFolder
         ?.takeIf { it.exists() && it.isDirectory }
         ?.let { folder ->
-            if (musicVideoOnly) {
-                musicVideoSongCandidates.map { File(folder, "$it.mp4") }
-            } else {
-                songCandidates.map { File(folder, "$it.mp4") } + listOf(
-                    File(folder, "cover.mp4"),
-                    File(folder, "${folder.name}.mp4"),
-                    File(folder, "$albumName.mp4"),
-                    File(folder, "$albumKey.mp4"),
-                    File(folder, "$artistAlbumKey.mp4")
-                )
-            }
+            songCandidates.map { File(folder, "$it.mp4") } + listOf(
+                File(folder, "cover.mp4"),
+                File(folder, "${folder.name}.mp4"),
+                File(folder, "$albumName.mp4"),
+                File(folder, "$albumKey.mp4"),
+                File(folder, "$artistAlbumKey.mp4")
+            )
         }
         .orEmpty()
 
@@ -467,22 +464,18 @@ private fun Song.dynamicCoverVideoFile(
 
     val libraryCandidates = roots.flatMap { root ->
         buildList {
-            if (!musicVideoOnly) add(File(root, "cover.mp4"))
+            add(File(root, "cover.mp4"))
             addAll(selectedSongCandidates.map { name ->
                 File(root, "$name.mp4")
             })
-            if (!musicVideoOnly) {
-                addAll(albumNameCandidates.map { name -> File(root, "$name.mp4") })
-            }
+            addAll(albumNameCandidates.map { name -> File(root, "$name.mp4") })
             listOf("Song", "song").forEach { songDir ->
                 addAll(selectedSongCandidates.map { name ->
                     File(root, "$songDir/$name.mp4")
                 })
             }
-            if (!musicVideoOnly) {
-                listOf("Album", "album").forEach { albumDir ->
-                    addAll(albumNameCandidates.map { name -> File(root, "$albumDir/$name.mp4") })
-                }
+            listOf("Album", "album").forEach { albumDir ->
+                addAll(albumNameCandidates.map { name -> File(root, "$albumDir/$name.mp4") })
             }
         }
     }
@@ -512,10 +505,70 @@ private fun Song.dynamicCoverVideoFile(
                 file.extension.equals("mp4", ignoreCase = true) &&
                 file.length() > 0L &&
                 file.nameWithoutExtension.toDynamicCoverMatchToken().let { token ->
-                    token in fuzzySongTokens || (!musicVideoOnly && token in fuzzyAlbumTokens)
+                    token in fuzzySongTokens || token in fuzzyAlbumTokens
                 }
         }?.firstOrNull()
     }
+}
+
+/**
+ * Finds an MV on the filesystem (song's own folder plus the dynamic-cover library roots).
+ * Files here still require the `_MV` / `-MV` suffix so they can coexist with ambient covers.
+ *
+ * Candidate names are searched in strict tiers so a same-titled song by another artist can no
+ * longer steal the match: the song's own file name first (unambiguous), then artist+title
+ * combinations, and only if those find nothing the bare title (legacy naming).
+ */
+private fun Song.musicVideoLocalFile(
+    context: Context,
+    customRootPaths: List<String>,
+    includeExternalFiles: Boolean
+): File? {
+    val songFile = path
+        .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
+        ?.let { File(it) }
+    val songFolder = songFile?.parentFile?.takeIf { it.exists() && it.isDirectory }
+
+    val roots = dynamicCoverRootDirectories(
+        context = context,
+        customRootPaths = customRootPaths,
+        includeExternalFiles = includeExternalFiles
+    )
+    val searchDirs = buildList {
+        songFolder?.let(::add)
+        roots.forEach { root ->
+            root.takeIf { it.exists() && it.isDirectory }?.let(::add)
+            listOf("Song", "song", "Album", "album").forEach { child ->
+                File(root, child).takeIf { it.exists() && it.isDirectory }?.let(::add)
+            }
+        }
+    }.distinctBy { it.absolutePath.lowercase() }
+    if (searchDirs.isEmpty()) return null
+
+    val tiers = buildMusicVideoBaseNameTiers(
+        fileBaseName = songFile?.nameWithoutExtension.orEmpty(),
+        title = title,
+        artist = artist
+    )
+    tiers.forEach { tier ->
+        val mvNames = buildLandscapeMusicVideoNameCandidates(tier)
+        searchDirs.firstNotNullOfOrNull { dir ->
+            mvNames.firstNotNullOfOrNull { name ->
+                File(dir, "$name.mp4").takeIf { it.exists() && it.isFile && it.length() > 0L }
+            }
+        }?.let { return it }
+
+        val fuzzyTokens = mvNames.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+        searchDirs.firstNotNullOfOrNull { dir ->
+            dir.listFiles { file ->
+                file.isFile &&
+                    file.extension.equals("mp4", ignoreCase = true) &&
+                    file.length() > 0L &&
+                    file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzyTokens
+            }?.firstOrNull()
+        }?.let { return it }
+    }
+    return null
 }
 
 internal fun dynamicCoverRootDirectories(
@@ -552,8 +605,7 @@ internal fun dynamicCoverRootDirectories(
 
 private fun Song.dynamicCoverDocumentSource(
     context: Context,
-    customRootPaths: List<String>,
-    musicVideoOnly: Boolean
+    customRootPaths: List<String>
 ): DynamicCoverSource? {
     val albumName = album.ifBlank { "Unknown" }
     val artistAlbumKey = listOf(artist, albumName)
@@ -587,7 +639,7 @@ private fun Song.dynamicCoverDocumentSource(
         .filter { it.isNotBlank() }
         .distinct()
     val songCandidates = (songNameCandidates + safeSongNameCandidates).distinct()
-    val selectedSongCandidates = playerVideoNameCandidates(songCandidates, musicVideoOnly)
+    val selectedSongCandidates = playerVideoNameCandidates(songCandidates, musicVideoOnly = false)
     val fuzzySongTokens = selectedSongCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
     val fuzzyAlbumTokens = albumNameCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
 
@@ -608,31 +660,163 @@ private fun Song.dynamicCoverDocumentSource(
 
             searchRoots.firstNotNullOfOrNull { directory ->
                 val exactNames = buildList {
-                    if (!musicVideoOnly) add("cover.mp4")
+                    add("cover.mp4")
                     addAll(selectedSongCandidates.map { "$it.mp4" })
-                    if (!musicVideoOnly) addAll(albumNameCandidates.map { "$it.mp4" })
+                    addAll(albumNameCandidates.map { "$it.mp4" })
                 }
                 exactNames.firstNotNullOfOrNull { name ->
                     directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(
                         context,
                         rawUri,
-                        if (musicVideoOnly) PlayerVideoRole.MusicVideo else PlayerVideoRole.DynamicCover
+                        PlayerVideoRole.DynamicCover
                     )
                 } ?: directory.listFiles().firstOrNull { file ->
                     file.isFile &&
                         file.length() > 0L &&
                         file.name.orEmpty().substringAfterLast('.', "").equals("mp4", ignoreCase = true) &&
                         file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken().let { token ->
-                            token in fuzzySongTokens || (!musicVideoOnly && token in fuzzyAlbumTokens)
+                            token in fuzzySongTokens || token in fuzzyAlbumTokens
                         }
                 }?.toDynamicCoverSource(
                     context,
                     rawUri,
-                    if (musicVideoOnly) PlayerVideoRole.MusicVideo else PlayerVideoRole.DynamicCover
+                    PlayerVideoRole.DynamicCover
                 )
             }
         }
         .firstOrNull()
+}
+
+/**
+ * MV lookup inside the SAF dynamic-cover folders (legacy shared location). Files must carry the
+ * `_MV` / `-MV` suffix and be mp4, exactly like before; only the candidate-name priority changed
+ * (artist+title tiers first, bare title as fallback).
+ */
+private fun Song.musicVideoDocumentSource(
+    context: Context,
+    customRootPaths: List<String>
+): DynamicCoverSource? {
+    val listings = customRootPaths
+        .map(String::trim)
+        .filter { it.startsWith("content://", ignoreCase = true) }
+        .mapNotNull { rawUri ->
+            runCatching { DocumentFile.fromTreeUri(context, Uri.parse(rawUri)) }
+                .getOrNull()
+                ?.let { rawUri to it }
+        }
+        .flatMap { (rawUri, root) ->
+            listOfNotNull(
+                root,
+                root.findChildDirectoryIgnoreCase("Song"),
+                root.findChildDirectoryIgnoreCase("Album")
+            ).map { directory -> rawUri to directory }
+        }
+        // List each SAF directory once; DocumentFile.listFiles() is an IPC round-trip per call.
+        .map { (rawUri, directory) -> rawUri to directory.listFiles().toList() }
+    if (listings.isEmpty()) return null
+
+    val tiers = buildMusicVideoBaseNameTiers(
+        fileBaseName = File(path).nameWithoutExtension,
+        title = title,
+        artist = artist
+    )
+    tiers.forEach { tier ->
+        val mvNames = buildLandscapeMusicVideoNameCandidates(tier)
+        listings.firstNotNullOfOrNull { (rawUri, files) ->
+            mvNames.firstNotNullOfOrNull { name ->
+                files.firstOrNull { file ->
+                    file.isFile && file.length() > 0L && file.name.equals("$name.mp4", ignoreCase = true)
+                }
+            }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
+        }?.let { return it }
+
+        val fuzzyTokens = mvNames.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+        listings.firstNotNullOfOrNull { (rawUri, files) ->
+            files.firstOrNull { file ->
+                file.isFile &&
+                    file.length() > 0L &&
+                    file.name.orEmpty().substringAfterLast('.', "").equals("mp4", ignoreCase = true) &&
+                    file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken() in fuzzyTokens
+            }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
+        }?.let { return it }
+    }
+    return null
+}
+
+/**
+ * MV lookup inside the dedicated "MV folders" setting. Unlike the shared dynamic-cover folders
+ * these hold nothing but MVs, so the `_MV` suffix is optional ("Artist - Title.mp4" works as-is,
+ * suffixed names are still accepted) and the container list is relaxed to mp4/mkv/webm/mov.
+ * Both SAF tree URIs (from the folder picker) and plain filesystem paths are supported.
+ */
+private fun Song.musicVideoCustomFolderSource(
+    context: Context,
+    musicVideoCustomFolders: List<String>
+): DynamicCoverSource? {
+    val cleaned = musicVideoCustomFolders.map(String::trim).filter(String::isNotBlank)
+    if (cleaned.isEmpty()) return null
+
+    val fileDirs = cleaned
+        .filterNot { it.startsWith("content://", ignoreCase = true) }
+        .map(::File)
+        .filter { it.exists() && it.isDirectory }
+        .distinctBy { it.absolutePath.lowercase() }
+    val documentListings = cleaned
+        .filter { it.startsWith("content://", ignoreCase = true) }
+        .mapNotNull { rawUri ->
+            runCatching { DocumentFile.fromTreeUri(context, Uri.parse(rawUri)) }
+                .getOrNull()
+                ?.let { rawUri to it.listFiles().toList() }
+        }
+    if (fileDirs.isEmpty() && documentListings.isEmpty()) return null
+
+    val songFile = path
+        .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
+        ?.let { File(it) }
+    val tiers = buildMusicVideoBaseNameTiers(
+        fileBaseName = songFile?.nameWithoutExtension.orEmpty(),
+        title = title,
+        artist = artist
+    )
+    tiers.forEach { tier ->
+        val names = musicVideoFolderFileNameCandidates(tier)
+        val exactFileNames = names.flatMap { name ->
+            MUSIC_VIDEO_FOLDER_EXTENSIONS.map { extension -> "$name.$extension" }
+        }
+        fileDirs.firstNotNullOfOrNull { dir ->
+            exactFileNames.firstNotNullOfOrNull { name ->
+                File(dir, name).takeIf { it.exists() && it.isFile && it.length() > 0L }
+            }
+        }?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
+        documentListings.firstNotNullOfOrNull { (rawUri, files) ->
+            exactFileNames.firstNotNullOfOrNull { name ->
+                files.firstOrNull { file ->
+                    file.isFile && file.length() > 0L && file.name.equals(name, ignoreCase = true)
+                }
+            }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
+        }?.let { return it }
+
+        val fuzzyTokens = names.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+        fileDirs.firstNotNullOfOrNull { dir ->
+            dir.listFiles { file ->
+                file.isFile &&
+                    file.length() > 0L &&
+                    MUSIC_VIDEO_FOLDER_EXTENSIONS.any { file.extension.equals(it, ignoreCase = true) } &&
+                    file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzyTokens
+            }?.firstOrNull()
+        }?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
+        documentListings.firstNotNullOfOrNull { (rawUri, files) ->
+            files.firstOrNull { file ->
+                val name = file.name.orEmpty()
+                val extension = name.substringAfterLast('.', "")
+                file.isFile &&
+                    file.length() > 0L &&
+                    MUSIC_VIDEO_FOLDER_EXTENSIONS.any { extension.equals(it, ignoreCase = true) } &&
+                    name.substringBeforeLast('.').toDynamicCoverMatchToken() in fuzzyTokens
+            }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
+        }?.let { return it }
+    }
+    return null
 }
 
 /** Keeps an ambient video's loop position while Compose swaps player pages. */
@@ -813,6 +997,73 @@ internal fun playerVideoNameCandidates(
     buildLandscapeMusicVideoNameCandidates(songCandidates)
 } else {
     songCandidates.map(String::trim).filter(String::isNotBlank).distinct()
+}
+
+/** Containers accepted inside the dedicated MV folders (the legacy chain stays mp4-only). */
+internal val MUSIC_VIDEO_FOLDER_EXTENSIONS = listOf("mp4", "mkv", "webm", "mov")
+
+/**
+ * Artist strings that may appear in an MV file name: the full (possibly multi-artist) tag value
+ * plus the first split artist, so "ArtistA&ArtistB - Title.mp4" and "ArtistA - Title.mp4" both
+ * match a song tagged "ArtistA&ArtistB". Splitting follows the user's artist-separator settings.
+ */
+internal fun musicVideoArtistNameVariants(artist: String): List<String> {
+    val full = artist.trim()
+    if (full.isBlank()) return emptyList()
+    val first = splitArtistNames(artist).firstOrNull()?.trim().orEmpty()
+    return listOf(full, first).filter(String::isNotBlank).distinct()
+}
+
+/** "Artist - Title" / "Artist-Title" / "Title - Artist" combinations for MV file names. */
+internal fun buildArtistTitleMusicVideoBaseNames(artist: String, title: String): List<String> {
+    val trimmedTitle = title.trim()
+    if (trimmedTitle.isBlank()) return emptyList()
+    return musicVideoArtistNameVariants(artist)
+        .flatMap { name ->
+            listOf("$name - $trimmedTitle", "$name-$trimmedTitle", "$trimmedTitle - $name")
+        }
+        .distinct()
+}
+
+/**
+ * Priority tiers of MV base names (no `_MV` suffix, no extension). Earlier tiers must be fully
+ * exhausted (exact and fuzzy) before a later tier is tried:
+ *  1. the song's own file name — unambiguous, keeps "songfile_MV.mp4" working,
+ *  2. artist+title combinations — disambiguates same-titled songs by different artists,
+ *  3. bare title — legacy fallback for users who already named files by title only.
+ * With a blank artist tier 2 is empty, so behaviour degrades to the previous title matching.
+ * Each name is doubled with its filesystem-safe form; names already used by an earlier tier are
+ * dropped from later ones.
+ */
+internal fun buildMusicVideoBaseNameTiers(
+    fileBaseName: String,
+    title: String,
+    artist: String
+): List<List<String>> {
+    fun expand(names: List<String>): List<String> = names
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .flatMap { listOf(it, it.toSafeDynamicCoverName()) }
+        .filter(String::isNotBlank)
+        .distinct()
+
+    val seen = mutableSetOf<String>()
+    return listOf(
+        expand(listOf(fileBaseName)),
+        expand(buildArtistTitleMusicVideoBaseNames(artist, title)),
+        expand(listOf(title))
+    )
+        .map { tier -> tier.filter(seen::add) }
+        .filter { it.isNotEmpty() }
+}
+
+/**
+ * File names (without extension) accepted inside a dedicated MV folder: the plain base names
+ * ("Artist - Title") plus the suffixed forms ("Artist - Title_MV") for users who reuse files.
+ */
+internal fun musicVideoFolderFileNameCandidates(baseNames: Collection<String>): List<String> {
+    val trimmed = baseNames.map(String::trim).filter(String::isNotBlank).distinct()
+    return (trimmed + buildLandscapeMusicVideoNameCandidates(trimmed)).distinct()
 }
 
 internal fun isLandscapeMusicVideoFileName(
