@@ -1,7 +1,6 @@
 package com.ella.music.viewmodel
 
 import com.ella.music.data.PlaybackHistoryEntry
-import com.ella.music.data.PlaybackHistorySource
 import com.ella.music.data.lastfm.LastFmTrack
 import com.ella.music.data.model.Song
 import java.text.SimpleDateFormat

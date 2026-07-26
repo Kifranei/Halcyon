@@ -9,7 +9,6 @@ import com.mocharealm.accompanist.lyrics.core.model.karaoke.KaraokeSyllable
 import com.mocharealm.accompanist.lyrics.core.model.karaoke.mapper.contentToString
 import com.mocharealm.accompanist.lyrics.core.utils.LrcMetadataHelper
 import com.mocharealm.accompanist.lyrics.core.utils.parseAsTime
-import kotlin.math.abs
 
 /**
  * A parser for Enhanced LRC files.

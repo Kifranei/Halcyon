@@ -1,7 +1,6 @@
 package com.ella.music.ui.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -47,7 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import androidx.media3.common.Player
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey

@@ -2,7 +2,6 @@ package com.ella.music.ui.player
 
 import android.graphics.Bitmap
 import android.graphics.Typeface
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.window.Popup

@@ -1,7 +1,6 @@
 package com.mocharealm.accompanist.lyrics.core.model.synced
 
 import com.mocharealm.accompanist.lyrics.core.model.ISyncedLine
-import com.mocharealm.accompanist.lyrics.core.model.karaoke.KaraokeLine
 
 data class SyncedLine(
     val content: String,

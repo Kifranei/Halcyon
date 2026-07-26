@@ -1,17 +1,14 @@
 package com.ella.music.ui.theme
 
-import android.graphics.Typeface
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
 import com.ella.music.ui.settings.SYSTEM_FONT_PATH
 import com.ella.music.ui.components.loadAndroidTypeface
-import java.io.File
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController

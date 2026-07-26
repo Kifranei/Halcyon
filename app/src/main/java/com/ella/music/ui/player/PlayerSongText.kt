@@ -43,7 +43,6 @@ import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ExplicitSongTitle
 import kotlinx.coroutines.isActive
-import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
 internal fun LandscapeSongTitle(

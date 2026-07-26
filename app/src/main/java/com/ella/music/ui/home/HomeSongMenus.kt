@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ExplicitSongTitle
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable

@@ -2,7 +2,6 @@ package com.mocharealm.accompanist.lyrics.core.exporter
 
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
 import com.mocharealm.accompanist.lyrics.core.model.karaoke.KaraokeLine
-import com.mocharealm.accompanist.lyrics.core.model.karaoke.mapper.contentToString
 import com.mocharealm.accompanist.lyrics.core.model.synced.SyncedLine
 import com.mocharealm.accompanist.lyrics.core.model.synced.mapper.toSyncedLine
 import com.mocharealm.accompanist.lyrics.core.utils.toTimeFormattedString
