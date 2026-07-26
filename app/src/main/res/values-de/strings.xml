@@ -825,6 +825,8 @@
     <string name="settings_custom_image_save_failed">Eigenes Bild konnte nicht gespeichert werden</string>
     <string name="settings_player_immersive_cover">Immersives Albumcover</string>
     <string name="settings_player_immersive_cover_summary">Albumcover bis an den oberen Rand des Players erweitern; deaktivieren, um das kompakte abgerundete Coverlayout zu verwenden</string>
+    <string name="settings_player_cover_content_color">Coverfarben für Inhalte verwenden</string>
+    <string name="settings_player_cover_content_color_summary">Text und Symbole im Player mit einer vom Cover abgeleiteten Akzentfarbe einfärben</string>
     <string name="settings_player_tap_seek">Zum Spulen auf Fortschrittsleiste tippen</string>
     <string name="settings_player_tap_seek_summary">Wenn ausgeschaltet, ändert nur Ziehen den Wiedergabefortschritt. Wenn eingeschaltet, springt ein Tippen irgendwo auf der Fortschrittsleiste der Wiedergabeseite direkt dorthin.</string>
     <string name="settings_player_show_total_duration">Gesamtdauer des Titels auf der Fortschrittsleiste anzeigen</string>

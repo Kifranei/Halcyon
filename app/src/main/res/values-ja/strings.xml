@@ -825,6 +825,8 @@
     <string name="settings_custom_image_save_failed">カスタム画像の保存に失敗しました</string>
     <string name="settings_player_immersive_cover">イマーシブアルバムカバー</string>
     <string name="settings_player_immersive_cover_summary">有効にすると、プレーヤー画面のカバーを上端まで広げます。オフではコンパクトな角丸カバーレイアウトを使用します</string>
+    <string name="settings_player_cover_content_color">コンテンツにカバーの色を使う</string>
+    <string name="settings_player_cover_content_color_summary">プレーヤーの文字とアイコンをカバー由来のアクセント色にします</string>
     <string name="settings_player_tap_seek">プログレスバーをタップしてシーク</string>
     <string name="settings_player_tap_seek_summary">オフではドラッグのみで再生位置を変更します。オンにすると、プレーヤー画面のプログレスバーをタップして直接シークできます。</string>
     <string name="settings_player_show_total_duration">プログレスバーに曲の総時間を表示</string>

@@ -148,6 +148,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Photos
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun PlayerScreen(
@@ -237,6 +238,7 @@ fun PlayerScreen(
     val musicVideoSyncEnabled = playerSettings.musicVideoSyncEnabled
     val dynamicCoverCustomFolders = playerSettings.dynamicCoverCustomFolders
     val immersiveAlbumCover = playerSettings.immersiveAlbumCover
+    val coverContentColor = playerSettings.coverContentColor
     val playerBackgroundEnabled = playerSettings.playerBackgroundEnabled
     val playerBackgroundUri = playerSettings.playerBackgroundUri
     val playerBackgroundOpacity = playerSettings.playerBackgroundOpacity / 100f
@@ -323,9 +325,13 @@ fun PlayerScreen(
     fun requestDeleteSong(targetSong: Song) {
         uiState.deleteConfirmSong = targetSong
     }
-    // The cover-derived flow always starts from a dark surface. It preserves readable white text
-    // above bright artwork while still exposing the cover palette through accents and progress.
-    val playerLight = false
+    val playerBackgroundTheme by settingsManager.playerBackgroundTheme
+        .collectAsState(initial = SettingsManager.PLAYER_BG_THEME_FOLLOW_SYSTEM)
+    val playerLight = when (playerBackgroundTheme) {
+        SettingsManager.PLAYER_BG_THEME_LIGHT -> true
+        SettingsManager.PLAYER_BG_THEME_DARK -> false
+        else -> MiuixTheme.colorScheme.background.luminance() >= 0.5f
+    }
     val songPresentation = rememberPlayerSongPresentationState(
         context = context,
         song = song,
@@ -334,8 +340,16 @@ fun PlayerScreen(
     )
     val embeddedCover = songPresentation.embeddedCover
     val paletteBitmap = songPresentation.paletteBitmap
-    val palette = songPresentation.palette
-    val lyricPalette = songPresentation.lyricPalette
+    val palette = if (coverContentColor) {
+        songPresentation.palette.withCoverContentColor()
+    } else {
+        songPresentation.palette
+    }
+    val lyricPalette = if (coverContentColor) {
+        songPresentation.lyricPalette.withCoverContentColor()
+    } else {
+        songPresentation.lyricPalette
+    }
     val audioInfo = songPresentation.audioInfo
     val tagInfo = songPresentation.tagInfo
     val songAnnotation = songPresentation.annotation
@@ -478,9 +492,7 @@ fun PlayerScreen(
     ) { dismissingPlayer ->
         Box(modifier = Modifier.fillMaxSize()) {
           CompositionLocalProvider(
-              // The shared background can be a wallpaper or a very bright cover. Its palette is
-              // not a reliable contrast signal, so always use white above the safety veil below.
-              LocalPlayerContentColor provides Color.White,
+              LocalPlayerContentColor provides if (coverContentColor) palette.onBackground else Color.White,
               LocalPlayerSurfaceActive provides playerVisible
           ) {
             // Keep one background composed for both pages. Recreating Apple/Beautiful Lyrics
@@ -501,19 +513,19 @@ fun PlayerScreen(
                 useBlurBackground = false,
                 modifier = Modifier.fillMaxSize()
             )
-            // Content color and icon color may follow cover extraction. A stable neutral veil
-            // keeps both readable without muting the cover itself into an opaque background.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.34f),
-                            0.48f to Color.Black.copy(alpha = 0.18f),
-                            1f to Color.Black.copy(alpha = 0.42f)
+            if (!coverContentColor) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Black.copy(alpha = 0.34f),
+                                0.48f to Color.Black.copy(alpha = 0.18f),
+                                1f to Color.Black.copy(alpha = 0.42f)
+                            )
                         )
-                    )
-            )
+                )
+            }
 
             PlayerScreenPageHost(
                 immersiveAlbumCover = immersiveAlbumCover,
@@ -565,6 +577,7 @@ fun PlayerScreen(
                             }
                         },
                         immersiveAlbumCover = immersiveAlbumCover,
+                        coverContentColor = coverContentColor,
                         playerBackgroundEnabled = playerBackgroundEnabled,
                         playerBackgroundUri = playerBackgroundUri,
                         playerBackgroundOpacity = playerBackgroundOpacity,

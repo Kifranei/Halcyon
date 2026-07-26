@@ -28,6 +28,7 @@ internal data class PlayerScreenSettings(
     val musicVideoSyncEnabled: Boolean = false,
     val dynamicCoverCustomFolders: List<String> = emptyList(),
     val immersiveAlbumCover: Boolean = false,
+    val coverContentColor: Boolean = true,
     val playerBackgroundEnabled: Boolean = false,
     val playerBackgroundUri: String = "",
     val playerBackgroundOpacity: Int = 100,
@@ -71,6 +72,7 @@ private data class PlayerSettingsVisualizer(
 
 private data class PlayerSettingsGroupB(
     val immersiveAlbumCover: Boolean,
+    val coverContentColor: Boolean,
     val playerBackgroundEnabled: Boolean,
     val playerBackgroundUri: String,
     val playerBackgroundOpacity: Int,
@@ -88,6 +90,7 @@ private data class PlayerSettingsGroupB(
 
 private data class PlayerSettingsGroupBBase(
     val immersiveAlbumCover: Boolean,
+    val coverContentColor: Boolean,
     val background: PlayerBackgroundSettings
 )
 
@@ -193,9 +196,10 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         }
         val groupBBase = combine(
             settingsManager.playerImmersiveCover,
+            settingsManager.playerCoverContentColor,
             playerBackground
-        ) { immersive, background ->
-            PlayerSettingsGroupBBase(immersive, background)
+        ) { immersive, coverContentColor, background ->
+            PlayerSettingsGroupBBase(immersive, coverContentColor, background)
         }
         val groupBFlagsPart1 = combine(
             settingsManager.playerBeautifulLyricsBackground,
@@ -249,6 +253,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         val groupB = combine(groupBBase, groupBExtra) { base, extra ->
             PlayerSettingsGroupB(
                 immersiveAlbumCover = base.immersiveAlbumCover,
+                coverContentColor = base.coverContentColor,
                 playerBackgroundEnabled = base.background.enabled,
                 playerBackgroundUri = base.background.uri,
                 playerBackgroundOpacity = base.background.opacity,
@@ -299,6 +304,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 musicVideoSyncEnabled = a.musicVideoSyncEnabled,
                 dynamicCoverCustomFolders = a.dynamicCoverCustomFolders,
                 immersiveAlbumCover = b.immersiveAlbumCover,
+                coverContentColor = b.coverContentColor,
                 playerBackgroundEnabled = b.playerBackgroundEnabled,
                 playerBackgroundUri = b.playerBackgroundUri,
                 playerBackgroundOpacity = b.playerBackgroundOpacity,

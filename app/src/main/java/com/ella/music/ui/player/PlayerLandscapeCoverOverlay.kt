@@ -58,7 +58,6 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Hide
 import top.yukonga.miuix.kmp.icon.extended.Mic
 import top.yukonga.miuix.kmp.icon.extended.Back
 
@@ -198,6 +197,7 @@ internal fun LandscapeCoverPlaybackOverlay(
                 lyrics = lyrics,
                 position = currentPosition,
                 videoAspectRatio = dynamicCoverSource?.aspectRatio,
+                avoidBottomStartContent = hideNeighborCovers,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -410,12 +410,6 @@ internal fun LandscapeCoverPlaybackOverlay(
                     selected = false,
                     onClick = onDismiss
                 )
-                LandscapeOverlayIconButton(
-                    icon = MiuixIcons.Regular.Hide,
-                    description = stringResource(R.string.player_landscape_hide_covers),
-                    selected = hideNeighborCovers,
-                    onClick = { hideNeighborCovers = !hideNeighborCovers }
-                )
                 if (lyrics.isNotEmpty()) {
                     LandscapeOverlayIconButton(
                         icon = MiuixIcons.Regular.Mic,
@@ -432,9 +426,9 @@ internal fun LandscapeCoverPlaybackOverlay(
         if (dynamicCoverSource?.preferLandscapeBackground != true) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 26.dp, end = 28.dp)
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(top = 26.dp, start = 28.dp)
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.32f))

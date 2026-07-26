@@ -1180,6 +1180,8 @@
     <string name="settings_custom_image_save_failed">保存自定义图片失败</string>
     <string name="settings_player_immersive_cover">沉浸专辑封面</string>
     <string name="settings_player_immersive_cover_summary">开启后播放页封面延伸到顶部；关闭后使用收敛的圆角封面布局</string>
+    <string name="settings_player_cover_content_color">封面取色用于内容</string>
+    <string name="settings_player_cover_content_color_summary">将播放页文字与图标改为与封面协调的强调色</string>
     <string name="settings_player_title_position">非沉浸播放页标题位置</string>
     <string name="settings_player_title_position_below_cover">封面下方</string>
     <string name="settings_player_title_position_above_cover">封面上方</string>

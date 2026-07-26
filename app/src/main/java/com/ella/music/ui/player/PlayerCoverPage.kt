@@ -81,6 +81,7 @@ internal fun CoverPlayerPage(
     musicVideoSyncEnabled: Boolean,
     musicVideoVisible: Boolean,
     immersiveAlbumCover: Boolean,
+    coverContentColor: Boolean,
     playerBackgroundEnabled: Boolean,
     playerBackgroundUri: String,
     playerBackgroundOpacity: Float,
@@ -313,8 +314,7 @@ internal fun CoverPlayerPage(
         val showHiResLogo = hiResLogoEnabled && audioInfo?.isHiResLogoTrack() == true
         val titleAboveCover = !immersiveAlbumCover &&
             playerTitlePosition == com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
-        // Credits/annotations can add several lines above or below the cover. Reserve that space
-        // from the artwork first, never from the fixed transport area near the gesture bar.
+        // Credits reserve room without shrinking the artwork into a visually disconnected card.
         val constrainedPortraitContent = !immersiveAlbumCover &&
             (annotation.isNotBlank() || maxHeight < 840.dp)
         val nonImmersiveCoverFraction = when {
@@ -328,7 +328,7 @@ internal fun CoverPlayerPage(
         // into the gesture navigation area.
         val nonImmersiveCoverSize = minOf(
             ((maxWidth - 56.dp).coerceAtLeast(0.dp)) * nonImmersiveCoverFraction,
-            maxHeight * if (constrainedPortraitContent) 0.36f else 0.42f
+            maxHeight * if (constrainedPortraitContent) 0.42f else 0.46f
         )
         // Credits reserve artwork space, but must not turn the lyric preview into an unusable
         // single strip. Only genuinely compact windows use the compact lyric presentation.
@@ -882,6 +882,9 @@ internal fun CoverPlayerPage(
                         }
 
                         if (effectiveMiniLyricLine != null) {
+                            // Flexible room belongs above the lyric preview, keeping lyrics close
+                            // to the transport actions without reducing their fixed control area.
+                            Spacer(modifier = Modifier.weight(1f))
                             Spacer(modifier = Modifier.height(8.dp))
                             MiniLyricsPreview(
                                 lyrics = lyrics,
@@ -901,7 +904,8 @@ internal fun CoverPlayerPage(
                                 wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .width(nonImmersiveCoverSize)
+                                    .align(Alignment.CenterHorizontally)
                                     .height(
                                         if (compactNonImmersiveLyrics) {
                                             miniLyricsCompactHeight()
@@ -911,23 +915,26 @@ internal fun CoverPlayerPage(
                                     )
                             )
                         } else if (lyrics.isEmpty() && !lyricsLoading) {
+                            Spacer(modifier = Modifier.weight(1f))
                             Spacer(modifier = Modifier.height(8.dp))
                             MiniNoLyricsPreview(
                                 contentColor = pagePalette.onBackground,
                                 fontWeight = fontWeight,
                                 onClick = onShowLyrics,
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .width(nonImmersiveCoverSize)
+                                    .align(Alignment.CenterHorizontally)
                                     .height(if (compactNonImmersiveLyrics) 40.dp else 150.dp)
                             )
                         } else {
                             Spacer(modifier = Modifier.height(12.dp))
                         }
 
-                        // Give flexible space to the upper content, then keep the action row
-                        // attached to progress and transport. This is stable with or without a
-                        // credit line and never takes height away from playback controls.
-                        Spacer(modifier = Modifier.weight(1f))
+                        // With lyrics (or no-lyrics) the flexible room is placed before the
+                        // preview above. Keep this fallback for loading and compact states.
+                        if (effectiveMiniLyricLine == null && (lyrics.isNotEmpty() || lyricsLoading)) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                         Spacer(modifier = Modifier.height(if (compactNonImmersiveLyrics) 8.dp else 12.dp))
                         PlayerQuickActionRow(
                             onSongInfo = onSongInfo,
@@ -935,7 +942,7 @@ internal fun CoverPlayerPage(
                             onTimer = onOpenTimer,
                             onEditMetadata = onOpenMetadataEditor,
                             onMore = onToggleMenu,
-                            accent = pagePalette.accent,
+                            accent = if (coverContentColor) pagePalette.accent else null,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(12.dp))

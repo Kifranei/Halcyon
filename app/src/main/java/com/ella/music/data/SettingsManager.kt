@@ -171,6 +171,7 @@ class SettingsManager(private val context: Context) {
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_PLAYER_IMMERSIVE_COVER = booleanPreferencesKey("player_immersive_cover")
+        val KEY_PLAYER_COVER_CONTENT_COLOR = booleanPreferencesKey("player_cover_content_color")
         val KEY_HIDE_SYSTEM_BARS = booleanPreferencesKey("hide_system_bars")
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
@@ -934,6 +935,8 @@ class SettingsManager(private val context: Context) {
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     val playerImmersiveCover: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: false }
+    val playerCoverContentColor: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_COVER_CONTENT_COLOR] ?: true }
 
     val hideSystemBars: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }
@@ -1818,6 +1821,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setPlayerBackgroundTheme(mode: Int) {
         context.dataStore.edit { it[KEY_PLAYER_BACKGROUND_THEME] = mode }
+    }
+
+    suspend fun setPlayerCoverContentColor(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_COVER_CONTENT_COLOR] = enabled }
     }
 
     suspend fun setAppLanguage(languageTag: String) {
@@ -3442,6 +3449,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_PLAYER_KEEP_SCREEN_ON)
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
+            setBoolean(KEY_PLAYER_COVER_CONTENT_COLOR)
             setBoolean(KEY_HIDE_SYSTEM_BARS)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)

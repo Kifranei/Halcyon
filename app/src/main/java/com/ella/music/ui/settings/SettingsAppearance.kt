@@ -90,6 +90,7 @@ internal fun SettingsAppearanceSection(
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
     val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
     val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = false)
+    val playerCoverContentColor by settingsManager.playerCoverContentColor.collectAsState(initial = true)
     val transportButtonOutlines by settingsManager.transportButtonOutlines.collectAsState(initial = false)
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectAsState(initial = true)
     val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectAsState(initial = false)
@@ -702,6 +703,14 @@ internal fun SettingsAppearanceSection(
                 checked = playerImmersiveCover,
                 onCheckedChange = {
                     scope.launch { settingsManager.setPlayerImmersiveCover(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_player_cover_content_color),
+                summary = stringResource(R.string.settings_player_cover_content_color_summary),
+                checked = playerCoverContentColor,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setPlayerCoverContentColor(it) }
                 }
             )
             WindowSpinnerPreference(

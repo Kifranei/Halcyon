@@ -80,6 +80,8 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.primaryEndMs
+import com.ella.music.data.model.shiftedBy
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
@@ -87,6 +89,7 @@ import com.ella.music.player.CenterChannelSuppressorAudioProcessor
 import com.ella.music.player.EllaRenderersFactory
 import com.ella.music.ui.player.GlowSeekBar
 import com.ella.music.ui.player.MusicVideoKtvLyrics
+import com.ella.music.viewmodel.lyricIdentityKey
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -219,10 +222,21 @@ private fun DetailMusicVideoScreen(
     var showCaptureActions by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     val captureSubtitles by SettingsManager.getInstance(context).musicVideoCaptureSubtitles.collectAsState(initial = false)
+    val lyricOffsets by SettingsManager.getInstance(context).lyricOffsetOverrides.collectAsState(initial = emptyMap())
     val repository = remember(context) { MusicRepository.getInstance(context) }
-    val lyricsNeeded = captionsEnabled || ktvLyricsEnabled
-    val lyrics by produceState<List<LyricLine>>(emptyList(), song.path, lyricsNeeded) {
-        value = if (lyricsNeeded) withContext(Dispatchers.IO) { repository.getLyrics(song) } else emptyList()
+    val lyricsNeeded = captionsEnabled || ktvLyricsEnabled || (showCaptureActions && captureSubtitles)
+    val lyrics by produceState<List<LyricLine>>(
+        emptyList(),
+        song.path,
+        lyricsNeeded,
+        lyricOffsets[song.lyricIdentityKey()]
+    ) {
+        value = if (lyricsNeeded) {
+            withContext(Dispatchers.IO) { repository.getLyrics(song) }
+                .shiftedBy(lyricOffsets[song.lyricIdentityKey()] ?: 0L)
+        } else {
+            emptyList()
+        }
     }
     val accompanimentProcessor = remember { CenterChannelSuppressorAudioProcessor() }
     val player = remember(source) {
@@ -941,7 +955,7 @@ private fun decodeVideoFrame(context: Context, source: Uri, positionMs: Long): B
 }.getOrNull()
 
 private fun Bitmap.withCaptionOverlay(lyrics: List<LyricLine>, position: Long): Bitmap {
-    val line = lyrics.lastOrNull { it.timeMs <= position } ?: return this
+    val line = lyrics.activeCaptionLineAt(position) ?: return this
     val target = copy(config ?: Bitmap.Config.ARGB_8888, true)
     val canvas = android.graphics.Canvas(target)
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -950,16 +964,41 @@ private fun Bitmap.withCaptionOverlay(lyrics: List<LyricLine>, position: Long): 
         typeface = android.graphics.Typeface.DEFAULT_BOLD
         setShadowLayer(5f, 0f, 2f, Color.BLACK)
     }
-    val text = line.text.ifBlank { line.backgroundText.orEmpty() }
-    val y = when {
-        line.agent.equals("v1", true) -> paint.textSize * 1.8f
-        line.agent.equals("v2", true) -> target.height - paint.textSize * 1.4f
-        else -> target.height - paint.textSize * 1.5f
+    val text = line.text.ifBlank { line.backgroundText.orEmpty() }.trim()
+    if (text.isBlank()) return this
+    val maxWidth = target.width * 0.88f
+    val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        .let { tokens -> if (tokens.size == 1) tokens.single().map(Char::toString) else tokens }
+    val rows = buildList {
+        var row = ""
+        words.forEach { word ->
+            val candidate = if (row.isEmpty()) word else "$row $word"
+            if (paint.measureText(candidate) <= maxWidth || row.isEmpty()) {
+                row = candidate
+            } else {
+                add(row)
+                row = word
+            }
+        }
+        if (row.isNotEmpty()) add(row)
+    }.ifEmpty { listOf(text) }
+    val baseline = target.height - target.height * 0.08f - paint.textSize * (rows.size - 1) * 1.14f
+    rows.forEachIndexed { index, row ->
+        canvas.drawText(
+            row,
+            (target.width - paint.measureText(row)) / 2f,
+            baseline + paint.textSize * index * 1.14f,
+            paint
+        )
     }
-    val x = when {
-        line.agent.equals("v2", true) -> (target.width - paint.measureText(text) - target.width * 0.06f).coerceAtLeast(0f)
-        else -> target.width * 0.06f
-    }
-    canvas.drawText(text, x, y, paint)
     return target
+}
+
+private fun List<LyricLine>.activeCaptionLineAt(position: Long): LyricLine? {
+    if (isEmpty()) return null
+    val index = indexOfLast { it.timeMs <= position }
+    if (index < 0) return null
+    val line = this[index]
+    val next = getOrNull(index + 1)
+    return line.takeIf { position < line.primaryEndMs(next) }
 }

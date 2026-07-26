@@ -825,6 +825,8 @@
     <string name="settings_custom_image_save_failed">Échec de l’enregistrement de l’image personnalisée</string>
     <string name="settings_player_immersive_cover">Pochette d’album immersive</string>
     <string name="settings_player_immersive_cover_summary">Étendre la pochette de l’album jusqu’en haut du lecteur ; désactivez pour utiliser la disposition compacte à pochette arrondie</string>
+    <string name="settings_player_cover_content_color">Utiliser les couleurs de la pochette pour le contenu</string>
+    <string name="settings_player_cover_content_color_summary">Teinter le texte et les icônes du lecteur avec une couleur d’accent issue de la pochette</string>
     <string name="settings_player_tap_seek">Appuyer sur la barre de progression pour avancer</string>
     <string name="settings_player_tap_seek_summary">Si désactivé, seul le glissement modifie la progression. Si activé, un appui n’importe où sur la barre de progression de la page de lecture avance directement.</string>
     <string name="settings_player_show_total_duration">Afficher la durée totale du titre sur la barre de progression</string>
