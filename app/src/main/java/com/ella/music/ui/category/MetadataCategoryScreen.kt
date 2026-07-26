@@ -493,11 +493,8 @@ fun MetadataCategoryScreen(
                     )
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = "${type.categoryCountSummary(displayedItems.size)} · ${sortMode.displayLabel(type)}",
-                            fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        com.ella.music.ui.components.SortSummaryHeader(
+                            text = "${type.categoryCountSummary(displayedItems.size)} · ${sortMode.displayLabel(type)}"
                         )
                     }
                     items(displayedItems, key = { it.name }) { item ->

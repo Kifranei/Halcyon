@@ -594,7 +594,7 @@ fun LibraryScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     } else {
-                        Text(
+                        com.ella.music.ui.components.SortSummaryHeader(
                             text =
                                 stringResource(
                                     R.string.library_song_count_sorted,
@@ -607,10 +607,7 @@ fun LibraryScreen(
                                         ratingFilter.summaryLabel(context),
                                     stringResource(R.string.favorite_filter).takeIf { favoriteFilter }
                                 ).joinToString(" · ")
-                                ),
-                            fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
                         )
                     }
 

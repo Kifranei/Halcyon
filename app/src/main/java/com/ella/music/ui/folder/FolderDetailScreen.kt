@@ -542,7 +542,7 @@ fun FolderDetailScreen(
             val listEndInset = if (showFastIndex || showScrollIndicator) SideIndexListEndPadding else 0.dp
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Text(
+                    com.ella.music.ui.components.SortSummaryHeader(
                         text = if (searchQuery.isBlank()) {
                             stringResource(
                                 R.string.folder_detail_current_summary,
@@ -556,10 +556,7 @@ fun FolderDetailScreen(
                                 sortedSongs.size,
                                 com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
                             )
-                        },
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        }
                     )
                     LazyColumn(
                         state = listState,

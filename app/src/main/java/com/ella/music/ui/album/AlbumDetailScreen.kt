@@ -448,16 +448,13 @@ fun AlbumDetailScreen(
             }
 
             item {
-                Text(
+                com.ella.music.ui.components.SortSummaryHeader(
                     text = stringResource(
                         R.string.album_sort_summary,
                         sortedAlbumSongs.size,
                         albumDuration.formatPlaybackDuration(),
                         com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
-                    ),
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 )
             }
 

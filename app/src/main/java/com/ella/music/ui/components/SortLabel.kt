@@ -1,9 +1,26 @@
 package com.ella.music.ui.components
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** Shared "N 首歌曲 · 排序方式" list header used above sorted library lists. */
+@Composable
+internal fun SortSummaryHeader(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        fontSize = 13.sp,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+    )
+}
 
 @Composable
 internal fun sortLabel(@StringRes fieldRes: Int, descending: Boolean): String =

@@ -525,15 +525,12 @@ fun ArtistListScreen(
                     )
                 ) {
                     item {
-                        Text(
+                        com.ella.music.ui.components.SortSummaryHeader(
                             text = stringResource(
                                 R.string.artist_list_summary,
                                 filteredArtists.size,
                                 com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
-                            ),
-                            fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
                         )
                     }
                     items(filteredArtists, key = { it.name }) { artist ->

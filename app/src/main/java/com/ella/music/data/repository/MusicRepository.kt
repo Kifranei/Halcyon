@@ -700,7 +700,7 @@ class MusicRepository(private val context: Context) {
             songs.map { it.withRepositoryTags(allowFullDownload = false) }
         } else {
             songs.map { song ->
-                if (song.webDavHeaderCacheFile().let { it.exists() && it.length() > 0L }) {
+                if (song.webDavHeaderCacheFile(remoteMetadataHeaderCacheDir).let { it.exists() && it.length() > 0L }) {
                     song.withRepositoryTags(allowFullDownload = false)
                 } else {
                     song.withFinalLibraryFallbacks()
@@ -1115,19 +1115,19 @@ class MusicRepository(private val context: Context) {
             .take(maxItems.coerceIn(1, 100))
             .toList()
         if (targets.isEmpty()) return@supervisorScope
-        val config = loadWebDavConfig() ?: return@supervisorScope
+        val config = loadWebDavConfig(settingsManager) ?: return@supervisorScope
         val semaphore = Semaphore(3)
         targets.forEach { song ->
             launch(Dispatchers.IO) {
                 runCatching {
                     semaphore.withPermit {
-                        val headerFile = song.webDavHeaderCacheFile()
+                        val headerFile = song.webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
                         if (headerFile.exists() && headerFile.length() > 0L) {
                             Log.d("MusicRepo", "WebDAV header prefetch hit cache url=${song.path.webDavSafeLogUrl()}")
                             return@withPermit
                         }
                         Log.d("MusicRepo", "WebDAV header prefetch start url=${song.path.webDavSafeLogUrl()}")
-                        val cached = downloadWebDavMetadataHeader(song, config)
+                        val cached = downloadWebDavMetadataHeader(song, config, remoteMetadataHeaderCacheDir)
                         if (cached != null) {
                             Log.d("MusicRepo", "WebDAV header prefetch success url=${song.path.webDavSafeLogUrl()} bytes=${headerFile.length()}")
                         } else {
@@ -1150,12 +1150,12 @@ class MusicRepository(private val context: Context) {
     private fun Song.effectiveLocalPathForMetadata(allowFullDownload: Boolean = false): String {
         if (path.isContentAudioSource()) return path
         if (!isWebDavRemoteSong()) return path
-        val fullCache = webDavFullCacheFile()
+        val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
         if (fullCache.exists() && fullCache.length() > 0L) return fullCache.absolutePath
-        val headerCache = webDavHeaderCacheFile()
+        val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
         if (headerCache.exists() && headerCache.length() > 0L) return headerCache.absolutePath
-        val config = runBlocking(Dispatchers.IO) { loadWebDavConfig() } ?: return path
-        downloadWebDavMetadataHeader(this, config)?.let { return it.absolutePath }
+        val config = runBlocking(Dispatchers.IO) { loadWebDavConfig(settingsManager) } ?: return path
+        downloadWebDavMetadataHeader(this, config, remoteMetadataHeaderCacheDir)?.let { return it.absolutePath }
         if (!allowFullDownload) return path
         return runCatching {
             WebDavClient.downloadToFile(path, config, fullCache).absolutePath
@@ -1163,28 +1163,6 @@ class MusicRepository(private val context: Context) {
             Log.w("MusicRepo", "Failed to cache remote metadata file for $path", it)
             path
         }
-    }
-
-    private suspend fun loadWebDavConfig(): WebDavConfig? {
-        val url = settingsManager.webDavUrl.first().trim()
-        if (url.isBlank()) return null
-        return WebDavConfig(
-            url = url,
-            username = settingsManager.webDavUsername.first(),
-            password = settingsManager.webDavPassword.first()
-        )
-    }
-
-    private fun Song.webDavFullCacheFile(): File =
-        File(remoteAudioCacheDir, "${path.sha256()}.${webDavCacheExtension()}")
-
-    private fun Song.webDavHeaderCacheFile(): File =
-        File(remoteMetadataHeaderCacheDir, "${path.sha256()}.${webDavCacheExtension()}")
-
-    private fun downloadWebDavMetadataHeader(song: Song, config: WebDavConfig): File? {
-        val target = song.webDavHeaderCacheFile()
-        if (target.exists() && target.length() > 0L) return target
-        return WebDavClient.downloadHeaderToFile(song.path, config, target)
     }
 
     private fun List<Song>.toAlbums(): List<Album> {
