@@ -315,20 +315,12 @@ internal fun CoverPlayerPage(
         val showHiResLogo = hiResLogoEnabled && audioInfo?.isHiResLogoTrack() == true
         val titleAboveCover = !immersiveAlbumCover &&
             playerTitlePosition == com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
-        // A visible annotation belongs in the title row, not in the cover-size calculation.
-        // This keeps the non-immersive composition equally spacious in both states.
         val constrainedPortraitContent = !immersiveAlbumCover && maxHeight < 620.dp
-        val nonImmersiveCoverFraction = when {
-            constrainedPortraitContent && titleAboveCover -> 0.76f
-            constrainedPortraitContent -> 0.82f
-            titleAboveCover -> 0.88f
-            else -> 0.92f
-        }
-        // The player has a fixed transport area at the bottom.  Cap the artwork against the
-        // available height as well as width so metadata or a credit line never pushes controls
-        // into the gesture navigation area.
+        // Full-width artwork like the 1.2.2 layout. The height cap is only a guard for short
+        // or wide windows, so the fixed transport area near the gesture bar is never squeezed;
+        // on regular portrait phones the width term wins and the cover fills the page.
         val nonImmersiveCoverSize = minOf(
-            ((maxWidth - 56.dp).coerceAtLeast(0.dp)) * nonImmersiveCoverFraction,
+            (maxWidth - 56.dp).coerceAtLeast(0.dp),
             maxHeight * if (constrainedPortraitContent) 0.42f else 0.46f
         )
         // Credits reserve artwork space, but must not turn the lyric preview into an unusable
@@ -725,8 +717,7 @@ internal fun CoverPlayerPage(
                             .padding(horizontal = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Keep the cover slightly higher while reserving a stable bottom area.
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(22.dp))
                         if (titleAboveCover) {
                             PlayerCoverTitleRow(
                                 song = song,
@@ -883,9 +874,6 @@ internal fun CoverPlayerPage(
                         }
 
                         if (effectiveMiniLyricLine != null) {
-                            // Flexible room belongs above the lyric preview, keeping lyrics close
-                            // to the transport actions without reducing their fixed control area.
-                            Spacer(modifier = Modifier.weight(1f))
                             Spacer(modifier = Modifier.height(8.dp))
                             MiniLyricsPreview(
                                 lyrics = lyrics,
@@ -916,7 +904,6 @@ internal fun CoverPlayerPage(
                                     )
                             )
                         } else if (lyrics.isEmpty() && !lyricsLoading) {
-                            Spacer(modifier = Modifier.weight(1f))
                             Spacer(modifier = Modifier.height(8.dp))
                             MiniNoLyricsPreview(
                                 contentColor = pagePalette.onBackground,
@@ -931,12 +918,10 @@ internal fun CoverPlayerPage(
                             Spacer(modifier = Modifier.height(12.dp))
                         }
 
-                        // With lyrics (or no-lyrics) the flexible room is placed before the
-                        // preview above. Keep this fallback for loading and compact states.
-                        if (effectiveMiniLyricLine == null && (lyrics.isNotEmpty() || lyricsLoading)) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                        Spacer(modifier = Modifier.height(if (compactNonImmersiveLyrics) 8.dp else 12.dp))
+                        // 1.2.2 composition: the lyric preview hugs the title and the flexible
+                        // room sits between it and the fixed action/transport area below, which
+                        // therefore can never be compressed by the content above.
+                        Spacer(modifier = Modifier.weight(1f))
                         PlayerQuickActionRow(
                             onSongInfo = onSongInfo,
                             onShareSong = onShareSong,
@@ -946,7 +931,7 @@ internal fun CoverPlayerPage(
                             accent = if (coverContentColor) pagePalette.accent else null,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         PlayerProgressBlock(
                             currentPosition = currentPosition,
                             duration = duration,
