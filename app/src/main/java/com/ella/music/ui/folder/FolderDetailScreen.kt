@@ -1,11 +1,7 @@
 package com.ella.music.ui.folder
 
-import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -60,7 +56,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.R
 import com.ella.music.data.tagIdentityKey
-import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
@@ -93,6 +88,7 @@ import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.rememberLibrarySelectionState
+import com.ella.music.ui.components.rememberSongDeleteResultHandler
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.components.toFastIndexSection
@@ -152,7 +148,6 @@ fun FolderDetailScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-    var pendingSystemDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
     var folderMenuTarget by remember { mutableStateOf<FolderTreeEntry?>(null) }
     val persistedSortIndex by mainViewModel.settingsManager.folderDetailSongSortIndex.collectAsState(
@@ -216,38 +211,7 @@ fun FolderDetailScreen(
     val folderName = remember(normalizedFolderPath, folderRootName) {
         normalizedFolderPath.folderDisplayName(folderRootName)
     }
-    val deleteRequestLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        val songsToDelete = pendingSystemDeleteSongs
-        pendingSystemDeleteSongs = emptyList()
-        if (result.resultCode == Activity.RESULT_OK && songsToDelete.isNotEmpty()) {
-            mainViewModel.removeSongsFromLibrary(songsToDelete)
-            Toast.makeText(context, context.getString(R.string.library_deleted_songs, songsToDelete.size), Toast.LENGTH_SHORT).show()
-            selection.finishSelectionMode()
-        } else if (songsToDelete.isNotEmpty()) {
-            Toast.makeText(context, context.getString(R.string.library_delete_cancelled), Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun deleteSelectedSongs(songsToDelete: List<Song>) {
-        if (songsToDelete.isEmpty()) return
-        scope.launch {
-            val result = mainViewModel.deleteSongsResult(songsToDelete)
-            if (result.isSuccess) {
-                Toast.makeText(context, context.getString(R.string.library_deleted_songs, songsToDelete.size), Toast.LENGTH_SHORT).show()
-                selection.finishSelectionMode()
-                return@launch
-            }
-            val error = result.exceptionOrNull()
-            if (error is WritePermissionRequiredException) {
-                pendingSystemDeleteSongs = songsToDelete
-                deleteRequestLauncher.launch(IntentSenderRequest.Builder(error.intentSender).build())
-            } else {
-                Toast.makeText(context, error?.localizedMessage ?: context.getString(R.string.song_more_metadata_save_failed), Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
+    val deleteSelectedSongs = rememberSongDeleteResultHandler(mainViewModel) { selection.finishSelectionMode() }
 
     BackHandler(enabled = selection.selectionMode || searchExpanded || sortExpanded || folderToBlock != null || folderMenuTarget != null) {
         when {

@@ -1,16 +1,12 @@
 package com.ella.music.player
 
 import android.content.ComponentName
-import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
-import android.provider.MediaStore
 import android.util.Log
 import android.util.LruCache
-import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -22,7 +18,6 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
-import com.ella.music.data.isUriAudioSource
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
 import com.google.common.util.concurrent.FutureCallback
@@ -41,7 +36,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.io.File
 import java.util.Collections
 import kotlin.random.Random
 
@@ -80,11 +74,6 @@ class ExoPlayerManager(private val context: Context) {
     val playbackPitch: StateFlow<Float> = _playbackPitch.asStateFlow()
 
     private var playlist = mutableListOf<Song>()
-
-    private data class ExternalSnapshotGuard(
-        val mediaId: String?,
-        val song: Song
-    )
 
     private val _playlist = MutableStateFlow<List<Song>>(emptyList())
     val playlistFlow: StateFlow<List<Song>> = _playlist.asStateFlow()
@@ -355,17 +344,6 @@ class ExoPlayerManager(private val context: Context) {
             playWhenConnected = false
             play()
         }
-    }
-
-    /**
-     * Keep normal multi-thousand-song queues intact. Only very large libraries are reduced to a
-     * small controller window to stay below the MediaSession Binder transaction limit.
-     */
-    private fun List<Song>.windowedForController(index: Int): Pair<List<Song>, Int> {
-        if (size <= LARGE_LIBRARY_SAFE_MODE_THRESHOLD) return this to index
-        val from = (index - LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE / 2)
-            .coerceIn(0, size - LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE)
-        return subList(from, from + LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE).toList() to (index - from)
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
@@ -1312,16 +1290,6 @@ class ExoPlayerManager(private val context: Context) {
         return builder.build()
     }
 
-    private fun Song.playbackUri(): Uri {
-        if (path.isUriAudioSource()) {
-            return path.toUri()
-        }
-        if (onlineSource.isBlank() && path.startsWith("/") && id > 0L) {
-            return ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-        }
-        return if (path.startsWith("/")) Uri.fromFile(File(path)) else path.toUri()
-    }
-
     private fun Song.mediaMetadata(
         titleOverride: CharSequence? = null,
         artistOverride: CharSequence? = null,
@@ -1354,14 +1322,6 @@ class ExoPlayerManager(private val context: Context) {
                 }
             }
             .build()
-    }
-
-    private fun Song.artworkUriForMediaCenter(): Uri? {
-        coverUrl.takeIf { it.isNotBlank() }?.let { return it.toUri() }
-        if (albumId > 0L) {
-            return Uri.parse("content://media/external/audio/albumart/$albumId")
-        }
-        return null
     }
 
     private fun updateCurrentSong() {
@@ -1415,13 +1375,6 @@ class ExoPlayerManager(private val context: Context) {
             return false
         }
         return true
-    }
-
-    private fun MediaController.matchesExternalSnapshot(guard: ExternalSnapshotGuard?): Boolean {
-        guard ?: return true
-        val item = currentMediaItem ?: return false
-        if (guard.mediaId != null && item.mediaId == guard.mediaId) return true
-        return item.matchesSong(guard.song)
     }
 
     private suspend fun tryRecoverAutoDecoderPlayback(song: Song): Boolean {
@@ -1597,16 +1550,6 @@ class ExoPlayerManager(private val context: Context) {
             ?: _currentSong.value
     }
 
-    private fun buildPseudoShuffleSeed(sourceOrder: List<Song>, current: Song): Long {
-        var seed = 0x9E3779B97F4A7C15uL.toLong()
-        sourceOrder.forEachIndexed { index, song ->
-            val part = "${song.id}|${song.path}|${song.dateModified}|${song.fileSize}|$index".hashCode().toLong()
-            seed = seed xor (part + 0x9E3779B97F4A7C15uL.toLong() + (seed shl 6) + (seed ushr 2))
-        }
-        seed = seed xor "${current.id}|${current.path}".hashCode().toLong()
-        return seed
-    }
-
     private fun applyControllerPlaylistOrder(
         controller: MediaController,
         targetOrder: List<Song>,
@@ -1746,16 +1689,6 @@ class ExoPlayerManager(private val context: Context) {
         }
     }
 
-    private fun MediaItem.matchesSong(song: Song): Boolean {
-        val itemSong = toSongFromMediaItemExtras()
-        if (itemSong != null) {
-            return itemSong.isSamePlaybackIdentity(song)
-        }
-        if (song.path.isNotBlank() && localConfiguration?.uri?.toString().orEmpty() == song.path) return true
-        if (song.id > 0L && mediaId == song.id.toString()) return true
-        return localConfiguration?.uri?.toString().orEmpty() == song.path
-    }
-
     private fun clearBluetoothMetadataPatchState() {
         bluetoothMetadataPatchState = MediaNotificationLyricPatchPolicy.onCleared()
     }
@@ -1765,31 +1698,6 @@ class ExoPlayerManager(private val context: Context) {
             songKey = song?.playbackStackKey(),
             nowMs = SystemClock.elapsedRealtime()
         )
-    }
-
-    private fun MediaMetadata.matchesNotificationDisplay(other: MediaMetadata): Boolean {
-        return title?.toString() == other.title?.toString() &&
-            artist?.toString() == other.artist?.toString() &&
-            albumTitle?.toString() == other.albumTitle?.toString() &&
-            artworkUri == other.artworkUri &&
-            artworkData.contentEqualsOrBothNull(other.artworkData)
-    }
-
-    private fun ByteArray?.contentEqualsOrBothNull(other: ByteArray?): Boolean {
-        return when {
-            this == null && other == null -> true
-            this == null || other == null -> false
-            else -> contentEquals(other)
-        }
-    }
-
-    private fun MediaMetadata.withPatchedExtrasFrom(item: MediaItem, reason: String): MediaMetadata {
-        val mergedExtras = Bundle(item.mediaMetadata.extras ?: Bundle.EMPTY)
-        extras?.let(mergedExtras::putAll)
-        mergedExtras.markMetadataOnlyPatch(reason)
-        return buildUpon()
-            .setExtras(mergedExtras)
-            .build()
     }
 
     private fun restoreSavedQueueIfNeeded() {
@@ -2017,25 +1925,5 @@ class ExoPlayerManager(private val context: Context) {
         const val KEY_APP_SHUFFLE = "app_shuffle_enabled"
         const val DECODER_MODE_FFMPEG_PREFER = 1
         const val DECODER_MODE_AUTO = 2
-    }
-}
-
-internal fun Song.isM4aOrAppleLosslessOrAACOrApe(): Boolean {
-    val ext = path.substringAfterLast('.', "").lowercase()
-    val mime = mimeType.lowercase()
-    return when {
-        ext == "m4a" || ext == "mp4" || ext == "aac" || ext == "ape" -> true
-        ext == "alac" -> true
-        mime in setOf(
-            "audio/mp4",
-            "audio/x-m4a",
-            "audio/aac",
-            "audio/mp4a-latm",
-            "audio/alac",
-            "audio/x-ape",
-            "audio/ape",
-            "application/ape"
-        ) -> true
-        else -> false
     }
 }

@@ -1,11 +1,7 @@
 package com.ella.music.ui.category
 
-import android.app.Activity
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -72,7 +68,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.R
 import com.ella.music.data.LibraryAlbumAggregator
-import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
@@ -114,6 +109,7 @@ import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.rememberLibrarySelectionState
+import com.ella.music.ui.components.rememberSongDeleteResultHandler
 import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.folder.folderDisplayName
@@ -182,7 +178,6 @@ fun MetadataCategoryDetailScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-    var pendingSystemDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val detailQuery = searchQuery.trim()
     val filteredSongs = remember(songs, detailQuery) {
         if (detailQuery.isBlank()) {
@@ -265,37 +260,7 @@ fun MetadataCategoryDetailScreen(
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     var fastScrollJob by remember { mutableStateOf<Job?>(null) }
-    val deleteRequestLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        val songsToDelete = pendingSystemDeleteSongs
-        pendingSystemDeleteSongs = emptyList()
-        if (result.resultCode == Activity.RESULT_OK && songsToDelete.isNotEmpty()) {
-            mainViewModel.removeSongsFromLibrary(songsToDelete)
-            Toast.makeText(context, context.getString(R.string.library_deleted_songs, songsToDelete.size), Toast.LENGTH_SHORT).show()
-            selection.finishSelectionMode()
-        } else if (songsToDelete.isNotEmpty()) {
-            Toast.makeText(context, context.getString(R.string.library_delete_cancelled), Toast.LENGTH_SHORT).show()
-        }
-    }
-    fun deleteSelectedSongs(songsToDelete: List<Song>) {
-        if (songsToDelete.isEmpty()) return
-        scope.launch {
-            val result = mainViewModel.deleteSongsResult(songsToDelete)
-            if (result.isSuccess) {
-                Toast.makeText(context, context.getString(R.string.library_deleted_songs, songsToDelete.size), Toast.LENGTH_SHORT).show()
-                selection.finishSelectionMode()
-                return@launch
-            }
-            val error = result.exceptionOrNull()
-            if (error is WritePermissionRequiredException) {
-                pendingSystemDeleteSongs = songsToDelete
-                deleteRequestLauncher.launch(IntentSenderRequest.Builder(error.intentSender).build())
-            } else {
-                Toast.makeText(context, error?.localizedMessage ?: context.getString(R.string.song_more_metadata_save_failed), Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
+    val deleteSelectedSongs = rememberSongDeleteResultHandler(mainViewModel) { selection.finishSelectionMode() }
     val sortedSongIndexById = remember(sortedSongs) {
         buildMap {
             sortedSongs.forEachIndexed { index, song -> put(song.id, index) }
@@ -877,7 +842,7 @@ fun MetadataCategoryDetailScreen(
                 onCreatePlaylistSongsChange = { createPlaylistSongs = it },
                 pendingDeleteSongs = pendingDeleteSongs,
                 onPendingDeleteSongsChange = { pendingDeleteSongs = it },
-                onDeleteSelectedSongs = ::deleteSelectedSongs,
+                onDeleteSelectedSongs = deleteSelectedSongs,
                 onClearSelection = selection::finishSelectionMode
             )
         }

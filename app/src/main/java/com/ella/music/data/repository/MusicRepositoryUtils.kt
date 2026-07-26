@@ -1,8 +1,6 @@
 package com.ella.music.data.repository
 
-import android.content.Context
 import android.media.MediaFormat
-import android.net.Uri
 import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.dolbyAtmosVariant
@@ -16,7 +14,6 @@ import com.ella.music.data.webdav.WebDavConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -71,40 +68,6 @@ internal fun Song.webDavFullCacheFile(cacheDir: File): File =
 
 internal fun Song.webDavHeaderCacheFile(cacheDir: File): File =
     File(cacheDir, "${path.sha256()}.${webDavCacheExtension()}")
-
-internal suspend fun Song.effectiveLocalPathForMetadata(
-    context: Context,
-    settingsManager: SettingsManager,
-    httpClient: OkHttpClient,
-    remoteAudioCacheDir: File,
-    remoteMetadataHeaderCacheDir: File,
-    allowFullDownload: Boolean = false
-): String = withContext(Dispatchers.IO) {
-    if (path.isContentAudioSource()) return@withContext path
-    if (!path.isHttpAudioSource()) return@withContext path
-    val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
-    if (fullCache.exists() && fullCache.length() > 0L) return@withContext fullCache.absolutePath
-    val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
-    if (headerCache.exists() && headerCache.length() > 0L) return@withContext headerCache.absolutePath
-    if (isWebDavRemoteSong()) {
-        val config = loadWebDavConfig(settingsManager) ?: return@withContext path
-        downloadWebDavMetadataHeader(this@effectiveLocalPathForMetadata, config, remoteMetadataHeaderCacheDir)?.let { return@withContext it.absolutePath }
-    } else {
-        downloadHttpMetadataHeader(this@effectiveLocalPathForMetadata, httpClient, remoteMetadataHeaderCacheDir)?.let { return@withContext it.absolutePath }
-    }
-    if (!allowFullDownload) return@withContext path
-    return@withContext runCatching {
-        if (isWebDavRemoteSong()) {
-            val config = loadWebDavConfig(settingsManager) ?: return@withContext path
-            WebDavClient.downloadToFile(path, config, fullCache).absolutePath
-        } else {
-            downloadHttpToFile(path, httpClient, fullCache)?.absolutePath ?: path
-        }
-    }.getOrElse {
-        android.util.Log.w("MusicRepo", "Failed to cache remote metadata file for $path", it)
-        path
-    }
-}
 
 internal fun Song.effectiveLocalPathForMetadataBlocking(
     settingsManager: SettingsManager,
@@ -261,9 +224,6 @@ internal fun readTextIfExists(path: String): String? =
         if (!file.exists()) return null
         file.readText()
     }.getOrNull()
-
-internal fun String.extractYearInt(): Int? =
-    Regex("""\d{4}""").find(this)?.value?.toIntOrNull()
 
 internal fun String?.usableTagText(): String =
     LibraryNormalizer.cleanedTagText(this)

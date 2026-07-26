@@ -3,18 +3,11 @@ package com.ella.music.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import android.app.Activity
-import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -114,6 +107,7 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.launchTagEditorOption
 import com.ella.music.ui.components.openSongSpectrumWithAspectPro
 import com.ella.music.ui.components.rememberLibrarySelectionState
+import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.shareLocalSong
 import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.components.directionalSortDropdownItems
@@ -191,7 +185,6 @@ fun LibraryScreen(
     var songInfoSheetSong by remember { mutableStateOf<Song?>(null) }
     var aiInterpretationSong by remember { mutableStateOf<Song?>(null) }
     var listCoversEnabled by remember { mutableStateOf(false) }
-    var pendingSystemDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var pendingConfirmDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var ratingFilterExpanded by remember { mutableStateOf(false) }
     var scrollToTopRequest by remember { mutableStateOf(0) }
@@ -211,57 +204,7 @@ fun LibraryScreen(
             else -> artistChoices = artists
         }
     }
-    val deleteRequestLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        val songsToDelete = pendingSystemDeleteSongs
-        pendingSystemDeleteSongs = emptyList()
-        if (result.resultCode == Activity.RESULT_OK && songsToDelete.isNotEmpty()) {
-            mainViewModel.removeSongsFromLibrary(songsToDelete)
-            Toast.makeText(
-                context,
-                context.getString(R.string.library_deleted_songs, songsToDelete.size),
-                Toast.LENGTH_SHORT
-            ).show()
-        } else if (songsToDelete.isNotEmpty()) {
-            Toast.makeText(context, context.getString(R.string.library_delete_cancelled), Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun requestDeleteSongs(songsToDelete: List<Song>) {
-        if (songsToDelete.isEmpty()) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val uris = songsToDelete
-                .filter { it.id > 0L }
-                .map { song ->
-                    ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, song.id)
-                }
-            if (uris.isNotEmpty()) {
-                runCatching {
-                    pendingSystemDeleteSongs = songsToDelete
-                    val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
-                    deleteRequestLauncher.launch(
-                        IntentSenderRequest.Builder(request.intentSender).build()
-                    )
-                }.onFailure {
-                    pendingSystemDeleteSongs = emptyList()
-                    mainViewModel.deleteSongs(songsToDelete)
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.library_deleting_songs, songsToDelete.size),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-                return
-            }
-        }
-        mainViewModel.deleteSongs(songsToDelete)
-        Toast.makeText(
-            context,
-            context.getString(R.string.library_deleting_songs, songsToDelete.size),
-            Toast.LENGTH_SHORT
-        ).show()
-    }
+    val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
 
     LaunchedEffect(Unit) {
         delay(260L)

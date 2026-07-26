@@ -22,7 +22,6 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.isContentAudioSource
 import com.ella.music.data.isHttpAudioSource
 import com.ella.music.data.isMediaStoreContentAudioSource
-import com.ella.music.data.looksLikeNeteaseKeyValue
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
@@ -42,7 +41,6 @@ import com.ella.music.data.scanner.toShallowSong
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import java.io.File
-import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -63,7 +61,6 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -1168,11 +1165,6 @@ class MusicRepository(private val context: Context) {
         }
     }
 
-    private fun String.sha256(): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
-    }
-
     private suspend fun loadWebDavConfig(): WebDavConfig? {
         val url = settingsManager.webDavUrl.first().trim()
         if (url.isBlank()) return null
@@ -1182,19 +1174,6 @@ class MusicRepository(private val context: Context) {
             password = settingsManager.webDavPassword.first()
         )
     }
-
-    private fun Song.isWebDavRemoteSong(): Boolean =
-        path.isHttpAudioSource() &&
-            onlineSource.isBlank()
-
-    private fun Song.webDavCacheExtension(): String =
-        fileName.substringAfterLast('.', path.substringBefore('?').substringBefore('#').substringAfterLast('.', "audio"))
-            .ifBlank { "audio" }
-
-    private fun Song.isLikelyWavAudio(): Boolean =
-        webDavCacheExtension().lowercase() in setOf("wav", "wave") ||
-            mimeType.contains("wav", ignoreCase = true) ||
-            mimeType.contains("wave", ignoreCase = true)
 
     private fun Song.webDavFullCacheFile(): File =
         File(remoteAudioCacheDir, "${path.sha256()}.${webDavCacheExtension()}")
@@ -1207,16 +1186,6 @@ class MusicRepository(private val context: Context) {
         if (target.exists() && target.length() > 0L) return target
         return WebDavClient.downloadHeaderToFile(song.path, config, target)
     }
-
-    private fun String.webDavSafeLogUrl(): String =
-        runCatching {
-            val uri = java.net.URI(this)
-            if (uri.userInfo == null) {
-                this
-            } else {
-                java.net.URI(uri.scheme, "***", uri.host, uri.port, uri.path, uri.query, uri.fragment).toString()
-            }
-        }.getOrDefault(this)
 
     private fun List<Song>.toAlbums(): List<Album> {
         return LibraryAlbumAggregator.toAlbums(this)
@@ -1382,96 +1351,6 @@ class MusicRepository(private val context: Context) {
         }
     }
 
-    private fun Song.coverCacheKey(): String {
-        val source = when {
-            path.isNotBlank() -> path
-            onlineSource.isNotBlank() || onlineId.isNotBlank() -> "$onlineSource:$onlineId"
-            else -> "$id:$title:$artist:$album"
-        }
-        return source.sha256()
-    }
-
-    private fun Song.coverDataCacheKey(): String =
-        "${coverCacheKey()}:$dateModified:$fileSize"
-
-    private fun Song.metadataCachePrefix(): String {
-        val source = when {
-            path.isNotBlank() -> "path:$path"
-            onlineSource.isNotBlank() || onlineId.isNotBlank() -> "online:$onlineSource:$onlineId:$path"
-            else -> "media:$id:$title:$artist:$album:$duration"
-        }
-        return source.sha256()
-    }
-
-    private fun Song.metadataCacheKey(): String =
-        "${metadataCachePrefix()}:$dateModified:$fileSize"
-
-    private fun Song.searchSnapshotKey(): String =
-        "${id}|${path.sha256()}"
-
-    private fun AudioTagInfo.embeddedLyricsContent(preferTtml: Boolean): String? {
-        val names = if (preferTtml) {
-            listOf(
-                "TTML LYRICS",
-                "TTML LYRIC",
-                "TTMLLYRICS",
-                "TTMLLYRIC",
-                "TTML",
-                "SYNCEDLYRICS",
-                "LYRICS",
-                "UNSYNCEDLYRICS",
-                "UNSYNCED LYRICS",
-                "USLT",
-                "SYLT",
-                "LYRIC"
-            )
-        } else {
-            listOf("SYNCEDLYRICS", "LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "USLT", "SYLT", "LYRIC")
-        }
-        names.forEach { target ->
-            customTags.firstMatchingTagValue(target)?.takeIf { it.looksLikeTtmlLyrics() == preferTtml }?.let { return it }
-        }
-        return lyrics?.takeIf { it.isNotBlank() && (preferTtml == it.looksLikeTtmlLyrics()) }
-    }
-
-    private fun Map<String, List<String>>.firstMatchingTagValue(target: String): String? {
-        val normalizedTarget = target.normalizedTagName()
-        return entries.firstOrNull { (key, values) ->
-            key.normalizedTagName() == normalizedTarget && values.any { it.isNotBlank() }
-        }?.value?.firstOrNull { it.isNotBlank() }
-    }
-
-    private fun String.normalizedTagName(): String =
-        uppercase().filter { it.isLetterOrDigit() }
-
-    private fun String.looksLikeTtmlLyrics(): Boolean =
-        contains("<tt", ignoreCase = true) && contains("</tt", ignoreCase = true)
-
-    private fun findExternalLyricContentByFormat(songPath: String, preferTtml: Boolean): String? {
-        val extensions = if (preferTtml) listOf("ttml") else listOf("lrc", "elrc")
-        val baseName = songPath.substringBeforeLast('.')
-        extensions.forEach { ext ->
-            readTextIfExists("$baseName.$ext")?.let { return it }
-        }
-
-        val parentDir = File(songPath).parentFile ?: return null
-        val songName = File(songPath).nameWithoutExtension
-        return runCatching {
-            parentDir.listFiles()
-                ?.filter { file -> extensions.any { file.extension.equals(it, ignoreCase = true) } }
-                ?.sortedWith(compareBy<File> { extensions.indexOf(it.extension.lowercase()) }.thenBy { it.name })
-                ?.firstOrNull { it.nameWithoutExtension.contains(songName, ignoreCase = true) }
-                ?.let { readTextIfExists(it.absolutePath) }
-        }.getOrNull()
-    }
-
-    private fun readTextIfExists(path: String): String? =
-        runCatching {
-            val file = File(path)
-            if (!file.exists()) return null
-            file.readText()
-        }.getOrNull()
-
     private fun Song.librarySyncKey(): String =
         if (id > 0L) {
             ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
@@ -1522,101 +1401,6 @@ class MusicRepository(private val context: Context) {
             trackNumber = trackNumber,
             discNumber = discNumber
         )
-
-    private fun String.extractYearInt(): Int? =
-        Regex("""\d{4}""").find(this)?.value?.toIntOrNull()
-
-    private fun String?.usableTagText(): String {
-        return LibraryNormalizer.cleanedTagText(this)
-    }
-
-    private fun String?.usableArtistText(): String {
-        return LibraryNormalizer.cleanedArtistText(this)
-    }
-
-    private fun String?.usableAlbumText(): String {
-        return LibraryNormalizer.cleanedAlbumText(this)
-    }
-
-    private fun String?.isUsableTagText(): Boolean =
-        usableTagText().isNotBlank()
-
-    private fun String?.isUsableArtistText(): Boolean =
-        usableArtistText().isNotBlank()
-
-    private fun String?.isUsableAlbumText(): Boolean {
-        return usableAlbumText().isNotBlank()
-    }
-
-    private fun String.looksLikeLastFolderName(path: String): Boolean {
-        return LibraryNormalizer.looksLikeLastFolderName(this, path)
-    }
-
-    private fun AudioTagInfo.toSongTagInfo(): SongTagInfo =
-        SongTagInfo(
-            title = title.orEmpty(),
-            artist = artist.orEmpty(),
-            album = album.orEmpty(),
-            albumArtist = albumArtist.orEmpty(),
-            genre = genre.orEmpty(),
-            year = year.orEmpty(),
-            composer = composer.orEmpty(),
-            arranger = arranger.orEmpty(),
-            lyricist = lyricist.orEmpty(),
-            track = trackNumber?.toString().orEmpty(),
-            comment = comment.orEmpty(),
-            copyright = copyright.orEmpty(),
-            neteaseKey = neteaseKey.orEmpty(),
-            rating = rating.normalizeTagRatingToStars(),
-            customTagText = customTags.flattenForSearch()
-        )
-
-    private fun Map<String, List<String>>.flattenForSearch(): String =
-        entries.asSequence()
-            .filterNot { (key, _) -> key.isIgnoredSearchTagKey() }
-            .flatMap { (key, values) ->
-                sequence {
-                    yield(key)
-                    values.forEach { value ->
-                        val text = value.trim()
-                        if (text.isNotBlank() && !text.looksLikeNeteaseKeyValue()) yield(text)
-                    }
-                }
-            }
-            .distinct()
-            .take(80)
-            .joinToString(" ")
-
-    private fun Int?.normalizeTagRatingToStars(): Int {
-        val raw = this ?: return 0
-        return when {
-            raw <= 0 -> 0
-            raw <= 5 -> raw
-            raw <= 100 -> kotlin.math.round(raw / 20f).toInt()
-            raw <= 255 -> kotlin.math.round(raw / 255f * 5f).toInt()
-            else -> 0
-        }.coerceIn(0, 5)
-    }
-
-    private fun String.isIgnoredSearchTagKey(): Boolean {
-        val normalized = trim().lowercase()
-        return normalized in setOf(
-            "apic",
-            "covr",
-            "picture",
-            "metadata_block_picture",
-            "unsyncedlyrics",
-            "uslt",
-            "lyrics",
-            "lyric",
-            "syncedlyrics",
-            "replaygain_track_gain",
-            "replaygain_track_peak",
-            "replaygain_album_gain",
-            "replaygain_album_peak",
-            "replaygain_reference_loudness"
-        )
-    }
 
     private data class LibrarySyncInfo(
         val key: String,
