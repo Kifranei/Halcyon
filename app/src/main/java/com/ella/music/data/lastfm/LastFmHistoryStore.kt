@@ -7,13 +7,11 @@ import android.util.Log
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.model.Song
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File

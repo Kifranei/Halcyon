@@ -28,9 +28,7 @@ import com.ella.music.MainActivity
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.PlaylistStore
-import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
-import com.ella.music.data.model.shiftedBy
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
@@ -38,7 +36,6 @@ import com.ella.music.dsp.TenBandEqualizer
 import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -49,8 +46,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import android.os.Bundle
-import org.json.JSONObject
-import java.util.Locale
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaLibraryService() {

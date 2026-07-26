@@ -3,7 +3,6 @@ package com.ella.music.ui.components
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.RectF
 import kotlin.math.roundToInt
 import kotlin.random.Random
 

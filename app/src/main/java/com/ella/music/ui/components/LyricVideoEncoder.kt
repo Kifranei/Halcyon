@@ -12,8 +12,6 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
 import android.util.Log
-import android.view.Surface
-import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.ella.music.R
 import com.ella.music.data.model.LyricLine

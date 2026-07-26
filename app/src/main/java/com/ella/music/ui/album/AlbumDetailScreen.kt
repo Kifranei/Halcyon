@@ -2,22 +2,14 @@ package com.ella.music.ui.album
 
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -44,19 +35,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
-import com.ella.music.data.audioQualitySummary
-import com.ella.music.data.model.Album
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
-import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.formatPlaybackDuration
@@ -67,13 +52,11 @@ import com.ella.music.data.splitGenreNames
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.artist.selectArtistCoverSong
 import com.ella.music.ui.components.AddToPlaylistSheet
-import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.ArtistPickerSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CoverPreviewDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
-import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaSearchBar
@@ -85,7 +68,6 @@ import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPaddin
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
-import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ShuffleAllFloatingButton
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -108,7 +90,6 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
-import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.Dispatchers

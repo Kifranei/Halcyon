@@ -18,9 +18,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -30,7 +28,6 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.ella.music.R
 import com.ella.music.ui.components.ScriptFontPaths
-import com.ella.music.ui.player.ensureBundledInterPath
 import com.ella.music.ui.player.ensureBundledMiSansBoldPath
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures

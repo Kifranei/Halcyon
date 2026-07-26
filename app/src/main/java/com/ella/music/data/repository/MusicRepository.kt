@@ -3,14 +3,11 @@ package com.ella.music.data.repository
 import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
-import android.util.LruCache
 import androidx.documentfile.provider.DocumentFile
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.AppLogStore
@@ -33,8 +30,6 @@ import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.metadata.AudioTagRepository
 import com.ella.music.data.metadata.LyricoAudioTagReaderWriter
 import com.ella.music.data.metadata.WavMetadataReader
-import com.ella.music.data.parser.LrcParser
-import com.ella.music.data.parser.EllaLyricsParser
 import com.ella.music.data.scanner.MediaStoreAudioItem
 import com.ella.music.data.scanner.MusicScanner
 import com.ella.music.data.scanner.toShallowSong
