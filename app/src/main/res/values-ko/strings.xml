@@ -1170,7 +1170,7 @@
     <string name="playlist_export_m3u8_summary">곡 정보 및 로컬 경로를 포함하여 UTF-8 #EXTM3U 재생목록 내보내기</string>
     <string name="playlist_export_m3u">M3U로 내보내기</string>
     <string name="playlist_export_m3u_summary">M3U 확장자만 인식하는 앱의 .m3u 재생목록 내보내기</string>
-    <string name="notification_permission_denied_hint">알림 권한을 거부해도 재생에는 영향을 미치지 않습니다. vivo / iQOO에 알림이 표시되지 않으면 시스템 설정에서 수동으로 활성화하세요.</string>
+    <string name="notification_permission_denied_hint">알림 권한을 거부해도 기본 재생에는 영향을 주지 않지만 잠긴 데스크톱 가사를 잠금 해제하지 못할 수 있으며 vivo / iQOO에서는 알림 재생 제어를 사용할 수 없을 수 있습니다.</string>
     <string name="playlist_import_none">가져올 수 있는 곡이 없습니다</string>
     <string name="playlist_import_missing_paths">, 일치하지 않는 %1$d 경로 유지</string>
     <string name="playlist_import_duplicates">, %1$d 중복을 건너뛰었습니다</string>

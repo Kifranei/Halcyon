@@ -90,7 +90,7 @@ internal fun SettingsAppearanceSection(
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
     val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
     val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = false)
-    val playerCoverContentColor by settingsManager.playerCoverContentColor.collectAsState(initial = true)
+    val playerCoverContentColor by settingsManager.playerCoverContentColor.collectAsState(initial = false)
     val transportButtonOutlines by settingsManager.transportButtonOutlines.collectAsState(initial = false)
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectAsState(initial = true)
     val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectAsState(initial = false)
@@ -105,7 +105,7 @@ internal fun SettingsAppearanceSection(
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = true)
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val categoryGridColumns by settingsManager.categoryGridColumns.collectAsState(initial = 2)
-    val playerBgTheme by settingsManager.playerBackgroundTheme.collectAsState(initial = SettingsManager.PLAYER_BG_THEME_FOLLOW_SYSTEM)
+    val playerBgTheme by settingsManager.playerBackgroundTheme.collectAsState(initial = SettingsManager.PLAYER_BG_THEME_DARK)
     val beautifulLyricsBackgroundLabels = listOf(
         stringResource(R.string.settings_beautiful_lyrics_background_static),
         stringResource(R.string.settings_beautiful_lyrics_background_dynamic)

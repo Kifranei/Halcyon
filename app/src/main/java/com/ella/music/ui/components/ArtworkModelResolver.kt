@@ -4,11 +4,13 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.util.LruCache
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 enum class ArtworkUsage {
@@ -21,6 +23,8 @@ data class SongArtworkState(
     val model: Any?,
     val showDefaultCover: Boolean
 )
+
+private val artworkResolutionGeneration = MutableStateFlow(0L)
 
 @Composable
 fun rememberSongArtworkState(
@@ -66,6 +70,7 @@ fun rememberSongArtworkState(
     val cachedModel = remember(cacheKey) {
         cacheKey?.let(ArtworkModelMemoryCache::get)
     }
+    val resolutionGeneration by artworkResolutionGeneration.collectAsState()
     val initialModel = cachedModel ?: when {
         usage == ArtworkUsage.ListThumbnail && shouldTryEmbedded -> coverUrl
         else -> coverUrl ?: albumArtUri
@@ -84,7 +89,8 @@ fun rememberSongArtworkState(
         albumArtUri,
         loadCoverArt,
         usage,
-        shouldTryEmbedded
+        shouldTryEmbedded,
+        resolutionGeneration
     ) {
         val currentSong = song
         value = if (currentSong == null) {
@@ -152,4 +158,5 @@ private object ArtworkModelMemoryCache {
 
 internal fun clearArtworkModelMemoryCache() {
     ArtworkModelMemoryCache.clear()
+    artworkResolutionGeneration.value += 1L
 }

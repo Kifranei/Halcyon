@@ -1168,7 +1168,7 @@
     <string name="playlist_export_m3u8_summary">Экспортируйте список воспроизведения #EXTM3U в формате UTF-8, включая информацию о песне и локальные пути.</string>
     <string name="playlist_export_m3u">Экспортировать как M3U</string>
     <string name="playlist_export_m3u_summary">Экспортируйте список воспроизведения .m3u для приложений, которые распознают только расширение M3U.</string>
-    <string name="notification_permission_denied_hint">Отказ в разрешении на уведомление не повлияет на воспроизведение. Если уведомления не появляются на vivo/iQOO, включите их вручную в настройках системы.</string>
+    <string name="notification_permission_denied_hint">Отказ в разрешении на уведомления не влияет на базовое воспроизведение, но заблокированный текст на рабочем столе может не разблокироваться, а vivo / iQOO может потерять управление воспроизведением из уведомления.</string>
     <string name="playlist_import_none">Нет песен, доступных для импорта</string>
     <string name="playlist_import_missing_paths">, сохранил несовпадающие пути %1$d</string>
     <string name="playlist_import_duplicates">, пропущены дубликаты %1$d</string>

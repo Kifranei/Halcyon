@@ -2,6 +2,7 @@ package com.ella.music.data
 
 import android.content.Context
 import android.os.Build
+import android.util.AtomicFile
 import android.util.Log
 import com.ella.music.BuildConfig
 import java.io.File
@@ -45,6 +46,7 @@ object AppLogStore {
     private val lock = Any()
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
     private val recentSignatures = LinkedHashMap<String, Long>()
+    private var lastReadableEntries: List<AppLogEntry> = emptyList()
 
     @Volatile
     private var appContext: Context? = null
@@ -162,10 +164,7 @@ object AppLogStore {
 
     fun read(context: Context): List<AppLogEntry> = synchronized(lock) {
         pruneByRetentionLocked(context)
-        val file = logFile(context)
-        if (!file.exists()) return@synchronized emptyList()
-        file.readLines()
-            .mapNotNull(::decode)
+        readEntriesLocked(context)
             .asReversed()
     }
 
@@ -185,8 +184,9 @@ object AppLogStore {
 
     fun clear(context: Context) = synchronized(lock) {
         val file = logFile(context)
-        if (file.exists()) file.delete()
+        file.delete()
         recentSignatures.clear()
+        lastReadableEntries = emptyList()
     }
 
     fun clearOlderThan(context: Context, days: Int): Int = synchronized(lock) {
@@ -195,13 +195,13 @@ object AppLogStore {
 
     private fun clearOlderThanLocked(context: Context, days: Int): Int {
         val file = logFile(context)
-        if (!file.exists()) return 0
+        if (!file.baseFile.exists()) return 0
         val cutoff = System.currentTimeMillis() - days.coerceAtLeast(1) * 24L * 60L * 60L * 1000L
-        val entries = file.readLines().mapNotNull(::decode)
+        val entries = readEntriesLocked(context)
         val kept = entries.filter { it.time >= cutoff }
         val removed = entries.size - kept.size
         if (removed > 0) {
-            file.writeText(kept.joinToString(separator = "\n") { encode(it) })
+            writeEntriesLocked(context, kept)
         }
         return removed
     }
@@ -274,15 +274,10 @@ object AppLogStore {
         }
         val file = logFile(context)
         val cutoff = System.currentTimeMillis() - retentionDays(context) * 24L * 60L * 60L * 1000L
-        val lines = if (file.exists()) {
-            file.readLines()
-                .mapNotNull { line -> decode(line)?.takeIf { it.time >= cutoff }?.let(::encode) }
-                .takeLast(MAX_LINES - 1)
-        } else {
-            emptyList()
-        }
-        file.parentFile?.mkdirs()
-        file.writeText((lines + encode(entry)).joinToString(separator = "\n"))
+        val retained = readEntriesLocked(context)
+            .filter { it.time >= cutoff }
+            .takeLast(MAX_LINES - 1)
+        writeEntriesLocked(context, retained + entry)
     }
 
     private fun cleanupRecentLocked(now: Long) {
@@ -302,7 +297,39 @@ object AppLogStore {
         else -> Log.INFO
     }
 
-    private fun logFile(context: Context): File = File(context.filesDir, FILE_NAME)
+    private fun logFile(context: Context): AtomicFile =
+        AtomicFile(File(context.filesDir, FILE_NAME))
+
+    private fun readEntriesLocked(context: Context): List<AppLogEntry> {
+        val file = logFile(context)
+        if (!file.baseFile.exists()) return emptyList()
+        return runCatching {
+            file.openRead().bufferedReader().use { reader ->
+                reader.readLines().mapNotNull(::decode)
+            }.also { entries -> lastReadableEntries = entries }
+        }.getOrElse { error ->
+            // Retain the previous on-disk snapshot instead of presenting a false empty log list
+            // while a low-memory storage read is interrupted.
+            Log.w("AppLogStore", "Failed to read persisted logs", error)
+            lastReadableEntries
+        }
+    }
+
+    private fun writeEntriesLocked(context: Context, entries: List<AppLogEntry>) {
+        val file = logFile(context)
+        runCatching {
+            file.baseFile.parentFile?.mkdirs()
+            val stream = file.startWrite()
+            try {
+                stream.write(entries.joinToString(separator = "\n", transform = ::encode).toByteArray(Charsets.UTF_8))
+                file.finishWrite(stream)
+                lastReadableEntries = entries
+            } catch (error: Throwable) {
+                file.failWrite(stream)
+                throw error
+            }
+        }.onFailure { error -> Log.w("AppLogStore", "Failed to persist logs", error) }
+    }
 
     private fun pruneByRetentionLocked(context: Context) {
         clearOlderThanLocked(context.applicationContext, retentionDays(context))

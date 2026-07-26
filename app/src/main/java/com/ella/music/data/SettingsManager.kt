@@ -807,7 +807,7 @@ class SettingsManager(private val context: Context) {
     val themeMode: Flow<Int> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: 0 }
     val monetColorMode: Flow<Int> = context.dataStore.data.map { it[KEY_MONET_COLOR_MODE] ?: 0 }
     val playerBackgroundTheme: Flow<Int> =
-        context.dataStore.data.map { it[KEY_PLAYER_BACKGROUND_THEME] ?: PLAYER_BG_THEME_FOLLOW_SYSTEM }
+        context.dataStore.data.map { it[KEY_PLAYER_BACKGROUND_THEME] ?: PLAYER_BG_THEME_DARK }
     val appLanguage: Flow<String> =
         context.dataStore.data.map { it[KEY_APP_LANGUAGE] ?: APP_LANGUAGE_SYSTEM }
     val appIconStyle: Flow<String> =
@@ -936,7 +936,7 @@ class SettingsManager(private val context: Context) {
     val playerImmersiveCover: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: false }
     val playerCoverContentColor: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYER_COVER_CONTENT_COLOR] ?: true }
+        context.dataStore.data.map { it[KEY_PLAYER_COVER_CONTENT_COLOR] ?: false }
 
     val hideSystemBars: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }

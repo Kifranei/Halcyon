@@ -19,6 +19,9 @@ internal object MusicVideoPlaybackBridge {
         val snapshot: MutableStateFlow<MusicVideoPlaybackSnapshot> =
             MutableStateFlow(MusicVideoPlaybackSnapshot()),
         @Volatile var playWhenReady: Boolean = false,
+        // A tap reaches the audio controller asynchronously. Keep that direct user intent until
+        // the controller publishes the matching state, so an old audio snapshot cannot restart MV.
+        @Volatile var pendingPlayWhenReady: Boolean? = null,
         @Volatile var syncPositionMs: Long? = null,
         @Volatile var syncDurationMs: Long? = null,
         @Volatile var player: Player? = null
@@ -72,12 +75,22 @@ internal object MusicVideoPlaybackBridge {
 
     fun setPlaying(source: DynamicCoverSource?, playing: Boolean) {
         val resolvedSource = source ?: return
-        val entry = entries.getOrPut(keyFor(resolvedSource)) { Entry() }
-        entry.playWhenReady = playing
-        entry.player?.let { player ->
-            player.playWhenReady = playing
-            publish(resolvedSource, player)
-        } ?: run {
+        setPlaying(keyFor(resolvedSource), playing)
+    }
+
+    /**
+     * Records playback intent before the MV source has finished resolving.  This lets a lyric
+     * double-tap pause the future landscape decoder as well as an already attached one. Pausing
+     * is immediate; resuming waits for the audio controller so the video cannot start on a stale
+     * clock and immediately seek back.
+     */
+    fun setPlaying(playbackOwnerKey: String, playing: Boolean) {
+        if (playbackOwnerKey.isBlank()) return
+        val entry = entries.getOrPut(playbackOwnerKey) { Entry() }
+        entry.pendingPlayWhenReady = playing
+        if (!playing) {
+            entry.playWhenReady = false
+            entry.player?.playWhenReady = false
             entry.snapshot.value = entry.snapshot.value.copy(playWhenReady = playing)
         }
     }
@@ -98,7 +111,22 @@ internal object MusicVideoPlaybackBridge {
         val entry = entries.getOrPut(keyFor(source)) { Entry() }
         entry.syncPositionMs = positionMs.coerceAtLeast(0L)
         entry.syncDurationMs = audioDurationMs?.coerceAtLeast(0L)
-        entry.playWhenReady = playing
+        entry.playWhenReady = when (val pendingPlaying = entry.pendingPlayWhenReady) {
+            false -> {
+                if (!playing) entry.pendingPlayWhenReady = null
+                false
+            }
+            true -> {
+                if (playing) {
+                    entry.pendingPlayWhenReady = null
+                    true
+                } else {
+                    // Audio has not resumed yet. Keep the silent decoder on the shared clock.
+                    false
+                }
+            }
+            null -> playing
+        }
         entry.player?.let { player ->
             applySync(entry, player)
             publish(source, player)

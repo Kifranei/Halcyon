@@ -1170,7 +1170,7 @@
     <string name="playlist_export_m3u8_summary">UTF-8 エンコードの #EXTM3U プレイリストをエクスポート。曲情報とローカルパスを含む</string>
     <string name="playlist_export_m3u">M3U としてエクスポート</string>
     <string name="playlist_export_m3u_summary">M3U 拡張子のみを認識するアプリ向けに .m3u プレイリストをエクスポート</string>
-    <string name="notification_permission_denied_hint">通知権限の拒否は使用に影響しません。vivo / iQOO で通知が表示されない場合は、システム設定から許可してください。</string>
+    <string name="notification_permission_denied_hint">通知権限を拒否しても基本的な再生には影響しませんが、ロックしたデスクトップ歌詞を解除できなくなり、vivo / iQOO では通知から再生を操作できなくなる場合があります。</string>
     <string name="playlist_import_none">インポートできる曲がありません</string>
     <string name="playlist_import_missing_paths">、%1$d 曲のパスが一致しません</string>
     <string name="playlist_import_duplicates">、%1$d 件の重複をスキップ</string>

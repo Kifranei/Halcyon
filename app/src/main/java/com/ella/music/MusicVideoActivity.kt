@@ -110,6 +110,7 @@ import top.yukonga.miuix.kmp.icon.extended.Pause
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.icon.extended.Trim
 import top.yukonga.miuix.kmp.icon.extended.Lock
+import top.yukonga.miuix.kmp.icon.extended.Unlock
 import top.yukonga.miuix.kmp.icon.extended.Mic
 import top.yukonga.miuix.kmp.icon.basic.Check
 
@@ -298,8 +299,8 @@ private fun DetailMusicVideoScreen(
         controlsVisible = true
         activity.setLandscapeImmersive(landscape)
     }
-    LaunchedEffect(landscape, controlsVisible, isPlaying) {
-        if (landscape && controlsVisible && isPlaying) {
+    LaunchedEffect(landscape, controlsVisible, isPlaying, captionsEnabled, ktvLyricsEnabled) {
+        if (landscape && controlsVisible && isPlaying && !captionsEnabled && !ktvLyricsEnabled) {
             delay(3_000L)
             controlsVisible = false
         }
@@ -487,14 +488,16 @@ private fun LandscapeMusicVideoLayout(
                     )
                 }
         )
-        if (controlsVisible && ktvLyricsEnabled) {
+        if (ktvLyricsEnabled) {
             MusicVideoKtvLyrics(
                 lyrics = lyrics,
                 position = position,
                 videoAspectRatio = videoAspectRatio,
+                outlined = true,
+                alternateCurrentAndNext = true,
                 modifier = Modifier.fillMaxSize()
             )
-        } else if (controlsVisible && captionsEnabled) {
+        } else if (captionsEnabled) {
             MusicVideoCaptions(
                 lyrics = lyrics,
                 position = position,
@@ -532,7 +535,6 @@ private fun LandscapeMusicVideoLayout(
                             modifier = Modifier.size(25.dp)
                         )
                     }
-                    VideoIconButton(MiuixIcons.Regular.Lock, stringResource(R.string.music_video_lock), onToggleLock)
                 }
                 VideoTransport(
                     isPlaying = isPlaying,
@@ -564,9 +566,13 @@ private fun LandscapeMusicVideoLayout(
                 )
                 VideoIconButton(MiuixIcons.Regular.Trim, stringResource(R.string.music_video_capture), onCapture)
             }
-        } else if (controlsVisible) {
-            VideoTextButton(
-                text = stringResource(R.string.music_video_unlock),
+        }
+        if (controlsVisible || controlsLocked) {
+            VideoIconButton(
+                icon = if (controlsLocked) MiuixIcons.Regular.Lock else MiuixIcons.Regular.Unlock,
+                description = stringResource(
+                    if (controlsLocked) R.string.music_video_lock else R.string.music_video_unlock
+                ),
                 onClick = onToggleLock,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
@@ -693,9 +699,10 @@ private fun VideoIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
     onClick: () -> Unit,
-    selected: Boolean = false
+    selected: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
-    IconButton(onClick = onClick) {
+    IconButton(onClick = onClick, modifier = modifier) {
         Icon(
             icon,
             description,
@@ -720,7 +727,8 @@ private fun MusicVideoCaptions(
     onPositionOffsetChange: (Offset) -> Unit,
     modifier: Modifier
 ) {
-    val primary = lyrics.lastOrNull { it.timeMs <= position }
+    // TTML x-bg is accompaniment metadata, not a second subtitle track for the MV player.
+    val primary = lyrics.lastOrNull { it.timeMs <= position && it.text.isNotBlank() }
     if (primary == null) return
     BoxWithConstraints(modifier = modifier) {
         val density = androidx.compose.ui.platform.LocalDensity.current
@@ -777,7 +785,6 @@ private fun MusicVideoCaptions(
                         }
                     ),
                 textAlign = TextAlign.Center,
-                backgroundFirst = true,
                 horizontalAlignment = Alignment.CenterHorizontally
             )
         }
@@ -789,13 +796,10 @@ private fun CaptionBlock(
     primary: LyricLine,
     modifier: Modifier,
     textAlign: TextAlign,
-    backgroundFirst: Boolean,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start
 ) {
     Column(modifier = modifier, horizontalAlignment = horizontalAlignment) {
-        if (backgroundFirst) CaptionLine(primary.backgroundText, textAlign)
         CaptionLine(primary.text, textAlign)
-        if (!backgroundFirst) CaptionLine(primary.backgroundText, textAlign)
     }
 }
 
@@ -964,7 +968,7 @@ private fun Bitmap.withCaptionOverlay(lyrics: List<LyricLine>, position: Long): 
         typeface = android.graphics.Typeface.DEFAULT_BOLD
         setShadowLayer(5f, 0f, 2f, Color.BLACK)
     }
-    val text = line.text.ifBlank { line.backgroundText.orEmpty() }.trim()
+    val text = line.text.trim()
     if (text.isBlank()) return this
     val maxWidth = target.width * 0.88f
     val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
@@ -995,10 +999,11 @@ private fun Bitmap.withCaptionOverlay(lyrics: List<LyricLine>, position: Long): 
 }
 
 private fun List<LyricLine>.activeCaptionLineAt(position: Long): LyricLine? {
-    if (isEmpty()) return null
-    val index = indexOfLast { it.timeMs <= position }
+    val captionLines = filter { it.text.isNotBlank() }
+    if (captionLines.isEmpty()) return null
+    val index = captionLines.indexOfLast { it.timeMs <= position }
     if (index < 0) return null
-    val line = this[index]
-    val next = getOrNull(index + 1)
+    val line = captionLines[index]
+    val next = captionLines.getOrNull(index + 1)
     return line.takeIf { position < line.primaryEndMs(next) }
 }

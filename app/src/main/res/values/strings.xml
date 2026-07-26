@@ -1582,7 +1582,7 @@
     <string name="playlist_export_m3u8_summary">导出 UTF-8 编码的 #EXTM3U 播放列表，包含歌曲信息和本地路径</string>
     <string name="playlist_export_m3u">导出为 M3U</string>
     <string name="playlist_export_m3u_summary">导出 .m3u 播放列表，便于兼容只识别 M3U 后缀的软件</string>
-    <string name="notification_permission_denied_hint">拒绝通知权限不影响使用；如果 vivo / iQOO 系统不显示通知，请自行到系统设置里授权。</string>
+    <string name="notification_permission_denied_hint">拒绝通知权限不影响基本使用；桌面歌词锁定后可能无法解除，vivo / iQOO 还可能无法从通知控制播放。</string>
     <string name="playlist_import_none">没有可导入的歌曲</string>
     <string name="playlist_import_missing_paths">，保留 %1$d 首未匹配路径</string>
     <string name="playlist_import_duplicates">，跳过 %1$d 条重复</string>

@@ -187,9 +187,10 @@ internal fun PlayerLandscapeOverlayHost(
             onSwipePrevious = onSwipePrevious,
             onPlayPause = {
                 // The MV uses its own silent decoder. Pause it immediately rather than waiting
-                // for the audio state to propagate through the player view model.
+                // for the audio state to propagate through the player view model. The source can
+                // still be resolving when lyrics are double-tapped, so use the stable song owner.
                 if (musicVideoVisible) {
-                    MusicVideoPlaybackBridge.setPlaying(landscapeDynamicCoverSource, !isPlaying)
+                    MusicVideoPlaybackBridge.setPlaying(dynamicCoverSongKey, !isPlaying)
                 }
                 onPlayPause()
             },

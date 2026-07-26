@@ -51,6 +51,8 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -377,13 +379,7 @@ private fun ListeningTimelineRow(
                         onClick = {
                             song?.takeIf { canPlaySong }?.let { playerViewModel.playSong(it) }
                         },
-                        // Last.fm is a read-only cache of the account history. Removing it here
-                        // would make the next full sync appear to "restore" it unexpectedly.
-                        onLongClick = if (entry.entry.source == PlaybackHistorySource.LOCAL) {
-                            { onRemoveHistoryEntry(entry.entry) }
-                        } else {
-                            null
-                        }
+                        onLongClick = { onRemoveHistoryEntry(entry.entry) }
                     )
             ) {
                 Row(
@@ -463,7 +459,8 @@ private fun ListeningTimelineRow(
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        if (song != null && canPlaySong) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (song != null && canPlaySong) {
                             Box(
                                 modifier = Modifier
                                     .clip(CircleShape)
@@ -474,6 +471,20 @@ private fun ListeningTimelineRow(
                                     text = "\u22ef",
                                     fontSize = 18.sp,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                            }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { onRemoveHistoryEntry(entry.entry) }
+                                    .padding(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Regular.Delete,
+                                    contentDescription = stringResource(R.string.listening_calendar_remove_history_title),
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }

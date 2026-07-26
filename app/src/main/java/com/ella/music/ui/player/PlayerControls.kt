@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -163,6 +164,7 @@ internal fun PlayerProgressBlock(
     onSeek: (Float) -> Unit
 ) {
     val context = LocalContext.current
+    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val savedInfoMode by settingsManager.playerProgressInfoIndex.collectAsState(initial = 0)
@@ -223,10 +225,13 @@ internal fun PlayerProgressBlock(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (infoLabels.isNotEmpty()) {
-                    val infoText = infoLabels[infoMode % infoLabels.size]
+                if (isTablet && (infoLabels.isNotEmpty() || replayGainLabel != null)) {
+                    val infoText = infoLabels.getOrNull(infoMode % infoLabels.size.coerceAtLeast(1))
                     Text(
-                        text = infoText,
+                        text = listOfNotNull(
+                            infoText,
+                            replayGainLabel
+                        ).joinToString(" / "),
                         fontSize = 12.sp,
                         color = palette.onBackground.copy(alpha = 0.62f),
                         modifier = Modifier
@@ -250,17 +255,46 @@ internal fun PlayerProgressBlock(
                             }
                             .padding(horizontal = 10.dp, vertical = 3.dp)
                     )
-                }
-                replayGainLabel?.let { label ->
+                } else {
+                    if (infoLabels.isNotEmpty()) {
+                        val infoText = infoLabels[infoMode % infoLabels.size]
+                        Text(
+                            text = infoText,
+                            fontSize = 12.sp,
+                            color = palette.onBackground.copy(alpha = 0.62f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(palette.onBackground.copy(alpha = 0.10f))
+                                .pointerInput(infoLabels, bluetoothDeviceName) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            if (infoLabels.size > 1) {
+                                                val nextMode = (infoMode + 1) % infoLabels.size
+                                                infoMode = nextMode
+                                                scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
+                                            }
+                                        },
+                                        onLongPress = {
+                                            if (!bluetoothDeviceName.isNullOrBlank()) {
+                                                openSystemOutputSwitcher(context)
+                                            }
+                                        }
+                                    )
+                                }
+                                .padding(horizontal = 10.dp, vertical = 3.dp)
+                        )
+                    }
+                    replayGainLabel?.let { label ->
                     Text(
                         text = label,
                         fontSize = 12.sp,
                         color = palette.onBackground.copy(alpha = 0.72f),
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(palette.accent.copy(alpha = 0.16f))
+                            .background(palette.onBackground.copy(alpha = 0.10f))
                             .padding(horizontal = 10.dp, vertical = 3.dp)
                     )
+                    }
                 }
             }
             Text(

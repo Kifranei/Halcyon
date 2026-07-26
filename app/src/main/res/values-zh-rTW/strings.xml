@@ -1190,7 +1190,7 @@
     <string name="playlist_export_m3u8_summary">匯出 UTF-8 編碼的 #EXTM3U 播放清單，包含歌曲資訊與本機路徑</string>
     <string name="playlist_export_m3u">匯出為 M3U</string>
     <string name="playlist_export_m3u_summary">匯出 .m3u 播放清單，方便相容只辨識 M3U 副檔名的軟體</string>
-    <string name="notification_permission_denied_hint">拒絕通知權限不影響播放；如果 vivo / iQOO 系統不顯示通知，請手動到系統設定中授權。</string>
+    <string name="notification_permission_denied_hint">拒絕通知權限不影響基本使用；桌面歌詞鎖定後可能無法解除，vivo / iQOO 也可能無法從通知控制播放。</string>
     <string name="playlist_import_none">沒有可匯入的歌曲</string>
     <string name="playlist_import_missing_paths">，保留 %1$d 首未符合路徑</string>
     <string name="playlist_import_duplicates">，跳過 %1$d 筆重複</string>

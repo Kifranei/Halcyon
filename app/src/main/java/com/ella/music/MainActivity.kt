@@ -854,7 +854,7 @@ fun EllaApp(
     LaunchedEffect(startupPosterVisible, notificationPermissionPromptHandled) {
         if (startupPosterVisible) return@LaunchedEffect
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
-        if (notificationPermissionPromptHandled || !isVivoFamilyDevice()) return@LaunchedEffect
+        if (notificationPermissionPromptHandled) return@LaunchedEffect
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             scope.launch { settingsManager.setNotificationPermissionPromptHandled(true) }
         } else {

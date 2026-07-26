@@ -1326,7 +1326,7 @@
     <string name="playlist_export_m3u8_summary">Export a UTF-8 #EXTM3U playlist including song info and local paths</string>
     <string name="playlist_export_m3u">Export as M3U</string>
     <string name="playlist_export_m3u_summary">Export a .m3u playlist for apps that only recognize the M3U extension</string>
-    <string name="notification_permission_denied_hint">Denying notification permission will not affect playback. If notifications do not appear on vivo / iQOO, please enable it manually in system settings.</string>
+    <string name="notification_permission_denied_hint">Denying notification permission does not affect basic playback, but a locked desktop lyric may not be unlockable and vivo / iQOO may lose notification playback controls.</string>
     <string name="playlist_import_none">No songs available to import</string>
     <string name="playlist_import_missing_paths">, kept %1$d unmatched paths</string>
     <string name="playlist_import_duplicates">, skipped %1$d duplicates</string>

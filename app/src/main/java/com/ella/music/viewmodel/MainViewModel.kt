@@ -89,52 +89,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningHistorySource.Local)
     private val lastFmDailyListenMs: StateFlow<Map<String, Long>> = combine(
         lastFmHistoryStore.history,
-        songs
-    ) { history, librarySongs ->
-        estimateLastFmDailyListenMs(history, librarySongs)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
-    private val combinedDailyListenMs: StateFlow<Map<String, Long>> = combine(
-        playbackStatsStore.dailyListenMs,
+        songs,
         playbackStatsStore.history,
-        lastFmHistoryStore.history,
-        songs
-    ) { localDaily, localHistory, lastFmHistory, librarySongs ->
-        mergeDailyListenMs(
-            localDaily,
-            estimateLastFmDailyListenMs(
-                history = lastFmHistory,
-                librarySongs = librarySongs,
-                existingHistory = localHistory
-            )
+        playbackStatsStore.hiddenRemoteHistoryEntryIds
+    ) { history, librarySongs, localHistory, hiddenRemoteEntryIds ->
+        estimateLastFmDailyListenMs(
+            history = history.filterNot { "lastfm:${it.cacheKey}" in hiddenRemoteEntryIds },
+            librarySongs = librarySongs,
+            existingHistory = localHistory
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val playbackHistory: StateFlow<List<PlaybackHistoryEntry>> = combine(
         playbackStatsStore.history,
         lastFmHistoryStore.history,
-        listeningHistorySource
-    ) { local, lastFm, source ->
+        listeningHistorySource,
+        playbackStatsStore.hiddenRemoteHistoryEntryIds
+    ) { local, lastFm, source, hiddenRemoteEntryIds ->
+        val remote = lastFm.map { it.toPlaybackHistoryEntry() }
+            .filterNot { it.entryId in hiddenRemoteEntryIds }
         when (source) {
             ListeningHistorySource.Local -> local
-            ListeningHistorySource.LastFm -> lastFm.map { it.toPlaybackHistoryEntry() }
-            ListeningHistorySource.Combined -> mergePlaybackHistorySources(local, lastFm.map { it.toPlaybackHistoryEntry() })
+            ListeningHistorySource.LastFm -> remote
+            ListeningHistorySource.Combined -> mergePlaybackHistorySources(local, remote)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val dailyListenMs: StateFlow<Map<String, Long>> = combine(
-        playbackStatsStore.dailyListenMs,
+        playbackHistory,
         lastFmDailyListenMs,
-        combinedDailyListenMs,
         listeningHistorySource
-    ) { local, lastFm, combined, source ->
+    ) { visibleHistory, lastFm, source ->
+        val visibleLocal = visibleHistory
+            .filter { it.source == PlaybackHistorySource.LOCAL }
+            .groupBy { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it.playedAt)) }
+            .mapValues { (_, entries) -> entries.sumOf { it.listenedMs } }
         when (source) {
-            ListeningHistorySource.Local -> local
+            ListeningHistorySource.Local -> visibleLocal
             ListeningHistorySource.LastFm -> lastFm
-            ListeningHistorySource.Combined -> combined
+            ListeningHistorySource.Combined -> mergeDailyListenMs(visibleLocal, lastFm)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     suspend fun removePlaybackHistoryEntry(entry: PlaybackHistoryEntry) {
         if (entry.source == PlaybackHistorySource.LOCAL) {
             playbackStatsStore.removeHistoryEntry(entry)
+        } else if (entry.source == PlaybackHistorySource.LAST_FM) {
+            playbackStatsStore.hideRemoteHistoryEntry(entry.entryId)
         }
     }
     val playlists: StateFlow<List<UserPlaylist>> = combine(

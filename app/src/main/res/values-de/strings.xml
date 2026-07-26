@@ -1170,7 +1170,7 @@
     <string name="playlist_export_m3u8_summary">UTF-8-#EXTM3U-Playlist mit Titelinfos und lokalen Pfaden exportieren</string>
     <string name="playlist_export_m3u">Als M3U exportieren</string>
     <string name="playlist_export_m3u_summary">.m3u-Playlist für Apps exportieren, die nur die M3U-Erweiterung erkennen</string>
-    <string name="notification_permission_denied_hint">Das Ablehnen der Benachrichtigungsberechtigung beeinflusst die Wiedergabe nicht. Wenn Benachrichtigungen auf vivo / iQOO nicht angezeigt werden, bitte manuell in den Systemeinstellungen aktivieren.</string>
+    <string name="notification_permission_denied_hint">Das Ablehnen der Benachrichtigungsberechtigung beeinträchtigt die Grundwiedergabe nicht. Gesperrte Desktoptexte lassen sich dann eventuell nicht entsperren und vivo / iQOO kann die Wiedergabesteuerung in Benachrichtigungen verlieren.</string>
     <string name="playlist_import_none">Keine Titel zum Importieren verfügbar</string>
     <string name="playlist_import_missing_paths">, %1$d nicht zugeordnete Pfade beibehalten</string>
     <string name="playlist_import_duplicates">, %1$d Duplikate übersprungen</string>

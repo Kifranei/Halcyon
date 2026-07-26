@@ -1,26 +1,48 @@
+# 1.2.3
+
+From `1.2.2` to `1.2.3`.
+
+中文更新日志
+- 大幅优化 MV 横屏体验：详情页 MV 与播放页静音 MV 的暂停/继续状态保持同步，避免后台重复播放和双重声音；完善返回、全屏、截图分享、字幕显示及安全区域避让。
+- 完善横屏 KTV 歌词与普通字幕：过滤 `x-bg` 背景人声元数据，修复长句截断、对唱左右交替、间奏等待符、描边和歌词时间同步问题；CoverFlow 与详情页各自保留合适的视觉样式。
+- 调整播放页布局与取色：恢复可选的封面取色文字/图标，默认使用深色流光背景；优化迷你歌词、封面和播放控制区的对齐，并合并平板信息胶囊及统一 ReplayGain 胶囊的半透明取色。
+- 歌曲评分改为可直接点选星级并保存；未评分状态使用空心星，音乐库、播放页和标签编辑器保持一致。
+- 重写听歌历史的本地持久化与删除流程：为每条记录保留稳定 ID、使用原子写入，并允许本地隐藏错误的 Last.fm 缓存记录，避免同步后重新出现。
+- 修复内存紧张后封面被错误降级为默认封面、日志短暂显示 0 条的问题；缓存释放后会重新解析封面，日志读取失败时保留上次成功内容。
+- 完善内置频谱与外部频谱入口，并加入本地音频格式转换、多音频流导出和 CUE 整轨分轨工具。
+
+English Changelog
+- Substantially refined landscape MV playback: detail-page MVs and the player's silent MV stay synchronized through pause/resume, preventing duplicated background playback and double audio; back/full-screen behavior, screenshot sharing, subtitles, and display-cutout handling are improved.
+- Refined landscape KTV lyrics and regular subtitles: `x-bg` backing-vocal metadata is filtered, and long-line clipping, alternating duet sides, interlude wait marks, outlines, and lyric timing are corrected. CoverFlow and the detail MV keep their appropriate visual styles.
+- Adjusted player layout and color handling: optional cover-derived text/icon color is restored while the default flowing background remains dark; mini lyrics, artwork, and controls align more cleanly, and tablet information capsules now share consistent translucent ReplayGain coloring.
+- Song rating is now selected directly with stars and saved explicitly. Unrated songs use outlined stars consistently in the library, player, and built-in tag editor.
+- Reworked local listening-history persistence and deletion: every record has a stable ID, writes are atomic, and invalid cached Last.fm entries can be hidden locally so they do not return after synchronization.
+- Fixed artwork incorrectly falling back to placeholders after memory pressure and logs briefly showing zero entries; artwork is resolved again after cache eviction and log reads retain the last successful result on failure.
+- Refined the built-in spectrum viewer and external spectrum launchers, and added local format conversion, multi-stream audio export, and CUE album splitting tools.
+
 # 1.2.2
 
 From tag `1.2.1` to `1.2.2`.
 
 中文更新日志
-- 重构逐字歌词为 Compose 实现，新增 / 完善 Apple Music 风格动态歌词背景、逐词上浮、平滑重排和沉浸歌词页过渡；优化桌面歌词、状态栏歌词、TTML / ELRC 及歌词字体体验。
+- 重构逐字歌词为 Compose 实现，并完善 Apple Music 风格动态歌词背景、逐词上浮、平滑重排和沉浸歌词页过渡；优化桌面歌词、状态栏歌词、TTML / ELRC 及歌词字体体验。
 - 大幅完善播放页与动态封面：统一沉浸与非沉浸取色，修复动态封面匹配、切换与预览问题；原图预览支持缩放、跟手拖动、分享和保存，播放页 / 队列补全评分、收藏和播放模式等交互。
 - 完善 MV 播放：预加载静音 MV，进入 MV 时暂停歌曲音频并使用视频声音，退出后恢复歌曲；修复切歌残留、横屏入口和进度同步问题。
 - 首次扫描会询问是否启用全标签搜索；全标签模式可搜索完整元数据，快速模式改用基础媒体库扫描以提升大曲库速度，并避免冷启动或后台重复自动扫描。
-- 设置搜索现在会索引具体的音乐库、艺术家、封面、分隔符、全标签搜索和歌词打轴设置；新增内置逐行 LRC 歌词打轴，可按播放进度打点、微调并写入歌曲内嵌歌词。
-- 新增 Last.fm 历史：支持授权、完整历史同步、自动 Scrobble、离线缓存和本地 / Last.fm / 合并历史视图；凭据由 Android Keystore 加密且不写入备份。
-- 新增交叉淡入淡出、紧凑 / 扩展桌面播放小组件、可配置的应用图标与桌面快捷方式。
+- 设置搜索现在会索引具体的音乐库、艺术家、封面、分隔符、全标签搜索和歌词打轴设置；内置逐行 LRC 歌词打轴可按播放进度打点、微调并写入歌曲内嵌歌词。
+- 完善 Last.fm 历史的授权、完整历史同步、自动 Scrobble、离线缓存和本地 / Last.fm / 合并历史视图；凭据由 Android Keystore 加密且不写入备份。
+- 完善交叉淡入淡出、紧凑 / 扩展桌面播放小组件、可配置的应用图标与桌面快捷方式。
 - 优化专辑 / 艺术家元数据、封面预览、歌曲评分、歌单拖拽与排序、搜索滚动恢复、文件夹交互和听歌统计等音乐库体验。
 - 改善 Android / HyperOS 系统适配：深色启动界面避免系统遮罩闪白，接入内存回收回调，修复启动恢复、预测性返回、蓝牙自动播放和多项播放器稳定性问题。
 
 English Changelog
-- Rebuilt word-by-word lyrics with Compose and added / refined Apple Music-style dynamic lyric backgrounds, word lift, smooth relayout, and immersive lyric transitions; desktop lyrics, status-bar lyrics, TTML / ELRC, and lyric-font behavior were also improved.
+- Rebuilt word-by-word lyrics with Compose and refined Apple Music-style dynamic lyric backgrounds, word lift, smooth relayout, and immersive lyric transitions; desktop lyrics, status-bar lyrics, TTML / ELRC, and lyric-font behavior were also improved.
 - Extensively refined the player and dynamic covers: immersive and non-immersive palette handling is now aligned, dynamic-cover matching / switching / preview issues are fixed, original-cover preview supports zoom, direct panning, sharing, and saving, and player / queue rating, favorite, and playback-mode interactions are completed.
 - Improved MV playback: silent MVs are preloaded, entering MV pauses the song audio and uses the video audio, and leaving it resumes the track; fixed track-change residue, landscape entry, and progress synchronization.
 - The first scan now asks whether to enable full-tag search. Full-tag mode searches complete metadata, while fast mode uses the basic media-library scanner for large libraries and avoids repeated automatic scans during cold start or in the background.
-- Settings search now indexes individual library, artist, artwork, separator, full-tag-search, and lyric-timing settings. Added built-in line-by-line LRC timing with playback-position capture, fine adjustment, and embedded-lyric writing.
-- Added Last.fm listening history with authorization, full-history sync, automatic scrobbling, offline cache, and Local / Last.fm / combined views. Credentials are encrypted with Android Keystore and excluded from backups.
-- Added crossfade, compact / expanded playback widgets, configurable app icons, and launcher shortcuts.
+- Settings search now indexes individual library, artist, artwork, separator, full-tag-search, and lyric-timing settings. The built-in line-by-line LRC timing tool captures playback positions, supports fine adjustment, and writes embedded lyrics.
+- Refined Last.fm listening-history authorization, full-history sync, automatic scrobbling, offline cache, and Local / Last.fm / combined views. Credentials are encrypted with Android Keystore and excluded from backups.
+- Refined crossfade, compact / expanded playback widgets, configurable app icons, and launcher shortcuts.
 - Improved album / artist metadata, cover preview, song ratings, playlist reordering and sorting, search scroll restoration, folder interactions, and listening statistics.
 - Improved Android / HyperOS integration: a dark launch screen avoids bright flashes beneath system masks, memory-trim callbacks are handled, and startup restore, predictive back, Bluetooth auto-play, and player stability have been fixed in multiple places.
 

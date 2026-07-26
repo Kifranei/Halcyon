@@ -326,7 +326,7 @@ fun PlayerScreen(
         uiState.deleteConfirmSong = targetSong
     }
     val playerBackgroundTheme by settingsManager.playerBackgroundTheme
-        .collectAsState(initial = SettingsManager.PLAYER_BG_THEME_FOLLOW_SYSTEM)
+        .collectAsState(initial = SettingsManager.PLAYER_BG_THEME_DARK)
     val playerLight = when (playerBackgroundTheme) {
         SettingsManager.PLAYER_BG_THEME_LIGHT -> true
         SettingsManager.PLAYER_BG_THEME_DARK -> false

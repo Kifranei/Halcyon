@@ -47,13 +47,17 @@ internal class MusicCoverArtManager(
         val cacheKey = song.coverDataCacheKey()
         coverArtCache.get(cacheKey)?.let { return it }
         when (coverDataStates[cacheKey]) {
-            CoverDataState.Missing, is CoverDataState.Error -> return null
+            // Missing artwork is cheap to re-check, and treating a temporary provider/read
+            // failure as permanent is what made every library cell become a default cover (#172).
+            CoverDataState.Missing -> Unit
+            is CoverDataState.Error -> Unit
             CoverDataState.Found, null -> Unit
         }
         synchronized(coverArtLock) {
             coverArtCache.get(cacheKey)?.let { return it }
             val metadataPath = song.effectiveLocalPathForMetadataBlocking(settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
             val shouldPersistFailureState = !(song.isWebDavRemoteSong() && metadataPath == song.path)
+            var transientFailure = false
             val art = try {
                 if (song.isWebDavRemoteSong() && metadataPath == song.path) {
                     null
@@ -64,23 +68,20 @@ internal class MusicCoverArtManager(
                 }
             } catch (error: Throwable) {
                 if (error is OutOfMemoryError) {
-                    coverArtCache.evictAll()
-                    coverBitmapCache.evictAll()
-                    // Clear persisted failure states too: an OOM is a transient condition, and
-                    // leaving stale Missing/Error markers would make getCoverArt short-circuit to
-                    // null for these keys forever (line above: `Missing/Error -> return null`),
-                    // which is a likely cause of "all covers disappear after a bad song loads".
-                    coverDataStates.clear()
+                    transientFailure = true
+                    clearArtworkCachesAfterOom()
                 }
                 Log.w("MusicRepo", "Failed to extract cover art for ${song.path}", error)
-                if (shouldPersistFailureState) coverDataStates[cacheKey] = CoverDataState.Error(error.message)
+                if (shouldPersistFailureState && !transientFailure) {
+                    coverDataStates[cacheKey] = CoverDataState.Error(error.message)
+                }
                 null
             }
             if (art != null) {
                 coverArtCache.put(cacheKey, art)
                 coverDataStates[cacheKey] = CoverDataState.Found
-            } else if (shouldPersistFailureState) {
-                coverDataStates.putIfAbsent(cacheKey, CoverDataState.Missing)
+            } else if (shouldPersistFailureState && !transientFailure) {
+                coverDataStates[cacheKey] = CoverDataState.Missing
             }
             return art
         }
@@ -118,9 +119,7 @@ internal class MusicCoverArtManager(
                     ?.also { coverBitmapCache.put(cacheKey, it) }
             }.getOrElse { error ->
                 if (error is OutOfMemoryError) {
-                    coverArtCache.evictAll()
-                    coverBitmapCache.evictAll()
-                    coverDataStates.clear()
+                    clearArtworkCachesAfterOom()
                 }
                 Log.w("MusicRepo", "Failed to decode cover bitmap for ${song.path}", error)
                 null
@@ -153,6 +152,13 @@ internal class MusicCoverArtManager(
         coverDataStates.clear()
     }
 
+    private fun clearArtworkCachesAfterOom() {
+        coverArtCache.evictAll()
+        coverBitmapCache.evictAll()
+        // OOM is a transient decode failure. Never leave permanent Missing/Error sentinels.
+        coverDataStates.clear()
+    }
+
     fun clearMetadataCache(song: Song) {
         val keyPrefix = song.coverCacheKey()
         coverDataStates.keys.removeAll { it.startsWith(keyPrefix) }
@@ -177,6 +183,7 @@ internal class MusicCoverArtManager(
                 retriever.embeddedPicture?.takeIf { it.isNotEmpty() }
             } finally { retriever.release() }
         }.getOrElse { error ->
+            if (error is OutOfMemoryError) throw error
             Log.d("MusicRepo", "MediaMetadataRetriever embedded picture unavailable for $path", error)
             null
         }
@@ -189,6 +196,7 @@ internal class MusicCoverArtManager(
             decodeBitmapFile(thumbnail, targetSize, Bitmap.Config.RGB_565)
                 ?.also { coverBitmapCache.put(cacheKey, it) }
         }.getOrElse { error ->
+            if (error is OutOfMemoryError) clearArtworkCachesAfterOom()
             Log.d("MusicRepo", "Failed to decode external thumbnail ${thumbnail.absolutePath}", error)
             null
         }
@@ -225,7 +233,7 @@ internal class MusicCoverArtManager(
             context.contentResolver.openInputStream(albumArtUri)?.use { BitmapFactory.decodeStream(it, null, options) }
                 ?.also { coverBitmapCache.put(albumCacheKey, it) }
         }.getOrElse { error ->
-            if (error is OutOfMemoryError) { coverArtCache.evictAll(); coverBitmapCache.evictAll() }
+            if (error is OutOfMemoryError) clearArtworkCachesAfterOom()
             Log.d("MusicRepo", "Failed to decode album art bitmap for albumId=$albumId", error)
             null
         }

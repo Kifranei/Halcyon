@@ -51,4 +51,31 @@ class MainViewModelListeningHistoryTest {
             estimateLastFmDailyListenMs(listOf(remote), emptyList(), listOf(local))
         )
     }
+
+    @Test
+    fun remoteHistoryUsesAStableEntryIdThatCanBeHiddenLocally() {
+        val track = LastFmTrack(
+            title = "Bad record",
+            artist = "Unknown",
+            album = "Broken import",
+            playedAt = 1_000_000L
+        )
+
+        assertEquals(track.toPlaybackHistoryEntry().entryId, track.toPlaybackHistoryEntry().entryId)
+    }
+
+    @Test
+    fun mergedHistoryKeepsRepeatedPlaysWithDistinctRecordIds() {
+        val first = PlaybackHistoryEntry(
+            entryId = "first",
+            songId = 42L,
+            title = "Repeat",
+            artist = "Artist",
+            album = "Album",
+            playedAt = 1_000_000L
+        )
+        val second = first.copy(entryId = "second", playedAt = 1_030_000L)
+
+        assertEquals(2, mergePlaybackHistorySources(listOf(first, second), emptyList()).size)
+    }
 }

@@ -314,9 +314,9 @@ internal fun CoverPlayerPage(
         val showHiResLogo = hiResLogoEnabled && audioInfo?.isHiResLogoTrack() == true
         val titleAboveCover = !immersiveAlbumCover &&
             playerTitlePosition == com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
-        // Credits reserve room without shrinking the artwork into a visually disconnected card.
-        val constrainedPortraitContent = !immersiveAlbumCover &&
-            (annotation.isNotBlank() || maxHeight < 840.dp)
+        // A visible annotation belongs in the title row, not in the cover-size calculation.
+        // This keeps the non-immersive composition equally spacious in both states.
+        val constrainedPortraitContent = !immersiveAlbumCover && maxHeight < 620.dp
         val nonImmersiveCoverFraction = when {
             constrainedPortraitContent && titleAboveCover -> 0.76f
             constrainedPortraitContent -> 0.82f

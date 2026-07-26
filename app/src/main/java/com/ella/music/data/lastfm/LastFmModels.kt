@@ -47,6 +47,9 @@ data class LastFmTrack(
         get() = listOf(title, artist, album, playedAt.toString()).joinToString("|") { it.lastFmKeyPart() }
 
     fun toPlaybackHistoryEntry(): PlaybackHistoryEntry = PlaybackHistoryEntry(
+        // Last.fm's cache key includes the play time and remains stable after a process restart,
+        // so it can also be used for a local "hide this bad record" decision.
+        entryId = "lastfm:$cacheKey",
         songId = stableLastFmSongId(title, artist, album),
         title = title,
         artist = artist,

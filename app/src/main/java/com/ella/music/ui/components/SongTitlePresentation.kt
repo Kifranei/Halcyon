@@ -24,8 +24,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ella.music.R
-import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.StarRate
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -138,9 +139,7 @@ internal fun RatingStarIcon(
     modifier: Modifier = Modifier
 ) {
     Icon(
-        painter = painterResource(
-            id = if (filled) R.drawable.ic_rating_star_fill else R.drawable.ic_rating_star_outline
-        ),
+        imageVector = if (filled) Icons.Rounded.StarRate else Icons.Rounded.StarBorder,
         contentDescription = null,
         tint = tint,
         modifier = modifier

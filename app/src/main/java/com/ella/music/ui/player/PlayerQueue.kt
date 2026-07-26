@@ -68,6 +68,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Lock
+import top.yukonga.miuix.kmp.icon.extended.Unlock
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private data class QueueEntry(
@@ -199,7 +201,7 @@ internal fun PlayerQueueMenu(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_desktop_lock),
+                        imageVector = if (queueLocked) MiuixIcons.Regular.Lock else MiuixIcons.Regular.Unlock,
                         contentDescription = stringResource(
                             if (queueLocked) R.string.player_unlock_queue else R.string.player_lock_queue
                         ),

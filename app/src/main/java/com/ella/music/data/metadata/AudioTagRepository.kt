@@ -230,8 +230,13 @@ class AudioTagRepository(
         block: suspend (AudioTagReader) -> T?
     ): T? {
         return runCatching { block(primary) }
-            .onFailure { Log.d(TAG, "lyrico-audiotag $label failed for $path", it) }
-            .getOrNull()
+            .getOrElse { error ->
+                // A memory-pressure failure is recoverable.  Do not turn it into a normal
+                // "no metadata" result, otherwise artwork callers cache a false missing cover.
+                if (error is OutOfMemoryError) throw error
+                Log.d(TAG, "lyrico-audiotag $label failed for $path", error)
+                null
+            }
     }
 
     private fun cacheKey(path: String): String? {

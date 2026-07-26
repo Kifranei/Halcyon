@@ -28,7 +28,7 @@ internal data class PlayerScreenSettings(
     val musicVideoSyncEnabled: Boolean = false,
     val dynamicCoverCustomFolders: List<String> = emptyList(),
     val immersiveAlbumCover: Boolean = false,
-    val coverContentColor: Boolean = true,
+    val coverContentColor: Boolean = false,
     val playerBackgroundEnabled: Boolean = false,
     val playerBackgroundUri: String = "",
     val playerBackgroundOpacity: Int = 100,

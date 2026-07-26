@@ -1170,7 +1170,7 @@
     <string name="playlist_export_m3u8_summary">Exporter une playlist UTF-8 #EXTM3U comprenant les infos des titres et les chemins locaux</string>
     <string name="playlist_export_m3u">Exporter en M3U</string>
     <string name="playlist_export_m3u_summary">Exporter une playlist .m3u pour les applications qui reconnaissent uniquement l’extension M3U</string>
-    <string name="notification_permission_denied_hint">Refuser l’autorisation de notification n’affectera pas la lecture. Si les notifications n’apparaissent pas sur vivo / iQOO, veuillez l’activer manuellement dans les paramètres système.</string>
+    <string name="notification_permission_denied_hint">Refuser l’autorisation de notification n’affecte pas la lecture de base, mais les paroles de bureau verrouillées peuvent ne plus pouvoir être déverrouillées et vivo / iQOO peut perdre les commandes de lecture dans la notification.</string>
     <string name="playlist_import_none">Aucun titre disponible à importer</string>
     <string name="playlist_import_missing_paths">, %1$d chemins non reconnus conservés</string>
     <string name="playlist_import_duplicates">, %1$d doublons ignorés</string>
