@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
-import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.SortDropdownItem
@@ -63,99 +61,90 @@ internal fun PlaylistScreenTopBar(
     onSearchClick: () -> Unit,
     onImportClick: () -> Unit,
     onExportAllClick: () -> Unit,
-    onScrollToTop: () -> Unit
+    onDoubleTapTitle: (() -> Unit)? = null
 ) {
-    Box {
-        EllaSmallTopAppBar(
-            title = if (selectionMode) {
-                stringResource(R.string.library_selected_fraction, selectedCount, totalCount)
-            } else {
-                stringResource(R.string.playlist_title)
-            },
-            color = ellaPageBackground(),
-            navigationIcon = {
-                if (showBackButton || selectionMode) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Back,
-                            contentDescription = stringResource(R.string.common_back),
-                            tint = MiuixTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            },
-            titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
-            actions = {
-                if (selectionMode) {
-                    IconButton(onClick = onExportSelectedClick) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Share,
-                            contentDescription = stringResource(R.string.playlist_export_title),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(onClick = onPlayNextSelectedClick) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Play,
-                            contentDescription = stringResource(R.string.song_more_play_next),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(onClick = onAddSelectedToQueueClick) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Playlist,
-                            contentDescription = stringResource(R.string.player_queue_title),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(onClick = onAddSelectedToPlaylistClick) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Add,
-                            contentDescription = stringResource(R.string.song_more_add_to_playlist),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(onClick = onDeleteSelectedClick) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Delete,
-                            contentDescription = stringResource(R.string.common_delete),
-                            tint = Color(0xFFE5484D),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                } else {
-                    PlaylistTopBarIcon(
-                        icon = MiuixIcons.Regular.Share,
-                        contentDescription = stringResource(R.string.playlist_export_all_title),
-                        onClick = onExportAllClick
+    EllaSmallTopAppBar(
+        title = if (selectionMode) {
+            stringResource(R.string.library_selected_fraction, selectedCount, totalCount)
+        } else {
+            stringResource(R.string.playlist_title)
+        },
+        color = ellaPageBackground(),
+        navigationIcon = {
+            if (showBackButton || selectionMode) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface
                     )
-                    PlaylistTopBarIcon(
-                        icon = MiuixIcons.Regular.Download,
-                        contentDescription = stringResource(R.string.playlist_import_title),
-                        onClick = onImportClick
-                    )
-                    PlaylistTopBarIcon(
-                        icon = MiuixIcons.Basic.Search,
-                        contentDescription = stringResource(R.string.common_search),
-                        onClick = onSearchClick
-                    )
-                    SortDropdownMenu(items = sortItems)
                 }
             }
-        )
-        DoubleTapScrollOverlay(
-            onDoubleTap = onScrollToTop,
-            onClick = onScrollToTop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            endPadding = 216.dp
-        )
-    }
+        },
+        titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
+        onDoubleTapTitle = onDoubleTapTitle,
+        actions = {
+            if (selectionMode) {
+                IconButton(onClick = onExportSelectedClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Share,
+                        contentDescription = stringResource(R.string.playlist_export_title),
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = onPlayNextSelectedClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Play,
+                        contentDescription = stringResource(R.string.song_more_play_next),
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = onAddSelectedToQueueClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Playlist,
+                        contentDescription = stringResource(R.string.player_queue_title),
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = onAddSelectedToPlaylistClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Add,
+                        contentDescription = stringResource(R.string.song_more_add_to_playlist),
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = onDeleteSelectedClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Delete,
+                        contentDescription = stringResource(R.string.common_delete),
+                        tint = Color(0xFFE5484D),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            } else {
+                PlaylistTopBarIcon(
+                    icon = MiuixIcons.Regular.Share,
+                    contentDescription = stringResource(R.string.playlist_export_all_title),
+                    onClick = onExportAllClick
+                )
+                PlaylistTopBarIcon(
+                    icon = MiuixIcons.Regular.Download,
+                    contentDescription = stringResource(R.string.playlist_import_title),
+                    onClick = onImportClick
+                )
+                PlaylistTopBarIcon(
+                    icon = MiuixIcons.Basic.Search,
+                    contentDescription = stringResource(R.string.common_search),
+                    onClick = onSearchClick
+                )
+                SortDropdownMenu(items = sortItems)
+            }
+        }
+    )
 }
 
 @Composable

@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -44,7 +42,6 @@ import com.ella.music.data.PlaylistExportFormat
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
-import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
@@ -301,64 +298,55 @@ fun PlaylistDetailScreen(
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        Box {
-            PlaylistDetailTopBar(
-                title = when {
-                    selection.selectionMode -> stringResource(R.string.library_selected_fraction, selection.selectedIds.size, displayedSongs.size)
-                    playlist == null -> stringResource(R.string.playlist_title)
-                    listState.firstVisibleItemIndex > 0 -> playlist.name
-                    else -> stringResource(R.string.playlist_title)
-                },
-                selectionMode = selection.selectionMode,
-                showRemoveSelected = !isFiveStarPlaylist && !isRemoteReadOnly,
-                showExport = playlist != null && !isFiveStarPlaylist,
-                onNavigationClick = {
-                    if (selection.selectionMode) finishSelectionMode() else onBack()
-                },
-                onPlayNextSelectedClick = {
-                    val selected = selectedDisplayedSongs()
-                    if (selected.isEmpty()) {
-                        Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                    } else {
-                        playerViewModel.playNext(selected)
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                        finishSelectionMode()
-                    }
-                },
-                onAddSelectedClick = {
-                    val selected = selectedDisplayedSongs()
-                    if (selected.isEmpty()) {
-                        Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                    } else {
-                        playlistPickerSongs = selected
-                    }
-                },
-                onRemoveSelectedClick = {
-                    val selected = selectedDisplayedSongs()
-                    if (selected.isNotEmpty()) removeSelectedPlaylistSongs = selected
-                },
-                onSearchClick = {
-                    searchExpanded = !searchExpanded
-                    if (!searchExpanded) searchQuery = ""
-                },
-                onExportClick = { showExportFormatSheet = true },
-                onSelectionModeClick = {
-                    selection.selectionMode = true
-                    if (selection.selectedIds.isEmpty()) {
-                        selection.rangeAnchorId = null
-                        selection.rangeTargetId = null
-                    }
+        PlaylistDetailTopBar(
+            title = when {
+                selection.selectionMode -> stringResource(R.string.library_selected_fraction, selection.selectedIds.size, displayedSongs.size)
+                playlist == null -> stringResource(R.string.playlist_title)
+                listState.firstVisibleItemIndex > 0 -> playlist.name
+                else -> stringResource(R.string.playlist_title)
+            },
+            selectionMode = selection.selectionMode,
+            showRemoveSelected = !isFiveStarPlaylist && !isRemoteReadOnly,
+            showExport = playlist != null && !isFiveStarPlaylist,
+            onNavigationClick = {
+                if (selection.selectionMode) finishSelectionMode() else onBack()
+            },
+            onPlayNextSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playerViewModel.playNext(selected)
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    finishSelectionMode()
                 }
-            )
-            DoubleTapScrollOverlay(
-                onDoubleTap = { scope.launch { listState.animateScrollToItem(0) } },
-                onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                endPadding = 160.dp
-            )
-        }
+            },
+            onAddSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playlistPickerSongs = selected
+                }
+            },
+            onRemoveSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isNotEmpty()) removeSelectedPlaylistSongs = selected
+            },
+            onSearchClick = {
+                searchExpanded = !searchExpanded
+                if (!searchExpanded) searchQuery = ""
+            },
+            onExportClick = { showExportFormatSheet = true },
+            onSelectionModeClick = {
+                selection.selectionMode = true
+                if (selection.selectedIds.isEmpty()) {
+                    selection.rangeAnchorId = null
+                    selection.rangeTargetId = null
+                }
+            },
+            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } }
+        )
 
         PlaylistDetailSearchSection(
             visible = searchExpanded && !selection.selectionMode,

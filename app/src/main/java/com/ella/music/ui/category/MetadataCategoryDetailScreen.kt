@@ -55,7 +55,6 @@ import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
-import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
@@ -319,6 +318,7 @@ fun MetadataCategoryDetailScreen(
             EllaSmallTopAppBar(
                 title = pageTitle,
                 color = pageBackground,
+                onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } },
                 navigationIcon = {
                     IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
                         Icon(
@@ -490,13 +490,6 @@ fun MetadataCategoryDetailScreen(
                         SortDropdownMenu(items = sortItems)
                     }
                 }
-            )
-            DoubleTapScrollOverlay(
-                onDoubleTap = { scope.launch { listState.animateScrollToItem(0) } },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                endPadding = 208.dp
             )
         }
 

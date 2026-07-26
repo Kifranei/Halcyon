@@ -537,7 +537,7 @@ fun PlaylistScreen(
                 )
             },
             onExportAllClick = { showExportAllFormatSheet = true },
-            onScrollToTop = { scope.launch { listState.animateScrollToItem(0) } }
+            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } }
         )
 
         PlaylistSearchSection(

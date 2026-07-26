@@ -55,11 +55,13 @@ internal fun PlaylistDetailTopBar(
     onRemoveSelectedClick: () -> Unit,
     onSearchClick: () -> Unit,
     onExportClick: () -> Unit,
-    onSelectionModeClick: () -> Unit
+    onSelectionModeClick: () -> Unit,
+    onDoubleTapTitle: (() -> Unit)? = null
 ) {
     EllaSmallTopAppBar(
         title = title,
         color = ellaPageBackground(),
+        onDoubleTapTitle = onDoubleTapTitle,
         navigationIcon = {
             IconButton(onClick = onNavigationClick) {
                 Icon(

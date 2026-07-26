@@ -282,6 +282,7 @@ fun FolderPlaylistsScreen(
                 stringResource(R.string.folder_playlist_title)
             },
             color = ellaPageBackground(),
+            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } },
             navigationIcon = {
                 if (showBackButton || selection.selectionMode) {
                     IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {

@@ -359,6 +359,14 @@ fun FolderPlaylistDetailScreen(
                 playlist?.name ?: stringResource(R.string.folder_playlist_title)
             },
             color = ellaPageBackground(),
+            onDoubleTapTitle = {
+                scope.launch {
+                    when (selectedTab) {
+                        FolderPlaylistTab.Songs -> songsListState.animateScrollToItem(0)
+                        FolderPlaylistTab.Folders -> foldersListState.animateScrollToItem(0)
+                    }
+                }
+            },
             navigationIcon = {
                 IconButton(onClick = { if (selectionMode) exitSelection() else onBack() }) {
                     Icon(

@@ -43,7 +43,6 @@ import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.settings.findComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.data.tagIdentityKey
-import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.DirectionalSortField
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
@@ -174,6 +173,7 @@ fun FolderScreen(
                     }
                 },
                 titleStartPadding = if (showBackButton) 64.dp else 20.dp,
+                onDoubleTapTitle = { scrollToTopRequest++ },
                 actions = {
                     IconButton(onClick = onNavigateToScanSettings) {
                         Icon(
@@ -222,13 +222,6 @@ fun FolderScreen(
                         }
                     )
                 }
-            )
-            DoubleTapScrollOverlay(
-                onDoubleTap = { scrollToTopRequest++ },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                endPadding = 160.dp
             )
         }
 
