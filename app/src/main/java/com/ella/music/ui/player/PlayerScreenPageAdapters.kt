@@ -420,7 +420,7 @@ internal fun CoverPageContent(
             val current = song
             if (current != null) {
                 onMenuExpandedChange(false)
-                context.startActivity(SpectrumViewerLauncher.createIntent(context, current))
+                scope.launch { SpectrumViewerLauncher.openSelected(context, current) }
             } else {
                 Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
             }

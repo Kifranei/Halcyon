@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +55,8 @@ import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.SettingsManager
+import com.ella.music.MusicVideoOffsetsParser
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
@@ -120,6 +124,15 @@ internal fun LandscapeCoverPlaybackOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val importedMvOffsets by SettingsManager.getInstance(context).musicVideoOffsetsJson.collectAsState(initial = "")
+    val mvOffsetMs = remember(dynamicCoverSource?.uri, importedMvOffsets) {
+        dynamicCoverSource
+            ?.takeIf { it.role == PlayerVideoRole.MusicVideo }
+            ?.let { MusicVideoOffsetsParser.loadForSource(context, it.uri, importedMvOffsets).forSource(it.uri) }
+            ?: 0L
+    }
+    val lyricPosition = (currentPosition - mvOffsetMs).coerceAtLeast(0L)
     val songKey = remember(song) { song?.playlistIdentityKey() }
     val coverItems = remember(playlist, songKey) {
         val source = playlist.takeIf { it.isNotEmpty() } ?: listOfNotNull(song)
@@ -195,7 +208,7 @@ internal fun LandscapeCoverPlaybackOverlay(
         if (ktvLyricsEnabled) {
             MusicVideoKtvLyrics(
                 lyrics = lyrics,
-                position = currentPosition,
+                position = lyricPosition,
                 videoAspectRatio = dynamicCoverSource?.aspectRatio,
                 avoidBottomStartContent = hideNeighborCovers,
                 modifier = Modifier.fillMaxSize()

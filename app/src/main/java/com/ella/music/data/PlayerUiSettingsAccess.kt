@@ -22,6 +22,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LYRICS_ENAB
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_RIGHT_BUTTON
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CUSTOM_FOLDERS
+import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_OFFSETS_JSON
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_SYNC_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BACKGROUND_DIM
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BACKGROUND_ENABLED
@@ -82,6 +83,7 @@ interface PlayerUiSettingsAccess {
     val dynamicCoverEnabled: Flow<Boolean>
     val musicVideoSyncEnabled: Flow<Boolean>
     val musicVideoCaptureSubtitles: Flow<Boolean>
+    val musicVideoOffsetsJson: Flow<String>
     val dynamicCoverCustomFoldersRaw: Flow<String>
     val dynamicCoverCustomFolders: Flow<List<String>>
     val musicVideoCustomFoldersRaw: Flow<String>
@@ -112,6 +114,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setDynamicCoverEnabled(enabled: Boolean)
     suspend fun setMusicVideoSyncEnabled(enabled: Boolean)
     suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean)
+    suspend fun setMusicVideoOffsetsJson(json: String)
     suspend fun setDynamicCoverCustomFolders(folders: String)
     suspend fun setMusicVideoCustomFolders(folders: String)
     suspend fun setPlayerBackgroundEnabled(enabled: Boolean)
@@ -193,6 +196,8 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_SYNC_ENABLED] ?: false }
     override val musicVideoCaptureSubtitles: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] ?: false }
+    override val musicVideoOffsetsJson: Flow<String> =
+        context.dataStore.data.map { it[KEY_MUSIC_VIDEO_OFFSETS_JSON].orEmpty() }
     override val dynamicCoverCustomFoldersRaw: Flow<String> =
         context.dataStore.data.map { normalizeDynamicCoverCustomFolders(it[KEY_DYNAMIC_COVER_CUSTOM_FOLDERS]) }
     override val dynamicCoverCustomFolders: Flow<List<String>> =
@@ -294,6 +299,13 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] = enabled }
+    }
+
+    override suspend fun setMusicVideoOffsetsJson(json: String) {
+        context.dataStore.edit {
+            val value = json.trim()
+            if (value.isBlank()) it.remove(KEY_MUSIC_VIDEO_OFFSETS_JSON) else it[KEY_MUSIC_VIDEO_OFFSETS_JSON] = value
+        }
     }
 
     override suspend fun setDynamicCoverCustomFolders(folders: String) {

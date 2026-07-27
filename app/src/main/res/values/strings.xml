@@ -1256,6 +1256,13 @@
     <string name="settings_tag_scraping">音乐标签刮削</string>
     <string name="settings_metadata_editor">元数据编辑软件</string>
     <string name="settings_lyric_timing_editor">歌词打轴软件</string>
+    <string name="settings_spectrum_viewer">查看频谱软件</string>
+    <string name="settings_spectrum_builtin">内置频谱</string>
+    <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
+    <string name="settings_spectrum_kaspek">Kaspek</string>
+    <string name="settings_music_video_offsets">LunaBeat MV 偏移值</string>
+    <string name="settings_music_video_offsets_summary">导入 mv_offsets.json，用于对齐 MV 字幕</string>
+    <string name="music_video_offsets_import_failed">偏移文件无效或读取失败</string>
     <string name="settings_desktop_shortcuts">桌面快捷方式</string>
     <string name="settings_shortcut_library">音乐库</string>
     <string name="settings_shortcut_playlists">搜索</string>

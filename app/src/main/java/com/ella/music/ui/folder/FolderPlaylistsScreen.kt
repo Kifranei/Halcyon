@@ -104,6 +104,10 @@ fun FolderPlaylistsScreen(
     val persistedSortIndex by mainViewModel.settingsManager.folderPlaylistListSortIndex.collectAsState(
         initial = LibrarySortUiState.folderPlaylistListSortIndex
     )
+    val folderDetailSongSortIndex by mainViewModel.settingsManager.folderPlaylistDetailSongSortIndex.collectAsState(initial = 0)
+    val folderDetailSongSortMode = FolderPlaylistSongSortMode.entries.getOrElse(folderDetailSongSortIndex) {
+        FolderPlaylistSongSortMode.Custom
+    }
     val sortIndex = LibrarySortUiState.pendingFolderPlaylistListSortIndex ?: persistedSortIndex
     val sortMode = FolderPlaylistSortMode.entries.getOrElse(sortIndex) { FolderPlaylistSortMode.DateCreatedDesc }
     androidx.compose.runtime.LaunchedEffect(sortIndex) {
@@ -201,7 +205,7 @@ fun FolderPlaylistsScreen(
     val rangeSelectionAvailable = selection.isRangeSelectionAvailable(displayedIndexById)
 
     fun selectedSongsFor(playlist: FolderPlaylist): List<Song> =
-        songs.songsForFolderPlaylist(playlist.folders)
+        songs.songsForFolderPlaylist(playlist.folders).sortedForFolderPlaylistDetail(folderDetailSongSortMode)
 
     fun preserveListAnchorForSortChange(mode: FolderPlaylistSortMode) {
         // LazyColumn may already be reconciling an earlier sort when the menu is tapped. Its
@@ -252,7 +256,7 @@ fun FolderPlaylistsScreen(
     fun selectedActionSongs(): List<Song> =
         filteredPlaylists
             .filter { it.id in selection.selectedIds }
-            .flatMap { songs.songsForFolderPlaylist(it.folders) }
+            .flatMap { songs.songsForFolderPlaylist(it.folders).sortedForFolderPlaylistDetail(folderDetailSongSortMode) }
             .distinctBy { it.playlistIdentityKey() }
 
     BackHandler(enabled = selection.selectionMode || searchExpanded || moreMenuTarget != null || pendingDelete != null || pendingBulkDelete != null || showEditor) {

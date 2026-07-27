@@ -115,6 +115,10 @@ internal fun DetailMusicVideoScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     val captureSubtitles by SettingsManager.getInstance(context).musicVideoCaptureSubtitles.collectAsState(initial = false)
     val lyricOffsets by SettingsManager.getInstance(context).lyricOffsetOverrides.collectAsState(initial = emptyMap())
+    val importedMvOffsets by SettingsManager.getInstance(context).musicVideoOffsetsJson.collectAsState(initial = "")
+    val effectiveMvOffsetMs = remember(source, importedMvOffsets) {
+        MusicVideoOffsetsParser.loadForSource(context, source, importedMvOffsets).forSource(source)
+    }
     val repository = remember(context) { MusicRepository.getInstance(context) }
     val lyricsNeeded = captionsEnabled || ktvLyricsEnabled || (showCaptureActions && captureSubtitles)
     val lyrics by produceState<List<LyricLine>>(
@@ -122,10 +126,11 @@ internal fun DetailMusicVideoScreen(
         song.path,
         lyricsNeeded,
         lyricOffsets[song.lyricIdentityKey()]
+        , effectiveMvOffsetMs
     ) {
         value = if (lyricsNeeded) {
             withContext(Dispatchers.IO) { repository.getLyrics(song) }
-                .shiftedBy(lyricOffsets[song.lyricIdentityKey()] ?: 0L)
+                .shiftedBy((lyricOffsets[song.lyricIdentityKey()] ?: 0L) + effectiveMvOffsetMs)
         } else {
             emptyList()
         }

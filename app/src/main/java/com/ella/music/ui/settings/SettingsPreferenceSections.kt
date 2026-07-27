@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.ui.components.TagEditorOptionIds
+import com.ella.music.ui.components.SpectrumViewerLauncher
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -257,6 +258,7 @@ internal fun SettingsTagScrapingSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val metadataEditorId by settingsManager.metadataEditorId.collectAsState(initial = TagEditorOptionIds.ASK_EACH_TIME)
     val lyricTimingEditorId by settingsManager.lyricTimingEditorId.collectAsState(initial = TagEditorOptionIds.ASK_EACH_TIME)
+    val spectrumViewerId by settingsManager.spectrumViewerId.collectAsState(initial = SpectrumViewerLauncher.BUILTIN)
 
     val editorAskEveryTime = stringResource(R.string.settings_editor_ask_every_time)
     val editorBuiltinCustomTag = stringResource(R.string.settings_editor_builtin_custom_tag)
@@ -276,6 +278,11 @@ internal fun SettingsTagScrapingSection(
         TagEditorOptionIds.BUILTIN_LYRIC_TIMING to editorBuiltinLyricTiming,
         TagEditorOptionIds.LUNABEAT_LYRIC_TIMING to editorLunaBeatLyricTiming
     )
+    val spectrumViewerOptions = listOf(
+        SpectrumViewerLauncher.BUILTIN to stringResource(R.string.settings_spectrum_builtin),
+        SpectrumViewerLauncher.ASPECT_PRO to stringResource(R.string.settings_spectrum_aspect_pro),
+        SpectrumViewerLauncher.KASPEK to stringResource(R.string.settings_spectrum_kaspek)
+    )
     val metadataEditorIndex = metadataEditorOptions
         .indexOfFirst { it.first == metadataEditorId }
         .takeIf { it >= 0 }
@@ -284,11 +291,29 @@ internal fun SettingsTagScrapingSection(
         .indexOfFirst { it.first == lyricTimingEditorId }
         .takeIf { it >= 0 }
         ?: 0
+    val spectrumViewerIndex = spectrumViewerOptions.indexOfFirst { it.first == spectrumViewerId }.takeIf { it >= 0 } ?: 0
     val metadataEditorEntries = remember(metadataEditorOptions) {
         metadataEditorOptions.map { DropdownItem(title = it.second) }
     }
     val lyricTimingEditorEntries = remember(lyricTimingEditorOptions) {
         lyricTimingEditorOptions.map { DropdownItem(title = it.second) }
+    }
+    val spectrumViewerEntries = remember(spectrumViewerOptions) {
+        spectrumViewerOptions.map { DropdownItem(title = it.second) }
+    }
+    val offsetPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val json = runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
+                .getOrNull()
+            if (json.isNullOrBlank()) {
+                Toast.makeText(context, R.string.music_video_offsets_import_failed, Toast.LENGTH_SHORT).show()
+            } else {
+                runCatching { com.ella.music.MusicVideoOffsetsParser.parse(json) }
+                    .onSuccess { settingsManager.setMusicVideoOffsetsJson(json) }
+                    .onFailure { Toast.makeText(context, R.string.music_video_offsets_import_failed, Toast.LENGTH_SHORT).show() }
+            }
+        }
     }
 
     SmallTitle(text = stringResource(R.string.settings_tag_scraping))
@@ -320,6 +345,22 @@ internal fun SettingsTagScrapingSection(
                         )
                     }
                 }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_spectrum_viewer),
+                summary = stringResource(R.string.settings_current_value, spectrumViewerOptions[spectrumViewerIndex].second),
+                items = spectrumViewerEntries,
+                selectedIndex = spectrumViewerIndex,
+                onSelectedIndexChange = { index ->
+                    scope.launch {
+                        settingsManager.setSpectrumViewerId(spectrumViewerOptions.getOrNull(index)?.first.orEmpty())
+                    }
+                }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.settings_music_video_offsets),
+                summary = stringResource(R.string.settings_music_video_offsets_summary),
+                onClick = { offsetPicker.launch(arrayOf("application/json", "text/plain")) }
             )
         }
     }

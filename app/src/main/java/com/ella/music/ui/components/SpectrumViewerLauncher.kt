@@ -4,10 +4,15 @@ import android.content.Context
 import android.content.Intent
 import com.ella.music.SpectrumViewerActivity
 import com.ella.music.data.model.Song
+import com.ella.music.data.SettingsManager
+import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 
 /** Small intent bridge for the standalone spectrum activity. */
 internal object SpectrumViewerLauncher {
+    const val BUILTIN = "builtin"
+    const val ASPECT_PRO = "aspect_pro"
+    const val KASPEK = "kaspek"
     private const val EXTRA_SONG = "spectrum_song"
 
     fun createIntent(context: Context, song: Song): Intent = Intent(context, SpectrumViewerActivity::class.java)
@@ -16,6 +21,14 @@ internal object SpectrumViewerLauncher {
     fun songFrom(intent: Intent): Song? = intent.getStringExtra(EXTRA_SONG)
         ?.let(::JSONObject)
         ?.toSpectrumSong()
+
+    suspend fun openSelected(context: Context, song: Song) {
+        when (SettingsManager.getInstance(context).spectrumViewerId.first()) {
+            ASPECT_PRO -> openSongSpectrumWithAspectPro(context, song)
+            KASPEK -> openSongSpectrumWithKaspek(context, song)
+            else -> context.startActivity(createIntent(context, song))
+        }
+    }
 
     private fun Song.toSpectrumJson(): JSONObject = JSONObject()
         .put("id", id)

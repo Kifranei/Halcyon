@@ -238,7 +238,10 @@ private fun buildOfflineSpectrogram(context: Context, song: Song): OfflineSpectr
             arrayOf(
                 "-hide_banner", "-y", "-i", source.file.absolutePath, "-vn",
                 "-filter_complex",
-                "[0:a]aformat=channel_layouts=mono,aresample=44100,showspectrumpic=" +
+                // Keep a 192 kHz analysis clock so high-resolution files are not clipped at the
+                // 22.05 kHz Nyquist limit introduced by the old 44.1 kHz resampler.  Downsampled
+                // sources still naturally contain no energy above their original Nyquist limit.
+                "[0:a]aformat=channel_layouts=mono,aresample=192000,showspectrumpic=" +
                     "s=${SPECTRUM_COLUMNS}x${SPECTRUM_BINS}:legend=disabled:mode=combined:" +
                     "color=fiery:scale=log:drange=120:win_func=hann[s]",
                 "-map", "[s]", "-frames:v", "1", image.absolutePath
@@ -285,7 +288,7 @@ private fun SpectrumChart(bitmap: Bitmap, duration: Long, modifier: Modifier = M
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
             ) {
-                Text("22.1 kHz", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
+                Text("96 kHz", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
                 Text("0 Hz", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
             }
             Image(

@@ -30,6 +30,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LISTENING_HISTORY_SOURC
 import com.ella.music.data.SettingsManager.Companion.KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_TIMING_EDITOR_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_METADATA_EDITOR_ID
+import com.ella.music.data.SettingsManager.Companion.KEY_SPECTRUM_VIEWER_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_MIN_DURATION
 import com.ella.music.data.SettingsManager.Companion.KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAY_NEXT_MODE
@@ -74,6 +75,7 @@ interface LibrarySettingsAccess {
     val showAlbumArtists: Flow<Boolean>
     val metadataEditorId: Flow<String>
     val lyricTimingEditorId: Flow<String>
+    val spectrumViewerId: Flow<String>
     val scanIncludeFolders: Flow<String>
     val scanExcludeFolders: Flow<String>
     val usbFolderUris: Flow<String>
@@ -108,6 +110,7 @@ interface LibrarySettingsAccess {
     suspend fun setShowAlbumArtists(enabled: Boolean)
     suspend fun setMetadataEditorId(id: String)
     suspend fun setLyricTimingEditorId(id: String)
+    suspend fun setSpectrumViewerId(id: String)
     suspend fun setPlaylistCustomOrder(ids: List<String>)
     fun pinnedKeysFlow(namespace: String): Flow<List<String>>
     suspend fun setPinned(namespace: String, key: String, pinned: Boolean)
@@ -170,6 +173,8 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_METADATA_EDITOR_ID] ?: "" }
     override val lyricTimingEditorId: Flow<String> =
         context.dataStore.data.map { it[KEY_LYRIC_TIMING_EDITOR_ID] ?: "" }
+    override val spectrumViewerId: Flow<String> =
+        context.dataStore.data.map { it[KEY_SPECTRUM_VIEWER_ID] ?: "builtin" }
 
     override val scanIncludeFolders: Flow<String> = context.dataStore.data.map { it[KEY_SCAN_INCLUDE_FOLDERS] ?: "" }
     override val scanExcludeFolders: Flow<String> = context.dataStore.data.map { it[KEY_SCAN_EXCLUDE_FOLDERS] ?: "" }
@@ -279,6 +284,12 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.edit {
             val safeId = id.trim()
             if (safeId.isBlank()) it.remove(KEY_LYRIC_TIMING_EDITOR_ID) else it[KEY_LYRIC_TIMING_EDITOR_ID] = safeId
+        }
+    }
+
+    override suspend fun setSpectrumViewerId(id: String) {
+        context.dataStore.edit {
+            it[KEY_SPECTRUM_VIEWER_ID] = id.trim().ifBlank { "builtin" }
         }
     }
 

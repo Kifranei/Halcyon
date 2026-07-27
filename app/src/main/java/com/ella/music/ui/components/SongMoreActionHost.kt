@@ -225,7 +225,7 @@ fun SongMoreActionHost(
                     }
                 },
                 onSpectrum = {
-                    context.startActivity(SpectrumViewerLauncher.createIntent(context, song))
+                    scope.launch { SpectrumViewerLauncher.openSelected(context, song) }
                     closeAction()
                 },
                 onInfo = {

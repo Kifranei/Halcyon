@@ -13,23 +13,25 @@ internal fun selectMetadataCategoryCoverSong(
 ): Song? {
     val target = name.tagIdentityKey()
     val matched = songs.filter { song -> song.matchesMetadataCategory(type, target) }
-    if (matched.isEmpty()) return null
+    val albumArtistMatched = if (type in setOf("composer", "arranger", "lyricist")) {
+        songs.filter { song -> splitArtistNames(song.albumArtist).any { it.tagIdentityKey() == target } }
+    } else {
+        emptyList()
+    }
+    if (matched.isEmpty() && albumArtistMatched.isEmpty()) return null
 
     fun hasUsableCover(song: Song): Boolean = song.coverUrl.isNotBlank() || song.albumId > 0L
     val candidates = when (type) {
         "composer", "arranger", "lyricist" -> {
-            val uniqueAlbumArtist = matched.filter { song ->
+            val roleMatched = matched
+            val uniqueAlbumArtist = albumArtistMatched.filter { song ->
                 splitArtistNames(song.albumArtist).singleOrNull()?.tagIdentityKey() == target
             }
-            val uniqueRole = matched.filter { song ->
+            val uniqueRole = roleMatched.filter { song ->
                 song.metadataCategoryNamesForCover(type).singleOrNull()?.tagIdentityKey() == target
             }
-            val anyAlbumArtist = matched.filter { song ->
-                splitArtistNames(song.albumArtist).any { it.tagIdentityKey() == target }
-            }
-            val anyRole = matched.filter { song ->
-                song.metadataCategoryNamesForCover(type).any { it.tagIdentityKey() == target }
-            }
+            val anyAlbumArtist = albumArtistMatched
+            val anyRole = roleMatched
             // "Unique" describes the tag field itself, not an album containing one song.
             // Keep a multi-track album eligible when its album artist/composer is unambiguous.
             uniqueAlbumArtist + uniqueRole + anyAlbumArtist + anyRole + matched

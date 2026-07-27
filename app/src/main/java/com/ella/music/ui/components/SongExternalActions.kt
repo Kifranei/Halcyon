@@ -82,13 +82,32 @@ fun openSongWithMediaInfo(context: Context, song: Song) {
     }
     val uri = song.localShareUri(context)
     val intent = Intent(Intent.ACTION_VIEW).apply {
-        component = ComponentName(MEDIA_INFO_PACKAGE, MEDIA_INFO_ACTIVITY)
         setDataAndType(uri, song.shareMimeType())
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         clipData = ClipData.newUri(context.contentResolver, song.title, uri)
     }
-    runCatching { context.startActivity(intent) }.onFailure {
+    val packageManager = context.packageManager
+    val resolved = packageManager.queryIntentActivities(intent, 0)
+        .firstOrNull { it.activityInfo.packageName == MEDIA_INFO_PACKAGE }
+        ?.activityInfo
+    val launchIntent = if (resolved != null) {
+        Intent(intent).setComponent(ComponentName(resolved.packageName, resolved.name))
+    } else {
+        Intent(intent).setComponent(ComponentName(MEDIA_INFO_PACKAGE, MEDIA_INFO_ACTIVITY))
+    }
+    runCatching { context.startActivity(launchIntent) }
+        .recoverCatching {
+            context.packageManager.getLaunchIntentForPackage(MEDIA_INFO_PACKAGE)
+                ?.also { fallback ->
+                    fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    fallback.putExtra(Intent.EXTRA_STREAM, uri)
+                    fallback.setDataAndType(uri, song.shareMimeType())
+                    context.startActivity(fallback)
+                }
+                ?: error("MediaInfo is not installed")
+        }
+        .onFailure {
         Toast.makeText(context, context.getString(R.string.media_info_open_failed), Toast.LENGTH_SHORT).show()
     }
 }
