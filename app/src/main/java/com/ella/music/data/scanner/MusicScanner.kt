@@ -123,6 +123,7 @@ class MusicScanner(private val context: Context) {
         // WAV files always try WavMetadataReader — MediaStore/Lyrico may not read LIST/INFO chunks
         if (file.extension.lowercase() in setOf("wav", "wave")) {
             WavMetadataReader.read(file)?.let { wavInfo ->
+                if (duration <= 0) duration = wavInfo.durationMs
                 if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
                 if (isMissingArtistTag(artist)) artist = wavInfo.artist.orEmpty()
                 if (isMissingAlbumTag(album)) album = wavInfo.album.orEmpty()

@@ -18,6 +18,7 @@ import com.ella.music.ui.components.SongAiInterpretationSheet
 import com.ella.music.ui.components.SongInfoSheet
 import com.ella.music.ui.components.SongMoreTagActionSheets
 import com.ella.music.ui.components.TagEditorOptionKind
+import com.ella.music.ui.components.openSongWithMediaInfo
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -95,6 +96,7 @@ internal fun PlayerScreenSheetHost(
                 song = song,
                 audioInfoLoader = playerViewModel::getAudioInfo,
                 tagInfoLoader = playerViewModel::getSongTagInfo,
+                onOpenMediaInfo = { openSongWithMediaInfo(context, song) },
                 onDismiss = { onSongInfoExpandedChange(false) }
             )
         }

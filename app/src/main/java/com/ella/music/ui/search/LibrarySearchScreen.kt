@@ -214,7 +214,11 @@ fun LibrarySearchScreen(
 
     val requestedCategoryTypes = remember(filter, searchAllCategoryTypes) {
         when (filter) {
-            SearchFilter.All -> searchAllCategoryTypes.sorted()
+            SearchFilter.All -> {
+                val preferredOrder = listOf("composer", "arranger", "lyricist")
+                preferredOrder.filter { it in searchAllCategoryTypes } +
+                    searchAllCategoryTypes.filterNot { it in preferredOrder }.sorted()
+            }
             SearchFilter.Folders -> listOf("folder")
             SearchFilter.Composers -> listOf("composer")
             SearchFilter.Arrangers -> listOf("arranger")

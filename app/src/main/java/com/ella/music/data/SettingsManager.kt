@@ -1092,10 +1092,12 @@ class SettingsManager(private val context: Context) :
             setString(KEY_EQ_BANDS)
             setString(KEY_DYNAMIC_COVER_CUSTOM_FOLDERS)
             setString(KEY_MUSIC_VIDEO_CUSTOM_FOLDERS)
+            setString(KEY_MUSIC_VIDEO_OFFSETS_JSON)
             setString(KEY_ARTIST_COVER_FOLDER_URI)
             setString(KEY_COVER_EXPORT_FOLDER_URI)
             setString(KEY_SEARCH_ALL_CATEGORY_TYPES)
             setString(KEY_SEARCH_ALL_SONG_MATCH_TYPES)
+            setString(KEY_SPECTRUM_VIEWER_ID)
 
             fun clearMissingCustomImage(
                 enabledKey: Preferences.Key<Boolean>,

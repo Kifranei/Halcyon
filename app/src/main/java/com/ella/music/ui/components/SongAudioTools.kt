@@ -38,6 +38,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 import java.nio.charset.Charset
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 private enum class AudioExportFormat(
@@ -514,7 +516,7 @@ private data class ParsedCue(
 )
 
 private fun parseCue(file: File): ParsedCue {
-    val content = decodeCue(file.readBytes())
+    val content = decodeCueText(file.readBytes())
     val filePattern = Regex("(?im)^\\s*FILE\\s+\\\"([^\\\"]+)\\\"")
     val trackPattern = Regex("(?im)^\\s*TRACK\\s+(\\d+)\\s+AUDIO\\s*$")
     val indexPattern = Regex("(?im)^\\s*INDEX\\s+01\\s+(\\d+):(\\d+):(\\d+)\\s*$")
@@ -551,19 +553,41 @@ private fun cueTimeToMs(minutes: String, seconds: String, frames: String): Long 
         ((seconds.toLongOrNull() ?: 0L) * 1_000L) +
         ((frames.toLongOrNull() ?: 0L) * 1_000L / 75L)
 
-private fun decodeCue(bytes: ByteArray): String {
+internal fun decodeCueText(bytes: ByteArray): String {
+    val bomCharset = when {
+        bytes.startsWith(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())) -> StandardCharsets.UTF_8
+        bytes.startsWith(byteArrayOf(0xFF.toByte(), 0xFE.toByte())) -> StandardCharsets.UTF_16LE
+        bytes.startsWith(byteArrayOf(0xFE.toByte(), 0xFF.toByte())) -> StandardCharsets.UTF_16BE
+        else -> null
+    }
+    if (bomCharset != null) {
+        return decodeCueStrict(bytes, bomCharset).orEmpty().removePrefix("\uFEFF")
+    }
+    // Valid UTF-8 is unambiguous. Scoring it against legacy decoders used to prefer mojibake
+    // because the broken text contains more non-ASCII code points than the original title.
+    decodeCueStrict(bytes, StandardCharsets.UTF_8)?.let { return it }
     val charsets = listOfNotNull(
-        Charset.forName("UTF-8"),
         runCatching { Charset.forName("GB18030") }.getOrNull(),
+        runCatching { Charset.forName("Big5") }.getOrNull(),
         runCatching { Charset.forName("Shift_JIS") }.getOrNull()
     ).distinct()
-    return charsets
-        .map { charset -> bytes.toString(charset).removePrefix("\uFEFF") }
-        .maxByOrNull(::cueDecodingScore)
-        .orEmpty()
+    return charsets.mapNotNull { charset ->
+        decodeCueStrict(bytes, charset)?.removePrefix("\uFEFF")?.let { charset to it }
+    }.maxByOrNull { (charset, text) -> cueDecodingScore(text, charset) }?.second.orEmpty()
 }
 
-private fun cueDecodingScore(text: String): Int {
+private fun decodeCueStrict(bytes: ByteArray, charset: Charset): String? = runCatching {
+    charset.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+        .decode(java.nio.ByteBuffer.wrap(bytes))
+        .toString()
+}.getOrNull()
+
+private fun ByteArray.startsWith(prefix: ByteArray): Boolean =
+    size >= prefix.size && prefix.indices.all { this[it] == prefix[it] }
+
+private fun cueDecodingScore(text: String, charset: Charset): Int {
     // CUE command words are ASCII under every candidate encoding. Prefer the title decoding
     // that has the fewest malformed glyphs, so GB18030 and Shift-JIS stay readable.
     val commands = Regex("(?im)^\\s*(FILE|TRACK|INDEX|TITLE|PERFORMER)\\b")
@@ -572,7 +596,11 @@ private fun cueDecodingScore(text: String): Int {
     val replacements = text.count { it == '\uFFFD' }
     val controls = text.count { it.code in 0..8 || it.code in 14..31 }
     val readableNonAscii = text.count { it.code >= 0x80 && !it.isISOControl() }
-    return commands * 1_000 + readableNonAscii - replacements * 500 - controls * 30
+    val mojibake = text.count { it in "澶瀛樻鏂闂锛鈥�ÃÂâðæåç" }
+    val japaneseKana = text.count { it.code in 0x3040..0x30FF }
+    val japaneseBonus = if (charset.name().contains("JIS", ignoreCase = true)) japaneseKana * 40 else 0
+    return commands * 1_000 + readableNonAscii + japaneseBonus -
+        replacements * 2_000 - controls * 30 - mojibake * 80
 }
 
 private fun findCueAudioCandidates(directory: File, declaredName: String, preferred: File?): List<File> {

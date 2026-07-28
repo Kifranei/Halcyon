@@ -109,6 +109,7 @@ fun AlbumDetailScreen(
     onNavigateToPlayer: () -> Unit
 ) {
     val albums by mainViewModel.albums.collectAsState()
+    val librarySongs by mainViewModel.songs.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val context = LocalContext.current
@@ -273,36 +274,39 @@ fun AlbumDetailScreen(
             )
         }
     }
-    val composerDisplayItems = remember(participatingComposers, albumSongs) {
+    val composerDisplayItems = remember(participatingComposers, albumSongs, librarySongs) {
         participatingComposers.map { composer ->
             buildAlbumMetadataDisplayItem(
                 name = composer,
                 songs = mainViewModel.getSongsForMetadataCategory("composer", composer),
                 mainViewModel = mainViewModel,
                 fallbackSong = albumSongs.firstOrNull(),
-                categoryType = "composer"
+                categoryType = "composer",
+                coverCandidates = librarySongs
             )
         }
     }
-    val arrangerDisplayItems = remember(participatingArrangers, albumSongs) {
+    val arrangerDisplayItems = remember(participatingArrangers, albumSongs, librarySongs) {
         participatingArrangers.map { arranger ->
             buildAlbumMetadataDisplayItem(
                 name = arranger,
                 songs = mainViewModel.getSongsForMetadataCategory("arranger", arranger),
                 mainViewModel = mainViewModel,
                 fallbackSong = albumSongs.firstOrNull(),
-                categoryType = "arranger"
+                categoryType = "arranger",
+                coverCandidates = librarySongs
             )
         }
     }
-    val lyricistDisplayItems = remember(participatingLyricists, albumSongs) {
+    val lyricistDisplayItems = remember(participatingLyricists, albumSongs, librarySongs) {
         participatingLyricists.map { lyricist ->
             buildAlbumMetadataDisplayItem(
                 name = lyricist,
                 songs = mainViewModel.getSongsForMetadataCategory("lyricist", lyricist),
                 mainViewModel = mainViewModel,
                 fallbackSong = albumSongs.firstOrNull(),
-                categoryType = "lyricist"
+                categoryType = "lyricist",
+                coverCandidates = librarySongs
             )
         }
     }
@@ -960,10 +964,11 @@ private fun buildAlbumMetadataDisplayItem(
     mainViewModel: MainViewModel,
     fallbackSong: Song?,
     categoryType: String? = null,
+    coverCandidates: List<Song> = songs,
     artistCoverName: String? = null,
     artistCoverSong: Song? = null
 ): AlbumMetadataDisplayItem {
-    val representativeSong = categoryType?.let { selectMetadataCategoryCoverSong(songs, it, name) }
+    val representativeSong = categoryType?.let { selectMetadataCategoryCoverSong(coverCandidates, it, name) }
         ?: songs.firstOrNull()
         ?: fallbackSong
     return AlbumMetadataDisplayItem(

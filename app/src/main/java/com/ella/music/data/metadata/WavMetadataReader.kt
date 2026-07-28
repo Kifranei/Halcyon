@@ -21,7 +21,8 @@ data class WavMetadata(
     val bitRate: Int = 0,
     val sampleRate: Int = 0,
     val bitDepth: Int = 0,
-    val channels: Int = 0
+    val channels: Int = 0,
+    val durationMs: Long = 0L
 ) {
     val hasTags: Boolean
         get() = listOf(title, artist, album, albumArtist, genre, year, composer, arranger, lyricist)
@@ -53,6 +54,7 @@ object WavMetadataReader {
                 val infoValues = linkedMapOf<String, String>()
                 val id3Values = linkedMapOf<String, String>()
                 var wavFormat = WavFormat()
+                var dataBytes = 0L
                 val fileLength = input.length()
 
                 while (input.filePointer + 8L <= fileLength) {
@@ -65,6 +67,7 @@ object WavMetadataReader {
 
                     when {
                         chunkId == "fmt " -> wavFormat = input.readWavFormat(chunkEnd)
+                        chunkId == "data" -> dataBytes = chunkEnd - chunkStart
                         chunkId == "LIST" && chunkSize >= 4L -> input.readListChunk(chunkEnd, infoValues)
                         chunkId.equals("id3 ", ignoreCase = true) || chunkId == "ID3 " -> {
                             val length = (chunkEnd - chunkStart).coerceAtMost(MAX_ID3_CHUNK_BYTES).toInt()
@@ -107,7 +110,10 @@ object WavMetadataReader {
                     bitDepth = wavFormat.bitDepth,
                     channels = wavFormat.channels
                 )
-                metadata.copy(bitRate = metadata.bitRate.takeIf { it > 0 } ?: metadata.estimatedPcmBitRate())
+                metadata.copy(
+                    bitRate = metadata.bitRate.takeIf { it > 0 } ?: metadata.estimatedPcmBitRate(),
+                    durationMs = if (wavFormat.byteRate > 0) dataBytes * 1_000L / wavFormat.byteRate else 0L
+                )
                     .takeIf { it.hasTags || it.hasQuality }
             }
         }.onFailure {
@@ -144,7 +150,8 @@ object WavMetadataReader {
                 ?: (sampleRate.toLong() * channels.toLong() * bitDepth.toLong()).coerceToInt(),
             sampleRate = sampleRate,
             bitDepth = bitDepth,
-            channels = channels
+            channels = channels,
+            byteRate = byteRate
         )
     }
 
@@ -314,6 +321,7 @@ object WavMetadataReader {
         val bitRate: Int = 0,
         val sampleRate: Int = 0,
         val bitDepth: Int = 0,
-        val channels: Int = 0
+        val channels: Int = 0,
+        val byteRate: Int = 0
     )
 }

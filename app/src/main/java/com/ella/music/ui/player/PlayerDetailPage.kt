@@ -37,7 +37,6 @@ import com.ella.music.data.model.formatPlaybackDuration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.ella.music.ui.components.ExplicitSongTitle
-import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
@@ -342,9 +341,6 @@ internal fun PlayerDetailPage(
                             PlayerDetailGroupedActionRow(
                                 title = detail.name,
                                 summary = detail.songs.stats().personSummary(),
-                                coverModel = selectMetadataCategoryCoverSong(effectiveLibrarySongs, "composer", detail.name)
-                                    ?.let { it.coverUrl.takeIf(String::isNotBlank) ?: it.albumId.takeIf { id -> id > 0L }?.let(albumArtForAlbum) },
-                                circularCover = true,
                                 onClick = { onComposer(detail.name) }
                             )
                         }
@@ -359,9 +355,6 @@ internal fun PlayerDetailPage(
                             PlayerDetailGroupedActionRow(
                                 title = detail.name,
                                 summary = detail.songs.stats().personSummary(),
-                                coverModel = selectMetadataCategoryCoverSong(effectiveLibrarySongs, "arranger", detail.name)
-                                    ?.let { it.coverUrl.takeIf(String::isNotBlank) ?: it.albumId.takeIf { id -> id > 0L }?.let(albumArtForAlbum) },
-                                circularCover = true,
                                 onClick = { onArranger(detail.name) }
                             )
                         }

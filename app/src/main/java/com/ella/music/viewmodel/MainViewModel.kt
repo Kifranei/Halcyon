@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -209,11 +210,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadRemoteLibrarySource(source: String, forceRefresh: Boolean) {
+        val ownerJob = currentCoroutineContext()[Job]
         repository.startScanning()
         val summary = try {
             repository.loadRemoteLibrary(source, forceRefresh = forceRefresh)
         } finally {
             repository.finishScanning()
+            if (scanJob === ownerJob) scanJob = null
         }
         openSubsonicCollectionsStore.refreshForLibrarySource(source)
         repository.emitScanSummary(summary)
@@ -253,6 +256,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val normalizedFolders = folders.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         if (normalizedFolders.isEmpty()) return
         scanJob = viewModelScope.launch {
+            val ownerJob = currentCoroutineContext()[Job]
             awaitCachedLibraryRestoreBeforeScanning()
             repository.startScanning()
             val summary = try {
@@ -264,6 +268,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } finally {
                 repository.finishScanning()
+                if (scanJob === ownerJob) scanJob = null
             }
             repository.emitScanSummary(summary)
             preloadLibrarySearchSnapshot()
@@ -315,6 +320,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         fullRescan: Boolean = false,
         deepRescan: Boolean = fullRescan
     ) {
+        val ownerJob = currentCoroutineContext()[Job]
         repository.startScanning()
         val completedSummary = try {
             val minDuration = settingsManager.minDurationSec.first() * 1000L
@@ -373,6 +379,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             summary
         } finally {
             repository.finishScanning()
+            // Release the scan gate as soon as the repository scan is done. Search/cache
+            // prewarming below is intentionally best-effort and must not block a new scan.
+            if (scanJob === ownerJob) scanJob = null
         }
         repository.emitScanSummary(completedSummary)
         preloadLibrarySearchSnapshot()

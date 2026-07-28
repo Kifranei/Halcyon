@@ -2018,4 +2018,11 @@
     <string name="lyric_timing_editor_redo">Redo</string>
     <string name="lyric_timing_editor_redo_unavailable">Nothing to redo</string>
     <string name="player_replay_gain_badge">Gain %1$s</string>
+    <string name="settings_spectrum_viewer">Spectrum viewer</string>
+    <string name="settings_spectrum_builtin">Built-in spectrum</string>
+    <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
+    <string name="settings_spectrum_kaspek">Kaspek</string>
+    <string name="settings_music_video_offsets">LunaBeat MV offsets</string>
+    <string name="settings_music_video_offsets_summary">Import mv_offsets.json to align MV lyrics</string>
+    <string name="music_video_offsets_import_failed">The offset file is invalid or could not be read</string>
 </resources>

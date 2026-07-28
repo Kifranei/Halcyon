@@ -3,11 +3,13 @@ package com.ella.music
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 /**
- * Guard tests that catch the two things that have silently broken when new features were added:
+ * Guard tests that catch resource and backup coverage regressions when new features are added:
  *  - a new DataStore setting that is exported but never re-applied by restoreSettingsJson, and
- *  - a new string that only lands in the default resources and never in the locale files.
+ *  - a new string that only lands in the default resources and never in the locale files, or
+ *  - Chinese fallback text copied into a non-CJK locale.
  *
  * They parse the source/resource files directly (no instrumentation) so they run as plain JVM
  * unit tests on CI.
@@ -80,5 +82,29 @@ class SettingsCoverageTest {
             }
         }
         assertTrue("Locale string files are out of sync:\n$problems", problems.isBlank())
+    }
+
+    @Test
+    fun nonCjkLocalesDoNotContainChineseFallbackText() {
+        val resDir = moduleFile("src/main/res")
+        val checkedLocales = listOf("values-de", "values-fr", "values-ko", "values-ru")
+        val hanRegex = Regex("[\\u3400-\\u4DBF\\u4E00-\\u9FFF]")
+        val factory = DocumentBuilderFactory.newInstance()
+
+        val problems = buildString {
+            for (locale in checkedLocales) {
+                val file = File(resDir, "$locale/strings.xml")
+                val strings = factory.newDocumentBuilder().parse(file).getElementsByTagName("string")
+                for (index in 0 until strings.length) {
+                    val element = strings.item(index)
+                    val value = element.textContent
+                    if (hanRegex.containsMatchIn(value)) {
+                        appendLine("$locale: ${element.attributes.getNamedItem("name").nodeValue} -> $value")
+                    }
+                }
+            }
+        }
+
+        assertTrue("Chinese fallback text found in non-CJK locales:\n$problems", problems.isBlank())
     }
 }
