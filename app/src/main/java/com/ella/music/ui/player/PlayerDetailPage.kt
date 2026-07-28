@@ -313,33 +313,24 @@ internal fun PlayerDetailPage(
                 }
             }
 
-            if (musicVideoSource != null || !neteaseInfo?.mvId.isNullOrBlank()) {
+            musicVideoSource?.let { source ->
                 item {
                     PlayerDetailGroupCard(title = stringResource(R.string.player_detail_music_video)) {
-                        musicVideoSource?.let { source ->
-                            PlayerDetailGroupedActionRow(
-                                title = stringResource(R.string.player_local_music_video),
-                                summary = listOf(
-                                    song?.title.orEmpty(),
-                                    song?.artist.orEmpty().ifBlank {
-                                        stringResource(R.string.player_unknown_artist)
-                                    },
-                                    musicVideoDurationMs.formatPlaybackDuration()
-                                ).filter(String::isNotBlank).joinToString(" · "),
-                                // Video stills are deliberately shown in a wide frame, rather than
-                                // pretending the MV is square album artwork.
-                                coverModel = musicVideoPreviewFrame ?: source.uri,
-                                coverAspectRatio = 16f / 9f,
-                                onClick = { onMusicVideo(source) }
-                            )
-                        }
-                        neteaseInfo?.mvId?.takeIf(String::isNotBlank)?.let { mvId ->
-                            PlayerDetailGroupedActionRow(
-                                title = stringResource(R.string.player_netease_music_video),
-                                summary = neteaseInfo.musicName.ifBlank { mvId },
-                                onClick = onNeteaseMusicVideo
-                            )
-                        }
+                        PlayerDetailGroupedActionRow(
+                            title = stringResource(R.string.player_local_music_video),
+                            summary = listOf(
+                                song?.title.orEmpty(),
+                                song?.artist.orEmpty().ifBlank {
+                                    stringResource(R.string.player_unknown_artist)
+                                },
+                                musicVideoDurationMs.formatPlaybackDuration()
+                            ).filter(String::isNotBlank).joinToString(" · "),
+                            // Video stills are deliberately shown in a wide frame, rather than
+                            // pretending the MV is square album artwork.
+                            coverModel = musicVideoPreviewFrame ?: source.uri,
+                            coverAspectRatio = 16f / 9f,
+                            onClick = { onMusicVideo(source) }
+                        )
                     }
                 }
             }
@@ -433,6 +424,13 @@ internal fun PlayerDetailPage(
                                 title = stringResource(R.string.player_netease_album_page),
                                 summary = neteaseInfo.albumName.ifBlank { neteaseInfo.albumId },
                                 onClick = onNeteaseAlbum
+                            )
+                        }
+                        neteaseInfo.mvId.takeIf(String::isNotBlank)?.let { mvId ->
+                            PlayerDetailGroupedActionRow(
+                                title = stringResource(R.string.player_netease_music_video),
+                                summary = neteaseInfo.musicName.ifBlank { mvId },
+                                onClick = onNeteaseMusicVideo
                             )
                         }
                     }

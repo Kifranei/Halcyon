@@ -154,7 +154,12 @@ internal fun AlbumIntroductionScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 22.dp, vertical = 12.dp),
+                    .padding(
+                        start = 22.dp,
+                        top = 12.dp,
+                        end = 22.dp,
+                        bottom = AlbumIntroductionBottomDockClearance
+                    ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 EllaMiuixTextField(
@@ -207,7 +212,12 @@ internal fun AlbumIntroductionScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 26.dp, end = 26.dp, top = 14.dp, bottom = 48.dp),
+                contentPadding = PaddingValues(
+                    start = 26.dp,
+                    top = 14.dp,
+                    end = 26.dp,
+                    bottom = AlbumIntroductionBottomDockClearance
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 item {
@@ -291,3 +301,5 @@ internal fun AlbumIntroductionScreen(
         }
     }
 }
+
+private val AlbumIntroductionBottomDockClearance = 132.dp

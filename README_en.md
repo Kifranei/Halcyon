@@ -222,10 +222,10 @@ Lookup priority is: dedicated MV folders → the song's folder → legacy dynami
 
 The player detail page shows separate entries:
 
-- **Local MV** — shows a video thumbnail and duration, and opens the audible built-in Halcyon player.
-- **NetEase Cloud Music MV** — shown when the song's `163 key` contains a non-zero `mvid`, and opens `https://y.music.163.com/m/mv?id=<mvid>`.
+- **MV section → Local MV** — shows a video thumbnail and duration, and opens the audible built-in Halcyon player.
+- **NetEase section → NetEase Cloud Music MV** — shown when the song's `163 key` contains a non-zero `mvid`, and opens `https://y.music.163.com/m/mv?id=<mvid>`.
 
-When both exist, both entries are shown. A NetEase link does not replace the local MV and is not used for silent synchronized playback.
+When both exist, each remains visible in its own section. A NetEase link does not displace or replace the local MV and is not used for silent synchronized playback.
 
 ### LunaBeat MV offsets
 
