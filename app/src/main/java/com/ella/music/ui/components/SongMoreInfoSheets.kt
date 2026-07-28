@@ -34,6 +34,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.neteaseAlbumUrl
 import com.ella.music.data.neteaseArtistUrl
+import com.ella.music.data.neteaseMvUrl
 import com.ella.music.data.neteaseSongUrl
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +108,12 @@ fun SongInfoSheet(
             neteaseInfo.comment.takeIf { it.isNotBlank() }?.let { SongInfoRow(stringResource(R.string.player_detail_comment), it) }
             neteaseInfo.musicId.takeIf { it.isNotBlank() }?.let { id ->
                 SongMenuItem(stringResource(R.string.player_netease_song_page), onClick = { openUrl(context, neteaseSongUrl(id)) })
+            }
+            neteaseInfo.mvId.takeIf { it.isNotBlank() }?.let { id ->
+                SongMenuItem(
+                    stringResource(R.string.player_netease_music_video),
+                    onClick = { openUrl(context, neteaseMvUrl(id)) }
+                )
             }
             if (neteaseArtists.isNotEmpty()) {
                 SongMenuItem(

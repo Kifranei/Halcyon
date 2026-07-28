@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -132,6 +133,7 @@ fun AlbumDetailScreen(
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var albumArtistChoices by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showIntroduction by rememberSaveable(albumId) { mutableStateOf(false) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val album = albums.find { it.id == albumId }
     val albumSongs = mainViewModel.getSongsForAlbum(albumId)
@@ -357,6 +359,17 @@ fun AlbumDetailScreen(
         }
     }
 
+    if (showIntroduction) {
+        AlbumIntroductionScreen(
+            album = album,
+            songs = albumSongs,
+            coverModel = albumPreviewModel,
+            releaseDate = albumReleaseDate,
+            onBack = { showIntroduction = false }
+        )
+        return
+    }
+
     // Keep the explicit album-list restoration path for every system-back route.  Previously
     // this handler was disabled for the normal detail state, so gesture/system back bypassed
     // `onBack` and Navigation popped directly without restoring the album-list anchor.
@@ -422,6 +435,7 @@ fun AlbumDetailScreen(
                             onNavigateToMetadataCategory("year", year.toString())
                         }
                     },
+                    onIntroductionClick = { showIntroduction = true },
                     onCoverClick = { coverPreviewVisible = true },
                     onPlayAll = {
                         if (sortedAlbumSongs.isNotEmpty()) {

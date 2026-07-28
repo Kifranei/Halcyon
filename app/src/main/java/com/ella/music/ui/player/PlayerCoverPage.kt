@@ -928,7 +928,6 @@ internal fun CoverPlayerPage(
                             onTimer = onOpenTimer,
                             onEditMetadata = onOpenMetadataEditor,
                             onMore = onToggleMenu,
-                            accent = if (coverContentColor) pagePalette.accent else null,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(16.dp))

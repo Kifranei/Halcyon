@@ -43,6 +43,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Provides a dedicated library search page with song, album, artist, lyric, duplicate-song, and full-tag search, plus search history, multi-select, and range selection.
 - Supports local playlists, favorites, five-star songs, playlist import / export, desktop shortcuts, and custom drag sorting.
 - Album grouping uses both album name and album artist to avoid merging same-name albums from different artists.
+- Album details include a dedicated, editable introduction page. Local albums prefer the `<review>` field in a neighboring `album.nfo`; when the folder is not writable, the introduction is stored inside the app.
 - Includes library analytics, listening calendar, play-count ranking, listening-duration ranking, format distribution, and quality distribution.
 - Supports Last.fm authorization, full-history sync, automatic scrobbling, and Local / Last.fm / combined listening-history views. Records can be deleted individually, while cached Last.fm entries can be hidden locally. Sensitive credentials are encrypted with Android Keystore and excluded from backups.
 - Library analytics are cached and prewarmed after scanning, so larger local libraries can open the statistics page faster.
@@ -60,7 +61,9 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Supports Monet dynamic color derived from the system wallpaper or the current song cover.
 - Non-immersive player covers can show a Hi-Res / MQ badge.
 - The player supports pull-down dismissal, dynamic backgrounds, blurred cover backgrounds, cover swipe-to-skip, and landscape queue-cover switching; tablet landscape docks can show the current lyric.
-- Supports displaying a song's music video (MV). Place "SongFileName-MV.mp4" or "SongFileName_MV.mp4" beside the song. The player can synchronize a silent MV while the detail page plays an audible MV independently; landscape playback, screenshot sharing, subtitles, and KTV lyrics are supported.
+- Supports both local and NetEase Cloud Music MVs. Local videos may use MP4, MKV, WebM, or MOV, can play silently in sync on the player, and can play independently with audio from the detail page. When a `163 key` contains `mvid`, the detail page adds a clearly labeled NetEase MV link; both entries can be shown together.
+- Local MVs support landscape playback, a glowing progress bar, screenshot sharing, draggable/lockable captions, KTV lyrics, accompaniment testing, and LunaBeat `mv_offsets.json` subtitle offsets.
+- New installs enable Apple Music background motion, transport-button outlines, total-duration display, and silent synchronized MV playback by default. Existing saved choices are preserved on upgrade.
 - Long-press player artwork to preview the original cover, with double-tap zoom, one-finger panning, sharing, and saving.
 
 ### 🎤 Lyrics
@@ -90,14 +93,14 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - The built-in tag editor supports editing basic tags, lyrics, embedded artwork, and interactive star ratings.
 - Provides system, FFmpeg, and automatic decoding modes for better ALAC / AAC / M4A compatibility.
 - Supports ReplayGain, shuffle queue restoration, quality labels, and 24-bit / 96 kHz recognition.
-- Supports 163 key reading from standalone tags, Comment, and Description fields.
+- Reads 163 keys from standalone tags, Comment, and Description fields, extracting song, album, artist, and `mvid` data with links to the corresponding NetEase song, album, artist, and MV pages.
 - Provides local audio tools for format conversion, multi-stream audio export, and CUE album splitting; the built-in spectrum viewer can also launch Aspect Pro or Kaspek directly.
 
 ### 🎨 UI & Integrations
 
 - Built with Miuix 0.9.3 for a MIUI / HyperOS-inspired interface, including floating bottom navigation, MiniPlayer, blur / Liquid Glass effects, and unified sheets. The launch screen follows the dark system theme to avoid a bright flash under system launch masks.
 - Supports 8 interface languages, in-app language switching, GitHub update page, app logs, full app-data backup / restore, and Prism Music listening-history export.
-- Supports switching app icons, configuring long-press launcher shortcuts, pinning home-category shortcuts, and compact / expanded playback widgets.
+- Supports switching app icons, configuring long-press launcher shortcuts, pinning home-category shortcuts, and compact / expanded playback widgets. Widgets keep artwork across process restarts, use a blurred artwork-derived background, show live playback time and controls, and provide a compatibility-layout switch for launcher grids that crop the play-button outline.
 - Supports song information, tag editing, lyric timing tools, external tag-editor adaptation, and AI song interpretation.
 - Supports MediaSession custom commands for favorite and playback-mode controls in notifications / control centers.
 
@@ -179,6 +182,67 @@ Music/Song File Name.mp4
 ```
 
 Actual matching order depends on the implementation: it usually checks the song's local folder first, then checks DynamicCovers for song/album videos, and finally uses the global fallback video.
+
+---
+
+## 🎬 Local MVs, NetEase MVs, and Subtitle Offsets
+
+### Recommended: use dedicated MV folders
+
+Choose one or more MV-only folders from **Settings → Appearance → MV folders**. Dedicated MV folders support:
+
+- Containers: `.mp4`, `.mkv`, `.webm`, and `.mov`.
+- Names: `Artist - Title`, `Artist-Title`, `Title - Artist`, or the audio file's base name.
+- For multi-artist tags, both the full artist string and the first split artist are tried.
+- Plain names and names ending in `_MV` or `-MV` are accepted.
+
+Example:
+
+```text
+Movies/My Music Videos/
+├── Charlie Puth - Attention.mkv
+├── Charlie Puth-We Don't Talk Anymore.mp4
+├── See You Again - Wiz Khalifa.webm
+└── 01 One Call Away-MV.mov
+```
+
+### Store an MV beside its song
+
+To keep ambient dynamic covers separate from music videos, an MV stored beside a song or in a legacy `DynamicCovers` folder must end in `_MV` or `-MV`:
+
+```text
+Music/Nine Track Mind/
+├── 01 One Call Away.flac
+├── 01 One Call Away_MV.mkv
+├── 02 Dangerously.flac
+└── Charlie Puth - Dangerously-MV.mp4
+```
+
+Lookup priority is: dedicated MV folders → the song's folder → legacy dynamic-cover folders. Ambient dynamic video covers remain MP4-only, so an MKV MV is never mistaken for a looping cover.
+
+The player detail page shows separate entries:
+
+- **Local MV** — shows a video thumbnail and duration, and opens the audible built-in Halcyon player.
+- **NetEase Cloud Music MV** — shown when the song's `163 key` contains a non-zero `mvid`, and opens `https://y.music.163.com/m/mv?id=<mvid>`.
+
+When both exist, both entries are shown. A NetEase link does not replace the local MV and is not used for silent synchronized playback.
+
+### LunaBeat MV offsets
+
+Halcyon supports LunaBeat's `mv_offsets.json`. Put it beside a local MV, or import it from **Settings → Library → Tags & scraping → LunaBeat MV offsets**:
+
+```json
+{
+  "offsets": {
+    "Charlie Puth - Attention.mkv": 1.25,
+    "01 One Call Away_MV.mp4": -0.4
+  }
+}
+```
+
+Each key is the full MV file name and each value is measured in seconds. Positive values show captions/lyrics later; negative values show them earlier. An imported file applies to both detail-page MVs and landscape player MVs.
+
+> MKV is a container. Actual playback still depends on the device decoder for the video codec inside it; common H.264, H.265, and VP9 files normally play directly.
 
 ---
 

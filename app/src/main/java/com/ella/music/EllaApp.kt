@@ -8,6 +8,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.mcp.McpServerService
 import com.ella.music.oem.AppMemoryTrimAdapter
+import com.ella.music.player.PlaybackWidgetUpdater
 import com.ella.music.oem.HyperOsFairMemoryAdapter
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.settings.WebDavAutoBackupScheduler
@@ -57,6 +58,13 @@ class EllaApp : Application() {
                 .distinctUntilChanged()
                 .collect { style ->
                     AppIconManager.apply(this@EllaApp, style)
+                }
+        }
+        appScope.launch {
+            settingsManager.widgetSafeLayout
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    PlaybackWidgetUpdater.setSafeLayout(this@EllaApp, enabled)
                 }
         }
     }

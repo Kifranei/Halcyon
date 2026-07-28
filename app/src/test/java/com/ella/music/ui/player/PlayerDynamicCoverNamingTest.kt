@@ -133,5 +133,20 @@ class PlayerDynamicCoverNamingTest {
     @Test
     fun musicVideoFolderExtensionsAreRelaxed() {
         assertEquals(listOf("mp4", "mkv", "webm", "mov"), MUSIC_VIDEO_FOLDER_EXTENSIONS)
+        assertTrue(isSupportedMusicVideoExtension("mkv"))
+        assertTrue(isSupportedMusicVideoExtension("MKV"))
+        assertFalse(isSupportedMusicVideoExtension("avi"))
+    }
+
+    @Test
+    fun everyMusicVideoLookupBuildsMkvCandidates() {
+        val candidates = musicVideoFileNameCandidates(
+            buildLandscapeMusicVideoNameCandidates(listOf("Justin Bieber - Baby"))
+        )
+
+        assertTrue("Justin Bieber - Baby_MV.mp4" in candidates)
+        assertTrue("Justin Bieber - Baby_MV.mkv" in candidates)
+        assertTrue("Justin Bieber - Baby-MV.webm" in candidates)
+        assertTrue("Justin Bieber - Baby-MV.mov" in candidates)
     }
 }

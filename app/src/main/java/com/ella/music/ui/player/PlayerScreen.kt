@@ -158,6 +158,7 @@ fun PlayerScreen(
     val sleepTimerStopAfterCurrent = playerSettings.sleepTimerStopAfterCurrent
     val playlists by mainViewModel.playlists.collectAsState()
     val librarySongs by mainViewModel.songs.collectAsState()
+    val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val playlist by playerViewModel.playlist.collectAsState()
     val lyrics by playerViewModel.lyrics.collectAsState()
     val lyricsLoading by playerViewModel.lyricsLoading.collectAsState()
@@ -648,6 +649,8 @@ fun PlayerScreen(
                         neteaseInfo = neteaseInfo,
                         librarySongs = librarySongs,
                         albumArtForAlbum = mainViewModel::getAlbumArtUri,
+                        artistCoverFolderUri = artistCoverFolderUri,
+                        mainViewModel = mainViewModel,
                         lyricPalette = palette,
                         currentPosition = currentPosition,
                         isPlaying = isPlaying,

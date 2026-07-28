@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape>
+            <gradient
+                android:angle="315"
+                android:endColor="#FF202A68"
+                android:startColor="#FF5E9BFF" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+    <item
+        android:drawable="@drawable/ic_widget_music"
+        android:gravity="center"
+        android:height="36dp"
+        android:width="36dp" />
+</layer-list>

@@ -2023,4 +2023,22 @@
     <string name="settings_music_video_offsets">LunaBeat-MV-Versatzwerte</string>
     <string name="settings_music_video_offsets_summary">mv_offsets.json zur Ausrichtung der MV-Liedtexte importieren</string>
     <string name="music_video_offsets_import_failed">Die Versatzdatei ist ungültig oder konnte nicht gelesen werden</string>
+    <string name="widget_tap_to_play">Tippe auf Wiedergabe, um weiterzuhören</string>
+    <string name="widget_album_cover">Albumcover</string>
+    <string name="widget_zero_time" translatable="false">0:00</string>
+    <string name="settings_widget_safe_layout">Kompatibles Widget-Layout</string>
+    <string name="settings_widget_safe_layout_summary">Verkleinert im großen Widget die Wiedergabetaste und die vertikalen Abstände, damit sie auf Launcher-Rastern ungleich 4×6 nicht abgeschnitten wird</string>
+    <string name="album_introduction_entry">Einführung ›</string>
+    <string name="album_introduction_title">Albumeinführung</string>
+    <string name="album_introduction_edit">Albumeinführung bearbeiten</string>
+    <string name="album_introduction_edit_action">Bearbeiten</string>
+    <string name="album_introduction_section">Über dieses Album</string>
+    <string name="album_introduction_empty">Noch keine Einführung. Tippe auf „Bearbeiten“, um eine einzufügen oder zu schreiben.</string>
+    <string name="album_introduction_editor_hint">Albumeinführung schreiben oder einfügen</string>
+    <string name="album_introduction_saved_nfo">In album.nfo gespeichert</string>
+    <string name="album_introduction_saved_local">Der Albumordner ist nicht beschreibbar; die Einführung wurde in der App gespeichert</string>
+    <string name="album_introduction_cleared">Albumeinführung gelöscht</string>
+    <string name="album_introduction_save_failed">Albumeinführung konnte nicht gespeichert werden</string>
+    <string name="player_local_music_video">Lokales MV</string>
+    <string name="player_netease_music_video">NetEase-MV</string>
 </resources>

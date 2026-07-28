@@ -28,6 +28,7 @@ import com.ella.music.data.SettingsManager.Companion.STARTUP_POSTER_DURATION_MIN
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_ICON_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_LANGUAGE
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_SHORTCUT_ORDER
+import com.ella.music.data.SettingsManager.Companion.KEY_WIDGET_SAFE_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_CONTENT_OVERLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_DIM
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_ENABLED
@@ -81,6 +82,7 @@ interface AppearanceSettingsAccess {
     val monetColorMode: Flow<Int>
     val appLanguage: Flow<String>
     val appIconStyle: Flow<String>
+    val widgetSafeLayout: Flow<Boolean>
     val bottomBarGlassEffect: Flow<BottomBarGlassEffect>
     val bottomDockItems: Flow<List<String>>
     val artistCoverFolderUri: Flow<String>
@@ -117,6 +119,7 @@ interface AppearanceSettingsAccess {
     suspend fun setMonetColorMode(mode: Int)
     suspend fun setAppLanguage(languageTag: String)
     suspend fun setAppIconStyle(style: String)
+    suspend fun setWidgetSafeLayout(enabled: Boolean)
     suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect)
     suspend fun setBottomDockItems(items: List<String>)
     suspend fun setArtistCoverCarousel(carousel: Boolean)
@@ -160,6 +163,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         context.dataStore.data.map { it[KEY_APP_LANGUAGE] ?: APP_LANGUAGE_SYSTEM }
     override val appIconStyle: Flow<String> =
         context.dataStore.data.map { AppIconManager.normalize(it[KEY_APP_ICON_STYLE]) }
+    override val widgetSafeLayout: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_WIDGET_SAFE_LAYOUT] ?: false }
     override val bottomBarGlassEffect: Flow<BottomBarGlassEffect> = context.dataStore.data.map { preferences ->
         runCatching {
             BottomBarGlassEffect.valueOf(
@@ -272,6 +277,10 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setAppIconStyle(style: String) {
         context.dataStore.edit { it[KEY_APP_ICON_STYLE] = AppIconManager.normalize(style) }
+    }
+
+    override suspend fun setWidgetSafeLayout(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_WIDGET_SAFE_LAYOUT] = enabled }
     }
 
     override suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect) {

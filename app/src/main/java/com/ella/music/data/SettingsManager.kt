@@ -67,6 +67,7 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYER_BACKGROUND_THEME = intPreferencesKey("player_background_theme")
         val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_APP_ICON_STYLE = stringPreferencesKey("app_icon_style")
+        val KEY_WIDGET_SAFE_LAYOUT = booleanPreferencesKey("widget_safe_layout")
         val KEY_LIBRARY_SOURCE = stringPreferencesKey("library_source")
         val KEY_BOTTOM_BAR_GLASS_EFFECT = stringPreferencesKey("bottom_bar_glass_effect")
         val KEY_BOTTOM_DOCK_ITEMS = stringPreferencesKey("bottom_dock_items")
@@ -446,6 +447,10 @@ class SettingsManager(private val context: Context) :
         const val PLAYER_BG_THEME_FOLLOW_SYSTEM = 0
         const val PLAYER_BG_THEME_LIGHT = 1
         const val PLAYER_BG_THEME_DARK = 2
+        const val DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED = true
+        const val DEFAULT_TRANSPORT_BUTTON_OUTLINES = true
+        const val DEFAULT_PLAYER_SHOW_TOTAL_DURATION = true
+        const val DEFAULT_MUSIC_VIDEO_SYNC_ENABLED = true
 
         const val LYRIC_SOURCE_AUTO = 0
         const val LYRIC_SOURCE_EXTERNAL = 1
@@ -825,6 +830,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
             setBoolean(KEY_PLAYER_COVER_CONTENT_COLOR)
+            setBoolean(KEY_WIDGET_SAFE_LAYOUT)
             setBoolean(KEY_HIDE_SYSTEM_BARS)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)

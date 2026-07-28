@@ -158,11 +158,17 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     override val playerProgressInfoIndex: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_PROGRESS_INFO_INDEX] ?: 0).coerceAtLeast(0) }
     override val transportButtonOutlines: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_TRANSPORT_BUTTON_OUTLINES] ?: false }
+        context.dataStore.data.map {
+            it[KEY_TRANSPORT_BUTTON_OUTLINES]
+                ?: SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
+        }
     override val playerTapSeekEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_TAP_SEEK_ENABLED] ?: true }
     override val playerShowTotalDuration: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYER_SHOW_TOTAL_DURATION] ?: false }
+        context.dataStore.data.map {
+            it[KEY_PLAYER_SHOW_TOTAL_DURATION]
+                ?: SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION
+        }
     override val playerShowSongAnnotation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_SHOW_SONG_ANNOTATION] ?: true }
     override val playerCoverSwipeEnabled: Flow<Boolean> =
@@ -184,7 +190,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     override val hideSystemBars: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }
     override val playerDynamicFlowEnabled: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYER_DYNAMIC_FLOW_ENABLED] ?: false }
+        context.dataStore.data.map {
+            it[KEY_PLAYER_DYNAMIC_FLOW_ENABLED]
+                ?: SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
+        }
     override val audioVisualizerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_ENABLED] ?: false }
     override val audioVisualizerOpacity: Flow<Int> =
@@ -193,7 +202,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     override val dynamicCoverEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_DYNAMIC_COVER_ENABLED] ?: false }
     override val musicVideoSyncEnabled: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_MUSIC_VIDEO_SYNC_ENABLED] ?: false }
+        context.dataStore.data.map {
+            it[KEY_MUSIC_VIDEO_SYNC_ENABLED]
+                ?: SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED
+        }
     override val musicVideoCaptureSubtitles: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] ?: false }
     override val musicVideoOffsetsJson: Flow<String> =

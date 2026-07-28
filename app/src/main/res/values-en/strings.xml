@@ -2025,4 +2025,22 @@
     <string name="settings_music_video_offsets">LunaBeat MV offsets</string>
     <string name="settings_music_video_offsets_summary">Import mv_offsets.json to align MV lyrics</string>
     <string name="music_video_offsets_import_failed">The offset file is invalid or could not be read</string>
+    <string name="widget_tap_to_play">Tap play to keep listening</string>
+    <string name="widget_album_cover">Album cover</string>
+    <string name="widget_zero_time" translatable="false">0:00</string>
+    <string name="settings_widget_safe_layout">Widget compatibility layout</string>
+    <string name="settings_widget_safe_layout_summary">Uses a smaller play button and tighter vertical spacing in the expanded widget to prevent clipping on non-4×6 launcher grids</string>
+    <string name="album_introduction_entry">Introduction ›</string>
+    <string name="album_introduction_title">Album introduction</string>
+    <string name="album_introduction_edit">Edit album introduction</string>
+    <string name="album_introduction_edit_action">Edit</string>
+    <string name="album_introduction_section">About this album</string>
+    <string name="album_introduction_empty">No introduction yet. Tap Edit to paste or write one.</string>
+    <string name="album_introduction_editor_hint">Write or paste an album introduction</string>
+    <string name="album_introduction_saved_nfo">Saved to album.nfo</string>
+    <string name="album_introduction_saved_local">The album folder is not writable, so the introduction was saved in the app</string>
+    <string name="album_introduction_cleared">Album introduction cleared</string>
+    <string name="album_introduction_save_failed">Couldn’t save the album introduction</string>
+    <string name="player_local_music_video">Local MV</string>
+    <string name="player_netease_music_video">NetEase Cloud Music MV</string>
 </resources>

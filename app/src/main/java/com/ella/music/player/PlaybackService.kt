@@ -513,6 +513,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        PlaybackWidgetUpdater.stopProgressUpdates()
         bluetoothReceiver?.let {
             runCatching { unregisterReceiver(it) }
             bluetoothReceiver = null

@@ -70,6 +70,33 @@ class SongListSorterTest {
     }
 
     @Test
+    fun releaseDateDescendingUsesDescendingAlbumThenAscendingDiscAndTrack() {
+        val songs = listOf(
+            song(id = 1, album = "Alpha", year = "2024", discNumber = 1, trackNumber = 1),
+            song(id = 2, album = "Zulu", year = "2024", discNumber = 1, trackNumber = 2),
+            song(id = 3, album = "Zulu", year = "2024", discNumber = 1, trackNumber = 1),
+            song(id = 4, album = "Unknown", year = "")
+        )
+
+        val sorted = songs.sortedByReleaseDate(SortDirection.Descending)
+
+        assertEquals(listOf(3L, 2L, 1L, 4L), sorted.map { it.id })
+    }
+
+    @Test
+    fun releaseDateAscendingKeepsAscendingAlbumOrder() {
+        val songs = listOf(
+            song(id = 1, album = "Zulu", year = "2024"),
+            song(id = 2, album = "Alpha", year = "2024")
+        )
+
+        assertEquals(
+            listOf(2L, 1L),
+            songs.sortedByReleaseDate(SortDirection.Ascending).map { it.id }
+        )
+    }
+
+    @Test
     fun fastIndexSectionsResolveAsciiAndNonAsciiTitles() {
         assertEquals("A", FastIndexSectionResolver.sectionForText("Alice"))
 
@@ -84,7 +111,9 @@ class SongListSorterTest {
         album: String = "Album",
         path: String = "/music/title.flac",
         fileName: String = "title.flac",
-        year: String = ""
+        year: String = "",
+        discNumber: Int = 0,
+        trackNumber: Int = 0
     ): Song =
         Song(
             id = id,
@@ -95,7 +124,9 @@ class SongListSorterTest {
             duration = 120_000L,
             path = path,
             fileName = fileName,
-            year = year
+            year = year,
+            discNumber = discNumber,
+            trackNumber = trackNumber
         )
 
     private fun Song.releaseYearOrNull(): Int? =

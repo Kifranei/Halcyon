@@ -3,6 +3,7 @@ package com.ella.music.data.model
 import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.neteaseAlbumUrl
 import com.ella.music.data.neteaseArtistUrl
+import com.ella.music.data.neteaseMvUrl
 import com.ella.music.data.neteaseSongUrl
 
 data class AudioInfo(
@@ -83,11 +84,13 @@ fun Song.searchableTagValues(tagInfo: SongTagInfo = SongTagInfo()): Sequence<Str
     decodeNeteaseKey(tagInfo.neteaseKey)?.let { key ->
         yieldNonBlank(key.musicId)
         yieldNonBlank(key.musicName)
+        yieldNonBlank(key.mvId)
         key.aliases.forEach { yieldNonBlank(it) }
         yieldNonBlank(key.albumId)
         yieldNonBlank(key.albumName)
         yieldNonBlank(key.comment)
         if (key.musicId.isNotBlank()) yield(neteaseSongUrl(key.musicId))
+        if (key.mvId.isNotBlank()) yield(neteaseMvUrl(key.mvId))
         if (key.albumId.isNotBlank()) yield(neteaseAlbumUrl(key.albumId))
         key.artists.forEach { artist ->
             yieldNonBlank(artist.id)

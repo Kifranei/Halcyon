@@ -2023,4 +2023,22 @@
     <string name="settings_music_video_offsets">LunaBeat MV 偏移值</string>
     <string name="settings_music_video_offsets_summary">匯入 mv_offsets.json，用於對齊 MV 字幕</string>
     <string name="music_video_offsets_import_failed">偏移檔案無效或讀取失敗</string>
+    <string name="widget_tap_to_play">點擊播放以繼續聆聽</string>
+    <string name="widget_album_cover">專輯封面</string>
+    <string name="widget_zero_time" translatable="false">0:00</string>
+    <string name="settings_widget_safe_layout">小工具相容版面</string>
+    <string name="settings_widget_safe_layout_summary">縮小展開型小工具的播放按鈕並收緊垂直間距，避免非 4×6 桌面網格裁切按鈕外框</string>
+    <string name="album_introduction_entry">介紹 ›</string>
+    <string name="album_introduction_title">專輯介紹</string>
+    <string name="album_introduction_edit">編輯專輯介紹</string>
+    <string name="album_introduction_edit_action">編輯</string>
+    <string name="album_introduction_section">專輯簡介</string>
+    <string name="album_introduction_empty">暫無介紹。點選右上角「編輯」即可貼上或輸入專輯介紹。</string>
+    <string name="album_introduction_editor_hint">輸入或貼上專輯介紹</string>
+    <string name="album_introduction_saved_nfo">已儲存到 album.nfo</string>
+    <string name="album_introduction_saved_local">目前專輯目錄無法寫入，已儲存到應用程式內</string>
+    <string name="album_introduction_cleared">專輯介紹已清除</string>
+    <string name="album_introduction_save_failed">儲存專輯介紹失敗</string>
+    <string name="player_local_music_video">本機 MV</string>
+    <string name="player_netease_music_video">網易雲音樂 MV</string>
 </resources>

@@ -20,12 +20,12 @@ import kotlinx.coroutines.flow.combine
  */
 internal data class PlayerScreenSettings(
     val playerTapSeekEnabled: Boolean = true,
-    val playerShowTotalDuration: Boolean = false,
+    val playerShowTotalDuration: Boolean = SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION,
     val lyricSourceMode: Int = SettingsManager.LYRIC_SOURCE_AUTO,
     val audioVisualizerEnabled: Boolean = false,
     val audioVisualizerOpacity: Int = 100,
     val dynamicCoverEnabled: Boolean = false,
-    val musicVideoSyncEnabled: Boolean = false,
+    val musicVideoSyncEnabled: Boolean = SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED,
     val dynamicCoverCustomFolders: List<String> = emptyList(),
     val musicVideoCustomFolders: List<String> = emptyList(),
     val immersiveAlbumCover: Boolean = false,
@@ -35,7 +35,7 @@ internal data class PlayerScreenSettings(
     val playerBackgroundOpacity: Int = 100,
     val playerBackgroundDim: Int = 26,
     val beautifulLyricsBackground: Boolean = false,
-    val playerDynamicFlowEnabled: Boolean = false,
+    val playerDynamicFlowEnabled: Boolean = SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED,
     val showSongAnnotation: Boolean = true,
     val coverSwipeEnabled: Boolean = true,
     val lyricParserEngine: Int = SettingsManager.LYRIC_PARSER_ENGINE_ELLA,

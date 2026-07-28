@@ -339,7 +339,9 @@ internal fun PlayerTransportControls(
 ) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val showOutlines by settingsManager.transportButtonOutlines.collectAsState(initial = false)
+    val showOutlines by settingsManager.transportButtonOutlines.collectAsState(
+        initial = SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
+    )
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,

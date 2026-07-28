@@ -2023,4 +2023,22 @@
     <string name="settings_music_video_offsets">Décalages MV LunaBeat</string>
     <string name="settings_music_video_offsets_summary">Importer mv_offsets.json pour aligner les paroles du MV</string>
     <string name="music_video_offsets_import_failed">Le fichier de décalage est invalide ou illisible</string>
+    <string name="widget_tap_to_play">Appuyez sur Lecture pour continuer l’écoute</string>
+    <string name="widget_album_cover">Pochette d’album</string>
+    <string name="widget_zero_time" translatable="false">0:00</string>
+    <string name="settings_widget_safe_layout">Disposition de widget compatible</string>
+    <string name="settings_widget_safe_layout_summary">Réduit le bouton de lecture et les espacements verticaux du grand widget afin d’éviter les coupures sur les grilles autres que 4×6</string>
+    <string name="album_introduction_entry">Présentation ›</string>
+    <string name="album_introduction_title">Présentation de l’album</string>
+    <string name="album_introduction_edit">Modifier la présentation</string>
+    <string name="album_introduction_edit_action">Modifier</string>
+    <string name="album_introduction_section">À propos de cet album</string>
+    <string name="album_introduction_empty">Aucune présentation. Touchez Modifier pour en coller ou en rédiger une.</string>
+    <string name="album_introduction_editor_hint">Rédiger ou coller une présentation de l’album</string>
+    <string name="album_introduction_saved_nfo">Enregistrée dans album.nfo</string>
+    <string name="album_introduction_saved_local">Le dossier de l’album n’est pas modifiable ; la présentation a été enregistrée dans l’application</string>
+    <string name="album_introduction_cleared">Présentation de l’album effacée</string>
+    <string name="album_introduction_save_failed">Impossible d’enregistrer la présentation de l’album</string>
+    <string name="player_local_music_video">MV locale</string>
+    <string name="player_netease_music_video">MV NetEase</string>
 </resources>

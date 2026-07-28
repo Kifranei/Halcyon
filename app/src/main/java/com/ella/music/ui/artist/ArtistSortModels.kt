@@ -91,7 +91,7 @@ internal fun List<Album>.sortedForArtistAlbumDetail(
 ): List<Album> {
     return when (mode) {
         ArtistDetailAlbumSortMode.YearAsc -> sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenBy { it.releaseDateSortKey }.thenBy { it.name.lowercase(Locale.ROOT) })
-        ArtistDetailAlbumSortMode.YearDesc -> sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenByDescending { it.releaseDateSortKey }.thenBy { it.name.lowercase(Locale.ROOT) })
+        ArtistDetailAlbumSortMode.YearDesc -> sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenByDescending { it.releaseDateSortKey }.thenByDescending { it.name.lowercase(Locale.ROOT) })
         ArtistDetailAlbumSortMode.SongCount -> sortedByDescending { it.songCount }
         ArtistDetailAlbumSortMode.SongCountAsc -> sortedBy { it.songCount }
         ArtistDetailAlbumSortMode.Duration -> sortedByDescending { durations[it.id] ?: 0L }

@@ -87,16 +87,21 @@ internal fun String.musicSortKey(): String =
     MusicSortKeyNormalizer.normalize(this)
 
 internal fun List<Song>.sortedByReleaseDate(direction: SortDirection): List<Song> {
-    val comparator = if (direction == SortDirection.Ascending) {
+    val releaseDateComparator = if (direction == SortDirection.Ascending) {
         compareBy<Song> { it.releaseDateSortKeyOrNull() == null }
             .thenBy { it.releaseDateSortKeyOrNull() ?: Int.MAX_VALUE }
     } else {
         compareBy<Song> { it.releaseDateSortKeyOrNull() == null }
             .thenByDescending { it.releaseDateSortKeyOrNull() ?: Int.MIN_VALUE }
     }
+    val albumComparator = if (direction == SortDirection.Ascending) {
+        compareBy<Song> { it.album.lowercase(Locale.ROOT) }
+    } else {
+        compareByDescending<Song> { it.album.lowercase(Locale.ROOT) }
+    }
     return sortedWith(
-        comparator
-            .thenBy { it.album.lowercase(Locale.ROOT) }
+        releaseDateComparator
+            .then(albumComparator)
             .thenBy { if (it.discNumber > 0) it.discNumber else Int.MAX_VALUE }
             .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
             .thenBy { it.title.lowercase(Locale.ROOT) }

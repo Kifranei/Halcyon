@@ -1,8 +1,8 @@
 package com.ella.music.data
 
-import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 
@@ -11,6 +11,7 @@ data class NeteaseKeyInfo(
     val decodedJson: String = "",
     val musicId: String = "",
     val musicName: String = "",
+    val mvId: String = "",
     val aliases: List<String> = emptyList(),
     val albumId: String = "",
     val albumName: String = "",
@@ -20,6 +21,7 @@ data class NeteaseKeyInfo(
     val hasDecodedContent: Boolean
         get() = decodedJson.isNotBlank() ||
             musicId.isNotBlank() ||
+            mvId.isNotBlank() ||
             aliases.any { it.isNotBlank() } ||
             albumId.isNotBlank() ||
             artists.any { it.id.isNotBlank() } ||
@@ -47,6 +49,7 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
 
     if (decodedJson.isBlank()) return NeteaseKeyInfo(raw = raw)
 
+    val fallbackMvId = decodedJson.extractJsonId("mvid", "mvId", "mv_id", "mvID")
     return runCatching {
         val json = JSONObject(decodedJson)
         NeteaseKeyInfo(
@@ -54,6 +57,7 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
             decodedJson = decodedJson,
             musicId = json.optId("musicId", "songId", "id"),
             musicName = json.optStringCompat("musicName", "songName", "name"),
+            mvId = json.optId("mvid", "mvId", "mv_id", "mvID").ifBlank { fallbackMvId },
             aliases = json.optStringList("alias", "aliases", "alia"),
             albumId = json.optAlbumId(),
             albumName = json.optAlbumName(),
@@ -61,11 +65,13 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
             comment = json.optStringCompat("comment", "description", "desc", "remark", "note", "subtitle", "subTitle")
         )
     }.getOrElse {
-        NeteaseKeyInfo(raw = raw, decodedJson = decodedJson)
+        NeteaseKeyInfo(raw = raw, decodedJson = decodedJson, mvId = fallbackMvId)
     }
 }
 
 fun neteaseSongUrl(id: String): String = "https://y.music.163.com/m/song?id=$id"
+
+fun neteaseMvUrl(id: String): String = "https://y.music.163.com/m/mv?id=$id"
 
 fun neteaseAlbumUrl(id: String): String = "https://y.music.163.com/m/album?id=$id"
 
@@ -73,7 +79,7 @@ fun neteaseArtistUrl(id: String): String = "https://y.music.163.com/m/artist?id=
 
 private fun decryptNeteaseKeyPayload(payload: String): String? {
     return runCatching {
-        val encrypted = Base64.decode(payload, Base64.DEFAULT)
+        val encrypted = Base64.getDecoder().decode(payload)
         val cipher = Cipher.getInstance("AES/ECB/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(NETEASE_KEY_AES_KEY.toByteArray(Charsets.UTF_8), "AES"))
         cipher.doFinal(encrypted)
@@ -121,6 +127,18 @@ private fun String.extractNeteaseSongIdFromPlainText(): String? {
         .find(this)
         ?.groupValues
         ?.getOrNull(1)
+}
+
+private fun String.extractJsonId(vararg names: String): String {
+    for (name in names) {
+        val match = Regex(
+            """"${Regex.escape(name)}"\s*:\s*(?:"([^"]+)"|(-?\d+))""",
+            RegexOption.IGNORE_CASE
+        ).find(this) ?: continue
+        val value = match.groupValues.drop(1).firstOrNull { it.isNotBlank() }.orEmpty().trim()
+        if (value.isNotBlank() && value != "0") return value
+    }
+    return ""
 }
 
 private fun ByteArray.stripPkcs7Padding(): ByteArray {

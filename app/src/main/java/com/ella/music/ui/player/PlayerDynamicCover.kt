@@ -514,6 +514,7 @@ private fun Song.dynamicCoverVideoFile(
 /**
  * Finds an MV on the filesystem (song's own folder plus the dynamic-cover library roots).
  * Files here still require the `_MV` / `-MV` suffix so they can coexist with ambient covers.
+ * All supported MV containers are accepted; ambient dynamic covers remain mp4-only.
  *
  * Candidate names are searched in strict tiers so a same-titled song by another artist can no
  * longer steal the match: the song's own file name first (unambiguous), then artist+title
@@ -552,9 +553,10 @@ private fun Song.musicVideoLocalFile(
     )
     tiers.forEach { tier ->
         val mvNames = buildLandscapeMusicVideoNameCandidates(tier)
+        val exactFileNames = musicVideoFileNameCandidates(mvNames)
         searchDirs.firstNotNullOfOrNull { dir ->
-            mvNames.firstNotNullOfOrNull { name ->
-                File(dir, "$name.mp4").takeIf { it.exists() && it.isFile && it.length() > 0L }
+            exactFileNames.firstNotNullOfOrNull { name ->
+                File(dir, name).takeIf { it.exists() && it.isFile && it.length() > 0L }
             }
         }?.let { return it }
 
@@ -562,7 +564,7 @@ private fun Song.musicVideoLocalFile(
         searchDirs.firstNotNullOfOrNull { dir ->
             dir.listFiles { file ->
                 file.isFile &&
-                    file.extension.equals("mp4", ignoreCase = true) &&
+                    isSupportedMusicVideoExtension(file.extension) &&
                     file.length() > 0L &&
                     file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzyTokens
             }?.firstOrNull()
@@ -689,7 +691,7 @@ private fun Song.dynamicCoverDocumentSource(
 
 /**
  * MV lookup inside the SAF dynamic-cover folders (legacy shared location). Files must carry the
- * `_MV` / `-MV` suffix and be mp4, exactly like before; only the candidate-name priority changed
+ * `_MV` / `-MV` suffix. MP4, MKV, WebM and MOV use the same candidate priority
  * (artist+title tiers first, bare title as fallback).
  */
 private fun Song.musicVideoDocumentSource(
@@ -722,10 +724,11 @@ private fun Song.musicVideoDocumentSource(
     )
     tiers.forEach { tier ->
         val mvNames = buildLandscapeMusicVideoNameCandidates(tier)
+        val exactFileNames = musicVideoFileNameCandidates(mvNames)
         listings.firstNotNullOfOrNull { (rawUri, files) ->
-            mvNames.firstNotNullOfOrNull { name ->
+            exactFileNames.firstNotNullOfOrNull { name ->
                 files.firstOrNull { file ->
-                    file.isFile && file.length() > 0L && file.name.equals("$name.mp4", ignoreCase = true)
+                    file.isFile && file.length() > 0L && file.name.equals(name, ignoreCase = true)
                 }
             }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
         }?.let { return it }
@@ -735,7 +738,9 @@ private fun Song.musicVideoDocumentSource(
             files.firstOrNull { file ->
                 file.isFile &&
                     file.length() > 0L &&
-                    file.name.orEmpty().substringAfterLast('.', "").equals("mp4", ignoreCase = true) &&
+                    isSupportedMusicVideoExtension(
+                        file.name.orEmpty().substringAfterLast('.', "")
+                    ) &&
                     file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken() in fuzzyTokens
             }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
         }?.let { return it }
@@ -780,9 +785,7 @@ private fun Song.musicVideoCustomFolderSource(
     )
     tiers.forEach { tier ->
         val names = musicVideoFolderFileNameCandidates(tier)
-        val exactFileNames = names.flatMap { name ->
-            MUSIC_VIDEO_FOLDER_EXTENSIONS.map { extension -> "$name.$extension" }
-        }
+        val exactFileNames = musicVideoFileNameCandidates(names)
         fileDirs.firstNotNullOfOrNull { dir ->
             exactFileNames.firstNotNullOfOrNull { name ->
                 File(dir, name).takeIf { it.exists() && it.isFile && it.length() > 0L }
@@ -801,7 +804,7 @@ private fun Song.musicVideoCustomFolderSource(
             dir.listFiles { file ->
                 file.isFile &&
                     file.length() > 0L &&
-                    MUSIC_VIDEO_FOLDER_EXTENSIONS.any { file.extension.equals(it, ignoreCase = true) } &&
+                    isSupportedMusicVideoExtension(file.extension) &&
                     file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzyTokens
             }?.firstOrNull()
         }?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
@@ -811,7 +814,7 @@ private fun Song.musicVideoCustomFolderSource(
                 val extension = name.substringAfterLast('.', "")
                 file.isFile &&
                     file.length() > 0L &&
-                    MUSIC_VIDEO_FOLDER_EXTENSIONS.any { extension.equals(it, ignoreCase = true) } &&
+                    isSupportedMusicVideoExtension(extension) &&
                     name.substringBeforeLast('.').toDynamicCoverMatchToken() in fuzzyTokens
             }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
         }?.let { return it }
@@ -999,8 +1002,22 @@ internal fun playerVideoNameCandidates(
     songCandidates.map(String::trim).filter(String::isNotBlank).distinct()
 }
 
-/** Containers accepted inside the dedicated MV folders (the legacy chain stays mp4-only). */
+/** Containers accepted by every MV lookup path. Ambient dynamic covers remain mp4-only. */
 internal val MUSIC_VIDEO_FOLDER_EXTENSIONS = listOf("mp4", "mkv", "webm", "mov")
+
+internal fun musicVideoFileNameCandidates(baseNames: Collection<String>): List<String> =
+    baseNames
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .flatMap { name ->
+            MUSIC_VIDEO_FOLDER_EXTENSIONS.map { extension -> "$name.$extension" }
+        }
+        .distinct()
+
+internal fun isSupportedMusicVideoExtension(extension: String): Boolean =
+    MUSIC_VIDEO_FOLDER_EXTENSIONS.any { supported ->
+        extension.equals(supported, ignoreCase = true)
+    }
 
 /**
  * Artist strings that may appear in an MV file name: the full (possibly multi-artist) tag value

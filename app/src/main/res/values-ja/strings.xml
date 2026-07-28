@@ -2023,4 +2023,22 @@
     <string name="settings_music_video_offsets">LunaBeat MV オフセット</string>
     <string name="settings_music_video_offsets_summary">MV 歌詞を合わせるため mv_offsets.json をインポート</string>
     <string name="music_video_offsets_import_failed">オフセットファイルが無効か、読み込めませんでした</string>
+    <string name="widget_tap_to_play">再生をタップして聴き続ける</string>
+    <string name="widget_album_cover">アルバムアート</string>
+    <string name="widget_zero_time" translatable="false">0:00</string>
+    <string name="settings_widget_safe_layout">ウィジェット互換レイアウト</string>
+    <string name="settings_widget_safe_layout_summary">展開ウィジェットの再生ボタンと縦方向の間隔を小さくし、4×6 以外のホーム画面で輪郭が切れないようにします</string>
+    <string name="album_introduction_entry">紹介 ›</string>
+    <string name="album_introduction_title">アルバム紹介</string>
+    <string name="album_introduction_edit">アルバム紹介を編集</string>
+    <string name="album_introduction_edit_action">編集</string>
+    <string name="album_introduction_section">アルバムについて</string>
+    <string name="album_introduction_empty">紹介はまだありません。右上の「編集」から貼り付けるか入力できます。</string>
+    <string name="album_introduction_editor_hint">アルバム紹介を入力または貼り付け</string>
+    <string name="album_introduction_saved_nfo">album.nfo に保存しました</string>
+    <string name="album_introduction_saved_local">アルバムフォルダーに書き込めないため、アプリ内に保存しました</string>
+    <string name="album_introduction_cleared">アルバム紹介を削除しました</string>
+    <string name="album_introduction_save_failed">アルバム紹介を保存できませんでした</string>
+    <string name="player_local_music_video">ローカル MV</string>
+    <string name="player_netease_music_video">NetEase Cloud Music MV</string>
 </resources>

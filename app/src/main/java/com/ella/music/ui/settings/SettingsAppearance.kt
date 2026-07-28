@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.SettingsManager
+import com.ella.music.player.PlaybackWidgetUpdater
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -32,6 +33,7 @@ internal fun SettingsAppearanceSection(
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
     val appLanguage by settingsManager.appLanguage.collectAsState(initial = SettingsManager.APP_LANGUAGE_SYSTEM)
     val appIconStyle by settingsManager.appIconStyle.collectAsState(initial = SettingsManager.APP_ICON_STYLE_DEFAULT)
+    val widgetSafeLayout by settingsManager.widgetSafeLayout.collectAsState(initial = false)
     val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
     val bottomDockItems by settingsManager.bottomDockItems.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
@@ -52,14 +54,18 @@ internal fun SettingsAppearanceSection(
     val playerBackgroundOpacity by settingsManager.playerBackgroundOpacity.collectAsState(initial = 100)
     val playerBackgroundDim by settingsManager.playerBackgroundDim.collectAsState(initial = 26)
     val beautifulLyricsBackground by settingsManager.playerBeautifulLyricsBackground.collectAsState(initial = false)
-    val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(initial = false)
+    val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
+    )
     val beautifulLyricsSpeed by settingsManager.playerBeautifulLyricsSpeed.collectAsState(initial = 25)
     val beautifulLyricsBlur by settingsManager.playerBeautifulLyricsBlur.collectAsState(initial = 32)
     val beautifulLyricsBrightness by settingsManager.playerBeautifulLyricsBrightness.collectAsState(initial = 70)
     val homeCardColor by settingsManager.homeCardColor.collectAsState(initial = "")
     val homeCardOpacity by settingsManager.homeCardOpacity.collectAsState(initial = 58)
     val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
-    val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectAsState(initial = false)
+    val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectAsState(
+        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED
+    )
     val musicVideoCaptureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
     val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectAsState(initial = "")
     val musicVideoCustomFolders by settingsManager.musicVideoCustomFoldersRaw.collectAsState(initial = "")
@@ -67,9 +73,13 @@ internal fun SettingsAppearanceSection(
     val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
     val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = false)
     val playerCoverContentColor by settingsManager.playerCoverContentColor.collectAsState(initial = false)
-    val transportButtonOutlines by settingsManager.transportButtonOutlines.collectAsState(initial = false)
+    val transportButtonOutlines by settingsManager.transportButtonOutlines.collectAsState(
+        initial = SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
+    )
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectAsState(initial = true)
-    val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectAsState(initial = false)
+    val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION
+    )
     val playerShowSongAnnotation by settingsManager.playerShowSongAnnotation.collectAsState(initial = true)
     val playerCoverSwipeEnabled by settingsManager.playerCoverSwipeEnabled.collectAsState(initial = true)
     val playerTitlePosition by settingsManager.playerTitlePosition.collectAsState(
@@ -318,6 +328,17 @@ internal fun SettingsAppearanceSection(
                 onSelectedIndexChange = { index ->
                     appIconOptions.getOrNull(index)?.first?.let { style ->
                         scope.launch { settingsManager.setAppIconStyle(style) }
+                    }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_widget_safe_layout),
+                summary = stringResource(R.string.settings_widget_safe_layout_summary),
+                checked = widgetSafeLayout,
+                onCheckedChange = { enabled ->
+                    scope.launch {
+                        settingsManager.setWidgetSafeLayout(enabled)
+                        PlaybackWidgetUpdater.setSafeLayout(context, enabled)
                     }
                 }
             )

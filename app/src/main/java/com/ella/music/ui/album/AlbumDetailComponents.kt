@@ -471,6 +471,7 @@ internal fun AlbumHeader(
     onNeteaseAlbumClick: () -> Unit,
     onAlbumArtistClick: () -> Unit,
     onReleaseYearClick: () -> Unit,
+    onIntroductionClick: () -> Unit,
     onCoverClick: () -> Unit,
     onPlayAll: () -> Unit
 ) {
@@ -480,12 +481,12 @@ internal fun AlbumHeader(
         modifier = Modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = 26.dp, end = 26.dp, top = 86.dp, bottom = 22.dp),
+            .padding(start = 26.dp, end = 26.dp, top = 82.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             Box(
                 modifier = Modifier
@@ -510,29 +511,33 @@ internal fun AlbumHeader(
             }
             Spacer(modifier = Modifier.width(22.dp))
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(124.dp)
+                    .padding(top = 2.dp)
             ) {
                 Text(
                     text = album?.name ?: stringResource(R.string.player_unknown_album),
                     fontSize = 20.sp,
-                    lineHeight = 28.sp,
+                    lineHeight = 25.sp,
                     fontWeight = FontWeight.Bold,
                     color = MiuixTheme.colorScheme.onSurface,
-                    maxLines = 3,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 if (!albumArtist.isNullOrBlank()) {
                     Text(
                         text = albumArtist,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = MiuixTheme.colorScheme.onSurface,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.clickable(onClick = onAlbumArtistClick)
                     )
                 }
+                Spacer(modifier = Modifier.height(3.dp))
                 val albumYearText = releaseDate?.takeIf { it.isNotBlank() }
                     ?: album?.year?.takeIf { it.isNotBlank() }
                 if (albumYearText != null) {
@@ -543,6 +548,17 @@ internal fun AlbumHeader(
                         modifier = Modifier.clickable(onClick = onReleaseYearClick)
                     )
                 }
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = stringResource(R.string.album_introduction_entry),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable(onClick = onIntroductionClick)
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                )
             }
         }
 

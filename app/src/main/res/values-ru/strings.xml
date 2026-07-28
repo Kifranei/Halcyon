@@ -2010,4 +2010,22 @@
     <string name="settings_music_video_offsets">Смещения MV LunaBeat</string>
     <string name="settings_music_video_offsets_summary">Импортировать mv_offsets.json для синхронизации текста MV</string>
     <string name="music_video_offsets_import_failed">Файл смещений повреждён или не может быть прочитан</string>
+    <string name="widget_tap_to_play">Нажмите «Воспроизвести», чтобы продолжить</string>
+    <string name="widget_album_cover">Обложка альбома</string>
+    <string name="widget_zero_time" translatable="false">0:00</string>
+    <string name="settings_widget_safe_layout">Совместимая разметка виджета</string>
+    <string name="settings_widget_safe_layout_summary">Уменьшает кнопку воспроизведения и вертикальные отступы большого виджета, чтобы контур не обрезался в сетке рабочего стола, отличной от 4×6</string>
+    <string name="album_introduction_entry">Описание ›</string>
+    <string name="album_introduction_title">Описание альбома</string>
+    <string name="album_introduction_edit">Редактировать описание альбома</string>
+    <string name="album_introduction_edit_action">Изменить</string>
+    <string name="album_introduction_section">Об альбоме</string>
+    <string name="album_introduction_empty">Описания пока нет. Нажмите «Изменить», чтобы вставить или написать его.</string>
+    <string name="album_introduction_editor_hint">Введите или вставьте описание альбома</string>
+    <string name="album_introduction_saved_nfo">Сохранено в album.nfo</string>
+    <string name="album_introduction_saved_local">Папка альбома недоступна для записи, поэтому описание сохранено в приложении</string>
+    <string name="album_introduction_cleared">Описание альбома удалено</string>
+    <string name="album_introduction_save_failed">Не удалось сохранить описание альбома</string>
+    <string name="player_local_music_video">Локальный клип</string>
+    <string name="player_netease_music_video">Клип NetEase</string>
 </resources>

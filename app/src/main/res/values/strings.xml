@@ -2027,4 +2027,22 @@
     <!-- Shown by MIUI/HyperOS in the uninstall confirmation dialog. -->
     <string name="miui_uninstall_title">就要说再见了吗？</string>
     <string name="miui_uninstall_content">谢谢你陪 Halcyon 走过这一程，愿旋律仍在你心里回响。</string>
+    <string name="widget_tap_to_play">点击播放以继续聆听</string>
+    <string name="widget_album_cover">专辑封面</string>
+    <string name="widget_zero_time" translatable="false">0:00</string>
+    <string name="settings_widget_safe_layout">小部件兼容布局</string>
+    <string name="settings_widget_safe_layout_summary">缩小展开型小部件的播放按钮并收紧垂直间距，避免非 4×6 桌面网格裁切按钮轮廓</string>
+    <string name="album_introduction_entry">介绍 ›</string>
+    <string name="album_introduction_title">专辑介绍</string>
+    <string name="album_introduction_edit">编辑专辑介绍</string>
+    <string name="album_introduction_edit_action">编辑</string>
+    <string name="album_introduction_section">专辑简介</string>
+    <string name="album_introduction_empty">暂无介绍。点击右上角“编辑”即可粘贴或输入专辑介绍。</string>
+    <string name="album_introduction_editor_hint">输入或粘贴专辑介绍</string>
+    <string name="album_introduction_saved_nfo">已保存到 album.nfo</string>
+    <string name="album_introduction_saved_local">当前专辑目录不可写，已保存到应用内</string>
+    <string name="album_introduction_cleared">专辑介绍已清除</string>
+    <string name="album_introduction_save_failed">保存专辑介绍失败</string>
+    <string name="player_local_music_video">本地 MV</string>
+    <string name="player_netease_music_video">网易云 MV</string>
 </resources>

@@ -21,6 +21,7 @@ import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.neteaseAlbumUrl
 import com.ella.music.data.neteaseArtistUrl
+import com.ella.music.data.neteaseMvUrl
 import com.ella.music.data.neteaseSongUrl
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.components.TagEditorOptionKind
@@ -685,6 +686,8 @@ internal fun DetailPageContent(
     neteaseInfo: NeteaseKeyInfo?,
     librarySongs: List<Song>,
     albumArtForAlbum: (Long) -> Any?,
+    artistCoverFolderUri: String,
+    mainViewModel: MainViewModel,
     lyricPalette: PlayerPalette,
     currentPosition: Long,
     isPlaying: Boolean,
@@ -714,6 +717,8 @@ internal fun DetailPageContent(
         neteaseInfo = neteaseInfo,
         librarySongs = librarySongs,
         albumArtForAlbum = albumArtForAlbum,
+        artistCoverFolderUri = artistCoverFolderUri,
+        mainViewModel = mainViewModel,
         palette = lyricPalette,
         currentPositionMs = currentPosition,
         isPlaying = isPlaying,
@@ -739,6 +744,9 @@ internal fun DetailPageContent(
         onYear = { year -> onNavigateToMetadataCategory("year", year) },
         onGenre = { genre -> onNavigateToMetadataCategory("genre", genre) },
         onNeteaseSong = { openNetease(neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let(::neteaseSongUrl)) },
+        onNeteaseMusicVideo = {
+            openNetease(neteaseInfo?.mvId?.takeIf { it.isNotBlank() }?.let(::neteaseMvUrl))
+        },
         onNeteaseArtist = { id -> openNetease(neteaseArtistUrl(id)) },
         onNeteaseAlbum = { openNetease(neteaseInfo?.albumId?.takeIf { it.isNotBlank() }?.let(::neteaseAlbumUrl)) },
         musicVideoEnabled = musicVideoEnabled,

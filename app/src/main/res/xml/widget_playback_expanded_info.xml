@@ -2,6 +2,6 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/widget_playback_expanded"
     android:minWidth="250dp"
-    android:minHeight="110dp"
+    android:minHeight="130dp"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

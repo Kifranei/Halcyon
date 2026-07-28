@@ -7,6 +7,8 @@ import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.ui.listmodel.SortDirection
+import com.ella.music.ui.listmodel.sortedByReleaseDate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -103,8 +105,7 @@ internal fun List<Song>.sortedForFolderPlaylistDetail(
     FolderPlaylistSongSortMode.DurationAsc -> sortedBy { it.duration }
     FolderPlaylistSongSortMode.YearAsc ->
         sortedWith(compareBy<Song> { it.year.toIntOrNull() ?: Int.MAX_VALUE }.thenBy { it.title.musicSortKey() })
-    FolderPlaylistSongSortMode.YearDesc ->
-        sortedWith(compareByDescending<Song> { it.year.toIntOrNull() ?: Int.MIN_VALUE }.thenBy { it.title.musicSortKey() })
+    FolderPlaylistSongSortMode.YearDesc -> sortedByReleaseDate(SortDirection.Descending)
     FolderPlaylistSongSortMode.DateAdded -> sortedByDescending { it.dateAdded }
     FolderPlaylistSongSortMode.DateAddedAsc -> sortedBy { it.dateAdded }
     FolderPlaylistSongSortMode.DateModified -> sortedByDescending { it.dateModified }
