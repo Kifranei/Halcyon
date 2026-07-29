@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class AppIconManagerTest {
     @Test
@@ -12,6 +13,21 @@ class AppIconManagerTest {
         assertEquals(
             "com.ella.music.DefaultLauncherAlias",
             AppIconManager.launcherAliasClassName(".DefaultLauncherAlias")
+        )
+    }
+
+    @Test
+    fun `launcher alias resolution remains compatible with Android 10 and 11`() {
+        val candidates = listOf(
+            File("src/main/java/com/ella/music/data/AppIconManager.kt"),
+            File("app/src/main/java/com/ella/music/data/AppIconManager.kt")
+        )
+        val source = candidates.firstOrNull(File::exists)?.readText()
+            ?: error("Cannot locate AppIconManager.kt")
+
+        assertFalse(
+            "Class.packageName requires Android 12 and must not run during application startup",
+            source.contains("::class.java.packageName")
         )
     }
 

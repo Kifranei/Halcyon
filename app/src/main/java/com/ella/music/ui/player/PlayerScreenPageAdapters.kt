@@ -130,7 +130,6 @@ internal fun CoverPageContent(
     onDynamicCoverSheetSongChange: (Song?) -> Unit,
     onPlaylistPickerSongChange: (Song?) -> Unit,
     onPlaylistPickerSongsChange: (List<Song>?) -> Unit,
-    onLandscapeCoverModeChange: (Boolean) -> Unit,
     onLandscapeExpandedChange: (Boolean) -> Unit,
     onSongInfoExpandedChange: (Boolean) -> Unit,
     onRatingSheetSongChange: (Song?) -> Unit,
@@ -360,7 +359,6 @@ internal fun CoverPageContent(
         },
         onLandscape = {
             onMenuExpandedChange(false)
-            onLandscapeCoverModeChange(true)
             onLandscapeExpandedChange(true)
         },
         onSongInfo = {

@@ -39,7 +39,8 @@ data class AudioTagData(
     val customFields: List<CustomTagField> = emptyList(),
 
     val pictures: List<AudioPicture> = ArrayList(),
-    val picUrl: String? = null
+    val picUrl: String? = null,
+    val supportsTypedPictures: Boolean = false,
 ): Parcelable
 
 @Keep

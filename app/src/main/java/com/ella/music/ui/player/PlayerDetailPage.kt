@@ -106,6 +106,14 @@ internal fun PlayerDetailPage(
             .distinct()
             .joinToString(" · ")
     }
+    val translatedNameText = remember(neteaseInfo?.translatedNames) {
+        neteaseInfo
+            ?.translatedNames
+            .orEmpty()
+            .mapNotNull { it.trim().takeIf(String::isNotBlank) }
+            .distinct()
+            .joinToString(" · ")
+    }
     val effectiveLibrarySongs = remember(librarySongs, song) {
         librarySongs.ifEmpty { song?.let(::listOf).orEmpty() }
     }
@@ -157,14 +165,16 @@ internal fun PlayerDetailPage(
         Regex("""\d{4}""").find(song?.year.orEmpty())?.value.orEmpty()
     }
     val genre = song?.genre.orEmpty().trim()
-    val genreCategoryName = remember(genre) { splitGenreNames(genre).firstOrNull().orEmpty() }
+    val genreNames = remember(genre) { splitGenreNames(genre) }
+    val singleGenreName = genreNames.singleOrNull().orEmpty()
     val yearSongs = remember(year, effectiveLibrarySongs) {
         effectiveLibrarySongs.filter { candidate ->
             Regex("""\d{4}""").find(candidate.year)?.value == year
         }
     }
-    val genreSongs = remember(genre, effectiveLibrarySongs) {
-        effectiveLibrarySongs.filter { it.genre.matchesGenreName(genreCategoryName) }
+    val singleGenreSongs = remember(singleGenreName, effectiveLibrarySongs) {
+        if (singleGenreName.isBlank()) emptyList()
+        else effectiveLibrarySongs.filter { it.genre.matchesGenreName(singleGenreName) }
     }
     val musicVideoSource by produceState<DynamicCoverSource?>(
         initialValue = null,
@@ -270,6 +280,13 @@ internal fun PlayerDetailPage(
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.fillMaxWidth()
                 )
+                translatedNameText.takeIf { it.isNotBlank() }?.let { translatedName ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PlayerDetailInfoLine(
+                        stringResource(R.string.player_detail_translated_name),
+                        translatedName
+                    )
+                }
                 aliasText.takeIf { it.isNotBlank() }?.let { alias ->
                     Spacer(modifier = Modifier.height(8.dp))
                     PlayerDetailInfoLine(stringResource(R.string.player_detail_alias), alias)
@@ -325,9 +342,10 @@ internal fun PlayerDetailPage(
                 item {
                     PlayerDetailGroupCard(title = stringResource(R.string.player_detail_music_video)) {
                         PlayerDetailGroupedActionRow(
-                            title = stringResource(R.string.player_local_music_video),
+                            title = song?.title.orEmpty().ifBlank {
+                                stringResource(R.string.player_unknown_song)
+                            },
                             summary = listOf(
-                                song?.title.orEmpty(),
                                 song?.artist.orEmpty().ifBlank {
                                     stringResource(R.string.player_unknown_artist)
                                 },
@@ -343,18 +361,39 @@ internal fun PlayerDetailPage(
                 }
             }
 
-            if (year.isNotBlank() || genre.isNotBlank()) {
+            if (year.isNotBlank() || singleGenreName.isNotBlank()) {
                 item {
                     PlayerDetailDualInfoCard(
                         year = year,
                         yearSongCount = yearSongs.size,
                         yearDuration = yearSongs.sumOf { it.duration },
-                        genre = genre,
-                        genreSongCount = genreSongs.size,
-                        genreDuration = genreSongs.sumOf { it.duration },
+                        genre = singleGenreName,
+                        genreSongCount = singleGenreSongs.size,
+                        genreDuration = singleGenreSongs.sumOf { it.duration },
                         onYearClick = { onYear(year) },
-                        onGenreClick = { onGenre(genreCategoryName) }
+                        onGenreClick = { onGenre(singleGenreName) }
                     )
+                }
+            }
+
+            if (genreNames.size > 1) {
+                item {
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_detail_genre)) {
+                        genreNames.forEach { genreName ->
+                            val songsForGenre = remember(genreName, effectiveLibrarySongs) {
+                                effectiveLibrarySongs.filter { it.genre.matchesGenreName(genreName) }
+                            }
+                            PlayerDetailGroupedActionRow(
+                                title = genreName,
+                                summary = stringResource(
+                                    R.string.player_detail_song_count_duration,
+                                    songsForGenre.size,
+                                    songsForGenre.sumOf { it.duration }.formatPlaybackDuration()
+                                ),
+                                onClick = { onGenre(genreName) }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -436,7 +475,7 @@ internal fun PlayerDetailPage(
                         }
                         neteaseInfo.mvId.takeIf(String::isNotBlank)?.let { mvId ->
                             PlayerDetailGroupedActionRow(
-                                title = stringResource(R.string.player_netease_music_video),
+                                title = stringResource(R.string.player_detail_music_video),
                                 summary = neteaseInfo.musicName.ifBlank { mvId },
                                 onClick = onNeteaseMusicVideo
                             )

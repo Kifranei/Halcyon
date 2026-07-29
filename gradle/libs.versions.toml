@@ -1,11 +1,11 @@
 [versions]
 agp = "9.2.1"
-kotlin = "2.3.20"
+kotlin = "2.4.10"
 jetbrains-compose = "1.10.3"
 activity-compose = "1.13.0"
 navigation-compose = "2.9.0"
 lifecycle = "2.10.0"
-media3 = "1.10.1"
+media3 = "1.11.0-rc01"
 miuix = "0.9.3"
 coil = "3.2.0"
 okhttp = "4.12.0"
@@ -51,6 +51,7 @@ ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }
 ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotlin-annotations-jvm = { module = "org.jetbrains.kotlin:kotlin-annotations-jvm", version.ref = "kotlin" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

@@ -42,4 +42,5 @@ dependencies {
     compileOnly(libs.androidx.media3.decoder)
     compileOnly(libs.androidx.media3.exoplayer)
     compileOnly("androidx.annotation:annotation:1.9.1")
+    compileOnly(libs.kotlin.annotations.jvm)
 }

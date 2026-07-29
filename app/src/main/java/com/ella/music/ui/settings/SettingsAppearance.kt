@@ -32,13 +32,24 @@ internal fun SettingsAppearanceSection(
 
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
     val appLanguage by settingsManager.appLanguage.collectAsState(initial = SettingsManager.APP_LANGUAGE_SYSTEM)
+    val appFontScalePercent by settingsManager.appFontScalePercent.collectAsState(
+        initial = SettingsManager.DEFAULT_APP_FONT_SCALE_PERCENT
+    )
+    val appDisplayScalePercent by settingsManager.appDisplayScalePercent.collectAsState(
+        initial = SettingsManager.DEFAULT_APP_DISPLAY_SCALE_PERCENT
+    )
     val appIconStyle by settingsManager.appIconStyle.collectAsState(initial = SettingsManager.APP_ICON_STYLE_DEFAULT)
     val widgetSafeLayout by settingsManager.widgetSafeLayout.collectAsState(initial = false)
     val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
     val bottomDockItems by settingsManager.bottomDockItems.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
     )
-    val hideSystemBars by settingsManager.hideSystemBars.collectAsState(initial = false)
+    val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
+        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = false)
     val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = "")
     val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
@@ -85,6 +96,9 @@ internal fun SettingsAppearanceSection(
     val playerTitlePosition by settingsManager.playerTitlePosition.collectAsState(
         initial = SettingsManager.PLAYER_TITLE_POSITION_BELOW_COVER
     )
+    val playerLandscapeStyle by settingsManager.playerLandscapeStyle.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_LANDSCAPE_STYLE
+    )
     val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
@@ -107,6 +121,31 @@ internal fun SettingsAppearanceSection(
     val selectedPlayerTitlePosition = playerTitlePosition.coerceIn(playerTitlePositionLabels.indices)
     val playerTitlePositionEntries = remember(playerTitlePositionLabels) {
         playerTitlePositionLabels.map { DropdownItem(title = it) }
+    }
+    val playerLandscapeStyleOptions = listOf(
+        SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE to
+            stringResource(R.string.settings_player_landscape_style_wide),
+        SettingsManager.PLAYER_LANDSCAPE_STYLE_COVER_FLOW to
+            stringResource(R.string.settings_player_landscape_style_cover_flow),
+        SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO to
+            stringResource(R.string.settings_player_landscape_style_music_video)
+    )
+    val selectedPlayerLandscapeStyle = playerLandscapeStyleOptions
+        .indexOfFirst { (style, _) -> style == playerLandscapeStyle }
+        .takeIf { it >= 0 }
+        ?: 0
+    val playerLandscapeStyleEntries = remember(playerLandscapeStyleOptions) {
+        playerLandscapeStyleOptions.map { (_, label) -> DropdownItem(title = label) }
+    }
+    val systemBarsModeLabels = listOf(
+        stringResource(R.string.settings_system_bars_show_both),
+        stringResource(R.string.settings_system_bars_hide_status),
+        stringResource(R.string.settings_system_bars_hide_navigation),
+        stringResource(R.string.settings_system_bars_hide_both)
+    )
+    val selectedSystemBarsMode = systemBarsMode.coerceIn(systemBarsModeLabels.indices)
+    val systemBarsModeEntries = remember(systemBarsModeLabels) {
+        systemBarsModeLabels.map { DropdownItem(title = it) }
     }
 
     val themeLabels = listOf(
@@ -317,6 +356,32 @@ internal fun SettingsAppearanceSection(
                     }
                 }
             )
+            SettingsIntSliderPreference(
+                title = stringResource(R.string.settings_app_font_scale),
+                summary = stringResource(R.string.settings_app_font_scale_summary),
+                value = appFontScalePercent,
+                valueRange = SettingsManager.APP_FONT_SCALE_MIN_PERCENT..
+                    SettingsManager.APP_FONT_SCALE_MAX_PERCENT,
+                valueText = "$appFontScalePercent%",
+                steps = SettingsManager.APP_FONT_SCALE_MAX_PERCENT -
+                    SettingsManager.APP_FONT_SCALE_MIN_PERCENT - 1,
+                onValueChange = {
+                    scope.launch { settingsManager.setAppFontScalePercent(it) }
+                }
+            )
+            SettingsIntSliderPreference(
+                title = stringResource(R.string.settings_app_display_scale),
+                summary = stringResource(R.string.settings_app_display_scale_summary),
+                value = appDisplayScalePercent,
+                valueRange = SettingsManager.APP_DISPLAY_SCALE_MIN_PERCENT..
+                    SettingsManager.APP_DISPLAY_SCALE_MAX_PERCENT,
+                valueText = "$appDisplayScalePercent%",
+                steps = SettingsManager.APP_DISPLAY_SCALE_MAX_PERCENT -
+                    SettingsManager.APP_DISPLAY_SCALE_MIN_PERCENT - 1,
+                onValueChange = {
+                    scope.launch { settingsManager.setAppDisplayScalePercent(it) }
+                }
+            )
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_app_icon),
                 summary = stringResource(
@@ -374,17 +439,33 @@ internal fun SettingsAppearanceSection(
                     }
                 )
             }
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_system_bars_mode),
+                summary = stringResource(
+                    R.string.settings_system_bars_mode_summary,
+                    systemBarsModeLabels[selectedSystemBarsMode]
+                ),
+                items = systemBarsModeEntries,
+                selectedIndex = selectedSystemBarsMode,
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setSystemBarsMode(index) }
+                }
+            )
             SwitchPreference(
-                title = stringResource(R.string.settings_hide_system_bars),
-                summary = stringResource(R.string.settings_hide_system_bars_summary),
-                checked = hideSystemBars,
+                title = stringResource(R.string.settings_system_bars_reserve_space),
+                summary = stringResource(R.string.settings_system_bars_reserve_space_summary),
+                checked = systemBarsReserveSpace,
+                enabled = systemBarsMode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH,
                 onCheckedChange = {
-                    scope.launch { settingsManager.setHideSystemBars(it) }
+                    scope.launch { settingsManager.setSystemBarsReserveSpace(it) }
                 }
             )
             SwitchPreference(
                 title = stringResource(R.string.settings_startup_poster),
-                summary = stringResource(R.string.settings_startup_poster_summary),
+                summary = stringResource(
+                    R.string.settings_startup_poster_summary,
+                    startupPosterDurationMs / 1_000f
+                ),
                 checked = startupPosterEnabled,
                 onCheckedChange = {
                     scope.launch { settingsManager.setStartupPosterEnabled(it) }
@@ -745,6 +826,20 @@ internal fun SettingsAppearanceSection(
                 selectedIndex = selectedPlayerTitlePosition,
                 onSelectedIndexChange = { index ->
                     scope.launch { settingsManager.setPlayerTitlePosition(index) }
+                }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_player_landscape_style),
+                summary = stringResource(
+                    R.string.settings_player_landscape_style_summary,
+                    playerLandscapeStyleOptions[selectedPlayerLandscapeStyle].second
+                ),
+                items = playerLandscapeStyleEntries,
+                selectedIndex = selectedPlayerLandscapeStyle,
+                onSelectedIndexChange = { index ->
+                    playerLandscapeStyleOptions.getOrNull(index)?.first?.let { style ->
+                        scope.launch { settingsManager.setPlayerLandscapeStyle(style) }
+                    }
                 }
             )
             SwitchPreference(

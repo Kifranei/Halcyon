@@ -4,30 +4,42 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.media.AudioManager
 import android.net.Uri
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +63,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -76,16 +91,21 @@ import com.ella.music.ui.player.GlowSeekBar
 import com.ella.music.ui.player.MusicVideoKtvLyrics
 import com.ella.music.ui.player.buildMusicVideoMediaItem
 import com.ella.music.viewmodel.lyricIdentityKey
+import com.ella.music.viewmodel.LyricBlacklistRule
+import com.ella.music.viewmodel.filterBlacklistedLyricLines
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -112,12 +132,35 @@ internal fun DetailMusicVideoScreen(
     var ktvLyricsEnabled by remember { mutableStateOf(false) }
     var accompanimentEnabled by remember { mutableStateOf(false) }
     var controlsLocked by remember { mutableStateOf(false) }
-    var captionOffset by remember { mutableStateOf<Offset?>(null) }
+    val captionPreferences = remember(context) {
+        context.getSharedPreferences(MUSIC_VIDEO_CAPTION_PREFERENCES, Context.MODE_PRIVATE)
+    }
+    var captionTranslationEnabled by remember {
+        mutableStateOf(
+            captionPreferences.getBoolean(
+                MUSIC_VIDEO_CAPTION_TRANSLATION_ENABLED,
+                true
+            )
+        )
+    }
+    var captionStyle by remember {
+        mutableStateOf(MusicVideoCaptionStyle.load(captionPreferences))
+    }
+    var captionOffset by remember {
+        mutableStateOf(Offset(captionStyle.positionX, captionStyle.positionY))
+    }
+    var captionSyncOffsetMs by remember(source) {
+        mutableStateOf(captionPreferences.getLong(source.captionSyncPreferenceKey(), 0L))
+    }
+    var showCaptionSettings by remember { mutableStateOf(false) }
     var showCaptureActions by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
-    val captureSubtitles by SettingsManager.getInstance(context).musicVideoCaptureSubtitles.collectAsState(initial = false)
-    val lyricOffsets by SettingsManager.getInstance(context).lyricOffsetOverrides.collectAsState(initial = emptyMap())
-    val importedMvOffsets by SettingsManager.getInstance(context).musicVideoOffsetsJson.collectAsState(initial = "")
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val captureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
+    val lyricOffsets by settingsManager.lyricOffsetOverrides.collectAsState(initial = emptyMap())
+    val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsState(initial = emptyList())
+    val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
+    val importedMvOffsets by settingsManager.musicVideoOffsetsJson.collectAsState(initial = "")
     val effectiveMvOffsetMs = remember(source, importedMvOffsets) {
         MusicVideoOffsetsParser.loadForSource(context, source, importedMvOffsets).forSource(source)
     }
@@ -128,11 +171,22 @@ internal fun DetailMusicVideoScreen(
         song.path,
         lyricsNeeded,
         lyricOffsets[song.lyricIdentityKey()]
-        , effectiveMvOffsetMs
+        , effectiveMvOffsetMs,
+        captionSyncOffsetMs,
+        lyricLineBlacklist,
+        hideLyricExtraInfo
     ) {
         value = if (lyricsNeeded) {
             withContext(Dispatchers.IO) { repository.getLyrics(song) }
-                .shiftedBy((lyricOffsets[song.lyricIdentityKey()] ?: 0L) + effectiveMvOffsetMs)
+                .filterBlacklistedLyricLines(
+                    rules = lyricLineBlacklist.map(::LyricBlacklistRule),
+                    hideExtraInfo = hideLyricExtraInfo
+                )
+                .shiftedBy(
+                    (lyricOffsets[song.lyricIdentityKey()] ?: 0L) +
+                        effectiveMvOffsetMs +
+                        captionSyncOffsetMs
+                )
         } else {
             emptyList()
         }
@@ -204,8 +258,8 @@ internal fun DetailMusicVideoScreen(
         controlsVisible = true
         activity.setLandscapeImmersive(landscape)
     }
-    LaunchedEffect(landscape, controlsVisible, isPlaying, captionsEnabled, ktvLyricsEnabled) {
-        if (landscape && controlsVisible && isPlaying && !captionsEnabled && !ktvLyricsEnabled) {
+    LaunchedEffect(landscape, controlsVisible, isPlaying, controlsLocked) {
+        if (landscape && controlsVisible && isPlaying && !controlsLocked) {
             delay(3_000L)
             controlsVisible = false
         }
@@ -232,20 +286,23 @@ internal fun DetailMusicVideoScreen(
                 lyrics = lyrics,
                 videoAspectRatio = videoAspectRatio,
                 captionsEnabled = captionsEnabled,
+                captionTranslationEnabled = captionTranslationEnabled,
                 captionsAvailable = captionsAvailable,
                 ktvLyricsEnabled = ktvLyricsEnabled,
                 accompanimentEnabled = accompanimentEnabled,
                 controlsLocked = controlsLocked,
                 captionOffset = captionOffset,
+                captionStyle = captionStyle,
                 controlsVisible = controlsVisible,
                 onBack = { player.pause(); onBack() },
                 onTogglePlay = { if (player.isPlaying) player.pause() else player.play() },
                 onSeek = { player.seekTo(it) },
-                onToggleCaptions = {
-                    captionsEnabled = !captionsEnabled
-                    if (captionsEnabled) ktvLyricsEnabled = false
+                onOpenCaptionSettings = { showCaptionSettings = true },
+                onCaptionOffsetChange = {
+                    captionOffset = it
+                    captionStyle = captionStyle.copy(positionX = it.x, positionY = it.y)
+                    captionStyle.save(captionPreferences)
                 },
-                onCaptionOffsetChange = { captionOffset = it },
                 onToggleKtvLyrics = {
                     ktvLyricsEnabled = !ktvLyricsEnabled
                     if (ktvLyricsEnabled) captionsEnabled = false
@@ -269,6 +326,36 @@ internal fun DetailMusicVideoScreen(
                 onSeek = { player.seekTo(it) },
                 onLandscape = { landscape = true },
                 onShare = { MusicVideoLauncher.share(context, source, song.title) }
+            )
+        }
+        if (showCaptionSettings) {
+            MusicVideoCaptionSettingsOverlay(
+                enabled = captionsEnabled,
+                translationEnabled = captionTranslationEnabled,
+                syncOffsetMs = captionSyncOffsetMs,
+                style = captionStyle,
+                onEnabledChange = { enabled ->
+                    captionsEnabled = enabled
+                    if (enabled) ktvLyricsEnabled = false
+                },
+                onTranslationEnabledChange = { enabled ->
+                    captionTranslationEnabled = enabled
+                    captionPreferences.edit()
+                        .putBoolean(MUSIC_VIDEO_CAPTION_TRANSLATION_ENABLED, enabled)
+                        .apply()
+                },
+                onSyncOffsetChange = { offsetMs ->
+                    captionSyncOffsetMs = offsetMs.coerceIn(-60_000L, 60_000L)
+                    captionPreferences.edit()
+                        .putLong(source.captionSyncPreferenceKey(), captionSyncOffsetMs)
+                        .apply()
+                },
+                onStyleChange = { style ->
+                    captionStyle = style
+                    captionOffset = Offset(style.positionX, style.positionY)
+                    style.save(captionPreferences)
+                },
+                onDismiss = { showCaptionSettings = false }
             )
         }
         if (showCaptureActions) {
@@ -358,16 +445,18 @@ private fun LandscapeMusicVideoLayout(
     lyrics: List<LyricLine>,
     videoAspectRatio: Float?,
     captionsEnabled: Boolean,
+    captionTranslationEnabled: Boolean,
     captionsAvailable: Boolean,
     ktvLyricsEnabled: Boolean,
     accompanimentEnabled: Boolean,
     controlsLocked: Boolean,
     captionOffset: Offset?,
+    captionStyle: MusicVideoCaptionStyle,
     controlsVisible: Boolean,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
-    onToggleCaptions: () -> Unit,
+    onOpenCaptionSettings: () -> Unit,
     onCaptionOffsetChange: (Offset) -> Unit,
     onToggleKtvLyrics: () -> Unit,
     onToggleAccompaniment: () -> Unit,
@@ -377,6 +466,14 @@ private fun LandscapeMusicVideoLayout(
     onShare: () -> Unit,
     onControlsVisibleChange: (Boolean) -> Unit
 ) {
+    var gestureFeedback by remember { mutableStateOf<MusicVideoGestureFeedback?>(null) }
+    var gestureFeedbackRevision by remember { mutableStateOf(0) }
+    LaunchedEffect(gestureFeedbackRevision) {
+        if (gestureFeedbackRevision > 0) {
+            delay(850L)
+            gestureFeedback = null
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         VideoSurface(
             player = player,
@@ -386,13 +483,21 @@ private fun LandscapeMusicVideoLayout(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(onTogglePlay, controlsVisible) {
-                    detectTapGestures(
-                        onTap = { onControlsVisibleChange(!controlsVisible) },
-                        onDoubleTap = { onTogglePlay() }
-                    )
-                }
+                .musicVideoGestureControls(
+                    player = player,
+                    duration = duration,
+                    onSeek = onSeek,
+                    onFeedback = { feedback ->
+                        gestureFeedback = feedback
+                        gestureFeedbackRevision += 1
+                    },
+                    onTap = { onControlsVisibleChange(!controlsVisible) },
+                    onDoubleTap = onTogglePlay
+                )
         )
+        gestureFeedback?.let { feedback ->
+            MusicVideoGestureFeedbackOverlay(feedback = feedback)
+        }
         if (ktvLyricsEnabled) {
             MusicVideoKtvLyrics(
                 lyrics = lyrics,
@@ -408,6 +513,8 @@ private fun LandscapeMusicVideoLayout(
                 position = position,
                 videoAspectRatio = videoAspectRatio,
                 positionOffset = captionOffset,
+                style = captionStyle,
+                showTranslation = captionTranslationEnabled,
                 locked = controlsLocked,
                 onPositionOffsetChange = onCaptionOffsetChange,
                 modifier = Modifier.fillMaxSize()
@@ -451,7 +558,7 @@ private fun LandscapeMusicVideoLayout(
                     onSecondaryTrailing = onToggleAccompaniment,
                     secondaryTrailingSelected = accompanimentEnabled,
                     trailingLabel = stringResource(R.string.music_video_captions),
-                    onTrailing = onToggleCaptions,
+                    onTrailing = onOpenCaptionSettings,
                     trailingSelected = captionsEnabled,
                     showTrailing = captionsAvailable
                 )
@@ -483,6 +590,558 @@ private fun LandscapeMusicVideoLayout(
                     .align(Alignment.CenterStart)
                     .windowInsetsPadding(WindowInsets.displayCutout)
                     .padding(start = 14.dp)
+            )
+        }
+    }
+}
+
+private enum class MusicVideoGestureMode {
+    Seek,
+    Brightness,
+    Volume
+}
+
+private data class MusicVideoGestureFeedback(
+    val mode: MusicVideoGestureMode,
+    val fraction: Float,
+    val targetPositionMs: Long = 0L,
+    val positionDeltaMs: Long = 0L
+)
+
+@Composable
+private fun Modifier.musicVideoGestureControls(
+    player: ExoPlayer,
+    duration: Long,
+    onSeek: (Long) -> Unit,
+    onFeedback: (MusicVideoGestureFeedback) -> Unit,
+    onTap: () -> Unit,
+    onDoubleTap: () -> Unit
+): Modifier {
+    val context = LocalContext.current
+    val activity = context as? MusicVideoActivity
+    val audioManager = remember(context) {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    val currentDuration by rememberUpdatedState(duration)
+    val currentOnSeek by rememberUpdatedState(onSeek)
+    val currentOnFeedback by rememberUpdatedState(onFeedback)
+    val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnDoubleTap by rememberUpdatedState(onDoubleTap)
+    return pointerInput(
+        player,
+        activity,
+        audioManager
+    ) {
+        coroutineScope {
+        var startTouch = Offset.Zero
+        var accumulated = Offset.Zero
+        var mode: MusicVideoGestureMode? = null
+        var startPositionMs = 0L
+        var startBrightness = 0.5f
+        var startVolume = 0
+        var pendingSingleTap: Job? = null
+        var lastTapTimeMs = 0L
+        var lastTapPosition = Offset.Zero
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            startTouch = down.position
+            accumulated = Offset.Zero
+            mode = null
+            startPositionMs = player.currentPosition.coerceAtLeast(0L)
+            startBrightness = activity?.window?.attributes?.screenBrightness
+                ?.takeIf { it >= 0f }
+                ?: (
+                    Settings.System.getInt(
+                        context.contentResolver,
+                        Settings.System.SCREEN_BRIGHTNESS,
+                        128
+                    ) / 255f
+                    )
+            startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            var latestSeekTarget: Long? = null
+            var releaseTimeMs = down.uptimeMillis
+            var releasePosition = down.position
+            var pointerPressed = true
+            while (pointerPressed) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                pointerPressed = change.pressed
+                releaseTimeMs = change.uptimeMillis
+                releasePosition = change.position
+                accumulated = change.position - startTouch
+                if (
+                    mode == null &&
+                    accumulated.getDistance() >= viewConfiguration.touchSlop
+                ) {
+                    val horizontal = abs(accumulated.x)
+                    val vertical = abs(accumulated.y)
+                    mode = when {
+                        horizontal >= vertical * 1.12f -> MusicVideoGestureMode.Seek
+                        vertical >= horizontal * 1.12f && startTouch.x < size.width / 2f ->
+                            MusicVideoGestureMode.Brightness
+                        vertical >= horizontal * 1.12f -> MusicVideoGestureMode.Volume
+                        else -> null
+                    }
+                }
+                if (mode != null) change.consume()
+                when (mode) {
+                    MusicVideoGestureMode.Seek -> {
+                        val safeDuration = currentDuration.coerceAtLeast(0L)
+                        val startFraction = if (safeDuration > 0L) {
+                            startPositionMs.toFloat() / safeDuration
+                        } else {
+                            0f
+                        }
+                        // One half-screen swipe can traverse most of the timeline, even on
+                        // ultra-wide car displays. The player itself seeks only after release.
+                        val targetFraction = (
+                            startFraction +
+                                accumulated.x / size.width.coerceAtLeast(1) * 1.8f
+                            ).coerceIn(0f, 1f)
+                        val targetPosition = (targetFraction * safeDuration).toLong()
+                        latestSeekTarget = targetPosition
+                        currentOnFeedback(
+                            MusicVideoGestureFeedback(
+                                mode = MusicVideoGestureMode.Seek,
+                                fraction = targetFraction,
+                                targetPositionMs = targetPosition,
+                                positionDeltaMs = targetPosition - startPositionMs
+                            )
+                        )
+                    }
+                    MusicVideoGestureMode.Brightness -> {
+                        val brightness = (
+                            startBrightness -
+                                accumulated.y / size.height.coerceAtLeast(1) * 1.65f
+                            ).coerceIn(0.02f, 1f)
+                        activity?.window?.attributes = activity.window.attributes.apply {
+                            screenBrightness = brightness
+                        }
+                        currentOnFeedback(
+                            MusicVideoGestureFeedback(
+                                mode = MusicVideoGestureMode.Brightness,
+                                fraction = brightness
+                            )
+                        )
+                    }
+                    MusicVideoGestureMode.Volume -> {
+                        val maxVolume = audioManager
+                            .getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                            .coerceAtLeast(1)
+                        val volumeDelta = (
+                            -accumulated.y / size.height.coerceAtLeast(1) *
+                                maxVolume * 1.65f
+                            ).roundToInt()
+                        val volume = (startVolume + volumeDelta).coerceIn(0, maxVolume)
+                        audioManager.setStreamVolume(
+                            AudioManager.STREAM_MUSIC,
+                            volume,
+                            0
+                        )
+                        currentOnFeedback(
+                            MusicVideoGestureFeedback(
+                                mode = MusicVideoGestureMode.Volume,
+                                fraction = volume.toFloat() / maxVolume
+                            )
+                        )
+                    }
+                    null -> Unit
+                }
+            }
+            latestSeekTarget?.let(currentOnSeek)
+            if (
+                mode == null &&
+                accumulated.getDistance() < viewConfiguration.touchSlop
+            ) {
+                val elapsed = releaseTimeMs - lastTapTimeMs
+                val isDoubleTap = lastTapTimeMs > 0L &&
+                    elapsed in 40L..300L &&
+                    (releasePosition - lastTapPosition).getDistance() <=
+                    viewConfiguration.touchSlop * 4f
+                if (isDoubleTap) {
+                    pendingSingleTap?.cancel()
+                    pendingSingleTap = null
+                    lastTapTimeMs = 0L
+                    currentOnDoubleTap()
+                } else {
+                    lastTapTimeMs = releaseTimeMs
+                    lastTapPosition = releasePosition
+                    pendingSingleTap?.cancel()
+                    pendingSingleTap = launch {
+                        delay(300L)
+                        if (lastTapTimeMs == releaseTimeMs) {
+                            lastTapTimeMs = 0L
+                            currentOnTap()
+                        }
+                    }
+                }
+            }
+        }
+        }
+    }
+}
+
+@Composable
+private fun MusicVideoGestureFeedbackOverlay(
+    feedback: MusicVideoGestureFeedback
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (feedback.mode) {
+            MusicVideoGestureMode.Seek -> {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(ComposeColor.Black.copy(alpha = 0.58f))
+                        .padding(horizontal = 24.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = feedback.targetPositionMs.formatVideoTime(),
+                        color = ComposeColor.White,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = feedback.positionDeltaMs.formatSignedVideoTime(),
+                        color = ComposeColor.White.copy(alpha = 0.9f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            MusicVideoGestureMode.Brightness,
+            MusicVideoGestureMode.Volume -> {
+                val isBrightness = feedback.mode == MusicVideoGestureMode.Brightness
+                Column(
+                    modifier = Modifier
+                        .align(if (isBrightness) Alignment.CenterStart else Alignment.CenterEnd)
+                        .padding(horizontal = 30.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(ComposeColor.Black.copy(alpha = 0.58f))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "${(feedback.fraction.coerceIn(0f, 1f) * 100).roundToInt()}",
+                        color = ComposeColor.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(vertical = 8.dp)
+                            .width(5.dp)
+                            .height(132.dp)
+                            .clip(RoundedCornerShape(99.dp))
+                            .background(ComposeColor.White.copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(feedback.fraction.coerceIn(0f, 1f))
+                                .background(ComposeColor(0xFF4D8DFF))
+                        )
+                    }
+                    Text(
+                        text = stringResource(
+                            if (isBrightness) {
+                                R.string.music_video_gesture_brightness
+                            } else {
+                                R.string.music_video_gesture_volume
+                            }
+                        ),
+                        color = ComposeColor.White.copy(alpha = 0.9f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class MusicVideoCaptionStyle(
+    val positionX: Float = 0.5f,
+    val positionY: Float = 0.78f,
+    val fontSizeSp: Float = 21f,
+    val scale: Float = 1f,
+    val fontFamily: Int = 0,
+    val textColorArgb: Int = 0xFFFFFFFF.toInt(),
+    val bold: Boolean = true,
+    val backgroundColorArgb: Int = 0xFF000000.toInt(),
+    val backgroundAlpha: Float = 0.42f
+) {
+    val resolvedFontFamily: FontFamily
+        get() = when (fontFamily) {
+            1 -> FontFamily.Serif
+            2 -> FontFamily.Monospace
+            else -> FontFamily.SansSerif
+        }
+
+    fun save(preferences: android.content.SharedPreferences) {
+        preferences.edit()
+            .putFloat("position_x", positionX)
+            .putFloat("position_y", positionY)
+            .putFloat("font_size_sp", fontSizeSp)
+            .putFloat("scale", scale)
+            .putInt("font_family", fontFamily)
+            .putInt("text_color", textColorArgb)
+            .putBoolean("bold", bold)
+            .putInt("background_color", backgroundColorArgb)
+            .putFloat("background_alpha", backgroundAlpha)
+            .apply()
+    }
+
+    companion object {
+        fun load(preferences: android.content.SharedPreferences): MusicVideoCaptionStyle =
+            MusicVideoCaptionStyle(
+                positionX = preferences.getFloat("position_x", 0.5f),
+                positionY = preferences.getFloat("position_y", 0.78f),
+                fontSizeSp = preferences.getFloat("font_size_sp", 21f),
+                scale = preferences.getFloat("scale", 1f),
+                fontFamily = preferences.getInt("font_family", 0),
+                textColorArgb = preferences.getInt("text_color", 0xFFFFFFFF.toInt()),
+                bold = preferences.getBoolean("bold", true),
+                backgroundColorArgb = preferences.getInt(
+                    "background_color",
+                    0xFF000000.toInt()
+                ),
+                backgroundAlpha = preferences.getFloat("background_alpha", 0.42f)
+            )
+    }
+}
+
+@Composable
+private fun MusicVideoCaptionSettingsOverlay(
+    enabled: Boolean,
+    translationEnabled: Boolean,
+    syncOffsetMs: Long,
+    style: MusicVideoCaptionStyle,
+    onEnabledChange: (Boolean) -> Unit,
+    onTranslationEnabledChange: (Boolean) -> Unit,
+    onSyncOffsetChange: (Long) -> Unit,
+    onStyleChange: (MusicVideoCaptionStyle) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var offsetInput by remember(syncOffsetMs) { mutableStateOf(syncOffsetMs.toString()) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ComposeColor.Black.copy(alpha = 0.62f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .widthIn(max = 720.dp)
+                .heightIn(max = 600.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(ComposeColor(0xFF20232C))
+                .clickable { }
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.music_video_caption_settings),
+                    color = ComposeColor.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                VideoTextButton(
+                    text = stringResource(
+                        if (enabled) R.string.common_close else R.string.common_open
+                    ),
+                    onClick = { onEnabledChange(!enabled) },
+                    selected = enabled
+                )
+            }
+
+            CaptionSettingsHeading(stringResource(R.string.music_video_caption_display))
+            VideoTextButton(
+                text = stringResource(R.string.music_video_caption_translation),
+                onClick = { onTranslationEnabledChange(!translationEnabled) },
+                selected = translationEnabled
+            )
+
+            CaptionSettingsHeading(stringResource(R.string.music_video_caption_sync))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                VideoTextButton("-100 ms", { onSyncOffsetChange(syncOffsetMs - 100L) })
+                BasicTextField(
+                    value = offsetInput,
+                    onValueChange = { value ->
+                        val filtered = value.filterIndexed { index, char ->
+                            char.isDigit() || (char == '-' && index == 0)
+                        }
+                        offsetInput = filtered
+                        filtered.toLongOrNull()?.let(onSyncOffsetChange)
+                    },
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = ComposeColor.White,
+                        fontSize = 15.sp,
+                        textAlign = TextAlign.Center
+                    ),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(ComposeColor.White.copy(alpha = 0.10f))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                )
+                VideoTextButton("+100 ms", { onSyncOffsetChange(syncOffsetMs + 100L) })
+            }
+            Text(
+                stringResource(R.string.music_video_caption_sync_hint),
+                color = ComposeColor.White.copy(alpha = 0.58f),
+                fontSize = 12.sp
+            )
+
+            CaptionSettingsHeading(stringResource(R.string.music_video_caption_custom))
+            CaptionSettingsSlider(
+                label = stringResource(R.string.music_video_caption_vertical_position),
+                value = style.positionY,
+                valueRange = 0.08f..0.92f,
+                displayValue = "${(style.positionY * 100).roundToInt()}%"
+            ) { onStyleChange(style.copy(positionY = it)) }
+            CaptionSettingsSlider(
+                label = stringResource(R.string.player_lyric_font_size),
+                value = style.fontSizeSp,
+                valueRange = 14f..40f,
+                displayValue = "${style.fontSizeSp.roundToInt()} sp"
+            ) { onStyleChange(style.copy(fontSizeSp = it)) }
+            CaptionSettingsSlider(
+                label = stringResource(R.string.music_video_caption_scale),
+                value = style.scale,
+                valueRange = 0.75f..1.5f,
+                displayValue = "${(style.scale * 100).roundToInt()}%"
+            ) { onStyleChange(style.copy(scale = it)) }
+
+            CaptionSettingsHeading(stringResource(R.string.music_video_caption_font))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    R.string.music_video_caption_font_default,
+                    R.string.music_video_caption_font_serif,
+                    R.string.music_video_caption_font_monospace
+                ).forEachIndexed { index, label ->
+                    VideoTextButton(
+                        text = stringResource(label),
+                        onClick = { onStyleChange(style.copy(fontFamily = index)) },
+                        selected = style.fontFamily == index
+                    )
+                }
+                VideoTextButton(
+                    text = stringResource(R.string.music_video_caption_bold),
+                    onClick = { onStyleChange(style.copy(bold = !style.bold)) },
+                    selected = style.bold
+                )
+            }
+
+            CaptionSettingsHeading(stringResource(R.string.music_video_caption_text_color))
+            CaptionColorChoices(
+                selectedArgb = style.textColorArgb,
+                colors = CAPTION_TEXT_COLORS,
+                onSelected = { onStyleChange(style.copy(textColorArgb = it)) }
+            )
+            CaptionSettingsHeading(
+                stringResource(R.string.music_video_caption_background_color)
+            )
+            CaptionColorChoices(
+                selectedArgb = style.backgroundColorArgb,
+                colors = CAPTION_BACKGROUND_COLORS,
+                onSelected = { onStyleChange(style.copy(backgroundColorArgb = it)) }
+            )
+            CaptionSettingsSlider(
+                label = stringResource(R.string.music_video_caption_background_opacity),
+                value = style.backgroundAlpha,
+                valueRange = 0f..0.9f,
+                displayValue = "${(style.backgroundAlpha * 100).roundToInt()}%"
+            ) { onStyleChange(style.copy(backgroundAlpha = it)) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                VideoTextButton(
+                    stringResource(R.string.common_reset),
+                    onClick = { onStyleChange(MusicVideoCaptionStyle()) }
+                )
+                VideoTextButton(
+                    stringResource(R.string.common_confirm),
+                    onClick = onDismiss,
+                    selected = true,
+                    modifier = Modifier.padding(start = 10.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CaptionSettingsHeading(text: String) {
+    Text(
+        text = text,
+        color = ComposeColor.White.copy(alpha = 0.86f),
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Bold
+    )
+}
+
+@Composable
+private fun CaptionSettingsSlider(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    displayValue: String,
+    onValueChange: (Float) -> Unit
+) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(label, color = ComposeColor.White.copy(alpha = 0.82f), modifier = Modifier.weight(1f))
+            Text(displayValue, color = ComposeColor.White.copy(alpha = 0.62f))
+        }
+        Slider(
+            value = value.coerceIn(valueRange.start, valueRange.endInclusive),
+            onValueChange = onValueChange,
+            valueRange = valueRange
+        )
+    }
+}
+
+@Composable
+private fun CaptionColorChoices(
+    selectedArgb: Int,
+    colors: List<Int>,
+    onSelected: (Int) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        colors.forEach { argb ->
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(ComposeColor(argb))
+                    .border(
+                        width = if (argb == selectedArgb) 3.dp else 1.dp,
+                        color = if (argb == selectedArgb) {
+                            ComposeColor(0xFF4D7CFE)
+                        } else {
+                            ComposeColor.White.copy(alpha = 0.45f)
+                        },
+                        shape = RoundedCornerShape(999.dp)
+                    )
+                    .clickable { onSelected(argb) }
             )
         }
     }
@@ -628,6 +1287,8 @@ private fun MusicVideoCaptions(
     position: Long,
     videoAspectRatio: Float?,
     positionOffset: Offset?,
+    style: MusicVideoCaptionStyle,
+    showTranslation: Boolean,
     locked: Boolean,
     onPositionOffsetChange: (Offset) -> Unit,
     modifier: Modifier
@@ -660,6 +1321,8 @@ private fun MusicVideoCaptions(
             )
             CaptionBlock(
                 primary = primary,
+                style = style,
+                showTranslation = showTranslation,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset {
@@ -668,7 +1331,7 @@ private fun MusicVideoCaptions(
                             (constrainedOffset.y * frameHeightPx - captionSize.height / 2f).roundToInt()
                         )
                     }
-                    .fillMaxWidth(0.82f)
+                    .fillMaxWidth((0.82f * style.scale).coerceIn(0.55f, 0.96f))
                     .onSizeChanged { captionSize = it }
                     .then(
                         if (locked) {
@@ -699,28 +1362,52 @@ private fun MusicVideoCaptions(
 @Composable
 private fun CaptionBlock(
     primary: LyricLine,
+    style: MusicVideoCaptionStyle,
+    showTranslation: Boolean,
     modifier: Modifier,
     textAlign: TextAlign,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start
 ) {
     Column(modifier = modifier, horizontalAlignment = horizontalAlignment) {
-        CaptionLine(primary.text, textAlign)
+        CaptionLine(primary.text, textAlign, style)
+        if (showTranslation) {
+            CaptionLine(
+                text = primary.translation,
+                textAlign = textAlign,
+                style = style,
+                secondary = true
+            )
+        }
     }
 }
 
 @Composable
-private fun CaptionLine(text: String?, textAlign: TextAlign) {
+private fun CaptionLine(
+    text: String?,
+    textAlign: TextAlign,
+    style: MusicVideoCaptionStyle,
+    secondary: Boolean = false
+) {
     text?.takeIf { it.isNotBlank() }?.let {
         Text(
             it,
-            color = ComposeColor.White,
-            fontSize = 21.sp,
-            fontWeight = FontWeight.Bold,
+            color = ComposeColor(style.textColorArgb).copy(alpha = if (secondary) 0.88f else 1f),
+            fontSize = (
+                style.fontSizeSp *
+                    style.scale *
+                    if (secondary) 0.76f else 1f
+                ).sp,
+            fontWeight = if (!secondary && style.bold) FontWeight.Bold else FontWeight.Medium,
+            fontFamily = style.resolvedFontFamily,
             textAlign = textAlign,
             modifier = Modifier
                 .wrapContentWidth(if (textAlign == TextAlign.Center) Alignment.CenterHorizontally else Alignment.Start)
                 .clip(RoundedCornerShape(5.dp))
-                .background(ComposeColor.Black.copy(alpha = 0.42f))
+                .background(
+                    ComposeColor(style.backgroundColorArgb).copy(
+                        alpha = style.backgroundAlpha
+                    )
+                )
                 .padding(horizontal = 7.dp, vertical = 3.dp)
         )
     }
@@ -795,6 +1482,33 @@ private fun Long.formatVideoTime(): String {
     val seconds = (this / 1_000L).coerceAtLeast(0L)
     return "%02d:%02d".format(Locale.US, seconds / 60L, seconds % 60L)
 }
+
+private fun Long.formatSignedVideoTime(): String {
+    val sign = if (this >= 0L) "+" else "−"
+    return "[$sign${abs(this).formatVideoTime()}]"
+}
+
+private fun Uri.captionSyncPreferenceKey(): String =
+    "sync_${toString().hashCode().toUInt().toString(16)}"
+
+private const val MUSIC_VIDEO_CAPTION_PREFERENCES = "music_video_caption_preferences"
+private const val MUSIC_VIDEO_CAPTION_TRANSLATION_ENABLED = "translation_enabled"
+
+private val CAPTION_TEXT_COLORS = listOf(
+    0xFFFFFFFF.toInt(),
+    0xFFFFE082.toInt(),
+    0xFF80D8FF.toInt(),
+    0xFFA7FFEB.toInt(),
+    0xFFFF80AB.toInt()
+)
+
+private val CAPTION_BACKGROUND_COLORS = listOf(
+    0xFF000000.toInt(),
+    0xFF263238.toInt(),
+    0xFF1A237E.toInt(),
+    0xFF4A148C.toInt(),
+    0xFFB71C1C.toInt()
+)
 
 private fun openArtistFromVideo(context: Context, artist: String) {
     if (artist.isBlank()) return

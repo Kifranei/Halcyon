@@ -12,6 +12,7 @@ data class NeteaseKeyInfo(
     val musicId: String = "",
     val musicName: String = "",
     val mvId: String = "",
+    val translatedNames: List<String> = emptyList(),
     val aliases: List<String> = emptyList(),
     val albumId: String = "",
     val albumName: String = "",
@@ -22,6 +23,7 @@ data class NeteaseKeyInfo(
         get() = decodedJson.isNotBlank() ||
             musicId.isNotBlank() ||
             mvId.isNotBlank() ||
+            translatedNames.any { it.isNotBlank() } ||
             aliases.any { it.isNotBlank() } ||
             albumId.isNotBlank() ||
             artists.any { it.id.isNotBlank() } ||
@@ -50,6 +52,11 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
     if (decodedJson.isBlank()) return NeteaseKeyInfo(raw = raw)
 
     val fallbackMvId = decodedJson.extractJsonId("mvid", "mvId", "mv_id", "mvID")
+    val fallbackTranslatedNames = decodedJson.extractJsonStringList(
+        "transNames",
+        "translatedNames",
+        "transName"
+    )
     return runCatching {
         val json = JSONObject(decodedJson)
         NeteaseKeyInfo(
@@ -58,6 +65,9 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
             musicId = json.optId("musicId", "songId", "id"),
             musicName = json.optStringCompat("musicName", "songName", "name"),
             mvId = json.optId("mvid", "mvId", "mv_id", "mvID").ifBlank { fallbackMvId },
+            translatedNames = json
+                .optStringList("transNames", "translatedNames", "transName")
+                .ifEmpty { fallbackTranslatedNames },
             aliases = json.optStringList("alias", "aliases", "alia"),
             albumId = json.optAlbumId(),
             albumName = json.optAlbumName(),
@@ -65,7 +75,12 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
             comment = json.optStringCompat("comment", "description", "desc", "remark", "note", "subtitle", "subTitle")
         )
     }.getOrElse {
-        NeteaseKeyInfo(raw = raw, decodedJson = decodedJson, mvId = fallbackMvId)
+        NeteaseKeyInfo(
+            raw = raw,
+            decodedJson = decodedJson,
+            mvId = fallbackMvId,
+            translatedNames = fallbackTranslatedNames
+        )
     }
 }
 
@@ -141,6 +156,27 @@ private fun String.extractJsonId(vararg names: String): String {
     return ""
 }
 
+private fun String.extractJsonStringList(vararg names: String): List<String> {
+    for (name in names) {
+        val body = Regex(
+            """"${Regex.escape(name)}"\s*:\s*\[(.*?)]""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).find(this)?.groupValues?.getOrNull(1) ?: continue
+        val values = Regex(""""((?:\\.|[^"\\])*)"""")
+            .findAll(body)
+            .map { match ->
+                match.groupValues[1]
+                    .replace("\\\"", "\"")
+                    .replace("\\\\", "\\")
+                    .trim()
+            }
+            .filter(String::isNotBlank)
+            .toList()
+        if (values.isNotEmpty()) return values
+    }
+    return emptyList()
+}
+
 private fun ByteArray.stripPkcs7Padding(): ByteArray {
     if (isEmpty()) return this
     val padding = last().toInt() and 0xff
@@ -180,18 +216,22 @@ private fun JSONObject.optStringList(vararg names: String): List<String> {
     for (name in names) {
         if (!has(name) || isNull(name)) continue
         val value = opt(name)
-        val result = when (value) {
-            is JSONArray -> buildList {
-                for (index in 0 until value.length()) {
-                    value.optString(index).trim().takeIf { it.isNotBlank() && it != "null" }?.let(::add)
+        val result = runCatching {
+            when (value) {
+                is JSONArray -> buildList {
+                    for (index in 0 until value.length()) {
+                        value.optString(index).trim()
+                            .takeIf { it.isNotBlank() && it != "null" }
+                            ?.let(::add)
+                    }
                 }
+                else -> value?.toString()
+                    ?.split('/', ',', ';', '；')
+                    ?.map { it.trim() }
+                    ?.filter { it.isNotBlank() && it != "null" }
+                    .orEmpty()
             }
-            else -> value?.toString()
-                ?.split('/', ',', ';', '；')
-                ?.map { it.trim() }
-                ?.filter { it.isNotBlank() && it != "null" }
-                .orEmpty()
-        }
+        }.getOrDefault(emptyList())
         if (result.isNotEmpty()) return result
     }
     return emptyList()

@@ -32,6 +32,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_CJK_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_WESTERN_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_WESTERN_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_IGNORE_LYRIC_HEADER_TAGS
+import com.ella.music.data.SettingsManager.Companion.KEY_HIDE_LYRIC_EXTRA_INFO
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_CJK_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_CJK_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_COMPACT_PRIMARY_TEXT_SIZE
@@ -90,6 +91,7 @@ interface LyricSettingsAccess {
     val lyricSourcePriority: Flow<String>
     val lyricoPluginEnabledIds: Flow<Set<String>>
     val ignoreLyricHeaderTags: Flow<Boolean>
+    val hideLyricExtraInfo: Flow<Boolean>
     val lyricLineBlacklist: Flow<List<String>>
     val lyricOffsetOverrides: Flow<Map<String, Long>>
     val playerLyricTextAlign: Flow<Int>
@@ -134,6 +136,7 @@ interface LyricSettingsAccess {
     suspend fun setLyricPronunciationBelow(below: Boolean)
     suspend fun setLyricLineBlacklist(lines: List<String>)
     suspend fun setIgnoreLyricHeaderTags(enabled: Boolean)
+    suspend fun setHideLyricExtraInfo(enabled: Boolean)
     suspend fun setLyricSourceMode(mode: Int)
     suspend fun setLyricSourcePriority(priority: String)
     suspend fun setLyricoPluginEnabled(id: String, enabled: Boolean)
@@ -179,6 +182,8 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         context.dataStore.data.map { LyricoPluginManager.normalizeEnabledIds(it[KEY_LYRICO_PLUGIN_ENABLED_IDS]) }
     override val ignoreLyricHeaderTags: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_IGNORE_LYRIC_HEADER_TAGS] ?: true }
+    override val hideLyricExtraInfo: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_HIDE_LYRIC_EXTRA_INFO] ?: true }
     override val lyricLineBlacklist: Flow<List<String>> =
         context.dataStore.data.map { parseLyricLineBlacklist(it[KEY_LYRIC_LINE_BLACKLIST]) }
     override val lyricOffsetOverrides: Flow<Map<String, Long>> =
@@ -273,6 +278,10 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
 
     override suspend fun setIgnoreLyricHeaderTags(enabled: Boolean) {
         context.dataStore.edit { it[KEY_IGNORE_LYRIC_HEADER_TAGS] = enabled }
+    }
+
+    override suspend fun setHideLyricExtraInfo(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_HIDE_LYRIC_EXTRA_INFO] = enabled }
     }
 
     override suspend fun setLyricSourceMode(mode: Int) {

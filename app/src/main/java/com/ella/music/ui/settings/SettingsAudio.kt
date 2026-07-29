@@ -16,24 +16,32 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.player.BluetoothAutoPlayReceiver
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
+import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -71,6 +79,11 @@ fun AudioSettingsScreen(
 
     val gaplessPlayback by settingsManager.gaplessPlayback.collectAsState(initial = true)
     val crossfadeDurationMs by settingsManager.crossfadeDurationMs.collectAsState(initial = 0)
+    val crossfadeCurve by settingsManager.crossfadeCurve.collectAsState(
+        initial = SettingsManager.CROSSFADE_CURVE_EQUAL_POWER
+    )
+    var showCrossfadeDurationDialog by remember { mutableStateOf(false) }
+    var crossfadeDurationInput by remember { mutableStateOf("") }
     val replayGainMode by settingsManager.replayGainMode.collectAsState(initial = SettingsManager.REPLAY_GAIN_OFF)
     val resumePlaybackPosition by settingsManager.resumePlaybackPosition.collectAsState(initial = false)
     val audioFocusDisabled by settingsManager.audioFocusDisabled.collectAsState(initial = false)
@@ -157,6 +170,25 @@ fun AudioSettingsScreen(
         stringResource(R.string.settings_replay_gain_auto)
     )
     val selectedReplayGainMode = replayGainMode.coerceIn(replayGainLabels.indices)
+    val crossfadeCurveLabels = listOf(
+        stringResource(R.string.settings_crossfade_curve_equal_power),
+        stringResource(R.string.settings_crossfade_curve_linear),
+        stringResource(R.string.settings_crossfade_curve_smooth),
+        stringResource(R.string.settings_crossfade_curve_flat)
+    )
+    val selectedCrossfadeCurve = crossfadeCurve.coerceIn(crossfadeCurveLabels.indices)
+    val crossfadeCurveEntries = listOf(
+        DropdownItem(
+            title = crossfadeCurveLabels[SettingsManager.CROSSFADE_CURVE_EQUAL_POWER],
+            summary = stringResource(R.string.settings_crossfade_curve_equal_power_summary)
+        ),
+        DropdownItem(title = crossfadeCurveLabels[SettingsManager.CROSSFADE_CURVE_LINEAR]),
+        DropdownItem(title = crossfadeCurveLabels[SettingsManager.CROSSFADE_CURVE_SMOOTH]),
+        DropdownItem(
+            title = crossfadeCurveLabels[SettingsManager.CROSSFADE_CURVE_FLAT],
+            summary = stringResource(R.string.settings_crossfade_curve_flat_summary)
+        )
+    )
     val startupPlayLabels = listOf(
         stringResource(R.string.settings_startup_play_off),
         stringResource(R.string.settings_startup_play_random),
@@ -374,18 +406,35 @@ fun AudioSettingsScreen(
                             scope.launch { settingsManager.setGaplessPlayback(it) }
                         }
                     )
-                    SettingsIntSliderPreference(
+                    ArrowPreference(
                         title = stringResource(R.string.settings_crossfade),
-                        summary = stringResource(R.string.settings_crossfade_summary),
-                        value = crossfadeDurationMs / 1_000,
-                        valueRange = 0..12,
-                        valueText = stringResource(
-                            R.string.settings_crossfade_value,
-                            crossfadeDurationMs / 1_000
+                        summary = stringResource(
+                            R.string.settings_crossfade_summary_with_value,
+                            stringResource(
+                                R.string.settings_crossfade_value,
+                                crossfadeDurationMs / 1_000f
+                            )
                         ),
-                        steps = 11,
-                        onValueChange = { seconds ->
-                            scope.launch { settingsManager.setCrossfadeDurationMs(seconds * 1_000) }
+                        onClick = {
+                            crossfadeDurationInput = String.format(
+                                java.util.Locale.ROOT,
+                                "%.2f",
+                                crossfadeDurationMs / 1_000.0
+                            )
+                            showCrossfadeDurationDialog = true
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_crossfade_curve),
+                        summary = stringResource(
+                            R.string.settings_current_value,
+                            crossfadeCurveLabels[selectedCrossfadeCurve]
+                        ),
+                        items = crossfadeCurveEntries,
+                        selectedIndex = selectedCrossfadeCurve,
+                        enabled = crossfadeDurationMs > 0,
+                        onSelectedIndexChange = { curve ->
+                            scope.launch { settingsManager.setCrossfadeCurve(curve) }
                         }
                     )
                     WindowSpinnerPreference(
@@ -491,6 +540,50 @@ fun AudioSettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(160.dp))
+        }
+    }
+
+    EllaMiuixDialog(
+        show = showCrossfadeDurationDialog,
+        title = stringResource(R.string.settings_crossfade_duration),
+        summary = stringResource(R.string.settings_crossfade_duration_summary),
+        onDismissRequest = { showCrossfadeDurationDialog = false }
+    ) {
+        Column {
+            EllaMiuixTextField(
+                value = crossfadeDurationInput,
+                onValueChange = { value ->
+                    crossfadeDurationInput = value.filter { character ->
+                        character.isDigit() || character == '.' || character == ','
+                    }
+                },
+                label = stringResource(R.string.settings_crossfade_duration_seconds),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
+            EllaMiuixDialogActions(
+                cancelText = stringResource(R.string.common_cancel),
+                confirmText = stringResource(R.string.common_save),
+                onCancel = { showCrossfadeDurationDialog = false },
+                onConfirm = {
+                    val normalizedInput = crossfadeDurationInput.trim().replace(',', '.')
+                    val seconds = normalizedInput.toDoubleOrNull()
+                    val hasValidPrecision = normalizedInput.matches(
+                        Regex("""\d{1,2}(?:\.\d{0,2})?""")
+                    )
+                    if (!hasValidPrecision || seconds == null || seconds !in 0.0..12.0) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_crossfade_duration_invalid),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        val durationMs = ((seconds * 100.0).roundToInt() * 10)
+                            .coerceIn(0, 12_000)
+                        scope.launch { settingsManager.setCrossfadeDurationMs(durationMs) }
+                        showCrossfadeDurationDialog = false
+                    }
+                }
+            )
         }
     }
 }

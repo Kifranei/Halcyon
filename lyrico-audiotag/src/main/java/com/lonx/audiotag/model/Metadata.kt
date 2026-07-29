@@ -9,11 +9,12 @@ import androidx.annotation.Keep
 public data class Metadata(
     val propertyMap: PropertyMap,
     val pictures: Array<Picture>,
+    val supportsTypedPictures: Boolean,
 ) {
 
     override fun toString(): String {
         return "Metadata(propertyMap=${propertyMap.mapValues { it.value.contentToString() }}, " +
-                "pictures=${pictures.contentToString()})"
+            "pictures=${pictures.contentToString()}, supportsTypedPictures=$supportsTypedPictures)"
     }
 
     override fun equals(other: Any?): Boolean {
@@ -21,6 +22,7 @@ public data class Metadata(
         if (other !is Metadata) return false
 
         if (propertyMap != other.propertyMap) return false
+        if (supportsTypedPictures != other.supportsTypedPictures) return false
 
         return pictures.contentEquals(other.pictures)
     }
@@ -28,6 +30,7 @@ public data class Metadata(
     override fun hashCode(): Int {
         var result = propertyMap.hashCode()
         result = 31 * result + pictures.contentHashCode()
+        result = 31 * result + supportsTypedPictures.hashCode()
         return result
     }
 }

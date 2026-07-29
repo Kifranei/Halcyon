@@ -10,18 +10,21 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Performs an opt-in, two-player crossfade without changing the MediaSession's primary player.
  *
- * The session player remains responsible for the queue, notification, and lyrics.  A silent
- * secondary player starts the next media item near the end of the current one, then hands its
- * current position back to the primary player as the queue advances.  Keeping the feature off by
- * default avoids a second decoder and extra network request for users who prefer gapless playback.
+ * The session player remains responsible for the queue, notification, and lyrics. A silent
+ * secondary player pre-buffers the next media item, fades it in while the primary finishes the
+ * current item, then stays audible until the primary is ready at the same target position. Keeping
+ * the feature off by default avoids a second decoder and extra network request for users who prefer
+ * gapless playback.
  */
 @UnstableApi
 internal class CrossfadePlaybackCoordinator(
@@ -37,28 +40,26 @@ internal class CrossfadePlaybackCoordinator(
         val sourceMediaId: String,
         val targetMediaId: String,
         val targetIndex: Int,
-        val startPositionMs: Long,
         val baseVolume: Float
     )
 
     private var crossfadeDurationMs = 0L
+    private var crossfadeCurve = CrossfadeTransitionMath.CURVE_EQUAL_POWER
     private var secondary: ExoPlayer? = null
     private var preparedSourceMediaId: String? = null
     private var preparedTargetMediaId: String? = null
     private var transition: ActiveTransition? = null
-    private var handoffJob: Job? = null
     private var handingOff = false
+    private var handoffStarted = false
 
-    private var monitorJob: Job? = null
+    private var monitorJob: kotlinx.coroutines.Job? = null
 
     private val primaryListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            transition?.let { active ->
-                secondary?.playWhenReady = isPlaying
-                if (!isPlaying) {
-                    primary.volume = active.baseVolume
-                    secondary?.volume = 0f
-                }
+            transition?.let {
+                // Buffering the incoming item reports isPlaying=false even though playWhenReady is
+                // still true. Keep the outgoing source audible until the target is actually ready.
+                secondary?.playWhenReady = primary.playWhenReady
             }
         }
 
@@ -68,7 +69,7 @@ internal class CrossfadePlaybackCoordinator(
                 return
             }
             if (mediaItem?.mediaId == active.targetMediaId) {
-                handOffToPrimary(active)
+                beginHandoff(active)
             } else {
                 cancelTransition()
             }
@@ -109,6 +110,10 @@ internal class CrossfadePlaybackCoordinator(
         }
     }
 
+    fun setCurve(curve: Int) {
+        crossfadeCurve = CrossfadeTransitionMath.normalizeCurve(curve)
+    }
+
     fun setAudioAttributes(attributes: AudioAttributes) {
         if (audioAttributes == attributes) return
         audioAttributes = attributes
@@ -119,62 +124,83 @@ internal class CrossfadePlaybackCoordinator(
         primary.removeListener(primaryListener)
         monitorJob?.cancel()
         monitorJob = null
-        handoffJob?.cancel()
-        handoffJob = null
         cancelTransition()
     }
 
     private fun update() {
         val fadeMs = crossfadeDurationMs
-        if (fadeMs <= 0L || !primary.isPlaying || primary.duration <= fadeMs) {
+        if (fadeMs <= 0L) {
             if (transition != null) cancelTransition()
             return
         }
-        val source = primary.currentMediaItem ?: run {
+        val current = primary.currentMediaItem ?: run {
             cancelTransition()
             return
         }
+        val active = transition
+        if (active != null) {
+            if (current.mediaId != active.sourceMediaId && current.mediaId != active.targetMediaId) {
+                cancelTransition()
+                return
+            }
+            val auxiliary = secondary ?: run {
+                cancelTransition()
+                return
+            }
+            auxiliary.playWhenReady = primary.playWhenReady
+            if (current.mediaId == active.targetMediaId || handoffStarted) {
+                beginHandoff(active)
+                updateHandoff(active, auxiliary)
+                return
+            }
+            if (!primary.playWhenReady) return
+            val gains = CrossfadeTransitionMath.gains(
+                progress = CrossfadeTransitionMath.fadeProgress(
+                    targetPositionMs = auxiliary.currentPosition,
+                    fadeDurationMs = fadeMs
+                ),
+                curve = crossfadeCurve
+            )
+            primary.volume = active.baseVolume * gains.outgoing
+            auxiliary.volume = active.baseVolume * gains.incoming
+            if (
+                gains.progress >= 1f ||
+                primary.playbackState == Player.STATE_ENDED ||
+                auxiliary.playbackState == Player.STATE_ENDED
+            ) {
+                beginHandoff(active)
+            }
+            return
+        }
+        if (!primary.isPlaying || primary.duration <= fadeMs) return
+
         val nextIndex = primary.nextMediaItemIndex
         if (nextIndex == C.INDEX_UNSET || nextIndex == primary.currentMediaItemIndex) {
-            if (transition != null) cancelTransition()
             return
         }
         val target = primary.getMediaItemAt(nextIndex)
         val remainingMs = (primary.duration - primary.currentPosition).coerceAtLeast(0L)
 
-        val active = transition
-        if (active != null) {
-            if (active.sourceMediaId != source.mediaId || active.targetMediaId != target.mediaId) {
-                cancelTransition()
-                return
-            }
-            val progress = ((primary.currentPosition - active.startPositionMs).toFloat() / fadeMs)
-                .coerceIn(0f, 1f)
-            primary.volume = active.baseVolume * (1f - progress)
-            secondary?.volume = active.baseVolume * progress
-            return
-        }
-
         if (remainingMs <= fadeMs + PREPARE_LEAD_MS) {
-            prepareSecondary(source, target)
+            prepareSecondary(current, target)
         }
         val candidate = secondary
         if (
             remainingMs <= fadeMs &&
             candidate?.playbackState == Player.STATE_READY &&
-            preparedSourceMediaId == source.mediaId &&
+            preparedSourceMediaId == current.mediaId &&
             preparedTargetMediaId == target.mediaId
         ) {
             val baseVolume = primary.volume.coerceIn(0f, 1f)
             candidate.volume = 0f
             candidate.playWhenReady = true
             transition = ActiveTransition(
-                sourceMediaId = source.mediaId,
+                sourceMediaId = current.mediaId,
                 targetMediaId = target.mediaId,
                 targetIndex = nextIndex,
-                startPositionMs = primary.currentPosition,
                 baseVolume = baseVolume
             )
+            handoffStarted = false
         }
     }
 
@@ -191,42 +217,70 @@ internal class CrossfadePlaybackCoordinator(
                 player.volume = 0f
                 player.setMediaItem(target)
                 player.prepare()
+                player.playWhenReady = false
             }
         preparedSourceMediaId = source.mediaId
         preparedTargetMediaId = target.mediaId
     }
 
-    private fun handOffToPrimary(active: ActiveTransition) {
+    private fun beginHandoff(active: ActiveTransition) {
+        if (transition !== active || handoffStarted) return
         val auxiliary = secondary ?: run {
             cancelTransition()
             return
         }
-        handoffJob?.cancel()
-        handoffJob = scope.launch {
-            handingOff = true
-            try {
-                primary.volume = 0f
-                primary.seekTo(active.targetIndex, auxiliary.currentPosition.coerceAtLeast(0L))
-                repeat(HANDOFF_STEPS) { step ->
-                    val progress = (step + 1).toFloat() / HANDOFF_STEPS
-                    primary.volume = active.baseVolume * progress
-                    auxiliary.volume = active.baseVolume * (1f - progress)
-                    delay(HANDOFF_STEP_MS)
-                }
-            } finally {
-                handingOff = false
-                clearSecondary()
-                transition = null
-                primary.volume = active.baseVolume
+        handoffStarted = true
+        primary.volume = 0f
+        primary.playWhenReady = auxiliary.playWhenReady
+        val targetPositionMs = auxiliary.currentPosition.coerceAtLeast(0L)
+        handingOff = true
+        try {
+            if (
+                primary.currentMediaItem?.mediaId != active.targetMediaId ||
+                CrossfadeTransitionMath.shouldResyncHandoff(
+                    primary.currentPosition - targetPositionMs
+                )
+            ) {
+                primary.seekTo(active.targetIndex, targetPositionMs)
             }
+        } finally {
+            handingOff = false
         }
     }
 
+    private fun updateHandoff(active: ActiveTransition, auxiliary: ExoPlayer) {
+        if (
+            primary.currentMediaItem?.mediaId != active.targetMediaId ||
+            primary.playbackState != Player.STATE_READY
+        ) {
+            return
+        }
+        val driftMs = primary.currentPosition - auxiliary.currentPosition
+        if (CrossfadeTransitionMath.shouldResyncHandoff(driftMs)) {
+            handingOff = true
+            try {
+                primary.seekTo(active.targetIndex, auxiliary.currentPosition.coerceAtLeast(0L))
+            } finally {
+                handingOff = false
+            }
+            return
+        }
+        finishTransition(active)
+    }
+
+    private fun finishTransition(active: ActiveTransition) {
+        if (transition !== active) return
+        transition = null
+        handoffStarted = false
+        secondary?.volume = 0f
+        primary.volume = active.baseVolume
+        clearSecondary()
+    }
+
     private fun cancelTransition() {
-        handoffJob?.cancel()
-        handoffJob = null
         val baseVolume = transition?.baseVolume
         transition = null
+        handoffStarted = false
         clearSecondary()
         if (baseVolume != null) primary.volume = baseVolume
     }
@@ -243,7 +297,51 @@ internal class CrossfadePlaybackCoordinator(
         const val PREPARE_LEAD_MS = 1_500L
         const val IDLE_TICK_MS = 250L
         const val ACTIVE_TICK_MS = 16L
-        const val HANDOFF_STEPS = 8
-        const val HANDOFF_STEP_MS = 16L
     }
+}
+
+internal object CrossfadeTransitionMath {
+    const val CURVE_EQUAL_POWER = 0
+    const val CURVE_LINEAR = 1
+    const val CURVE_SMOOTH = 2
+    const val CURVE_FLAT = 3
+
+    private const val HANDOFF_RESYNC_THRESHOLD_MS = 120L
+
+    data class Gains(
+        val progress: Float,
+        val incoming: Float,
+        val outgoing: Float
+    )
+
+    fun fadeProgress(targetPositionMs: Long, fadeDurationMs: Long): Float {
+        if (fadeDurationMs <= 0L) return 1f
+        return (targetPositionMs.toFloat() / fadeDurationMs).coerceIn(0f, 1f)
+    }
+
+    fun normalizeCurve(curve: Int): Int = curve.coerceIn(CURVE_EQUAL_POWER, CURVE_FLAT)
+
+    fun gains(progress: Float, curve: Int): Gains {
+        val safeProgress = progress.coerceIn(0f, 1f)
+        val (incoming, outgoing) = when (normalizeCurve(curve)) {
+            CURVE_LINEAR -> safeProgress to (1f - safeProgress)
+            CURVE_SMOOTH -> {
+                val smooth = safeProgress * safeProgress * (3f - 2f * safeProgress)
+                smooth to (1f - smooth)
+            }
+            CURVE_FLAT -> 1f to 1f
+            else -> {
+                val angle = safeProgress * (PI.toFloat() / 2f)
+                sin(angle) to cos(angle)
+            }
+        }
+        return Gains(
+            progress = safeProgress,
+            incoming = incoming.coerceIn(0f, 1f),
+            outgoing = outgoing.coerceIn(0f, 1f)
+        )
+    }
+
+    fun shouldResyncHandoff(positionDriftMs: Long): Boolean =
+        kotlin.math.abs(positionDriftMs) > HANDOFF_RESYNC_THRESHOLD_MS
 }

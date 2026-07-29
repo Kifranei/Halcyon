@@ -41,4 +41,14 @@ class NeteaseKeyMvTest {
             ).hasDecodedContent
         )
     }
+
+    @Test
+    fun decodesTranslatedNamesFrom163KeyJson() {
+        val info = decodeNeteaseKey(
+            """{"musicId":123456,"musicName":"Original","transNames":["译名一","译名二"]}"""
+        )
+
+        assertEquals(listOf("译名一", "译名二"), info?.translatedNames)
+        assertTrue(info?.hasDecodedContent == true)
+    }
 }

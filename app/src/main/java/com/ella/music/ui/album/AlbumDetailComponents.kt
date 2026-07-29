@@ -55,6 +55,9 @@ import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -549,16 +552,26 @@ internal fun AlbumHeader(
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = stringResource(R.string.album_introduction_entry),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .clickable(onClick = onIntroductionClick)
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                )
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.album_introduction_entry),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    Icon(
+                        imageVector = MiuixIcons.Basic.ArrowRight,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
 

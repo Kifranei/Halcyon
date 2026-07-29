@@ -4,10 +4,13 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
-import com.ella.music.MainActivity
 
 object AppIconManager {
 
+    // Launcher aliases are declared in the source namespace even when a build is repackaged.
+    // Do not derive this through Class.packageName: it compiles to Class.getPackageName(), which
+    // only exists on Android 12+ and crashes Android 10/11 during Application startup.
+    private const val LAUNCHER_ALIAS_PACKAGE = "com.ella.music"
     private const val DEFAULT_ALIAS = ".DefaultLauncherAlias"
     private const val ANIME_ALIAS = ".AnimeLauncherAlias"
     private const val BLACK_HAIR_ALIAS = ".BlackHairLauncherAlias"
@@ -105,7 +108,7 @@ object AppIconManager {
         ComponentName(applicationId, launcherAliasClassName(aliasSuffix))
 
     internal fun launcherAliasClassName(aliasSuffix: String): String =
-        "${MainActivity::class.java.packageName}$aliasSuffix"
+        "$LAUNCHER_ALIAS_PACKAGE$aliasSuffix"
 
     private const val TAG = "AppIconManager"
 }

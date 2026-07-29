@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -64,6 +65,7 @@ internal fun LibrarySearchResultsPane(
     onNavigateToPlayer: () -> Unit
 ) {
     val context = LocalContext.current
+    val collapsedSongSections = remember(trimmedQuery, filter) { mutableStateMapOf<Int, Boolean>() }
     if (songs.isEmpty() && !libraryCacheLoaded) {
         com.ella.music.ui.components.EllaCenteredLoadingIndicator()
         return
@@ -100,62 +102,71 @@ internal fun LibrarySearchResultsPane(
         if (songResults.isNotEmpty()) {
             songResultGroups.forEach { (labelRes, entries) ->
                 item {
-                    SearchSectionHeader(stringResource(labelRes) + " (${entries.size})")
+                    val collapsed = collapsedSongSections[labelRes] == true
+                    SearchSectionHeader(
+                        text = stringResource(labelRes) + " (${entries.size})",
+                        collapsed = collapsed,
+                        onHeaderClick = {
+                            collapsedSongSections[labelRes] = !collapsed
+                        }
+                    )
                 }
-                items(entries, key = { entry ->
-                    val result = entry.result
-                    "${result.song.id}:${result.song.path}:${result.lyricSnippet.orEmpty()}:$labelRes:${entry.keySuffix}"
-                }) { entry ->
-                    val result = entry.result
-                    val selected = result.song.searchIdentityKey() in selectedSongKeys
-                    Column {
-                        SongItem(
-                            song = result.song,
-                            isCurrent = currentSong?.id == result.song.id,
-                            loadCoverArt = { song -> mainViewModel.getCoverArtBitmap(song) },
-                            loadAudioInfo = mainViewModel::getAudioInfo,
-                            showPlayNextInLists = showPlayNextInLists,
-                            ratingDisplayMode = songRatingDisplayMode,
-                            selectionMode = selectionMode,
-                            selected = selected,
-                            onPlayNext = {
-                                playerViewModel.playNext(result.song)
-                                Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                            },
-                            onClick = {
-                                if (selectionMode) {
-                                    onToggleSongSelection(result.song)
-                                } else {
-                                    val playbackSongs = if (excludeSearchResultsFromPlaylist) {
-                                        listOf(result.song)
+                if (collapsedSongSections[labelRes] != true) {
+                    items(entries, key = { entry ->
+                        val result = entry.result
+                        "${result.song.id}:${result.song.path}:${result.lyricSnippet.orEmpty()}:$labelRes:${entry.keySuffix}"
+                    }) { entry ->
+                        val result = entry.result
+                        val selected = result.song.searchIdentityKey() in selectedSongKeys
+                        Column {
+                            SongItem(
+                                song = result.song,
+                                isCurrent = currentSong?.id == result.song.id,
+                                loadCoverArt = { song -> mainViewModel.getCoverArtBitmap(song) },
+                                loadAudioInfo = mainViewModel::getAudioInfo,
+                                showPlayNextInLists = showPlayNextInLists,
+                                ratingDisplayMode = songRatingDisplayMode,
+                                selectionMode = selectionMode,
+                                selected = selected,
+                                onPlayNext = {
+                                    playerViewModel.playNext(result.song)
+                                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                                },
+                                onClick = {
+                                    if (selectionMode) {
+                                        onToggleSongSelection(result.song)
                                     } else {
-                                        songResults.map { it.song }
+                                        val playbackSongs = if (excludeSearchResultsFromPlaylist) {
+                                            listOf(result.song)
+                                        } else {
+                                            songResults.map { it.song }
+                                        }
+                                        val index = if (excludeSearchResultsFromPlaylist) {
+                                            0
+                                        } else {
+                                            playbackSongs.indexOfFirst {
+                                                it.id == result.song.id && it.path == result.song.path
+                                            }.coerceAtLeast(0)
+                                        }
+                                        playerViewModel.setPlaylist(playbackSongs, index)
+                                        onCommitSearch()
+                                        onNavigateToPlayer()
                                     }
-                                    val index = if (excludeSearchResultsFromPlaylist) {
-                                        0
+                                },
+                                onLongClick = {
+                                    if (songSelectionAvailable) {
+                                        onEnterSongSelection(result.song)
                                     } else {
-                                        playbackSongs.indexOfFirst {
-                                            it.id == result.song.id && it.path == result.song.path
-                                        }.coerceAtLeast(0)
+                                        onSongAction(result.song)
                                     }
-                                    playerViewModel.setPlaylist(playbackSongs, index)
-                                    onCommitSearch()
-                                    onNavigateToPlayer()
-                                }
-                            },
-                            onLongClick = {
-                                if (songSelectionAvailable) {
-                                    onEnterSongSelection(result.song)
-                                } else {
-                                    onSongAction(result.song)
-                                }
-                            },
-                            onMore = { onSongAction(result.song) }
-                        )
-                        result.lyricSnippet?.let { snippet ->
-                            LyricSearchMatchLine(snippet = snippet, query = trimmedQuery)
-                        } ?: entry.match?.let { match ->
-                            SongSearchMatchLine(match = match, query = trimmedQuery)
+                                },
+                                onMore = { onSongAction(result.song) }
+                            )
+                            result.lyricSnippet?.let { snippet ->
+                                LyricSearchMatchLine(snippet = snippet, query = trimmedQuery)
+                            } ?: entry.match?.let { match ->
+                                SongSearchMatchLine(match = match, query = trimmedQuery)
+                            }
                         }
                     }
                 }

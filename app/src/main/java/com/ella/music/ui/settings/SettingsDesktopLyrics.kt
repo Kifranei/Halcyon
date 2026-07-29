@@ -133,6 +133,10 @@ internal fun SettingsDesktopLyricControls(
     }
 
     fun applyDesktopLyricSettings() {
+        context.startService(
+            Intent(context, DesktopLyricService::class.java)
+                .setAction(DesktopLyricService.ACTION_APPLY_SETTINGS)
+        )
         playerViewModel?.applyDesktopLyricSettings()
     }
 

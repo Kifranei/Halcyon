@@ -642,10 +642,32 @@ class DesktopLyricService : Service() {
         statusBarSecondaryMode = settingsManager.desktopLyricStatusBarSecondary.first(),
         statusBarSecondaryOpacity = settingsManager.desktopLyricStatusBarSecondaryOpacity.first(),
         statusBarMergeSecondary = settingsManager.desktopLyricStatusBarMergeSecondary.first(),
-        fontScale = settingsManager.desktopLyricFontScale.first().coerceIn(80, 220) / 100f,
-        translationScale = settingsManager.desktopLyricTranslationScale.first().coerceIn(80, 220) / 100f,
-        opacityPercent = settingsManager.desktopLyricOpacity.first().coerceIn(35, 100),
-        lyricTextColor = settingsManager.desktopLyricTextColor.first(),
+        fontScale = (
+            if (currentStatusBarMode) {
+                settingsManager.desktopLyricStatusBarFontScale.first()
+            } else {
+                settingsManager.desktopLyricFontScale.first()
+            }
+            ).coerceIn(80, 220) / 100f,
+        translationScale = (
+            if (currentStatusBarMode) {
+                settingsManager.desktopLyricStatusBarTranslationScale.first()
+            } else {
+                settingsManager.desktopLyricTranslationScale.first()
+            }
+            ).coerceIn(80, 220) / 100f,
+        opacityPercent = (
+            if (currentStatusBarMode) {
+                settingsManager.desktopLyricStatusBarOpacity.first()
+            } else {
+                settingsManager.desktopLyricOpacity.first()
+            }
+            ).coerceIn(35, 100),
+        lyricTextColor = if (currentStatusBarMode) {
+            settingsManager.desktopLyricStatusBarTextColor.first()
+        } else {
+            settingsManager.desktopLyricTextColor.first()
+        },
         // When "apply font to desktop lyric" is off, pass an empty path so the lyric view falls
         // back to the system default typeface instead of the custom lyric font.
         lyricFontPath = if (settingsManager.lyricFontApplyToDesktop.first()) {

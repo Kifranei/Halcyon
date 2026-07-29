@@ -24,6 +24,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_SCRIPT
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_URL
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCES_JSON
 import com.ella.music.data.SettingsManager.Companion.KEY_MCP_SERVER_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_WEB_MUSIC_SERVER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_NAVIDROME_ACTIVE_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_NAVIDROME_PASSWORD
 import com.ella.music.data.SettingsManager.Companion.KEY_NAVIDROME_SERVERS
@@ -66,6 +67,7 @@ import kotlinx.coroutines.flow.map
  */
 interface RemoteSourceSettingsAccess {
     val mcpServerEnabled: Flow<Boolean>
+    val webMusicServerEnabled: Flow<Boolean>
     val webDavUrl: Flow<String>
     val webDavUsername: Flow<String>
     val webDavPassword: Flow<String>
@@ -98,6 +100,7 @@ interface RemoteSourceSettingsAccess {
     val openAiBaseUrl: Flow<String>
     val openAiModel: Flow<String>
     suspend fun setMcpServerEnabled(enabled: Boolean)
+    suspend fun setWebMusicServerEnabled(enabled: Boolean)
     suspend fun setLibrarySource(source: String)
     suspend fun setWebDavConfig(url: String, username: String, password: String)
     suspend fun setWebDavLastUrl(url: String)
@@ -132,6 +135,8 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
 
     override val mcpServerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MCP_SERVER_ENABLED] ?: false }
+    override val webMusicServerEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_WEB_MUSIC_SERVER_ENABLED] ?: false }
 
     override val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
     override val webDavUsername: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_USERNAME] ?: "" }
@@ -245,6 +250,10 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
 
     override suspend fun setMcpServerEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MCP_SERVER_ENABLED] = enabled }
+    }
+
+    override suspend fun setWebMusicServerEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_WEB_MUSIC_SERVER_ENABLED] = enabled }
     }
 
     override suspend fun setLibrarySource(source: String) {

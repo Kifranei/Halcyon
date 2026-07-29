@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -35,6 +36,9 @@ import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.viewmodel.MetadataCategoryItem
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -56,11 +60,20 @@ internal fun SearchPill(text: String, selected: Boolean, onClick: () -> Unit) {
 internal fun SearchSectionHeader(
     text: String,
     actionText: String? = null,
-    onActionClick: (() -> Unit)? = null
+    onActionClick: (() -> Unit)? = null,
+    collapsed: Boolean? = null,
+    onHeaderClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (onHeaderClick != null) {
+                    Modifier.clickable(onClick = onHeaderClick)
+                } else {
+                    Modifier
+                }
+            )
             .padding(start = 16.dp, end = 24.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -71,6 +84,17 @@ internal fun SearchSectionHeader(
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.weight(1f)
         )
+        collapsed?.let { isCollapsed ->
+            Icon(
+                imageVector = MiuixIcons.Basic.ArrowRight,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .size(20.dp)
+                    .rotate(if (isCollapsed) 0f else 90f)
+            )
+        }
         if (actionText != null && onActionClick != null) {
             Text(
                 text = actionText,

@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.Ella" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowDisablePreview">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>

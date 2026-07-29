@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Halcyon Web Beta</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0d0d12;--card:#1a1a22;--text:#f7f7fb;--muted:#a4a4b2;--accent:#4d8dff}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#24345c 0,transparent 35%),var(--bg);font:15px system-ui;color:var(--text)}
+    header{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;padding:18px 5vw;background:#0d0d12e8;backdrop-filter:blur(18px)}
+    h1{font-size:20px;margin:0;white-space:nowrap}.beta{font-size:11px;padding:3px 7px;border-radius:99px;background:var(--accent)}
+    input[type=search]{min-width:0;flex:1;background:var(--card);color:inherit;border:0;border-radius:14px;padding:12px 15px}
+    button,.upload{border:0;border-radius:14px;background:var(--accent);color:white;padding:11px 15px;font-weight:650;cursor:pointer}
+    main{padding:10px 5vw 130px}.notice{color:var(--muted);margin:3px 0 16px}.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:9px}
+    .song{display:flex;gap:12px;align-items:center;padding:10px;background:#1a1a22cc;border-radius:16px;cursor:pointer}.song:hover{background:#292936}
+    .song img{width:54px;height:54px;border-radius:11px;object-fit:cover;background:#30303b}.meta{min-width:0}.title,.artist{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.title{font-weight:700}.artist{color:var(--muted);margin-top:4px}
+    .player{position:fixed;z-index:3;left:3vw;right:3vw;bottom:14px;display:flex;align-items:center;gap:13px;padding:12px 15px;border:1px solid #ffffff18;border-radius:22px;background:#181820e8;backdrop-filter:blur(24px)}
+    .player img{width:60px;height:60px;border-radius:13px;object-fit:cover}.player .meta{width:min(260px,30vw)}audio{flex:1;min-width:120px}
+    #file{display:none}@media(max-width:650px){header{flex-wrap:wrap}h1{width:100%}.player{flex-wrap:wrap}.player .meta{width:calc(100% - 78px)}audio{width:100%}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Halcyon Web <span class="beta">BETA</span></h1>
+  <input id="search" type="search" placeholder="搜索歌曲、艺术家或专辑">
+  <label class="upload" for="file">上传音乐</label><input id="file" type="file" accept="audio/*,.flac,.wav,.m4a,.ogg,.opus" multiple>
+</header>
+<main><p class="notice" id="status">仅限可信局域网使用；Beta 版暂不提供访问密码。</p><div id="list" class="list"></div></main>
+<section class="player">
+  <img id="cover" alt=""><div class="meta"><div id="title" class="title">选择一首歌曲</div><div id="artist" class="artist">Halcyon</div></div>
+  <audio id="audio" controls preload="metadata"></audio>
+</section>
+<script>
+const list=document.querySelector('#list'),q=document.querySelector('#search'),audio=document.querySelector('#audio');
+const status=document.querySelector('#status'),title=document.querySelector('#title'),artist=document.querySelector('#artist'),cover=document.querySelector('#cover');
+let timer;
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+async function load(){
+  status.textContent='正在读取曲库…';
+  const songs=await fetch('/api/songs?q='+encodeURIComponent(q.value)).then(r=>r.json());
+  status.textContent=`找到 ${songs.length} 首歌曲 · 仅限可信局域网使用`;
+  list.innerHTML=songs.map((s,i)=>`<article class="song" data-i="${i}"><img loading="lazy" src="${s.cover}"><div class="meta"><div class="title">${esc(s.title)}</div><div class="artist">${esc(s.artist)} · ${esc(s.album)}</div></div></article>`).join('');
+  list.onclick=e=>{const row=e.target.closest('.song');if(!row)return;const s=songs[+row.dataset.i];title.textContent=s.title;artist.textContent=s.artist;cover.src=s.cover;audio.src=s.stream;audio.play()}
+}
+q.oninput=()=>{clearTimeout(timer);timer=setTimeout(load,220)};
+document.querySelector('#file').onchange=async e=>{
+  for(const file of e.target.files){status.textContent=`正在上传 ${file.name}…`;const r=await fetch('/api/upload?name='+encodeURIComponent(file.name),{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});if(!r.ok){status.textContent=`上传失败：${file.name}`;return}}
+  status.textContent='上传完成；系统媒体库更新后即可在 Halcyon 中扫描到。';e.target.value=''
+};
+load().catch(e=>status.textContent='无法读取曲库：'+e.message);
+</script>
+</body>
+</html>

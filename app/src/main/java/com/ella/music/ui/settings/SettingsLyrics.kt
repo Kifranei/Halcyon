@@ -48,6 +48,7 @@ internal fun SettingsLyricsSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsState(initial = emptyList())
     val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
+    val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
 
@@ -66,6 +67,14 @@ internal fun SettingsLyricsSection(
                 checked = ignoreLyricHeaderTags,
                 onCheckedChange = { enabled ->
                     scope.launch { settingsManager.setIgnoreLyricHeaderTags(enabled) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_hide_lyric_extra_info),
+                summary = stringResource(R.string.settings_hide_lyric_extra_info_summary),
+                checked = hideLyricExtraInfo,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setHideLyricExtraInfo(enabled) }
                 }
             )
             ArrowPreference(

@@ -62,9 +62,12 @@ class SettingsManager(private val context: Context) :
         val KEY_AUTO_SCAN_LOCAL_PLAYLISTS = booleanPreferencesKey("auto_scan_local_playlists")
         val KEY_GAPLESS = booleanPreferencesKey("gapless_playback")
         val KEY_CROSSFADE_DURATION_MS = intPreferencesKey("crossfade_duration_ms")
+        val KEY_CROSSFADE_CURVE = intPreferencesKey("crossfade_curve")
         val KEY_THEME_MODE = intPreferencesKey("theme_mode")
         val KEY_MONET_COLOR_MODE = intPreferencesKey("monet_color_mode")
         val KEY_PLAYER_BACKGROUND_THEME = intPreferencesKey("player_background_theme")
+        val KEY_APP_FONT_SCALE_PERCENT = intPreferencesKey("app_font_scale_percent")
+        val KEY_APP_DISPLAY_SCALE_PERCENT = intPreferencesKey("app_display_scale_percent")
         val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_APP_ICON_STYLE = stringPreferencesKey("app_icon_style")
         val KEY_WIDGET_SAFE_LAYOUT = booleanPreferencesKey("widget_safe_layout")
@@ -118,6 +121,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LYRIC_SOURCE_PRIORITY = stringPreferencesKey("lyric_source_priority")
         val KEY_LYRICO_PLUGIN_ENABLED_IDS = stringPreferencesKey("lyrico_plugin_enabled_ids")
         val KEY_IGNORE_LYRIC_HEADER_TAGS = booleanPreferencesKey("ignore_lyric_header_tags")
+        val KEY_HIDE_LYRIC_EXTRA_INFO = booleanPreferencesKey("hide_lyric_extra_info")
         val KEY_LYRIC_LINE_BLACKLIST = stringPreferencesKey("lyric_line_blacklist")
         val KEY_LYRIC_OFFSET_OVERRIDES = stringPreferencesKey("lyric_offset_overrides")
         val KEY_PLAYER_LYRIC_TEXT_ALIGN = intPreferencesKey("player_lyric_text_align")
@@ -138,10 +142,15 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYER_COVER_SWIPE_ENABLED = booleanPreferencesKey("player_cover_swipe_enabled")
         val KEY_LYRIC_PARSER_ENGINE = intPreferencesKey("lyric_parser_engine")
         val KEY_PLAYER_TITLE_POSITION = intPreferencesKey("player_title_position")
+        val KEY_PLAYER_LANDSCAPE_STYLE = intPreferencesKey("player_landscape_style")
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_PLAYER_IMMERSIVE_COVER = booleanPreferencesKey("player_immersive_cover")
         val KEY_PLAYER_COVER_CONTENT_COLOR = booleanPreferencesKey("player_cover_content_color")
+        val KEY_SYSTEM_BARS_MODE = intPreferencesKey("system_bars_mode")
+        val KEY_SYSTEM_BARS_RESERVE_SPACE =
+            booleanPreferencesKey("system_bars_reserve_space")
+        // Kept so older backups and installations can migrate the former all-or-nothing switch.
         val KEY_HIDE_SYSTEM_BARS = booleanPreferencesKey("hide_system_bars")
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
@@ -227,6 +236,7 @@ class SettingsManager(private val context: Context) :
         val KEY_HI_RES_LOGO_ENABLED = booleanPreferencesKey("hi_res_logo_enabled")
         val KEY_HI_RES_LOGO_URI = stringPreferencesKey("hi_res_logo_uri")
         val KEY_MCP_SERVER_ENABLED = booleanPreferencesKey("mcp_server_enabled")
+        val KEY_WEB_MUSIC_SERVER_ENABLED = booleanPreferencesKey("web_music_server_enabled")
         val KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE = booleanPreferencesKey("playlist_special_entries_visible")
         val KEY_PLAYLIST_CUSTOM_ORDER = stringPreferencesKey("playlist_custom_order")
         val KEY_SHOW_PLAY_NEXT_IN_LISTS = booleanPreferencesKey("show_play_next_in_lists")
@@ -401,9 +411,45 @@ class SettingsManager(private val context: Context) :
         const val REPLAY_GAIN_AUTO = 3
         const val PLAYER_TITLE_POSITION_BELOW_COVER = 0
         const val PLAYER_TITLE_POSITION_ABOVE_COVER = 1
+        const val PLAYER_LANDSCAPE_STYLE_WIDE = 0
+        const val PLAYER_LANDSCAPE_STYLE_COVER_FLOW = 2
+        const val PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO = 3
+        const val DEFAULT_PLAYER_LANDSCAPE_STYLE = PLAYER_LANDSCAPE_STYLE_WIDE
+
+        fun normalizePlayerLandscapeStyle(style: Int?): Int = when (style) {
+            PLAYER_LANDSCAPE_STYLE_WIDE,
+            PLAYER_LANDSCAPE_STYLE_COVER_FLOW,
+            PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO -> style
+            else -> DEFAULT_PLAYER_LANDSCAPE_STYLE
+        }
+
+        const val SYSTEM_BARS_MODE_SHOW_BOTH = 0
+        const val SYSTEM_BARS_MODE_HIDE_STATUS = 1
+        const val SYSTEM_BARS_MODE_HIDE_NAVIGATION = 2
+        const val SYSTEM_BARS_MODE_HIDE_BOTH = 3
+        const val DEFAULT_SYSTEM_BARS_RESERVE_SPACE = true
+
+        const val DEFAULT_APP_FONT_SCALE_PERCENT = 100
+        const val APP_FONT_SCALE_MIN_PERCENT = 75
+        const val APP_FONT_SCALE_MAX_PERCENT = 175
+        const val DEFAULT_APP_DISPLAY_SCALE_PERCENT = 100
+        const val APP_DISPLAY_SCALE_MIN_PERCENT = 80
+        const val APP_DISPLAY_SCALE_MAX_PERCENT = 160
+
+        fun resolveSystemBarsMode(storedMode: Int?, legacyHideSystemBars: Boolean): Int =
+            (storedMode ?: if (legacyHideSystemBars) {
+                SYSTEM_BARS_MODE_HIDE_BOTH
+            } else {
+                SYSTEM_BARS_MODE_SHOW_BOTH
+            }).coerceIn(SYSTEM_BARS_MODE_SHOW_BOTH, SYSTEM_BARS_MODE_HIDE_BOTH)
 
         const val PREVIOUS_BUTTON_PREVIOUS = 0
         const val PREVIOUS_BUTTON_REPLAY_CURRENT = 1
+
+        const val CROSSFADE_CURVE_EQUAL_POWER = 0
+        const val CROSSFADE_CURVE_LINEAR = 1
+        const val CROSSFADE_CURVE_SMOOTH = 2
+        const val CROSSFADE_CURVE_FLAT = 3
         const val PREVIOUS_REPLAY_THRESHOLD_MS = 20_000L
 
         const val PLAY_NEXT_MODE_REVERSE_STACK = 0
@@ -538,8 +584,8 @@ class SettingsManager(private val context: Context) :
         const val MINI_PLAYER_RIGHT_QUEUE = 1
         const val STARTUP_POSTER_DURATION_MIN_MS = 100
         const val STARTUP_POSTER_DURATION_MAX_MS = 3_000
-        // Keep the established three-second default; the new control lets users shorten it.
-        const val DEFAULT_STARTUP_POSTER_DURATION_MS = 3_000
+        // Keep startup responsive while still allowing the poster to be noticed.
+        const val DEFAULT_STARTUP_POSTER_DURATION_MS = 1_000
         const val SONG_RATING_DISPLAY_STAR_NUMBER = 0
         const val SONG_RATING_DISPLAY_STARS = 1
         val SEARCH_ALL_CATEGORY_TYPES = setOf("folder", "composer", "arranger", "lyricist", "genre", "year")
@@ -785,6 +831,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_AUTO_SCAN_LOCAL_PLAYLISTS)
             setBoolean(KEY_GAPLESS)
             setInt(KEY_CROSSFADE_DURATION_MS)
+            setInt(KEY_CROSSFADE_CURVE)
             setBoolean(KEY_TICKER_ENABLED)
             setBoolean(KEY_TICKER_HIDE_NOTIFICATION)
             setBoolean(KEY_TICKER_HEADS_UP_LYRICS)
@@ -803,6 +850,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_SUPER_LYRIC_PRONUNCIATION)
             setBoolean(KEY_LYRIC_GETTER_ENABLED)
             setBoolean(KEY_IGNORE_LYRIC_HEADER_TAGS)
+            setBoolean(KEY_HIDE_LYRIC_EXTRA_INFO)
             setBoolean(KEY_REPLAYGAIN_ENABLED)
             setInt(KEY_REPLAYGAIN_MODE)
             setBoolean(KEY_RESUME_PLAYBACK_POSITION)
@@ -831,6 +879,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
             setBoolean(KEY_PLAYER_COVER_CONTENT_COLOR)
             setBoolean(KEY_WIDGET_SAFE_LAYOUT)
+            setInt(KEY_SYSTEM_BARS_MODE)
+            setBoolean(KEY_SYSTEM_BARS_RESERVE_SPACE)
             setBoolean(KEY_HIDE_SYSTEM_BARS)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
@@ -866,6 +916,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_HOME_DAILY_MIX_VISIBLE)
             setBoolean(KEY_HOME_AI_MIX_VISIBLE)
             setBoolean(KEY_MCP_SERVER_ENABLED)
+            setBoolean(KEY_WEB_MUSIC_SERVER_ENABLED)
             setBoolean(KEY_SLEEP_TIMER_STOP_AFTER_CURRENT)
             setBoolean(KEY_EQ_ENABLED)
             setBoolean(KEY_COMP_ENABLED)
@@ -886,6 +937,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_USB_DAC_MODE)
 
             setInt(KEY_THEME_MODE)
+            setInt(KEY_APP_FONT_SCALE_PERCENT)
+            setInt(KEY_APP_DISPLAY_SCALE_PERCENT)
             setInt(KEY_MONET_COLOR_MODE)
             setInt(KEY_PLAYER_BACKGROUND_THEME)
             setInt(KEY_EQ_PRESET)
@@ -930,6 +983,7 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_LYRIC_SOURCE_MODE)
             setInt(KEY_LYRIC_PARSER_ENGINE)
             setInt(KEY_PLAYER_TITLE_POSITION)
+            setInt(KEY_PLAYER_LANDSCAPE_STYLE)
             setInt(KEY_PLAYER_LYRIC_TEXT_ALIGN)
             setInt(KEY_DESKTOP_LYRIC_FONT_SCALE)
             setInt(KEY_DESKTOP_LYRIC_WIDTH)

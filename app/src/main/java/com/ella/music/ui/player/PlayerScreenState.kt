@@ -54,27 +54,12 @@ internal class PlayerScreenUiState(
 }
 
 internal class PlayerLandscapeUiState(
-    private val expandedState: MutableState<Boolean>,
-    private val coverModeState: MutableState<Boolean>,
-    private val openedFromMusicVideoState: MutableState<Boolean>
+    private val expandedState: MutableState<Boolean>
 ) {
     var expanded: Boolean
         get() = expandedState.value
         set(value) {
             expandedState.value = value
-        }
-
-    var coverMode: Boolean
-        get() = coverModeState.value
-        set(value) {
-            coverModeState.value = value
-        }
-
-    /** Only the cover MV rotate action is allowed to use the MV as a landscape background. */
-    var openedFromMusicVideo: Boolean
-        get() = openedFromMusicVideoState.value
-        set(value) {
-            openedFromMusicVideoState.value = value
         }
 }
 
@@ -84,9 +69,7 @@ internal fun rememberPlayerScreenUiState(): PlayerScreenUiState = remember { Pla
 @Composable
 internal fun rememberPlayerLandscapeUiState(): PlayerLandscapeUiState {
     val expandedState = rememberSaveable { mutableStateOf(false) }
-    val coverModeState = rememberSaveable { mutableStateOf(false) }
-    val openedFromMusicVideoState = rememberSaveable { mutableStateOf(false) }
-    return remember(expandedState, coverModeState, openedFromMusicVideoState) {
-        PlayerLandscapeUiState(expandedState, coverModeState, openedFromMusicVideoState)
+    return remember(expandedState) {
+        PlayerLandscapeUiState(expandedState)
     }
 }

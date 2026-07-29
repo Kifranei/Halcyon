@@ -7,6 +7,40 @@ import org.junit.Test
 
 class PlayerLyricDisplayPreparationTest {
     @Test
+    fun extraInformationFilterIncludesLongAndShortChineseCreditPrefixes() {
+        val lyrics = listOf(
+            LyricLine(timeMs = 0L, text = "作词：甲"),
+            LyricLine(timeMs = 1_000L, text = "作曲：乙"),
+            LyricLine(timeMs = 2_000L, text = "词：丙"),
+            LyricLine(timeMs = 3_000L, text = "曲：丁"),
+            LyricLine(timeMs = 4_000L, text = "正常歌词")
+        )
+
+        val prepared = lyrics.preparedForDisplay(
+            rules = emptyList(),
+            hideExtraInfo = true
+        )
+
+        assertEquals(listOf("正常歌词"), prepared.map { it.text })
+    }
+
+    @Test
+    fun extraInformationFilterCanBeDisabled() {
+        val lyrics = listOf(
+            LyricLine(timeMs = 0L, text = "作词：甲"),
+            LyricLine(timeMs = 1_000L, text = "曲：乙"),
+            LyricLine(timeMs = 2_000L, text = "正常歌词")
+        )
+
+        val prepared = lyrics.preparedForDisplay(
+            rules = emptyList(),
+            hideExtraInfo = false
+        )
+
+        assertEquals(listOf("作词：甲", "曲：乙", "正常歌词"), prepared.map { it.text })
+    }
+
+    @Test
     fun sameTimestampUntimedCompanionDisplaysAsTranslation() {
         val lyrics = listOf(
             LyricLine(

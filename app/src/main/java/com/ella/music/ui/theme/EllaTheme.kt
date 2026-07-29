@@ -3,10 +3,16 @@ package com.ella.music.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import com.ella.music.data.SettingsManager
 import com.ella.music.ui.settings.SYSTEM_FONT_PATH
 import com.ella.music.ui.components.loadAndroidTypeface
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -61,6 +67,25 @@ fun EllaTheme(
         }
     }
     val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val appFontScalePercent by settingsManager.appFontScalePercent.collectAsState(
+        initial = SettingsManager.DEFAULT_APP_FONT_SCALE_PERCENT
+    )
+    val appDisplayScalePercent by settingsManager.appDisplayScalePercent.collectAsState(
+        initial = SettingsManager.DEFAULT_APP_DISPLAY_SCALE_PERCENT
+    )
+    val baseDensity = LocalDensity.current
+    val adjustedDensity = remember(
+        baseDensity.density,
+        baseDensity.fontScale,
+        appFontScalePercent,
+        appDisplayScalePercent
+    ) {
+        Density(
+            density = baseDensity.density * appDisplayScalePercent / 100f,
+            fontScale = baseDensity.fontScale * appFontScalePercent / 100f
+        )
+    }
     val appFontFamily = remember(context) {
         bundledMiSansBoldFontFamily(context)
     }
@@ -98,7 +123,11 @@ fun EllaTheme(
     MiuixTheme(
         controller = controller,
         textStyles = textStyles
-    ) { content() }
+    ) {
+        CompositionLocalProvider(LocalDensity provides adjustedDensity) {
+            content()
+        }
+    }
 }
 
 private fun isXiaomiFamilyDevice(): Boolean {

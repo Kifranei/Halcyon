@@ -505,12 +505,17 @@ internal object EllaLyricsParser {
         }
 
     private val creditPrefixPattern = Regex(
-        "^(作词|作曲|编曲|原唱|翻唱|制作|演唱|录音|混音|监制|企划|出品|填词|歌手|歌|曲|词|Lyrics|Music|Arrangement|Compose[rd]?|Vocal|Mix|Produce[rd]?)[：:]",
+        "^(作词|作詞|作曲|编曲|編曲|原唱|翻唱|制作|製作|演唱|录音|錄音|混音|监制|監製|企划|企劃|出品|填词|填詞|歌手|歌|曲|词|詞|Lyrics|Music|Arrangement|Compose[rd]?|Vocal|Mix|Produce[rd]?)[：:]",
         RegexOption.IGNORE_CASE
     )
 
     private fun String.isLyricCreditLine(): Boolean =
-        creditPrefixPattern.containsMatchIn(trim())
+        isLyricExtraInfoLine(this)
+
+    fun isLyricExtraInfoLine(line: String): Boolean =
+        creditPrefixPattern.containsMatchIn(
+            lrcTimePattern.replace(line.trim(), "").trim()
+        )
 
     private fun String.isPronunciationLine(): Boolean {
         val text = cleanLyricText()

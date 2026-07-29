@@ -15,6 +15,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_VISUALIZER_OPACIT
 import com.ella.music.data.SettingsManager.Companion.KEY_DYNAMIC_COVER_CUSTOM_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_DYNAMIC_COVER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HIDE_SYSTEM_BARS
+import com.ella.music.data.SettingsManager.Companion.KEY_SYSTEM_BARS_MODE
+import com.ella.music.data.SettingsManager.Companion.KEY_SYSTEM_BARS_RESERVE_SPACE
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_COVER_ROTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LYRIC_SECONDARY
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LYRIC_TRANSLATION
@@ -39,6 +41,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_DYNAMIC_FLOW_ENA
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_HDR_GLOW
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_COVER
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_KEEP_SCREEN_ON
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LANDSCAPE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_INDEX
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_TOTAL_DURATION
@@ -72,11 +75,13 @@ interface PlayerUiSettingsAccess {
     val playerShowSongAnnotation: Flow<Boolean>
     val playerCoverSwipeEnabled: Flow<Boolean>
     val playerTitlePosition: Flow<Int>
+    val playerLandscapeStyle: Flow<Int>
     val playerKeepScreenOn: Flow<Boolean>
     val playerHdrGlow: Flow<Boolean>
     val playerImmersiveCover: Flow<Boolean>
     val playerCoverContentColor: Flow<Boolean>
-    val hideSystemBars: Flow<Boolean>
+    val systemBarsMode: Flow<Int>
+    val systemBarsReserveSpace: Flow<Boolean>
     val playerDynamicFlowEnabled: Flow<Boolean>
     val audioVisualizerEnabled: Flow<Boolean>
     val audioVisualizerOpacity: Flow<Int>
@@ -107,7 +112,8 @@ interface PlayerUiSettingsAccess {
     suspend fun setTransportButtonOutlines(enabled: Boolean)
     suspend fun setPlayerHdrGlow(enabled: Boolean)
     suspend fun setPlayerImmersiveCover(enabled: Boolean)
-    suspend fun setHideSystemBars(enabled: Boolean)
+    suspend fun setSystemBarsMode(mode: Int)
+    suspend fun setSystemBarsReserveSpace(enabled: Boolean)
     suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean)
     suspend fun setAudioVisualizerEnabled(enabled: Boolean)
     suspend fun setAudioVisualizerOpacity(opacity: Int)
@@ -130,6 +136,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerShowSongAnnotation(enabled: Boolean)
     suspend fun setPlayerCoverSwipeEnabled(enabled: Boolean)
     suspend fun setPlayerTitlePosition(position: Int)
+    suspend fun setPlayerLandscapeStyle(style: Int)
     suspend fun setPlayerKeepScreenOn(enabled: Boolean)
 }
 
@@ -179,6 +186,8 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
             (it[KEY_PLAYER_TITLE_POSITION] ?: PLAYER_TITLE_POSITION_BELOW_COVER)
                 .coerceIn(PLAYER_TITLE_POSITION_BELOW_COVER, PLAYER_TITLE_POSITION_ABOVE_COVER)
         }
+    override val playerLandscapeStyle: Flow<Int> =
+        context.dataStore.data.map { SettingsManager.normalizePlayerLandscapeStyle(it[KEY_PLAYER_LANDSCAPE_STYLE]) }
     override val playerKeepScreenOn: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_KEEP_SCREEN_ON] ?: false }
     override val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
@@ -187,8 +196,18 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     override val playerCoverContentColor: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_COVER_CONTENT_COLOR] ?: false }
 
-    override val hideSystemBars: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }
+    override val systemBarsMode: Flow<Int> =
+        context.dataStore.data.map {
+            SettingsManager.resolveSystemBarsMode(
+                storedMode = it[KEY_SYSTEM_BARS_MODE],
+                legacyHideSystemBars = it[KEY_HIDE_SYSTEM_BARS] ?: false
+            )
+        }
+    override val systemBarsReserveSpace: Flow<Boolean> =
+        context.dataStore.data.map {
+            it[KEY_SYSTEM_BARS_RESERVE_SPACE]
+                ?: SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+        }
     override val playerDynamicFlowEnabled: Flow<Boolean> =
         context.dataStore.data.map {
             it[KEY_PLAYER_DYNAMIC_FLOW_ENABLED]
@@ -285,8 +304,17 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     }
 
 
-    override suspend fun setHideSystemBars(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_HIDE_SYSTEM_BARS] = enabled }
+    override suspend fun setSystemBarsMode(mode: Int) {
+        val normalized = SettingsManager.resolveSystemBarsMode(mode, legacyHideSystemBars = false)
+        context.dataStore.edit {
+            it[KEY_SYSTEM_BARS_MODE] = normalized
+            it[KEY_HIDE_SYSTEM_BARS] =
+                normalized == SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+        }
+    }
+
+    override suspend fun setSystemBarsReserveSpace(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SYSTEM_BARS_RESERVE_SPACE] = enabled }
     }
 
     override suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean) {
@@ -399,6 +427,12 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
                 PLAYER_TITLE_POSITION_BELOW_COVER,
                 PLAYER_TITLE_POSITION_ABOVE_COVER
             )
+        }
+    }
+
+    override suspend fun setPlayerLandscapeStyle(style: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_LANDSCAPE_STYLE] = SettingsManager.normalizePlayerLandscapeStyle(style)
         }
     }
 

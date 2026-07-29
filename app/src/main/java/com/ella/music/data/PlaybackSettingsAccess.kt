@@ -29,6 +29,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_OUTPUT_BIT_DEPTH
 import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_OUTPUT_SAMPLE_RATE
 import com.ella.music.data.SettingsManager.Companion.KEY_BLUETOOTH_AUTO_PLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_DURATION_MS
+import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_CURVE
 import com.ella.music.data.SettingsManager.Companion.KEY_DECODER_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_GAPLESS
 import com.ella.music.data.SettingsManager.Companion.KEY_OPEN_PLAYER_ON_PLAY
@@ -60,6 +61,7 @@ import kotlinx.coroutines.flow.map
 interface PlaybackSettingsAccess {
     val gaplessPlayback: Flow<Boolean>
     val crossfadeDurationMs: Flow<Int>
+    val crossfadeCurve: Flow<Int>
     val replayGainEnabled: Flow<Boolean>
     val replayGainMode: Flow<Int>
     val resumePlaybackPosition: Flow<Boolean>
@@ -80,6 +82,7 @@ interface PlaybackSettingsAccess {
     val decoderMode: Flow<Int>
     suspend fun setGaplessPlayback(enabled: Boolean)
     suspend fun setCrossfadeDurationMs(durationMs: Int)
+    suspend fun setCrossfadeCurve(curve: Int)
     suspend fun setReplayGainEnabled(enabled: Boolean)
     suspend fun setReplayGainMode(mode: Int)
     suspend fun setResumePlaybackPosition(enabled: Boolean)
@@ -104,6 +107,12 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
     override val gaplessPlayback: Flow<Boolean> = context.dataStore.data.map { it[KEY_GAPLESS] ?: true }
     override val crossfadeDurationMs: Flow<Int> = context.dataStore.data
         .map { (it[KEY_CROSSFADE_DURATION_MS] ?: 0).coerceIn(0, 12_000) }
+    override val crossfadeCurve: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_CROSSFADE_CURVE] ?: SettingsManager.CROSSFADE_CURVE_EQUAL_POWER).coerceIn(
+            SettingsManager.CROSSFADE_CURVE_EQUAL_POWER,
+            SettingsManager.CROSSFADE_CURVE_FLAT
+        )
+    }
 
     override val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_REPLAYGAIN_ENABLED] ?: false }
     override val replayGainMode: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -161,6 +170,15 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
 
     override suspend fun setCrossfadeDurationMs(durationMs: Int) {
         context.dataStore.edit { it[KEY_CROSSFADE_DURATION_MS] = durationMs.coerceIn(0, 12_000) }
+    }
+
+    override suspend fun setCrossfadeCurve(curve: Int) {
+        context.dataStore.edit {
+            it[KEY_CROSSFADE_CURVE] = curve.coerceIn(
+                SettingsManager.CROSSFADE_CURVE_EQUAL_POWER,
+                SettingsManager.CROSSFADE_CURVE_FLAT
+            )
+        }
     }
 
     override suspend fun setReplayGainEnabled(enabled: Boolean) {

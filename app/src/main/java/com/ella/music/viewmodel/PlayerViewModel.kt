@@ -242,6 +242,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lyricSourceMode = SettingsManager.LYRIC_SOURCE_AUTO
     private var lyricOffsetOverrides = emptyMap<String, Long>()
     private var lyricBlacklistRules = emptyList<LyricBlacklistRule>()
+    private var hideLyricExtraInfo = true
     private var appliedDecoderMode: Int? = null
     private var appliedLyricSourceMode: Int? = null
     private var previousButtonAction = SettingsManager.PREVIOUS_BUTTON_PREVIOUS
@@ -276,6 +277,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playbackSettingsBridge.initReplayGain()
         initLyricSourceMode()
         initLyricLineBlacklist()
+        initLyricExtraInfoFilter()
         initLyricHeaderTagFilter()
         initLyricOffsetOverrides()
         playbackSettingsBridge.initBluetoothAutoPlay()
@@ -581,6 +583,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             var initialized = false
             settingsManager.lyricLineBlacklist.distinctUntilChanged().collect { rules ->
                 lyricBlacklistRules = rules.map(::LyricBlacklistRule)
+                if (!initialized) {
+                    initialized = true
+                    applyCurrentLyricOffset(notifyExternal = false)
+                    return@collect
+                }
+                applyCurrentLyricOffset(notifyExternal = true)
+            }
+        }
+    }
+
+    private fun initLyricExtraInfoFilter() {
+        viewModelScope.launch {
+            var initialized = false
+            settingsManager.hideLyricExtraInfo.distinctUntilChanged().collect { enabled ->
+                hideLyricExtraInfo = enabled
                 if (!initialized) {
                     initialized = true
                     applyCurrentLyricOffset(notifyExternal = false)
@@ -989,10 +1006,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun List<LyricLine>.filterBlacklistedLyricLines(): List<LyricLine> =
-        filterBlacklistedLyricLines(lyricBlacklistRules)
+        filterBlacklistedLyricLines(lyricBlacklistRules, hideLyricExtraInfo)
 
     private fun List<LyricLine>.preparedForDisplay(): List<LyricLine> =
-        preparedForDisplay(lyricBlacklistRules)
+        preparedForDisplay(lyricBlacklistRules, hideLyricExtraInfo)
 
     private fun clearExternalLyrics(clearLyricon: Boolean, clearSuperLyricSong: Boolean) {
         externalLyricResendJob?.cancel()

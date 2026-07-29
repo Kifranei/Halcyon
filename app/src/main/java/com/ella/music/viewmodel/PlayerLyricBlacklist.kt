@@ -22,16 +22,25 @@ private fun String?.mergeDisplayText(extra: String?): String? =
         .joinToString(separator = "\u000A")
         .takeIf { it.isNotBlank() }
 
-internal fun List<LyricLine>.filterBlacklistedLyricLines(rules: List<LyricBlacklistRule>): List<LyricLine> {
+internal fun List<LyricLine>.filterBlacklistedLyricLines(
+    rules: List<LyricBlacklistRule>,
+    hideExtraInfo: Boolean = true
+): List<LyricLine> {
     if (isEmpty()) return this
-    return mapNotNull { line -> line.withoutBlacklistedParts(rules) }
+    return mapNotNull { line -> line.withoutBlacklistedParts(rules, hideExtraInfo) }
 }
 
-internal fun LyricLine.withoutBlacklistedParts(rules: List<LyricBlacklistRule>): LyricLine? {
+internal fun LyricLine.withoutBlacklistedParts(
+    rules: List<LyricBlacklistRule>,
+    hideExtraInfo: Boolean = true
+): LyricLine? {
+    if (hideExtraInfo && EllaLyricsParser.isLyricExtraInfoLine(text)) return null
     fun blocked(text: String?): Boolean =
         text?.let {
             EllaLyricsParser.isIgnorableRawLyricLine(it) || EllaLyricsParser.isPlaceholderOnlyLine(it)
-        } == true || rules.any { it.matches(text) }
+        } == true ||
+            (hideExtraInfo && text?.let(EllaLyricsParser::isLyricExtraInfoLine) == true) ||
+            rules.any { it.matches(text) }
     val textBlocked = blocked(text)
     val translationBlocked = blocked(translation)
     val pronunciationBlocked = blocked(pronunciation)
@@ -74,8 +83,11 @@ internal fun LyricLine.withoutBlacklistedParts(rules: List<LyricBlacklistRule>):
     }
 }
 
-internal fun List<LyricLine>.preparedForDisplay(rules: List<LyricBlacklistRule>): List<LyricLine> =
-    filterBlacklistedLyricLines(rules)
+internal fun List<LyricLine>.preparedForDisplay(
+    rules: List<LyricBlacklistRule>,
+    hideExtraInfo: Boolean = true
+): List<LyricLine> =
+    filterBlacklistedLyricLines(rules, hideExtraInfo)
         .mergeSameTimestampDisplayCompanions()
         .withImplicitLineEndTimes()
 

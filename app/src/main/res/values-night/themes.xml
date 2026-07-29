@@ -3,7 +3,7 @@
     <!-- Match the system's dark launch surface before Compose has restored the saved theme. -->
     <style name="Theme.Ella" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowDisablePreview">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>

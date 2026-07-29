@@ -297,6 +297,11 @@ class PlaybackService : MediaLibraryService() {
                 crossfadePlaybackCoordinator?.setDuration(durationMs)
             }
         }
+        serviceScope.launch {
+            settingsManager.crossfadeCurve.collect { curve ->
+                crossfadePlaybackCoordinator?.setCurve(curve)
+            }
+        }
         PlaybackAudioSession.update(player.audioSessionId)
         audioEffectController.bind(player.audioSessionId)
         serviceScope.launch {

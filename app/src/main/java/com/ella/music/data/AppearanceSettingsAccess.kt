@@ -26,6 +26,8 @@ import com.ella.music.data.SettingsManager.Companion.normalizeBottomDockItems
 import com.ella.music.data.SettingsManager.Companion.STARTUP_POSTER_DURATION_MAX_MS
 import com.ella.music.data.SettingsManager.Companion.STARTUP_POSTER_DURATION_MIN_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_ICON_STYLE
+import com.ella.music.data.SettingsManager.Companion.KEY_APP_FONT_SCALE_PERCENT
+import com.ella.music.data.SettingsManager.Companion.KEY_APP_DISPLAY_SCALE_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_LANGUAGE
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_SHORTCUT_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_WIDGET_SAFE_LAYOUT
@@ -81,6 +83,8 @@ interface AppearanceSettingsAccess {
     val themeMode: Flow<Int>
     val monetColorMode: Flow<Int>
     val appLanguage: Flow<String>
+    val appFontScalePercent: Flow<Int>
+    val appDisplayScalePercent: Flow<Int>
     val appIconStyle: Flow<String>
     val widgetSafeLayout: Flow<Boolean>
     val bottomBarGlassEffect: Flow<BottomBarGlassEffect>
@@ -118,6 +122,8 @@ interface AppearanceSettingsAccess {
     suspend fun setThemeMode(mode: Int)
     suspend fun setMonetColorMode(mode: Int)
     suspend fun setAppLanguage(languageTag: String)
+    suspend fun setAppFontScalePercent(percent: Int)
+    suspend fun setAppDisplayScalePercent(percent: Int)
     suspend fun setAppIconStyle(style: String)
     suspend fun setWidgetSafeLayout(enabled: Boolean)
     suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect)
@@ -161,6 +167,22 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override val appLanguage: Flow<String> =
         context.dataStore.data.map { it[KEY_APP_LANGUAGE] ?: APP_LANGUAGE_SYSTEM }
+    override val appFontScalePercent: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_APP_FONT_SCALE_PERCENT]
+                ?: SettingsManager.DEFAULT_APP_FONT_SCALE_PERCENT).coerceIn(
+                SettingsManager.APP_FONT_SCALE_MIN_PERCENT,
+                SettingsManager.APP_FONT_SCALE_MAX_PERCENT
+            )
+        }
+    override val appDisplayScalePercent: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_APP_DISPLAY_SCALE_PERCENT]
+                ?: SettingsManager.DEFAULT_APP_DISPLAY_SCALE_PERCENT).coerceIn(
+                SettingsManager.APP_DISPLAY_SCALE_MIN_PERCENT,
+                SettingsManager.APP_DISPLAY_SCALE_MAX_PERCENT
+            )
+        }
     override val appIconStyle: Flow<String> =
         context.dataStore.data.map { AppIconManager.normalize(it[KEY_APP_ICON_STYLE]) }
     override val widgetSafeLayout: Flow<Boolean> =
@@ -273,6 +295,24 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
             else -> APP_LANGUAGE_SYSTEM
         }
         context.dataStore.edit { it[KEY_APP_LANGUAGE] = normalized }
+    }
+
+    override suspend fun setAppFontScalePercent(percent: Int) {
+        context.dataStore.edit {
+            it[KEY_APP_FONT_SCALE_PERCENT] = percent.coerceIn(
+                SettingsManager.APP_FONT_SCALE_MIN_PERCENT,
+                SettingsManager.APP_FONT_SCALE_MAX_PERCENT
+            )
+        }
+    }
+
+    override suspend fun setAppDisplayScalePercent(percent: Int) {
+        context.dataStore.edit {
+            it[KEY_APP_DISPLAY_SCALE_PERCENT] = percent.coerceIn(
+                SettingsManager.APP_DISPLAY_SCALE_MIN_PERCENT,
+                SettingsManager.APP_DISPLAY_SCALE_MAX_PERCENT
+            )
+        }
     }
 
     override suspend fun setAppIconStyle(style: String) {

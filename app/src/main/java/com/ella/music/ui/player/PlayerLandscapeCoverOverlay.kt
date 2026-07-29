@@ -106,7 +106,6 @@ internal fun LandscapeCoverPlaybackOverlay(
     onToggleFavorite: () -> Unit,
     onToggleQueue: () -> Unit,
     onDismissQueue: () -> Unit,
-    onShowLyrics: () -> Unit,
     onLyricLineClick: (LyricLine) -> Unit,
     onLyricLineLongClick: (LyricLine) -> Unit,
     onSeek: (Float) -> Unit,
@@ -196,7 +195,10 @@ internal fun LandscapeCoverPlaybackOverlay(
             currentPosition = currentPosition,
             isPlaying = isPlaying,
             flowEffectMode = flowEffectMode,
-            dynamicFlowEnabled = false,
+            // The MV landscape style keeps this focused layout even when no local MV exists.
+            // In that case the background falls back to the animated Apple Music flow (or the
+            // selected Beautiful Lyrics flow) instead of becoming a static flat colour.
+            dynamicFlowEnabled = dynamicCoverSource?.preferLandscapeBackground != true,
             visualizerEnabled = visualizerEnabled,
             visualizerOpacity = visualizerOpacity,
             customBackgroundUri = "",

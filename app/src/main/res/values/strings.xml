@@ -293,6 +293,10 @@
     <string name="settings_bottom_dock_item_none">不显示</string>
     <string name="settings_theme_mode">主题模式</string>
     <string name="settings_theme_mode_summary">选择应用明暗外观</string>
+    <string name="settings_app_font_scale">字体大小</string>
+    <string name="settings_app_font_scale_summary">调整应用内文字大小，适合车机和远距离观看</string>
+    <string name="settings_app_display_scale">界面缩放</string>
+    <string name="settings_app_display_scale_summary">整体放大或缩小按钮、间距和内容</string>
     <string name="settings_monet_color">动态取色</string>
     <string name="settings_monet_color_summary">用 Monet 取色生成全局强调色</string>
     <string name="settings_monet_off">关闭</string>
@@ -844,7 +848,19 @@
     <string name="settings_gapless_playback_summary">歌曲之间无间隙切换</string>
     <string name="settings_crossfade">交叉淡入淡出</string>
     <string name="settings_crossfade_summary">在当前歌曲结束前淡出，同时淡入下一首；0 秒为关闭</string>
-    <string name="settings_crossfade_value">%1$d 秒</string>
+    <string name="settings_crossfade_summary_with_value">当前：%1$s；0 秒为关闭，可精确到 0.01 秒</string>
+    <string name="settings_crossfade_value">%1$.2f 秒</string>
+    <string name="settings_crossfade_duration">交叉淡入淡出时长</string>
+    <string name="settings_crossfade_duration_summary">输入 0 到 12 秒，最多保留两位小数；输入 0 可关闭</string>
+    <string name="settings_crossfade_duration_seconds">时长（秒）</string>
+    <string name="settings_crossfade_duration_invalid">请输入 0 到 12 之间的有效时长</string>
+    <string name="settings_crossfade_curve">淡入淡出曲线</string>
+    <string name="settings_crossfade_curve_equal_power">恒定响度</string>
+    <string name="settings_crossfade_curve_equal_power_summary">等功率交叉渐变，避免前半段几乎无声或中段音量下陷</string>
+    <string name="settings_crossfade_curve_linear">线性</string>
+    <string name="settings_crossfade_curve_smooth">平滑</string>
+    <string name="settings_crossfade_curve_flat">保持原音量</string>
+    <string name="settings_crossfade_curve_flat_summary">两首歌重叠时都保持原音量，整体听感可能更响</string>
     <string name="settings_startup_play">启动后自动播放</string>
     <string name="settings_bluetooth_auto_play">蓝牙连接自动播放</string>
     <string name="settings_bluetooth_auto_play_summary">蓝牙音频设备连接后自动开始播放</string>
@@ -1126,7 +1142,7 @@
     <string name="settings_dynamic_cover_custom_folders_remove_summary">移除已选择的自定义动态封面文件夹</string>
     <string name="settings_dynamic_cover_folder_saved">已添加动态封面文件夹</string>
     <string name="settings_startup_poster">开屏海报</string>
-    <string name="settings_startup_poster_summary">开启并选择图片后，每次打开 Halcyon 时显示约 3 秒</string>
+    <string name="settings_startup_poster_summary">开启并选择图片后，每次打开 Halcyon 时显示 %1$.1f 秒</string>
     <string name="settings_startup_poster_duration">开屏海报时长</string>
     <string name="settings_startup_poster_duration_summary">设置每次启动时显示海报的时长</string>
     <string name="settings_startup_poster_duration_value">%1$.1f 秒</string>
@@ -1185,6 +1201,11 @@
     <string name="settings_player_title_position">非沉浸播放页标题位置</string>
     <string name="settings_player_title_position_below_cover">封面下方</string>
     <string name="settings_player_title_position_above_cover">封面上方</string>
+    <string name="settings_player_landscape_style">默认横屏播放样式</string>
+    <string name="settings_player_landscape_style_summary">点击“横屏播放”时使用：%1$s</string>
+    <string name="settings_player_landscape_style_wide">平板/大屏自适应播放页</string>
+    <string name="settings_player_landscape_style_cover_flow">CoverFlow 封面墙</string>
+    <string name="settings_player_landscape_style_music_video">MV 沉浸歌词</string>
     <string name="settings_player_tap_seek">点击进度条跳转播放进度</string>
     <string name="settings_player_tap_seek_summary">关闭后仅支持拖动进度条跳转；开启后可直接点击播放页进度条任意位置跳转</string>
     <string name="settings_player_cover_swipe">封面左右滑动切歌</string>
@@ -1476,6 +1497,7 @@
     <string name="player_detail_album">专辑</string>
     <string name="player_detail_comment">注释</string>
     <string name="player_detail_alias">别名</string>
+    <string name="player_detail_translated_name">译名</string>
     <string name="player_detail_artist_label">艺术家</string>
     <string name="player_unknown_song">未知歌曲</string>
     <string name="player_unknown_artist">未知歌手</string>
@@ -1562,6 +1584,24 @@
     <string name="player_music_video_landscape">横屏</string>
     <string name="player_landscape_hide_covers">隐藏无关封面</string>
     <string name="music_video_captions">字幕</string>
+    <string name="music_video_gesture_brightness">亮度</string>
+    <string name="music_video_gesture_volume">音量</string>
+    <string name="music_video_caption_settings">字幕设置</string>
+    <string name="music_video_caption_display">字幕显示</string>
+    <string name="music_video_caption_translation">显示翻译</string>
+    <string name="music_video_caption_sync">同步</string>
+    <string name="music_video_caption_sync_hint">输入毫秒数；正数后移，负数前移</string>
+    <string name="music_video_caption_custom">自定义</string>
+    <string name="music_video_caption_vertical_position">上下位置</string>
+    <string name="music_video_caption_scale">字幕比例</string>
+    <string name="music_video_caption_font">字体</string>
+    <string name="music_video_caption_font_default">默认</string>
+    <string name="music_video_caption_font_serif">衬线</string>
+    <string name="music_video_caption_font_monospace">等宽</string>
+    <string name="music_video_caption_bold">粗体</string>
+    <string name="music_video_caption_text_color">字幕颜色</string>
+    <string name="music_video_caption_background_color">背景颜色</string>
+    <string name="music_video_caption_background_opacity">背景透明度</string>
     <string name="music_video_ktv">KTV 歌词</string>
     <string name="music_video_accompaniment">伴奏（实验）</string>
     <string name="music_video_lock">锁定屏幕</string>
@@ -1931,6 +1971,12 @@
     <string name="settings_mcp_server">MCP 服务器</string>
     <string name="settings_mcp_server_summary">允许 AI 助手（如 Claude）通过 MCP 协议控制音乐播放</string>
     <string name="settings_mcp_server_running">正在监听端口 %1$d</string>
+    <string name="web_music_beta_title">局域网 Web 音乐服务（Beta）</string>
+    <string name="web_music_beta_summary">在可信局域网内浏览、播放和上传音乐。Beta 版暂无访问密码，请勿在公共网络开启</string>
+    <string name="web_music_beta_address">访问地址</string>
+    <string name="web_music_beta_address_unavailable">暂未找到可用的局域网地址</string>
+    <string name="web_music_beta_notification_channel">Web 音乐服务</string>
+    <string name="web_music_beta_notification">正在监听端口 %1$d</string>
     <string name="about_summary_reorderable">可拖拽排序列表组件（Apache-2.0）</string>
 
     <!-- Lyrico plugin lyric matching -->
@@ -1939,6 +1985,8 @@
     <string name="settings_lyric_plugin_sources_empty">还没有导入歌词源插件</string>
     <string name="settings_ignore_lyric_header_tags">不将头部标签作为歌词内容</string>
     <string name="settings_ignore_lyric_header_tags_summary">忽略 [ti:]、[ar:]、[trans:]、空时间戳和 // 等头部或占位行</string>
+    <string name="settings_hide_lyric_extra_info">隐藏歌词额外信息</string>
+    <string name="settings_hide_lyric_extra_info_summary">隐藏“作词：”“作曲：”“词：”“曲：”等歌词署名信息</string>
     <string name="settings_lyric_line_blacklist">过滤歌词单行黑名单</string>
     <string name="settings_lyric_line_blacklist_summary">已添加 %1$d 条规则；支持正则表达式，命中的整行歌词不会显示或发送到外部词幕</string>
     <string name="settings_lyric_line_blacklist_editor_hint">每行一条正则或关键词，例如：^(作词|作曲|录音室)：</string>
@@ -1972,8 +2020,14 @@
     <string name="lyric_match_write_failed">歌词写入失败：%1$s</string>
     <string name="lyric_match_fetch_failed">获取歌词失败</string>
     <string name="lyric_match_remote_not_supported">在线歌曲暂不支持写入歌词</string>
-    <string name="settings_hide_system_bars">隐藏状态栏和导航栏</string>
-    <string name="settings_hide_system_bars_summary">进入全屏沉浸，隐藏系统状态栏与导航栏，适合车机等场景</string>
+    <string name="settings_system_bars_mode">沉浸模式</string>
+    <string name="settings_system_bars_mode_summary">当前：%1$s</string>
+    <string name="settings_system_bars_reserve_space">保留隐藏系统栏的占位</string>
+    <string name="settings_system_bars_reserve_space_summary">开启后系统栏虽然隐藏，但页面不会扩展到原来的区域</string>
+    <string name="settings_system_bars_show_both">显示状态栏和导航栏</string>
+    <string name="settings_system_bars_hide_status">只隐藏状态栏</string>
+    <string name="settings_system_bars_hide_navigation">只隐藏导航栏</string>
+    <string name="settings_system_bars_hide_both">隐藏状态栏和导航栏</string>
     <string name="cover_preview_back">返回</string>
     <string name="cover_preview_share">分享封面</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
@@ -2032,7 +2086,7 @@
     <string name="widget_zero_time" translatable="false">0:00</string>
     <string name="settings_widget_safe_layout">小部件兼容布局</string>
     <string name="settings_widget_safe_layout_summary">缩小展开型小部件的播放按钮并收紧垂直间距，避免非 4×6 桌面网格裁切按钮轮廓</string>
-    <string name="album_introduction_entry">介绍 ›</string>
+    <string name="album_introduction_entry">介绍</string>
     <string name="album_introduction_title">专辑介绍</string>
     <string name="album_introduction_edit">编辑专辑介绍</string>
     <string name="album_introduction_edit_action">编辑</string>

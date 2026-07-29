@@ -19,7 +19,7 @@ internal object AccompanistLyricsParser {
             .mapNotNull { toLyricLine(it, isTtmlFormat) }
             .filterNot { line ->
                 val text = line.text.ifBlank { line.backgroundText.orEmpty() }
-                text.isBlank() || EllaLyricsParser.isIgnorableRawLyricLine(text) || text.isCreditOrMetadataLine()
+                text.isBlank() || EllaLyricsParser.isIgnorableRawLyricLine(text)
             }
             .sortedBy { it.timeMs }
             .mergeSameTimestampCompanions()
