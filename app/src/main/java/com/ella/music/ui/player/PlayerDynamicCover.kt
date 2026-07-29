@@ -22,16 +22,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.splitArtistNames
+import com.ella.music.player.EllaRenderersFactory
 import com.ella.music.ui.components.SafeCoverImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -118,7 +119,11 @@ internal fun DynamicCoverVideo(
                     .build()
             }
         }
-        ExoPlayer.Builder(context)
+        val renderersFactory = EllaRenderersFactory(context).apply {
+            setEnableDecoderFallback(true)
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+        }
+        ExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
             .build()
             .apply {
@@ -126,7 +131,7 @@ internal fun DynamicCoverVideo(
             // Video artwork and synced playback-page MVs have no selected audio track. This is
             // stronger than volume=0 and prevents their audio from entering screen recordings.
             volume = if (playAudio) 1f else 0f
-            setMediaItem(MediaItem.fromUri(source.uri))
+            setMediaItem(context.buildMusicVideoMediaItem(source.uri))
             prepare()
             if (initialPositionMs > 0L) seekTo(initialPositionMs)
         }
@@ -135,6 +140,11 @@ internal fun DynamicCoverVideo(
     DisposableEffect(exoPlayer) {
         val listener = object : Media3Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
+                Log.e(
+                    "PlayerVideo",
+                    "Playback failed (${error.errorCodeName}) for ${source.uri}",
+                    error
+                )
                 onPlaybackError()
             }
 
@@ -942,10 +952,12 @@ internal fun Context.readMusicVideoPreviewFrame(uri: Uri): Bitmap? =
             val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull()
                 ?: 0L
-            val scanLimitMs = durationMs.coerceAtMost(12_000L)
+            val candidateTimestampsMs = listOf(0L, 1_000L, 3_000L, 6_000L, 10_000L)
+                .filter { durationMs <= 0L || it <= durationMs }
+                .distinct()
             var selected: Bitmap? = null
-            var timestampMs = 0L
-            while (timestampMs <= scanLimitMs && selected == null) {
+            for (timestampMs in candidateTimestampsMs) {
+                if (selected != null) break
                 val frame = retriever.getFrameAtTime(
                     timestampMs * 1_000L,
                     MediaMetadataRetriever.OPTION_CLOSEST_SYNC
@@ -953,7 +965,6 @@ internal fun Context.readMusicVideoPreviewFrame(uri: Uri): Bitmap? =
                 if (frame != null) {
                     if (frame.isVisiblyLit()) selected = frame else frame.recycle()
                 }
-                timestampMs += 400L
             }
             selected ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
         }

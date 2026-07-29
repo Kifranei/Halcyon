@@ -435,6 +435,11 @@ fun PlayerScreen(
                     scope.launch { playerPagerState.animateScrollToPage(PLAYER_PAGE_COVER) }
                 },
                 coverPage = { onShowLyrics, pageModifier ->
+                    val videoPlaybackActive = if (immersiveAlbumCover) {
+                        !showLyrics
+                    } else {
+                        playerPagerState.currentPage == PLAYER_PAGE_COVER
+                    }
                     CoverPageContent(
                         context = context,
                         mainViewModel = mainViewModel,
@@ -453,6 +458,7 @@ fun PlayerScreen(
                         // The landscape host owns its MV decoder while expanded. Keeping the
                         // portrait surface composed underneath created a second video pipeline.
                         musicVideoVisible = uiState.musicVideoVisible && !landscapeState.expanded,
+                        videoPlaybackActive = videoPlaybackActive,
                         onMusicVideoVisibleChange = { visible ->
                             if (!musicVideoSyncEnabled) {
                                 uiState.musicVideoVisible = false

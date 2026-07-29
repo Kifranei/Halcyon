@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,9 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -73,6 +74,7 @@ import com.ella.music.player.CenterChannelSuppressorAudioProcessor
 import com.ella.music.player.EllaRenderersFactory
 import com.ella.music.ui.player.GlowSeekBar
 import com.ella.music.ui.player.MusicVideoKtvLyrics
+import com.ella.music.ui.player.buildMusicVideoMediaItem
 import com.ella.music.viewmodel.lyricIdentityKey
 import java.util.Locale
 import kotlin.math.abs
@@ -139,9 +141,11 @@ internal fun DetailMusicVideoScreen(
     val player = remember(source) {
         val renderersFactory = EllaRenderersFactory(context).apply {
             setExtraAudioProcessors(listOf(accompanimentProcessor))
+            setEnableDecoderFallback(true)
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
         }
         ExoPlayer.Builder(context, renderersFactory).build().apply {
-            setMediaItem(MediaItem.fromUri(source))
+            setMediaItem(context.buildMusicVideoMediaItem(source))
             prepare()
             playWhenReady = true
         }
@@ -165,6 +169,11 @@ internal fun DetailMusicVideoScreen(
                 duration = player.duration.coerceAtLeast(0L)
             }
             override fun onPlayerError(error: PlaybackException) {
+                Log.e(
+                    "MusicVideo",
+                    "Playback failed (${error.errorCodeName}) for $source",
+                    error
+                )
                 Toast.makeText(context, R.string.music_video_play_failed, Toast.LENGTH_SHORT).show()
             }
         }

@@ -79,6 +79,7 @@ internal fun CoverPlayerPage(
     musicVideoCustomFolders: List<String>,
     musicVideoSyncEnabled: Boolean,
     musicVideoVisible: Boolean,
+    videoPlaybackActive: Boolean,
     immersiveAlbumCover: Boolean,
     coverContentColor: Boolean,
     playerBackgroundEnabled: Boolean,
@@ -280,6 +281,7 @@ internal fun CoverPlayerPage(
         dynamicCoverFailedPath
     ) {
         val current = song
+        value = null
         value = if (current == null || !musicVideoSyncEnabled) {
             null
         } else {
@@ -477,17 +479,18 @@ internal fun CoverPlayerPage(
                             resolvedMusicVideo?.failureKey,
                             currentPosition,
                             duration,
-                            isPlaying
+                            isPlaying,
+                            videoPlaybackActive
                         ) {
-                            if (musicVideoVisible) resolvedMusicVideo?.let { source ->
+                            if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
                                 MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
                             }
                         }
                         // Keep MV silent and on the audio clock while its surface is hidden.
-                        if (musicVideoVisible) resolvedMusicVideo?.let { source ->
+                        if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
                             DynamicCoverVideo(
                                 source = source,
-                                isPlaying = isPlaying,
+                                isPlaying = isPlaying && videoPlaybackActive,
                                 syncPositionMs = currentPosition,
                                 syncDurationMs = duration,
                                 onPlaybackError = { onDynamicCoverFailed(source.failureKey) },
@@ -502,10 +505,10 @@ internal fun CoverPlayerPage(
                                 }
                             )
                         }
-                        if (!musicVideoVisible && displayedDynamicCover != null) {
+                        if (videoPlaybackActive && !musicVideoVisible && displayedDynamicCover != null) {
                             DynamicCoverVideo(
                                 source = displayedDynamicCover,
-                                isPlaying = isPlaying,
+                                isPlaying = isPlaying && videoPlaybackActive,
                                 onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 0f,
@@ -764,17 +767,18 @@ internal fun CoverPlayerPage(
                                 resolvedMusicVideo?.failureKey,
                                 currentPosition,
                                 duration,
-                                isPlaying
+                                isPlaying,
+                                videoPlaybackActive
                             ) {
-                                if (musicVideoVisible) resolvedMusicVideo?.let { source ->
+                                if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
                                     MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
                                 }
                             }
                             // Keep MV silent and synchronized behind the current cover.
-                            if (musicVideoVisible) resolvedMusicVideo?.let { source ->
+                            if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
                                 DynamicCoverVideo(
                                     source = source,
-                                    isPlaying = isPlaying,
+                                    isPlaying = isPlaying && videoPlaybackActive,
                                     syncPositionMs = currentPosition,
                                     syncDurationMs = duration,
                                     onPlaybackError = { onDynamicCoverFailed(source.failureKey) },
@@ -784,10 +788,10 @@ internal fun CoverPlayerPage(
                                     cornerRadiusDp = 14f
                                 )
                             }
-                            if (!musicVideoVisible && displayedDynamicCover != null) {
+                            if (videoPlaybackActive && !musicVideoVisible && displayedDynamicCover != null) {
                                 DynamicCoverVideo(
                                     source = displayedDynamicCover,
-                                    isPlaying = isPlaying,
+                                    isPlaying = isPlaying && videoPlaybackActive,
                                     onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                     modifier = Modifier.fillMaxSize(),
                                     cornerRadiusDp = 14f

@@ -173,9 +173,13 @@ internal fun PlayerDetailPage(
         musicVideoCustomFolders,
         dynamicCoverCustomFolders
     ) {
-        value = if (musicVideoEnabled && song != null) {
+        val currentSong = song
+        // A producer retains its previous value when its keys change. Clear it before the new
+        // file lookup so the previous song's MV row cannot linger during a slower SAF scan.
+        value = null
+        value = if (musicVideoEnabled && currentSong != null) {
             withContext(Dispatchers.IO) {
-                song.musicVideoSource(
+                currentSong.musicVideoSource(
                     context,
                     customRootPaths = dynamicCoverCustomFolders,
                     musicVideoCustomFolders = musicVideoCustomFolders
@@ -189,7 +193,9 @@ internal fun PlayerDetailPage(
         initialValue = 0L,
         musicVideoSource?.failureKey
     ) {
-        value = musicVideoSource?.let { source ->
+        val currentSource = musicVideoSource
+        value = 0L
+        value = currentSource?.let { source ->
             withContext(Dispatchers.IO) { context.readMusicVideoDurationMs(source.uri) }
         } ?: 0L
     }
@@ -197,7 +203,9 @@ internal fun PlayerDetailPage(
         initialValue = null,
         musicVideoSource?.failureKey
     ) {
-        value = musicVideoSource?.let { source ->
+        val currentSource = musicVideoSource
+        value = null
+        value = currentSource?.let { source ->
             withContext(Dispatchers.IO) { context.readMusicVideoPreviewFrame(source.uri) }
         }
     }

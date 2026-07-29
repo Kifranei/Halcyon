@@ -50,6 +50,7 @@ internal fun CoverPageContent(
     musicVideoCustomFolders: List<String>,
     musicVideoSyncEnabled: Boolean,
     musicVideoVisible: Boolean,
+    videoPlaybackActive: Boolean,
     onMusicVideoVisibleChange: (Boolean) -> Unit,
     onOpenMusicVideoLandscape: () -> Unit,
     immersiveAlbumCover: Boolean,
@@ -184,6 +185,7 @@ internal fun CoverPageContent(
         musicVideoCustomFolders = musicVideoCustomFolders,
         musicVideoSyncEnabled = musicVideoSyncEnabled,
         musicVideoVisible = musicVideoVisible,
+        videoPlaybackActive = videoPlaybackActive,
         onToggleMusicVideo = {
             onMusicVideoVisibleChange(!musicVideoVisible)
         },
