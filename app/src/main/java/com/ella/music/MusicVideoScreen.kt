@@ -73,6 +73,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -127,7 +129,8 @@ internal fun DetailMusicVideoScreen(
 ) {
     val context = LocalContext.current
     val activity = context as MusicVideoActivity
-    var landscape by remember { mutableStateOf(false) }
+    val inPictureInPictureMode = activity.pictureInPictureMode
+    var landscape by remember { mutableStateOf(true) }
     var captionsEnabled by remember { mutableStateOf(false) }
     var ktvLyricsEnabled by remember { mutableStateOf(false) }
     var accompanimentEnabled by remember { mutableStateOf(false) }
@@ -199,6 +202,13 @@ internal fun DetailMusicVideoScreen(
             setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
         }
         ExoPlayer.Builder(context, renderersFactory).build().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                true
+            )
             setMediaItem(context.buildMusicVideoMediaItem(source))
             prepare()
             playWhenReady = true
@@ -208,9 +218,14 @@ internal fun DetailMusicVideoScreen(
         accompanimentProcessor.enabled = accompanimentEnabled
     }
     DisposableEffect(activity, player) {
-        activity.activePlayer = player
+        activity.attachMusicVideoPlayer(player)
+        activity.configurePictureInPicture(
+            aspectRatio = videoAspectRatio,
+            autoEnter = player.isPlaying
+        )
         onDispose {
-            if (activity.activePlayer === player) activity.activePlayer = null
+            activity.configurePictureInPicture(autoEnter = false)
+            if (activity.detachMusicVideoPlayer(player)) player.release()
         }
     }
     var isPlaying by remember { mutableStateOf(true) }
@@ -218,7 +233,13 @@ internal fun DetailMusicVideoScreen(
     var duration by remember { mutableStateOf(0L) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(value: Boolean) { isPlaying = value }
+            override fun onIsPlayingChanged(value: Boolean) {
+                isPlaying = value
+                activity.configurePictureInPicture(
+                    aspectRatio = videoAspectRatio,
+                    autoEnter = value
+                )
+            }
             override fun onPlaybackStateChanged(state: Int) {
                 duration = player.duration.coerceAtLeast(0L)
             }
@@ -234,12 +255,6 @@ internal fun DetailMusicVideoScreen(
         player.addListener(listener)
         onDispose {
             player.removeListener(listener)
-            // onDestroy releases the player first when the Activity is torn down. Checking the
-            // owner prevents the composable teardown from issuing a second release call.
-            if (activity.activePlayer === player) {
-                activity.activePlayer = null
-                player.release()
-            }
         }
     }
     LaunchedEffect(player) {
@@ -264,6 +279,15 @@ internal fun DetailMusicVideoScreen(
             controlsVisible = false
         }
     }
+    LaunchedEffect(inPictureInPictureMode) {
+        if (inPictureInPictureMode) {
+            controlsVisible = false
+            showCaptionSettings = false
+            showCaptureActions = false
+        } else {
+            controlsVisible = true
+        }
+    }
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -276,7 +300,25 @@ internal fun DetailMusicVideoScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(ComposeColor.Black)) {
-        if (landscape) {
+        if (inPictureInPictureMode) {
+            VideoSurface(
+                player = player,
+                modifier = Modifier.fillMaxSize()
+            )
+            if (captionsEnabled) {
+                MusicVideoCaptions(
+                    lyrics = lyrics,
+                    position = position,
+                    videoAspectRatio = videoAspectRatio,
+                    positionOffset = captionOffset,
+                    style = captionStyle,
+                    showTranslation = captionTranslationEnabled,
+                    locked = true,
+                    onPositionOffsetChange = {},
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } else if (landscape) {
             LandscapeMusicVideoLayout(
                 song = song,
                 player = player,
@@ -311,6 +353,15 @@ internal fun DetailMusicVideoScreen(
                 onToggleLock = { controlsLocked = !controlsLocked },
                 onPortrait = { landscape = false },
                 onCapture = { showCaptureActions = true },
+                onPictureInPicture = {
+                    if (!activity.enterMusicVideoPictureInPicture(videoAspectRatio)) {
+                        Toast.makeText(
+                            context,
+                            R.string.music_video_picture_in_picture_failed,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
                 onShare = { MusicVideoLauncher.share(context, source, song.title) },
                 onControlsVisibleChange = { controlsVisible = it }
             )
@@ -463,6 +514,7 @@ private fun LandscapeMusicVideoLayout(
     onToggleLock: () -> Unit,
     onPortrait: () -> Unit,
     onCapture: () -> Unit,
+    onPictureInPicture: () -> Unit,
     onShare: () -> Unit,
     onControlsVisibleChange: (Boolean) -> Unit
 ) {
@@ -532,6 +584,18 @@ private fun LandscapeMusicVideoLayout(
                     VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
                     Text(song.title.ifBlank { song.fileName }, color = ComposeColor.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
                     ArtistChip(song = song)
+                    IconButton(onClick = onPictureInPicture) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(
+                                R.drawable.ic_picture_in_picture
+                            ),
+                            contentDescription = stringResource(
+                                R.string.music_video_picture_in_picture
+                            ),
+                            tint = ComposeColor.White,
+                            modifier = Modifier.size(25.dp)
+                        )
+                    }
                     IconButton(onClick = onShare) {
                         com.ella.music.ui.player.QuickActionIcon(
                             kind = com.ella.music.ui.player.PlayerQuickActionKind.Share,
@@ -815,7 +879,7 @@ private fun MusicVideoGestureFeedbackOverlay(
                 val isBrightness = feedback.mode == MusicVideoGestureMode.Brightness
                 Column(
                     modifier = Modifier
-                        .align(if (isBrightness) Alignment.CenterStart else Alignment.CenterEnd)
+                        .align(if (isBrightness) Alignment.CenterEnd else Alignment.CenterStart)
                         .padding(horizontal = 30.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(ComposeColor.Black.copy(alpha = 0.58f))
@@ -928,26 +992,37 @@ private fun MusicVideoCaptionSettingsOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ComposeColor.Black.copy(alpha = 0.62f))
             .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.CenterEnd
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.88f)
-                .widthIn(max = 720.dp)
-                .heightIn(max = 600.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(ComposeColor(0xFF20232C))
+                .fillMaxWidth(0.46f)
+                .widthIn(min = 320.dp, max = 560.dp)
+                .fillMaxHeight()
+                .windowInsetsPadding(WindowInsets.displayCutout)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 24.dp,
+                        bottomStart = 24.dp
+                    )
+                )
+                .background(ComposeColor.Black.copy(alpha = 0.68f))
                 .clickable { }
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .padding(horizontal = 22.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                VideoIconButton(
+                    icon = MiuixIcons.Regular.Back,
+                    description = stringResource(R.string.common_back),
+                    onClick = onDismiss,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
                 Text(
                     stringResource(R.string.music_video_caption_settings),
                     color = ComposeColor.White,

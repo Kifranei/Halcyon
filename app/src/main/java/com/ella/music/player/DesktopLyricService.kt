@@ -22,6 +22,7 @@ import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.ella.music.data.DesktopLyricSettings
 import com.ella.music.data.SettingsManager
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -551,7 +552,14 @@ class DesktopLyricService : Service() {
         dp(if (statusBarSecondaryMode == SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF) 6 else 4)
 
     private fun statusBarLyricWidth(): Int =
-        (resources.displayMetrics.widthPixels * statusBarWidthPercent.coerceIn(40, 100) / 100f)
+        (
+            resources.displayMetrics.widthPixels *
+                statusBarWidthPercent.coerceIn(
+                    DesktopLyricSettings.MIN_WIDTH_PERCENT,
+                    DesktopLyricSettings.MAX_WIDTH_PERCENT,
+                ) /
+                100f
+            )
             .roundToInt()
             .coerceIn(dp(160), resources.displayMetrics.widthPixels - dp(16))
 
@@ -564,7 +572,14 @@ class DesktopLyricService : Service() {
 
     private fun desktopLyricWidth(): Int {
         val metrics = resources.displayMetrics
-        val requestedWidth = (metrics.widthPixels * desktopLyricWidthPercent.coerceIn(40, 100) / 100f).roundToInt()
+        val requestedWidth = (
+            metrics.widthPixels *
+                desktopLyricWidthPercent.coerceIn(
+                    DesktopLyricSettings.MIN_WIDTH_PERCENT,
+                    DesktopLyricSettings.MAX_WIDTH_PERCENT,
+                ) /
+                100f
+            ).roundToInt()
         val maxWidth = if (isTabletDevice()) {
             metrics.widthPixels - dp(16)
         } else {

@@ -51,6 +51,7 @@ fun SettingsScreen(
     onNavigateToAudioSettings: () -> Unit,
     onNavigateToBackupSettings: () -> Unit,
     onNavigateToLogs: () -> Unit,
+    onNavigateToBottomNavigationSettings: () -> Unit = onNavigateToAppearanceSettings,
     onNavigateToHomeDisplaySettings: (String) -> Unit = { onNavigateToAppearanceSettings() },
     onNavigateToScanFolders: () -> Unit = onNavigateToLibrarySettings,
     onNavigateToHighlightedScanFolders: (String) -> Unit = { onNavigateToScanFolders() },
@@ -76,6 +77,7 @@ fun SettingsScreen(
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
     val searchEntries = settingsSearchEntries(
         onNavigateToAppearanceSettings = onNavigateToAppearanceSettings,
+        onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings,
         onNavigateToHomeDisplaySettings = onNavigateToHomeDisplaySettings,
         onNavigateToLibrarySettings = onNavigateToLibrarySettings,
         onNavigateToScanFolders = onNavigateToScanFolders,
@@ -288,6 +290,7 @@ private data class SettingsSearchEntry(
 @Composable
 private fun settingsSearchEntries(
     onNavigateToAppearanceSettings: () -> Unit,
+    onNavigateToBottomNavigationSettings: () -> Unit,
     onNavigateToHomeDisplaySettings: (String) -> Unit,
     onNavigateToLibrarySettings: () -> Unit,
     onNavigateToScanFolders: () -> Unit,
@@ -314,6 +317,7 @@ private fun settingsSearchEntries(
 
     return listOf(
         entry(stringResource(R.string.settings_appearance_home), stringResource(R.string.settings_appearance_home_summary), "主题 深色 浅色 跟随系统 语言 图标 壁纸 启动画面 底栏 沉浸 播放页 背景") { onNavigateToHighlightedAppearanceSettings("appearance") },
+        entry(stringResource(R.string.settings_bottom_dock_items), stringResource(R.string.settings_bottom_dock_items_summary), "底栏 底部导航 导航栏 入口 顺序 预览 搜索") { onNavigateToBottomNavigationSettings() },
         entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 功能块 宫格 顺序 隐藏 二级页") { onNavigateToHomeDisplaySettings("home_sections") },
         entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 功能块 颜色 卡片 透明度") { onNavigateToHomeDisplaySettings("home_tile_colors") },
         entry(stringResource(R.string.settings_auto_show_search_keyboard), stringResource(R.string.settings_auto_show_search_keyboard_summary), "搜索 输入法 键盘 自动弹出") { onNavigateToHighlightedAppearanceSettings("appearance") },

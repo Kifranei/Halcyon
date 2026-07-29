@@ -289,8 +289,13 @@
     <string name="bottom_bar_glass_effect_liquid">液态玻璃</string>
     <string name="settings_bottom_dock_items">底栏入口</string>
     <string name="settings_bottom_dock_items_summary">固定显示搜索，另外可配置 4 个入口</string>
-    <string name="settings_bottom_dock_slot">底栏入口 %1$d</string>
-    <string name="settings_bottom_dock_item_none">不显示</string>
+    <string name="settings_bottom_dock_preview">导航栏预览</string>
+    <string name="settings_bottom_dock_selected">已选入口与顺序</string>
+    <string name="settings_bottom_dock_available">可选入口</string>
+    <string name="settings_bottom_dock_selection_count">已选择 %1$d / %2$d 个入口（搜索固定显示）</string>
+    <string name="settings_bottom_dock_available_summary">最多选择 4 个入口；再次点击已选择的入口可将其移除。</string>
+    <string name="settings_bottom_dock_position">第 %1$d 个位置</string>
+    <string name="settings_bottom_dock_reset">恢复默认导航栏</string>
     <string name="settings_theme_mode">主题模式</string>
     <string name="settings_theme_mode_summary">选择应用明暗外观</string>
     <string name="settings_app_font_scale">字体大小</string>
@@ -1584,6 +1589,8 @@
     <string name="player_music_video_landscape">横屏</string>
     <string name="player_landscape_hide_covers">隐藏无关封面</string>
     <string name="music_video_captions">字幕</string>
+    <string name="music_video_picture_in_picture">画中画</string>
+    <string name="music_video_picture_in_picture_failed">无法进入画中画模式</string>
     <string name="music_video_gesture_brightness">亮度</string>
     <string name="music_video_gesture_volume">音量</string>
     <string name="music_video_caption_settings">字幕设置</string>

@@ -582,7 +582,8 @@ fun AudioSettingsScreen(
                         scope.launch { settingsManager.setCrossfadeDurationMs(durationMs) }
                         showCrossfadeDurationDialog = false
                     }
-                }
+                },
+                modifier = Modifier.padding(top = 16.dp)
             )
         }
     }

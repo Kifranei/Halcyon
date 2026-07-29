@@ -263,9 +263,14 @@
     <string name="bottom_bar_glass_effect_blur">ガウスブラー</string>
     <string name="bottom_bar_glass_effect_liquid">リキッドグラス</string>
     <string name="settings_bottom_dock_items">ボトムバー項目</string>
-    <string name="settings_bottom_dock_items_summary">最大 5 項目を表示。検索も 1 枠として数えます</string>
-    <string name="settings_bottom_dock_slot">ボトムバー項目 %1$d</string>
-    <string name="settings_bottom_dock_item_none">非表示</string>
+    <string name="settings_bottom_dock_items_summary">検索は固定表示され、ほかに 4 項目を設定できます</string>
+    <string name="settings_bottom_dock_preview">ナビゲーションプレビュー</string>
+    <string name="settings_bottom_dock_selected">選択済み項目と順序</string>
+    <string name="settings_bottom_dock_available">選択可能な項目</string>
+    <string name="settings_bottom_dock_selection_count">%2$d 項目中 %1$d 項目を選択（検索は固定）</string>
+    <string name="settings_bottom_dock_available_summary">最大 4 項目まで選択できます。選択済み項目をもう一度タップすると削除できます。</string>
+    <string name="settings_bottom_dock_position">%1$d 番目</string>
+    <string name="settings_bottom_dock_reset">既定のナビゲーションに戻す</string>
     <string name="settings_theme_mode">テーマモード</string>
     <string name="settings_theme_mode_summary">アプリのライト/ダーク表示を選択</string>
     <string name="settings_app_font_scale">文字サイズ</string>
@@ -1967,6 +1972,8 @@
     <string name="settings_music_video_capture_subtitles">MV キャプチャに字幕を含める</string>
     <string name="settings_music_video_capture_subtitles_summary">詳細ページの MV スクリーンショットに現在の外部歌詞字幕を重ねます。</string>
     <string name="music_video_captions">字幕</string>
+    <string name="music_video_picture_in_picture">ピクチャー イン ピクチャー</string>
+    <string name="music_video_picture_in_picture_failed">ピクチャー イン ピクチャーを開始できません</string>
     <string name="music_video_gesture_brightness">明るさ</string>
     <string name="music_video_gesture_volume">音量</string>
     <string name="music_video_caption_settings">字幕設定</string>

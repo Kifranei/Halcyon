@@ -264,8 +264,13 @@
     <string name="bottom_bar_glass_effect_liquid">液態玻璃</string>
     <string name="settings_bottom_dock_items">底部列入口</string>
     <string name="settings_bottom_dock_items_summary">搜尋固定顯示，另外可設定 4 個入口</string>
-    <string name="settings_bottom_dock_slot">底部列入口 %1$d</string>
-    <string name="settings_bottom_dock_item_none">不顯示</string>
+    <string name="settings_bottom_dock_preview">導覽列預覽</string>
+    <string name="settings_bottom_dock_selected">已選入口與順序</string>
+    <string name="settings_bottom_dock_available">可選入口</string>
+    <string name="settings_bottom_dock_selection_count">已選擇 %1$d / %2$d 個入口（搜尋固定顯示）</string>
+    <string name="settings_bottom_dock_available_summary">最多選擇 4 個入口；再次點選已選入口可將其移除。</string>
+    <string name="settings_bottom_dock_position">第 %1$d 個位置</string>
+    <string name="settings_bottom_dock_reset">恢復預設導覽列</string>
     <string name="settings_theme_mode">主題模式</string>
     <string name="settings_theme_mode_summary">選擇應用明暗外觀</string>
     <string name="settings_app_font_scale">字體大小</string>
@@ -1967,6 +1972,8 @@
     <string name="settings_music_video_capture_subtitles">MV 截圖包含字幕</string>
     <string name="settings_music_video_capture_subtitles_summary">在歌曲詳情頁有聲 MV 的截圖中疊加目前外掛字幕</string>
     <string name="music_video_captions">字幕</string>
+    <string name="music_video_picture_in_picture">子母畫面</string>
+    <string name="music_video_picture_in_picture_failed">無法進入子母畫面模式</string>
     <string name="music_video_gesture_brightness">亮度</string>
     <string name="music_video_gesture_volume">音量</string>
     <string name="music_video_caption_settings">字幕設定</string>

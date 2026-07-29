@@ -61,6 +61,7 @@ fun SettingsDetailScreen(
     onNavigateToWebDavConfig: (() -> Unit)? = null,
     onNavigateToLyricPluginSources: () -> Unit = {},
     onNavigateToLastFmSettings: () -> Unit = {},
+    onNavigateToBottomNavigationSettings: () -> Unit = {},
     mainViewModel: com.ella.music.viewmodel.MainViewModel? = null
 ) {
     val context = LocalContext.current
@@ -209,7 +210,10 @@ fun SettingsDetailScreen(
 
             when (effectiveMode) {
                 SettingsDetailMode.AppearanceHome -> {
-                    SettingsAppearanceSection(highlightKey = highlightKey)
+                    SettingsAppearanceSection(
+                        highlightKey = highlightKey,
+                        onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings
+                    )
                     SettingsCardGroup(highlight = highlightKey == "lyric_font") {
                         ArrowPreference(
                             title = stringResource(R.string.settings_font_settings),

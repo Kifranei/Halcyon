@@ -45,6 +45,7 @@ import com.ella.music.ui.search.LibrarySearchScreen
 import com.ella.music.ui.settings.AudioSettingsScreen
 import com.ella.music.ui.settings.EqualizerScreen
 import com.ella.music.ui.settings.BackupSettingsScreen
+import com.ella.music.ui.settings.BottomNavigationSettingsScreen
 import com.ella.music.ui.settings.LyricFontScreen
 import com.ella.music.ui.settings.LyricPluginSourceSettingsScreen
 import com.ella.music.ui.settings.LogScreen
@@ -139,6 +140,7 @@ sealed class Screen(val route: String) {
     data object HomeDisplaySettings : Screen("settings_home_display?highlight={highlight}") {
         fun createRoute(highlight: String = "") = "settings_home_display?highlight=${java.net.URLEncoder.encode(highlight, "UTF-8")}"
     }
+    data object BottomNavigationSettings : Screen("settings_bottom_navigation")
     data object LibrarySettings : Screen("library_settings?highlight={highlight}") {
         fun createRoute(highlight: String = "") = "library_settings?highlight=${java.net.URLEncoder.encode(highlight, "UTF-8")}"
     }
@@ -601,6 +603,9 @@ fun AppNavigation(
                 onNavigateToAudioSettings = { navController.navigate(Screen.AudioSettings.createRoute()) },
                 onNavigateToBackupSettings = { navController.navigate(Screen.BackupSettings.createRoute()) },
                 onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
+                onNavigateToBottomNavigationSettings = {
+                    navController.navigate(Screen.BottomNavigationSettings.route)
+                },
                 onNavigateToHomeDisplaySettings = { highlight ->
                     navController.navigate(Screen.HomeDisplaySettings.createRoute(highlight))
                 },
@@ -680,7 +685,16 @@ fun AppNavigation(
                 onBack = { navController.popBackStack() },
                 onNavigateToLyricFont = { navController.navigate(Screen.LyricFont.route) },
                 mode = SettingsDetailMode.AppearanceHome,
+                onNavigateToBottomNavigationSettings = {
+                    navController.navigate(Screen.BottomNavigationSettings.route)
+                },
                 highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty()
+            )
+        }
+
+        composable(Screen.BottomNavigationSettings.route) {
+            BottomNavigationSettingsScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -763,6 +777,9 @@ fun AppNavigation(
                 onNavigateToLyricFont = { navController.navigate(Screen.LyricFont.route) },
                 mode = SettingsDetailMode.AppearanceHome,
                 initialHomeDisplay = true,
+                onNavigateToBottomNavigationSettings = {
+                    navController.navigate(Screen.BottomNavigationSettings.route)
+                },
                 highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty()
             )
         }

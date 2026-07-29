@@ -50,7 +50,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 
 ### 🖼 Player UI & Dynamic Covers
 
-- Provides an immersive lyric page, landscape lyric page, and landscape stacked-cover page.
+- Provides selectable landscape playback styles plus independent status/navigation-bar visibility and optional reserved space for hidden bars, covering phones, tablets, car displays, and ultra-wide screens.
 - New installs default to the non-immersive rounded-cover player; non-square artwork is rounded at its actual image bounds.
 - Supports dynamic video covers matched by song, album, or global fallback.
 - Supports a custom artist-cover folder and dynamic artist video covers on artist pages.
@@ -62,7 +62,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Non-immersive player covers can show a Hi-Res / MQ badge.
 - The player supports pull-down dismissal, dynamic backgrounds, blurred cover backgrounds, cover swipe-to-skip, and landscape queue-cover switching; tablet landscape docks can show the current lyric.
 - Supports both local and NetEase Cloud Music MVs. Local videos may use MP4, MKV, WebM, or MOV, can play silently in sync on the player, and can play independently with audio from the detail page. When a `163 key` contains `mvid`, the detail page adds a clearly labeled NetEase MV link; both entries can be shown together.
-- Local MVs support landscape playback, a glowing progress bar, screenshot sharing, draggable/lockable captions, KTV lyrics, accompaniment testing, and LunaBeat `mv_offsets.json` subtitle offsets.
+- Local MVs opened from song details start directly in landscape and support manual/automatic background picture-in-picture, a glowing progress bar, screenshot sharing, a translucent scrollable caption-settings panel, draggable/lockable captions, KTV lyrics, accompaniment testing, and LunaBeat `mv_offsets.json` subtitle offsets.
 - New installs enable Apple Music background motion, transport-button outlines, total-duration display, and silent synchronized MV playback by default. Existing saved choices are preserved on upgrade.
 - Long-press player artwork to preview the original cover, with double-tap zoom, one-finger panning, sharing, and saving.
 
@@ -75,6 +75,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Supports online lyric matching for local songs via Lyrico-compatible plugins: import / delete plugin bundles from zip files, configure plugin fields, and write results to embedded tags, `TTMLLYRIC`, or a `.lrc` file.
 - Provides floating desktop lyrics, status-bar lyrics, media notification lyrics, lyric barrage, SuperLyricApi, and Lyric Getter API integration.
 - Long status-bar lyrics loop continuously with a gap instead of visibly jumping back to the start.
+- Lyricist/composer credit lines, including short `词` / `曲` forms, can be hidden on demand; MV caption translations have a separate visibility switch.
 - Supports lyric card sharing, font import with a system-font picker, lyric offset, tap-to-seek, and secondary-line configuration.
 - Includes a dedicated full-screen lyric timing editor with line/word timing, fixed transport controls, undo/redo, V1/V2/V1000 vocal roles, translation, romanization, `x-bg` backing vocals, and embedded or exported LRC, ELRC, and TTML.
 
@@ -84,11 +85,12 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Supports Navidrome / Subsonic and Emby music library entries with the same directory-browsing style and input-field styling as WebDAV.
 - Navidrome / Emby remote libraries support paged loading and full-library caching; Navidrome libraries over 500 songs continue loading additional pages.
 - Supports LX Music API sources, online search, streaming playback, cover / lyric retrieval, and local downloads.
+- Includes a Beta LAN Web music service for browsing, playback, and upload from a browser on a trusted local network. This release has no access password; do not expose it to public networks or port forwarding.
 
 ### 🎚 Audio Effects, Decoding, Tags & Quality
 
 - Includes an in-app software 10-band parametric equalizer that does not depend on the system Equalizer, with bass boost and virtualizer shown based on device capability.
-- Supports the native Oboe output backend and USB DAC exclusive mode, plus configurable crossfade playback.
+- Supports the native Oboe output backend and USB DAC exclusive mode. Crossfade offers equal-power, linear, smooth, and full-volume curves.
 - Uses lyrico-audiotag as the primary local metadata path, supporting artwork, basic tags, embedded lyrics, and multi-value tags for common audio formats.
 - The built-in tag editor supports editing basic tags, lyrics, embedded artwork, and interactive star ratings.
 - Provides system, FFmpeg, and automatic decoding modes for better ALAC / AAC / M4A compatibility.
@@ -99,7 +101,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 ### 🎨 UI & Integrations
 
 - Built with Miuix 0.9.3 for a MIUI / HyperOS-inspired interface, including floating bottom navigation, MiniPlayer, blur / Liquid Glass effects, and unified sheets. The launch screen follows the dark system theme to avoid a bright flash under system launch masks.
-- Supports 8 interface languages, in-app language switching, GitHub update page, app logs, full app-data backup / restore, and Prism Music listening-history export.
+- Supports 8 interface languages, in-app language switching, app font sizing and full interface scaling, GitHub update page, app logs, full app-data backup / restore, and Prism Music listening-history export.
 - Supports switching app icons, configuring long-press launcher shortcuts, pinning home-category shortcuts, and compact / expanded playback widgets. Widgets keep artwork across process restarts, use a blurred artwork-derived background, show live playback time and controls, and provide a compatibility-layout switch for launcher grids that crop the play-button outline.
 - Supports song information, tag editing, lyric timing tools, external tag-editor adaptation, and AI song interpretation.
 - Supports MediaSession custom commands for favorite and playback-mode controls in notifications / control centers.
@@ -242,7 +244,7 @@ Halcyon supports LunaBeat's `mv_offsets.json`. Put it beside a local MV, or impo
 
 Each key is the full MV file name and each value is measured in seconds. Positive values show captions/lyrics later; negative values show them earlier. An imported file applies to both detail-page MVs and landscape player MVs.
 
-> MKV is a container. Actual playback still depends on the device decoder for the video codec inside it; common H.264, H.265, and VP9 files normally play directly.
+> MKV, WebM, and MOV are container formats; recognizing a file does not guarantee that the device can decode every audio/video stream inside it. Common 8-bit H.264, H.265, and VP9 streams usually play directly, while H.264 High 10, some HEVC Main 10 streams, and TrueHD combinations require matching hardware support. Halcyon currently has no FFmpeg software-video fallback, so unsupported streams can still fail.
 
 ---
 

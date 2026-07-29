@@ -129,6 +129,7 @@ internal fun SettingsIntSliderPreference(
     valueText: String,
     enabled: Boolean = true,
     steps: Int = 0,
+    showKeyPoints: Boolean = steps > 0,
     onValueChange: (Int) -> Unit
 ) {
     val safeRange = valueRange.first.toFloat()..valueRange.last.toFloat()
@@ -139,7 +140,7 @@ internal fun SettingsIntSliderPreference(
         value = value.coerceIn(valueRange).toFloat(),
         valueRange = safeRange,
         steps = steps,
-        showKeyPoints = steps > 0,
+        showKeyPoints = showKeyPoints,
         enabled = enabled,
         onValueChange = { next ->
             onValueChange(next.toInt().coerceIn(valueRange))

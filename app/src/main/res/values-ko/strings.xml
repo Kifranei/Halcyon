@@ -263,9 +263,14 @@
     <string name="bottom_bar_glass_effect_blur">Gaussian Blur</string>
     <string name="bottom_bar_glass_effect_liquid">Liquid Glass</string>
     <string name="settings_bottom_dock_items">하단 표시줄 항목</string>
-    <string name="settings_bottom_dock_items_summary">최대 5개의 항목을 표시합니다. 검색에도 하나의 슬롯이 사용됩니다.</string>
-    <string name="settings_bottom_dock_slot">하단 바 항목 %1$d</string>
-    <string name="settings_bottom_dock_item_none">숨김</string>
+    <string name="settings_bottom_dock_items_summary">검색은 고정 표시되며 항목 4개를 추가로 설정할 수 있습니다</string>
+    <string name="settings_bottom_dock_preview">탐색 모음 미리보기</string>
+    <string name="settings_bottom_dock_selected">선택한 항목 및 순서</string>
+    <string name="settings_bottom_dock_available">사용 가능한 항목</string>
+    <string name="settings_bottom_dock_selection_count">%2$d개 중 %1$d개 선택됨(검색은 고정)</string>
+    <string name="settings_bottom_dock_available_summary">최대 4개 항목을 선택할 수 있습니다. 선택한 항목을 다시 탭하면 제거됩니다.</string>
+    <string name="settings_bottom_dock_position">%1$d번째 위치</string>
+    <string name="settings_bottom_dock_reset">기본 탐색 모음 복원</string>
     <string name="settings_theme_mode">테마 모드</string>
     <string name="settings_theme_mode_summary">앱의 밝거나 어두운 모양을 선택하세요</string>
     <string name="settings_app_font_scale">글자 크기</string>
@@ -1967,6 +1972,8 @@
     <string name="settings_music_video_capture_subtitles">MV 캡처에 자막 포함</string>
     <string name="settings_music_video_capture_subtitles_summary">상세 페이지 MV 스크린샷에 현재 외부 가사 자막을 겹쳐 표시합니다.</string>
     <string name="music_video_captions">자막</string>
+    <string name="music_video_picture_in_picture">화면 속 화면</string>
+    <string name="music_video_picture_in_picture_failed">화면 속 화면 모드를 시작할 수 없습니다</string>
     <string name="music_video_gesture_brightness">밝기</string>
     <string name="music_video_gesture_volume">음량</string>
     <string name="music_video_caption_settings">자막 설정</string>

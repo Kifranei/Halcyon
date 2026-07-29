@@ -111,6 +111,8 @@
             android:name=".MusicVideoActivity"
             android:exported="false"
             android:launchMode="singleTop"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:enableOnBackInvokedCallback="true"
             android:theme="@style/Theme.Ella" />

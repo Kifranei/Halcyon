@@ -263,9 +263,14 @@
     <string name="bottom_bar_glass_effect_blur">Размытие по Гауссу</string>
     <string name="bottom_bar_glass_effect_liquid">Жидкое стекло</string>
     <string name="settings_bottom_dock_items">Записи нижней панели</string>
-    <string name="settings_bottom_dock_items_summary">Показать до 5 записей; поиск тоже занимает один слот</string>
-    <string name="settings_bottom_dock_slot">Ввод нижней панели %1$d</string>
-    <string name="settings_bottom_dock_item_none">Скрытый</string>
+    <string name="settings_bottom_dock_items_summary">Поиск закреплён; дополнительно можно настроить 4 пункта</string>
+    <string name="settings_bottom_dock_preview">Предпросмотр навигации</string>
+    <string name="settings_bottom_dock_selected">Выбранные пункты и порядок</string>
+    <string name="settings_bottom_dock_available">Доступные пункты</string>
+    <string name="settings_bottom_dock_selection_count">Выбрано %1$d из %2$d пунктов (поиск закреплён)</string>
+    <string name="settings_bottom_dock_available_summary">Можно выбрать до 4 пунктов. Нажмите выбранный пункт ещё раз, чтобы удалить его.</string>
+    <string name="settings_bottom_dock_position">Позиция %1$d</string>
+    <string name="settings_bottom_dock_reset">Восстановить навигацию по умолчанию</string>
     <string name="settings_theme_mode">Тематический режим</string>
     <string name="settings_theme_mode_summary">Выберите светлый или темный внешний вид приложения.</string>
     <string name="settings_app_font_scale">Размер шрифта</string>
@@ -1954,6 +1959,8 @@
     <string name="settings_music_video_capture_subtitles">Добавлять субтитры в снимки MV</string>
     <string name="settings_music_video_capture_subtitles_summary">Накладывает текущие внешние субтитры в снимках MV со страницы деталей.</string>
     <string name="music_video_captions">Субтитры</string>
+    <string name="music_video_picture_in_picture">Картинка в картинке</string>
+    <string name="music_video_picture_in_picture_failed">Не удалось включить режим «картинка в картинке»</string>
     <string name="music_video_gesture_brightness">Яркость</string>
     <string name="music_video_gesture_volume">Громкость</string>
     <string name="music_video_caption_settings">Настройки субтитров</string>

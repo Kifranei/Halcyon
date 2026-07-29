@@ -24,7 +24,8 @@ import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
 internal fun SettingsAppearanceSection(
-    highlightKey: String? = null
+    highlightKey: String? = null,
+    onNavigateToBottomNavigationSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -41,9 +42,6 @@ internal fun SettingsAppearanceSection(
     val appIconStyle by settingsManager.appIconStyle.collectAsState(initial = SettingsManager.APP_ICON_STYLE_DEFAULT)
     val widgetSafeLayout by settingsManager.widgetSafeLayout.collectAsState(initial = false)
     val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
-    val bottomDockItems by settingsManager.bottomDockItems.collectAsState(
-        initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
-    )
     val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
         initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
     )
@@ -204,49 +202,6 @@ internal fun SettingsAppearanceSection(
         appIconOptions.map { (_, label) -> DropdownItem(title = label) }
     }
 
-    val bottomDockOptions = listOf(
-        "" to stringResource(R.string.settings_bottom_dock_item_none),
-        SettingsManager.BOTTOM_DOCK_ITEM_HOME to stringResource(R.string.tab_home),
-        SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY to stringResource(R.string.tab_library),
-        SettingsManager.BOTTOM_DOCK_ITEM_PLAYLISTS to stringResource(R.string.category_playlist),
-        SettingsManager.BOTTOM_DOCK_ITEM_FOLDER to stringResource(R.string.category_folder),
-        SettingsManager.BOTTOM_DOCK_ITEM_FOLDER_TREE to stringResource(R.string.category_folder_tree),
-        SettingsManager.BOTTOM_DOCK_ITEM_ARTIST to stringResource(R.string.category_artist),
-        SettingsManager.BOTTOM_DOCK_ITEM_ALBUM to stringResource(R.string.category_album),
-        SettingsManager.BOTTOM_DOCK_ITEM_SCAN_SETTINGS to stringResource(R.string.folder_scan_settings),
-        SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS to stringResource(R.string.tab_settings),
-        SettingsManager.BOTTOM_DOCK_ITEM_YEAR to stringResource(R.string.category_year),
-        SettingsManager.BOTTOM_DOCK_ITEM_GENRE to stringResource(R.string.category_genre),
-        SettingsManager.BOTTOM_DOCK_ITEM_COMPOSER to stringResource(R.string.category_composer),
-        SettingsManager.BOTTOM_DOCK_ITEM_ARRANGER to stringResource(R.string.category_arranger),
-        SettingsManager.BOTTOM_DOCK_ITEM_LYRICIST to stringResource(R.string.category_lyricist),
-        SettingsManager.BOTTOM_DOCK_ITEM_ANALYTICS to stringResource(R.string.analytics_title)
-    )
-    val bottomDockEntries = remember(bottomDockOptions) {
-        bottomDockOptions.map { (_, label) -> DropdownItem(title = label) }
-    }
-    val normalizedBottomDockItems = remember(bottomDockItems) {
-        SettingsManager.normalizeBottomDockItems(bottomDockItems.joinToString(","))
-            .split(',')
-            .filter(String::isNotBlank)
-            .take(SettingsManager.MAX_BOTTOM_DOCK_ITEMS)
-    }
-    fun updateBottomDockSlot(slotIndex: Int, itemId: String) {
-        val updated = normalizedBottomDockItems
-            .toMutableList()
-            .apply {
-                while (size <= slotIndex) add("")
-                if (itemId.isNotBlank()) {
-                    replaceAll { existing -> if (existing == itemId) "" else existing }
-                }
-                this[slotIndex] = itemId
-            }
-            .filter(String::isNotBlank)
-            .distinct()
-            .take(SettingsManager.MAX_BOTTOM_DOCK_ITEMS)
-        scope.launch { settingsManager.setBottomDockItems(updated) }
-    }
-
     val bottomBarGlassEffects = remember {
         listOf(BottomBarGlassEffect.Blur, BottomBarGlassEffect.LiquidGlass)
     }
@@ -365,6 +320,7 @@ internal fun SettingsAppearanceSection(
                 valueText = "$appFontScalePercent%",
                 steps = SettingsManager.APP_FONT_SCALE_MAX_PERCENT -
                     SettingsManager.APP_FONT_SCALE_MIN_PERCENT - 1,
+                showKeyPoints = false,
                 onValueChange = {
                     scope.launch { settingsManager.setAppFontScalePercent(it) }
                 }
@@ -378,6 +334,7 @@ internal fun SettingsAppearanceSection(
                 valueText = "$appDisplayScalePercent%",
                 steps = SettingsManager.APP_DISPLAY_SCALE_MAX_PERCENT -
                     SettingsManager.APP_DISPLAY_SCALE_MIN_PERCENT - 1,
+                showKeyPoints = false,
                 onValueChange = {
                     scope.launch { settingsManager.setAppDisplayScalePercent(it) }
                 }
@@ -418,27 +375,11 @@ internal fun SettingsAppearanceSection(
                     }
                 }
             )
-            repeat(SettingsManager.MAX_BOTTOM_DOCK_ITEMS) { slotIndex ->
-                val selectedItem = normalizedBottomDockItems.getOrNull(slotIndex).orEmpty()
-                val selectedIndex = bottomDockOptions.indexOfFirst { it.first == selectedItem }
-                    .takeIf { it >= 0 }
-                    ?: 0
-                WindowSpinnerPreference(
-                    title = stringResource(R.string.settings_bottom_dock_slot, slotIndex + 1),
-                    summary = if (slotIndex == 0) {
-                        stringResource(R.string.settings_bottom_dock_items_summary)
-                    } else {
-                        bottomDockOptions.getOrNull(selectedIndex)?.second.orEmpty()
-                    },
-                    items = bottomDockEntries,
-                    selectedIndex = selectedIndex,
-                    onSelectedIndexChange = { index ->
-                        bottomDockOptions.getOrNull(index)?.first?.let { itemId ->
-                            updateBottomDockSlot(slotIndex, itemId)
-                        }
-                    }
-                )
-            }
+            ArrowPreference(
+                title = stringResource(R.string.settings_bottom_dock_items),
+                summary = stringResource(R.string.settings_bottom_dock_items_summary),
+                onClick = onNavigateToBottomNavigationSettings
+            )
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_system_bars_mode),
                 summary = stringResource(

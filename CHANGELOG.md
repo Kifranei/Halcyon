@@ -1,3 +1,37 @@
+# 1.2.4
+
+From `1.2.3` to `1.2.4`.
+
+中文更新日志
+- 完善本地 MV：支持配置独立 MV 文件夹，并按歌手与歌名、音频文件名及 `_MV` / `-MV` 后缀匹配 MP4、MKV、WebM 和 MOV；修复切歌后详情页 MV 残留、播放器重复创建、后台播放和歌词页被视频加载阻塞等问题。
+- 加入网易云 MV 与 LunaBeat 偏移兼容：可从独立 `163 key`、Comment 或 Description 中读取 `mvid` 并跳转网易云 MV；支持导入 `mv_offsets.json`，分别校正不同 MV 的歌词/字幕时间。
+- 信息页打开 MV 默认直接进入横屏；重做横屏交互，扩大进度、亮度和音量手势区域并将反馈条显示在操作手势的对侧；字幕设置改为半透明可滚动侧栏，并加入字幕翻译、双击播放暂停、自动隐藏控制、可拖动/锁定字幕、截图分享、KTV 歌词与伴奏测试。
+- MV 支持手动进入画中画，播放期间切到后台也会自动进入 PiP；画中画与信息页横屏 MV 共用同一播放器、进度和播放状态，避免系统误控歌曲播放器造成二重奏；为 MV 分配独立媒体会话 ID，修复与歌曲播放会话冲突导致打开 MV 立即崩溃；画中画中只保留视频及已启用的普通字幕，退出后恢复完整控制层。
+- 新增横屏播放样式、系统栏显示方式和保留系统栏占位设置；加入应用字体大小与界面缩放，改善车机、平板和超宽屏上的可读性。
+- 新增可编辑的专辑介绍页：优先读写专辑目录 `album.nfo` 的 `<review>`，无写入权限时安全保存到应用内部；同时完善艺术家封面选择和发行时间降序规则。
+- 更新桌面播放小组件：恢复并持久化封面，使用封面取色的模糊背景、实时计时和紧凑/展开布局；加入防止非 4×6 桌面网格裁切控制按钮的兼容布局。
+- 改善交叉淡入淡出：支持恒定响度、线性、平滑和保持原音量曲线，避免淡入前段过静；修复局部渐变切歌卡顿及播放状态交接。
+- 完善歌词与系统歌词：可隐藏“作词/作曲/词/曲”等额外信息，状态栏歌词支持独立颜色和字号，桌面歌词与状态栏歌词的宽度最低可调至 30%；优化歌词载入、翻译显示和长句布局。
+- 修复 MediaInfo 跳转、WAV 目录迁移后的完整扫描、CUE 分轨乱码、频谱高采样率显示和超过 22 kHz 的频段；完善多音频流预览与导出。
+- 新增局域网 Web 音乐服务 Beta，可在可信局域网内浏览、播放和上传音乐；当前版本没有访问密码，请勿在公共网络开启。
+- 更新 Media3、Miuix、Lyrico 等依赖并拆分大型播放器、设置、扫描器和歌词解析模块，降低维护成本并补充回归测试。
+- MKV、WebM 和 MOV 表示容器支持，实际视频仍由设备解码能力决定；H.264 High 10、部分 HEVC Main 10 / TrueHD 组合在不支持相应硬解的设备上仍可能无法播放。
+
+English Changelog
+- Expanded local MV support with configurable MV-only folders and artist/title, audio-file-name, `_MV`, and `-MV` matching for MP4, MKV, WebM, and MOV. Fixed stale detail-page entries after track changes, duplicate players, background playback, and video loading blocking the lyric page.
+- Added NetEase MV and LunaBeat offset compatibility. `mvid` can be read from a standalone `163 key`, Comment, or Description, while imported `mv_offsets.json` entries adjust lyric/caption timing per MV.
+- Detail-page MVs now open directly in landscape. Landscape interaction has larger seek/brightness/volume gesture regions with feedback shown opposite the gesture side. Caption settings use a translucent, scrollable side panel and include translation control, full-screen double-tap play/pause, auto-hidden controls, draggable/lockable captions, screenshot sharing, KTV lyrics, and accompaniment testing.
+- MVs can enter picture-in-picture manually and automatically when a playing MV is sent to the background. PiP and the landscape detail MV now share the same player, progress, and playback state, preventing system controls from resuming the song player and causing doubled audio. Each MV now receives a distinct media-session ID, fixing an immediate crash caused by colliding with the song playback session. PiP keeps only the video and enabled regular captions, restoring the complete controls after return.
+- Added selectable landscape playback styles, system-bar visibility/reserved-space behavior, app font sizing, and full interface scaling for car displays, tablets, and ultra-wide screens.
+- Added a dedicated editable album-introduction page. Local albums prefer the `<review>` field in `album.nfo` and safely fall back to app storage when the folder is not writable. Artist-art selection and descending release-date sorting were also refined.
+- Refreshed playback widgets with persisted artwork, blurred artwork-derived backgrounds, live elapsed time, compact/expanded layouts, and a compatibility layout for launcher grids that crop control outlines.
+- Improved crossfade with equal-power, linear, smooth, and full-volume curves to avoid a nearly silent fade-in, while stabilizing local transition timing and playback handoff.
+- Refined lyrics and system lyrics: optional filtering now covers composer/lyricist credit lines including short `词` / `曲` forms; status-bar lyrics have independent color and size controls, while desktop and status-bar lyric widths can be reduced to 30%; lyric loading, translations, and long-line layout are improved.
+- Fixed MediaInfo launching, full rescans after WAV folder moves, CUE filename/tag decoding, high-sample-rate spectrum rendering above 22 kHz, and multi-stream preview/export.
+- Added a Beta LAN Web music service for browsing, playback, and upload on trusted local networks. This release has no access password, so it must not be exposed to public networks.
+- Updated Media3, Miuix, Lyrico, and related dependencies, split large player/settings/scanner/lyric-parser modules, and added regression coverage.
+- MKV, WebM, and MOV support refers to their containers. Actual video playback still depends on the device decoder; H.264 High 10 and some HEVC Main 10 / TrueHD combinations can still fail on devices without compatible hardware decoding.
+
 # 1.2.3
 
 From `1.2.2` to `1.2.3`.

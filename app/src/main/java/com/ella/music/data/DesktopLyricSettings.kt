@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.map
 
 internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences>) {
     companion object {
+        const val MIN_WIDTH_PERCENT = 30
+        const val MAX_WIDTH_PERCENT = 100
+
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
         val KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_hide_when_paused")
         val KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_hide_in_landscape")
@@ -45,10 +48,14 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     val desktopLyricStatusBarMode: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MODE] ?: false }
     val desktopLyricStatusBarHideWhenPaused: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED] ?: true }
     val desktopLyricStatusBarHideInLandscape: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE] ?: false }
-    val desktopLyricWidth: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_WIDTH] ?: 72).coerceIn(40, 100) }
+    val desktopLyricWidth: Flow<Int> = dataStore.data.map {
+        (it[KEY_DESKTOP_LYRIC_WIDTH] ?: 72).coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT)
+    }
     val desktopLyricStatusBarTopOffset: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET] ?: 16).coerceIn(0, 120) }
     val desktopLyricStatusBarPosition: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_POSITION] ?: SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_CENTER).coerceIn(0, 2) }
-    val desktopLyricStatusBarWidth: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_WIDTH] ?: 72).coerceIn(40, 100) }
+    val desktopLyricStatusBarWidth: Flow<Int> = dataStore.data.map {
+        (it[KEY_DESKTOP_LYRIC_STATUS_BAR_WIDTH] ?: 72).coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT)
+    }
     val desktopLyricStatusBarXOffset: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_X_OFFSET] ?: 0).coerceIn(-640, 640) }
     val desktopLyricStatusBarTextAlign: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_ALIGN] ?: SettingsManager.DESKTOP_LYRIC_STATUS_ALIGN_LEFT).coerceIn(0, 2) }
     val desktopLyricStatusBarVerticalAlign: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_VERTICAL_ALIGN] ?: SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_TOP).coerceIn(0, 2) }
@@ -92,7 +99,9 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     }
 
     suspend fun setDesktopLyricWidth(widthPercent: Int) {
-        dataStore.edit { it[KEY_DESKTOP_LYRIC_WIDTH] = widthPercent.coerceIn(40, 100) }
+        dataStore.edit {
+            it[KEY_DESKTOP_LYRIC_WIDTH] = widthPercent.coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT)
+        }
     }
 
     suspend fun setDesktopLyricStatusBarTopOffset(offsetDp: Int) {
@@ -104,7 +113,9 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     }
 
     suspend fun setDesktopLyricStatusBarWidth(widthPercent: Int) {
-        dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_WIDTH] = widthPercent.coerceIn(40, 100) }
+        dataStore.edit {
+            it[KEY_DESKTOP_LYRIC_STATUS_BAR_WIDTH] = widthPercent.coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT)
+        }
     }
 
     suspend fun setDesktopLyricStatusBarXOffset(offsetDp: Int) {

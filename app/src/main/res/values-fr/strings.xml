@@ -263,9 +263,14 @@
     <string name="bottom_bar_glass_effect_blur">Flou gaussien</string>
     <string name="bottom_bar_glass_effect_liquid">Verre liquide</string>
     <string name="settings_bottom_dock_items">Entrées de la barre inférieure</string>
-    <string name="settings_bottom_dock_items_summary">Afficher jusqu’à 5 entrées ; la recherche occupe aussi un emplacement</string>
-    <string name="settings_bottom_dock_slot">Entrée %1$d de la barre inférieure</string>
-    <string name="settings_bottom_dock_item_none">Masqué</string>
+    <string name="settings_bottom_dock_items_summary">La recherche reste fixe ; 4 autres entrées sont configurables</string>
+    <string name="settings_bottom_dock_preview">Aperçu de la navigation</string>
+    <string name="settings_bottom_dock_selected">Entrées sélectionnées et ordre</string>
+    <string name="settings_bottom_dock_available">Entrées disponibles</string>
+    <string name="settings_bottom_dock_selection_count">%1$d entrée(s) sur %2$d sélectionnée(s) (la recherche reste fixe)</string>
+    <string name="settings_bottom_dock_available_summary">Choisissez jusqu’à 4 entrées. Touchez à nouveau une entrée sélectionnée pour la retirer.</string>
+    <string name="settings_bottom_dock_position">Position %1$d</string>
+    <string name="settings_bottom_dock_reset">Restaurer la navigation par défaut</string>
     <string name="settings_theme_mode">Mode du thème</string>
     <string name="settings_theme_mode_summary">Choisir l’apparence claire ou sombre de l’application</string>
     <string name="settings_app_font_scale">Taille du texte</string>
@@ -1967,6 +1972,8 @@
     <string name="settings_music_video_capture_subtitles">Inclure les sous-titres dans les captures MV</string>
     <string name="settings_music_video_capture_subtitles_summary">Superpose les paroles externes actuelles dans les captures du MV de la page de details.</string>
     <string name="music_video_captions">Sous-titres</string>
+    <string name="music_video_picture_in_picture">Image dans l’image</string>
+    <string name="music_video_picture_in_picture_failed">Impossible d’activer le mode image dans l’image</string>
     <string name="music_video_gesture_brightness">Luminosité</string>
     <string name="music_video_gesture_volume">Volume</string>
     <string name="music_video_caption_settings">Réglages des sous-titres</string>
