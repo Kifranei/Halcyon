@@ -71,7 +71,6 @@ fun HomeScreen(
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
-    val history by mainViewModel.playbackHistory.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -157,27 +156,10 @@ fun HomeScreen(
     val composerCount = metadataCategoryCounts["composer"] ?: 0
     val arrangerCount = metadataCategoryCounts["arranger"] ?: 0
     val lyricistCount = metadataCategoryCounts["lyricist"] ?: 0
-    val recentSongIds = remember(history) {
-        history
-            .distinctBy { it.songId }
+    val recentSongs = remember(songs) {
+        songs
+            .sortedWith(compareByDescending<Song> { it.dateAdded }.thenByDescending { it.dateModified })
             .take(5)
-            .map { it.songId }
-    }
-    val recentSongs = remember(recentSongIds, songs) {
-        if (recentSongIds.isEmpty()) {
-            emptyList()
-        } else {
-            val pendingIds = recentSongIds.toMutableSet()
-            val matched = HashMap<Long, Song>(recentSongIds.size)
-            for (song in songs) {
-                if (song.id in pendingIds) {
-                    matched[song.id] = song
-                    pendingIds -= song.id
-                    if (pendingIds.isEmpty()) break
-                }
-            }
-            recentSongIds.mapNotNull(matched::get)
-        }
     }
 
     Column(

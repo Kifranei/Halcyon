@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -24,7 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -55,10 +59,24 @@ internal fun RatingSheet(
     onRatingSelected: (Int) -> Unit
 ) {
     var rating by remember(currentRating) { mutableStateOf(currentRating.coerceIn(0, 5)) }
+    var ratingRowWidthPx by remember { mutableStateOf(0f) }
+    val hasRatingChanged = rating != currentRating.coerceIn(0, 5)
     SongSheetColumn {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .onSizeChanged { ratingRowWidthPx = it.width.toFloat() }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            rating = ratingForPosition(offset.x, ratingRowWidthPx)
+                        },
+                        onHorizontalDrag = { change, _ ->
+                            rating = ratingForPosition(change.position.x, ratingRowWidthPx)
+                            change.consume()
+                        }
+                    )
+                }
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.Center
         ) {
@@ -71,21 +89,42 @@ internal fun RatingSheet(
                         MiuixTheme.colorScheme.onSurfaceVariantSummary
                     },
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(54.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { rating = if (rating == star) 0 else star }
-                        .padding(7.dp)
+                        .padding(5.dp)
                 )
             }
         }
-        EllaMiuixSheetActions(
-            cancelText = stringResource(R.string.common_cancel),
-            confirmText = stringResource(R.string.common_save),
-            onCancel = onDismiss,
-            onConfirm = { onRatingSelected(rating) },
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            top.yukonga.miuix.kmp.basic.TextButton(
+                text = stringResource(R.string.common_cancel),
+                onClick = onDismiss
+            )
+        }
+        Button(
+            enabled = hasRatingChanged,
+            onClick = { onRatingSelected(rating) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 4.dp)
+        ) {
+            Text(text = stringResource(R.string.common_save))
+        }
     }
+}
+
+private fun ratingForPosition(positionX: Float, rowWidthPx: Float): Int {
+    if (rowWidthPx <= 0f) return 0
+    return ((positionX.coerceIn(0f, rowWidthPx) / rowWidthPx) * 5f)
+        .toInt()
+        .plus(1)
+        .coerceIn(1, 5)
 }
 
 @Composable

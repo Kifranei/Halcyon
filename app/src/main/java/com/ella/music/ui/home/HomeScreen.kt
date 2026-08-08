@@ -576,7 +576,6 @@ fun LibraryScreen(
                                             sortMode.isDescending()
                                         ),
                                         ratingFilter.summaryLabel(context),
-                                        stringResource(R.string.favorite_filter).takeIf { ratingFilter.hasFavoriteFilter() }
                                 ).joinToString(" · ")
                                 ),
                             leadingContent = {
