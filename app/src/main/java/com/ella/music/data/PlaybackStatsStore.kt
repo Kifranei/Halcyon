@@ -40,7 +40,9 @@ data class PlaybackHistoryEntry(
     /** Actual accumulated playback for this listen, kept with the record rather than a day bucket. */
     val listenedMs: Long = 0L,
     /** Origin is persisted so local deletion and local hiding of remote records are deterministic. */
-    val source: String = PlaybackHistorySource.LOCAL
+    val source: String = PlaybackHistorySource.LOCAL,
+    /** Guards play-count/scrobble updates when more than one playback observer sees one session. */
+    val playCounted: Boolean = false
 )
 
 object PlaybackHistorySource {
@@ -52,6 +54,9 @@ class PlaybackStatsStore private constructor(context: Context) {
     private val statsFile = AtomicFile(File(context.applicationContext.filesDir, "playback_stats.json"))
     private val historyFile = AtomicFile(File(context.applicationContext.filesDir, "playback_history.json"))
     private val dailyStatsFile = AtomicFile(File(context.applicationContext.filesDir, "playback_daily_stats.json"))
+    private val activePlaybackSessionFile = AtomicFile(
+        File(context.applicationContext.filesDir, "playback_active_session.json")
+    )
     private val hiddenRemoteHistoryFile = AtomicFile(File(context.applicationContext.filesDir, "hidden_remote_history.json"))
     private val persistenceMutex = Mutex()
     private val _stats = MutableStateFlow<List<SongPlaybackStats>>(emptyList())
@@ -62,6 +67,7 @@ class PlaybackStatsStore private constructor(context: Context) {
     val hiddenRemoteHistoryEntryIds: StateFlow<Set<String>> = _hiddenRemoteHistoryEntryIds.asStateFlow()
     private val _dailyListenMs = MutableStateFlow<Map<String, Long>>(emptyMap())
     val dailyListenMs: StateFlow<Map<String, Long>> = _dailyListenMs.asStateFlow()
+    private var activePlaybackSession: ActivePlaybackSession? = loadActivePlaybackSession()
 
     init {
         loadStats()
@@ -70,27 +76,75 @@ class PlaybackStatsStore private constructor(context: Context) {
         migrateLegacyHistoryListenDurations()
     }
 
-    suspend fun recordPlay(song: Song) = withContext(Dispatchers.IO) {
+    /** Adds a recent-listening session as soon as playback actually starts. */
+    suspend fun recordRecent(song: Song): String = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         persistenceMutex.withLock {
-            val updatedStats = updateStatsLocked(song) { current ->
-                current.copy(playCount = current.playCount + 1, lastPlayedAt = now)
+            val active = activePlaybackSession
+            val activeEntry = active
+                ?.takeIf {
+                    it.songId == song.id && now - it.lastTouchedAtMs in 0..ACTIVE_SESSION_IDLE_TIMEOUT_MS
+                }
+                ?.let { session ->
+                    _history.value.firstOrNull {
+                        it.entryId == session.entryId &&
+                            it.songId == song.id &&
+                            it.source == PlaybackHistorySource.LOCAL
+                    }
             }
-            val updatedHistory = (listOf(
-                PlaybackHistoryEntry(
-                    songId = song.id,
-                    title = song.title,
-                    artist = song.artist,
-                    album = song.album,
-                    playedAt = now,
-                    durationMs = song.duration.coerceAtLeast(0L)
-                )
-            ) + _history.value).deduplicateHistory()
-            publishLocked(updatedStats, updatedHistory)
+            if (activeEntry != null) {
+                activePlaybackSession = active.copy(lastTouchedAtMs = now)
+                saveActivePlaybackSession(activePlaybackSession)
+                return@withLock activeEntry.entryId
+            }
+            val entry = PlaybackHistoryEntry(
+                songId = song.id,
+                title = song.title,
+                artist = song.artist,
+                album = song.album,
+                playedAt = now,
+                durationMs = song.duration.coerceAtLeast(0L)
+            )
+            val updatedHistory = (listOf(entry) + _history.value).deduplicateHistory()
+            activePlaybackSession = ActivePlaybackSession(song.id, entry.entryId, now)
+            saveActivePlaybackSession(activePlaybackSession)
+            publishLocked(_stats.value, updatedHistory)
+            entry.entryId
         }
     }
 
-    suspend fun addListenTime(song: Song, listenedMs: Long) = withContext(Dispatchers.IO) {
+    /** Increments play count once for the supplied playback session. */
+    suspend fun recordPlay(song: Song, historyEntryId: String? = null): Boolean = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        persistenceMutex.withLock {
+            val targetEntry = historyEntryId
+                ?.let { id -> _history.value.firstOrNull { it.entryId == id && it.songId == song.id } }
+            if (targetEntry?.playCounted == true) return@withLock false
+            val updatedStats = updateStatsLocked(song) { current ->
+                current.copy(playCount = current.playCount + 1, lastPlayedAt = now)
+            }
+            val updatedHistory = if (targetEntry == null) {
+                _history.value
+            } else {
+                _history.value.map { entry ->
+                    if (entry.entryId == targetEntry.entryId) entry.copy(playCounted = true) else entry
+                }
+            }
+            activePlaybackSession = activePlaybackSession
+                ?.takeIf { it.entryId == targetEntry?.entryId }
+                ?.copy(lastTouchedAtMs = now)
+                ?: activePlaybackSession
+            saveActivePlaybackSession(activePlaybackSession)
+            publishLocked(updatedStats, updatedHistory)
+            true
+        }
+    }
+
+    suspend fun addListenTime(
+        song: Song,
+        listenedMs: Long,
+        historyEntryId: String? = null
+    ) = withContext(Dispatchers.IO) {
         if (listenedMs <= 0) return@withContext
         val now = System.currentTimeMillis()
         persistenceMutex.withLock {
@@ -100,12 +154,19 @@ class PlaybackStatsStore private constructor(context: Context) {
                     lastPlayedAt = now
                 )
             }
-            val updatedHistory = _history.value.mapIndexed { index, entry ->
-                if (index == _history.value.indexOfFirst { it.source == PlaybackHistorySource.LOCAL && it.songId == song.id }) {
+            val targetEntryId = historyEntryId ?: _history.value
+                .firstOrNull { it.source == PlaybackHistorySource.LOCAL && it.songId == song.id }
+                ?.entryId
+            val updatedHistory = _history.value.map { entry ->
+                if (entry.entryId == targetEntryId) {
                     entry.copy(listenedMs = entry.listenedMs + listenedMs)
                 } else {
                     entry
                 }
+            }
+            if (targetEntryId != null && activePlaybackSession?.entryId == targetEntryId) {
+                activePlaybackSession = activePlaybackSession?.copy(lastTouchedAtMs = now)
+                saveActivePlaybackSession(activePlaybackSession)
             }
             publishLocked(updatedStats, updatedHistory)
         }
@@ -162,6 +223,10 @@ class PlaybackStatsStore private constructor(context: Context) {
         persistenceMutex.withLock {
             val updatedHistory = _history.value.filterNot { it.entryId == entry.entryId }
             if (updatedHistory.size == _history.value.size) return@withLock
+            if (activePlaybackSession?.entryId == entry.entryId) {
+                activePlaybackSession = null
+                saveActivePlaybackSession(null)
+            }
             publishLocked(_stats.value, updatedHistory)
         }
     }
@@ -238,6 +303,39 @@ class PlaybackStatsStore private constructor(context: Context) {
             Log.w("PlaybackStatsStore", "Failed to load hidden remote history", error)
             emptySet()
         }
+    }
+
+    private fun loadActivePlaybackSession(): ActivePlaybackSession? {
+        if (!activePlaybackSessionFile.baseFile.exists()) return null
+        return runCatching {
+            activePlaybackSessionFile.openRead().bufferedReader().use { reader ->
+                val payload = JSONObject(reader.readText())
+                ActivePlaybackSession(
+                    songId = payload.optLong("songId"),
+                    entryId = payload.optString("entryId"),
+                    lastTouchedAtMs = payload.optLong("lastTouchedAtMs")
+                ).takeIf { it.songId != 0L && it.entryId.isNotBlank() }
+            }
+        }.getOrElse { error ->
+            Log.w("PlaybackStatsStore", "Failed to load active playback session", error)
+            null
+        }
+    }
+
+    private fun saveActivePlaybackSession(session: ActivePlaybackSession?) {
+        if (session == null) {
+            runCatching { activePlaybackSessionFile.baseFile.delete() }
+            return
+        }
+        writeAtomic(
+            activePlaybackSessionFile,
+            JSONObject()
+                .put("songId", session.songId)
+                .put("entryId", session.entryId)
+                .put("lastTouchedAtMs", session.lastTouchedAtMs)
+                .toString(),
+            "active playback session"
+        )
     }
 
     private fun saveHistory(history: List<PlaybackHistoryEntry>) {
@@ -318,6 +416,7 @@ class PlaybackStatsStore private constructor(context: Context) {
                     .put("durationMs", entry.durationMs)
                     .put("listenedMs", entry.listenedMs)
                     .put("source", entry.source)
+                    .put("playCounted", entry.playCounted)
             )
         }
         return array
@@ -400,7 +499,8 @@ class PlaybackStatsStore private constructor(context: Context) {
                 playedAt = item.optLong("playedAt"),
                 durationMs = item.optLong("durationMs").coerceAtLeast(0L),
                 listenedMs = item.optLong("listenedMs").coerceAtLeast(0L),
-                source = item.optString("source", PlaybackHistorySource.LOCAL)
+                source = item.optString("source", PlaybackHistorySource.LOCAL),
+                playCounted = item.optBoolean("playCounted", false)
             )
         }.filter { it.playedAt > 0L }
             .sortedByDescending { it.playedAt }
@@ -552,8 +652,15 @@ class PlaybackStatsStore private constructor(context: Context) {
         var lastPlayedAt: Long = 0L
     )
 
+    private data class ActivePlaybackSession(
+        val songId: Long,
+        val entryId: String,
+        val lastTouchedAtMs: Long
+    )
+
     companion object {
         private const val DEFAULT_SOLIN_SESSION_PLAYED_MS = 60_000L
+        private const val ACTIVE_SESSION_IDLE_TIMEOUT_MS = 30_000L
 
         @Volatile
         private var instance: PlaybackStatsStore? = null

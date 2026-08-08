@@ -231,7 +231,7 @@ class ExternalPlaybackActivity : ComponentActivity() {
                     .setTitle(title)
                     .setArtist(artist)
                     .setAlbumTitle(album)
-                    .setAlbumArtist(albumArtist.ifBlank { artist })
+                    .setAlbumArtist(albumArtist.takeIf { it.isNotBlank() })
                     .setDisplayTitle(title)
                     .setSubtitle(artist)
                     .setTrackNumber(trackNumber.takeIf { it > 0 })

@@ -64,6 +64,18 @@
                 android:textSize="12sp" />
 
             <TextView
+                android:id="@+id/widget_lyric"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="#E6FFFFFF"
+                android:textSize="10sp"
+                android:visibility="gone" />
+
+            <TextView
                 android:id="@+id/widget_album"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

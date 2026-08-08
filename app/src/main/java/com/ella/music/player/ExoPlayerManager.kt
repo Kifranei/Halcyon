@@ -1305,7 +1305,9 @@ class ExoPlayerManager(private val context: Context) {
             .setTitle(titleOverride ?: title)
             .setArtist(artistOverride ?: artist)
             .setAlbumTitle(album)
-            .setAlbumArtist(albumArtist.ifBlank { artist })
+            // Preserve the tag exactly. Album artist and track artist are different metadata
+            // fields; synthesizing one here leaks incorrect data into system media surfaces.
+            .setAlbumArtist(albumArtist.takeIf { it.isNotBlank() })
             .setDisplayTitle(titleOverride ?: title)
             .setSubtitle(artistOverride ?: artist)
             .setDescription(album)

@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
@@ -17,6 +18,10 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.net.Uri
 import android.os.SystemClock
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
+import android.graphics.Typeface
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -25,6 +30,9 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import com.ella.music.MainActivity
 import com.ella.music.R
+import com.ella.music.data.model.LyricLine
+import com.ella.music.data.model.LyricWord
+import com.ella.music.data.model.Song
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.player.PlayerPalette
@@ -70,8 +78,12 @@ internal object PlaybackWidgetUpdater {
     private const val KEY_ARTWORK_KEY = "artwork_key"
     private const val KEY_BACKGROUND_STYLE_VERSION = "background_style_version"
     private const val KEY_SAFE_LAYOUT = "safe_layout"
+    private const val KEY_LYRIC_TEXT = "lyric_text"
+    private const val KEY_LYRIC_TRANSLATION = "lyric_translation"
+    private const val KEY_LYRIC_SONG_KEY = "lyric_song_key"
     private const val PROGRESS_MAX = 1_000
     private const val PROGRESS_UPDATE_INTERVAL_MS = 5_000L
+    private const val LYRIC_UPDATE_INTERVAL_MS = 200L
     private const val ARTWORK_SIZE = 256
     private const val BACKGROUND_WIDTH = 360
     private const val BACKGROUND_HEIGHT = 144
@@ -103,6 +115,8 @@ internal object PlaybackWidgetUpdater {
     private val artworkRequest = AtomicLong(0L)
     private val bitmapFileLock = Any()
     private var progressJob: Job? = null
+    private var lastLyricSignature: String? = null
+    private var lastLyricUpdateElapsedMs = 0L
 
     fun updateFromPlayer(context: Context, player: Player) {
         val appContext = context.applicationContext
@@ -112,6 +126,9 @@ internal object PlaybackWidgetUpdater {
         val mediaKey = song?.let {
             listOf(it.id, it.path, it.dateModified, it.fileSize, it.coverUrl).joinToString("|")
         } ?: mediaItem?.mediaId.orEmpty()
+        if (loadSnapshot(appContext).mediaKey != mediaKey) {
+            clearStoredLyric(appContext)
+        }
         val snapshot = Snapshot(
             title = metadata.title?.toString()?.takeIf(String::isNotBlank)
                 ?: appContext.getString(R.string.app_name),
@@ -135,6 +152,82 @@ internal object PlaybackWidgetUpdater {
             song = song
         )
         updateProgressLoop(appContext, player)
+    }
+
+    /**
+     * Updates the line shown by the widget.  Word-timed lyrics are rendered with the currently
+     * sung word highlighted; line-only lyrics remain readable as a normal single line.
+     */
+    @Synchronized
+    fun updateLyrics(
+        context: Context,
+        song: Song?,
+        line: LyricLine?,
+        positionMs: Long,
+        isPlaying: Boolean
+    ) {
+        val appContext = context.applicationContext
+        val lyricLine = line
+        val primaryText = lyricLine?.text?.takeIf(String::isNotBlank)
+            ?: lyricLine?.backgroundText?.takeIf(String::isNotBlank)
+        if (song == null || lyricLine == null || primaryText == null) {
+            if (prefs(appContext).getString(KEY_LYRIC_TEXT, null).isNullOrBlank()) {
+                lastLyricSignature = null
+                lastLyricUpdateElapsedMs = 0L
+            } else {
+                clearLyrics(appContext)
+            }
+            return
+        }
+
+        val songKey = widgetSongKey(song)
+        val wordIndex = activeLyricWordIndex(lyricLine, positionMs)
+        val translation = lyricLine.translation?.takeIf(String::isNotBlank).orEmpty()
+        val preferences = prefs(appContext)
+        val signature = listOf(
+            songKey,
+            lyricLine.timeMs,
+            primaryText,
+            translation,
+            wordIndex,
+            isPlaying
+        ).joinToString("|")
+        val nowElapsedMs = SystemClock.elapsedRealtime()
+        val sameLine = signature == lastLyricSignature
+        if (sameLine && isPlaying &&
+            nowElapsedMs - lastLyricUpdateElapsedMs < LYRIC_UPDATE_INTERVAL_MS
+        ) {
+            return
+        }
+
+        if (preferences.getString(KEY_LYRIC_TEXT, null) != primaryText ||
+            preferences.getString(KEY_LYRIC_TRANSLATION, null).orEmpty() != translation ||
+            preferences.getString(KEY_LYRIC_SONG_KEY, null) != songKey
+        ) {
+            preferences.edit()
+                .putString(KEY_LYRIC_TEXT, primaryText)
+                .putString(KEY_LYRIC_TRANSLATION, translation)
+                .putString(KEY_LYRIC_SONG_KEY, songKey)
+                .apply()
+        }
+        lastLyricSignature = signature
+        lastLyricUpdateElapsedMs = nowElapsedMs
+
+        if (!hasWidgets(appContext)) return
+        val rendered = renderLyric(primaryText, translation, lyricLine.words, wordIndex)
+        updateLyricViews(appContext, rendered, visible = true)
+    }
+
+    @Synchronized
+    fun clearLyrics(context: Context) {
+        val appContext = context.applicationContext
+        val hadLyric = !prefs(appContext).getString(KEY_LYRIC_TEXT, null).isNullOrBlank()
+        clearStoredLyric(appContext)
+        lastLyricSignature = null
+        lastLyricUpdateElapsedMs = 0L
+        if (hadLyric && hasWidgets(appContext)) {
+            updateLyricViews(appContext, "", visible = false)
+        }
     }
 
     fun stopProgressUpdates() {
@@ -236,6 +329,15 @@ internal object PlaybackWidgetUpdater {
         setTextViewText(R.id.widget_title, snapshot.title)
         setTextViewText(R.id.widget_artist, snapshot.artist)
         setTextViewText(R.id.widget_album, snapshot.album)
+        val storedLyric = loadStoredLyric(context, snapshot.mediaKey)
+        setTextViewText(
+            R.id.widget_lyric,
+            storedLyric.displayText
+        )
+        setViewVisibility(
+            R.id.widget_lyric,
+            if (storedLyric.displayText.isNotBlank()) View.VISIBLE else View.GONE
+        )
         setViewVisibility(
             R.id.widget_album,
             if (expanded && snapshot.album.isNotBlank()) View.VISIBLE else View.GONE
@@ -280,6 +382,26 @@ internal object PlaybackWidgetUpdater {
             R.id.widget_next,
             serviceIntent(context, PlaybackService.ACTION_WIDGET_NEXT, 3)
         )
+    }
+
+    private fun updateLyricViews(context: Context, text: CharSequence, visible: Boolean) {
+        val manager = AppWidgetManager.getInstance(context)
+        fun partial(layoutId: Int): RemoteViews = RemoteViews(context.packageName, layoutId).apply {
+            setTextViewText(R.id.widget_lyric, text)
+            setViewVisibility(R.id.widget_lyric, if (visible) View.VISIBLE else View.GONE)
+        }
+        val compactIds = manager.getAppWidgetIds(
+            ComponentName(context, PlaybackCompactWidgetProvider::class.java)
+        )
+        if (compactIds.isNotEmpty()) {
+            manager.partiallyUpdateAppWidget(compactIds, partial(R.layout.widget_playback_compact))
+        }
+        val expandedIds = manager.getAppWidgetIds(
+            ComponentName(context, PlaybackExpandedWidgetProvider::class.java)
+        )
+        if (expandedIds.isNotEmpty()) {
+            manager.partiallyUpdateAppWidget(expandedIds, partial(expandedLayoutId(context)))
+        }
     }
 
     private fun updateProgressLoop(context: Context, player: Player) {
@@ -422,6 +544,40 @@ internal object PlaybackWidgetUpdater {
             .apply()
     }
 
+    private data class StoredLyric(
+        val text: String,
+        val translation: String
+    ) {
+        val displayText: String
+            get() = if (translation.isBlank()) text else "$text\n$translation"
+    }
+
+    private fun clearStoredLyric(context: Context) {
+        prefs(context).edit()
+            .remove(KEY_LYRIC_TEXT)
+            .remove(KEY_LYRIC_TRANSLATION)
+            .remove(KEY_LYRIC_SONG_KEY)
+            .apply()
+    }
+
+    private fun loadStoredLyric(context: Context, mediaKey: String): StoredLyric {
+        val preferences = prefs(context)
+        val lyricSongKey = preferences.getString(KEY_LYRIC_SONG_KEY, null).orEmpty()
+        if (mediaKey.isBlank() || lyricSongKey != mediaKey) return StoredLyric("", "")
+        return StoredLyric(
+            text = preferences.getString(KEY_LYRIC_TEXT, null).orEmpty(),
+            translation = preferences.getString(KEY_LYRIC_TRANSLATION, null).orEmpty()
+        )
+    }
+
+    private fun widgetSongKey(song: Song): String = listOf(
+        song.id,
+        song.path,
+        song.dateModified,
+        song.fileSize,
+        song.coverUrl
+    ).joinToString("|")
+
     private fun loadSnapshot(context: Context): Snapshot {
         val prefs = prefs(context)
         return Snapshot(
@@ -436,6 +592,63 @@ internal object PlaybackWidgetUpdater {
             updatedAtElapsedMs = prefs.getLong(KEY_UPDATED_AT, SystemClock.elapsedRealtime()),
             mediaKey = prefs.getString(KEY_MEDIA_KEY, null).orEmpty()
         )
+    }
+
+    /** Returns the word being sung at [positionMs], or -1 while between timed words. */
+    internal fun activeLyricWordIndex(line: LyricLine, positionMs: Long): Int {
+        val index = line.words.indexOfLast { positionMs >= it.startMs }
+        if (index < 0) return -1
+        return index.takeIf { positionMs < line.words[it].endMs } ?: -1
+    }
+
+    private fun renderLyric(
+        text: String,
+        translation: String,
+        words: List<LyricWord>,
+        activeWordIndex: Int
+    ): CharSequence {
+        val displayText = if (translation.isBlank()) text else "$text\n$translation"
+        if (words.isEmpty() || activeWordIndex !in words.indices) return displayText
+
+        val rendered = SpannableString(displayText)
+        var searchOffset = 0
+        words.withIndex().forEach { (index, word) ->
+            val range = wordRange(text, word, searchOffset)
+                ?: return@forEach
+            searchOffset = range.last + 1
+            val color = if (index == activeWordIndex) {
+                Color.WHITE
+            } else {
+                Color.argb(185, 255, 255, 255)
+            }
+            rendered.setSpan(
+                ForegroundColorSpan(color),
+                range.first,
+                range.last + 1,
+                SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            if (index == activeWordIndex) {
+                rendered.setSpan(
+                    StyleSpan(Typeface.BOLD),
+                    range.first,
+                    range.last + 1,
+                    SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+        }
+        return rendered
+    }
+
+    /** Returns the inclusive character range for a timed word in the source line. */
+    internal fun wordRange(text: String, word: LyricWord, fallbackOffset: Int = 0): IntRange? {
+        val raw = word.text.takeIf(String::isNotEmpty) ?: return null
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return null
+        val start = text.indexOf(trimmed, fallbackOffset.coerceIn(0, text.length))
+            .takeIf { it >= 0 }
+            ?: text.indexOf(trimmed)
+        if (start < 0) return null
+        return start..(start + trimmed.length - 1)
     }
 
     private fun loadArtwork(context: Context, mediaKey: String): Bitmap? =

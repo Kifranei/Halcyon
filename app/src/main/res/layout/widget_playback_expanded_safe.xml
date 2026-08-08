@@ -74,6 +74,18 @@
                 android:textColor="#8FFFFFFF"
                 android:textSize="10sp" />
 
+            <TextView
+                android:id="@+id/widget_lyric"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="2"
+                android:textColor="#E6FFFFFF"
+                android:textSize="11sp"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

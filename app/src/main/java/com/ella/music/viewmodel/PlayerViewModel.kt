@@ -28,6 +28,7 @@ import com.ella.music.player.LyricGetterBridge
 import com.ella.music.player.LyriconBridge
 import com.ella.music.player.MediaNotificationLyricPatchPolicy
 import com.ella.music.player.PlaybackService
+import com.ella.music.player.PlaybackWidgetUpdater
 import com.ella.music.player.SuperLyricBridge
 import com.ella.music.player.TickerBridge
 import androidx.media3.common.Player
@@ -678,6 +679,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 runCatching {
                     playerManager.updatePosition()
                     updateCurrentLyricIndex()
+                    PlaybackWidgetUpdater.updateLyrics(
+                        context = getApplication<Application>(),
+                        song = currentSong.value,
+                        line = _lyrics.value.getOrNull(_currentLyricIndex.value),
+                        positionMs = playerManager.currentPosition.value,
+                        isPlaying = isPlaying.value
+                    )
                     updatePlaybackStats()
                     updateSleepTimer()
 
@@ -719,6 +727,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _rawLyrics.value = emptyList()
                     _lyrics.value = emptyList()
                     _currentLyricIndex.value = -1
+                    PlaybackWidgetUpdater.clearLyrics(getApplication<Application>())
                     // Clear external bridge state before async fetch to prevent stale lyrics
                     lastTickerPayload = null
                     lastBluetoothLyricPayload = null
@@ -762,6 +771,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _lyrics.value = emptyList()
                     _currentLyricOffsetMs.value = 0L
                     _currentLyricIndex.value = -1
+                    PlaybackWidgetUpdater.clearLyrics(getApplication<Application>())
                     clearExternalLyrics(clearLyricon = true, clearSuperLyricSong = true)
                 }
             }
@@ -1641,7 +1651,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val pendingStatsFlush = playbackStatsTracker.takePendingFlush()
         if (pendingStatsFlush != null) {
             cleanupScope.launch {
-                playbackStatsStore.addListenTime(pendingStatsFlush.song, pendingStatsFlush.listenedMs)
+                playbackStatsStore.addListenTime(
+                    song = pendingStatsFlush.song,
+                    listenedMs = pendingStatsFlush.listenedMs,
+                    historyEntryId = pendingStatsFlush.historyEntryId
+                )
             }
         }
         super.onCleared()

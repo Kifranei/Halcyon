@@ -12,8 +12,11 @@ internal class PlayerPlaybackStatsTracker(
     private var statsSongId: Long? = null
     private var statsSong: Song? = null
     private var playCountedSongId: Long? = null
+    private var recentRecordedSongId: Long? = null
+    private var recentRecordedEntryId: String? = null
     private var scrobbleQueuedSongId: Long? = null
     private var pendingListenMs = 0L
+    private var sessionListenMs = 0L
     private var lastFmListenMs = 0L
     private var lastStatsTickMs = 0L
     private var songStartedAtWallClockMs = 0L
@@ -30,14 +33,21 @@ internal class PlayerPlaybackStatsTracker(
             statsSongId = songId
             statsSong = song
             playCountedSongId = null
+            recentRecordedSongId = null
+            recentRecordedEntryId = null
             scrobbleQueuedSongId = null
             lastFmListenMs = 0L
+            sessionListenMs = 0L
             songStartedAtWallClockMs = if (song == null) 0L else System.currentTimeMillis()
             lastStatsTickMs = nowMs
             return
         }
 
         if (song != null && isPlaying) {
+            if (recentRecordedSongId != song.id) {
+                recentRecordedEntryId = playbackStatsStore.recordRecent(song)
+                recentRecordedSongId = song.id
+            }
             val elapsedMs = if (lastStatsTickMs > 0L) {
                 (nowMs - lastStatsTickMs).coerceIn(0L, 1500L)
             } else {
@@ -45,11 +55,12 @@ internal class PlayerPlaybackStatsTracker(
             }
             if (lastStatsTickMs > 0L) {
                 pendingListenMs += elapsedMs
+                sessionListenMs += elapsedMs
                 lastFmListenMs += elapsedMs
             }
-            if (playCountedSongId != song.id && pendingListenMs >= minPlaybackStatsListenMs) {
-                playbackStatsStore.recordPlay(song)
-                onPlayCounted(song)
+            if (playCountedSongId != song.id && sessionListenMs >= minPlaybackStatsListenMs) {
+                val counted = playbackStatsStore.recordPlay(song, recentRecordedEntryId)
+                if (counted) onPlayCounted(song)
                 playCountedSongId = song.id
             }
             if (
@@ -59,8 +70,8 @@ internal class PlayerPlaybackStatsTracker(
                 onLastFmScrobbleEligible(song, songStartedAtWallClockMs)
                 scrobbleQueuedSongId = song.id
             }
-            if (playCountedSongId == song.id && pendingListenMs >= 5000L) {
-                playbackStatsStore.addListenTime(song, pendingListenMs)
+            if (pendingListenMs >= 5000L) {
+                playbackStatsStore.addListenTime(song, pendingListenMs, recentRecordedEntryId)
                 pendingListenMs = 0L
             }
         } else {
@@ -73,8 +84,8 @@ internal class PlayerPlaybackStatsTracker(
         val song = statsSong
         val listenedMs = pendingListenMs
         pendingListenMs = 0L
-        return if (song != null && playCountedSongId == song.id && listenedMs > 0L) {
-            PlayerPlaybackStatsPendingFlush(song, listenedMs)
+        return if (song != null && recentRecordedSongId == song.id && listenedMs > 0L) {
+            PlayerPlaybackStatsPendingFlush(song, recentRecordedEntryId, listenedMs)
         } else {
             null
         }
@@ -82,8 +93,8 @@ internal class PlayerPlaybackStatsTracker(
 
     private suspend fun flush() {
         val song = statsSong
-        if (song != null && playCountedSongId == song.id && pendingListenMs > 0L) {
-            playbackStatsStore.addListenTime(song, pendingListenMs)
+        if (song != null && recentRecordedSongId == song.id && pendingListenMs > 0L) {
+            playbackStatsStore.addListenTime(song, pendingListenMs, recentRecordedEntryId)
         }
         pendingListenMs = 0L
     }
@@ -98,5 +109,6 @@ private fun Song.lastFmScrobbleThresholdMs(): Long = when {
 
 internal data class PlayerPlaybackStatsPendingFlush(
     val song: Song,
+    val historyEntryId: String?,
     val listenedMs: Long
 )
