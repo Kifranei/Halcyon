@@ -17,10 +17,16 @@ internal fun captureVideoFrame(
     source: Uri,
     positionMs: Long,
     includeCaptions: Boolean,
-    lyrics: List<LyricLine>
+    lyrics: List<LyricLine>,
+    captionStyle: MusicVideoCaptionStyle = MusicVideoCaptionStyle(),
+    includeTranslation: Boolean = true
 ): Boolean {
     val frame = decodeVideoFrame(context, source, positionMs) ?: return false
-    val result = if (includeCaptions) frame.withCaptionOverlay(lyrics, positionMs) else frame
+    val result = if (includeCaptions) {
+        frame.withCaptionOverlay(lyrics, positionMs, captionStyle, includeTranslation)
+    } else {
+        frame
+    }
     return runCatching {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "Halcyon_MV_${System.currentTimeMillis()}.png")
@@ -48,10 +54,16 @@ internal fun captureVideoFrameFile(
     source: Uri,
     positionMs: Long,
     includeCaptions: Boolean,
-    lyrics: List<LyricLine>
+    lyrics: List<LyricLine>,
+    captionStyle: MusicVideoCaptionStyle = MusicVideoCaptionStyle(),
+    includeTranslation: Boolean = true
 ): File? {
     val frame = decodeVideoFrame(context, source, positionMs) ?: return null
-    val result = if (includeCaptions) frame.withCaptionOverlay(lyrics, positionMs) else frame
+    val result = if (includeCaptions) {
+        frame.withCaptionOverlay(lyrics, positionMs, captionStyle, includeTranslation)
+    } else {
+        frame
+    }
     val dir = File(context.cacheDir, "music_video_capture").apply { mkdirs() }
     val file = File(dir, "halcyon_mv_${System.currentTimeMillis()}.png")
     return runCatching {
@@ -70,44 +82,128 @@ private fun decodeVideoFrame(context: Context, source: Uri, positionMs: Long): B
     }
 }.getOrNull()
 
-private fun Bitmap.withCaptionOverlay(lyrics: List<LyricLine>, position: Long): Bitmap {
+private fun Bitmap.withCaptionOverlay(
+    lyrics: List<LyricLine>,
+    position: Long,
+    style: MusicVideoCaptionStyle,
+    includeTranslation: Boolean
+): Bitmap {
     val line = lyrics.activeCaptionLineAt(position) ?: return this
     val target = copy(config ?: Bitmap.Config.ARGB_8888, true)
     val canvas = android.graphics.Canvas(target)
-    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        textSize = (target.height * 0.055f).coerceAtLeast(24f)
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    val text = line.text.trim()
+    if (text.isBlank()) {
+        target.recycle()
+        return this
+    }
+    val primaryPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = style.textColorArgb
+        textSize = (target.height * 0.055f * style.scale).coerceAtLeast(24f)
+        typeface = style.resolvedTypeface(bold = style.bold)
+        textAlign = android.graphics.Paint.Align.CENTER
         setShadowLayer(5f, 0f, 2f, Color.BLACK)
     }
-    val text = line.text.trim()
-    if (text.isBlank()) return this
+    val secondaryPaint = android.graphics.Paint(primaryPaint).apply {
+        textSize *= 0.76f
+        typeface = style.resolvedTypeface(bold = false)
+        alpha = 224
+    }
     val maxWidth = target.width * 0.88f
-    val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
-        .let { tokens -> if (tokens.size == 1) tokens.single().map(Char::toString) else tokens }
-    val rows = buildList {
+    val primaryRows = text.wrapForCapture(primaryPaint, maxWidth)
+    val translationRows = if (includeTranslation) {
+        line.translation?.trim()?.takeIf { it.isNotBlank() }
+            ?.wrapForCapture(secondaryPaint, maxWidth)
+            .orEmpty()
+    } else {
+        emptyList()
+    }
+    val lineSpacing = primaryPaint.textSize * 1.16f
+    val secondarySpacing = secondaryPaint.textSize * 1.16f
+    val totalTextHeight = primaryRows.size * lineSpacing + translationRows.size * secondarySpacing
+    val centerX = target.width * style.positionX.coerceIn(0f, 1f)
+    val centerY = target.height * style.positionY.coerceIn(0f, 1f)
+    var top = centerY - totalTextHeight / 2f
+    val backgroundColor = Color.argb(
+        (style.backgroundAlpha.coerceIn(0f, 1f) * 255f).toInt(),
+        Color.red(style.backgroundColorArgb),
+        Color.green(style.backgroundColorArgb),
+        Color.blue(style.backgroundColorArgb)
+    )
+    val backgroundPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = backgroundColor
+    }
+    primaryRows.forEach { row ->
+        val baseline = top - primaryPaint.fontMetrics.ascent
+        drawCaptureCaptionRow(canvas, row, centerX, baseline, primaryPaint, backgroundPaint)
+        top += lineSpacing
+    }
+    translationRows.forEach { row ->
+        val baseline = top - secondaryPaint.fontMetrics.ascent
+        drawCaptureCaptionRow(canvas, row, centerX, baseline, secondaryPaint, backgroundPaint)
+        top += secondarySpacing
+    }
+    return target
+}
+
+private fun String.wrapForCapture(
+    paint: android.graphics.Paint,
+    maxWidth: Float
+): List<String> {
+    val rawTokens = trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (rawTokens.isEmpty()) return emptyList()
+    val splitSingleToken = rawTokens.size == 1 && paint.measureText(rawTokens.single()) > maxWidth
+    val tokens = if (splitSingleToken) {
+        rawTokens.single().map(Char::toString)
+    } else {
+        rawTokens
+    }
+    val separator = if (rawTokens.size == 1) "" else " "
+    return buildList {
         var row = ""
-        words.forEach { word ->
-            val candidate = if (row.isEmpty()) word else "$row $word"
+        tokens.forEach { token ->
+            val candidate = if (row.isEmpty()) token else "$row$separator$token"
             if (paint.measureText(candidate) <= maxWidth || row.isEmpty()) {
                 row = candidate
             } else {
                 add(row)
-                row = word
+                row = token
             }
         }
         if (row.isNotEmpty()) add(row)
-    }.ifEmpty { listOf(text) }
-    val baseline = target.height - target.height * 0.08f - paint.textSize * (rows.size - 1) * 1.14f
-    rows.forEachIndexed { index, row ->
-        canvas.drawText(
-            row,
-            (target.width - paint.measureText(row)) / 2f,
-            baseline + paint.textSize * index * 1.14f,
-            paint
-        )
+    }.ifEmpty { listOf(this) }
+}
+
+private fun drawCaptureCaptionRow(
+    canvas: android.graphics.Canvas,
+    text: String,
+    centerX: Float,
+    baseline: Float,
+    textPaint: android.graphics.Paint,
+    backgroundPaint: android.graphics.Paint
+) {
+    val horizontalPadding = textPaint.textSize * 0.28f
+    val metrics = textPaint.fontMetrics
+    val left = centerX - textPaint.measureText(text) / 2f - horizontalPadding
+    val right = centerX + textPaint.measureText(text) / 2f + horizontalPadding
+    canvas.drawRoundRect(
+        left,
+        baseline + metrics.ascent - textPaint.textSize * 0.18f,
+        right,
+        baseline + metrics.descent + textPaint.textSize * 0.18f,
+        textPaint.textSize * 0.18f,
+        textPaint.textSize * 0.18f,
+        backgroundPaint
+    )
+    canvas.drawText(text, centerX, baseline, textPaint)
+}
+
+private fun MusicVideoCaptionStyle.resolvedTypeface(bold: Boolean): android.graphics.Typeface {
+    val base = when (fontFamily) {
+        1 -> android.graphics.Typeface.SERIF
+        2 -> android.graphics.Typeface.MONOSPACE
+        else -> android.graphics.Typeface.DEFAULT
     }
-    return target
+    return android.graphics.Typeface.create(base, if (bold) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
 }
 
 private fun List<LyricLine>.activeCaptionLineAt(position: Long): LyricLine? {

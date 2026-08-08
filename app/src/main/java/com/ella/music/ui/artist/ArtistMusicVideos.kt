@@ -12,13 +12,16 @@ import android.provider.DocumentsContract
 import android.text.format.Formatter
 import android.widget.Toast
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +61,7 @@ import java.text.SimpleDateFormat
 import java.io.File
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.graphics.asImageBitmap
 
 internal data class ArtistMusicVideo(
     val song: Song,
@@ -149,49 +153,57 @@ internal suspend fun resolveArtistMusicVideoSources(
     context: Context,
     songs: List<Song>,
     dynamicCoverFolders: List<String>,
-    musicVideoFolders: List<String>
-): List<ArtistMusicVideo> = songs.mapNotNull { song ->
-    val sourceCacheKey = listOf(
-        song.id,
-        song.path,
-        song.dateModified,
-        song.fileSize,
-        song.title,
-        song.artist,
-        song.album,
-        dynamicCoverFolders.joinToString("\u001f"),
-        musicVideoFolders.joinToString("\u001f")
-    ).joinToString("\u001e")
-    val now = System.currentTimeMillis()
-    val source = synchronized(artistMusicVideoSourceCache) {
-        artistMusicVideoSourceCache[sourceCacheKey]
-            ?.takeIf { now - it.cachedAtMs < ARTIST_MV_SOURCE_CACHE_TTL_MS }
-            ?.source
-    } ?: song.musicVideoSource(
-        context = context,
-        customRootPaths = dynamicCoverFolders,
-        musicVideoCustomFolders = musicVideoFolders
-    )?.also { resolved ->
-        synchronized(artistMusicVideoSourceCache) {
-            artistMusicVideoSourceCache[sourceCacheKey] = CachedArtistMusicVideoSource(resolved, now)
-            while (artistMusicVideoSourceCache.size > ARTIST_MV_SOURCE_CACHE_MAX_SIZE) {
-                val iterator = artistMusicVideoSourceCache.entries.iterator()
-                iterator.next()
-                iterator.remove()
+    musicVideoFolders: List<String>,
+    onProgress: suspend (List<ArtistMusicVideo>) -> Unit = {}
+): List<ArtistMusicVideo> {
+    val resolvedVideos = mutableListOf<ArtistMusicVideo>()
+    songs.forEach { song ->
+        val sourceCacheKey = listOf(
+            song.id,
+            song.path,
+            song.dateModified,
+            song.fileSize,
+            song.title,
+            song.artist,
+            song.album,
+            dynamicCoverFolders.joinToString("\u001f"),
+            musicVideoFolders.joinToString("\u001f")
+        ).joinToString("\u001e")
+        val now = System.currentTimeMillis()
+        val source = synchronized(artistMusicVideoSourceCache) {
+            artistMusicVideoSourceCache[sourceCacheKey]
+                ?.takeIf { now - it.cachedAtMs < ARTIST_MV_SOURCE_CACHE_TTL_MS }
+                ?.source
+        } ?: song.musicVideoSource(
+            context = context,
+            customRootPaths = dynamicCoverFolders,
+            musicVideoCustomFolders = musicVideoFolders
+        )?.also { resolved ->
+            synchronized(artistMusicVideoSourceCache) {
+                artistMusicVideoSourceCache[sourceCacheKey] = CachedArtistMusicVideoSource(resolved, now)
+                while (artistMusicVideoSourceCache.size > ARTIST_MV_SOURCE_CACHE_MAX_SIZE) {
+                    val iterator = artistMusicVideoSourceCache.entries.iterator()
+                    iterator.next()
+                    iterator.remove()
+                }
             }
-        }
-    } ?: return@mapNotNull null
-    ArtistMusicVideo(
-        song = song,
-        source = source,
-        durationMs = song.duration,
-        preview = null,
-        metadata = ArtistMusicVideoMetadata(
-            fileName = source.uri.lastPathSegment.orEmpty(),
-            path = source.uri.toString(),
-            realPath = resolveArtistMusicVideoRealPath(source.uri)
+        } ?: return@forEach
+        resolvedVideos += ArtistMusicVideo(
+            song = song,
+            source = source,
+            durationMs = song.duration,
+            preview = null,
+            metadata = ArtistMusicVideoMetadata(
+                fileName = source.uri.lastPathSegment.orEmpty(),
+                path = source.uri.toString(),
+                realPath = resolveArtistMusicVideoRealPath(source.uri)
+            )
         )
-    )
+        // Artist pages can contain hundreds of songs. Publish each hit as soon as its source is
+        // found so the MV tab and first rows do not wait for the complete SAF/file scan (#422).
+        onProgress(resolvedVideos.toList())
+    }
+    return resolvedVideos
 }
 
 internal fun enrichArtistMusicVideos(
@@ -253,15 +265,29 @@ internal fun ArtistMusicVideoRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SafeCoverImage(
-            model = item.preview ?: item.source.uri,
-            contentDescription = item.song.title,
+        val preview = item.preview?.takeUnless { it.isRecycled }
+        Box(
             modifier = Modifier
                 .weight(0.44f)
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.Crop
-        )
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            if (preview != null) {
+                Image(
+                    bitmap = preview.asImageBitmap(),
+                    contentDescription = item.song.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                SafeCoverImage(
+                    model = item.source.uri,
+                    contentDescription = item.song.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
         Column(
             modifier = Modifier.weight(0.52f),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -343,6 +369,11 @@ private fun readArtistMusicVideoMetadata(
             ?.toIntOrNull()
             ?.coerceAtLeast(0)
             ?: 0
+        val fallbackVideoBitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)
+            ?.toLongOrNull()
+            ?.takeIf { it > 0L }
+            ?.let(::formatBitrate)
+            .orEmpty()
         ArtistMusicVideoMetadata(
             fileName = document?.name ?: file?.name ?: uri.lastPathSegment.orEmpty(),
             path = uri.toString(),
@@ -358,7 +389,7 @@ private fun readArtistMusicVideoMetadata(
             },
             audioBitrate = trackMetadata.audioBitrate,
             videoFrameRate = trackMetadata.videoFrameRate,
-            videoBitrate = trackMetadata.videoBitrate,
+            videoBitrate = trackMetadata.videoBitrate.ifBlank { fallbackVideoBitrate },
             preview = context.readMusicVideoPreviewFrame(uri)
         )
     }
@@ -418,7 +449,7 @@ private fun readArtistMusicVideoTracks(extractor: MediaExtractor): ArtistMusicVi
     repeat(extractor.trackCount) { index ->
         val format = extractor.getTrackFormat(index)
         val mime = format.getString(MediaFormat.KEY_MIME).orEmpty()
-        val bitrate = format.intFormatValue(MediaFormat.KEY_BIT_RATE)
+        val bitrate = format.longFormatValue(MediaFormat.KEY_BIT_RATE)
             ?.takeIf { it > 0 }
             ?.let(::formatBitrate)
             .orEmpty()
@@ -447,12 +478,16 @@ private fun readArtistMusicVideoTracks(extractor: MediaExtractor): ArtistMusicVi
 private fun MediaFormat.intFormatValue(key: String): Int? =
     runCatching { if (containsKey(key)) getInteger(key) else null }.getOrNull()
 
+private fun MediaFormat.longFormatValue(key: String): Long? =
+    runCatching { if (containsKey(key)) getLong(key) else null }.getOrNull()
+        ?: intFormatValue(key)?.toLong()
+
 private fun MediaFormat.floatFormatValue(key: String): Float? =
     runCatching { if (containsKey(key)) getFloat(key) else null }.getOrNull()
         ?: intFormatValue(key)?.toFloat()
 
-private fun formatBitrate(bitsPerSecond: Int): String =
-    if (bitsPerSecond >= 1_000_000) {
+private fun formatBitrate(bitsPerSecond: Long): String =
+    if (bitsPerSecond >= 1_000_000L) {
         "%.2f Mbps".format(Locale.ROOT, bitsPerSecond / 1_000_000f).trimEnd('0').trimEnd('.')
     } else {
         "%.0f kbps".format(Locale.ROOT, bitsPerSecond / 1_000f)

@@ -838,7 +838,7 @@ internal fun CoverPlayerPage(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            painter = painterResource(R.drawable.ic_music_video_landscape),
+                                            painter = painterResource(R.drawable.ic_fullscreen),
                                             contentDescription = stringResource(R.string.player_music_video_landscape),
                                             tint = pagePalette.onBackground.copy(alpha = 0.94f),
                                             modifier = Modifier.size(24.dp)
@@ -856,8 +856,8 @@ internal fun CoverPlayerPage(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (musicVideoVisible) "♫" else "MV",
-                                        fontSize = if (musicVideoVisible) 18.sp else 12.sp,
+                                        text = stringResource(R.string.player_detail_music_video),
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = pagePalette.onBackground.copy(alpha = 0.94f)
                                     )

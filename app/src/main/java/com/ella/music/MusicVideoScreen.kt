@@ -372,11 +372,13 @@ internal fun DetailMusicVideoScreen(
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
+                controlsVisible = controlsVisible,
                 onBack = { player.pause(); onBack() },
                 onTogglePlay = { if (player.isPlaying) player.pause() else player.play() },
                 onSeek = { player.seekTo(it) },
                 onLandscape = { landscape = true },
-                onShare = { MusicVideoLauncher.share(context, source, song.title) }
+                onShare = { MusicVideoLauncher.share(context, source, song.title) },
+                onControlsVisibleChange = { controlsVisible = it }
             )
         }
         if (showCaptionSettings) {
@@ -421,7 +423,15 @@ internal fun DetailMusicVideoScreen(
                     val captureLyrics = lyrics
                     activity.lifecycleScope.launch {
                         val saved = withContext(Dispatchers.IO) {
-                            captureVideoFrame(context, source, capturePosition, captureSubtitles, captureLyrics)
+                            captureVideoFrame(
+                                context = context,
+                                source = source,
+                                positionMs = capturePosition,
+                                includeCaptions = captureSubtitles,
+                                lyrics = captureLyrics,
+                                captionStyle = captionStyle,
+                                includeTranslation = true
+                            )
                         }
                         Toast.makeText(context, if (saved) R.string.music_video_capture_saved else R.string.music_video_capture_failed, Toast.LENGTH_SHORT).show()
                     }
@@ -432,7 +442,15 @@ internal fun DetailMusicVideoScreen(
                     val captureLyrics = lyrics
                     activity.lifecycleScope.launch {
                         val file = withContext(Dispatchers.IO) {
-                            captureVideoFrameFile(context, source, capturePosition, captureSubtitles, captureLyrics)
+                            captureVideoFrameFile(
+                                context = context,
+                                source = source,
+                                positionMs = capturePosition,
+                                includeCaptions = captureSubtitles,
+                                lyrics = captureLyrics,
+                                captionStyle = captionStyle,
+                                includeTranslation = true
+                            )
                         }
                         if (file != null) MusicVideoLauncher.share(context, Uri.fromFile(file), song.title)
                     }
@@ -450,38 +468,61 @@ private fun PortraitMusicVideoLayout(
     isPlaying: Boolean,
     position: Long,
     duration: Long,
+    controlsVisible: Boolean,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
     onLandscape: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onControlsVisibleChange: (Boolean) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
-            VideoIconButton(MiuixIcons.Regular.Share, stringResource(R.string.common_share), onShare)
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
         VideoSurface(
             player = player,
-            modifier = Modifier
-                .fillMaxWidth()
-                .pointerInput(onTogglePlay) { detectTapGestures(onDoubleTap = { onTogglePlay() }) }
+            modifier = Modifier.fillMaxSize()
         )
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
-            ArtistTitleBlock(song = song)
-            VideoTransport(
-                isPlaying = isPlaying,
-                position = position,
-                duration = duration,
-                onTogglePlay = onTogglePlay,
-                onSeek = onSeek,
-                trailingLabel = stringResource(R.string.player_music_video_landscape),
-                trailingIconRes = R.drawable.ic_music_video_landscape,
-                onTrailing = onLandscape
-            )
+        // Keep the gesture surface behind the controls but above the video. This makes a tap on
+        // any video area (including fitted black bars) toggle the chrome, while the top/bottom
+        // buttons keep their own click targets.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(controlsVisible, onTogglePlay) {
+                    detectTapGestures(
+                        onTap = { onControlsVisibleChange(!controlsVisible) },
+                        onDoubleTap = { onTogglePlay() }
+                    )
+                }
+        )
+        if (controlsVisible) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
+                    VideoIconButton(MiuixIcons.Regular.Share, stringResource(R.string.common_share), onShare)
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    ArtistTitleBlock(song = song)
+                    VideoTransport(
+                        isPlaying = isPlaying,
+                        position = position,
+                        duration = duration,
+                        onTogglePlay = onTogglePlay,
+                        onSeek = onSeek,
+                        trailingLabel = stringResource(R.string.player_music_video_landscape),
+                        trailingIconRes = R.drawable.ic_fullscreen,
+                        onTrailing = onLandscape
+                    )
+                }
+            }
         }
     }
 }
@@ -605,7 +646,7 @@ private fun LandscapeMusicVideoLayout(
                     }
                     IconButton(onClick = onPortrait) {
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_music_video_landscape),
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_fullscreen_exit),
                             contentDescription = stringResource(R.string.player_music_video_landscape),
                             tint = ComposeColor.White,
                             modifier = Modifier.size(25.dp)
@@ -925,7 +966,7 @@ private fun MusicVideoGestureFeedbackOverlay(
     }
 }
 
-private data class MusicVideoCaptionStyle(
+internal data class MusicVideoCaptionStyle(
     val positionX: Float = 0.5f,
     val positionY: Float = 0.78f,
     val fontSizeSp: Float = 21f,

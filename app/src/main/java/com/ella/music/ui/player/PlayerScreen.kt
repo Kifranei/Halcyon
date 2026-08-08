@@ -186,6 +186,14 @@ fun PlayerScreen(
     val uiState = rememberPlayerScreenUiState()
     val musicVideoPermissionLauncher = rememberMusicVideoSyncPermissionLauncher(settingsManager)
     val landscapeState = rememberPlayerLandscapeUiState()
+    val musicVideoLandscapePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            uiState.musicVideoVisible = true
+            landscapeState.expanded = true
+        }
+    }
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
     LaunchedEffect(openToken, playerVisible, isLandscape, playerLandscapeStyle) {
         if (!playerVisible) {
@@ -484,8 +492,14 @@ fun PlayerScreen(
                         },
                         onOpenMusicVideoLandscape = {
                             if (musicVideoSyncEnabled) {
-                                uiState.musicVideoVisible = true
-                                landscapeState.expanded = true
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                    context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    musicVideoLandscapePermissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
+                                } else {
+                                    uiState.musicVideoVisible = true
+                                    landscapeState.expanded = true
+                                }
                             }
                         },
                         immersiveAlbumCover = immersiveAlbumCover,
@@ -704,7 +718,13 @@ fun PlayerScreen(
             PlayerLandscapeOverlayHost(
                 context = context,
                 expanded = landscapeState.expanded,
-                layoutStyle = playerLandscapeStyle,
+                // The explicit MV landscape action is an intent to open the MV-backed player,
+                // regardless of the default landscape style selected in Settings.
+                layoutStyle = if (landscapeState.expanded && uiState.musicVideoVisible) {
+                    SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO
+                } else {
+                    playerLandscapeStyle
+                },
                 dynamicCoverEnabled = dynamicCoverEnabled,
                 dynamicCoverCustomFolders = dynamicCoverCustomFolders,
                 musicVideoCustomFolders = musicVideoCustomFolders,
