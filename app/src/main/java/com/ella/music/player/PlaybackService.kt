@@ -36,6 +36,7 @@ import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import com.ella.music.dsp.TenBandEqualizer
 import com.google.common.collect.ImmutableList
+import com.ella.music.oem.HonorHdAudioSupport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -112,6 +113,7 @@ class PlaybackService : MediaLibraryService() {
     private val audioEffectController = AudioEffectController()
     private lateinit var equalizerAudioProcessor: EqualizerAudioProcessor
     private lateinit var usbAudioController: UsbAudioController
+    private var honorHdAudioSupport: HonorHdAudioSupport? = null
     private lateinit var oplusLyricHandler: OPlusLyricHandler
     @Volatile
     private var colorOsLockScreenLyricEnabled = false
@@ -138,6 +140,7 @@ class PlaybackService : MediaLibraryService() {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        honorHdAudioSupport = HonorHdAudioSupport(this).also { it.initialize() }
         notificationProvider = NoArtworkMediaNotificationProvider(this)
         setMediaNotificationProvider(notificationProvider)
         settingsManager = SettingsManager.getInstance(this)
@@ -579,6 +582,8 @@ class PlaybackService : MediaLibraryService() {
         mediaSession = null
         sessionPresentationPlayer = null
         usbAudioController.clearUsbRouting()
+        honorHdAudioSupport?.release()
+        honorHdAudioSupport = null
         PlaybackAudioSession.clear()
         serviceScope.cancel()
         super.onDestroy()

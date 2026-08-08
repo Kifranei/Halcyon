@@ -262,6 +262,9 @@ dependencies {
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
+    // Optional on-device enhancement: enables HONOR's 96-192 kHz playback path when the
+    // device exposes HNAUDIO_SERVICE_HIGHSAMPLERATEPLAY. Unsupported devices simply no-op.
+    implementation("com.hihonor.mcs:media-audio:1.2.0.300")
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
