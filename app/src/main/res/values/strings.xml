@@ -366,6 +366,7 @@
     <string name="spectrum_scanning">正在扫描音频并生成声谱图…</string>
     <string name="spectrum_rescan">重新扫描</string>
     <string name="spectrum_scan_failed">无法生成声谱图，请确认音频文件仍可访问。</string>
+    <string name="spectrum_frequency_unknown">自适应</string>
 
     <string name="player_need_record_audio_permission">需要录音权限才能开启音频可视化</string>
     <string name="player_visualizer_immersive_only">沉浸封面或大屏横屏播放时才能使用可视化</string>
@@ -1333,6 +1334,12 @@
     <string name="settings_mini_player_translation_summary">播放栏显示歌词时同时显示翻译</string>
     <string name="settings_mini_player_secondary">迷你播放条副行内容</string>
     <string name="settings_secondary_delivery_content">副行传递内容</string>
+    <string name="settings_enable_live_update_lyric">启用 Live 更新歌词</string>
+    <string name="settings_enable_live_update_lyric_summary">在 Android 16 的 Live Updates 通知中显示当前歌词；通知只显示一个选定内容的歌词行</string>
+    <string name="settings_live_update_lyric_content">Live 通知歌词内容</string>
+    <string name="settings_live_update_lyric_original">原文</string>
+    <string name="settings_live_update_lyric_translation">翻译</string>
+    <string name="settings_live_update_lyric_pronunciation">注音</string>
     <string name="settings_mini_player_cover_rotation">迷你播放条封面旋转</string>
     <string name="settings_mini_player_cover_rotation_summary">播放时旋转迷你播放条封面；关闭后保持静态封面</string>
     <string name="settings_enable_lyricon">启用词幕</string>
@@ -1390,6 +1397,8 @@
     <string name="settings_bluetooth_lyric_translation_summary">开启后用当前歌词翻译替换媒体歌手行。</string>
     <string name="settings_bluetooth_lyric_pronunciation">媒体通知歌词传递注音</string>
     <string name="settings_bluetooth_lyric_pronunciation_summary">开启后用当前歌词注音/罗马音替换媒体歌手行。</string>
+    <string name="notification_channel_live_lyrics">Live 歌词</string>
+    <string name="notification_channel_live_lyrics_description">显示当前歌曲歌词的 Android Live Updates 通知</string>
     <string name="analytics_listen_duration_ranking">听歌时长排行</string>
     <string name="analytics_listen_duration_empty">开始播放后会自动累计听歌时长</string>
     <string name="analytics_play_count_ranking">播放次数排行</string>

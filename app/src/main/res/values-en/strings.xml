@@ -2127,4 +2127,13 @@
     <string name="album_introduction_save_failed">Couldn’t save the album introduction</string>
     <string name="player_local_music_video">Local MV</string>
     <string name="player_netease_music_video">NetEase Cloud Music MV</string>
+    <string name="spectrum_frequency_unknown">Adaptive</string>
+    <string name="settings_enable_live_update_lyric">Enable Live lyric updates</string>
+    <string name="settings_enable_live_update_lyric_summary">Show the current lyric in an Android 16 Live Updates notification; only one selected lyric line is shown</string>
+    <string name="settings_live_update_lyric_content">Live notification lyric content</string>
+    <string name="settings_live_update_lyric_original">Original</string>
+    <string name="settings_live_update_lyric_translation">Translation</string>
+    <string name="settings_live_update_lyric_pronunciation">Pronunciation</string>
+    <string name="notification_channel_live_lyrics">Live lyrics</string>
+    <string name="notification_channel_live_lyrics_description">Android Live Updates notification for the current song lyric</string>
 </resources>

@@ -2125,4 +2125,13 @@
     <string name="album_introduction_save_failed">儲存專輯介紹失敗</string>
     <string name="player_local_music_video">本機 MV</string>
     <string name="player_netease_music_video">網易雲音樂 MV</string>
+    <string name="spectrum_frequency_unknown">自適應</string>
+    <string name="settings_enable_live_update_lyric">啟用 Live 更新歌詞</string>
+    <string name="settings_enable_live_update_lyric_summary">在 Android 16 的 Live Updates 通知中顯示目前歌詞；通知只顯示一個選定內容的歌詞行</string>
+    <string name="settings_live_update_lyric_content">Live 通知歌詞內容</string>
+    <string name="settings_live_update_lyric_original">原文</string>
+    <string name="settings_live_update_lyric_translation">翻譯</string>
+    <string name="settings_live_update_lyric_pronunciation">注音</string>
+    <string name="notification_channel_live_lyrics">Live 歌詞</string>
+    <string name="notification_channel_live_lyrics_description">顯示目前歌曲歌詞的 Android Live Updates 通知</string>
 </resources>

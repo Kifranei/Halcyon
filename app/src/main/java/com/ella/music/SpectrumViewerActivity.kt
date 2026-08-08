@@ -3,6 +3,9 @@ package com.ella.music
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -60,6 +63,7 @@ import com.ella.music.ui.components.openSongSpectrumWithKaspek
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -174,6 +178,7 @@ private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
 
                     is SpectrumScanState.Ready -> SpectrumChart(
                         bitmap = state.spectrogram.bitmap,
+                        maxFrequencyHz = state.spectrogram.maxFrequencyHz,
                         duration = song.duration,
                         modifier = Modifier.fillMaxSize().padding(12.dp)
                     )
@@ -222,7 +227,10 @@ private sealed interface SpectrumScanState {
     data class Failed(val message: String) : SpectrumScanState
 }
 
-private data class OfflineSpectrogram(val bitmap: Bitmap)
+private data class OfflineSpectrogram(
+    val bitmap: Bitmap,
+    val maxFrequencyHz: Int?
+)
 
 private const val SPECTRUM_COLUMNS = 720
 private const val SPECTRUM_BINS = 320
@@ -232,16 +240,17 @@ private fun buildOfflineSpectrogram(context: Context, song: Song): OfflineSpectr
     val source = prepareSpectrumSource(context, song)
     val image = File(context.cacheDir, "spectrum-${UUID.randomUUID()}.png")
     try {
+        val sourceSampleRateHz = readSpectrumSampleRate(source.file)
         // Let FFmpeg perform both decode and FFT in native code. The previous path decoded an
         // entire song to disk then repeated 720 FFTs in Kotlin, which was unnecessarily slow.
         val session = FFmpegKit.executeWithArguments(
             arrayOf(
                 "-hide_banner", "-y", "-i", source.file.absolutePath, "-vn",
                 "-filter_complex",
-                // Keep a 192 kHz analysis clock so high-resolution files are not clipped at the
-                // 22.05 kHz Nyquist limit introduced by the old 44.1 kHz resampler.  Downsampled
-                // sources still naturally contain no energy above their original Nyquist limit.
-                "[0:a]aformat=channel_layouts=mono,aresample=192000,showspectrumpic=" +
+                // Keep the source sample rate. The spectrogram then uses the actual Nyquist
+                // frequency (for example, 22.05 kHz for a 44.1 kHz file) instead of leaving a
+                // large empty upper half after forcing every source to a fixed 192 kHz clock.
+                "[0:a]aformat=channel_layouts=mono,showspectrumpic=" +
                     "s=${SPECTRUM_COLUMNS}x${SPECTRUM_BINS}:legend=disabled:mode=combined:" +
                     "color=fiery:scale=log:drange=120:win_func=hann[s]",
                 "-map", "[s]", "-frames:v", "1", image.absolutePath
@@ -252,12 +261,54 @@ private fun buildOfflineSpectrogram(context: Context, song: Song): OfflineSpectr
             val diagnostic = session.allLogsAsString.lineSequence().toList().takeLast(5).joinToString(" ")
             throw IllegalStateException(diagnostic.ifBlank { "FFmpeg could not generate a spectrogram" })
         }
-        return OfflineSpectrogram(bitmap)
+        val resolvedSampleRateHz = sourceSampleRateHz ?: parseSpectrumSampleRate(session.allLogsAsString)
+        return OfflineSpectrogram(
+            bitmap = bitmap,
+            maxFrequencyHz = resolvedSampleRateHz?.let { it / 2 }?.takeIf { it > 0 }
+        )
     } finally {
         source.deleteIfTemporary()
         image.delete()
     }
 }
+
+private fun readSpectrumSampleRate(file: File): Int? {
+    val extractorRate = runCatching {
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(file.absolutePath)
+            (0 until extractor.trackCount)
+                .asSequence()
+                .map { extractor.getTrackFormat(it) }
+                .firstOrNull { format ->
+                    format.getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
+                }
+                ?.takeIf { it.containsKey(MediaFormat.KEY_SAMPLE_RATE) }
+                ?.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+        } finally {
+            extractor.release()
+        }
+    }.getOrNull()?.takeIf { it > 0 }
+    if (extractorRate != null) return extractorRate
+
+    return runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
+        } finally {
+            retriever.release()
+        }
+    }.getOrNull()?.takeIf { it > 0 }
+}
+
+private fun parseSpectrumSampleRate(logs: String): Int? =
+    Regex("(?:,|\\s)(\\d{4,6})\\s*Hz\\b")
+        .find(logs)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.toIntOrNull()
+        ?.takeIf { it > 0 }
 
 private data class SpectrumSource(val file: File, val temporary: Boolean) {
     fun deleteIfTemporary() {
@@ -280,7 +331,12 @@ private fun prepareSpectrumSource(context: Context, song: Song): SpectrumSource 
 }
 
 @Composable
-private fun SpectrumChart(bitmap: Bitmap, duration: Long, modifier: Modifier = Modifier) {
+private fun SpectrumChart(
+    bitmap: Bitmap,
+    maxFrequencyHz: Int?,
+    duration: Long,
+    modifier: Modifier = Modifier
+) {
     Column(modifier = modifier) {
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
@@ -288,7 +344,11 @@ private fun SpectrumChart(bitmap: Bitmap, duration: Long, modifier: Modifier = M
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
             ) {
-                Text("96 kHz", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
+                Text(
+                    maxFrequencyHz?.formatSpectrumFrequency() ?: stringResource(R.string.spectrum_frequency_unknown),
+                    color = Color.White.copy(alpha = 0.62f),
+                    fontSize = 10.sp
+                )
                 Text("0 Hz", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
             }
             Image(
@@ -338,6 +398,14 @@ private fun SpectrumChart(bitmap: Bitmap, duration: Long, modifier: Modifier = M
             Text(duration.formatSpectrumTime(), color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
         }
     }
+}
+
+private fun Int.formatSpectrumFrequency(): String {
+    val kilohertz = this / 1000.0
+    val value = String.format(Locale.US, "%.2f", kilohertz)
+        .trimEnd('0')
+        .trimEnd('.')
+    return "$value kHz"
 }
 
 private fun Long.formatSpectrumTime(): String {

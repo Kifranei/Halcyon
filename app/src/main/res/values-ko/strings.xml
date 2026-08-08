@@ -2125,4 +2125,13 @@
     <string name="album_introduction_save_failed">앨범 소개를 저장하지 못했습니다</string>
     <string name="player_local_music_video">로컬 MV</string>
     <string name="player_netease_music_video">NetEase Cloud Music MV</string>
+    <string name="spectrum_frequency_unknown">자동 조정</string>
+    <string name="settings_enable_live_update_lyric">Live 가사 업데이트 사용</string>
+    <string name="settings_enable_live_update_lyric_summary">Android 16 Live Updates 알림에 현재 가사를 표시합니다. 선택한 가사 한 줄만 표시됩니다</string>
+    <string name="settings_live_update_lyric_content">Live 알림 가사 내용</string>
+    <string name="settings_live_update_lyric_original">원문</string>
+    <string name="settings_live_update_lyric_translation">번역</string>
+    <string name="settings_live_update_lyric_pronunciation">발음</string>
+    <string name="notification_channel_live_lyrics">Live 가사</string>
+    <string name="notification_channel_live_lyrics_description">현재 곡의 가사를 표시하는 Android Live Updates 알림</string>
 </resources>

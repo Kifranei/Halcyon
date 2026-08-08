@@ -2125,4 +2125,13 @@
     <string name="album_introduction_save_failed">Impossible d’enregistrer la présentation de l’album</string>
     <string name="player_local_music_video">MV locale</string>
     <string name="player_netease_music_video">MV NetEase</string>
+    <string name="spectrum_frequency_unknown">Adaptatif</string>
+    <string name="settings_enable_live_update_lyric">Activer les paroles Live</string>
+    <string name="settings_enable_live_update_lyric_summary">Afficher les paroles actuelles dans une notification Android 16 Live Updates ; une seule ligne sélectionnée est affichée</string>
+    <string name="settings_live_update_lyric_content">Contenu des paroles de la notification Live</string>
+    <string name="settings_live_update_lyric_original">Original</string>
+    <string name="settings_live_update_lyric_translation">Traduction</string>
+    <string name="settings_live_update_lyric_pronunciation">Prononciation</string>
+    <string name="notification_channel_live_lyrics">Paroles Live</string>
+    <string name="notification_channel_live_lyrics_description">Notification Android Live Updates pour les paroles du titre actuel</string>
 </resources>

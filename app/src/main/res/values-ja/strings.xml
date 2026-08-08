@@ -2125,4 +2125,13 @@
     <string name="album_introduction_save_failed">アルバム紹介を保存できませんでした</string>
     <string name="player_local_music_video">ローカル MV</string>
     <string name="player_netease_music_video">NetEase Cloud Music MV</string>
+    <string name="spectrum_frequency_unknown">自動調整</string>
+    <string name="settings_enable_live_update_lyric">Live 歌詞更新を有効にする</string>
+    <string name="settings_enable_live_update_lyric_summary">Android 16 の Live Updates 通知に現在の歌詞を表示します。選択した歌詞の 1 行だけを表示します</string>
+    <string name="settings_live_update_lyric_content">Live 通知の歌詞内容</string>
+    <string name="settings_live_update_lyric_original">原文</string>
+    <string name="settings_live_update_lyric_translation">翻訳</string>
+    <string name="settings_live_update_lyric_pronunciation">発音</string>
+    <string name="notification_channel_live_lyrics">Live 歌詞</string>
+    <string name="notification_channel_live_lyrics_description">現在の曲の歌詞を表示する Android Live Updates 通知</string>
 </resources>
