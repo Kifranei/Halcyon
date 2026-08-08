@@ -1,6 +1,7 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -60,6 +61,28 @@ internal fun SettingsCardGroup(
         colors = CardDefaults.defaultColors(
             color = if (lit) highlightColor else cardColor
         )
+    ) {
+        content()
+    }
+}
+
+/**
+ * Gives a search result an anchor inside a large settings card or sheet. The card-level
+ * bring-into-view behavior is still useful for the section header, but this smaller anchor keeps
+ * the selected preference itself on screen when a result points into a dense group (#410).
+ */
+@Composable
+internal fun SettingsFocusAnchor(
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(active) {
+        if (active) bringIntoViewRequester.bringIntoView()
+    }
+    Box(
+        modifier = modifier.bringIntoViewRequester(bringIntoViewRequester)
     ) {
         content()
     }

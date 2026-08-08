@@ -77,6 +77,7 @@ class SettingsManager(private val context: Context) :
         val KEY_TICKER_ENABLED = booleanPreferencesKey("ticker_enabled")
         val KEY_TICKER_HIDE_NOTIFICATION = booleanPreferencesKey("ticker_hide_notification")
         val KEY_TICKER_HEADS_UP_LYRICS = booleanPreferencesKey("ticker_heads_up_lyrics")
+        val KEY_MEDIA_NOTIFICATION_BUTTONS = stringPreferencesKey("media_notification_buttons")
         val KEY_LIVE_UPDATE_LYRIC_ENABLED = booleanPreferencesKey("live_update_lyric_enabled")
         val KEY_LIVE_UPDATE_LYRIC_MODE = intPreferencesKey("live_update_lyric_mode")
         val KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE = intPreferencesKey("live_update_lyric_display_mode")
@@ -86,6 +87,8 @@ class SettingsManager(private val context: Context) :
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
         val KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_hide_when_paused")
         val KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_hide_in_landscape")
+        val KEY_DESKTOP_LYRIC_HIDE_ON_PLAYER_PAGE = booleanPreferencesKey("desktop_lyric_hide_on_player_page")
+        val KEY_DESKTOP_LYRIC_HIDE_ON_LYRICS_PAGE = booleanPreferencesKey("desktop_lyric_hide_on_lyrics_page")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_MODE = booleanPreferencesKey("desktop_lyric_status_bar_mode")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_status_bar_hide_when_paused")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_status_bar_hide_in_landscape")
@@ -138,6 +141,7 @@ class SettingsManager(private val context: Context) :
         val KEY_MINI_PLAYER_COVER_ROTATION = booleanPreferencesKey("mini_player_cover_rotation")
         val KEY_MINI_PLAYER_LYRICS_ENABLED = booleanPreferencesKey("mini_player_lyrics_enabled")
         val KEY_MINI_PLAYER_RIGHT_BUTTON = intPreferencesKey("mini_player_right_button")
+        val KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER = booleanPreferencesKey("mini_player_swipe_to_open_player")
         val KEY_PLAYER_PROGRESS_INFO_INDEX = intPreferencesKey("player_progress_info_index")
         val KEY_TRANSPORT_BUTTON_OUTLINES = booleanPreferencesKey("transport_button_outlines")
         val KEY_PLAYER_TAP_SEEK_ENABLED = booleanPreferencesKey("player_tap_seek_enabled")
@@ -243,6 +247,7 @@ class SettingsManager(private val context: Context) :
         val KEY_WEB_MUSIC_SERVER_ENABLED = booleanPreferencesKey("web_music_server_enabled")
         val KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE = booleanPreferencesKey("playlist_special_entries_visible")
         val KEY_PLAYLIST_CUSTOM_ORDER = stringPreferencesKey("playlist_custom_order")
+        val KEY_FOLDER_PLAYLIST_CUSTOM_ORDER = stringPreferencesKey("folder_playlist_custom_order")
         val KEY_SHOW_PLAY_NEXT_IN_LISTS = booleanPreferencesKey("show_play_next_in_lists")
         val KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST = booleanPreferencesKey("exclude_search_results_from_playlist")
         val KEY_AUTO_SHOW_SEARCH_KEYBOARD = booleanPreferencesKey("auto_show_search_keyboard")
@@ -603,6 +608,32 @@ class SettingsManager(private val context: Context) :
         const val DEFAULT_STARTUP_POSTER_DURATION_MS = 1_000
         const val SONG_RATING_DISPLAY_STAR_NUMBER = 0
         const val SONG_RATING_DISPLAY_STARS = 1
+        const val MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE = "playback_mode"
+        const val MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC = "desktop_lyric"
+        const val MEDIA_NOTIFICATION_BUTTON_FAVORITE = "favorite"
+        val DEFAULT_MEDIA_NOTIFICATION_BUTTON_IDS = listOf(
+            MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE,
+            MEDIA_NOTIFICATION_BUTTON_FAVORITE
+        )
+        private val MEDIA_NOTIFICATION_BUTTON_IDS = setOf(
+            MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE,
+            MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC,
+            MEDIA_NOTIFICATION_BUTTON_FAVORITE
+        )
+
+        fun normalizeMediaNotificationButtonIds(value: String): List<String> {
+            val selected = value
+                .split(',', '，', ';', '；', '\n')
+                .asSequence()
+                .map { it.trim().lowercase(Locale.ROOT) }
+                .filter { it in MEDIA_NOTIFICATION_BUTTON_IDS }
+                .distinct()
+                .take(2)
+                .toList()
+            return (selected + DEFAULT_MEDIA_NOTIFICATION_BUTTON_IDS.filterNot(selected::contains))
+                .distinct()
+                .take(2)
+        }
         val SEARCH_ALL_CATEGORY_TYPES = setOf("folder", "composer", "arranger", "lyricist", "genre", "year")
         val SEARCH_ALL_SONG_MATCH_TYPES = setOf(
             "title", "artist", "album", "album_artist", "genre", "year", "composer", "arranger",
@@ -681,6 +712,8 @@ class SettingsManager(private val context: Context) :
         const val DEFAULT_HOME_SECTION_ORDER = "library,online,recent"
         const val DEFAULT_HOME_LIBRARY_TILE_ORDER = "artist,album,folder,folder_tree,folder_playlist,playlist,analytics,genre,year,composer,arranger,lyricist"
         const val DEFAULT_HOME_ONLINE_TILE_ORDER = "lx,webdav"
+        const val DEFAULT_ARTIST_SEPARATORS = "/\nfeat.\n&\n,"
+        const val DEFAULT_GENRE_SEPARATORS = ";"
 
         val LYRIC_SOURCE_PRIORITY_IDS = listOf(
             LYRIC_SOURCE_EMBEDDED_TTML,
@@ -761,6 +794,8 @@ class SettingsManager(private val context: Context) :
     val desktopLyricEnabled get() = desktopLyricSettings.desktopLyricEnabled
     val desktopLyricHideWhenPaused get() = desktopLyricSettings.desktopLyricHideWhenPaused
     val desktopLyricHideInLandscape get() = desktopLyricSettings.desktopLyricHideInLandscape
+    val desktopLyricHideOnPlayerPage get() = desktopLyricSettings.desktopLyricHideOnPlayerPage
+    val desktopLyricHideOnLyricsPage get() = desktopLyricSettings.desktopLyricHideOnLyricsPage
     val desktopLyricStatusBarMode get() = desktopLyricSettings.desktopLyricStatusBarMode
     val desktopLyricStatusBarHideWhenPaused get() = desktopLyricSettings.desktopLyricStatusBarHideWhenPaused
     val desktopLyricStatusBarHideInLandscape get() = desktopLyricSettings.desktopLyricStatusBarHideInLandscape
@@ -789,6 +824,8 @@ class SettingsManager(private val context: Context) :
     suspend fun setDesktopLyricEnabled(enabled: Boolean) = desktopLyricSettings.setDesktopLyricEnabled(enabled)
     suspend fun setDesktopLyricHideWhenPaused(enabled: Boolean) = desktopLyricSettings.setDesktopLyricHideWhenPaused(enabled)
     suspend fun setDesktopLyricHideInLandscape(enabled: Boolean) = desktopLyricSettings.setDesktopLyricHideInLandscape(enabled)
+    suspend fun setDesktopLyricHideOnPlayerPage(enabled: Boolean) = desktopLyricSettings.setDesktopLyricHideOnPlayerPage(enabled)
+    suspend fun setDesktopLyricHideOnLyricsPage(enabled: Boolean) = desktopLyricSettings.setDesktopLyricHideOnLyricsPage(enabled)
     suspend fun setDesktopLyricStatusBarMode(enabled: Boolean) = desktopLyricSettings.setDesktopLyricStatusBarMode(enabled)
     suspend fun setDesktopLyricStatusBarHideWhenPaused(enabled: Boolean) = desktopLyricSettings.setDesktopLyricStatusBarHideWhenPaused(enabled)
     suspend fun setDesktopLyricStatusBarHideInLandscape(enabled: Boolean) = desktopLyricSettings.setDesktopLyricStatusBarHideInLandscape(enabled)
@@ -856,6 +893,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_DESKTOP_LYRIC_ENABLED)
             setBoolean(KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED)
             setBoolean(KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE)
+            setBoolean(KEY_DESKTOP_LYRIC_HIDE_ON_PLAYER_PAGE)
+            setBoolean(KEY_DESKTOP_LYRIC_HIDE_ON_LYRICS_PAGE)
             setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_MODE)
             setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_WHEN_PAUSED)
             setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE)
@@ -884,6 +923,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_MINI_PLAYER_LYRIC_TRANSLATION)
             setBoolean(KEY_MINI_PLAYER_COVER_ROTATION)
             setBoolean(KEY_MINI_PLAYER_LYRICS_ENABLED)
+            setBoolean(KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER)
             setInt(KEY_MINI_PLAYER_RIGHT_BUTTON)
             setBoolean(KEY_TRANSPORT_BUTTON_OUTLINES)
             setBoolean(KEY_PLAYER_TAP_SEEK_ENABLED)
@@ -1095,6 +1135,7 @@ class SettingsManager(private val context: Context) :
             setString(KEY_WEBDAV_BACKUP_USERNAME)
             setString(KEY_WEBDAV_BACKUP_PASSWORD)
             setString(KEY_WEBDAV_AUTO_BACKUP_LAST_AT)
+            setString(KEY_MEDIA_NOTIFICATION_BUTTONS)
             setString(KEY_LX_SOURCE_URL)
             setString(KEY_LX_SOURCE_NAME)
             setString(KEY_LX_SOURCE_SCRIPT)
@@ -1168,6 +1209,7 @@ class SettingsManager(private val context: Context) :
             setString(KEY_BOTTOM_DOCK_ITEMS)
             setString(KEY_LYRIC_OFFSET_OVERRIDES)
             setString(KEY_PLAYLIST_CUSTOM_ORDER)
+            setString(KEY_FOLDER_PLAYLIST_CUSTOM_ORDER)
             setString(KEY_EQ_BANDS)
             setString(KEY_DYNAMIC_COVER_CUSTOM_FOLDERS)
             setString(KEY_MUSIC_VIDEO_CUSTOM_FOLDERS)

@@ -2,7 +2,10 @@ package com.ella.music.ui.settings
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,6 +53,7 @@ internal fun SettingsLyricsSection(
     val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
     val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
     var showBlacklistSheet by remember { mutableStateOf(false) }
+    var showLyricSizingSheet by remember { mutableStateOf(false) }
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
 
     SettingsCardGroup(highlight = highlightKey == "lyric_basic" || highlightKey == "lyric_plugin_sources") {
@@ -60,7 +64,11 @@ internal fun SettingsLyricsSection(
                 onClick = onNavigateToLyricPluginSources
             )
             SettingsPlayerLyricAlignmentPreference()
-            SettingsPlayerLyricSizingControls()
+            ArrowPreference(
+                title = stringResource(R.string.player_lyric_style_settings),
+                summary = stringResource(R.string.settings_lyrics_summary),
+                onClick = { showLyricSizingSheet = true }
+            )
             SwitchPreference(
                 title = stringResource(R.string.settings_ignore_lyric_header_tags),
                 summary = stringResource(R.string.settings_ignore_lyric_header_tags_summary),
@@ -88,6 +96,21 @@ internal fun SettingsLyricsSection(
         }
     }
 
+    EllaMiuixBottomSheet(
+        show = showLyricSizingSheet,
+        title = stringResource(R.string.player_lyric_style_settings),
+        onDismissRequest = { showLyricSizingSheet = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsPlayerLyricSizingControls()
+        }
+    }
+
     SettingsCardGroup(highlight = highlightKey == "mini_lyrics") {
         Column {
             SettingsMiniLyricsControls()
@@ -102,7 +125,10 @@ internal fun SettingsLyricsSection(
 
     SettingsCardGroup(highlight = highlightKey == "live_update_lyric") {
         Column {
-            SettingsLiveUpdateLyricControls(playerViewModel = playerViewModel)
+            SettingsLiveUpdateLyricControls(
+                playerViewModel = playerViewModel,
+                highlightKey = highlightKey
+            )
         }
     }
 

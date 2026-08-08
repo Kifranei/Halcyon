@@ -5,12 +5,20 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -20,6 +28,7 @@ import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.ui.components.TagEditorOptionIds
 import com.ella.music.ui.components.SpectrumViewerLauncher
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -426,6 +435,12 @@ internal fun SettingsDesktopShortcutSection(
     }
 }
 
+private enum class ScanAdvancedSheet {
+    SplitRules,
+    SearchScope,
+    CoverStorage
+}
+
 @Composable
 internal fun SettingsScanSection(
     highlightKey: String? = null
@@ -435,9 +450,13 @@ internal fun SettingsScanSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val autoScanLocalPlaylists by settingsManager.autoScanLocalPlaylists.collectAsState(initial = false)
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
-    val artistSeparators by settingsManager.artistSeparators.collectAsState(initial = "")
+    val artistSeparators by settingsManager.artistSeparators.collectAsState(
+        initial = SettingsManager.DEFAULT_ARTIST_SEPARATORS
+    )
     val artistProtectedNames by settingsManager.artistProtectedNames.collectAsState(initial = "")
-    val genreSeparators by settingsManager.genreSeparators.collectAsState(initial = "")
+    val genreSeparators by settingsManager.genreSeparators.collectAsState(
+        initial = SettingsManager.DEFAULT_GENRE_SEPARATORS
+    )
     val genreProtectedNames by settingsManager.genreProtectedNames.collectAsState(initial = "")
     val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = false)
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
@@ -480,118 +499,222 @@ internal fun SettingsScanSection(
         Toast.makeText(context, context.getString(R.string.settings_cover_export_folder_saved), Toast.LENGTH_SHORT).show()
     }
 
+    var activeSheet by remember { mutableStateOf<ScanAdvancedSheet?>(null) }
+    LaunchedEffect(highlightKey) {
+        activeSheet = when (highlightKey) {
+            "artist_separators", "artist_protected_names", "genre_separators", "genre_protected_names" ->
+                ScanAdvancedSheet.SplitRules
+            "search_all_categories", "search_all_song_match_types" -> ScanAdvancedSheet.SearchScope
+            "artist_cover_folder", "artist_cover_carousel", "cover_export_folder" ->
+                ScanAdvancedSheet.CoverStorage
+            else -> null
+        }
+    }
+
     SmallTitle(text = stringResource(R.string.settings_scan))
+
+    // Keep the frequently used scan switches and the one duration slider visible. The rules,
+    // search scope and storage pickers are secondary settings and live in focused sheets below.
+    SettingsCardGroup(highlight = highlightKey == "scan") {
+        Column {
+            SettingsFocusAnchor(active = highlightKey == "auto_scan_local_playlists") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_auto_scan_local_playlists),
+                    summary = stringResource(R.string.settings_auto_scan_local_playlists_summary),
+                    checked = autoScanLocalPlaylists,
+                    onCheckedChange = {
+                        scope.launch {
+                            settingsManager.setAutoScanLocalPlaylists(it)
+                            settingsManager.setLocalPlaylistScanPromptHandled(true)
+                        }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "min_duration_filter") {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_min_duration_filter),
+                    summary = stringResource(R.string.settings_min_duration_filter_summary, minDurationSec),
+                    value = minDurationSec,
+                    valueRange = 0..60,
+                    valueText = stringResource(R.string.settings_seconds_value, minDurationSec.coerceIn(0, 60)),
+                    onValueChange = { sec -> scope.launch { settingsManager.setMinDurationSec(sec) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "tag_ignore_case") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_tag_ignore_case),
+                    summary = stringResource(R.string.settings_tag_ignore_case_summary),
+                    checked = tagIgnoreCase,
+                    onCheckedChange = { scope.launch { settingsManager.setTagIgnoreCase(it) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "show_album_artists") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_show_album_artists),
+                    summary = stringResource(R.string.settings_show_album_artists_summary),
+                    checked = showAlbumArtists,
+                    onCheckedChange = { scope.launch { settingsManager.setShowAlbumArtists(it) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "song_rating_display_stars") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_song_rating_display_stars),
+                    summary = if (songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS) {
+                        stringResource(R.string.settings_song_rating_display_stars_summary)
+                    } else {
+                        stringResource(R.string.settings_song_rating_display_number_summary)
+                    },
+                    checked = songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            settingsManager.setSongRatingDisplayMode(
+                                if (enabled) SettingsManager.SONG_RATING_DISPLAY_STARS
+                                else SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
 
     SettingsCardGroup(highlight = highlightKey == "scan") {
         Column {
-            SwitchPreference(
-                title = stringResource(R.string.settings_auto_scan_local_playlists),
-                summary = stringResource(R.string.settings_auto_scan_local_playlists_summary),
-                checked = autoScanLocalPlaylists,
-                onCheckedChange = {
-                    scope.launch {
-                        settingsManager.setAutoScanLocalPlaylists(it)
-                        settingsManager.setLocalPlaylistScanPromptHandled(true)
-                    }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "artist_separators") {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_artist_separators),
+                    summary = stringResource(R.string.settings_artist_separators_summary),
+                    onClick = { activeSheet = ScanAdvancedSheet.SplitRules }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "search_all_categories" || highlightKey == "search_all_song_match_types") {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_search_all_categories),
+                    summary = stringResource(R.string.settings_search_all_categories_summary),
+                    onClick = { activeSheet = ScanAdvancedSheet.SearchScope }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "artist_cover_folder" || highlightKey == "artist_cover_carousel") {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_artist_cover_folder),
+                    summary = if (artistCoverFolderUri.isBlank()) {
+                        stringResource(R.string.settings_artist_cover_folder_summary)
+                    } else {
+                        stringResource(R.string.settings_artist_cover_folder_selected)
+                    },
+                    onClick = { activeSheet = ScanAdvancedSheet.CoverStorage }
+                )
+            }
+        }
+    }
 
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_min_duration_filter),
-                summary = stringResource(R.string.settings_min_duration_filter_summary, minDurationSec),
-                value = minDurationSec,
-                valueRange = 0..60,
-                valueText = stringResource(R.string.settings_seconds_value, minDurationSec.coerceIn(0, 60)),
-                onValueChange = { sec -> scope.launch { settingsManager.setMinDurationSec(sec) } }
-            )
+    EllaMiuixBottomSheet(
+        show = activeSheet == ScanAdvancedSheet.SplitRules,
+        title = stringResource(R.string.settings_artist_separators),
+        onDismissRequest = { activeSheet = null }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsFocusAnchor(active = highlightKey == "artist_separators") {
+                SplitSettingTextField(
+                    label = stringResource(R.string.settings_artist_separators),
+                    value = artistSeparators,
+                    summary = stringResource(R.string.settings_artist_separators_summary),
+                    onValueChange = { value -> scope.launch { settingsManager.setArtistSeparators(value) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "artist_protected_names") {
+                SplitSettingTextField(
+                    label = stringResource(R.string.settings_artist_protected_names),
+                    value = artistProtectedNames,
+                    summary = stringResource(R.string.settings_artist_protected_names_summary),
+                    onValueChange = { value -> scope.launch { settingsManager.setArtistProtectedNames(value) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "genre_separators") {
+                SplitSettingTextField(
+                    label = stringResource(R.string.settings_genre_separators),
+                    value = genreSeparators,
+                    summary = stringResource(R.string.settings_genre_separators_summary),
+                    onValueChange = { value -> scope.launch { settingsManager.setGenreSeparators(value) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "genre_protected_names") {
+                SplitSettingTextField(
+                    label = stringResource(R.string.settings_genre_protected_names),
+                    value = genreProtectedNames,
+                    summary = stringResource(R.string.settings_genre_protected_names_summary),
+                    onValueChange = { value -> scope.launch { settingsManager.setGenreProtectedNames(value) } }
+                )
+            }
+        }
+    }
 
-            SplitSettingTextField(
-                label = stringResource(R.string.settings_artist_separators),
-                value = artistSeparators,
-                summary = stringResource(R.string.settings_artist_separators_summary),
-                onValueChange = { value -> scope.launch { settingsManager.setArtistSeparators(value) } }
-            )
-            SplitSettingTextField(
-                label = stringResource(R.string.settings_artist_protected_names),
-                value = artistProtectedNames,
-                summary = stringResource(R.string.settings_artist_protected_names_summary),
-                onValueChange = { value -> scope.launch { settingsManager.setArtistProtectedNames(value) } }
-            )
-            SplitSettingTextField(
-                label = stringResource(R.string.settings_genre_separators),
-                value = genreSeparators,
-                summary = stringResource(R.string.settings_genre_separators_summary),
-                onValueChange = { value -> scope.launch { settingsManager.setGenreSeparators(value) } }
-            )
-            SplitSettingTextField(
-                label = stringResource(R.string.settings_genre_protected_names),
-                value = genreProtectedNames,
-                summary = stringResource(R.string.settings_genre_protected_names_summary),
-                onValueChange = { value -> scope.launch { settingsManager.setGenreProtectedNames(value) } }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_tag_ignore_case),
-                summary = stringResource(R.string.settings_tag_ignore_case_summary),
-                checked = tagIgnoreCase,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setTagIgnoreCase(it) }
-                }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_show_album_artists),
-                summary = stringResource(R.string.settings_show_album_artists_summary),
-                checked = showAlbumArtists,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setShowAlbumArtists(it) }
-                }
-            )
-            SearchAllCategoryTypesPreference(
-                enabledTypes = searchAllCategoryTypes,
-                onEnabledChange = { type, enabled ->
-                    scope.launch { settingsManager.setSearchAllCategoryTypeEnabled(type, enabled) }
-                }
-            )
-            SearchAllSongMatchTypesPreference(
-                enabledTypes = searchAllSongMatchTypes,
-                onEnabledChange = { type, enabled ->
-                    scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
-                }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_song_rating_display_stars),
-                summary = if (songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS) {
-                    stringResource(R.string.settings_song_rating_display_stars_summary)
-                } else {
-                    stringResource(R.string.settings_song_rating_display_number_summary)
-                },
-                checked = songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS,
-                onCheckedChange = { enabled ->
-                    scope.launch {
-                        settingsManager.setSongRatingDisplayMode(
-                            if (enabled) SettingsManager.SONG_RATING_DISPLAY_STARS
-                            else SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
-                        )
-                    }
-                }
-            )
-            ArrowPreference(
-                title = stringResource(R.string.settings_artist_cover_folder),
-                summary = if (artistCoverFolderUri.isBlank()) {
-                    stringResource(R.string.settings_artist_cover_folder_summary)
-                } else {
-                    stringResource(R.string.settings_artist_cover_folder_selected)
-                },
-                onClick = { artistCoverFolderPicker.launch(null) }
-            )
-            if (artistCoverFolderUri.isNotBlank()) {
-                SwitchPreference(
-                    title = stringResource(R.string.settings_artist_cover_carousel),
-                    summary = stringResource(R.string.settings_artist_cover_carousel_summary),
-                    checked = artistCoverCarousel,
-                    onCheckedChange = {
-                        scope.launch { settingsManager.setArtistCoverCarousel(it) }
+    EllaMiuixBottomSheet(
+        show = activeSheet == ScanAdvancedSheet.SearchScope,
+        title = stringResource(R.string.settings_search_all_categories),
+        onDismissRequest = { activeSheet = null }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsFocusAnchor(active = highlightKey == "search_all_categories") {
+                SearchAllCategoryTypesPreference(
+                    enabledTypes = searchAllCategoryTypes,
+                    onEnabledChange = { type, enabled ->
+                        scope.launch { settingsManager.setSearchAllCategoryTypeEnabled(type, enabled) }
                     }
                 )
+            }
+            SettingsFocusAnchor(active = highlightKey == "search_all_song_match_types") {
+                SearchAllSongMatchTypesPreference(
+                    enabledTypes = searchAllSongMatchTypes,
+                    onEnabledChange = { type, enabled ->
+                        scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
+                    }
+                )
+            }
+        }
+    }
+
+    EllaMiuixBottomSheet(
+        show = activeSheet == ScanAdvancedSheet.CoverStorage,
+        title = stringResource(R.string.settings_artist_cover_folder),
+        onDismissRequest = { activeSheet = null }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsFocusAnchor(active = highlightKey == "artist_cover_folder" || highlightKey == "artist_cover_carousel") {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_artist_cover_folder),
+                    summary = if (artistCoverFolderUri.isBlank()) {
+                        stringResource(R.string.settings_artist_cover_folder_summary)
+                    } else {
+                        stringResource(R.string.settings_artist_cover_folder_selected)
+                    },
+                    onClick = { artistCoverFolderPicker.launch(null) }
+                )
+            }
+            if (artistCoverFolderUri.isNotBlank()) {
+                SettingsFocusAnchor(active = highlightKey == "artist_cover_carousel") {
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_artist_cover_carousel),
+                        summary = stringResource(R.string.settings_artist_cover_carousel_summary),
+                        checked = artistCoverCarousel,
+                        onCheckedChange = { scope.launch { settingsManager.setArtistCoverCarousel(it) } }
+                    )
+                }
                 ArrowPreference(
                     title = stringResource(R.string.settings_artist_cover_folder_remove),
                     summary = stringResource(R.string.settings_artist_cover_folder_remove_summary),
@@ -601,15 +724,17 @@ internal fun SettingsScanSection(
                     }
                 )
             }
-            ArrowPreference(
-                title = stringResource(R.string.settings_cover_export_folder),
-                summary = if (coverExportFolderUri.isBlank()) {
-                    stringResource(R.string.settings_cover_export_folder_summary)
-                } else {
-                    stringResource(R.string.settings_cover_export_folder_selected)
-                },
-                onClick = { coverExportFolderPicker.launch(null) }
-            )
+            SettingsFocusAnchor(active = highlightKey == "cover_export_folder") {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_cover_export_folder),
+                    summary = if (coverExportFolderUri.isBlank()) {
+                        stringResource(R.string.settings_cover_export_folder_summary)
+                    } else {
+                        stringResource(R.string.settings_cover_export_folder_selected)
+                    },
+                    onClick = { coverExportFolderPicker.launch(null) }
+                )
+            }
             if (coverExportFolderUri.isNotBlank()) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_cover_export_folder_remove),

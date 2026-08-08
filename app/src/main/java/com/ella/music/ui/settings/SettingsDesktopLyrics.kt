@@ -50,6 +50,8 @@ internal fun SettingsDesktopLyricControls(
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectSettingsState(initialValue = false)
     val desktopLyricHideWhenPaused by settingsManager.desktopLyricHideWhenPaused.collectSettingsState(initialValue = false)
     val desktopLyricHideInLandscape by settingsManager.desktopLyricHideInLandscape.collectSettingsState(initialValue = false)
+    val desktopLyricHideOnPlayerPage by settingsManager.desktopLyricHideOnPlayerPage.collectSettingsState(initialValue = false)
+    val desktopLyricHideOnLyricsPage by settingsManager.desktopLyricHideOnLyricsPage.collectSettingsState(initialValue = false)
     val desktopLyricStatusBarMode by settingsManager.desktopLyricStatusBarMode.collectSettingsState(initialValue = false)
     val desktopLyricStatusBarHideWhenPaused by settingsManager.desktopLyricStatusBarHideWhenPaused.collectSettingsState(initialValue = false)
     val desktopLyricStatusBarHideInLandscape by settingsManager.desktopLyricStatusBarHideInLandscape.collectSettingsState(initialValue = false)
@@ -66,7 +68,6 @@ internal fun SettingsDesktopLyricControls(
     val desktopLyricStatusBarFontScale by settingsManager.desktopLyricStatusBarFontScale.collectSettingsState(initialValue = 100)
     val desktopLyricStatusBarTranslationScale by settingsManager.desktopLyricStatusBarTranslationScale.collectSettingsState(initialValue = 90)
     val desktopLyricStatusBarOpacity by settingsManager.desktopLyricStatusBarOpacity.collectSettingsState(initialValue = 100)
-    val desktopLyricStatusBarTextColor by settingsManager.desktopLyricStatusBarTextColor.collectSettingsState(initialValue = -1)
     val desktopLyricLocked by settingsManager.desktopLyricLocked.collectSettingsState(initialValue = false)
     val desktopLyricFontScale by settingsManager.desktopLyricFontScale.collectSettingsState(initialValue = 100)
     val desktopLyricTranslationScale by settingsManager.desktopLyricTranslationScale.collectSettingsState(initialValue = 110)
@@ -75,7 +76,9 @@ internal fun SettingsDesktopLyricControls(
     val activeLyricFontScale = if (desktopLyricStatusBarMode) desktopLyricStatusBarFontScale else desktopLyricFontScale
     val activeLyricTranslationScale = if (desktopLyricStatusBarMode) desktopLyricStatusBarTranslationScale else desktopLyricTranslationScale
     val activeLyricOpacity = if (desktopLyricStatusBarMode) desktopLyricStatusBarOpacity else desktopLyricOpacity
-    val activeLyricTextColor = if (desktopLyricStatusBarMode) desktopLyricStatusBarTextColor else desktopLyricTextColor
+    // Status-bar lyrics share the desktop lyric primary color. The status-bar-specific key is
+    // retained only for backup compatibility with older installations.
+    val activeLyricTextColor = desktopLyricTextColor
     val desktopLyricColorPresets = listOf(
         stringResource(R.string.settings_color_white) to android.graphics.Color.WHITE,
         stringResource(R.string.settings_color_silver_gray) to android.graphics.Color.rgb(191, 191, 191),
@@ -194,6 +197,32 @@ internal fun SettingsDesktopLyricControls(
         onCheckedChange = { enabled ->
             scope.launch {
                 settingsManager.setDesktopLyricHideInLandscape(enabled)
+                applyDesktopLyricSettings()
+            }
+        }
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.settings_desktop_lyric_hide_on_player_page),
+        summary = stringResource(R.string.settings_desktop_lyric_hide_on_player_page_summary),
+        enabled = desktopLyricEnabled,
+        checked = desktopLyricHideOnPlayerPage,
+        onCheckedChange = { enabled ->
+            scope.launch {
+                settingsManager.setDesktopLyricHideOnPlayerPage(enabled)
+                applyDesktopLyricSettings()
+            }
+        }
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.settings_desktop_lyric_hide_on_lyrics_page),
+        summary = stringResource(R.string.settings_desktop_lyric_hide_on_lyrics_page_summary),
+        enabled = desktopLyricEnabled,
+        checked = desktopLyricHideOnLyricsPage,
+        onCheckedChange = { enabled ->
+            scope.launch {
+                settingsManager.setDesktopLyricHideOnLyricsPage(enabled)
                 applyDesktopLyricSettings()
             }
         }
@@ -485,9 +514,7 @@ internal fun SettingsDesktopLyricControls(
     )
 
     WindowSpinnerPreference(
-        title = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_color else R.string.settings_desktop_lyric_color
-        ),
+        title = stringResource(R.string.settings_desktop_lyric_color),
         summary = stringResource(
             R.string.settings_current_value,
             desktopLyricColorPresets[selectedDesktopLyricColorIndex].first
@@ -498,11 +525,7 @@ internal fun SettingsDesktopLyricControls(
         onSelectedIndexChange = { index ->
             val color = desktopLyricColorPresets.getOrNull(index)?.second ?: android.graphics.Color.WHITE
             scope.launch {
-                if (desktopLyricStatusBarMode) {
-                    settingsManager.setDesktopLyricStatusBarTextColor(color)
-                } else {
-                    settingsManager.setDesktopLyricTextColor(color)
-                }
+                settingsManager.setDesktopLyricTextColor(color)
                 applyDesktopLyricSettings()
             }
         }
@@ -517,9 +540,7 @@ internal fun SettingsDesktopLyricControls(
 
     EllaMiuixBottomSheet(
         show = showColorPickerSheet,
-        title = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_color else R.string.settings_desktop_lyric_color
-        ),
+        title = stringResource(R.string.settings_desktop_lyric_color),
         onDismissRequest = { showColorPickerSheet = false }
     ) {
         var pickerColor by remember(showColorPickerSheet, activeLyricTextColor) {
@@ -541,11 +562,7 @@ internal fun SettingsDesktopLyricControls(
                 onClick = {
                     showColorPickerSheet = false
                     scope.launch {
-                        if (desktopLyricStatusBarMode) {
-                            settingsManager.setDesktopLyricStatusBarTextColor(pickerColor.toArgb())
-                        } else {
-                            settingsManager.setDesktopLyricTextColor(pickerColor.toArgb())
-                        }
+                        settingsManager.setDesktopLyricTextColor(pickerColor.toArgb())
                         applyDesktopLyricSettings()
                     }
                 },

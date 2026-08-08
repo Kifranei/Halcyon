@@ -18,7 +18,8 @@ import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
 internal fun SettingsLiveUpdateLyricControls(
-    playerViewModel: PlayerViewModel?
+    playerViewModel: PlayerViewModel?,
+    highlightKey: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -41,27 +42,31 @@ internal fun SettingsLiveUpdateLyricControls(
     val entries = remember(labels) { labels.map { DropdownItem(title = it) } }
     val selectedMode = mode.coerceIn(0, labels.lastIndex)
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_enable_live_update_lyric),
-        summary = stringResource(R.string.settings_enable_live_update_lyric_summary),
-        checked = enabled,
-        onCheckedChange = { nextEnabled ->
-            playerViewModel?.setLiveUpdateLyricEnabled(nextEnabled)
-                ?: scope.launch { settingsManager.setLiveUpdateLyricEnabled(nextEnabled) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "live_update_lyric") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_enable_live_update_lyric),
+            summary = stringResource(R.string.settings_enable_live_update_lyric_summary),
+            checked = enabled,
+            onCheckedChange = { nextEnabled ->
+                playerViewModel?.setLiveUpdateLyricEnabled(nextEnabled)
+                    ?: scope.launch { settingsManager.setLiveUpdateLyricEnabled(nextEnabled) }
+            }
+        )
+    }
 
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_live_update_lyric_content),
-        summary = stringResource(R.string.settings_current_value, labels[selectedMode]),
-        enabled = enabled,
-        items = entries,
-        selectedIndex = selectedMode,
-        onSelectedIndexChange = { index ->
-            playerViewModel?.setLiveUpdateLyricMode(index)
-                ?: scope.launch { settingsManager.setLiveUpdateLyricMode(index) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "live_update_lyric_content") {
+        WindowSpinnerPreference(
+            title = stringResource(R.string.settings_live_update_lyric_content),
+            summary = stringResource(R.string.settings_current_value, labels[selectedMode]),
+            enabled = enabled,
+            items = entries,
+            selectedIndex = selectedMode,
+            onSelectedIndexChange = { index ->
+                playerViewModel?.setLiveUpdateLyricMode(index)
+                    ?: scope.launch { settingsManager.setLiveUpdateLyricMode(index) }
+            }
+        )
+    }
 
     val displayLabels = listOf(
         stringResource(R.string.settings_live_update_lyric_display_compact),
@@ -69,17 +74,19 @@ internal fun SettingsLiveUpdateLyricControls(
     )
     val displayEntries = remember(displayLabels) { displayLabels.map { DropdownItem(title = it) } }
     val selectedDisplayMode = displayMode.coerceIn(0, displayLabels.lastIndex)
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_live_update_lyric_display),
-        summary = stringResource(R.string.settings_current_value, displayLabels[selectedDisplayMode]),
-        enabled = enabled,
-        items = displayEntries,
-        selectedIndex = selectedDisplayMode,
-        onSelectedIndexChange = { index ->
-            playerViewModel?.setLiveUpdateLyricDisplayMode(index)
-                ?: scope.launch { settingsManager.setLiveUpdateLyricDisplayMode(index) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "live_update_lyric_display") {
+        WindowSpinnerPreference(
+            title = stringResource(R.string.settings_live_update_lyric_display),
+            summary = stringResource(R.string.settings_current_value, displayLabels[selectedDisplayMode]),
+            enabled = enabled,
+            items = displayEntries,
+            selectedIndex = selectedDisplayMode,
+            onSelectedIndexChange = { index ->
+                playerViewModel?.setLiveUpdateLyricDisplayMode(index)
+                    ?: scope.launch { settingsManager.setLiveUpdateLyricDisplayMode(index) }
+            }
+        )
+    }
 
     val secondaryLabels = listOf(
         stringResource(R.string.settings_live_update_lyric_secondary_song),
@@ -88,17 +95,19 @@ internal fun SettingsLiveUpdateLyricControls(
     )
     val secondaryEntries = remember(secondaryLabels) { secondaryLabels.map { DropdownItem(title = it) } }
     val selectedSecondaryMode = secondaryMode.coerceIn(0, secondaryLabels.lastIndex)
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_live_update_lyric_secondary),
-        summary = stringResource(R.string.settings_current_value, secondaryLabels[selectedSecondaryMode]),
-        enabled = enabled,
-        items = secondaryEntries,
-        selectedIndex = selectedSecondaryMode,
-        onSelectedIndexChange = { index ->
-            playerViewModel?.setLiveUpdateLyricSecondaryMode(index)
-                ?: scope.launch { settingsManager.setLiveUpdateLyricSecondaryMode(index) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "live_update_lyric_secondary") {
+        WindowSpinnerPreference(
+            title = stringResource(R.string.settings_live_update_lyric_secondary),
+            summary = stringResource(R.string.settings_current_value, secondaryLabels[selectedSecondaryMode]),
+            enabled = enabled,
+            items = secondaryEntries,
+            selectedIndex = selectedSecondaryMode,
+            onSelectedIndexChange = { index ->
+                playerViewModel?.setLiveUpdateLyricSecondaryMode(index)
+                    ?: scope.launch { settingsManager.setLiveUpdateLyricSecondaryMode(index) }
+            }
+        )
+    }
 }
 
 @Composable
@@ -395,6 +404,52 @@ internal fun SettingsLyricOutputControls(
                         settingsManager.setBluetoothLyricPronunciation(false)
                     }
                 }
+            }
+        }
+    )
+
+    val mediaNotificationButtonIds by settingsManager.mediaNotificationButtonIds.collectAsState(
+        initial = SettingsManager.DEFAULT_MEDIA_NOTIFICATION_BUTTON_IDS
+    )
+    val mediaNotificationButtonPairs = remember {
+        listOf(
+            listOf(
+                SettingsManager.MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE,
+                SettingsManager.MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC
+            ),
+            listOf(
+                SettingsManager.MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE,
+                SettingsManager.MEDIA_NOTIFICATION_BUTTON_FAVORITE
+            ),
+            listOf(
+                SettingsManager.MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC,
+                SettingsManager.MEDIA_NOTIFICATION_BUTTON_FAVORITE
+            )
+        )
+    }
+    val mediaNotificationButtonLabels = listOf(
+        stringResource(R.string.settings_media_notification_buttons_playback_desktop),
+        stringResource(R.string.settings_media_notification_buttons_playback_favorite),
+        stringResource(R.string.settings_media_notification_buttons_desktop_favorite)
+    )
+    val mediaNotificationButtonEntries = remember(mediaNotificationButtonLabels) {
+        mediaNotificationButtonLabels.map { DropdownItem(title = it) }
+    }
+    val selectedMediaNotificationButtonPair = mediaNotificationButtonPairs
+        .indexOfFirst { it.toSet() == mediaNotificationButtonIds.toSet() }
+        .takeIf { it >= 0 }
+        ?: 1
+    WindowSpinnerPreference(
+        title = stringResource(R.string.settings_media_notification_buttons),
+        summary = stringResource(
+            R.string.settings_current_value,
+            mediaNotificationButtonLabels[selectedMediaNotificationButtonPair]
+        ),
+        items = mediaNotificationButtonEntries,
+        selectedIndex = selectedMediaNotificationButtonPair,
+        onSelectedIndexChange = { index ->
+            mediaNotificationButtonPairs.getOrNull(index)?.let { selected ->
+                scope.launch { settingsManager.setMediaNotificationButtonIds(selected) }
             }
         }
     )
