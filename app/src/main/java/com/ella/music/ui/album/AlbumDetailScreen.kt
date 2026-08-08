@@ -330,20 +330,38 @@ fun AlbumDetailScreen(
     )
     val albumSongHeaderCount = 2
     val showSongSideIndex = !selection.selectionMode &&
-        sortMode == AlbumDetailSongSortMode.Title &&
+        sortMode in setOf(
+            AlbumDetailSongSortMode.Title,
+            AlbumDetailSongSortMode.TitleDesc,
+            AlbumDetailSongSortMode.FileName,
+            AlbumDetailSongSortMode.FileNameDesc
+        ) &&
         sortedAlbumSongs.size > 30
     val songFastIndexData = remember(showSongSideIndex, sortedAlbumSongs) {
         if (!showSongSideIndex) {
             emptyList()
         } else {
             sortedAlbumSongs
-                .mapIndexed { index, song -> song.title.toFastIndexSection() to (index + albumSongHeaderCount) }
+                .mapIndexed { index, song ->
+                    val indexText = if (
+                        sortMode == AlbumDetailSongSortMode.FileName ||
+                            sortMode == AlbumDetailSongSortMode.FileNameDesc
+                    ) {
+                        song.fileName.ifBlank { song.path.substringAfterLast('/') }
+                    } else {
+                        song.title
+                    }
+                    indexText.toFastIndexSection() to (index + albumSongHeaderCount)
+                }
                 .distinctBy { it.first }
         }
     }
     val showScrollIndicator = sortedAlbumSongs.size > 30 && !showSongSideIndex
     var scrollToTopRequest by remember { mutableStateOf(0) }
     fun selectedSongs(): List<Song> = sortedAlbumSongs.filter { it.id in selection.selectedIds }
+    val selectedSongsForDrag = remember(selection.selectedIds, sortedAlbumSongs) {
+        selectedSongs()
+    }
     val selectedVisibleCount = remember(selection.selectedIds, sortedAlbumSongs) {
         sortedAlbumSongs.count { it.id in selection.selectedIds }
     }
@@ -500,6 +518,7 @@ fun AlbumDetailScreen(
                             onNavigateToPlayer = onNavigateToPlayer,
                             selectionMode = selection.selectionMode,
                             selected = song.id in selection.selectedIds,
+                            dragSelectedSongs = selectedSongsForDrag,
                             onLongClick = {
                                 selection.selectionMode = true
                                 selection.selectedIds = selection.selectedIds + song.id
@@ -507,7 +526,13 @@ fun AlbumDetailScreen(
                             },
                             onSelectionClick = { selection.toggleSelection(song.id) },
                             onMore = { actionSong = song },
-                            showPlayNextInLists = showPlayNextInLists
+                            showPlayNextInLists = showPlayNextInLists,
+                            titleOverride = if (
+                                sortMode == AlbumDetailSongSortMode.FileName ||
+                                    sortMode == AlbumDetailSongSortMode.FileNameDesc
+                            ) {
+                                song.fileName.ifBlank { song.path.substringAfterLast('/') }
+                            } else null
                         )
                     }
                 }
@@ -527,6 +552,7 @@ fun AlbumDetailScreen(
                         onNavigateToPlayer = onNavigateToPlayer,
                         selectionMode = selection.selectionMode,
                         selected = song.id in selection.selectedIds,
+                        dragSelectedSongs = selectedSongsForDrag,
                         onLongClick = {
                             selection.selectionMode = true
                             selection.selectedIds = selection.selectedIds + song.id
@@ -534,7 +560,13 @@ fun AlbumDetailScreen(
                         },
                         onSelectionClick = { selection.toggleSelection(song.id) },
                         onMore = { actionSong = song },
-                        showPlayNextInLists = showPlayNextInLists
+                        showPlayNextInLists = showPlayNextInLists,
+                        titleOverride = if (
+                            sortMode == AlbumDetailSongSortMode.FileName ||
+                                sortMode == AlbumDetailSongSortMode.FileNameDesc
+                        ) {
+                            song.fileName.ifBlank { song.path.substringAfterLast('/') }
+                        } else null
                     )
                 }
             }
@@ -574,6 +606,8 @@ fun AlbumDetailScreen(
         if (showSongSideIndex && songFastIndexData.isNotEmpty()) {
             FastIndexBar(
                 letters = songFastIndexData.map { it.first },
+                reverse = sortMode == AlbumDetailSongSortMode.TitleDesc ||
+                    sortMode == AlbumDetailSongSortMode.FileNameDesc,
                 onLetterClick = { letter ->
                     songFastIndexData.firstOrNull { it.first == letter }?.second?.let { itemIndex ->
                         scope.launch { listState.scrollToItem(itemIndex) }

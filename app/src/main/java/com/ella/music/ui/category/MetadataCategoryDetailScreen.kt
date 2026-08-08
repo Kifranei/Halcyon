@@ -269,6 +269,13 @@ fun MetadataCategoryDetailScreen(
                 .distinctBy { it.playlistIdentityKey() }
         }
     }
+    val selectedSongsForDrag = remember(selectedTab, sortedSongs, selection.selectedIds) {
+        if (selectedTab == MetadataDetailTab.Songs) {
+            sortedSongs.filter { it.id in selection.selectedIds }
+        } else {
+            emptyList()
+        }
+    }
     val selectedVisibleCount = remember(selection.selectedIds, currentSelectionIds) {
         currentSelectionIds.count { it in selection.selectedIds }
     }
@@ -728,6 +735,14 @@ fun MetadataCategoryDetailScreen(
                         }
                         SongItem(
                             song = song,
+                            titleOverride = if (
+                                sortMode == MetadataDetailSongSortMode.FileName ||
+                                    sortMode == MetadataDetailSongSortMode.FileNameDesc
+                            ) {
+                                song.fileName.ifBlank { song.path.substringAfterLast('/') }
+                            } else {
+                                null
+                            },
                             isCurrent = currentSong?.id == song.id,
                             albumArtUri = albumArtUri,
                             loadCoverArt = mainViewModel::getCoverArtBitmap,
@@ -737,6 +752,7 @@ fun MetadataCategoryDetailScreen(
                             loadSongRating = mainViewModel::getSongRating,
                             selectionMode = selection.selectionMode,
                             selected = selected,
+                            dragSelectedSongs = selectedSongsForDrag,
                             onLongClick = {
                                 selection.selectionMode = true
                                 selection.selectedIds = selection.selectedIds + song.id
@@ -760,9 +776,16 @@ fun MetadataCategoryDetailScreen(
             }
 
             if (showSongSideIndex) {
-                if (sortMode == MetadataDetailSongSortMode.Title || sortMode == MetadataDetailSongSortMode.FileName) {
+                if (
+                    sortMode == MetadataDetailSongSortMode.Title ||
+                        sortMode == MetadataDetailSongSortMode.TitleDesc ||
+                        sortMode == MetadataDetailSongSortMode.FileName ||
+                        sortMode == MetadataDetailSongSortMode.FileNameDesc
+                ) {
                     FastIndexBar(
                         letters = fastIndexLetters,
+                        reverse = sortMode == MetadataDetailSongSortMode.TitleDesc ||
+                            sortMode == MetadataDetailSongSortMode.FileNameDesc,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()

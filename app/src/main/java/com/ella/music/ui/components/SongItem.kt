@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -64,8 +65,10 @@ fun SongItem(
     onLongClick: () -> Unit = {},
     onPlayNext: (() -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
+    onMusicVideo: (() -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
     onMore: (() -> Unit)? = null,
+    titleOverride: String? = null,
     leadingLabel: String? = null,
     leadingLabelBeforeCover: Boolean = false,
     showAlbumInSubtitle: Boolean = true,
@@ -74,13 +77,16 @@ fun SongItem(
     ratingRevision: Int = 0,
     ratingDisplayMode: Int? = null,
     showPlayNextInLists: Boolean = false,
+    dragSelectedSongs: List<Song> = emptyList(),
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
     showTrailingContentInSelectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val unknown = stringResource(R.string.common_unknown)
     val unknownArtist = stringResource(R.string.player_unknown_artist)
+    val musicVideoDescription = stringResource(R.string.online_mv)
     val context = androidx.compose.ui.platform.LocalContext.current
+    val sourceView = LocalView.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val preferredRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
@@ -106,7 +112,17 @@ fun SongItem(
         modifier = modifier
             .fillMaxWidth()
             .background(if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    val dragStarted = if (selectionMode && selected && dragSelectedSongs.isNotEmpty()) {
+                        startDraggingLocalSongs(sourceView, context, dragSelectedSongs)
+                    } else {
+                        false
+                    }
+                    if (!dragStarted) onLongClick()
+                }
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -166,7 +182,7 @@ fun SongItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ExplicitSongTitle(
-                    title = song.title,
+                    title = titleOverride ?: song.title,
                     fontSize = 15.sp,
                     fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold else null,
                     color = if (isCurrent) MiuixTheme.colorScheme.primary
@@ -234,6 +250,24 @@ fun SongItem(
         }
 
         Spacer(modifier = Modifier.width(8.dp))
+
+        if (!selectionMode && onMusicVideo != null) {
+            Text(
+                text = stringResource(R.string.online_mv),
+                fontSize = 11.sp,
+                color = MiuixTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .semantics {
+                        contentDescription = musicVideoDescription
+                        role = Role.Button
+                    }
+                    .clickable(onClick = onMusicVideo)
+                    .padding(horizontal = 5.dp, vertical = 3.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         Text(
             text = song.durationText,

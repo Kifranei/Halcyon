@@ -68,7 +68,9 @@ class LibrarySelectionState<T : Any> {
         if (anchorIndex == targetIndex) return
         val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
         selectedIds = selectedIds + bounds.map { orderedIds[it] }
-        rangeAnchorId = target
+        // A completed range is one selection gesture. The next two manual taps must create a
+        // fresh anchor/target pair instead of extending the previous range from its old target.
+        rangeAnchorId = null
         rangeTargetId = null
     }
 

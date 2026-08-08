@@ -200,7 +200,7 @@ internal fun MetadataCategoryCard(
                     lineHeight = if (isGenreCard) 17.sp else 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    maxLines = 2,
+                    maxLines = if (isGenreCard) 3 else 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )

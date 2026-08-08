@@ -5,16 +5,23 @@ import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Point
+import android.graphics.RectF
 import android.net.Uri
 import android.os.StrictMode
 import android.provider.MediaStore
 import android.widget.Toast
+import android.view.View
 import androidx.core.content.FileProvider
 import com.ella.music.R
 import com.ella.music.data.isContentAudioSource
 import com.ella.music.data.isHttpAudioSource
 import com.ella.music.data.model.Song
 import java.io.File
+import kotlin.math.roundToInt
 
 private const val ASPECT_PRO_PACKAGE = "com.andrewkhandr.aspectpro"
 private const val ASPECT_PRO_ACTIVITY = "com.andrewkhandr.aspectpro.MainActivity"
@@ -199,6 +206,83 @@ fun shareLocalSongs(context: Context, songs: List<Song>) {
     }
 }
 
+/**
+ * Starts a global drag containing the currently selected local audio files.
+ *
+ * A drag source must expose content URIs rather than raw file paths so the target window can
+ * read the files after the drag crosses an application boundary. For a raw local path, prefer a
+ * FileProvider URI: QQ and other window targets can request the temporary grant without needing
+ * access to our MediaStore query result.
+ */
+fun startDraggingLocalSongs(sourceView: View, context: Context, songs: List<Song>): Boolean {
+    val uris = songs
+        .asSequence()
+        .filterNot { it.path.isHttpAudioSource() }
+        .mapNotNull { song ->
+            runCatching { song.dragShareUri(context) }
+                .getOrNull()
+                ?.takeIf { it.isReadableForDrag(context) }
+        }
+        .distinct()
+        .toList()
+    if (uris.isEmpty()) return false
+
+    // Xiaomi's global-drag contract uses a raw URI for arbitrary files. Keeping the
+    // description as text/uri-list also lets QQ recognize the drop instead of rejecting a
+    // mixed audio/*/text/* description before it asks for the URI grant.
+    val clipData = ClipData.newRawUri("Halcyon audio", uris.first())
+    uris.drop(1).forEach { uri -> clipData.addItem(ClipData.Item(uri)) }
+    return sourceView.startDragAndDrop(
+        clipData,
+        SongDragShadowBuilder(context, uris.size, songs.firstOrNull()?.title.orEmpty()),
+        null,
+        View.DRAG_FLAG_GLOBAL or View.DRAG_FLAG_GLOBAL_URI_READ
+    )
+}
+
+/** A compact drag card keeps Compose's root view from being used as the drag preview. */
+private class SongDragShadowBuilder(
+    context: Context,
+    private val songCount: Int,
+    private val firstTitle: String
+) : View.DragShadowBuilder() {
+    private val density = context.resources.displayMetrics.density
+    private val width = (280f * density).roundToInt()
+    private val height = (64f * density).roundToInt()
+    private val radius = 14f * density
+    private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(38, 40, 48)
+    }
+    private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 15f * density
+        isFakeBoldText = true
+    }
+    private val countPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(190, 255, 255, 255)
+        textSize = 12f * density
+    }
+
+    override fun onProvideShadowMetrics(outShadowSize: Point, outShadowTouchPoint: Point) {
+        outShadowSize.set(width, height)
+        outShadowTouchPoint.set(width / 2, height / 2)
+    }
+
+    override fun onDrawShadow(canvas: Canvas) {
+        canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, backgroundPaint)
+        val title = firstTitle.trim().ifBlank { "Halcyon" }.take(22)
+        canvas.drawText(title, 18f * density, 27f * density, titlePaint)
+        canvas.drawText("$songCount 首歌曲", 18f * density, 49f * density, countPaint)
+    }
+}
+
+private fun Uri.isReadableForDrag(context: Context): Boolean {
+    if (scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)) return true
+    return runCatching {
+        context.contentResolver.openAssetFileDescriptor(this, "r")?.use { true } ?: false
+    }.getOrDefault(false)
+}
+
 private fun Uri.externalShareUri(context: Context): Uri {
     if (!scheme.equals("file", ignoreCase = true)) return this
     val file = File(path.orEmpty())
@@ -210,6 +294,9 @@ private fun Uri.externalShareUri(context: Context): Uri {
 }
 
 private fun Song.localShareUri(context: Context): Uri {
+    if (path.isContentAudioSource()) {
+        return Uri.parse(path)
+    }
     mediaStoreUriByPath(context)?.let { return it }
     return runCatching {
         val file = File(path)
@@ -221,6 +308,24 @@ private fun Song.localShareUri(context: Context): Uri {
     }.getOrElse {
         ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
     }
+}
+
+private fun Song.dragShareUri(context: Context): Uri {
+    if (path.isContentAudioSource()) return Uri.parse(path)
+
+    val file = when {
+        path.startsWith("file://", ignoreCase = true) -> {
+            runCatching { File(Uri.parse(path).path.orEmpty()) }.getOrNull()
+        }
+
+        else -> File(path)
+    }
+    file?.takeIf { it.isFile }?.let { localFile ->
+        runCatching {
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", localFile)
+        }.getOrNull()?.let { return it }
+    }
+    return localShareUri(context)
 }
 
 private fun Song.aspectProUri(context: Context): Uri {

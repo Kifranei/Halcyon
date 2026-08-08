@@ -173,14 +173,21 @@ fun PlaylistDetailScreen(
     val songListHeaderCount = 2
     val showSongSideIndex = !selection.selectionMode &&
         searchQuery.isBlank() &&
-        sortMode == PlaylistSongSortMode.Title &&
+        sortMode in setOf(
+            PlaylistSongSortMode.Title,
+            PlaylistSongSortMode.TitleDesc,
+            PlaylistSongSortMode.FileName,
+            PlaylistSongSortMode.FileNameDesc
+        ) &&
         displayedSongs.size > 30
     val songFastIndexData = remember(showSongSideIndex, displayedSongs) {
         if (!showSongSideIndex) {
             emptyList()
         } else {
             displayedSongs
-                .mapIndexed { index, song -> song.title.toFastIndexSection() to (index + songListHeaderCount) }
+                .mapIndexed { index, song ->
+                    sortMode.songDisplaySpec().displayTitleFor(song).toFastIndexSection() to (index + songListHeaderCount)
+                }
                 .distinctBy { it.first }
         }
     }
@@ -214,6 +221,9 @@ fun PlaylistDetailScreen(
     }
     fun selectedDisplayedSongs(): List<Song> =
         displayedSongs.filter { it.playlistIdentityKey() in selection.selectedIds }
+    val selectedSongsForDrag = remember(displayedSongs, selection.selectedIds) {
+        displayedSongs.filter { it.playlistIdentityKey() in selection.selectedIds }
+    }
     BackHandler(enabled = selection.selectionMode || searchExpanded) {
         when {
             selection.selectionMode -> finishSelectionMode()
@@ -494,12 +504,14 @@ fun PlaylistDetailScreen(
                         }
                         SongItem(
                             song = song,
+                            titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
                             isCurrent = currentSong?.playlistIdentityKey() == song.playlistIdentityKey(),
                             albumArtUri = albumArtUri,
                             loadCoverArt = mainViewModel::getCoverArtBitmap,
                             loadAudioInfo = mainViewModel::getAudioInfo,
                             selectionMode = selection.selectionMode,
                             selected = song.playlistIdentityKey() in selection.selectedIds,
+                            dragSelectedSongs = selectedSongsForDrag,
                             isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
                             loadSongRating = mainViewModel::getSongRating,
                             ratingRevision = ratingRevision,
@@ -552,6 +564,8 @@ fun PlaylistDetailScreen(
             if (showSongSideIndex && songFastIndexData.isNotEmpty()) {
                 FastIndexBar(
                     letters = songFastIndexData.map { it.first },
+                    reverse = sortMode == PlaylistSongSortMode.TitleDesc ||
+                        sortMode == PlaylistSongSortMode.FileNameDesc,
                     onLetterClick = { letter ->
                         songFastIndexData.firstOrNull { it.first == letter }?.second?.let { itemIndex ->
                             scope.launch { listState.scrollToItem(itemIndex) }

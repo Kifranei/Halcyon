@@ -384,7 +384,9 @@ fun PlaylistScreen(
             .map { displayedCustomPlaylists[it] }
             .filterNot { it.isRemote }
             .map { it.id }
-        selection.rangeAnchorId = target
+        // A range action completes the current anchor/target gesture. The next two taps must
+        // start a fresh range instead of extending the previous one (#246).
+        selection.rangeAnchorId = null
         selection.rangeTargetId = null
     }
     fun persistManualPlaylistOrder() {

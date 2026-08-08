@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,6 +51,7 @@ import com.ella.music.ui.components.PlayNextQuickButton
 import com.ella.music.ui.components.RatingStarIcon
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
+import com.ella.music.ui.components.startDraggingLocalSongs
 import com.ella.music.ui.artist.rememberArtistCoverModel
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -312,7 +315,9 @@ internal fun AlbumSongRow(
     onLongClick: () -> Unit,
     onSelectionClick: () -> Unit,
     onMore: () -> Unit,
-    showPlayNextInLists: Boolean
+    showPlayNextInLists: Boolean,
+    titleOverride: String? = null,
+    dragSelectedSongs: List<Song> = emptyList()
 ) {
     AlbumTrackRow(
         song = song,
@@ -325,6 +330,7 @@ internal fun AlbumSongRow(
         selectionMode = selectionMode,
         selected = selected,
         onLongClick = onLongClick,
+        dragSelectedSongs = dragSelectedSongs,
         onClick = {
             if (selectionMode) {
                 onSelectionClick()
@@ -336,7 +342,8 @@ internal fun AlbumSongRow(
         },
         showPlayNextInLists = showPlayNextInLists,
         onPlayNext = { playerViewModel.playNext(song) },
-        onMore = onMore
+        onMore = onMore,
+        titleOverride = titleOverride
     )
 }
 
@@ -356,7 +363,9 @@ private fun AlbumTrackRow(
     onClick: () -> Unit,
     showPlayNextInLists: Boolean,
     onPlayNext: () -> Unit,
-    onMore: () -> Unit
+    onMore: () -> Unit,
+    titleOverride: String? = null,
+    dragSelectedSongs: List<Song> = emptyList()
 ) {
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, song.dateModified, loadAudioInfo) {
         value = withContext(Dispatchers.IO) { loadAudioInfo(song) }
@@ -365,12 +374,24 @@ private fun AlbumTrackRow(
         value = withContext(Dispatchers.IO) { loadSongRating(song) }
     }
     val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
+    val context = LocalContext.current
+    val sourceView = LocalView.current
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    val dragStarted = if (selectionMode && selected && dragSelectedSongs.isNotEmpty()) {
+                        startDraggingLocalSongs(sourceView, context, dragSelectedSongs)
+                    } else {
+                        false
+                    }
+                    if (!dragStarted) onLongClick()
+                }
+            )
             .padding(start = 26.dp, end = 16.dp, top = 15.dp, bottom = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -390,7 +411,7 @@ private fun AlbumTrackRow(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ExplicitSongTitle(
-                    title = song.title,
+                    title = titleOverride ?: song.title,
                     fontSize = 15.sp,
                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                     color = if (isCurrent) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,

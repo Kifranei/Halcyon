@@ -133,8 +133,7 @@ fun LibraryScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
-    var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selectedRatings) }
-    var favoriteFilter by remember { mutableStateOf(false) }
+    var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
     val sortIndex by settingsManager.librarySongSortIndex.collectAsState(initial = LibrarySortUiState.librarySongSortIndex)
     val sortMode = HomeSortMode.entries.getOrElse(sortIndex) { HomeSortMode.Title }
     LaunchedEffect(sortIndex) {
@@ -175,33 +174,28 @@ fun LibraryScreen(
         listCoversEnabled = true
     }
 
-    val activeFavoriteSongKeys = if (favoriteFilter) favoriteSongKeys else emptySet()
-    val activeRatingRevision = if (ratingFilter.isEmpty()) 0 else ratingRevision
+    val activeFavoriteSongKeys = if (ratingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
+    val activeRatingRevision = if (ratingFilter.hasRatingConstraint()) ratingRevision else 0
     val filteredSongs by produceState(
         initialValue = songs,
         songs,
         searchQuery,
         ratingFilter,
-        favoriteFilter,
         activeFavoriteSongKeys,
         activeRatingRevision
     ) {
         val query = searchQuery.trim()
         val favoriteKeys = activeFavoriteSongKeys
-        if (query.isBlank() && ratingFilter.isEmpty() && !favoriteFilter) {
+        if (query.isBlank() && ratingFilter.isUnfiltered()) {
             value = songs
             return@produceState
         }
         val base = withContext(Dispatchers.IO) {
             songs.filter { song ->
-                val ratingMatched = when {
-                    ratingFilter.isEmpty() -> true
-                    ratingFilter == setOf(0) -> mainViewModel.getSongRating(song) !in 1..5
-                    else -> mainViewModel.getSongRating(song) in ratingFilter
-                }
-                if (!ratingMatched) return@filter false
-                if (favoriteFilter && song.playlistIdentityKey() !in favoriteKeys) return@filter false
-                true
+                ratingFilter.matches(
+                    rating = mainViewModel.getSongRating(song),
+                    isFavorite = song.playlistIdentityKey() in favoriteKeys
+                )
             }
         }
         value = if (query.isBlank()) base else mainViewModel.filterSongsBySearchSnapshot(base, query)
@@ -236,6 +230,9 @@ fun LibraryScreen(
     val rangeSelectionAvailable = remember(sortedSongIndexById, selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId) {
         selection.isRangeSelectionAvailable(sortedSongIndexById)
     }
+    val selectedSongsForDrag = remember(selection.selectedIds, sortedSongs) {
+        sortedSongs.filter { it.id in selection.selectedIds }
+    }
 
     LaunchedEffect(selection.selectionMode, visibleSongIds) {
         if (!selection.selectionMode) return@LaunchedEffect
@@ -269,7 +266,7 @@ fun LibraryScreen(
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_rating_star_half),
                                         contentDescription = stringResource(R.string.song_more_set_rating),
-                                        tint = if (ratingFilter.isNotEmpty() || ratingFilterExpanded) {
+                                        tint = if (ratingFilter.hasRatingConstraint() || ratingFilterExpanded) {
                                             MiuixTheme.colorScheme.primary
                                         } else {
                                             MiuixTheme.colorScheme.onSurface
@@ -277,17 +274,20 @@ fun LibraryScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
-                                IconButton(onClick = { favoriteFilter = !favoriteFilter }) {
+                                IconButton(onClick = {
+                                    ratingFilter = ratingFilter.toggleFavoriteFilter()
+                                    HomeRatingFilterUiState.selection = ratingFilter
+                                }) {
                                     Icon(
                                         painter = painterResource(
-                                            id = if (favoriteFilter) {
+                                            id = if (ratingFilter.hasFavoriteFilterMemory()) {
                                                 R.drawable.ic_notification_favorite_filled
                                             } else {
                                                 R.drawable.ic_notification_favorite
                                             }
                                         ),
                                         contentDescription = stringResource(R.string.favorite_filter),
-                                        tint = if (favoriteFilter) {
+                                        tint = if (ratingFilter.hasFavoriteFilterMemory()) {
                                             Color(0xFFFF4D6D)
                                         } else {
                                             MiuixTheme.colorScheme.onSurface
@@ -437,10 +437,10 @@ fun LibraryScreen(
             exit = shrinkVertically()
         ) {
             StarRatingFilterRow(
-                selectedRatings = ratingFilter,
-                onRatingsChange = {
+                selection = ratingFilter,
+                onSelectionChange = {
                     ratingFilter = it
-                    HomeRatingFilterUiState.selectedRatings = it
+                    HomeRatingFilterUiState.selection = it
                 }
             )
         }
@@ -518,14 +518,19 @@ fun LibraryScreen(
             // Compute the per-song index letter once and reuse it for both the bar labels and the
             // scroll targets. Building this inline on every recomposition was O(n) main-thread work
             // that scaled badly for large libraries (1k–10k+ songs).
-            val showFastIndexBar = sortMode.sortField() == HomeSortField.Title && sortedSongs.size > 30
+            val showFastIndexBar = sortMode.sortField() in setOf(HomeSortField.Title, HomeSortField.FileName) && sortedSongs.size > 30
             val fastIndexData = remember(showFastIndexBar, sortedSongs, sortKeysBySongId) {
                 if (!showFastIndexBar) {
                     FastIndexData.Empty
                 } else {
                     val targets = LinkedHashMap<String, Int>()
                     sortedSongs.forEachIndexed { index, song ->
-                        targets.putIfAbsent(song.indexLetter(sortKeysBySongId[song.id]), index)
+                        val indexKey = if (sortMode.sortField() == HomeSortField.FileName) {
+                            song.fileName.ifBlank { song.path.substringAfterLast('/') }
+                        } else {
+                            sortKeysBySongId[song.id]
+                        }
+                        targets.putIfAbsent(song.indexLetter(indexKey), index)
                     }
                     FastIndexData(
                         letters = targets.keys.toList(),
@@ -571,7 +576,7 @@ fun LibraryScreen(
                                             sortMode.isDescending()
                                         ),
                                         ratingFilter.summaryLabel(context),
-                                    stringResource(R.string.favorite_filter).takeIf { favoriteFilter }
+                                        stringResource(R.string.favorite_filter).takeIf { ratingFilter.hasFavoriteFilter() }
                                 ).joinToString(" · ")
                                 ),
                             leadingContent = {
@@ -603,6 +608,7 @@ fun LibraryScreen(
 
                             SongItem(
                                 song = song,
+                                titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
                                 isCurrent = song.playlistIdentityKey() == currentSongKey,
                                 albumArtUri = albumArtUri,
                                 loadCoverArt = mainViewModel::getCoverArtBitmap,
@@ -612,6 +618,7 @@ fun LibraryScreen(
                                 showPlayNextInLists = showPlayNextInLists,
                                 selectionMode = selection.selectionMode,
                                 selected = selected,
+                                dragSelectedSongs = selectedSongsForDrag,
                                 onLongClick = {
                                     selection.selectionMode = true
                                     if (song.id !in selection.selectedIds) {
@@ -640,7 +647,7 @@ fun LibraryScreen(
                 if (showFastIndexBar) {
                     FastIndexBar(
                         letters = fastIndexData.letters,
-                        reverse = sortMode == HomeSortMode.TitleDesc,
+                        reverse = sortMode == HomeSortMode.TitleDesc || sortMode == HomeSortMode.FileNameDesc,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()

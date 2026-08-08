@@ -66,6 +66,12 @@ internal fun LibrarySearchResultsPane(
 ) {
     val context = LocalContext.current
     val collapsedSongSections = remember(trimmedQuery, filter) { mutableStateMapOf<Int, Boolean>() }
+    val selectedSongsForDrag = remember(songResults, selectedSongKeys) {
+        songResults
+            .map { it.song }
+            .filter { it.searchIdentityKey() in selectedSongKeys }
+            .distinctBy { it.searchIdentityKey() }
+    }
     if (songs.isEmpty() && !libraryCacheLoaded) {
         com.ella.music.ui.components.EllaCenteredLoadingIndicator()
         return
@@ -128,6 +134,7 @@ internal fun LibrarySearchResultsPane(
                                 ratingDisplayMode = songRatingDisplayMode,
                                 selectionMode = selectionMode,
                                 selected = selected,
+                                dragSelectedSongs = selectedSongsForDrag,
                                 onPlayNext = {
                                     playerViewModel.playNext(result.song)
                                     Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
