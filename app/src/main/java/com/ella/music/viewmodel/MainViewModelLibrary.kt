@@ -72,9 +72,22 @@ internal fun buildMetadataCategoryItems(
             groups.getOrPut(key) { MetadataCategoryAccumulator(name) }.add(song)
         }
     }
+    val albumArtistSongsByKey = linkedMapOf<String, MutableList<Song>>()
+    if (type in setOf("composer", "arranger", "lyricist")) {
+        songs.forEach { song ->
+            splitArtistNames(song.albumArtist).forEach { name ->
+                albumArtistSongsByKey.getOrPut(name.tagIdentityKey()) { mutableListOf() } += song
+            }
+        }
+    }
     return groups.values
         .map { item ->
-            val coverSong = selectMetadataCategoryCoverSong(item.songs, type, item.name)
+            // The cover policy also considers album-artist candidates for person categories.
+            // Add those candidates to the role group so the category page follows the same
+            // four-level policy as the album detail and global search without rescanning the
+            // complete library for every category card.
+            val coverCandidates = item.songs + albumArtistSongsByKey[item.name.tagIdentityKey()].orEmpty()
+            val coverSong = selectMetadataCategoryCoverSong(coverCandidates, type, item.name)
             MetadataCategoryItem(
                 name = item.name,
                 songCount = item.songCount,
@@ -167,6 +180,22 @@ internal fun filterSongsForMetadataCategory(
                 .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
                 .thenBy(String.CASE_INSENSITIVE_ORDER) { song -> song.title }
         )
+}
+
+internal fun filterSongsForMetadataCategories(
+    songs: List<Song>,
+    type: String,
+    names: Collection<String>
+): List<Song> {
+    val targetKeys = names
+        .asSequence()
+        .map(String::tagIdentityKey)
+        .filter(String::isNotBlank)
+        .toHashSet()
+    if (targetKeys.isEmpty()) return emptyList()
+    return songs.filter { song ->
+        song.metadataCategoryNames(type).any { it.tagIdentityKey() in targetKeys }
+    }
 }
 
 internal fun filterSongsForArtist(

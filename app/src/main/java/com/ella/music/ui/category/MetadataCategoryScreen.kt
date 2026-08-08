@@ -69,7 +69,6 @@ import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.wallpaperContentOverlayColor
-import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 import com.ella.music.ui.folder.toFolderSettingList
 import com.ella.music.ui.listmodel.SortDirection
 import com.ella.music.ui.settings.findComponentActivity
@@ -195,10 +194,11 @@ fun MetadataCategoryScreen(
     val rangeSelectionAvailable = remember(currentSelectionIndexByName, selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId) {
         selection.isRangeSelectionAvailable(currentSelectionIndexByName)
     }
-    val randomCategorySongs = remember(displayedItems, songs, type) {
-        displayedItems
-            .flatMap { item -> mainViewModel.getSongsForMetadataCategory(type, item.name) }
-            .distinctBy { it.id }
+    val displayedCategoryNames = remember(displayedItems) { displayedItems.map { it.name } }
+    val randomCategorySongs by produceState(emptyList<Song>(), type, songs, displayedCategoryNames) {
+        value = withContext(Dispatchers.Default) {
+            mainViewModel.getSongsForMetadataCategories(type, displayedCategoryNames)
+        }
     }
     BackHandler(enabled = selection.selectionMode || sortExpanded || searchExpanded || folderToBlock != null) {
         when {
@@ -459,9 +459,7 @@ fun MetadataCategoryScreen(
                         )
                     }
                     items(displayedItems, key = { it.name }) { item ->
-                        val coverSong = remember(songs, type, item.name) {
-                            selectMetadataCategoryCoverSong(songs, type, item.name) ?: item.representativeSong
-                        }
+                        val coverSong = item.representativeSong
                         val albumArtUri = remember(coverSong?.albumId, item.coverAlbumIds) {
                             coverSong?.albumId?.takeIf { it > 0L }?.let(mainViewModel::getAlbumArtUri)
                                 ?: item.coverAlbumIds.firstOrNull()?.let(mainViewModel::getAlbumArtUri)

@@ -497,6 +497,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return filterSongsForMetadataCategory(songs.value, type, name)
     }
 
+    fun getSongsForMetadataCategories(type: String, names: Collection<String>): List<Song> {
+        return filterSongsForMetadataCategories(songs.value, type, names)
+    }
+
     fun hasMetadataCategory(type: String, name: String): Boolean {
         return containsMetadataCategory(songs.value, type, name)
     }

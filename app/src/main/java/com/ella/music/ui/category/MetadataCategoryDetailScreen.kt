@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -88,7 +89,9 @@ import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MetadataCategoryDetailScreen(
@@ -112,7 +115,11 @@ fun MetadataCategoryDetailScreen(
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
-    val songs = remember(type, name, librarySongs) { mainViewModel.getSongsForMetadataCategory(type, name) }
+    val songs by produceState(emptyList<Song>(), type, name, librarySongs) {
+        value = withContext(Dispatchers.Default) {
+            mainViewModel.getSongsForMetadataCategory(type, name)
+        }
+    }
     var sortExpanded by remember { mutableStateOf(false) }
     val detailSongSortIndexFlow = remember(type) { mainViewModel.settingsManager.metadataCategoryDetailSongSortIndex(type) }
     val detailAlbumSortIndexFlow = remember(type) { mainViewModel.settingsManager.metadataCategoryDetailAlbumSortIndex(type) }
@@ -132,19 +139,25 @@ fun MetadataCategoryDetailScreen(
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val detailQuery = searchQuery.trim()
-    val filteredSongs = remember(songs, detailQuery) {
-        if (detailQuery.isBlank()) {
-            songs
-        } else {
-            songs.filter { song ->
-                song.title.contains(detailQuery, ignoreCase = true) ||
-                    song.artist.contains(detailQuery, ignoreCase = true) ||
-                    song.album.contains(detailQuery, ignoreCase = true) ||
-                    song.fileName.contains(detailQuery, ignoreCase = true)
+    val filteredSongs by produceState(emptyList<Song>(), songs, detailQuery) {
+        value = withContext(Dispatchers.Default) {
+            if (detailQuery.isBlank()) {
+                songs
+            } else {
+                songs.filter { song ->
+                    song.title.contains(detailQuery, ignoreCase = true) ||
+                        song.artist.contains(detailQuery, ignoreCase = true) ||
+                        song.album.contains(detailQuery, ignoreCase = true) ||
+                        song.fileName.contains(detailQuery, ignoreCase = true)
+                }
             }
         }
     }
-    val sortedSongs = remember(filteredSongs, sortMode) { filteredSongs.sortedForMetadataDetail(sortMode) }
+    val sortedSongs by produceState(emptyList<Song>(), filteredSongs, sortMode) {
+        value = withContext(Dispatchers.Default) {
+            filteredSongs.sortedForMetadataDetail(sortMode)
+        }
+    }
     val showAlbumTab = type == "genre" || type == "year" || type in PERSON_METADATA_CATEGORY_TYPES
     val shouldBuildAlbumTabContent = showAlbumTab && selectedTab == MetadataDetailTab.Albums
     val detailAlbums = remember(songs, libraryAlbums, shouldBuildAlbumTabContent) {
@@ -190,13 +203,19 @@ fun MetadataCategoryDetailScreen(
         )
     }
     val hasSameNameComposer = remember(type, name, librarySongs) {
-        type != "composer" && mainViewModel.getSongsForMetadataCategory("composer", name).isNotEmpty()
+        type in PERSON_METADATA_CATEGORY_TYPES &&
+            type != "composer" &&
+            mainViewModel.getSongsForMetadataCategory("composer", name).isNotEmpty()
     }
     val hasSameNameArranger = remember(type, name, librarySongs) {
-        type != "arranger" && mainViewModel.getSongsForMetadataCategory("arranger", name).isNotEmpty()
+        type in PERSON_METADATA_CATEGORY_TYPES &&
+            type != "arranger" &&
+            mainViewModel.getSongsForMetadataCategory("arranger", name).isNotEmpty()
     }
     val hasSameNameLyricist = remember(type, name, librarySongs) {
-        type != "lyricist" && mainViewModel.getSongsForMetadataCategory("lyricist", name).isNotEmpty()
+        type in PERSON_METADATA_CATEGORY_TYPES &&
+            type != "lyricist" &&
+            mainViewModel.getSongsForMetadataCategory("lyricist", name).isNotEmpty()
     }
     val pageBackground = ellaPageBackground()
     val folderRootName = stringResource(R.string.folder_root)
@@ -219,8 +238,8 @@ fun MetadataCategoryDetailScreen(
             sortedSongs.forEachIndexed { index, song -> put(song.id, index) }
         }
     }
-    val detailSongsByAlbumId = remember(songs) {
-        songs.groupBy { it.albumIdentityId() }
+    val detailSongsByAlbumId = remember(songs, shouldBuildAlbumTabContent) {
+        if (shouldBuildAlbumTabContent) songs.groupBy { it.albumIdentityId() } else emptyMap()
     }
     val randomDetailSongs = remember(selectedTab, sortedSongs, sortedAlbums, detailSongsByAlbumId) {
         when (selectedTab) {

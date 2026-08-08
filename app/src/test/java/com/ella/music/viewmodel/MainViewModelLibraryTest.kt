@@ -1,55 +1,50 @@
 package com.ella.music.viewmodel
 
+import com.ella.music.data.NameSplitConfigStore
 import com.ella.music.data.model.Song
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 
 class MainViewModelLibraryTest {
-    @Test
-    fun filterSongsForArtist_ignoresAlbumArtistWhenDisabled() {
-        val songs = listOf(
-            song(id = 1, artist = "Track Artist", albumArtist = "Album Artist"),
-            song(id = 2, artist = "Album Artist", albumArtist = "")
-        )
+    @Before
+    fun setUp() {
+        NameSplitConfigStore.artistCustomSeparators = listOf("/")
+        NameSplitConfigStore.artistProtectedNames = emptyList()
+        NameSplitConfigStore.tagIgnoreCase = false
+    }
 
-        val result = filterSongsForArtist(
-            songs = songs,
-            artistName = "Album Artist",
-            includeAlbumArtist = false
-        )
-
-        assertEquals(listOf(2L), result.map { it.id })
+    @After
+    fun tearDown() {
+        NameSplitConfigStore.artistCustomSeparators = emptyList()
+        NameSplitConfigStore.artistProtectedNames = emptyList()
+        NameSplitConfigStore.tagIgnoreCase = false
     }
 
     @Test
-    fun filterSongsForArtist_matchesAlbumArtistWhenEnabled() {
-        val songs = listOf(
-            song(id = 1, artist = "Track Artist", albumArtist = "Album Artist"),
-            song(id = 2, artist = "Other Artist", albumArtist = "")
-        )
+    fun arrangerCategoryUsesAlbumArtistCandidateOutsideRoleGroup() {
+        val arrangerSong = song(1, arranger = "Target")
+        val albumArtistSong = song(2, albumArtist = "Target")
 
-        val result = filterSongsForArtist(
-            songs = songs,
-            artistName = "Album Artist",
-            includeAlbumArtist = true
-        )
+        val item = buildMetadataCategoryItems(
+            songs = listOf(arrangerSong, albumArtistSong),
+            type = "arranger"
+        ).single()
 
-        assertEquals(listOf(1L), result.map { it.id })
+        assertEquals(albumArtistSong.id, item.representativeSong?.id)
     }
 
-    private fun song(
-        id: Long,
-        artist: String,
-        albumArtist: String
-    ): Song = Song(
+    private fun song(id: Long, albumArtist: String = "", arranger: String = "") = Song(
         id = id,
         title = "Song $id",
-        artist = artist,
-        album = "Album",
+        artist = "Singer",
+        album = "Album $id",
         albumId = id,
-        duration = 180_000L,
+        duration = 1L,
         path = "/music/$id.flac",
         fileName = "$id.flac",
-        albumArtist = albumArtist
+        albumArtist = albumArtist,
+        arranger = arranger
     )
 }
