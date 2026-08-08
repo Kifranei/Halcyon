@@ -45,6 +45,9 @@ class ExoPlayerManager(private val context: Context) {
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    private val _playWhenReady = MutableStateFlow(false)
+    val playWhenReady: StateFlow<Boolean> = _playWhenReady.asStateFlow()
+
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
 
@@ -203,7 +206,12 @@ class ExoPlayerManager(private val context: Context) {
         playerListener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _isPlaying.value = isPlaying
+                _playWhenReady.value = mediaController?.playWhenReady ?: isPlaying
                 savePlaybackState(force = true)
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                _playWhenReady.value = playWhenReady
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -755,6 +763,7 @@ class ExoPlayerManager(private val context: Context) {
         _currentPosition.value = 0L
         _duration.value = 0L
         _isPlaying.value = false
+        _playWhenReady.value = false
         _playbackState.value = Player.STATE_IDLE
         autoDecoderRetrySongKey = null
         _queueLocked.value = false
@@ -1140,6 +1149,7 @@ class ExoPlayerManager(private val context: Context) {
         if (shouldIgnoreStaleControllerSong(controller)) return
 
         _isPlaying.value = controller.isPlaying
+        _playWhenReady.value = controller.playWhenReady
         _playbackState.value = controller.playbackState
         _repeatMode.value = controller.repeatMode
         _playbackSpeed.value = controller.playbackParameters.speed
@@ -1193,6 +1203,7 @@ class ExoPlayerManager(private val context: Context) {
         }
 
         _isPlaying.value = snapshot.isPlaying
+        _playWhenReady.value = snapshot.playWhenReady
         _playbackState.value = snapshot.playbackState
         _repeatMode.value = snapshot.repeatMode
         _currentPosition.value = snapshot.positionMs.coerceAtLeast(0L)

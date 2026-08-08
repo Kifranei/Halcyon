@@ -1,7 +1,5 @@
 package com.ella.music.ui.player
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +39,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /** A native, independently implemented focus-lyrics renderer. */
 @Composable
@@ -49,6 +48,8 @@ internal fun AppleMusicLyricsView(
     currentIndex: Int,
     currentPositionMs: Long,
     isPlaying: Boolean,
+    isPaused: Boolean = !isPlaying,
+    brightenAllLinesWhenPaused: Boolean = true,
     pageVisible: Boolean = true,
     showTranslation: Boolean,
     showPronunciation: Boolean,
@@ -71,6 +72,7 @@ internal fun AppleMusicLyricsView(
     focusOffsetRatio: Float = 0.24f,
     nonCurrentLineBlurEnabled: Boolean = true,
     userScrollEnabled: Boolean = true,
+    reserveExtraLyricSpace: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -88,7 +90,6 @@ internal fun AppleMusicLyricsView(
 
     val listState = rememberLazyListState()
     val userDragging by listState.interactionSource.collectIsDraggedAsState()
-    val scrollSpring = remember { Animatable(0f) }
     var trailingLineHeightPx by remember(lyrics) { mutableIntStateOf(0) }
     var hasPositionedScroll by remember(lyrics) { mutableStateOf(false) }
     var deferAutoScroll by remember { mutableStateOf(false) }
@@ -125,7 +126,21 @@ internal fun AppleMusicLyricsView(
     val interludes = remember(lyrics) { lyrics.interludes() }
     var smoothPositionMs by remember { mutableLongStateOf(renderPositionMs) }
     LaunchedEffect(renderPositionMs, renderIsPlaying) {
-        val anchorPositionMs = renderPositionMs
+        // The player position is sampled less often than this frame-driven renderer. When a new
+        // sample arrives slightly behind the extrapolated display position, restarting from that
+        // sample makes the karaoke sheen visibly travel over the same glyph a second time. Keep
+        // minor playback regressions on the current frame clock; large jumps are real seeks.
+        val anchorPositionMs = if (
+            shouldIgnoreMinorPlaybackRegression(
+                currentUiPositionMs = smoothPositionMs,
+                nextPositionMs = renderPositionMs,
+                isPlaying = renderIsPlaying
+            )
+        ) {
+            smoothPositionMs
+        } else {
+            renderPositionMs
+        }
         val anchorFrameNs = withFrameNanos { it }
         smoothPositionMs = anchorPositionMs
         while (renderIsPlaying) {
@@ -151,45 +166,25 @@ internal fun AppleMusicLyricsView(
             // Initial positioning should not fly through the whole song when the player is
             // restored in the middle of a track.
             listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
-            scrollSpring.snapTo(0f)
             hasPositionedScroll = true
             return@LaunchedEffect
         }
 
-        // ConePlayer does not restart a fixed-duration list animation for each lyric. It changes
-        // every row's spring target (damping 1.25, stiffness 200) and lets the retained velocity
-        // carry the content into place. Drive the LazyColumn with the same overdamped spring and
-        // correct the distance after variable-height rows have entered the viewport.
-        repeat(CONE_SCROLL_CORRECTION_PASSES) {
-            val layoutInfo = listState.layoutInfo
-            val visibleItems = layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) return@repeat
-            val targetItem = visibleItems.firstOrNull { it.index == scrollTargetIndex }
-            val distance = if (targetItem != null) {
-                targetItem.offset - desiredItemOffset
-            } else {
-                val firstItem = visibleItems.first()
-                val averageItemExtent = visibleItems.sumOf { it.size }.toFloat() / visibleItems.size +
-                    layoutInfo.mainAxisItemSpacing
-                firstItem.offset - desiredItemOffset +
-                    (scrollTargetIndex - firstItem.index) * averageItemExtent
-            }
-            if (abs(distance) <= CONE_SCROLL_VISIBILITY_THRESHOLD_PX) return@LaunchedEffect
-
-            val animationStart = scrollSpring.value
-            var appliedValue = animationStart
-            listState.scroll {
-                scrollSpring.animateTo(
-                    targetValue = animationStart + distance,
-                    animationSpec = spring(
-                        dampingRatio = CONE_SCROLL_DAMPING_RATIO,
-                        stiffness = CONE_SCROLL_STIFFNESS,
-                        visibilityThreshold = CONE_SCROLL_VISIBILITY_THRESHOLD_PX
-                    )
-                ) {
-                    val consumed = scrollBy(value - appliedValue)
-                    appliedValue += consumed
-                }
+        // Measure the target row after it enters the viewport. Average-height prediction is
+        // especially inaccurate for TTML x-bg and LRC pronunciation rows, which made the mini
+        // lyric overshoot and then visibly correct itself backwards.
+        listState.animateScrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
+        val layoutInfo = listState.layoutInfo
+        val targetItem = layoutInfo.visibleItemsInfo.firstOrNull { it.index == scrollTargetIndex }
+        if (targetItem != null) {
+            val exactItemOffset = resolveAppleMusicLyricsFocusOffset(
+                viewportHeightPx = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset,
+                focusOffsetRatio = focusOffsetRatio,
+                itemHeightPx = targetItem.size
+            )
+            val correction = targetItem.offset - exactItemOffset
+            if (abs(correction) > CONE_SCROLL_VISIBILITY_THRESHOLD_PX) {
+                listState.scroll { scrollBy(correction.toFloat()) }
             }
         }
     }
@@ -235,7 +230,7 @@ internal fun AppleMusicLyricsView(
                     AppleMusicLyricLine(
                         line = line,
                         active = lineIsActive,
-                        paused = !renderIsPlaying,
+                        paused = isPaused && brightenAllLinesWhenPaused,
                         distance = (index - activeIndex).coerceIn(-4, 4),
                         userScrolling = userDragging || keepLinesSharp,
                         nonCurrentLineBlurEnabled = nonCurrentLineBlurEnabled && renderIsPlaying,
@@ -255,6 +250,7 @@ internal fun AppleMusicLyricsView(
                         defaultTextAlign = defaultTextAlign,
                         contentColor = contentColor,
                         wordLiftEnabled = wordLiftEnabled,
+                        reserveExtraLyricSpace = reserveExtraLyricSpace,
                         onClick = { onLineClick(line) },
                         onDoubleClick = onLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },
@@ -289,6 +285,16 @@ internal fun resolveAppleMusicLyricsTrailingPadding(
     return maxOf(minimumBottomPadding, requiredPadding)
 }
 
+internal fun resolveAppleMusicLyricsFocusOffset(
+    viewportHeightPx: Int,
+    focusOffsetRatio: Float,
+    itemHeightPx: Int
+): Int {
+    val preferredOffset = (viewportHeightPx * focusOffsetRatio.coerceIn(0f, 1f)).roundToInt()
+    val maximumOffset = (viewportHeightPx - itemHeightPx).coerceAtLeast(0)
+    return preferredOffset.coerceIn(0, maximumOffset)
+}
+
 private fun LyricLine.isDuetLine(): Boolean = agent.equals("v1", true) || agent.equals("v2", true)
 
 private fun LyricLine.isActiveAt(positionMs: Long): Boolean {
@@ -298,7 +304,4 @@ private fun LyricLine.isActiveAt(positionMs: Long): Boolean {
 
 private const val MANUAL_SCROLL_BLUR_RESUME_DELAY_MS = 3_000L
 private const val MANUAL_SCROLL_RECENTER_DELAY_MS = 2_000L
-private const val CONE_SCROLL_DAMPING_RATIO = 1.25f
-private const val CONE_SCROLL_STIFFNESS = 200f
 private const val CONE_SCROLL_VISIBILITY_THRESHOLD_PX = 0.75f
-private const val CONE_SCROLL_CORRECTION_PASSES = 2

@@ -951,7 +951,8 @@ class PlaybackService : MediaLibraryService() {
             durationMs = current.duration.coerceAtLeast(0L),
             repeatMode = current.repeatMode,
             isPlaying = current.isPlaying,
-            playbackState = current.playbackState
+            playbackState = current.playbackState,
+            playWhenReady = current.playWhenReady
         )
         externalPlaybackSnapshot.value = snapshot
     }

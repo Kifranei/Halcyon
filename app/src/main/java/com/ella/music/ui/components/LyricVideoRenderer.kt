@@ -79,6 +79,12 @@ internal class LyricVideoRenderer(
         this.typeface = typeface ?: Typeface.DEFAULT
         setShadowLayer(8f, 0f, 3f, Color.argb(80, 0, 0, 0))
     }
+    private val dimTransPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(120, 255, 255, 255)
+        textSize = TRANS_TEXT_SIZE
+        this.typeface = typeface ?: Typeface.DEFAULT
+        setShadowLayer(8f, 0f, 3f, Color.argb(48, 0, 0, 0))
+    }
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private data class VideoWordInfo(
@@ -134,6 +140,27 @@ internal class LyricVideoRenderer(
 
         val activeIndex = timelines.indexOfLast { timeMs >= it.startMs }.takeIf { it >= 0 } ?: return
         val activeTimeline = timelines[activeIndex]
+        val nextTimeline = timelines.getOrNull(activeIndex + 1)
+        if (isLyricVideoInterLineGap(
+                timeMs = timeMs,
+                karaokeEndMs = activeTimeline.karaokeEndMs,
+                nextLineStartMs = nextTimeline?.startMs
+            )
+        ) {
+            // The previous line remains the timeline anchor through a short gap, but its karaoke
+            // sweep has finished. Keep it dim until the next line starts instead of briefly
+            // presenting the whole sentence as newly highlighted.
+            clearParticleEffect()
+            drawLyricLine(
+                canvas = canvas,
+                timeline = activeTimeline,
+                timeMs = timeMs,
+                alpha = 1f,
+                scale = 1f,
+                completed = true
+            )
+            return
+        }
         val previousTimeline = timelines.getOrNull(activeIndex - 1)
         val dissolvingTimeline = when {
             previousTimeline != null &&
@@ -209,15 +236,18 @@ internal class LyricVideoRenderer(
         timeMs: Long,
         alpha: Float,
         scale: Float,
-        translateY: Float = 0f
+        translateY: Float = 0f,
+        completed: Boolean = false
     ) {
         val line = timeline.line
         val text = line.text.ifBlank { line.backgroundText.orEmpty() }
         if (text.isBlank()) return
 
         val textWidth = (VIDEO_SIZE * 0.84f).toInt()
-        val mainLayout = buildVideoLayout(text, mainPaint, textWidth)
-        val transLayout = timeline.translation?.let { buildVideoLayout(it, transPaint, textWidth) }
+        val mainLayoutPaint = if (completed) dimPaint else mainPaint
+        val translationLayoutPaint = if (completed) dimTransPaint else transPaint
+        val mainLayout = buildVideoLayout(text, mainLayoutPaint, textWidth)
+        val transLayout = timeline.translation?.let { buildVideoLayout(it, translationLayoutPaint, textWidth) }
 
         val totalHeight = mainLayout.height + (transLayout?.let { it.height + TRANS_GAP } ?: 0f)
         val startY = (VIDEO_SIZE - totalHeight) / 2f
@@ -234,7 +264,16 @@ internal class LyricVideoRenderer(
         val saveAlpha = canvas.saveLayerAlpha(0f, 0f, VIDEO_SIZE.toFloat(), VIDEO_SIZE.toFloat(), (alpha * 255).toInt())
 
         if (line.words.isNotEmpty()) {
-            drawKaraokeText(canvas, line, timeline, timeMs, startX, startY, textWidth.toFloat())
+            drawKaraokeText(
+                canvas = canvas,
+                line = line,
+                timeline = timeline,
+                timeMs = timeMs,
+                startX = startX,
+                startY = startY,
+                availableWidth = textWidth.toFloat(),
+                allowProgress = !completed
+            )
         } else {
             drawStaticText(canvas, mainLayout, startX, startY)
         }
@@ -255,7 +294,8 @@ internal class LyricVideoRenderer(
         timeMs: Long,
         startX: Float,
         startY: Float,
-        availableWidth: Float
+        availableWidth: Float,
+        allowProgress: Boolean
     ) {
         val globalStartMs = lines.first().timeMs
         val absoluteTimeMs = timeMs + globalStartMs
@@ -266,6 +306,8 @@ internal class LyricVideoRenderer(
         for (info in wordInfos) {
             canvas.drawText(info.text, info.x, info.y, dimPaint)
         }
+
+        if (!allowProgress) return
 
         val sweepFraction = calculateSweepFraction(words, absoluteTimeMs, mainPaint)
         if (sweepFraction <= 0f) return
@@ -406,8 +448,8 @@ internal class LyricVideoRenderer(
     private fun renderLineToBitmap(timeline: LineTimeline): Bitmap {
         val text = timeline.line.text.ifBlank { timeline.line.backgroundText.orEmpty() }
         val textWidth = (VIDEO_SIZE * 0.84f).toInt()
-        val mainLayout = buildVideoLayout(text, mainPaint, textWidth)
-        val transLayout = timeline.translation?.let { buildVideoLayout(it, transPaint, textWidth) }
+        val mainLayout = buildVideoLayout(text, dimPaint, textWidth)
+        val transLayout = timeline.translation?.let { buildVideoLayout(it, dimTransPaint, textWidth) }
         val totalHeight = (mainLayout.height + (transLayout?.let { it.height + TRANS_GAP } ?: 0f)).roundToInt()
         val bmp = Bitmap.createBitmap(textWidth, totalHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
@@ -638,6 +680,12 @@ internal class LyricVideoRenderer(
         return 1f - (1f - clamped) * (1f - clamped) * (1f - clamped)
     }
 }
+
+internal fun isLyricVideoInterLineGap(
+    timeMs: Long,
+    karaokeEndMs: Long,
+    nextLineStartMs: Long?
+): Boolean = nextLineStartMs != null && timeMs >= karaokeEndMs && timeMs < nextLineStartMs
 
 private fun Int.boostFlowingColor(): Int {
     val hsv = FloatArray(3)

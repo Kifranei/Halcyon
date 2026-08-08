@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -567,6 +568,8 @@ internal fun LyricsPageContent(
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val playWhenReady by playerViewModel.playWhenReady.collectAsState()
+    val isActuallyPaused = !isPlaying && !playWhenReady
     LyricsPlayerPage(
         song = song,
         embeddedCover = embeddedCover,
@@ -601,6 +604,7 @@ internal fun LyricsPageContent(
         flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
         currentPositionMs = currentPosition,
         isPlaying = isPlaying,
+        isPaused = isActuallyPaused,
         playerBackgroundEnabled = playerBackgroundEnabled,
         playerBackgroundUri = playerBackgroundUri,
         playerBackgroundOpacity = playerBackgroundOpacity,

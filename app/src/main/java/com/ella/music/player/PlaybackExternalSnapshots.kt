@@ -10,7 +10,8 @@ data class PlaybackExternalSnapshot(
     val durationMs: Long,
     val repeatMode: Int,
     val isPlaying: Boolean,
-    val playbackState: Int
+    val playbackState: Int,
+    val playWhenReady: Boolean = isPlaying
 )
 
 data class PlaybackModeExternalSnapshot(

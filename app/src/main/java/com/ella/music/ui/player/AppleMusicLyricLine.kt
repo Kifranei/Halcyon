@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -140,6 +141,7 @@ internal fun AppleMusicLyricLine(
     mergeInlineSecondary: Boolean = false,
     statusBarMarquee: Boolean = false,
     secondaryAlpha: Float = 0.74f,
+    reserveExtraLyricSpace: Boolean = false,
     onClick: () -> Unit,
     onDoubleClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -280,47 +282,72 @@ internal fun AppleMusicLyricLine(
             )
         }
         line.backgroundText?.trim()?.takeIf { it.isNotBlank() && line.text.isNotBlank() }?.let { background ->
-            AnimatedVisibility(
-                visible = line.isBackgroundActiveAt(currentPositionMs),
-                // ConePlayer gives BG vocals their own reveal: the main line settles first, then
-                // the x-bg layer enters after a 300 ms beat. A full-height upward travel reads as
-                // a separate backing vocal instead of a translation suddenly growing the row.
-                enter = fadeIn(
-                    animationSpec = tween(
-                        durationMillis = 300,
-                        delayMillis = 300,
-                        easing = FastOutSlowInEasing
-                    )
-                ) + slideInVertically(
-                    animationSpec = tween(
-                        durationMillis = 300,
-                        delayMillis = 300,
-                        easing = FastOutSlowInEasing
-                    ),
-                    initialOffsetY = { it }
+            val backgroundActive = line.isBackgroundActiveAt(currentPositionMs)
+            val backgroundAlpha by animateFloatAsState(
+                targetValue = if (backgroundActive) 1f else 0f,
+                animationSpec = tween(
+                    durationMillis = if (backgroundActive) 300 else 180,
+                    delayMillis = if (backgroundActive) 300 else 0,
+                    easing = FastOutSlowInEasing
                 ),
-                exit = fadeOut(animationSpec = tween(180)) +
-                    slideOutVertically(animationSpec = tween(180), targetOffsetY = { it / 3 })
-            ) {
-                Column {
-            TimedLyricText(
-                text = background,
-                words = line.backgroundWords,
-                positionMs = currentPositionMs,
-                active = active,
-                style = secondaryStyle.copy(color = contentColor.copy(alpha = alpha * 0.72f)),
-                contentColor = contentColor,
-                wordLiftEnabled = wordLiftEnabled,
-                singleLine = singleLine,
-                modifier = Modifier.fillMaxWidth().padding(top = 7.dp)
+                label = "appleLyricsBackgroundAlpha"
             )
-            line.backgroundTranslation?.takeIf { showTranslation && it.isNotBlank() }?.let { translation ->
-                BasicText(
-                    text = translation,
-                    style = secondaryStyle.copy(color = contentColor.copy(alpha = alpha * 0.62f)),
-                    modifier = Modifier.fillMaxWidth().padding(top = 3.dp)
-                )
+            val backgroundContent: @Composable () -> Unit = {
+                Column {
+                    TimedLyricText(
+                        text = background,
+                        words = line.backgroundWords,
+                        positionMs = currentPositionMs,
+                        active = active,
+                        style = secondaryStyle.copy(color = contentColor.copy(alpha = alpha * 0.72f)),
+                        contentColor = contentColor,
+                        wordLiftEnabled = wordLiftEnabled,
+                        singleLine = singleLine,
+                        modifier = Modifier.fillMaxWidth().padding(top = 7.dp)
+                    )
+                    line.backgroundTranslation?.takeIf { showTranslation && it.isNotBlank() }?.let { translation ->
+                        BasicText(
+                            text = translation,
+                            style = secondaryStyle.copy(color = contentColor.copy(alpha = alpha * 0.62f)),
+                            modifier = Modifier.fillMaxWidth().padding(top = 3.dp)
+                        )
+                    }
+                }
             }
+            if (reserveExtraLyricSpace) {
+                // Keep the x-bg row measured even while it is hidden. The mini preview can then
+                // calculate the target offset from the final row height instead of overshooting
+                // when the background vocal appears.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .alpha(backgroundAlpha)
+                ) {
+                    backgroundContent()
+                }
+            } else {
+                AnimatedVisibility(
+                    visible = backgroundActive,
+                    // ConePlayer gives BG vocals their own reveal: the main line settles first,
+                    // then the x-bg layer enters after a 300 ms beat.
+                    enter = fadeIn(
+                        animationSpec = tween(
+                            durationMillis = 300,
+                            delayMillis = 300,
+                            easing = FastOutSlowInEasing
+                        )
+                    ) + slideInVertically(
+                        animationSpec = tween(
+                            durationMillis = 300,
+                            delayMillis = 300,
+                            easing = FastOutSlowInEasing
+                        ),
+                        initialOffsetY = { it }
+                    ),
+                    exit = fadeOut(animationSpec = tween(180)) +
+                        slideOutVertically(animationSpec = tween(180), targetOffsetY = { it / 3 })
+                ) {
+                    backgroundContent()
                 }
             }
         }

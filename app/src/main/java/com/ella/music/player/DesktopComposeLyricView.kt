@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,10 +24,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -300,10 +303,13 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 )
             )
         }
-        val effectiveAlign = when {
-            statusBarMode -> statusBarTextAlign
-            !line.isTtml && !line.agent.isDuetAgent() -> SettingsManager.PLAYER_LYRIC_ALIGN_CENTER
-            else -> SettingsManager.PLAYER_LYRIC_ALIGN_LEFT
+        val effectiveAlign = if (statusBarMode) {
+            statusBarTextAlign
+        } else {
+            SettingsManager.PLAYER_LYRIC_ALIGN_CENTER
+        }
+        val desktopMaxLineWidth = with(LocalDensity.current) {
+            (24f * fontScale).sp.toDp() * DESKTOP_LYRIC_MAX_GLYPHS
         }
         val verticalAlignment = when {
             !statusBarMode -> Alignment.Center
@@ -340,7 +346,11 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 mergeInlineSecondary = statusBarMode && statusBarMergeSecondary,
                 statusBarMarquee = statusBarMode,
                 secondaryAlpha = if (statusBarMode) statusBarSecondaryOpacity / 100f else 0.74f,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (statusBarMode) Modifier else Modifier.widthIn(max = desktopMaxLineWidth)
+                    )
             )
         }
     }
@@ -443,3 +453,5 @@ internal fun mergeDesktopStatusBarLyric(
  */
 internal fun String.normalizeDesktopStatusBarSecondaryText(): String =
     trim().replace(Regex("\\s+"), " ")
+
+private const val DESKTOP_LYRIC_MAX_GLYPHS = 8f

@@ -15,11 +15,13 @@ class DesktopLyricBridge(private val context: Context) {
     }
     private var enabled = false
     private var lastLineKey: String? = null
+    private var hostPage = DesktopLyricService.HOST_PAGE_NONE
 
     fun setEnabled(enabled: Boolean) {
         this.enabled = enabled
         if (enabled) {
             context.startService(Intent(context, DesktopLyricService::class.java).setAction(DesktopLyricService.ACTION_ENABLE))
+            sendHostPage()
         } else {
             lastLineKey = null
             context.startService(Intent(context, DesktopLyricService::class.java).setAction(DesktopLyricService.ACTION_HIDE))
@@ -27,6 +29,12 @@ class DesktopLyricBridge(private val context: Context) {
     }
 
     fun isEnabled(): Boolean = enabled
+
+    fun setHostPage(page: Int) {
+        if (hostPage == page) return
+        hostPage = page
+        if (enabled) sendHostPage()
+    }
 
     fun sendLyric(text: String?) {
         if (!enabled || !canDrawOverlay()) return
@@ -37,6 +45,7 @@ class DesktopLyricBridge(private val context: Context) {
             Intent(context, DesktopLyricService::class.java)
                 .setAction(DesktopLyricService.ACTION_SHOW)
                 .putExtra(DesktopLyricService.EXTRA_TEXT, lyric)
+                .putExtra(DesktopLyricService.EXTRA_HOST_PAGE, hostPage)
         )
     }
 
@@ -75,6 +84,7 @@ class DesktopLyricBridge(private val context: Context) {
                 .putExtra(DesktopLyricService.EXTRA_BACKGROUND_WORD_TEXTS, lyricLine.backgroundWords.map { it.text }.toTypedArray())
                 .putExtra(DesktopLyricService.EXTRA_BACKGROUND_WORD_STARTS, lyricLine.backgroundWords.map { it.startMs }.toLongArray())
                 .putExtra(DesktopLyricService.EXTRA_BACKGROUND_WORD_ENDS, lyricLine.backgroundWords.map { it.endMs }.toLongArray())
+                .putExtra(DesktopLyricService.EXTRA_HOST_PAGE, hostPage)
         )
     }
 
@@ -94,5 +104,14 @@ class DesktopLyricBridge(private val context: Context) {
 
     private fun canDrawOverlay(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
+    }
+
+    private fun sendHostPage() {
+        if (!enabled || !canDrawOverlay()) return
+        context.startService(
+            Intent(context, DesktopLyricService::class.java)
+                .setAction(DesktopLyricService.ACTION_SET_HOST_PAGE)
+                .putExtra(DesktopLyricService.EXTRA_HOST_PAGE, hostPage)
+        )
     }
 }

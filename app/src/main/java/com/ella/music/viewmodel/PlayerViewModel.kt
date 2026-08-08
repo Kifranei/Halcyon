@@ -917,7 +917,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val currentLyrics = _lyrics.value
         desktopLyricBridge.sendLyric(
             line = currentLyrics.getOrNull(index),
-            positionMs = currentPosition.value,
+            positionMs = effectiveLyricPositionMs(),
             showTranslation = _showLyricTranslation.value,
             showPronunciation = _showLyricPronunciation.value
         )
@@ -928,7 +928,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) return
         val index = _currentLyricIndex.value
         val line = _lyrics.value.getOrNull(index) ?: return
-        desktopLyricBridge.sendLyric(line, currentPosition.value, _showLyricTranslation.value, _showLyricPronunciation.value)
+        desktopLyricBridge.sendLyric(
+            line,
+            effectiveLyricPositionMs(),
+            _showLyricTranslation.value,
+            _showLyricPronunciation.value
+        )
+    }
+
+    /**
+     * The lyric page and Live Update already use [lastLyricPositionMs], which filters the small
+     * backwards samples emitted by the player position ticker.  Desktop lyrics animate from each
+     * received position anchor, so feeding them the raw value makes a single backwards sample
+     * visibly replay the current words. Keep all lyric surfaces on the same effective position;
+     * a real seek updates this value immediately in [applySeekSideEffects].
+     */
+    private fun effectiveLyricPositionMs(): Long {
+        val songKey = currentSong.value?.lyricIdentityKey()
+        return if (songKey != null && songKey == lastLyricPositionSongKey) {
+            lastLyricPositionMs
+        } else {
+            playerManager.currentPosition.value
+        }
     }
 
     private fun resendSuperLyric(force: Boolean = false) {
@@ -1126,6 +1147,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun applySeekSideEffects(positionMs: Long) {
         manualSeekAfterPreviousButton = true
+        lastLyricPositionSongKey = currentSong.value?.lyricIdentityKey()
+        lastLyricPositionMs = positionMs
 
         val lyrics = _lyrics.value
         val index = currentLyricIndexAt(

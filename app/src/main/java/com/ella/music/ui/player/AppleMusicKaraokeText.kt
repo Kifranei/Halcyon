@@ -282,10 +282,8 @@ private fun List<LyricWord>.toAppleMusicRenderWords(lineText: String): List<Appl
             else -> ""
         }
         val duration = word.endMs - word.startMs
-        val splitForSustain = duration >= 1_200L &&
-            word.text.length > 1 &&
-            word.text.any { it in 'a'..'z' || it in 'A'..'Z' }
-        if (splitForSustain) {
+        val splitForCharacters = word.shouldSplitForAppleMusicCharacters()
+        if (splitForCharacters) {
             val chars = word.text.toCharArray()
             val segmentDuration = duration / chars.size
             chars.forEachIndexed { charIndex, char ->
@@ -313,6 +311,28 @@ private fun List<LyricWord>.toAppleMusicRenderWords(lineText: String): List<Appl
         cursor = end + suffix.length
     }
     return result
+}
+
+/**
+ * A TTML/LRC provider may put a whole long CJK phrase in one timed span. If that span wraps in
+ * the player, a single BasicText child gives every visual row the same progress. Split long
+ * timed phrases into character-sized children so wrapped rows can complete from top to bottom.
+ */
+internal fun LyricWord.shouldSplitForAppleMusicCharacters(): Boolean {
+    if (endMs - startMs < 1_200L || text.length <= 1) return false
+    return text.any { it.isAppleMusicLatinLetter() || it.isAppleMusicCjkCharacter() }
+}
+
+private fun Char.isAppleMusicLatinLetter(): Boolean = this in 'a'..'z' || this in 'A'..'Z'
+
+private fun Char.isAppleMusicCjkCharacter(): Boolean {
+    val block = Character.UnicodeBlock.of(this)
+    return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
+        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
+        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B ||
+        block == Character.UnicodeBlock.HIRAGANA ||
+        block == Character.UnicodeBlock.KATAKANA ||
+        block == Character.UnicodeBlock.HANGUL_SYLLABLES
 }
 
 private fun AppleMusicRenderWord.splitEnglishPhraseForAppleMusic(): List<AppleMusicRenderWord> {

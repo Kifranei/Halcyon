@@ -68,6 +68,9 @@ class DesktopLyricService : Service() {
     private var statusBarMode = false
     private var hideWhenPaused = true
     private var hideInLandscape = false
+    private var hideOnPlayerPage = false
+    private var hideOnLyricsPage = false
+    private var hostPage = HOST_PAGE_NONE
     private var desktopLyricWidthPercent = 72
     private var statusBarTopOffsetDp = 16
     private var statusBarPosition = SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_CENTER
@@ -141,6 +144,10 @@ class DesktopLyricService : Service() {
                 if (rootView == null) stopSelf()
             }
             ACTION_SHOW, ACTION_UPDATE -> showOrUpdate(intent)
+            ACTION_SET_HOST_PAGE -> {
+                hostPage = intent.getIntExtra(EXTRA_HOST_PAGE, HOST_PAGE_NONE)
+                updateStatusBarModeVisibility()
+            }
             ACTION_HIDE -> {
                 startupGate.clearPendingShow()
                 pendingShowIntent = null
@@ -183,6 +190,9 @@ class DesktopLyricService : Service() {
         if (userHidden) {
             stopSelf()
             return
+        }
+        if (intent.hasExtra(EXTRA_HOST_PAGE)) {
+            hostPage = intent.getIntExtra(EXTRA_HOST_PAGE, HOST_PAGE_NONE)
         }
         if (rootView == null) addLyricView()
         updateStatusBarModeVisibility()
@@ -272,6 +282,7 @@ class DesktopLyricService : Service() {
 
             setOnTouchListener(::onDrag)
         }
+        val hadSavedPosition = savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE
 
         // Must happen before WindowManager attaches the overlay. On some ROMs Compose creates
         // its recomposer while dispatching the root LinearLayout's attach event, before the
@@ -297,7 +308,7 @@ class DesktopLyricService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = if (statusBarMode) statusBarLyricX(statusLyricWidth) else savedX.takeIf { it != Int.MIN_VALUE } ?: 0
-            y = if (statusBarMode) statusBarLyricTopY() else savedY.takeIf { it != Int.MIN_VALUE } ?: dp(96)
+            y = if (statusBarMode) statusBarLyricTopY() else savedY.takeIf { it != Int.MIN_VALUE } ?: desktopLyricDefaultY(root)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -310,7 +321,23 @@ class DesktopLyricService : Service() {
         applyCurrentSettingsToViews()
         windowManager.addView(root, params)
         clampToScreen(root, params)
-        if (!statusBarMode && (params.x != savedX || params.y != savedY)) persistPosition(params.x, params.y)
+        if (!statusBarMode) {
+            if (hadSavedPosition) {
+                if (params.x != savedX || params.y != savedY) persistPosition(params.x, params.y)
+            } else {
+                // The display cutout is only available after the overlay is attached. Recenter a
+                // first-run/reset window below the camera area once the insets are known, while
+                // leaving an explicitly dragged position untouched on later openings.
+                root.post {
+                    val currentParams = layoutParams ?: return@post
+                    if (rootView !== root || hadSavedPosition || savedX != Int.MIN_VALUE || savedY != Int.MIN_VALUE) return@post
+                    currentParams.y = desktopLyricDefaultY(root)
+                    clampToScreen(root, currentParams)
+                    windowManager.updateViewLayout(root, currentParams)
+                    persistPosition(currentParams.x, currentParams.y)
+                }
+            }
+        }
         if (statusBarMode) {
             controls.visibility = View.GONE
             setPanelVisible(false)
@@ -393,7 +420,7 @@ class DesktopLyricService : Service() {
 
     private fun resetPosition() {
         val defaultX = 0
-        val defaultY = dp(96)
+        val defaultY = desktopLyricDefaultY()
         savedX = defaultX
         savedY = defaultY
         serviceScope.launch { settingsManager.resetDesktopLyricPosition() }
@@ -454,9 +481,18 @@ class DesktopLyricService : Service() {
             revealControls -> View.VISIBLE
             else -> controlsView?.visibility ?: View.GONE
         }
-        setPanelVisible(!lock && controlsView?.visibility == View.VISIBLE)
+        // Locking only disables touch and hides controls. Preserve the existing lyric surface;
+        // changing its background/padding here can make the lyric look dimmer on some overlays.
+        if (!lock) setPanelVisible(controlsView?.visibility == View.VISIBLE)
         if (!lock && revealControls) scheduleControlsAutoHide()
         val params = layoutParams ?: return
+        // Some overlay implementations inherit a reduced alpha while their touchability/visible
+        // state changes. Locking is only a gesture lock; it must not dim the lyric itself.
+        params.alpha = 1f
+        rootView?.alpha = 1f
+        lyricView?.alpha = 1f
+        params.flags = params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND.inv()
+        params.dimAmount = 0f
         params.flags = if (lock || statusBarMode) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
@@ -543,6 +579,15 @@ class DesktopLyricService : Service() {
     private fun statusBarHeight(): Int {
         val id = resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
+    }
+
+    private fun desktopLyricDefaultY(view: View? = rootView): Int {
+        val cutoutTop = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            view?.rootWindowInsets?.displayCutout?.safeInsetTop ?: 0
+        } else {
+            0
+        }
+        return maxOf(statusBarHeight(), cutoutTop) + dp(8)
     }
 
     private fun statusBarLyricTopY(): Int =
@@ -647,6 +692,8 @@ class DesktopLyricService : Service() {
         } else {
             settingsManager.desktopLyricHideInLandscape.first()
         },
+        hideOnPlayerPage = settingsManager.desktopLyricHideOnPlayerPage.first(),
+        hideOnLyricsPage = settingsManager.desktopLyricHideOnLyricsPage.first(),
         desktopLyricWidthPercent = settingsManager.desktopLyricWidth.first(),
         statusBarTopOffsetDp = settingsManager.desktopLyricStatusBarTopOffset.first(),
         statusBarPosition = settingsManager.desktopLyricStatusBarPosition.first(),
@@ -678,11 +725,10 @@ class DesktopLyricService : Service() {
                 settingsManager.desktopLyricOpacity.first()
             }
             ).coerceIn(35, 100),
-        lyricTextColor = if (currentStatusBarMode) {
-            settingsManager.desktopLyricStatusBarTextColor.first()
-        } else {
-            settingsManager.desktopLyricTextColor.first()
-        },
+        // The status-bar lyric is another presentation of the desktop lyric. Keep one source of
+        // truth for its primary color so switching modes cannot make the text jump to a stale
+        // independently stored color.
+        lyricTextColor = settingsManager.desktopLyricTextColor.first(),
         // When "apply font to desktop lyric" is off, pass an empty path so the lyric view falls
         // back to the system default typeface instead of the custom lyric font.
         lyricFontPath = if (settingsManager.lyricFontApplyToDesktop.first()) {
@@ -715,6 +761,8 @@ class DesktopLyricService : Service() {
         statusBarMode = settings.statusBarMode
         hideWhenPaused = settings.hideWhenPaused
         hideInLandscape = settings.hideInLandscape
+        hideOnPlayerPage = settings.hideOnPlayerPage
+        hideOnLyricsPage = settings.hideOnLyricsPage
         desktopLyricWidthPercent = settings.desktopLyricWidthPercent
         statusBarTopOffsetDp = settings.statusBarTopOffsetDp
         statusBarPosition = settings.statusBarPosition
@@ -800,6 +848,7 @@ class DesktopLyricService : Service() {
             wordLiftEnabled = appleMusicWordLiftEnabled
         )
         rootView?.alpha = 1f
+        lyricView?.alpha = 1f
     }
 
     private fun updateStatusBarModeVisibility() {
@@ -809,7 +858,9 @@ class DesktopLyricService : Service() {
 
     private fun shouldHideOverlay(isPlaying: Boolean): Boolean =
         (hideWhenPaused && !isPlaying) ||
-            (hideInLandscape && resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
+            (hideInLandscape && resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) ||
+            (hideOnPlayerPage && hostPage == HOST_PAGE_PLAYER) ||
+            (hideOnLyricsPage && hostPage == HOST_PAGE_LYRICS)
 
     private fun persistPosition(x: Int, y: Int) {
         savedX = x
@@ -862,6 +913,8 @@ class DesktopLyricService : Service() {
         val statusBarMode: Boolean,
         val hideWhenPaused: Boolean,
         val hideInLandscape: Boolean,
+        val hideOnPlayerPage: Boolean,
+        val hideOnLyricsPage: Boolean,
         val desktopLyricWidthPercent: Int,
         val statusBarTopOffsetDp: Int,
         val statusBarPosition: Int,
@@ -889,6 +942,7 @@ class DesktopLyricService : Service() {
         const val ACTION_UPDATE = "com.ella.music.action.UPDATE_DESKTOP_LYRIC"
         const val ACTION_ENABLE = "com.ella.music.action.ENABLE_DESKTOP_LYRIC"
         const val ACTION_HIDE = "com.ella.music.action.HIDE_DESKTOP_LYRIC"
+        const val ACTION_SET_HOST_PAGE = "com.ella.music.action.SET_DESKTOP_LYRIC_HOST_PAGE"
         const val ACTION_UNLOCK = "com.ella.music.action.UNLOCK_DESKTOP_LYRIC"
         const val ACTION_APPLY_SETTINGS = "com.ella.music.action.APPLY_DESKTOP_LYRIC_SETTINGS"
         const val ACTION_RESET_POSITION = "com.ella.music.action.RESET_DESKTOP_LYRIC_POSITION"
@@ -915,6 +969,10 @@ class DesktopLyricService : Service() {
         const val EXTRA_BACKGROUND_WORD_TEXTS = "background_word_texts"
         const val EXTRA_BACKGROUND_WORD_STARTS = "background_word_starts"
         const val EXTRA_BACKGROUND_WORD_ENDS = "background_word_ends"
+        const val EXTRA_HOST_PAGE = "host_page"
+        const val HOST_PAGE_NONE = 0
+        const val HOST_PAGE_PLAYER = 1
+        const val HOST_PAGE_LYRICS = 2
         private const val CHANNEL_ID = "ella_desktop_lyric"
         private const val NOTIFICATION_ID = 0x454c4459
         private const val CONTROLS_AUTO_HIDE_MS = 4_000L

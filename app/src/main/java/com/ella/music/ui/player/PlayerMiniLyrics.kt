@@ -37,6 +37,7 @@ internal fun MiniLyricsPreview(
     showPronunciation: Boolean,
     currentPositionMs: Long,
     isPlaying: Boolean,
+    isPaused: Boolean = !isPlaying,
     fontFamily: FontFamily? = null,
     translationFontFamily: FontFamily? = fontFamily,
     fontWeight: FontWeight = FontWeight.ExtraBold,
@@ -67,6 +68,10 @@ internal fun MiniLyricsPreview(
         currentIndex = safeIndex,
         currentPositionMs = currentPositionMs,
         isPlaying = isPlaying,
+        isPaused = isPaused,
+        // Pausing the cover page should keep the mini lyric focused on the current line. The
+        // full lyrics page intentionally reveals all rows while paused for easier reading.
+        brightenAllLinesWhenPaused = false,
         showTranslation = showTranslation,
         showPronunciation = showPronunciation,
         fontFamily = fontFamily,
@@ -88,6 +93,7 @@ internal fun MiniLyricsPreview(
         nonCurrentLineBlurEnabled = false,
         // The mini preview is tap-to-open only; don't let it scroll on drag.
         userScrollEnabled = false,
+        reserveExtraLyricSpace = true,
         lineSpacing = when {
             singleLinePreview -> 4.dp
             denseMultiPartPreview -> 4.dp

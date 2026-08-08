@@ -218,6 +218,8 @@ internal fun CoverPlayerPage(
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val playWhenReady by playerViewModel.playWhenReady.collectAsState()
+    val isActuallyPaused = !isPlaying && !playWhenReady
     val staticCoverPreviewModel by produceState<Any?>(
         initialValue = resolveCoverPreviewModel(song, embeddedCover),
         song?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
@@ -619,6 +621,7 @@ internal fun CoverPlayerPage(
                                 showPronunciation = showPronunciation,
                                 currentPositionMs = currentPosition,
                                 isPlaying = isPlaying,
+                                isPaused = isActuallyPaused,
                                 fontFamily = fontFamily,
                                 translationFontFamily = translationFontFamily,
                                 fontWeight = fontWeight,
@@ -886,6 +889,7 @@ internal fun CoverPlayerPage(
                                 showPronunciation = showPronunciation,
                                 currentPositionMs = currentPosition,
                                 isPlaying = isPlaying,
+                                isPaused = isActuallyPaused,
                                 fontFamily = fontFamily,
                                 translationFontFamily = translationFontFamily,
                                 fontWeight = fontWeight,
