@@ -25,7 +25,7 @@
     <string name="duration_format" formatted="false">%02d:%02d</string>
     <string name="no_lyrics">沒有歌詞</string>
     <string name="now_playing">正在播放</string>
-    <string name="play_all">全部播放</string>
+    <string name="play_all">播放全部</string>
     <string name="album_play_all">播放全部</string>
     <string name="album_sort_summary">%1$d 首歌 · %2$s · %3$s</string>
     <string name="album_participating_artists_label">參與藝人</string>
@@ -116,6 +116,7 @@
     <string name="notification_action_repeat_one">單曲重複播放</string>
     <string name="notification_action_repeat_all">全部重複播放</string>
     <string name="notification_action_order">順序播放</string>
+    <string name="notification_action_desktop_lyric">桌面歌詞</string>
     <string name="notification_current_queue">目前播放佇列</string>
 
     <string name="desktop_lyric_channel">桌面歌詞</string>
@@ -143,6 +144,10 @@
     <string name="settings_floating_lyric_hide_when_paused_summary">暫停播放時隱藏懸浮歌詞，恢復播放後自動顯示</string>
     <string name="settings_desktop_lyric_hide_in_landscape">桌面歌詞橫向時隱藏</string>
     <string name="settings_desktop_lyric_hide_in_landscape_summary">裝置橫向時隱藏一般桌面歌詞，回到直向後自動顯示</string>
+    <string name="settings_desktop_lyric_hide_on_player_page">播放頁隱藏桌面歌詞</string>
+    <string name="settings_desktop_lyric_hide_on_player_page_summary">開啟播放頁時隱藏桌面歌詞，狀態列歌詞也會同步隱藏</string>
+    <string name="settings_desktop_lyric_hide_on_lyrics_page">歌詞頁隱藏桌面歌詞</string>
+    <string name="settings_desktop_lyric_hide_on_lyrics_page_summary">開啟歌詞頁時隱藏桌面歌詞，狀態列歌詞也會同步隱藏</string>
     <string name="settings_status_lyric_hide_when_paused">狀態列歌詞暫停時隱藏</string>
     <string name="settings_status_lyric_hide_when_paused_summary">暫停播放時隱藏狀態列浮動歌詞，恢復播放後自動顯示</string>
     <string name="settings_status_lyric_hide_in_landscape">狀態列歌詞橫向時隱藏</string>
@@ -287,8 +292,12 @@
     <string name="settings_show_album_artists_summary">開啟後將專輯藝人併入藝人列表，並在藝人頁顯示發行專輯分頁</string>
     <string name="settings_open_player_on_play">點選播放後開啟播放頁</string>
     <string name="settings_open_player_on_play_summary">本機、WebDAV 與線上歌曲開始播放後，自動開啟播放頁</string>
+    <string name="settings_mini_player_swipe_to_open_player">上滑迷你播放條開啟播放頁</string>
+    <string name="settings_mini_player_swipe_to_open_player_summary">關閉後在列表滾動時不會誤觸開啟播放頁</string>
     <string name="settings_show_play_next_in_lists">在列表中顯示「下一首播放」</string>
     <string name="settings_show_play_next_in_lists_summary">在歌曲列表的時長左側顯示快速按鈕；關閉後仍可從歌曲選單操作</string>
+    <string name="settings_show_remove_from_playlist_button">顯示「從歌單移除」按鈕</string>
+    <string name="settings_show_remove_from_playlist_button_summary">在歌單內的歌曲列表顯示快速移除按鈕</string>
     <string name="settings_exclude_search_results_from_playlist">不將搜尋結果作為播放列表</string>
     <string name="settings_exclude_search_results_from_playlist_summary">開啟後，從搜尋結果點歌時只播放目前歌曲，不再把本次結果集寫入目前播放列表</string>
 
@@ -374,8 +383,10 @@
     <string name="home_title">聽音樂</string>
     <string name="home_library">音樂庫</string>
     <string name="home_online_music">線上音樂</string>
-    <string name="home_recent">最近聽過</string>
-    <string name="home_no_history">還沒有播放紀錄</string>
+    <string name="home_recent">最近新增</string>
+    <string name="home_recent_played">最近聽過</string>
+    <string name="home_recent_added">最近添加</string>
+    <string name="home_no_history">尚未新增歌曲</string>
     <string name="home_daily_mix">每日精選</string>
     <string name="home_now_playing_song">正在播放：%1$s</string>
     <string name="home_random_song_count">隨機播放 %1$d 首歌</string>
@@ -618,8 +629,10 @@
     <string name="settings_home_section_library_summary">首頁音樂庫入口區塊</string>
     <string name="settings_home_section_online">線上音樂</string>
     <string name="settings_home_section_online_summary">LX 線上音樂入口</string>
-    <string name="settings_home_section_recent">最近聽過</string>
-    <string name="settings_home_section_recent_summary">最近播放歌曲</string>
+    <string name="settings_home_section_recent">最近新增</string>
+    <string name="settings_home_section_recent_summary">最近新增歌曲</string>
+    <string name="settings_home_recent_content">首頁最近內容</string>
+    <string name="settings_home_recent_content_summary">選擇首頁底部顯示最近聽過或最近添加的歌曲</string>
     <string name="settings_library_tile_artist">藝人</string>
     <string name="settings_library_tile_artist_summary">依藝人瀏覽</string>
     <string name="settings_library_tile_album">專輯</string>
@@ -1386,6 +1399,9 @@
     <string name="category_person_sort_duration">%1$s · %2$d 張參與專輯</string>
 
     <!-- i18n: LX online source settings -->
+    <string name="online_provider_switch">線上音樂來源</string>
+    <string name="online_provider_switch_summary">在 LX Music 或已設定的遠端來源之間切換</string>
+    <string name="online_mv">MV</string>
     <string name="lx_source_title">LX 來源管理</string>
     <string name="lx_source_import_hint">匯入 LX 來源後即可在 LX Music 頁面搜尋</string>
     <string name="lx_source_imported_named">已匯入 %1$s</string>
@@ -1713,6 +1729,8 @@
     <string name="folder_playlist_selected_count">已選擇 %1$d 個資料夾</string>
     <string name="folder_playlist_sort_folder_count">資料夾數</string>
     <string name="folder_playlist_tab_folders">資料夾</string>
+    <string name="folder_playlist_hide">隱藏</string>
+    <string name="folder_playlist_show">顯示</string>
     <string name="folder_playlist_tab_songs">歌曲</string>
     <string name="folder_playlist_title">資料夾播放清單</string>
     <string name="home_count_folder_playlists">%1$d 個</string>
@@ -1720,6 +1738,7 @@
     <string name="library_search_match_album">專輯</string>
     <string name="library_search_match_album_artist">專輯藝人</string>
     <string name="library_search_match_alias">別名</string>
+    <string name="library_search_match_translated_name">譯名</string>
     <string name="library_search_match_artist">歌手</string>
     <string name="library_search_match_comment">註釋</string>
     <string name="library_search_match_composer">作曲</string>
@@ -1727,6 +1746,12 @@
     <string name="library_search_match_genre">曲風</string>
     <string name="library_search_match_lyricist">作詞</string>
     <string name="library_search_match_tag">標籤</string>
+    <string name="library_search_filter_no_lyrics">無歌詞</string>
+    <string name="library_search_filter_ttml_lyrics">TTML 歌詞</string>
+    <string name="library_search_filter_mv">MV</string>
+    <string name="library_search_filter_local_mv">本地 MV</string>
+    <string name="library_search_filter_online_mv">在線 MV</string>
+    <string name="library_search_filter_dynamic_cover">動態封面</string>
     <string name="library_search_match_title">歌名</string>
     <string name="library_search_match_year">年份</string>
     <string name="player_disable_playback_keep_screen_on">關閉播放頁常亮</string>
@@ -2128,6 +2153,8 @@
     <string name="spectrum_frequency_unknown">自適應</string>
     <string name="settings_enable_live_update_lyric">顯示即時活動通知歌詞</string>
     <string name="settings_enable_live_update_lyric_summary">在 Android 16 的即時活動通知中顯示目前歌詞，可選擇顯示目前單詞附近或完整歌詞，並設定副標題</string>
+    <string name="settings_enable_xiaomi_super_island_lyric">小米超級島歌詞</string>
+    <string name="settings_enable_xiaomi_super_island_lyric_summary">透過 HyperOS 超級島顯示歌詞；需要 Shizuku 權限暫時阻斷小米服務框架網路後才能傳送</string>
     <string name="settings_live_update_lyric_content">即時活動通知主歌詞</string>
     <string name="settings_live_update_lyric_original">原文</string>
     <string name="settings_live_update_lyric_translation">翻譯</string>
@@ -2139,6 +2166,67 @@
     <string name="settings_live_update_lyric_secondary_song">歌曲名稱</string>
     <string name="settings_live_update_lyric_secondary_translation">翻譯</string>
     <string name="settings_live_update_lyric_secondary_pronunciation">注音</string>
+    <string name="settings_media_notification_buttons">媒體通知按鈕</string>
+    <string name="settings_media_notification_buttons_playback_desktop">播放模式、桌面歌詞</string>
+    <string name="settings_media_notification_buttons_playback_favorite">播放模式、最愛</string>
+    <string name="settings_media_notification_buttons_desktop_favorite">桌面歌詞、最愛</string>
     <string name="notification_channel_live_lyrics">Live 歌詞</string>
     <string name="notification_channel_live_lyrics_description">顯示目前歌曲歌詞的 Android Live Updates 通知</string>
+    <string name="settings_xiaomi_super_island_custom">Super Island customization</string>
+    <string name="settings_xiaomi_super_island_custom_summary">Lyric layout, colors, controls, sharing, and XMSF compatibility</string>
+    <string name="settings_xiaomi_super_island_display_section">Lyric display</string>
+    <string name="settings_xiaomi_super_island_notification_section">Notification and interaction</string>
+    <string name="settings_xiaomi_super_island_compat_section">XMSF and dismissal</string>
+    <string name="settings_xiaomi_super_island_lyric_mode">Lyric layout</string>
+    <string name="settings_xiaomi_super_island_mode_standard">Standard: song details and current lyric</string>
+    <string name="settings_xiaomi_super_island_mode_full">Full: split the complete lyric across columns</string>
+    <string name="settings_xiaomi_super_island_left_cover">Show cover on the left</string>
+    <string name="settings_xiaomi_super_island_left_cover_summary">Keep album artwork in the left column in full mode</string>
+    <string name="settings_xiaomi_super_island_scrolling">Follow word-timed lyrics</string>
+    <string name="settings_xiaomi_super_island_scrolling_summary">Move with the current word; disable to keep the full line fixed</string>
+    <string name="settings_xiaomi_super_island_right_limit">Right text length</string>
+    <string name="settings_xiaomi_super_island_left_limit">Left text length</string>
+    <string name="settings_xiaomi_super_island_text_limit_summary">Limit visual width so text is not clipped inside the island</string>
+    <string name="settings_xiaomi_super_island_chars">%1$d characters</string>
+    <string name="settings_xiaomi_super_island_colorize">Lyric accent color</string>
+    <string name="settings_xiaomi_super_island_colorize_summary">Use album artwork or a custom color for Super Island text and progress</string>
+    <string name="settings_xiaomi_super_island_color_source">Color source</string>
+    <string name="settings_xiaomi_super_island_color_album">Album artwork</string>
+    <string name="settings_xiaomi_super_island_custom_color">Custom accent color</string>
+    <string name="settings_xiaomi_super_island_progress_color">Use accent color for progress</string>
+    <string name="settings_xiaomi_super_island_actions">Notification actions</string>
+    <string name="settings_xiaomi_super_island_actions_off">Progress only</string>
+    <string name="settings_xiaomi_super_island_actions_media">Media controls</string>
+    <string name="settings_xiaomi_super_island_notification_style">Notification style</string>
+    <string name="settings_xiaomi_super_island_style_standard">Standard</string>
+    <string name="settings_xiaomi_super_island_style_advanced">Enhanced (experimental)</string>
+    <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
+    <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
+    <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
+    <string name="settings_xiaomi_super_island_click">Tap Super Island</string>
+    <string name="settings_xiaomi_super_island_click_default">System default</string>
+    <string name="settings_xiaomi_super_island_click_player">Open player</string>
+    <string name="settings_xiaomi_super_island_click_app">Open app</string>
+    <string name="settings_xiaomi_super_island_share">Super Island sharing</string>
+    <string name="settings_xiaomi_super_island_share_summary">Offer a current-lyric share action in expanded Super Island</string>
+    <string name="settings_xiaomi_super_island_share_format">Share text format</string>
+    <string name="settings_xiaomi_super_island_share_format_one">Lyric newline song by artist</string>
+    <string name="settings_xiaomi_super_island_share_format_two">Lyric - artist, song</string>
+    <string name="settings_xiaomi_super_island_share_format_three">Lyric newline artist, song</string>
+    <string name="settings_xiaomi_super_island_xmsf_mode">XMSF network bypass</string>
+    <string name="settings_xiaomi_super_island_xmsf_disabled">Disabled</string>
+    <string name="settings_xiaomi_super_island_xmsf_disabled_summary">Send directly without Shizuku</string>
+    <string name="settings_xiaomi_super_island_xmsf_standard">Standard</string>
+    <string name="settings_xiaomi_super_island_xmsf_standard_summary">Temporarily block XMSF for 100 ms when sending</string>
+    <string name="settings_xiaomi_super_island_xmsf_custom">Custom</string>
+    <string name="settings_xiaomi_super_island_xmsf_custom_summary">Choose the temporary network block duration</string>
+    <string name="settings_xiaomi_super_island_xmsf_aggressive">Continuous</string>
+    <string name="settings_xiaomi_super_island_xmsf_aggressive_summary">Keep XMSF blocked during playback and restore it on pause</string>
+    <string name="settings_xiaomi_super_island_xmsf_duration">Network block duration</string>
+    <string name="settings_xiaomi_super_island_xmsf_duration_summary">Too short may fail; too long may affect Xiaomi system services</string>
+    <string name="settings_xiaomi_super_island_dismiss_delay">Dismiss after pause</string>
+    <string name="settings_xiaomi_super_island_dismiss_immediate">Immediately</string>
+    <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
+    <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
+    <string name="settings_xiaomi_super_island_dismiss_five">5 seconds</string>
 </resources>
