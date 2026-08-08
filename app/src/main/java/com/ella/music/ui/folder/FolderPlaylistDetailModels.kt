@@ -91,12 +91,13 @@ internal enum class EditorFolderSort(@param:StringRes val labelRes: Int) {
 }
 
 internal fun List<Song>.sortedForFolderPlaylistDetail(
-    mode: FolderPlaylistSongSortMode
+    mode: FolderPlaylistSongSortMode,
+    customOrderKeys: List<String> = emptyList()
 ): List<Song> = when (mode) {
-    FolderPlaylistSongSortMode.Custom ->
-        sortedWith(compareByDescending<Song> { it.dateModified }.thenBy { it.title.musicSortKey() })
-    FolderPlaylistSongSortMode.CustomDesc ->
-        sortedWith(compareBy<Song> { it.dateModified }.thenBy { it.title.musicSortKey() })
+    FolderPlaylistSongSortMode.Custom -> applyFolderPlaylistSongOrder(customOrderKeys)
+        .ifEmpty { sortedWith(compareByDescending<Song> { it.dateModified }.thenBy { it.title.musicSortKey() }) }
+    FolderPlaylistSongSortMode.CustomDesc -> applyFolderPlaylistSongOrder(customOrderKeys).asReversed()
+        .ifEmpty { sortedWith(compareBy<Song> { it.dateModified }.thenBy { it.title.musicSortKey() }) }
     FolderPlaylistSongSortMode.Title -> sortedBy { it.title.musicSortKey() }
     FolderPlaylistSongSortMode.TitleDesc -> sortedByDescending { it.title.musicSortKey() }
     FolderPlaylistSongSortMode.FileName -> sortedBy { it.fileName.musicSortKey() }
@@ -113,9 +114,11 @@ internal fun List<Song>.sortedForFolderPlaylistDetail(
 }
 
 internal fun List<FolderPlaylistFolderEntry>.sortedForFolderPlaylistDetail(
-    mode: FolderPlaylistFolderSortMode
+    mode: FolderPlaylistFolderSortMode,
+    customOrderPaths: List<String> = emptyList()
 ): List<FolderPlaylistFolderEntry> = when (mode) {
-    FolderPlaylistFolderSortMode.Custom,
+    FolderPlaylistFolderSortMode.Custom -> applyFolderPlaylistFolderOrder(customOrderPaths)
+        .ifEmpty { sortedBy { it.displayName.musicSortKey() } }
     FolderPlaylistFolderSortMode.Name -> sortedBy { it.displayName.musicSortKey() }
     FolderPlaylistFolderSortMode.CustomDesc -> sortedByDescending { it.displayName.musicSortKey() }
     FolderPlaylistFolderSortMode.NameDesc -> sortedByDescending { it.displayName.musicSortKey() }
@@ -135,6 +138,26 @@ internal fun List<FolderPlaylistFolderEntry>.sortedForFolderPlaylistDetail(
         sortedWith(compareByDescending<FolderPlaylistFolderEntry> { it.dateModified }.thenBy { it.displayName.musicSortKey() })
     FolderPlaylistFolderSortMode.DateModifiedAsc ->
         sortedWith(compareBy<FolderPlaylistFolderEntry> { it.dateModified }.thenBy { it.displayName.musicSortKey() })
+}
+
+internal fun List<Song>.applyFolderPlaylistSongOrder(orderKeys: List<String>): List<Song> {
+    if (isEmpty()) return emptyList()
+    val byKey = associateBy { it.playlistIdentityKey() }
+    val ordered = orderKeys.mapNotNull(byKey::get)
+    val orderedKeys = ordered.mapTo(mutableSetOf()) { it.playlistIdentityKey() }
+    return ordered + filterNot { it.playlistIdentityKey() in orderedKeys }
+        .sortedWith(compareByDescending<Song> { it.dateModified }.thenBy { it.title.musicSortKey() })
+}
+
+internal fun List<FolderPlaylistFolderEntry>.applyFolderPlaylistFolderOrder(
+    orderPaths: List<String>
+): List<FolderPlaylistFolderEntry> {
+    if (isEmpty()) return emptyList()
+    val byPath = associateBy { it.path.lowercase() }
+    val ordered = orderPaths.mapNotNull { byPath[it.lowercase()] }
+    val orderedPaths = ordered.mapTo(mutableSetOf()) { it.path.lowercase() }
+    return ordered + filterNot { it.path.lowercase() in orderedPaths }
+        .sortedBy { it.displayName.musicSortKey() }
 }
 
 internal fun FolderPlaylistFolderEntry.summaryForSort(

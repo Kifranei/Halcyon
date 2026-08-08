@@ -92,6 +92,7 @@ fun FolderScreen(
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
+    val folderPlaylists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
@@ -111,6 +112,7 @@ fun FolderScreen(
     }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
     var folderMenuTarget by remember { mutableStateOf<FolderTreeEntry?>(null) }
+    var associateFolderPaths by remember { mutableStateOf<List<String>?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<com.ella.music.data.model.Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<com.ella.music.data.model.Song>?>(null) }
     var sortExpanded by remember { mutableStateOf(false) }
@@ -128,8 +130,9 @@ fun FolderScreen(
             ) { FolderSongSortMode.Title }
         )
 
-    BackHandler(enabled = sortExpanded || searchExpanded || folderToBlock != null || folderMenuTarget != null) {
+    BackHandler(enabled = sortExpanded || searchExpanded || folderToBlock != null || folderMenuTarget != null || associateFolderPaths != null) {
         when {
+            associateFolderPaths != null -> associateFolderPaths = null
             folderMenuTarget != null -> folderMenuTarget = null
             folderToBlock != null -> folderToBlock = null
             searchExpanded -> {
@@ -296,6 +299,10 @@ fun FolderScreen(
                     shareLocalSongs(context, songsForFolder(folder))
                     folderMenuTarget = null
                 },
+                onAssociate = {
+                    associateFolderPaths = listOf(folder.path)
+                    folderMenuTarget = null
+                },
                 onAddToPlaylist = {
                     playlistPickerSongs = songsForFolder(folder)
                     folderMenuTarget = null
@@ -327,6 +334,29 @@ fun FolderScreen(
                 onBlock = {
                     folderToBlock = folder.path
                     folderMenuTarget = null
+                }
+            )
+        }
+        associateFolderPaths?.let { sourceFolders ->
+            LinkToFolderPlaylistSheet(
+                show = true,
+                songs = emptyList(),
+                folderPlaylists = folderPlaylists,
+                onDismiss = { associateFolderPaths = null },
+                onLink = { target ->
+                    scope.launch {
+                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                            target.id,
+                            target.name,
+                            (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                        )
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.folder_playlist_associate_done, target.name),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    associateFolderPaths = null
                 }
             )
         }

@@ -221,6 +221,7 @@ internal fun FolderActionSheet(
     onDismiss: () -> Unit,
     onTogglePin: () -> Unit,
     onShare: () -> Unit,
+    onAssociate: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
     onPlayNext: () -> Unit,
@@ -246,6 +247,10 @@ internal fun FolderActionSheet(
             EllaMiuixMenuItem(
                 text = stringResource(R.string.common_share),
                 onClick = onShare
+            )
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.folder_playlist_associate),
+                onClick = onAssociate
             )
             EllaMiuixMenuItem(
                 text = stringResource(R.string.song_more_add_to_playlist),

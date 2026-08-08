@@ -11,6 +11,8 @@ import com.ella.music.data.SettingsManager.Companion.SEARCH_ALL_CATEGORY_TYPES
 import com.ella.music.data.SettingsManager.Companion.SEARCH_ALL_SONG_MATCH_TYPES
 import com.ella.music.data.SettingsManager.Companion.SONG_RATING_DISPLAY_STAR_NUMBER
 import com.ella.music.data.SettingsManager.Companion.SONG_RATING_DISPLAY_STARS
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_ARTIST_SEPARATORS
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_GENRE_SEPARATORS
 import com.ella.music.data.SettingsManager.Companion.KEY_ADD_TO_PLAYLIST_APPEND_TO_END
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_PROTECTED_NAMES
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_SEPARATORS
@@ -21,6 +23,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_CATEGORY_GRID_COLUMNS
 import com.ella.music.data.SettingsManager.Companion.KEY_COVER_EXPORT_FOLDER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST
 import com.ella.music.data.SettingsManager.Companion.KEY_FOLDER_PLAYLISTS
+import com.ella.music.data.SettingsManager.Companion.KEY_FOLDER_PLAYLIST_CUSTOM_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_FULL_TAG_SEARCH_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_FULL_TAG_SEARCH_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_GENRE_PROTECTED_NAMES
@@ -96,6 +99,7 @@ interface LibrarySettingsAccess {
     val genreProtectedNames: Flow<String>
     val tagIgnoreCase: Flow<Boolean>
     val playlistCustomOrder: Flow<List<String>>
+    val folderPlaylistCustomOrder: Flow<List<String>>
     val addToPlaylistAppendToEnd: Flow<Boolean>
     val categoryGridColumns: Flow<Int>
     val folderPlaylists: Flow<List<FolderPlaylist>>
@@ -112,6 +116,10 @@ interface LibrarySettingsAccess {
     suspend fun setLyricTimingEditorId(id: String)
     suspend fun setSpectrumViewerId(id: String)
     suspend fun setPlaylistCustomOrder(ids: List<String>)
+    suspend fun setFolderPlaylistCustomOrder(ids: List<String>)
+    suspend fun setFolderPlaylistSongOrder(playlistId: String, keys: List<String>)
+    suspend fun setFolderPlaylistFolderOrder(playlistId: String, paths: List<String>)
+    suspend fun setFolderPlaylistHiddenFolders(playlistId: String, paths: List<String>)
     fun pinnedKeysFlow(namespace: String): Flow<List<String>>
     suspend fun setPinned(namespace: String, key: String, pinned: Boolean)
     suspend fun setAddToPlaylistAppendToEnd(appendToEnd: Boolean)
@@ -207,14 +215,26 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED] ?: false }
     override val notificationPermissionPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED] ?: false }
-    override val artistSeparators: Flow<String> = context.dataStore.data.map { it[KEY_ARTIST_SEPARATORS] ?: "" }
+    override val artistSeparators: Flow<String> = context.dataStore.data.map {
+        it[KEY_ARTIST_SEPARATORS] ?: DEFAULT_ARTIST_SEPARATORS
+    }
     override val artistProtectedNames: Flow<String> = context.dataStore.data.map { it[KEY_ARTIST_PROTECTED_NAMES] ?: "" }
-    override val genreSeparators: Flow<String> = context.dataStore.data.map { it[KEY_GENRE_SEPARATORS] ?: "" }
+    override val genreSeparators: Flow<String> = context.dataStore.data.map {
+        it[KEY_GENRE_SEPARATORS] ?: DEFAULT_GENRE_SEPARATORS
+    }
     override val genreProtectedNames: Flow<String> = context.dataStore.data.map { it[KEY_GENRE_PROTECTED_NAMES] ?: "" }
     override val tagIgnoreCase: Flow<Boolean> = context.dataStore.data.map { it[KEY_TAG_IGNORE_CASE] ?: false }
 
     override val playlistCustomOrder: Flow<List<String>> = context.dataStore.data.map {
         it[KEY_PLAYLIST_CUSTOM_ORDER]
+            .orEmpty()
+            .split('\n')
+            .map(String::trim)
+            .filter(String::isNotBlank)
+    }
+
+    override val folderPlaylistCustomOrder: Flow<List<String>> = context.dataStore.data.map {
+        it[KEY_FOLDER_PLAYLIST_CUSTOM_ORDER]
             .orEmpty()
             .split('\n')
             .map(String::trim)
@@ -302,6 +322,68 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         }
     }
 
+    override suspend fun setFolderPlaylistCustomOrder(ids: List<String>) {
+        context.dataStore.edit {
+            it[KEY_FOLDER_PLAYLIST_CUSTOM_ORDER] = ids
+                .map(String::trim)
+                .filter(String::isNotBlank)
+                .joinToString(separator = "\n")
+        }
+    }
+
+    override suspend fun setFolderPlaylistSongOrder(playlistId: String, keys: List<String>) {
+        updateFolderPlaylistOrder(playlistId = playlistId, songOrder = keys, folderOrder = null)
+    }
+
+    override suspend fun setFolderPlaylistFolderOrder(playlistId: String, paths: List<String>) {
+        updateFolderPlaylistOrder(playlistId = playlistId, songOrder = null, folderOrder = paths)
+    }
+
+    override suspend fun setFolderPlaylistHiddenFolders(playlistId: String, paths: List<String>) {
+        val safeId = playlistId.trim()
+        if (safeId.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_FOLDER_PLAYLISTS].orEmpty().toFolderPlaylists()
+            if (current.none { it.id == safeId }) return@edit
+            val next = current.map { playlist ->
+                if (playlist.id != safeId) playlist else playlist.copy(
+                    hiddenFolders = paths
+                        .map { it.replace('\\', '/').trim().trimEnd('/') }
+                        .filter(String::isNotBlank)
+                        .distinctBy { it.lowercase(Locale.ROOT) },
+                    updatedAt = System.currentTimeMillis()
+                )
+            }
+            prefs[KEY_FOLDER_PLAYLISTS] = next.toFolderPlaylistJson()
+        }
+    }
+
+    private suspend fun updateFolderPlaylistOrder(
+        playlistId: String,
+        songOrder: List<String>?,
+        folderOrder: List<String>?
+    ) {
+        val safeId = playlistId.trim()
+        if (safeId.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_FOLDER_PLAYLISTS].orEmpty().toFolderPlaylists()
+            val target = current.firstOrNull { it.id == safeId } ?: return@edit
+            val next = current.map { playlist ->
+                if (playlist.id != safeId) return@map playlist
+                playlist.copy(
+                    songOrder = songOrder?.map(String::trim)?.filter(String::isNotBlank)?.distinct()
+                        ?: playlist.songOrder,
+                    folderOrder = folderOrder?.map { it.replace('\\', '/').trim().trimEnd('/') }
+                        ?.filter(String::isNotBlank)
+                        ?.distinctBy { it.lowercase(Locale.ROOT) }
+                        ?: playlist.folderOrder,
+                    updatedAt = System.currentTimeMillis()
+                )
+            }
+            prefs[KEY_FOLDER_PLAYLISTS] = next.toFolderPlaylistJson()
+        }
+    }
+
     // Generic "pin to top" store, keyed by an arbitrary namespace (e.g. "artist",
     // "album", "category:genre"). The ordered list keeps the most-recently pinned first.
     override fun pinnedKeysFlow(namespace: String): Flow<List<String>> =
@@ -363,7 +445,12 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
                 name = safeName,
                 folders = safeFolders,
                 createdAt = existing?.createdAt ?: now,
-                updatedAt = now
+                updatedAt = now,
+                songOrder = existing?.songOrder.orEmpty(),
+                folderOrder = existing?.folderOrder.orEmpty()
+                    .filter { path -> safeFolders.any { it.equals(path, ignoreCase = true) } },
+                hiddenFolders = existing?.hiddenFolders.orEmpty()
+                    .filter { path -> safeFolders.any { it.equals(path, ignoreCase = true) } }
             )
             saved = nextItem
             val next = if (existing == null) {

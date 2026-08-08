@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -26,6 +27,7 @@ import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.folder.FolderBlockDialog
+import com.ella.music.ui.folder.LinkToFolderPlaylistSheet
 import com.ella.music.ui.folder.normalizeFolderPath
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -63,6 +65,8 @@ internal fun LibrarySearchAuxiliarySurfaces(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var folderToBlock by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val folderPlaylists by settingsManager.folderPlaylists.collectAsState(initial = emptyList())
+    var associateFolderPath by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
 
     actionTarget?.let { target ->
         EllaMiuixBottomSheet(
@@ -84,6 +88,15 @@ internal fun LibrarySearchAuxiliarySurfaces(
                         onActionTargetChange(null)
                     }
                 )
+                if (target is SearchActionTarget.CategoryTarget && target.type == "folder") {
+                    EllaMiuixMenuItem(
+                        text = stringResource(R.string.folder_playlist_associate),
+                        onClick = {
+                            associateFolderPath = target.item.name.normalizeFolderPath()
+                            onActionTargetChange(null)
+                        }
+                    )
+                }
                 EllaMiuixMenuItem(
                     text = stringResource(R.string.song_more_add_to_playlist),
                     onClick = {
@@ -135,6 +148,30 @@ internal fun LibrarySearchAuxiliarySurfaces(
                 }
             }
         }
+    }
+
+    associateFolderPath?.let { folderPath ->
+        LinkToFolderPlaylistSheet(
+            show = true,
+            songs = emptyList(),
+            folderPlaylists = folderPlaylists,
+            onDismiss = { associateFolderPath = null },
+            onLink = { target ->
+                scope.launch {
+                    mainViewModel.settingsManager.upsertFolderPlaylist(
+                        target.id,
+                        target.name,
+                        (target.folders + folderPath).distinctBy { it.lowercase() }
+                    )
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.folder_playlist_associate_done, target.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                associateFolderPath = null
+            }
+        )
     }
 
     folderToBlock?.let { folderPath ->

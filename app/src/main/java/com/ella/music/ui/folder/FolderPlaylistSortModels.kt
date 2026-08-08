@@ -24,12 +24,14 @@ internal fun List<FolderPlaylist>.sortedForFolderPlaylists(
     mode: FolderPlaylistSortMode,
     songCountProvider: (FolderPlaylist) -> Int,
     durationProvider: (FolderPlaylist) -> Long,
+    customOrderIds: List<String> = emptyList(),
     pinnedIds: List<String> = emptyList()
 ): List<FolderPlaylist> {
+    val customOrdered = applyFolderPlaylistCustomOrder(customOrderIds)
     val sorted = when (mode) {
-        // "Custom" defaults to creation-time descending (newest first) per issue #237③. Until the
-        // user manually reorders, this is the natural default. CustomDesc is the reverse of that.
-        FolderPlaylistSortMode.Custom -> sortedWith(compareByDescending<FolderPlaylist> { it.createdAt }.thenBy { it.name.musicSortKey() })
+        // Before manual ordering was persisted, the custom list was newest-first. Keep that
+        // fallback for existing installations that have no saved order yet.
+        FolderPlaylistSortMode.Custom -> customOrdered
         FolderPlaylistSortMode.DateUpdated -> sortedWith(compareByDescending<FolderPlaylist> { it.updatedAt }.thenBy { it.name.musicSortKey() })
         FolderPlaylistSortMode.DateUpdatedAsc -> sortedWith(compareBy<FolderPlaylist> { it.updatedAt }.thenBy { it.name.musicSortKey() })
         FolderPlaylistSortMode.DateCreatedDesc -> sortedWith(compareByDescending<FolderPlaylist> { it.createdAt }.thenBy { it.name.musicSortKey() })
@@ -42,7 +44,7 @@ internal fun List<FolderPlaylist>.sortedForFolderPlaylists(
         FolderPlaylistSortMode.SongCountAsc -> sortedWith(compareBy<FolderPlaylist> { songCountProvider(it) }.thenBy { it.name.musicSortKey() })
         FolderPlaylistSortMode.Duration -> sortedWith(compareByDescending<FolderPlaylist> { durationProvider(it) }.thenBy { it.name.musicSortKey() })
         FolderPlaylistSortMode.DurationAsc -> sortedWith(compareBy<FolderPlaylist> { durationProvider(it) }.thenBy { it.name.musicSortKey() })
-        FolderPlaylistSortMode.CustomDesc -> sortedWith(compareBy<FolderPlaylist> { it.createdAt }.thenBy { it.name.musicSortKey() })
+        FolderPlaylistSortMode.CustomDesc -> customOrdered.asReversed()
     }
     if (pinnedIds.isEmpty()) return sorted
     val pinnedRank = pinnedIds.withIndex().associate { it.value to it.index }
@@ -51,6 +53,16 @@ internal fun List<FolderPlaylist>.sortedForFolderPlaylists(
         .filter { it.id in pinnedSet }
         .sortedBy { pinnedRank[it.id] ?: Int.MAX_VALUE }
     return pinned + sorted.filterNot { it.id in pinnedSet }
+}
+
+internal fun List<FolderPlaylist>.applyFolderPlaylistCustomOrder(orderIds: List<String>): List<FolderPlaylist> {
+    if (isEmpty()) return emptyList()
+    val byId = associateBy(FolderPlaylist::id)
+    val ordered = orderIds.mapNotNull(byId::get)
+    val orderedIds = ordered.mapTo(mutableSetOf(), FolderPlaylist::id)
+    val newItems = filterNot { it.id in orderedIds }
+        .sortedWith(compareByDescending<FolderPlaylist> { it.createdAt }.thenBy { it.name.musicSortKey() })
+    return ordered + newItems
 }
 
 internal fun FolderPlaylistSortMode.isDescending(): Boolean = when (this) {

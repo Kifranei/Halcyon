@@ -114,6 +114,7 @@ fun FolderDetailScreen(
     val songs by mainViewModel.songs.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
+    val folderPlaylists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val currentSong by playerViewModel.currentSong.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
@@ -134,6 +135,7 @@ fun FolderDetailScreen(
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
     var folderMenuTarget by remember { mutableStateOf<FolderTreeEntry?>(null) }
+    var associateFolderPaths by remember { mutableStateOf<List<String>?>(null) }
     val persistedSortIndex by mainViewModel.settingsManager.folderDetailSongSortIndex.collectAsState(
         initial = LibrarySortUiState.folderDetailSongSortIndex
     )
@@ -190,6 +192,9 @@ fun FolderDetailScreen(
     val rangeSelectionAvailable = remember(sortedSongIndexByIdForSelection, selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId) {
         selection.isRangeSelectionAvailable(sortedSongIndexByIdForSelection)
     }
+    val selectedSongsForDrag = remember(selection.selectedIds, sortedSongs) {
+        sortedSongs.filter { it.id in selection.selectedIds }
+    }
 
     val folderRootName = stringResource(R.string.folder_root)
     val folderName = remember(normalizedFolderPath, folderRootName) {
@@ -197,8 +202,9 @@ fun FolderDetailScreen(
     }
     val deleteSelectedSongs = rememberSongDeleteResultHandler(mainViewModel) { selection.finishSelectionMode() }
 
-    BackHandler(enabled = selection.selectionMode || searchExpanded || sortExpanded || folderToBlock != null || folderMenuTarget != null) {
+    BackHandler(enabled = selection.selectionMode || searchExpanded || sortExpanded || folderToBlock != null || folderMenuTarget != null || associateFolderPaths != null) {
         when {
+            associateFolderPaths != null -> associateFolderPaths = null
             folderMenuTarget != null -> folderMenuTarget = null
             folderToBlock != null -> folderToBlock = null
             selection.selectionMode -> {
@@ -495,8 +501,13 @@ fun FolderDetailScreen(
                 } else {
                     emptyList()
                 }
-                val songLetters = if (sortMode == FolderSongSortMode.Title) {
-                    sortedSongs.map { it.indexLetter() }
+                val songLetters = if (
+                    sortMode == FolderSongSortMode.Title ||
+                        sortMode == FolderSongSortMode.TitleDesc ||
+                        sortMode == FolderSongSortMode.FileName ||
+                        sortMode == FolderSongSortMode.FileNameDesc
+                ) {
+                    sortedSongs.map { sortMode.songDisplaySpec().displayTitleFor(it).toFastIndexSection() }
                 } else {
                     emptyList()
                 }
@@ -511,14 +522,25 @@ fun FolderDetailScreen(
                 val offset = folderLetters.size
                 buildMap {
                     folderLetters.forEachIndexed { index, letter -> putIfAbsent(letter, index) }
-                    if (sortMode == FolderSongSortMode.Title) {
+                    if (
+                        sortMode == FolderSongSortMode.Title ||
+                            sortMode == FolderSongSortMode.TitleDesc ||
+                            sortMode == FolderSongSortMode.FileName ||
+                            sortMode == FolderSongSortMode.FileNameDesc
+                    ) {
                         sortedSongs.forEachIndexed { index, song ->
-                            putIfAbsent(song.indexLetter(), index + offset)
+                            putIfAbsent(sortMode.songDisplaySpec().displayTitleFor(song).toFastIndexSection(), index + offset)
                         }
                     }
                 }
             }
-            val showFastIndex = fastIndexLetters.size > 30 && (childFolders.isNotEmpty() || sortMode == FolderSongSortMode.Title)
+            val showFastIndex = fastIndexLetters.size > 30 && (
+                childFolders.isNotEmpty() ||
+                    sortMode == FolderSongSortMode.Title ||
+                    sortMode == FolderSongSortMode.TitleDesc ||
+                    sortMode == FolderSongSortMode.FileName ||
+                    sortMode == FolderSongSortMode.FileNameDesc
+                )
             val showScrollIndicator = !showFastIndex && sortedSongs.size > 30
             val listEndInset = if (showFastIndex || showScrollIndicator) SideIndexListEndPadding else 0.dp
             Box(modifier = Modifier.fillMaxSize()) {
@@ -574,6 +596,7 @@ fun FolderDetailScreen(
                             }
                             SongItem(
                                 song = song,
+                                titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
                                 isCurrent = currentSong?.id == song.id,
                                 albumArtUri = albumArtUri,
                                 loadCoverArt = mainViewModel::getCoverArtBitmap,
@@ -583,6 +606,7 @@ fun FolderDetailScreen(
                                 loadSongRating = mainViewModel::getSongRating,
                                 selectionMode = selection.selectionMode,
                                 selected = selected,
+                                dragSelectedSongs = selectedSongsForDrag,
                                 onLongClick = {
                                     selection.selectionMode = true
                                     selection.selectedIds = selection.selectedIds + song.id
@@ -605,6 +629,8 @@ fun FolderDetailScreen(
                 if (showFastIndex) {
                     FastIndexBar(
                         letters = fastIndexLetters,
+                        reverse = sortMode == FolderSongSortMode.TitleDesc ||
+                            sortMode == FolderSongSortMode.FileNameDesc,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -664,6 +690,10 @@ fun FolderDetailScreen(
                     shareLocalSongs(context, folderSongs)
                     folderMenuTarget = null
                 },
+                onAssociate = {
+                    associateFolderPaths = listOf(folder.path)
+                    folderMenuTarget = null
+                },
                 onAddToPlaylist = {
                     playlistPickerSongs = folderSongs
                     folderMenuTarget = null
@@ -696,6 +726,30 @@ fun FolderDetailScreen(
                 onBlock = {
                     folderToBlock = folder.path
                     folderMenuTarget = null
+                }
+            )
+        }
+
+        associateFolderPaths?.let { sourceFolders ->
+            LinkToFolderPlaylistSheet(
+                show = true,
+                songs = emptyList(),
+                folderPlaylists = folderPlaylists,
+                onDismiss = { associateFolderPaths = null },
+                onLink = { target ->
+                    scope.launch {
+                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                            target.id,
+                            target.name,
+                            (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                        )
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.folder_playlist_associate_done, target.name),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    associateFolderPaths = null
                 }
             )
         }

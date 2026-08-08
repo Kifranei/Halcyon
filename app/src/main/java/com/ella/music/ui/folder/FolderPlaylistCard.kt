@@ -1,6 +1,7 @@
 package com.ella.music.ui.folder
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,10 +47,12 @@ internal fun FolderPlaylistCard(
     isPinned: Boolean,
     selectionMode: Boolean = false,
     selected: Boolean = false,
+    draggedSelectionCount: Int? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     onSync: () -> Unit,
-    onMore: () -> Unit
+    onMore: () -> Unit,
+    trailingContent: (@Composable () -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
@@ -97,6 +100,18 @@ internal fun FolderPlaylistCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            draggedSelectionCount?.let { count ->
+                Text(
+                    text = count.toString(),
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MiuixTheme.colorScheme.primary)
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                )
+            }
+            trailingContent?.invoke()
             if (!selectionMode) {
                 IconButton(onClick = onSync) {
                     Icon(
