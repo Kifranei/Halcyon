@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
@@ -57,9 +58,11 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.isActive
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -665,23 +668,10 @@ internal fun PlayerQueueListIcon(
     contentDescription: String? = null,
     modifier: Modifier = Modifier
 ) {
-    Canvas(
-        modifier = modifier.semantics {
-            if (contentDescription != null) this.contentDescription = contentDescription
-        }
-    ) {
-        val stroke = 2.3.dp.toPx()
-        val startX = size.width * 0.18f
-        val endX = size.width * 0.82f
-        listOf(0.27f, 0.50f, 0.73f).forEachIndexed { index, yFraction ->
-            val lineEnd = if (index == 2) size.width * 0.60f else endX
-            drawLine(
-                color = color,
-                start = androidx.compose.ui.geometry.Offset(startX, size.height * yFraction),
-                end = androidx.compose.ui.geometry.Offset(lineEnd, size.height * yFraction),
-                strokeWidth = stroke,
-                cap = StrokeCap.Round
-            )
-        }
-    }
+    Icon(
+        painter = painterResource(R.drawable.ic_playlist),
+        contentDescription = contentDescription,
+        tint = color,
+        modifier = modifier
+    )
 }

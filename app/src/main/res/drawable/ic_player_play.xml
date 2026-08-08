@@ -1,9 +1,11 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="44"
+    android:viewportHeight="44">
+    <!-- Xiaomi HyperOS media-control glyph: 功能=播放, 状态=常态 -->
     <path
         android:fillColor="#FF000000"
-        android:pathData="M8,5.7C8,4.7 9.11,4.11 9.93,4.69L18.12,10.4C18.84,10.9 18.84,11.97 18.12,12.47L9.93,18.18C9.11,18.76 8,18.17 8,17.17V5.7Z" />
+        android:fillType="evenOdd"
+        android:pathData="M29.1308,24.3584 C30.3986,23.5779 31.0325,23.1877 31.249,22.6863 C31.438,22.2484 31.438,21.7519 31.249,21.3141 C31.0325,20.8126 30.3986,20.4224 29.1308,19.642 L18.5658,13.1382 C17.1866,12.2892 16.4971,11.8647 15.9287,11.9131 C15.4332,11.9553 14.9797,12.2087 14.684,12.6085 C14.3448,13.0672 14.3448,13.8769 14.3448,15.4964 L14.3448,28.504 C14.3448,30.1234 14.3448,30.9332 14.684,31.3918 C14.9797,31.7917 15.4332,32.045 15.9287,32.0872 C16.4971,32.1356 17.1866,31.7111 18.5657,30.8622 L29.1308,24.3584 Z" />
 </vector>

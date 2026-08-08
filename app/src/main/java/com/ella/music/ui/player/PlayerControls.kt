@@ -122,7 +122,7 @@ internal fun LandscapeTransportControls(
                 painter = painterResource(id = R.drawable.ic_skip_previous),
                 contentDescription = stringResource(R.string.common_previous),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(30.dp)
             )
         }
         Box(
@@ -143,7 +143,7 @@ internal fun LandscapeTransportControls(
                 painter = painterResource(id = R.drawable.ic_skip_next),
                 contentDescription = stringResource(R.string.common_next),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(30.dp)
             )
         }
     }
@@ -359,7 +359,7 @@ internal fun PlayerTransportControls(
                 painter = painterResource(id = R.drawable.ic_skip_previous),
                 contentDescription = stringResource(R.string.common_previous),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(30.dp)
             )
         }
         Box(
@@ -381,14 +381,14 @@ internal fun PlayerTransportControls(
                 painter = painterResource(id = R.drawable.ic_skip_next),
                 contentDescription = stringResource(R.string.common_next),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(30.dp)
             )
         }
         Box(contentAlignment = Alignment.Center) {
             PlayerTransportIconButton(onClick = onToggleQueue) {
                 PlayerQueueListIcon(
                     color = palette.onBackground.copy(alpha = 0.92f),
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(30.dp)
                 )
             }
             PlayerQueueSheet(
