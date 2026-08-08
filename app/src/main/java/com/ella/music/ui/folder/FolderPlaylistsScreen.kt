@@ -54,6 +54,7 @@ import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.ScanRefreshIconButton
 import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.SortDropdownMenu
@@ -191,6 +192,11 @@ fun FolderPlaylistsScreen(
             }
         }
     }
+    val randomFolderPlaylistSongs = remember(filteredPlaylists, songs) {
+        filteredPlaylists
+            .flatMap { playlist -> songs.songsForFolderPlaylist(playlist.folders) }
+            .distinctBy { it.id }
+    }
 
     val editorCoverModel = remember(editorDraftFolders, songs) {
         songs.songsForFolderPlaylist(editorDraftFolders.toList()).firstOrNull().folderPlaylistCoverModel()
@@ -286,6 +292,8 @@ fun FolderPlaylistsScreen(
                 stringResource(R.string.folder_playlist_title)
             },
             color = ellaPageBackground(),
+            // This screen has four action buttons; leave the title gesture area before them.
+            titleEndPadding = 240.dp,
             onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } },
             navigationIcon = {
                 if (showBackButton || selection.selectionMode) {
@@ -472,6 +480,10 @@ fun FolderPlaylistsScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                ShuffleAllSummaryButton(
+                    visible = !selection.selectionMode && randomFolderPlaylistSongs.isNotEmpty(),
+                    onClick = { playerViewModel.setPlaylist(randomFolderPlaylistSongs.shuffled(), 0) }
+                )
                 Text(
                     text = if (selection.selectionMode) {
                         stringResource(R.string.library_selected_fraction, selection.selectedIds.size, filteredPlaylists.size)

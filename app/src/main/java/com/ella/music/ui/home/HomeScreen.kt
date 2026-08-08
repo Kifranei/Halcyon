@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +66,7 @@ import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SongSelectionActionRow
-import com.ella.music.ui.components.ShuffleAllFloatingButton
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.ScanRefreshIconButton
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.TagEditorOptionKind
@@ -481,7 +481,9 @@ fun LibraryScreen(
                 )
             }
         } else {
-            val listState = rememberLazyListState()
+            val listState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
+                androidx.compose.foundation.lazy.LazyListState()
+            }
             RestoreListScrollAfterSearch(
                 searchExpanded = searchExpanded,
                 query = searchQuery,
@@ -571,7 +573,16 @@ fun LibraryScreen(
                                         ratingFilter.summaryLabel(context),
                                     stringResource(R.string.favorite_filter).takeIf { favoriteFilter }
                                 ).joinToString(" · ")
+                                ),
+                            leadingContent = {
+                                ShuffleAllSummaryButton(
+                                    visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
+                                    onClick = {
+                                        playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
+                                        if (openPlayerOnPlay) onNavigateToPlayer()
+                                    }
                                 )
+                            }
                         )
                     }
 
@@ -652,17 +663,6 @@ fun LibraryScreen(
                             .fillMaxHeight()
                     )
                 }
-
-                ShuffleAllFloatingButton(
-                    visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
-                    onClick = {
-                        playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
-                        if (openPlayerOnPlay) onNavigateToPlayer()
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 22.dp, bottom = 232.dp)
-                )
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = showLocateCurrentSongButton,

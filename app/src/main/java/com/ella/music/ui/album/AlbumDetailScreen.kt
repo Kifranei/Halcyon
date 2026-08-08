@@ -48,6 +48,7 @@ import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.matchesArtistName
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.splitGenreNames
 import com.ella.music.ui.LibrarySortUiState
@@ -65,11 +66,10 @@ import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
-import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
-import com.ella.music.ui.components.ShuffleAllFloatingButton
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.SortDropdownMenu
@@ -121,6 +121,7 @@ fun AlbumDetailScreen(
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val sortIndex by mainViewModel.settingsManager.albumDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.albumDetailSongSortIndex)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
+    val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val sortMode = AlbumDetailSongSortMode.entries.getOrElse(sortIndex) { AlbumDetailSongSortMode.Track }
     val scope = rememberCoroutineScope()
@@ -263,14 +264,20 @@ fun AlbumDetailScreen(
             )
         }
     }
-    val artistDisplayItems = remember(participatingArtists, albumSongs) {
+    val artistDisplayItems = remember(participatingArtists, albumSongs, librarySongs, showAlbumArtists) {
         participatingArtists.map { artist ->
-            val artistSongs = mainViewModel.getSongsForArtist(artist, includeAlbumArtist = true)
+            // The artist section on an album page describes the tracks actually
+            // performed by this artist. Album-artist participation must not
+            // inflate the song count shown for the current album.
+            val artistSongs = albumSongs.filter { it.artist.matchesArtistName(artist) }
+            val artistAlbums = mainViewModel.getParticipatedAlbumsForArtist(artist) +
+                if (showAlbumArtists) mainViewModel.getReleaseAlbumsForArtist(artist) else emptyList()
             buildAlbumMetadataDisplayItem(
                 name = artist,
                 songs = artistSongs,
                 mainViewModel = mainViewModel,
                 fallbackSong = albumSongs.firstOrNull(),
+                albumCountOverride = artistAlbums.distinctBy { it.id }.size,
                 artistCoverName = artist,
                 // Counts stay scoped to this album's participating tracks, but the artist image
                 // must use the library-wide #266 priority chain so album pages do not pick a
@@ -456,7 +463,16 @@ fun AlbumDetailScreen(
                         sortedAlbumSongs.size,
                         albumDuration.formatPlaybackDuration(),
                         com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
-                    )
+                    ),
+                    leadingContent = {
+                        ShuffleAllSummaryButton(
+                            visible = !selection.selectionMode && sortedAlbumSongs.isNotEmpty(),
+                            onClick = {
+                                playerViewModel.setPlaylist(sortedAlbumSongs.shuffled(), 0)
+                                if (openPlayerOnPlay) onNavigateToPlayer()
+                            }
+                        )
+                    }
                 )
             }
 
@@ -810,16 +826,6 @@ fun AlbumDetailScreen(
             }
         }
 
-        ShuffleAllFloatingButton(
-            visible = !selection.selectionMode && sortedAlbumSongs.isNotEmpty(),
-            onClick = {
-                playerViewModel.setPlaylist(sortedAlbumSongs.shuffled(), 0)
-                if (openPlayerOnPlay) onNavigateToPlayer()
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
-        )
         LocateCurrentSongFloatingButton(
             listState = listState,
             currentItemIndex = currentSongItemIndex,
@@ -982,6 +988,7 @@ private fun buildAlbumMetadataDisplayItem(
     fallbackSong: Song?,
     categoryType: String? = null,
     coverCandidates: List<Song> = songs,
+    albumCountOverride: Int? = null,
     artistCoverName: String? = null,
     artistCoverSong: Song? = null
 ): AlbumMetadataDisplayItem {
@@ -992,7 +999,7 @@ private fun buildAlbumMetadataDisplayItem(
         name = name,
         songCount = songs.size,
         duration = songs.sumOf { it.duration },
-        albumCount = songs.map { it.albumIdentityId() }.distinct().size,
+        albumCount = albumCountOverride ?: songs.map { it.albumIdentityId() }.distinct().size,
         coverModel = representativeSong?.coverUrl?.takeIf(String::isNotBlank)
             ?: representativeSong?.albumId?.let(mainViewModel::getAlbumArtUri),
         artistCoverName = artistCoverName,

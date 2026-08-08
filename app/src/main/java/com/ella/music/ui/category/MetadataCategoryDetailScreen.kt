@@ -61,11 +61,10 @@ import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
-import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
-import com.ella.music.ui.components.ShuffleAllFloatingButton
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -222,6 +221,14 @@ fun MetadataCategoryDetailScreen(
     }
     val detailSongsByAlbumId = remember(songs) {
         songs.groupBy { it.albumIdentityId() }
+    }
+    val randomDetailSongs = remember(selectedTab, sortedSongs, sortedAlbums, detailSongsByAlbumId) {
+        when (selectedTab) {
+            MetadataDetailTab.Songs -> sortedSongs
+            MetadataDetailTab.Albums -> sortedAlbums
+                .flatMap { album -> detailSongsByAlbumId[album.id].orEmpty() }
+                .distinctBy { it.id }
+        }
     }
     val currentSelectionIds = remember(selectedTab, sortedSongs, sortedAlbums) {
         when (selectedTab) {
@@ -644,11 +651,24 @@ fun MetadataCategoryDetailScreen(
                                 }
                             }
                         }
-                        Text(
-                            text = summaryText,
-                            fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ShuffleAllSummaryButton(
+                                visible = !selection.selectionMode && randomDetailSongs.isNotEmpty(),
+                                onClick = {
+                                    playerViewModel.setPlaylist(randomDetailSongs.shuffled(), 0)
+                                    if (openPlayerOnPlay) onNavigateToPlayer()
+                                }
+                            )
+                            Text(
+                                text = summaryText,
+                                fontSize = 13.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
                 if (selectedTab == MetadataDetailTab.Albums) {
@@ -746,16 +766,6 @@ fun MetadataCategoryDetailScreen(
                 }
             }
 
-            ShuffleAllFloatingButton(
-                visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
-                onClick = {
-                    playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
-                    if (openPlayerOnPlay) onNavigateToPlayer()
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
-            )
             LocateCurrentSongFloatingButton(
                 listState = listState,
                 currentItemIndex = currentSongItemIndex,

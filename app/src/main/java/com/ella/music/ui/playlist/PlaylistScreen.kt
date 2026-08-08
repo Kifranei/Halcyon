@@ -194,6 +194,11 @@ fun PlaylistScreen(
             }
         }
     }
+    val randomPlaylistSongs = remember(displayedCustomPlaylists, librarySongs) {
+        displayedCustomPlaylists
+            .flatMap { mainViewModel.playlistSongs(it) }
+            .distinctBy { it.id }
+    }
     val playlistCoverModels = remember(playlists, librarySongs) {
         playlists.associate { playlist ->
             playlist.id to mainViewModel.playlistSongs(playlist).firstOrNull().playlistCoverModel()
@@ -612,6 +617,8 @@ fun PlaylistScreen(
                     playlistCount = displayedCustomPlaylists.size,
                     sortMode = playlistSortMode,
                     selectionMode = selection.selectionMode,
+                    randomSongsAvailable = randomPlaylistSongs.isNotEmpty(),
+                    onShuffleClick = { playerViewModel.setPlaylist(randomPlaylistSongs.shuffled(), 0) },
                     onCreateClick = { showCreateDialog = true },
                     onSelectAllClick = {
                         selection.selectionMode = true

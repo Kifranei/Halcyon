@@ -57,13 +57,12 @@ import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
-import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
-import com.ella.music.ui.components.ShuffleAllFloatingButton
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -179,6 +178,15 @@ fun FolderPlaylistDetailScreen(
                     entry.path.contains(detailQuery, ignoreCase = true)
             }
         }
+    }
+    val randomFolderEntrySongs = remember(displayedFolderEntries, playlistSongs) {
+        val normalizedFolders = displayedFolderEntries.map { it.path.normalizeFolderPath() }
+        playlistSongs
+            .filter { song ->
+                val songFolder = song.folderPath().normalizeFolderPath()
+                normalizedFolders.any { folder -> songFolder.startsWith(folder) }
+            }
+            .distinctBy { it.id }
     }
     val songsListState = rememberLazyListState()
     val foldersListState = rememberLazyListState()
@@ -604,12 +612,24 @@ fun FolderPlaylistDetailScreen(
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp)
                 ) {
                     item {
-                        Text(
-                            text = stringResource(R.string.folder_playlist_detail_summary_sorted, displayedSongs.size, playlist.folders.size, currentSortLabel),
-                            fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ShuffleAllSummaryButton(
+                                visible = !selectionMode && displayedSongs.isNotEmpty(),
+                                onClick = {
+                                    playerViewModel.setPlaylist(displayedSongs.shuffled(), 0)
+                                    if (openPlayerOnPlay) onNavigateToPlayer()
+                                }
+                            )
+                            Text(
+                                text = stringResource(R.string.folder_playlist_detail_summary_sorted, displayedSongs.size, playlist.folders.size, currentSortLabel),
+                                fontSize = 13.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.weight(1f).padding(vertical = 4.dp)
+                            )
+                        }
                     }
                     if (playlistSongs.isEmpty()) {
                         item {
@@ -661,12 +681,26 @@ fun FolderPlaylistDetailScreen(
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp)
                 ) {
                     item {
-                        Text(
-                            text = stringResource(R.string.folder_playlist_detail_summary_sorted, displayedFolderEntries.sumOf { it.songCount }, playlist.folders.size, currentSortLabel),
-                            fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ShuffleAllSummaryButton(
+                                visible = !selectionMode && randomFolderEntrySongs.isNotEmpty(),
+                                onClick = {
+                                    playerViewModel.setPlaylist(randomFolderEntrySongs.shuffled(), 0)
+                                    if (openPlayerOnPlay) onNavigateToPlayer()
+                                }
+                            )
+                            Text(
+                                text = stringResource(R.string.folder_playlist_detail_summary_sorted, displayedFolderEntries.sumOf { it.songCount }, playlist.folders.size, currentSortLabel),
+                                fontSize = 13.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.weight(1f).padding(vertical = 4.dp)
+                            )
+                        }
                     }
                     items(displayedFolderEntries, key = { it.path }) { entry ->
                         Card(
@@ -750,16 +784,6 @@ fun FolderPlaylistDetailScreen(
                 }
             }
         }
-            ShuffleAllFloatingButton(
-                visible = !selectionMode && selectedTab == FolderPlaylistTab.Songs && displayedSongs.isNotEmpty(),
-                onClick = {
-                    playerViewModel.setPlaylist(displayedSongs.shuffled(), 0)
-                    if (openPlayerOnPlay) onNavigateToPlayer()
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
-            )
             LocateCurrentSongFloatingButton(
                 listState = songsListState,
                 currentItemIndex = currentSongItemIndex,

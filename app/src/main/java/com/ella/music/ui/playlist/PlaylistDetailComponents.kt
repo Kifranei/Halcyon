@@ -30,6 +30,7 @@ import com.ella.music.R
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenuContent
 import top.yukonga.miuix.kmp.basic.Icon
@@ -128,6 +129,7 @@ internal fun PlaylistPlayAllBar(
     songCount: Int,
     sortLabel: String,
     onPlayAll: () -> Unit,
+    onShuffle: (() -> Unit)? = null,
     sortItems: List<SortDropdownItem>
 ) {
     Row(
@@ -151,6 +153,10 @@ internal fun PlaylistPlayAllBar(
                 modifier = Modifier.size(20.dp)
             )
         }
+        ShuffleAllSummaryButton(
+            visible = onShuffle != null,
+            onClick = { onShuffle?.invoke() }
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = stringResource(R.string.listening_calendar_play_all),

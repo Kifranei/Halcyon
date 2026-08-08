@@ -1,25 +1,68 @@
 package com.ella.music.ui.components
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Shared "N 首歌曲 · 排序方式" list header used above sorted library lists. */
 @Composable
-internal fun SortSummaryHeader(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        fontSize = 13.sp,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-    )
+internal fun SortSummaryHeader(
+    text: String,
+    modifier: Modifier = Modifier,
+    leadingContent: (@Composable RowScope.() -> Unit)? = null
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        leadingContent?.invoke(this)
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+internal fun ShuffleAllSummaryButton(
+    visible: Boolean,
+    onClick: () -> Unit
+) {
+    if (!visible) return
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.ic_shuffle),
+            contentDescription = stringResource(R.string.shuffle),
+            tint = MiuixTheme.colorScheme.primary,
+            modifier = Modifier.size(21.dp)
+        )
+    }
 }
 
 @Composable

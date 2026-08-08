@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,11 +63,10 @@ import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
-import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
-import com.ella.music.ui.components.ShuffleAllFloatingButton
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
@@ -458,7 +458,9 @@ fun FolderDetailScreen(
                 )
             }
         } else {
-            val listState = remember(normalizedFolderPath) { LazyListState() }
+            val listState = rememberSaveable(normalizedFolderPath, saver = LazyListState.Saver) {
+                LazyListState()
+            }
             RestoreListScrollAfterSearch(
                 searchExpanded = searchExpanded,
                 query = searchQuery,
@@ -534,6 +536,15 @@ fun FolderDetailScreen(
                                 R.string.folder_detail_search_summary,
                                 sortedSongs.size,
                                 com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
+                            )
+                        },
+                        leadingContent = {
+                            ShuffleAllSummaryButton(
+                                visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
+                                onClick = {
+                                    playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
+                                    if (openPlayerOnPlay) onNavigateToPlayer()
+                                }
                             )
                         }
                     )
@@ -614,16 +625,6 @@ fun FolderDetailScreen(
                             .fillMaxHeight()
                     )
                 }
-                ShuffleAllFloatingButton(
-                    visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
-                    onClick = {
-                        playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
-                        if (openPlayerOnPlay) onNavigateToPlayer()
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
-                )
                 LocateCurrentSongFloatingButton(
                     listState = listState,
                     currentItemIndex = currentSongItemIndex,

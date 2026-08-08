@@ -29,6 +29,7 @@ import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenu
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.ellaPageBackground
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -82,6 +83,9 @@ internal fun PlaylistScreenTopBar(
             }
         },
         titleStartPadding = if (showBackButton || selectionMode) 64.dp else 20.dp,
+        // Keep the double-tap title hit area clear of the four/five action buttons. The default
+        // title end inset is too small here and can consume the first action's tap.
+        titleEndPadding = if (selectionMode) 280.dp else 240.dp,
         onDoubleTapTitle = onDoubleTapTitle,
         actions = {
             if (selectionMode) {
@@ -228,6 +232,8 @@ internal fun PlaylistListSummaryRow(
     playlistCount: Int,
     sortMode: PlaylistSortMode,
     selectionMode: Boolean,
+    randomSongsAvailable: Boolean,
+    onShuffleClick: () -> Unit,
     onCreateClick: () -> Unit,
     onSelectAllClick: () -> Unit
 ) {
@@ -237,6 +243,10 @@ internal fun PlaylistListSummaryRow(
             .padding(horizontal = 4.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        ShuffleAllSummaryButton(
+            visible = !selectionMode && randomSongsAvailable,
+            onClick = onShuffleClick
+        )
         Text(
             text = stringResource(
                 R.string.playlist_list_summary,

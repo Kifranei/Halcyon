@@ -55,7 +55,12 @@ internal fun RestoreListScrollAfterSearch(
                 anchor = null
             }
         }
-        wasSearchExpanded = searchExpanded
+        // Back handlers commonly clear `searchExpanded` and `query` in two state writes. Keep the
+        // close transition armed while the old query is still visible, otherwise the first
+        // recomposition consumes the transition and the second one cannot restore the anchor.
+        if (searchExpanded || query.isBlank()) {
+            wasSearchExpanded = searchExpanded
+        }
         previousQuery = query
     }
 }
@@ -95,7 +100,9 @@ internal fun RestoreGridScrollAfterSearch(
                 anchor = null
             }
         }
-        wasSearchExpanded = searchExpanded
+        if (searchExpanded || query.isBlank()) {
+            wasSearchExpanded = searchExpanded
+        }
         previousQuery = query
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +83,7 @@ internal fun PlayerDetailPage(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
     val composerNames = remember(tagInfo?.composer, song?.composer) {
         splitArtistNames(tagInfo?.composer?.ifBlank { song?.composer.orEmpty() }.orEmpty())
     }
@@ -311,9 +313,22 @@ internal fun PlayerDetailPage(
                                 folderLocation = artistCoverFolderUri,
                                 mainViewModel = mainViewModel
                             )
+                            val artistAlbumCount = remember(detail.name, effectiveLibrarySongs, showAlbumArtists) {
+                                effectiveLibrarySongs
+                                    .filter { candidate ->
+                                        splitArtistNames(candidate.artist).any {
+                                            it.equals(detail.name, ignoreCase = true)
+                                        } || (showAlbumArtists && splitArtistNames(candidate.albumArtist).any {
+                                            it.equals(detail.name, ignoreCase = true)
+                                        })
+                                    }
+                                    .map { it.albumIdentityId() }
+                                    .distinct()
+                                    .size
+                            }
                             PlayerDetailGroupedActionRow(
                                 title = detail.name,
-                                summary = detail.songs.stats().personSummary(),
+                                summary = detail.songs.stats(artistAlbumCount).personSummary(),
                                 coverModel = artistCoverModel,
                                 circularCover = true,
                                 onClick = { onArtist(detail.name) }
@@ -498,10 +513,10 @@ private data class PlayerDetailStats(
     val albumCount: Int
 )
 
-private fun List<Song>.stats(): PlayerDetailStats = PlayerDetailStats(
+private fun List<Song>.stats(albumCountOverride: Int? = null): PlayerDetailStats = PlayerDetailStats(
     songCount = size,
     totalDuration = sumOf { it.duration },
-    albumCount = map { it.albumIdentityId() }.distinct().count()
+    albumCount = albumCountOverride ?: map { it.albumIdentityId() }.distinct().count()
 )
 
 @Composable

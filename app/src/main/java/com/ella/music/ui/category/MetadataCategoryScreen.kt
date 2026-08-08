@@ -61,6 +61,7 @@ import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LazyGridScrollIndicator
 import com.ella.music.ui.components.RestoreGridScrollAfterSearch
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.SideIndexListEndPadding
@@ -193,6 +194,11 @@ fun MetadataCategoryScreen(
     }
     val rangeSelectionAvailable = remember(currentSelectionIndexByName, selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId) {
         selection.isRangeSelectionAvailable(currentSelectionIndexByName)
+    }
+    val randomCategorySongs = remember(displayedItems, songs, type) {
+        displayedItems
+            .flatMap { item -> mainViewModel.getSongsForMetadataCategory(type, item.name) }
+            .distinctBy { it.id }
     }
     BackHandler(enabled = selection.selectionMode || sortExpanded || searchExpanded || folderToBlock != null) {
         when {
@@ -443,7 +449,13 @@ fun MetadataCategoryScreen(
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         com.ella.music.ui.components.SortSummaryHeader(
-                            text = "${type.categoryCountSummary(displayedItems.size)} · ${sortMode.displayLabel(type)}"
+                            text = "${type.categoryCountSummary(displayedItems.size)} · ${sortMode.displayLabel(type)}",
+                            leadingContent = {
+                                ShuffleAllSummaryButton(
+                                    visible = !selection.selectionMode && randomCategorySongs.isNotEmpty(),
+                                    onClick = { playerViewModel.setPlaylist(randomCategorySongs.shuffled(), 0) }
+                                )
+                            }
                         )
                     }
                     items(displayedItems, key = { it.name }) { item ->

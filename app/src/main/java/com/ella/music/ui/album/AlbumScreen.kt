@@ -69,6 +69,7 @@ import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyGridScrollIndicator
 import com.ella.music.ui.components.RestoreGridScrollAfterSearch
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.SortDropdownMenu
@@ -200,6 +201,10 @@ fun AlbumScreen(
     }
     val rangeSelectionAvailable = remember(selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId, albumIndexById) {
         selection.isRangeSelectionAvailable(albumIndexById)
+    }
+    val randomAlbumSongs = remember(sortedAlbums, songs) {
+        val visibleAlbumIds = sortedAlbums.mapTo(mutableSetOf()) { it.id }
+        songs.filter { it.albumIdentityId() in visibleAlbumIds }.distinctBy { it.id }
     }
 
     BackHandler(enabled = selection.selectionMode || searchExpanded || sortExpanded) {
@@ -487,7 +492,13 @@ fun AlbumScreen(
                             R.string.album_list_summary,
                             sortedAlbums.size,
                             com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
-                        )
+                        ),
+                        leadingContent = {
+                            ShuffleAllSummaryButton(
+                                visible = !selection.selectionMode && randomAlbumSongs.isNotEmpty(),
+                                onClick = { playerViewModel.setPlaylist(randomAlbumSongs.shuffled(), 0) }
+                            )
+                        }
                     )
 
                     LazyVerticalGrid(
