@@ -28,6 +28,14 @@ class DesktopLyricBridge(private val context: Context) {
         }
     }
 
+    fun unlock() {
+        if (!canDrawOverlay()) return
+        context.startService(
+            Intent(context, DesktopLyricService::class.java)
+                .setAction(DesktopLyricService.ACTION_UNLOCK)
+        )
+    }
+
     fun isEnabled(): Boolean = enabled
 
     fun setHostPage(page: Int) {

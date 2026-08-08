@@ -14,6 +14,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -66,6 +67,11 @@
         <meta-data android:name="lyricon_module_author" android:value="Kifranei" />
         <meta-data android:name="lyricon_module_description" android:value="愿所有的心声都在旋律里靠岸。" />
         <meta-data android:name="lyricon_module_tags" android:resource="@array/lyricon_module_tags" />
+
+        <!-- Opt into the optional OPlus historical-player stack integration. -->
+        <meta-data
+            android:name="io.github.andrealtb.lockscreenlyrics.OPLUS_MEDIA_HISTORY"
+            android:value="true" />
 
         <!-- Shown by MIUI/HyperOS in the uninstall confirmation dialog. -->
         <meta-data android:name="app_description_title" android:resource="@string/miui_uninstall_title" />

@@ -32,13 +32,15 @@ internal class SessionPresentationPlayer(player: Player) : ForwardingSimpleBaseP
     private var oplusPublishSequence = 0L
 
     fun setNotificationLyric(songKey: String, title: String?, secondaryText: String?) {
-        notificationLyric = title?.takeIf(String::isNotBlank)?.let {
+        val next = title?.takeIf(String::isNotBlank)?.let {
             NotificationLyric(
                 songKey = songKey,
                 title = it,
                 secondaryText = secondaryText.orEmpty()
             )
         }
+        if (notificationLyric == next) return
+        notificationLyric = next
         invalidateState()
     }
 
@@ -49,15 +51,23 @@ internal class SessionPresentationPlayer(player: Player) : ForwardingSimpleBaseP
     }
 
     fun setOplusLyric(songKey: String?, lyricInfoJson: String?) {
-        oplusLyric = if (songKey != null && !lyricInfoJson.isNullOrBlank()) {
-            OPlusLyric(
-                songKey = songKey,
-                lyricInfoJson = lyricInfoJson,
-                publishSequence = ++oplusPublishSequence
-            )
-        } else {
-            null
+        if (songKey == null || lyricInfoJson.isNullOrBlank()) {
+            if (oplusLyric == null) return
+            oplusLyric = null
+            invalidateState()
+            return
         }
+        if (
+            oplusLyric?.songKey == songKey &&
+            oplusLyric?.lyricInfoJson == lyricInfoJson
+        ) {
+            return
+        }
+        oplusLyric = OPlusLyric(
+            songKey = songKey,
+            lyricInfoJson = lyricInfoJson,
+            publishSequence = ++oplusPublishSequence
+        )
         invalidateState()
     }
 
@@ -69,6 +79,7 @@ internal class SessionPresentationPlayer(player: Player) : ForwardingSimpleBaseP
         val baseMetadata = state.currentMetadata
         val metadataBuilder = baseMetadata.buildUpon()
         val extras = Bundle(baseMetadata.extras ?: currentItem.mediaMetadata.extras ?: Bundle.EMPTY).apply {
+            markMetadataOnlyPatch(PATCH_REASON_SESSION_PRESENTATION)
             remove(OPlusLyricHandler.OPLUS_LYRIC_INFO_KEY)
             remove(OPlusLyricHandler.OPLUS_RAW_LYRIC_KEY)
             remove(OPLUS_LYRIC_PUBLISH_SEQUENCE_KEY)

@@ -1,6 +1,7 @@
 package com.ella.music.viewmodel
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -25,6 +26,9 @@ import com.ella.music.data.repository.MusicRepository
 import com.ella.music.player.DesktopLyricBridge
 import com.ella.music.player.ExoPlayerManager
 import com.ella.music.player.LyricGetterBridge
+import com.ella.music.player.LiveLyricNotificationBridge
+import com.ella.music.player.buildLiveLyricSecondaryText
+import com.ella.music.player.buildLiveLyricNotificationText
 import com.ella.music.player.LyriconBridge
 import com.ella.music.player.MediaNotificationLyricPatchPolicy
 import com.ella.music.player.PlaybackService
@@ -49,17 +53,33 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val LYRIC_POSITION_BACKWARD_DRIFT_TOLERANCE_MS = 600L
 // Compose lyrics interpolate between position samples on the display clock. 10 Hz is therefore
 // visually smooth while avoiding a 20 Hz controller query / bridge dispatch loop all day.
 private const val PLAYBACK_POSITION_UPDATE_INTERVAL_MS = 100L
 private const val SEEK_EXTERNAL_LYRIC_SYNC_DEBOUNCE_MS = 80L
+private const val LIVE_UPDATE_ARTWORK_SIZE = 256
 
 private const val DECODER_MODE_SYSTEM = 0
 private const val DECODER_MODE_AUTO = 2
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+    private data class LiveLyricNotificationState(
+        val songKey: String,
+        val lineIndex: Int,
+        val wordIndex: Int,
+        val mode: Int,
+        val displayMode: Int,
+        val secondaryMode: Int,
+        val lyric: String,
+        val compactLyric: String,
+        val allowLongCompactLyric: Boolean,
+        val preserveCompactLyric: Boolean,
+        val secondaryLyric: String?
+    )
+
     companion object {
         private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
@@ -69,6 +89,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val settingsManager = SettingsManager.getInstance(application)
     val lyriconBridge = LyriconBridge(application)
     val tickerBridge = TickerBridge(application)
+    private val liveLyricNotificationBridge = LiveLyricNotificationBridge(application)
     val desktopLyricBridge = DesktopLyricBridge(application)
     val superLyricBridge = SuperLyricBridge()
     val lyricGetterBridge = LyricGetterBridge(application)
@@ -113,6 +134,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     val currentSong: StateFlow<Song?> = playerManager.currentSong
     val isPlaying: StateFlow<Boolean> = playerManager.isPlaying
+    val playWhenReady: StateFlow<Boolean> = playerManager.playWhenReady
     val currentPosition: StateFlow<Long> = playerManager.currentPosition
     val duration: StateFlow<Long> = playerManager.duration
     val shuffleEnabled: StateFlow<Boolean> = playerManager.shuffleEnabled
@@ -227,6 +249,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var seekExternalLyricSyncJob: Job? = null
     private var lastSentPlayingState: Boolean? = null
     private var lastTickerPayload: Pair<String, String?>? = null
+    private var lastLiveUpdateLyricPayload: LiveLyricNotificationState? = null
+    private var liveUpdateArtwork: Bitmap? = null
     private var bluetoothLyricEnabled = false
     private var bluetoothLyricTranslationEnabled = true
     private var bluetoothLyricPronunciationEnabled = false
@@ -235,6 +259,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var samsungFloatingLyricTranslationEnabled = false
     private var statusBarAllowPhoneticEnabled = false
     private var tickerHideNotificationEnabled = false
+    private var liveUpdateLyricEnabled = false
+    private var liveUpdateLyricMode = SettingsManager.LIVE_UPDATE_LYRIC_MODE_ORIGINAL
+    private var liveUpdateLyricDisplayMode = SettingsManager.LIVE_UPDATE_LYRIC_DISPLAY_MODE_COMPACT
+    private var liveUpdateLyricSecondaryMode = SettingsManager.LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG
     private var desktopLyricHideWhenPausedEnabled = false
     private var desktopLyricStatusBarModeEnabled = false
     private var desktopLyricStatusBarHideWhenPausedEnabled = false
@@ -263,6 +291,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         observePlayState()
         initLyricon()
         initTicker()
+        initLiveUpdateLyric()
         initDesktopLyric()
         initSuperLyric()
         initLyricGetter()
@@ -377,6 +406,46 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 lastTickerPayload = null
                 if (tickerBridge.isEnabled()) resendTickerLyric(force = true)
+            }
+        }
+    }
+
+    private fun initLiveUpdateLyric() {
+        viewModelScope.launch {
+            liveUpdateLyricEnabled = settingsManager.liveUpdateLyricEnabled.first()
+            liveUpdateLyricMode = settingsManager.liveUpdateLyricMode.first()
+            liveUpdateLyricDisplayMode = settingsManager.liveUpdateLyricDisplayMode.first()
+            liveUpdateLyricSecondaryMode = settingsManager.liveUpdateLyricSecondaryMode.first()
+            liveLyricNotificationBridge.setEnabled(liveUpdateLyricEnabled)
+            if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
+        }
+        viewModelScope.launch {
+            settingsManager.liveUpdateLyricEnabled.distinctUntilChanged().collect { enabled ->
+                liveUpdateLyricEnabled = enabled
+                lastLiveUpdateLyricPayload = null
+                liveLyricNotificationBridge.setEnabled(enabled)
+                if (enabled) resendLiveUpdateLyric(force = true) else liveLyricNotificationBridge.clear()
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.liveUpdateLyricMode.distinctUntilChanged().collect { mode ->
+                liveUpdateLyricMode = mode
+                lastLiveUpdateLyricPayload = null
+                if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.liveUpdateLyricDisplayMode.distinctUntilChanged().collect { mode ->
+                liveUpdateLyricDisplayMode = mode
+                lastLiveUpdateLyricPayload = null
+                if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.liveUpdateLyricSecondaryMode.distinctUntilChanged().collect { mode ->
+                liveUpdateLyricSecondaryMode = mode
+                lastLiveUpdateLyricPayload = null
+                if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
             }
         }
     }
@@ -730,6 +799,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     PlaybackWidgetUpdater.clearLyrics(getApplication<Application>())
                     // Clear external bridge state before async fetch to prevent stale lyrics
                     lastTickerPayload = null
+                    lastLiveUpdateLyricPayload = null
+                    liveUpdateArtwork = null
                     lastBluetoothLyricPayload = null
                     bluetoothLyricRetryJob?.cancel()
                     lyricGetterBridge.clearLyric()
@@ -745,11 +816,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     superLyricBridge.sendSong(song)
                     val songLyrics = repository.getLyrics(song, lyricSourceMode)
-                    repository.getCoverArt(song)
+                    val notificationArtwork = withContext(Dispatchers.IO) {
+                        repository.getCoverArtBitmap(
+                            song = song,
+                            maxSize = LIVE_UPDATE_ARTWORK_SIZE,
+                            usage = CoverUsage.Notification
+                        )
+                    }
                     // Verify song hasn't changed during async fetch
                     if (playerManager.currentSong.value?.lyricIdentityKey() != songKey) {
                         return@collectLatest
                     }
+                    liveUpdateArtwork = notificationArtwork
                     loadedLyricSongKey = songKey
                     setLoadedLyrics(song, songLyrics, notifyExternal = false)
                     _lyricsLoading.value = false
@@ -765,6 +843,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 } else {
                     loadedLyricSongKey = null
+                    liveUpdateArtwork = null
                     suppressLeadingZeroLyric = false
                     _lyricsLoading.value = false
                     _rawLyrics.value = emptyList()
@@ -788,6 +867,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         seekExternalLyricSyncJob?.cancel()
                         seekExternalLyricSyncJob = null
                         tickerBridge.clearLyric()
+                        liveLyricNotificationBridge.clear()
+                        lastLiveUpdateLyricPayload = null
                         if (activeDesktopLyricHideWhenPaused()) {
                             desktopLyricBridge.clearLyric()
                         } else {
@@ -821,6 +902,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun updateCurrentLyricIndex() {
         val currentLyrics = _lyrics.value
         if (currentLyrics.isEmpty()) {
+            liveLyricNotificationBridge.clear()
+            lastLiveUpdateLyricPayload = null
             lastLyricPositionSongKey = currentSong.value?.lyricIdentityKey()
             lastLyricPositionMs = playerManager.currentPosition.value
             return
@@ -865,6 +948,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 sendLyricGetterAt(index, currentLyrics)
             }
         }
+        if (index >= 0 && index < currentLyrics.size) {
+            // Word-timed lyrics can change while the line index remains stable. The Live Update
+            // helper deduplicates unchanged results, so this stays a 10 Hz calculation rather
+            // than a 10 Hz notification stream.
+            sendLiveUpdateLyric(index, currentLyrics, effectivePosition)
+        }
         lastLyricPositionSongKey = songKey
         lastLyricPositionMs = effectivePosition
     }
@@ -897,6 +986,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
         resendTickerLyric(force)
+        resendLiveUpdateLyric(force)
         resendDesktopLyric()
         resendSuperLyric(force)
         resendLyricGetter(force)
@@ -908,6 +998,69 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val index = _currentLyricIndex.value
         val currentLyrics = _lyrics.value
         sendTickerLyric(index, currentLyrics)
+    }
+
+    private fun resendLiveUpdateLyric(force: Boolean = false) {
+        if (!liveUpdateLyricEnabled || !isPlaying.value) return
+        if (force) lastLiveUpdateLyricPayload = null
+        sendLiveUpdateLyric(
+            index = _currentLyricIndex.value,
+            lyrics = _lyrics.value,
+            positionMs = effectiveLyricPositionMs()
+        )
+    }
+
+    private fun sendLiveUpdateLyric(index: Int, lyrics: List<LyricLine>, positionMs: Long) {
+        if (!liveUpdateLyricEnabled || !playerManager.isPlaying.value) return
+        val song = currentSong.value ?: return
+        val line = lyrics.getOrNull(index) ?: return
+        val display = buildLiveLyricNotificationText(
+            line = line,
+            mode = liveUpdateLyricMode,
+            positionMs = positionMs
+        ) ?: return
+        val notificationLyric = if (
+            liveUpdateLyricDisplayMode == SettingsManager.LIVE_UPDATE_LYRIC_DISPLAY_MODE_FULL
+        ) {
+            display.fullLyric
+        } else {
+            display.lyric
+        }
+        val preserveFullLyric =
+            liveUpdateLyricDisplayMode == SettingsManager.LIVE_UPDATE_LYRIC_DISPLAY_MODE_FULL
+        // Full-line mode is intended for lock-screen/AOD surfaces. Do not keep feeding the
+        // word-timed window and current word into the compact chip in this mode: Xiaomi AOD can
+        // show the complete sentence, while word-level updates would make it jump on every word.
+        val notificationCompactLyric = if (preserveFullLyric) {
+            notificationLyric
+        } else {
+            display.compactLyric
+        }
+        val secondaryLyric = buildLiveLyricSecondaryText(line, liveUpdateLyricSecondaryMode)
+        val payload = LiveLyricNotificationState(
+            songKey = song.lyricIdentityKey(),
+            lineIndex = index,
+            wordIndex = if (preserveFullLyric) -1 else display.wordIndex,
+            mode = liveUpdateLyricMode,
+            displayMode = liveUpdateLyricDisplayMode,
+            secondaryMode = liveUpdateLyricSecondaryMode,
+            lyric = notificationLyric,
+            compactLyric = notificationCompactLyric,
+            allowLongCompactLyric = if (preserveFullLyric) false else display.allowLongCompactLyric,
+            preserveCompactLyric = preserveFullLyric,
+            secondaryLyric = secondaryLyric
+        )
+        if (payload == lastLiveUpdateLyricPayload) return
+        lastLiveUpdateLyricPayload = payload
+        liveLyricNotificationBridge.sendLyric(
+            songTitle = song.title.ifBlank { song.fileName },
+            lyric = notificationLyric,
+            compactLyric = notificationCompactLyric,
+            allowLongCompactLyric = if (preserveFullLyric) false else display.allowLongCompactLyric,
+            preserveCompactLyric = preserveFullLyric,
+            secondaryLyric = secondaryLyric,
+            artwork = liveUpdateArtwork
+        )
     }
 
     private fun resendDesktopLyric() {
@@ -1004,6 +1157,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             suppressLeadingZeroLyric = true
             updateCurrentLyricIndex()
             lastTickerPayload = null
+            lastLiveUpdateLyricPayload = null
             lastBluetoothLyricPayload = null
         }
         if (!notifyExternal) return
@@ -1013,6 +1167,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             clearExternalLyrics(clearLyricon = false, clearSuperLyricSong = false)
         } else {
             resendTickerLyric(force = true)
+            resendLiveUpdateLyric(force = true)
             resendDesktopLyric()
             resendSuperLyric(force = true)
             resendLyricGetter(force = true)
@@ -1046,8 +1201,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         externalLyricResendJob?.cancel()
         bluetoothLyricRetryJob?.cancel()
         lastTickerPayload = null
+        lastLiveUpdateLyricPayload = null
         lastBluetoothLyricPayload = null
         tickerBridge.clearLyric()
+        liveLyricNotificationBridge.clear()
         desktopLyricBridge.clearLyric()
         lyricGetterBridge.clearLyric()
         playerManager.clearBluetoothLyric()
@@ -1382,6 +1539,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private suspend fun reloadLyrics(song: Song, force: Boolean = false) {
         lastTickerPayload = null
+        lastLiveUpdateLyricPayload = null
         lastBluetoothLyricPayload = null
         bluetoothLyricRetryJob?.cancel()
         val availability = repository.getLyricFormatAvailability(song)
@@ -1404,6 +1562,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             clearExternalLyrics(clearLyricon = false, clearSuperLyricSong = false)
         } else {
             if (tickerBridge.isEnabled()) resendTickerLyric(force = true)
+            if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
             if (desktopLyricBridge.isEnabled()) resendDesktopLyric()
             if (superLyricBridge.isEnabled()) resendSuperLyric(force = true)
             if (lyricGetterBridge.isEnabled()) resendLyricGetter(force = true)
@@ -1481,6 +1640,52 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             tickerBridge.setEnabled(enabled)
             lastTickerPayload = null
             if (enabled) resendTickerLyric()
+        }
+    }
+
+    fun setLiveUpdateLyricEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setLiveUpdateLyricEnabled(enabled)
+            liveUpdateLyricEnabled = enabled
+            lastLiveUpdateLyricPayload = null
+            liveLyricNotificationBridge.setEnabled(enabled)
+            if (enabled) resendLiveUpdateLyric(force = true) else liveLyricNotificationBridge.clear()
+        }
+    }
+
+    fun setLiveUpdateLyricMode(mode: Int) {
+        viewModelScope.launch {
+            settingsManager.setLiveUpdateLyricMode(mode)
+            liveUpdateLyricMode = mode.coerceIn(
+                SettingsManager.LIVE_UPDATE_LYRIC_MODE_ORIGINAL,
+                SettingsManager.LIVE_UPDATE_LYRIC_MODE_PRONUNCIATION
+            )
+            lastLiveUpdateLyricPayload = null
+            if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
+        }
+    }
+
+    fun setLiveUpdateLyricDisplayMode(mode: Int) {
+        viewModelScope.launch {
+            settingsManager.setLiveUpdateLyricDisplayMode(mode)
+            liveUpdateLyricDisplayMode = mode.coerceIn(
+                SettingsManager.LIVE_UPDATE_LYRIC_DISPLAY_MODE_COMPACT,
+                SettingsManager.LIVE_UPDATE_LYRIC_DISPLAY_MODE_FULL
+            )
+            lastLiveUpdateLyricPayload = null
+            if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
+        }
+    }
+
+    fun setLiveUpdateLyricSecondaryMode(mode: Int) {
+        viewModelScope.launch {
+            settingsManager.setLiveUpdateLyricSecondaryMode(mode)
+            liveUpdateLyricSecondaryMode = mode.coerceIn(
+                SettingsManager.LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG,
+                SettingsManager.LIVE_UPDATE_LYRIC_SECONDARY_MODE_PRONUNCIATION
+            )
+            lastLiveUpdateLyricPayload = null
+            if (liveUpdateLyricEnabled) resendLiveUpdateLyric(force = true)
         }
     }
 
@@ -1687,6 +1892,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         seekExternalLyricSyncJob?.cancel()
         sleepTimerController.dispose()
         tickerBridge.clearLyric()
+        liveLyricNotificationBridge.clear()
         lyricGetterBridge.clearLyric()
         superLyricBridge.destroy()
         lyriconBridge.destroy()

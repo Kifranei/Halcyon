@@ -2126,12 +2126,19 @@
     <string name="player_local_music_video">本機 MV</string>
     <string name="player_netease_music_video">網易雲音樂 MV</string>
     <string name="spectrum_frequency_unknown">自適應</string>
-    <string name="settings_enable_live_update_lyric">啟用 Live 更新歌詞</string>
-    <string name="settings_enable_live_update_lyric_summary">在 Android 16 的 Live Updates 通知中顯示目前歌詞；通知只顯示一個選定內容的歌詞行</string>
-    <string name="settings_live_update_lyric_content">Live 通知歌詞內容</string>
+    <string name="settings_enable_live_update_lyric">顯示即時活動通知歌詞</string>
+    <string name="settings_enable_live_update_lyric_summary">在 Android 16 的即時活動通知中顯示目前歌詞，可選擇顯示目前單詞附近或完整歌詞，並設定副標題</string>
+    <string name="settings_live_update_lyric_content">即時活動通知主歌詞</string>
     <string name="settings_live_update_lyric_original">原文</string>
     <string name="settings_live_update_lyric_translation">翻譯</string>
     <string name="settings_live_update_lyric_pronunciation">注音</string>
+    <string name="settings_live_update_lyric_display">即時活動歌詞顯示</string>
+    <string name="settings_live_update_lyric_display_compact">目前單詞附近</string>
+    <string name="settings_live_update_lyric_display_full">完整歌詞</string>
+    <string name="settings_live_update_lyric_secondary">即時活動通知副標題</string>
+    <string name="settings_live_update_lyric_secondary_song">歌曲名稱</string>
+    <string name="settings_live_update_lyric_secondary_translation">翻譯</string>
+    <string name="settings_live_update_lyric_secondary_pronunciation">注音</string>
     <string name="notification_channel_live_lyrics">Live 歌詞</string>
     <string name="notification_channel_live_lyrics_description">顯示目前歌曲歌詞的 Android Live Updates 通知</string>
 </resources>

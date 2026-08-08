@@ -131,13 +131,23 @@ internal class NoArtworkMediaNotificationProvider(
             PlaylistStore.getInstance(service).isFavorite(it)
         } == true
         val playbackModeAction = player.playbackModeAction()
-
-        addCustomAction(
-            PlaybackService.ACTION_TOGGLE_FAVORITE,
-            if (isFavorite) R.drawable.ic_notification_favorite_filled else R.drawable.ic_notification_favorite,
-            if (isFavorite) service.getString(R.string.common_unfavorite) else service.getString(R.string.common_favorite),
-            compact = false
-        )
+        val selectedButtons = service.mediaNotificationButtonIds.toSet()
+        if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC in selectedButtons) {
+            addCustomAction(
+                PlaybackService.ACTION_TOGGLE_DESKTOP_LYRIC,
+                service.desktopLyricNotificationIcon(),
+                service.getString(R.string.notification_action_desktop_lyric),
+                compact = false
+            )
+        }
+        if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_FAVORITE in selectedButtons) {
+            addCustomAction(
+                PlaybackService.ACTION_TOGGLE_FAVORITE,
+                if (isFavorite) R.drawable.ic_notification_favorite_filled else R.drawable.ic_notification_favorite,
+                if (isFavorite) service.getString(R.string.common_unfavorite) else service.getString(R.string.common_favorite),
+                compact = false
+            )
+        }
 
         addMediaAction(
             Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,

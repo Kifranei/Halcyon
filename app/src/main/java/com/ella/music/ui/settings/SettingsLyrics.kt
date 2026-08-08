@@ -100,6 +100,12 @@ internal fun SettingsLyricsSection(
         }
     }
 
+    SettingsCardGroup(highlight = highlightKey == "live_update_lyric") {
+        Column {
+            SettingsLiveUpdateLyricControls(playerViewModel = playerViewModel)
+        }
+    }
+
     SettingsCardGroup(highlight = highlightKey == "desktop_lyric") {
         Column {
             SettingsDesktopLyricControls(playerViewModel = playerViewModel)

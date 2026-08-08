@@ -77,6 +77,10 @@ class SettingsManager(private val context: Context) :
         val KEY_TICKER_ENABLED = booleanPreferencesKey("ticker_enabled")
         val KEY_TICKER_HIDE_NOTIFICATION = booleanPreferencesKey("ticker_hide_notification")
         val KEY_TICKER_HEADS_UP_LYRICS = booleanPreferencesKey("ticker_heads_up_lyrics")
+        val KEY_LIVE_UPDATE_LYRIC_ENABLED = booleanPreferencesKey("live_update_lyric_enabled")
+        val KEY_LIVE_UPDATE_LYRIC_MODE = intPreferencesKey("live_update_lyric_mode")
+        val KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE = intPreferencesKey("live_update_lyric_display_mode")
+        val KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE = intPreferencesKey("live_update_lyric_secondary_mode")
         val KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION = booleanPreferencesKey("samsung_floating_lyric_translation")
         val KEY_STATUS_BAR_ALLOW_PHONETIC = booleanPreferencesKey("status_bar_allow_phonetic")
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
@@ -462,6 +466,17 @@ class SettingsManager(private val context: Context) :
         const val OPLUS_LYRIC_MODE_SYSTEM = 0
         const val OPLUS_LYRIC_MODE_MODULE = 1
 
+        const val LIVE_UPDATE_LYRIC_MODE_ORIGINAL = 0
+        const val LIVE_UPDATE_LYRIC_MODE_TRANSLATION = 1
+        const val LIVE_UPDATE_LYRIC_MODE_PRONUNCIATION = 2
+
+        const val LIVE_UPDATE_LYRIC_DISPLAY_MODE_COMPACT = 0
+        const val LIVE_UPDATE_LYRIC_DISPLAY_MODE_FULL = 1
+
+        const val LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG = 0
+        const val LIVE_UPDATE_LYRIC_SECONDARY_MODE_TRANSLATION = 1
+        const val LIVE_UPDATE_LYRIC_SECONDARY_MODE_PRONUNCIATION = 2
+
         const val STARTUP_PLAY_OFF = 0
         const val STARTUP_PLAY_RANDOM = 1
         const val STARTUP_PLAY_RESUME = 2
@@ -835,6 +850,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_TICKER_ENABLED)
             setBoolean(KEY_TICKER_HIDE_NOTIFICATION)
             setBoolean(KEY_TICKER_HEADS_UP_LYRICS)
+            setBoolean(KEY_LIVE_UPDATE_LYRIC_ENABLED)
             setBoolean(KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION)
             setBoolean(KEY_STATUS_BAR_ALLOW_PHONETIC)
             setBoolean(KEY_DESKTOP_LYRIC_ENABLED)
@@ -980,6 +996,9 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_PLAY_NEXT_MODE)
             setInt(KEY_STARTUP_PLAY_MODE)
             setInt(KEY_COLOROS_LOCK_SCREEN_LYRIC_MODE)
+            setInt(KEY_LIVE_UPDATE_LYRIC_MODE)
+            setInt(KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE)
+            setInt(KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE)
             setInt(KEY_LYRIC_SOURCE_MODE)
             setInt(KEY_LYRIC_PARSER_ENGINE)
             setInt(KEY_PLAYER_TITLE_POSITION)

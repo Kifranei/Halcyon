@@ -10,6 +10,10 @@ import com.ella.music.data.SettingsManager.Companion.KEY_BLUETOOTH_LYRIC_TRANSLA
 import com.ella.music.data.SettingsManager.Companion.KEY_COLOROS_LOCK_SCREEN_LYRIC_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_COLOROS_LOCK_SCREEN_LYRIC_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_GETTER_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_LIVE_UPDATE_LYRIC_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE
+import com.ella.music.data.SettingsManager.Companion.KEY_LIVE_UPDATE_LYRIC_MODE
+import com.ella.music.data.SettingsManager.Companion.KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRICON_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRICON_PRONUNCIATION
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRICON_TRANSLATION
@@ -21,6 +25,12 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SUPER_LYRIC_TRANSLATION
 import com.ella.music.data.SettingsManager.Companion.KEY_TICKER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_TICKER_HEADS_UP_LYRICS
 import com.ella.music.data.SettingsManager.Companion.KEY_TICKER_HIDE_NOTIFICATION
+import com.ella.music.data.SettingsManager.Companion.LIVE_UPDATE_LYRIC_MODE_ORIGINAL
+import com.ella.music.data.SettingsManager.Companion.LIVE_UPDATE_LYRIC_MODE_PRONUNCIATION
+import com.ella.music.data.SettingsManager.Companion.LIVE_UPDATE_LYRIC_DISPLAY_MODE_COMPACT
+import com.ella.music.data.SettingsManager.Companion.LIVE_UPDATE_LYRIC_DISPLAY_MODE_FULL
+import com.ella.music.data.SettingsManager.Companion.LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG
+import com.ella.music.data.SettingsManager.Companion.LIVE_UPDATE_LYRIC_SECONDARY_MODE_PRONUNCIATION
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -41,6 +51,10 @@ interface SystemLyricSettingsAccess {
     val tickerEnabled: Flow<Boolean>
     val tickerHideNotification: Flow<Boolean>
     val tickerHeadsUpLyrics: Flow<Boolean>
+    val liveUpdateLyricEnabled: Flow<Boolean>
+    val liveUpdateLyricMode: Flow<Int>
+    val liveUpdateLyricDisplayMode: Flow<Int>
+    val liveUpdateLyricSecondaryMode: Flow<Int>
     val samsungFloatingLyricTranslation: Flow<Boolean>
     val statusBarAllowPhonetic: Flow<Boolean>
     val superLyricEnabled: Flow<Boolean>
@@ -58,6 +72,10 @@ interface SystemLyricSettingsAccess {
     suspend fun setTickerEnabled(enabled: Boolean)
     suspend fun setTickerHideNotification(enabled: Boolean)
     suspend fun setTickerHeadsUpLyrics(enabled: Boolean)
+    suspend fun setLiveUpdateLyricEnabled(enabled: Boolean)
+    suspend fun setLiveUpdateLyricMode(mode: Int)
+    suspend fun setLiveUpdateLyricDisplayMode(mode: Int)
+    suspend fun setLiveUpdateLyricSecondaryMode(mode: Int)
     suspend fun setSamsungFloatingLyricTranslation(enabled: Boolean)
     suspend fun setStatusBarAllowPhonetic(enabled: Boolean)
     suspend fun setSuperLyricEnabled(enabled: Boolean)
@@ -87,6 +105,20 @@ internal class SystemLyricSettingsAccessImpl(private val context: Context) : Sys
     override val tickerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_ENABLED] ?: false }
     override val tickerHideNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_HIDE_NOTIFICATION] ?: true }
     override val tickerHeadsUpLyrics: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_HEADS_UP_LYRICS] ?: false }
+    override val liveUpdateLyricEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LIVE_UPDATE_LYRIC_ENABLED] ?: false }
+    override val liveUpdateLyricMode: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_LIVE_UPDATE_LYRIC_MODE] ?: LIVE_UPDATE_LYRIC_MODE_ORIGINAL)
+            .coerceIn(LIVE_UPDATE_LYRIC_MODE_ORIGINAL, LIVE_UPDATE_LYRIC_MODE_PRONUNCIATION)
+    }
+    override val liveUpdateLyricDisplayMode: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE] ?: LIVE_UPDATE_LYRIC_DISPLAY_MODE_COMPACT)
+            .coerceIn(LIVE_UPDATE_LYRIC_DISPLAY_MODE_COMPACT, LIVE_UPDATE_LYRIC_DISPLAY_MODE_FULL)
+    }
+    override val liveUpdateLyricSecondaryMode: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE] ?: LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG)
+            .coerceIn(LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG, LIVE_UPDATE_LYRIC_SECONDARY_MODE_PRONUNCIATION)
+    }
     override val samsungFloatingLyricTranslation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION] ?: false }
     override val statusBarAllowPhonetic: Flow<Boolean> =
@@ -128,6 +160,37 @@ internal class SystemLyricSettingsAccessImpl(private val context: Context) : Sys
 
     override suspend fun setTickerHeadsUpLyrics(enabled: Boolean) {
         context.dataStore.edit { it[KEY_TICKER_HEADS_UP_LYRICS] = enabled }
+    }
+
+    override suspend fun setLiveUpdateLyricEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LIVE_UPDATE_LYRIC_ENABLED] = enabled }
+    }
+
+    override suspend fun setLiveUpdateLyricMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_LIVE_UPDATE_LYRIC_MODE] = mode.coerceIn(
+                LIVE_UPDATE_LYRIC_MODE_ORIGINAL,
+                LIVE_UPDATE_LYRIC_MODE_PRONUNCIATION
+            )
+        }
+    }
+
+    override suspend fun setLiveUpdateLyricDisplayMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE] = mode.coerceIn(
+                LIVE_UPDATE_LYRIC_DISPLAY_MODE_COMPACT,
+                LIVE_UPDATE_LYRIC_DISPLAY_MODE_FULL
+            )
+        }
+    }
+
+    override suspend fun setLiveUpdateLyricSecondaryMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE] = mode.coerceIn(
+                LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG,
+                LIVE_UPDATE_LYRIC_SECONDARY_MODE_PRONUNCIATION
+            )
+        }
     }
 
     override suspend fun setSamsungFloatingLyricTranslation(enabled: Boolean) {

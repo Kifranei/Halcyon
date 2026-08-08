@@ -118,6 +118,8 @@ class ExoPlayerManager(private val context: Context) {
     private var sessionMetadataSongKey: String? = null
     private var bluetoothMetadataPatchState = MediaNotificationLyricPatchPolicy.onCleared()
     private var suppressExternalSnapshotsUntilMs = 0L
+    private var presentationMetadataPatchSongKey: String? = null
+    private var presentationMetadataPatchUntilMs = 0L
 
     init {
         _shuffleEnabled.value = loadAppShuffleEnabled()
@@ -159,6 +161,7 @@ class ExoPlayerManager(private val context: Context) {
         controllerFuture = null
         playerListener = null
         mediaController = null
+        clearPresentationMetadataPatchGuard()
     }
 
     /**
@@ -178,6 +181,11 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     private fun activeController(): MediaController? = mediaController?.takeIf { it.isConnected }
+
+    private fun clearPresentationMetadataPatchGuard() {
+        presentationMetadataPatchSongKey = null
+        presentationMetadataPatchUntilMs = 0L
+    }
 
     fun isConnected(): Boolean = mediaController?.isConnected == true
 
@@ -227,11 +235,24 @@ class ExoPlayerManager(private val context: Context) {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Log.d(TIMING_TAG, "controller media transition reason=$reason mediaId=${mediaItem?.mediaId}")
                 externalSnapshotGuard = null
+                clearPresentationMetadataPatchGuard()
                 resetBluetoothMetadataPatchStateForSong(mediaItem?.toSongFromMediaItemExtras())
                 if (pendingShuffleReorder && reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
                     performPendingShuffleReorder(trigger = "transition", seekToNextAfterReorder = false)
                 }
                 updateCurrentSong()
+            }
+
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                if (mediaMetadata.metadataPatchReason() == null) {
+                    clearPresentationMetadataPatchGuard()
+                    return
+                }
+                val song = mediaController?.currentMediaItem?.toSongFromMediaItemExtras()
+                    ?: _currentSong.value
+                presentationMetadataPatchSongKey = song?.playbackStackKey()
+                presentationMetadataPatchUntilMs =
+                    SystemClock.elapsedRealtime() + PRESENTATION_METADATA_DISCONTINUITY_GUARD_MS
             }
 
             override fun onPositionDiscontinuity(
@@ -241,16 +262,27 @@ class ExoPlayerManager(private val context: Context) {
             ) {
                 val currentItem = mediaController?.currentMediaItem
                 val currentSong = _currentSong.value
+                val nowMs = SystemClock.elapsedRealtime()
                 // Replacing MediaMetadata for notification lyrics can surface as an internal
                 // discontinuity with a transient position. It is not a seek and must not reset
                 // the player page's progress or lyric timeline.
-                if (shouldIgnoreMetadataPatchDiscontinuity(
-                        reason = reason,
-                        isMetadataOnlyPatch = currentItem?.isMetadataOnlyPatch() == true,
-                        itemSong = currentItem?.toSongFromMediaItemExtras(),
-                        currentSong = currentSong
-                    )
-                ) {
+                val itemSong = currentItem?.toSongFromMediaItemExtras()
+                val ignorePresentationDiscontinuity = shouldIgnorePresentationMetadataDiscontinuity(
+                    reason = reason,
+                    presentationSongKey = presentationMetadataPatchSongKey,
+                    presentationGuardUntilMs = presentationMetadataPatchUntilMs,
+                    itemSong = itemSong,
+                    currentSong = currentSong,
+                    nowMs = nowMs
+                )
+                val ignoreMarkedDiscontinuity = shouldIgnoreMetadataPatchDiscontinuity(
+                    reason = reason,
+                    isMetadataOnlyPatch = currentItem?.isMetadataOnlyPatch() == true,
+                    itemSong = itemSong,
+                    currentSong = currentSong
+                )
+                clearPresentationMetadataPatchGuard()
+                if (ignorePresentationDiscontinuity || ignoreMarkedDiscontinuity) {
                     return
                 }
                 _currentPosition.value = newPosition.positionMs.coerceAtLeast(0L)

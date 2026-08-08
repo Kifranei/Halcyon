@@ -28,7 +28,9 @@ import com.ella.music.MainActivity
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.PlaylistStore
+import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.model.Song
+import com.ella.music.data.neteaseShareSongUrl
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
@@ -59,6 +61,7 @@ class PlaybackService : MediaLibraryService() {
         const val ACTION_TOGGLE_TRANSLATION =
             "io.github.andrealtb.lockscreenlyrics.action.TOGGLE_TRANSLATION"
         const val ACTION_TOGGLE_FAVORITE = "com.ella.music.action.TOGGLE_FAVORITE"
+        const val ACTION_TOGGLE_DESKTOP_LYRIC = "com.ella.music.action.TOGGLE_DESKTOP_LYRIC"
         const val ACTION_TOGGLE_SHUFFLE = "com.ella.music.action.TOGGLE_SHUFFLE"
         const val ACTION_UPDATE_NOTIFICATION_LYRIC =
             "com.ella.music.action.UPDATE_NOTIFICATION_LYRIC"
@@ -100,6 +103,7 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var notificationProvider: NoArtworkMediaNotificationProvider
     private lateinit var settingsManager: SettingsManager
     private lateinit var musicRepository: MusicRepository
+    private lateinit var desktopLyricBridge: DesktopLyricBridge
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var bluetoothReceiver: BluetoothAutoPlayReceiver? = null
     private var bluetoothReceiverRegistered = false
@@ -116,7 +120,20 @@ class PlaybackService : MediaLibraryService() {
     @Volatile
     internal var appShuffleEnabled = false
     @Volatile
+    internal var mediaNotificationButtonIds: List<String> =
+        SettingsManager.DEFAULT_MEDIA_NOTIFICATION_BUTTON_IDS
+    @Volatile
+    internal var desktopLyricEnabled = false
+    @Volatile
+    internal var desktopLyricLocked = false
+    @Volatile
     private var bluetoothAutoPlayEnabled = false
+
+    internal fun desktopLyricNotificationIcon(): Int = when {
+        desktopLyricEnabled && desktopLyricLocked -> R.drawable.ic_notification_desktop_lyrics_locked
+        desktopLyricEnabled -> R.drawable.ic_notification_desktop_lyrics_enabled
+        else -> R.drawable.ic_notification_desktop_lyrics
+    }
 
     @OptIn(UnstableApi::class)
     override fun onCreate() {
@@ -125,6 +142,16 @@ class PlaybackService : MediaLibraryService() {
         setMediaNotificationProvider(notificationProvider)
         settingsManager = SettingsManager.getInstance(this)
         musicRepository = MusicRepository.getInstance(this)
+        desktopLyricBridge = DesktopLyricBridge(this)
+        mediaNotificationButtonIds = runBlocking(Dispatchers.IO) {
+            settingsManager.mediaNotificationButtonIds.first()
+        }
+        desktopLyricEnabled = runBlocking(Dispatchers.IO) {
+            settingsManager.desktopLyricEnabled.first()
+        }
+        desktopLyricLocked = runBlocking(Dispatchers.IO) {
+            settingsManager.desktopLyricLocked.first()
+        }
         usbAudioController = UsbAudioController.getInstance(this)
         oplusLyricHandler = OPlusLyricHandler(
             settingsManager,
@@ -160,6 +187,24 @@ class PlaybackService : MediaLibraryService() {
                     SettingsManager.PREVIOUS_BUTTON_PREVIOUS,
                     SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT
                 )
+            }
+        }
+        serviceScope.launch {
+            settingsManager.mediaNotificationButtonIds.collect { ids ->
+                mediaNotificationButtonIds = ids
+                updateMediaButtonPreferences()
+                notificationProvider.refresh()
+            }
+        }
+        serviceScope.launch {
+            combine(
+                settingsManager.desktopLyricEnabled,
+                settingsManager.desktopLyricLocked
+            ) { enabled, locked -> enabled to locked }.collect { (enabled, locked) ->
+                desktopLyricEnabled = enabled
+                desktopLyricLocked = locked
+                updateMediaButtonPreferences()
+                notificationProvider.refresh()
             }
         }
         serviceScope.launch {
@@ -404,7 +449,6 @@ class PlaybackService : MediaLibraryService() {
 
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 updateMediaButtonPreferences()
-                oplusLyricHandler.scheduleOplusLyricInfoRefreshBurst(player)
                 PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
             }
 
@@ -421,7 +465,7 @@ class PlaybackService : MediaLibraryService() {
                 )
                 sessionPresentationPlayer?.clearNotificationLyric()
                 updateMediaButtonPreferences()
-                oplusLyricHandler.scheduleOplusLyricInfoRefreshBurst(player)
+                oplusLyricHandler.refreshCurrentOplusLyricInfo(player)
                 publishExternalPlaybackSnapshot(player)
                 PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
             }
@@ -432,7 +476,6 @@ class PlaybackService : MediaLibraryService() {
                     Player.STATE_READY -> {
                         Log.d(TIMING_TAG, "player state READY mediaId=${player.currentMediaItem?.mediaId}")
                         audioEffectController.bind(player.audioSessionId)
-                        oplusLyricHandler.scheduleOplusLyricInfoRefreshBurst(player)
                     }
                     Player.STATE_ENDED -> Log.d(TIMING_TAG, "player state ENDED mediaId=${player.currentMediaItem?.mediaId}")
                 }
@@ -651,6 +694,27 @@ class PlaybackService : MediaLibraryService() {
                 true
             }
 
+            ACTION_TOGGLE_DESKTOP_LYRIC -> {
+                AppLogStore.info(this, TAG, "NotificationAction desktop lyric clicked")
+                serviceScope.launch {
+                    val nextEnabled = !settingsManager.desktopLyricEnabled.first()
+                    val locked = settingsManager.desktopLyricLocked.first()
+                    if (!nextEnabled && locked) {
+                        settingsManager.setDesktopLyricLocked(false)
+                        desktopLyricBridge.unlock()
+                    } else {
+                        settingsManager.setDesktopLyricEnabled(nextEnabled)
+                        desktopLyricBridge.setEnabled(nextEnabled)
+                        if (nextEnabled) {
+                            PlaybackTickerState.current()?.text?.let(desktopLyricBridge::sendLyric)
+                        }
+                    }
+                    updateMediaButtonPreferences()
+                    notificationProvider.refresh()
+                }
+                true
+            }
+
             ACTION_SKIP_PREVIOUS -> {
                 AppLogStore.info(this, TAG, "NotificationAction previous clicked")
                 mediaSession?.player?.seekToPreviousMediaItem()
@@ -716,27 +780,38 @@ class PlaybackService : MediaLibraryService() {
 
         appShuffleEnabled = loadAppShuffleEnabled()
         val playbackModeAction = player.notificationPlaybackModeAction()
+        val selectedButtons = mediaNotificationButtonIds.toSet()
         val buttons = mutableListOf<CommandButton>()
 
         if (player.shouldPublishOplusTranslationAction()) {
             buttons += CommandButton.Builder()
                 .setDisplayName(getString(R.string.settings_status_secondary_translation))
-                .setIconResId(R.drawable.ic_shortcut_lyricist)
+                .setIconResId(R.drawable.ic_translation)
                 .setSessionCommand(SessionCommand(ACTION_TOGGLE_TRANSLATION, Bundle.EMPTY))
                 .build()
         }
 
-        buttons += CommandButton.Builder()
-            .setDisplayName(if (isFavorite) getString(R.string.common_unfavorite) else getString(R.string.common_favorite))
-            .setIconResId(
-                if (isFavorite) {
-                    R.drawable.ic_notification_favorite_filled
-                } else {
-                    R.drawable.ic_notification_favorite
-                }
-            )
-            .setSessionCommand(SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
-            .build()
+        if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC in selectedButtons) {
+            buttons += CommandButton.Builder()
+                .setDisplayName(getString(R.string.notification_action_desktop_lyric))
+                .setIconResId(desktopLyricNotificationIcon())
+                .setSessionCommand(SessionCommand(ACTION_TOGGLE_DESKTOP_LYRIC, Bundle.EMPTY))
+                .build()
+        }
+
+        if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_FAVORITE in selectedButtons) {
+            buttons += CommandButton.Builder()
+                .setDisplayName(if (isFavorite) getString(R.string.common_unfavorite) else getString(R.string.common_favorite))
+                .setIconResId(
+                    if (isFavorite) {
+                        R.drawable.ic_notification_favorite_filled
+                    } else {
+                        R.drawable.ic_notification_favorite
+                    }
+                )
+                .setSessionCommand(SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
+                .build()
+        }
 
         buttons += CommandButton.Builder()
             .setDisplayName(getString(R.string.common_previous))
@@ -762,13 +837,26 @@ class PlaybackService : MediaLibraryService() {
             .setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
             .build()
 
-        buttons += CommandButton.Builder()
-            .setDisplayName(playbackModeAction.title)
-            .setIconResId(playbackModeAction.icon)
-            .setSessionCommand(SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
-            .build()
+        if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE in selectedButtons) {
+            buttons += CommandButton.Builder()
+                .setDisplayName(playbackModeAction.title)
+                .setIconResId(playbackModeAction.icon)
+                .setSessionCommand(SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
+                .build()
+        }
 
         session.setMediaButtonPreferences(ImmutableList.copyOf(buttons))
+    }
+
+    internal fun xiaomiMediaIslandShareParams(song: Song): String? {
+        val tagInfo = musicRepository.getCachedSongTagInfo(song)
+            ?: musicRepository.getSongTagInfo(song)
+        val neteaseUrl = decodeNeteaseKey(tagInfo.neteaseKey)
+            ?.musicId
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::neteaseShareSongUrl)
+            ?: return null
+        return song.toXiaomiMediaIslandShareParams(neteaseUrl)
     }
 
     private fun Player.shouldPublishOplusTranslationAction(): Boolean {

@@ -26,6 +26,7 @@ internal class EllaLibrarySessionCallback(
             .buildUpon()
             .add(SessionCommand(PlaybackService.ACTION_TOGGLE_TRANSLATION, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
+            .add(SessionCommand(PlaybackService.ACTION_TOGGLE_DESKTOP_LYRIC, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC, Bundle.EMPTY))
             .build()

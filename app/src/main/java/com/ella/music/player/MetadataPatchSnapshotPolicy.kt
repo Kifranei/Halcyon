@@ -4,6 +4,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import com.ella.music.data.model.Song
 
+internal const val PRESENTATION_METADATA_DISCONTINUITY_GUARD_MS = 1_000L
+
 internal fun isDisplayOnlyMetadataPatchSnapshot(
     isMetadataOnlyPatch: Boolean,
     snapshotSong: Song?,
@@ -23,6 +25,22 @@ internal fun shouldIgnoreMetadataPatchDiscontinuity(
     reason == Player.DISCONTINUITY_REASON_INTERNAL &&
         isMetadataOnlyPatch &&
         itemSong?.isSamePlaybackIdentity(currentSong) == true
+
+internal fun shouldIgnorePresentationMetadataDiscontinuity(
+    reason: Int,
+    presentationSongKey: String?,
+    presentationGuardUntilMs: Long,
+    itemSong: Song?,
+    currentSong: Song?,
+    nowMs: Long
+): Boolean {
+    if (reason != Player.DISCONTINUITY_REASON_INTERNAL || nowMs >= presentationGuardUntilMs) {
+        return false
+    }
+    val current = currentSong ?: return false
+    if (presentationSongKey != current.playbackStackKey()) return false
+    return itemSong == null || itemSong.isSamePlaybackIdentity(current)
+}
 
 internal fun shouldIgnoreDisplayOnlyTimelineUpdate(
     reason: Int,

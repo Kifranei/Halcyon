@@ -2,6 +2,7 @@ package com.ella.music.player
 
 import android.os.Bundle
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import com.ella.music.data.model.Song
 
 private const val EXTRA_ID = "ella_song_id"
@@ -33,6 +34,7 @@ private const val EXTRA_ONLINE_LYRIC_TRANSLATION = "ella_song_online_lyric_trans
 internal const val EXTRA_METADATA_PATCH_REASON = "com.ella.music.extra.METADATA_PATCH_REASON"
 internal const val PATCH_REASON_NOTIFICATION_ARTWORK = "notification_artwork"
 internal const val PATCH_REASON_BASE_SESSION_METADATA = "base_session_metadata"
+internal const val PATCH_REASON_SESSION_PRESENTATION = "session_presentation"
 
 internal fun Bundle.markMetadataOnlyPatch(reason: String): Bundle = apply {
     putString(EXTRA_METADATA_PATCH_REASON, reason)
@@ -43,7 +45,15 @@ internal fun MediaItem.metadataPatchReason(): String? =
         ?.getString(EXTRA_METADATA_PATCH_REASON)
         ?.takeIf { it.isNotBlank() }
 
+internal fun MediaMetadata.metadataPatchReason(): String? =
+    extras
+        ?.getString(EXTRA_METADATA_PATCH_REASON)
+        ?.takeIf { it.isNotBlank() }
+
 internal fun MediaItem.isMetadataOnlyPatch(): Boolean =
+    metadataPatchReason() != null
+
+internal fun MediaMetadata.isMetadataOnlyPatch(): Boolean =
     metadataPatchReason() != null
 
 internal fun Song.toMediaItemExtras(): Bundle = Bundle().apply {

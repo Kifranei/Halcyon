@@ -1141,10 +1141,10 @@
     <string name="settings_status_bar_phonetic_secondary_summary">Send the pronunciation or translation secondary line as the second line of the status bar lyric.</string>
     <string name="settings_heads_up_lyric_secondary">Heads-up lyric secondary line</string>
     <string name="settings_enable_coloros_lock_screen_lyric">ColorOS Lock Screen Island lyrics</string>
-    <string name="settings_enable_coloros_lock_screen_lyric_summary">Send full LRC lyrics to ColorOS Lock Screen Island through MediaMetadata[&quot;lyricInfo&quot;]. Some system builds may still restrict supported apps.</string>
+    <string name="settings_enable_coloros_lock_screen_lyric_summary">Send full LRC lyrics to ColorOS Lock Screen Island through MediaMetadata[&quot;lyricInfo&quot;]; module rawLyric mode additionally sends word timing and exposes a translation button. Some system builds may still restrict supported apps.</string>
     <string name="settings_coloros_lock_screen_lyric_mode">Lyric delivery mode</string>
-    <string name="settings_coloros_lock_screen_lyric_mode_system">Use system</string>
-    <string name="settings_coloros_lock_screen_lyric_mode_module">Use module</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_system">System lyricInfo</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_module">Module rawLyric</string>
     <string name="settings_enable_bluetooth_lyric">Enable media notification lyrics</string>
     <string name="settings_enable_bluetooth_lyric_summary">Write the current lyric into the media notification title for Bluetooth devices, car head units, or media centers.</string>
     <string name="settings_bluetooth_lyric_translation">Send translation to media notification lyrics</string>
@@ -2128,12 +2128,19 @@
     <string name="player_local_music_video">Local MV</string>
     <string name="player_netease_music_video">NetEase Cloud Music MV</string>
     <string name="spectrum_frequency_unknown">Adaptive</string>
-    <string name="settings_enable_live_update_lyric">Enable Live lyric updates</string>
-    <string name="settings_enable_live_update_lyric_summary">Show the current lyric in an Android 16 Live Updates notification; only one selected lyric line is shown</string>
-    <string name="settings_live_update_lyric_content">Live notification lyric content</string>
+    <string name="settings_enable_live_update_lyric">Show lyrics in Live Activity notifications</string>
+    <string name="settings_enable_live_update_lyric_summary">Show the current lyric in an Android 16 Live Activity notification; choose a word window or the full lyric line and set its subtitle</string>
+    <string name="settings_live_update_lyric_content">Live Activity main lyric</string>
     <string name="settings_live_update_lyric_original">Original</string>
     <string name="settings_live_update_lyric_translation">Translation</string>
     <string name="settings_live_update_lyric_pronunciation">Pronunciation</string>
+    <string name="settings_live_update_lyric_display">Live lyric display</string>
+    <string name="settings_live_update_lyric_display_compact">Current word window</string>
+    <string name="settings_live_update_lyric_display_full">Full lyric line</string>
+    <string name="settings_live_update_lyric_secondary">Live Activity subtitle</string>
+    <string name="settings_live_update_lyric_secondary_song">Song title</string>
+    <string name="settings_live_update_lyric_secondary_translation">Translation</string>
+    <string name="settings_live_update_lyric_secondary_pronunciation">Pronunciation</string>
     <string name="notification_channel_live_lyrics">Live lyrics</string>
     <string name="notification_channel_live_lyrics_description">Android Live Updates notification for the current song lyric</string>
 </resources>

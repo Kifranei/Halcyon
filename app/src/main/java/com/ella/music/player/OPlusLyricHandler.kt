@@ -32,7 +32,6 @@ internal class OPlusLyricHandler(
 
     private var lyricInfoJob: Job? = null
     private var lyricInfoReapplyJob: Job? = null
-    private var lyricInfoRefreshJob: Job? = null
     private var pendingSongKey: String? = null
     private var currentSongKey: String? = null
     private var currentLyricInfoJson: String? = null
@@ -64,7 +63,6 @@ internal class OPlusLyricHandler(
         val deliveryMode = colorOsLockScreenLyricMode
         val songKey = song.oplusLyricCacheKey(deliveryMode)
         if (currentSongKey == songKey) {
-            onLyricInfoChanged(song, currentLyricInfoJson)
             prefetchAdjacentOplusLyricInfo(currentPlayer)
             return
         }
@@ -107,19 +105,6 @@ internal class OPlusLyricHandler(
         }
     }
 
-    fun scheduleOplusLyricInfoRefreshBurst(player: Player? = playerProvider()) {
-        if (!colorOsLockScreenLyricEnabled) {
-            clearCurrentOplusLyricInfo(player)
-            return
-        }
-        refreshCurrentOplusLyricInfo(player)
-        lyricInfoRefreshJob?.cancel()
-        lyricInfoRefreshJob = serviceScope.launch {
-            delay(OPlusLyricPublishPolicy.COMPAT_REAPPLY_DELAY_MS)
-            refreshCurrentOplusLyricInfo()
-        }
-    }
-
     fun clearCurrentOplusLyricInfo(player: Player? = playerProvider()) {
         val song = player?.currentMediaItem?.toSongFromMediaItemExtras()
         clearLyricInfoState()
@@ -145,7 +130,6 @@ internal class OPlusLyricHandler(
     private fun clearLyricInfoState() {
         lyricInfoJob?.cancel()
         lyricInfoReapplyJob?.cancel()
-        lyricInfoRefreshJob?.cancel()
         cancelPrefetchJobs()
         pendingSongKey = null
         currentSongKey = null

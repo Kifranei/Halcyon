@@ -2126,12 +2126,19 @@
     <string name="player_local_music_video">Lokales MV</string>
     <string name="player_netease_music_video">NetEase-MV</string>
     <string name="spectrum_frequency_unknown">Adaptiv</string>
-    <string name="settings_enable_live_update_lyric">Live-Lyrikaktualisierungen aktivieren</string>
-    <string name="settings_enable_live_update_lyric_summary">Aktuelle Liedzeile in einer Android-16-Live-Updates-Benachrichtigung anzeigen; nur eine ausgewählte Zeile wird angezeigt</string>
-    <string name="settings_live_update_lyric_content">Lyrikinhalt der Live-Benachrichtigung</string>
+    <string name="settings_enable_live_update_lyric">Liedtext in Live-Aktivitätsbenachrichtigungen anzeigen</string>
+    <string name="settings_enable_live_update_lyric_summary">Aktuelle Liedzeile in einer Android-16-Live-Aktivitätsbenachrichtigung anzeigen; Wortfenster oder vollständige Zeile und Untertitel auswählen</string>
+    <string name="settings_live_update_lyric_content">Hauptliedtext der Live-Aktivität</string>
     <string name="settings_live_update_lyric_original">Original</string>
     <string name="settings_live_update_lyric_translation">Übersetzung</string>
     <string name="settings_live_update_lyric_pronunciation">Aussprache</string>
+    <string name="settings_live_update_lyric_display">Live-Liedtextanzeige</string>
+    <string name="settings_live_update_lyric_display_compact">Fenster um das aktuelle Wort</string>
+    <string name="settings_live_update_lyric_display_full">Vollständige Liedzeile</string>
+    <string name="settings_live_update_lyric_secondary">Untertitel der Live-Aktivität</string>
+    <string name="settings_live_update_lyric_secondary_song">Titel</string>
+    <string name="settings_live_update_lyric_secondary_translation">Übersetzung</string>
+    <string name="settings_live_update_lyric_secondary_pronunciation">Aussprache</string>
     <string name="notification_channel_live_lyrics">Live-Liedtexte</string>
     <string name="notification_channel_live_lyrics_description">Android-Live-Updates-Benachrichtigung für den Liedtext des aktuellen Titels</string>
 </resources>
