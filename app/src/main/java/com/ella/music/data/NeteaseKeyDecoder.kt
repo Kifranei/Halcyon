@@ -86,6 +86,9 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
 
 fun neteaseSongUrl(id: String): String = "https://y.music.163.com/m/song?id=$id"
 
+/** The short NetEase host is the portable share link accepted by system share surfaces. */
+fun neteaseShareSongUrl(id: String): String = "https://y.163.com/m/song?id=$id"
+
 fun neteaseMvUrl(id: String): String = "https://y.music.163.com/m/mv?id=$id"
 
 fun neteaseAlbumUrl(id: String): String = "https://y.music.163.com/m/album?id=$id"

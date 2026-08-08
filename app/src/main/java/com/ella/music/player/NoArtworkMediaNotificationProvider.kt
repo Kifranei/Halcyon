@@ -24,6 +24,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.ella.music.R
 import com.ella.music.data.PlaylistStore
+import com.ella.music.data.SettingsManager
 import com.google.common.collect.ImmutableList
 
 @OptIn(UnstableApi::class)
@@ -132,6 +133,7 @@ internal class NoArtworkMediaNotificationProvider(
         } == true
         val playbackModeAction = player.playbackModeAction()
         val selectedButtons = service.mediaNotificationButtonIds.toSet()
+
         if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC in selectedButtons) {
             addCustomAction(
                 PlaybackService.ACTION_TOGGLE_DESKTOP_LYRIC,
@@ -174,12 +176,14 @@ internal class NoArtworkMediaNotificationProvider(
             compact = true
         )
 
-        addCustomAction(
-            PlaybackService.ACTION_TOGGLE_SHUFFLE,
-            playbackModeAction.icon,
-            playbackModeAction.title,
-            compact = false
-        )
+        if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE in selectedButtons) {
+            addCustomAction(
+                PlaybackService.ACTION_TOGGLE_SHUFFLE,
+                playbackModeAction.icon,
+                playbackModeAction.title,
+                compact = false
+            )
+        }
 
         val style = MediaStyleNotificationHelper.MediaStyle(mediaSession)
             .setShowActionsInCompactView(*compactIndices.toIntArray())
@@ -188,6 +192,11 @@ internal class NoArtworkMediaNotificationProvider(
             builder.foregroundServiceBehavior = NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE
         }
         val notification = builder.build()
+        currentSong?.let { song ->
+            service.xiaomiMediaIslandShareParams(song)?.let { shareParams ->
+                notification.extras.putString("miui.focus.param.media", shareParams)
+            }
+        }
         Log.d(PlaybackService.TIMING_TAG, "notification update mediaId=${player.currentMediaItem?.mediaId}")
         if (tickerPayload != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {

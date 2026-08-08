@@ -33,6 +33,14 @@ class NeteaseKeyMvTest {
     }
 
     @Test
+    fun buildsShortNeteaseShareSongUrl() {
+        assertEquals(
+            "https://y.163.com/m/song?id=123456",
+            neteaseShareSongUrl("123456")
+        )
+    }
+
+    @Test
     fun mvIdCountsAsDecodedContent() {
         assertTrue(
             NeteaseKeyInfo(

@@ -51,21 +51,21 @@ private fun Uri.toHalcyonRoute(): String? {
         "settings" -> Screen.Settings.createRoute()
         "scan_settings" -> Screen.ScanSettings.createRoute()
         "library" -> Screen.Library.route
-        "folder" -> path.firstOrNull()
-            ?.takeIf { it.isNotBlank() }
+        "folder" -> path.joinToString("/")
+            .takeIf { it.isNotBlank() }
             ?.let { Screen.FolderDetail.createRoute(it) }
             ?: Screen.Folder.createRoute()
         "album" -> Screen.Album.createRoute()
-        "artist" -> path.firstOrNull()
-            ?.takeIf { it.isNotBlank() }
+        "artist" -> path.joinToString("/")
+            .takeIf { it.isNotBlank() }
             ?.let { Screen.ArtistDetail.createRoute(it) }
             ?: Screen.Artist.createRoute()
-        "playlist" -> path.firstOrNull()
-            ?.takeIf { it.isNotBlank() }
+        "playlist" -> path.joinToString("/")
+            .takeIf { it.isNotBlank() }
             ?.let { Screen.PlaylistDetail.createRoute(it) }
             ?: Screen.Playlists.createRoute()
-        "folder_playlists" -> path.firstOrNull()
-            ?.takeIf { it.isNotBlank() }
+        "folder_playlists" -> path.joinToString("/")
+            .takeIf { it.isNotBlank() }
             ?.let { Screen.FolderPlaylistDetail.createRoute(it) }
             ?: Screen.FolderPlaylists.route
         "category" -> {
