@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -115,11 +116,45 @@ class WebMusicService : Service() {
                     get("/api/cover/{id}") {
                         val song = repository.findSong(call.parameters["id"])
                             ?: return@get call.respondText("Not found", status = HttpStatusCode.NotFound)
-                        val uri = repository.getAlbumArtUri(song.albumId)
+                        val bytes = withContext(Dispatchers.IO) {
+                            runCatching { repository.getCoverArt(song) }
+                                .getOrNull()
+                                ?.takeIf { it.isNotEmpty() }
+                                ?: readMediaStoreAlbumArt(song.albumId)?.takeIf { it.isNotEmpty() }
+                        }
                             ?: return@get call.respondText("Not found", status = HttpStatusCode.NotFound)
-                        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        call.respondBytes(bytes, detectImageContentType(bytes))
+                    }
+                    get("/api/lyrics/{id}") {
+                        val song = repository.findSong(call.parameters["id"])
                             ?: return@get call.respondText("Not found", status = HttpStatusCode.NotFound)
-                        call.respondBytes(bytes, ContentType.Image.Any)
+                        val lyrics = repository.getLyrics(song)
+                        call.respondText(
+                            buildJsonArray {
+                                lyrics.forEach { line ->
+                                    add(buildJsonObject {
+                                        put("timeMs", line.timeMs)
+                                        put("endMs", line.endMs ?: -1L)
+                                        put("text", line.text)
+                                        line.translation?.takeIf { it.isNotBlank() }?.let { put("translation", it) }
+                                        line.pronunciation?.takeIf { it.isNotBlank() }?.let { put("pronunciation", it) }
+                                        line.backgroundText?.takeIf { it.isNotBlank() }?.let { put("backgroundText", it) }
+                                        line.backgroundTranslation?.takeIf { it.isNotBlank() }
+                                            ?.let { put("backgroundTranslation", it) }
+                                        put("words", buildJsonArray {
+                                            line.words.forEach { word ->
+                                                add(buildJsonObject {
+                                                    put("text", word.text)
+                                                    put("startMs", word.startMs)
+                                                    put("endMs", word.endMs)
+                                                })
+                                            }
+                                        })
+                                    })
+                                }
+                            }.toString(),
+                            ContentType.Application.Json
+                        )
                     }
                     get("/api/stream/{id}") {
                         val song = repository.findSong(call.parameters["id"])
@@ -174,6 +209,25 @@ class WebMusicService : Service() {
     private fun MusicRepository.findSong(rawId: String?): Song? {
         val id = rawId?.toLongOrNull() ?: return null
         return songs.value.firstOrNull { it.id == id && it.onlineSource.isBlank() }
+    }
+
+    private fun readMediaStoreAlbumArt(albumId: Long): ByteArray? {
+        if (albumId <= 0L) return null
+        val uri = Uri.parse("content://media/external/audio/albumart/$albumId")
+        return runCatching {
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull()
+    }
+
+    private fun detectImageContentType(bytes: ByteArray): ContentType = when {
+        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> ContentType.Image.JPEG
+        bytes.size >= 8 && bytes.copyOfRange(0, 8).contentEquals(
+            byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        ) -> ContentType.Image.PNG
+        bytes.size >= 6 && String(bytes, 0, 6, Charsets.US_ASCII) in setOf("GIF87a", "GIF89a") -> ContentType.Image.GIF
+        bytes.size >= 12 && String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+            String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> ContentType.parse("image/webp")
+        else -> ContentType.Image.Any
     }
 
     private fun saveUpload(

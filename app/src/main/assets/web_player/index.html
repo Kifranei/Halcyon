@@ -5,49 +5,852 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Halcyon Web Beta</title>
   <style>
-    :root{color-scheme:dark;--bg:#0d0d12;--card:#1a1a22;--text:#f7f7fb;--muted:#a4a4b2;--accent:#4d8dff}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#24345c 0,transparent 35%),var(--bg);font:15px system-ui;color:var(--text)}
-    header{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;padding:18px 5vw;background:#0d0d12e8;backdrop-filter:blur(18px)}
-    h1{font-size:20px;margin:0;white-space:nowrap}.beta{font-size:11px;padding:3px 7px;border-radius:99px;background:var(--accent)}
-    input[type=search]{min-width:0;flex:1;background:var(--card);color:inherit;border:0;border-radius:14px;padding:12px 15px}
-    button,.upload{border:0;border-radius:14px;background:var(--accent);color:white;padding:11px 15px;font-weight:650;cursor:pointer}
-    main{padding:10px 5vw 130px}.notice{color:var(--muted);margin:3px 0 16px}.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:9px}
-    .song{display:flex;gap:12px;align-items:center;padding:10px;background:#1a1a22cc;border-radius:16px;cursor:pointer}.song:hover{background:#292936}
-    .song img{width:54px;height:54px;border-radius:11px;object-fit:cover;background:#30303b}.meta{min-width:0}.title,.artist{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.title{font-weight:700}.artist{color:var(--muted);margin-top:4px}
-    .player{position:fixed;z-index:3;left:3vw;right:3vw;bottom:14px;display:flex;align-items:center;gap:13px;padding:12px 15px;border:1px solid #ffffff18;border-radius:22px;background:#181820e8;backdrop-filter:blur(24px)}
-    .player img{width:60px;height:60px;border-radius:13px;object-fit:cover}.player .meta{width:min(260px,30vw)}audio{flex:1;min-width:120px}
-    #file{display:none}@media(max-width:650px){header{flex-wrap:wrap}h1{width:100%}.player{flex-wrap:wrap}.player .meta{width:calc(100% - 78px)}audio{width:100%}}
+    :root {
+      color-scheme: dark;
+      --bg: #090a10;
+      --surface: rgba(24, 26, 37, .78);
+      --surface-strong: rgba(29, 31, 44, .94);
+      --line: rgba(255, 255, 255, .1);
+      --text: #f7f7fb;
+      --muted: #a9acba;
+      --accent: #b8a7ff;
+      --accent-strong: #8f7cff;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .38);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      z-index: -2;
+      inset: 0;
+      background:
+        radial-gradient(circle at 15% -10%, rgba(80, 95, 181, .38), transparent 37%),
+        radial-gradient(circle at 95% 35%, rgba(119, 66, 157, .2), transparent 33%),
+        var(--bg);
+    }
+    body.player-open { overflow: hidden; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, .song:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    .ambient {
+      position: fixed;
+      z-index: -1;
+      inset: -12%;
+      opacity: 0;
+      background-position: center;
+      background-size: cover;
+      filter: blur(72px) saturate(1.25);
+      transform: scale(1.12);
+      transition: opacity .8s ease, background-image .8s ease;
+      pointer-events: none;
+    }
+    .ambient::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(7, 8, 14, .72);
+    }
+    body.has-song .ambient { opacity: .72; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 18px max(5vw, 24px);
+      background: rgba(9, 10, 16, .82);
+      border-bottom: 1px solid rgba(255, 255, 255, .06);
+      backdrop-filter: blur(24px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      white-space: nowrap;
+    }
+    .beta {
+      padding: 3px 7px;
+      border-radius: 99px;
+      background: var(--accent-strong);
+      color: #fff;
+      font-size: 10px;
+      letter-spacing: .04em;
+    }
+    .search {
+      min-width: 0;
+      flex: 1;
+      border: 1px solid transparent;
+      border-radius: 15px;
+      padding: 12px 15px;
+      background: rgba(31, 32, 44, .9);
+      color: inherit;
+    }
+    .search::placeholder { color: #8c8e9d; }
+    .search:focus { border-color: rgba(184, 167, 255, .55); }
+    .button, .upload {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 42px;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      padding: 10px 15px;
+      background: var(--accent-strong);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .2s ease, filter .2s ease, background .2s ease;
+    }
+    .button:hover, .upload:hover { filter: brightness(1.12); transform: translateY(-1px); }
+    .button.ghost, .icon-button {
+      background: rgba(255, 255, 255, .08);
+      border-color: var(--line);
+    }
+    .icon-button {
+      width: 42px;
+      padding: 0;
+      font-size: 20px;
+    }
+    #file { display: none; }
+
+    main {
+      width: min(1440px, 90vw);
+      margin: 0 auto;
+      padding: 16px 0 130px;
+    }
+    .notice {
+      min-height: 23px;
+      margin: 0 0 16px;
+      color: var(--muted);
+    }
+    .list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
+      gap: 10px;
+    }
+    .song {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 13px;
+      padding: 10px;
+      border: 1px solid transparent;
+      border-radius: 17px;
+      background: rgba(27, 29, 41, .76);
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .song:hover, .song.is-current {
+      border-color: rgba(184, 167, 255, .28);
+      background: rgba(50, 48, 69, .9);
+      transform: translateY(-1px);
+    }
+    .song img, .mini-cover {
+      flex: 0 0 auto;
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      object-fit: cover;
+      background: #2b2d39;
+    }
+    .song .meta { min-width: 0; }
+    .title, .artist, .album {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .title { font-weight: 750; }
+    .artist, .album { color: var(--muted); }
+    .artist { margin-top: 3px; }
+
+    .mini-player {
+      position: fixed;
+      z-index: 4;
+      right: max(3vw, 18px);
+      bottom: 16px;
+      left: max(3vw, 18px);
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 11px 14px;
+      border: 1px solid var(--line);
+      border-radius: 23px;
+      background: rgba(24, 25, 35, .9);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(25px);
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    body.player-open .mini-player {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(16px);
+    }
+    .mini-cover { width: 62px; height: 62px; }
+    .mini-meta {
+      width: min(280px, 32vw);
+      min-width: 0;
+      cursor: pointer;
+    }
+    .mini-meta .artist { font-size: 13px; }
+    .play-button {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 50%;
+      background: var(--accent-strong);
+      color: #fff;
+      font-size: 17px;
+      cursor: pointer;
+    }
+    .mini-timeline {
+      position: relative;
+      min-width: 80px;
+      height: 4px;
+      flex: 1;
+      overflow: hidden;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, .15);
+      cursor: pointer;
+    }
+    .mini-progress {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0;
+      border-radius: inherit;
+      background: var(--accent);
+    }
+    .mini-time {
+      min-width: 70px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      text-align: right;
+    }
+
+    /* The layout below is a small standalone port of Beautiful Lyrics' Page view.
+       The original release bundle is Spotify/Spicetify-coupled, so the page keeps
+       its centered artwork, dynamic background and masked lyric viewport while
+       using Halcyon's local audio and lyric endpoints. */
+    .player-page {
+      position: fixed;
+      z-index: 5;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: auto;
+      padding: 18px max(5vw, 24px) 32px;
+      background: rgba(8, 9, 15, .72);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(14px);
+      transition: opacity .3s ease, transform .3s ease;
+      backdrop-filter: blur(24px);
+    }
+    .player-page.is-open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
+    }
+    .player-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: min(1440px, 90vw);
+      margin: 0 auto;
+    }
+    .player-heading {
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .player-heading strong {
+      display: block;
+      margin-top: 2px;
+      color: var(--text);
+      font-size: 16px;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .player-body {
+      display: grid;
+      grid-template-columns: minmax(280px, .86fr) minmax(340px, 1.14fr);
+      align-items: center;
+      gap: clamp(40px, 8vw, 125px);
+      width: min(1240px, 86vw);
+      min-height: 0;
+      margin: 0 auto;
+      padding: 28px 0 16px;
+    }
+    .visual-column { min-width: 0; }
+    .page-cover {
+      width: min(40vw, 480px);
+      max-width: 100%;
+      aspect-ratio: 1;
+      display: block;
+      margin: 0 auto;
+      border-radius: 24px;
+      object-fit: cover;
+      background: #252733;
+      box-shadow: 0 35px 90px rgba(0, 0, 0, .52);
+    }
+    .page-meta {
+      width: min(480px, 100%);
+      margin: 24px auto 0;
+    }
+    .page-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: clamp(21px, 3vw, 31px);
+      font-weight: 800;
+      letter-spacing: -.025em;
+    }
+    .page-artist { margin-top: 5px; color: var(--muted); font-size: 16px; }
+    .page-album { margin-top: 2px; color: #858897; font-size: 13px; }
+    .page-controls {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .page-controls .play-button { width: 52px; height: 52px; }
+    .page-seek {
+      width: 100%;
+      margin-top: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .page-time {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .lyrics-column {
+      display: flex;
+      min-width: 0;
+      min-height: 0;
+      flex-direction: column;
+      height: min(70vh, 680px);
+    }
+    .lyrics-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 0 10px 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, .1);
+    }
+    .lyrics-header strong { font-size: 18px; }
+    .lyrics-header span { color: var(--muted); font-size: 12px; }
+    .lyrics-viewport {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, .2) transparent;
+      mask-image: linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+    }
+    .lyrics-list { padding: 25vh 10px; }
+    .lyric-line {
+      margin: 0;
+      padding: 8px 0;
+      color: rgba(247, 247, 251, .42);
+      font-size: clamp(19px, 2.2vw, 29px);
+      font-weight: 700;
+      letter-spacing: -.02em;
+      line-height: 1.3;
+      opacity: .72;
+      transform-origin: left center;
+      transition: color .35s ease, opacity .35s ease, transform .35s ease;
+    }
+    .lyric-line.is-active {
+      color: var(--text);
+      opacity: 1;
+      transform: scale(1.04);
+    }
+    .lyric-line.is-background { font-size: clamp(16px, 1.8vw, 22px); font-weight: 600; }
+    .lyric-main, .lyric-secondary, .lyric-pronunciation { display: block; }
+    .lyric-secondary { margin-top: 4px; color: #b8b9c6; font-size: .57em; font-weight: 500; }
+    .lyric-pronunciation { margin-top: 3px; color: #9092a3; font-size: .5em; font-weight: 500; }
+    .lyrics-empty {
+      padding: 24vh 10px;
+      color: var(--muted);
+      font-size: 17px;
+      text-align: center;
+    }
+
+    @media (max-width: 800px) {
+      .topbar { flex-wrap: wrap; }
+      .brand { width: 100%; }
+      .player-body {
+        grid-template-columns: 1fr;
+        gap: 30px;
+        width: min(620px, 90vw);
+      }
+      .page-cover { width: min(64vw, 360px); }
+      .lyrics-column { height: 52vh; }
+      .player-page { padding-bottom: 28px; }
+    }
+    @media (max-width: 560px) {
+      main { width: calc(100vw - 30px); }
+      .topbar { padding: 15px; }
+      .list { grid-template-columns: 1fr; }
+      .mini-player { flex-wrap: wrap; right: 12px; left: 12px; bottom: 12px; }
+      .mini-meta { width: calc(100% - 86px); }
+      .mini-timeline { order: 4; flex-basis: calc(100% - 80px); }
+      .player-page { padding: 14px 15px 24px; }
+      .player-topbar, .player-body { width: 100%; }
+      .player-body { gap: 24px; padding-top: 20px; }
+      .page-cover { width: min(72vw, 310px); border-radius: 18px; }
+      .page-meta { margin-top: 17px; }
+      .lyrics-column { height: 46vh; }
+      .lyric-line { font-size: 21px; }
+    }
   </style>
 </head>
 <body>
-<header>
-  <h1>Halcyon Web <span class="beta">BETA</span></h1>
-  <input id="search" type="search" placeholder="搜索歌曲、艺术家或专辑">
-  <label class="upload" for="file">上传音乐</label><input id="file" type="file" accept="audio/*,.flac,.wav,.m4a,.ogg,.opus" multiple>
+<div class="ambient" id="ambient" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">Halcyon Web <span class="beta">BETA</span></div>
+  <input id="search" class="search" type="search" placeholder="搜索歌曲、艺术家或专辑" autocomplete="off">
+  <button id="refresh" class="button ghost" type="button" aria-label="刷新曲库">刷新</button>
+  <label class="upload" for="file">上传音乐</label>
+  <input id="file" type="file" accept="audio/*,.flac,.wav,.m4a,.ogg,.opus" multiple>
 </header>
-<main><p class="notice" id="status">仅限可信局域网使用；Beta 版暂不提供访问密码。</p><div id="list" class="list"></div></main>
-<section class="player">
-  <img id="cover" alt=""><div class="meta"><div id="title" class="title">选择一首歌曲</div><div id="artist" class="artist">Halcyon</div></div>
-  <audio id="audio" controls preload="metadata"></audio>
+
+<main id="libraryView">
+  <p class="notice" id="status">仅限可信局域网使用；Beta 版暂不提供访问密码。</p>
+  <div id="list" class="list"></div>
+</main>
+
+<section id="playerPage" class="player-page" aria-hidden="true">
+  <div class="player-topbar">
+    <button id="backButton" class="button ghost icon-button" type="button" aria-label="返回曲库">‹</button>
+    <div class="player-heading">Beautiful Lyrics <strong>播放页</strong></div>
+    <button id="pageRefresh" class="button ghost icon-button" type="button" aria-label="重新加载歌词">↻</button>
+  </div>
+  <div class="player-body">
+    <div class="visual-column">
+      <img id="pageCover" class="page-cover" alt="歌曲封面">
+      <div class="page-meta">
+        <div id="pageTitle" class="page-title">选择一首歌曲</div>
+        <div id="pageArtist" class="page-artist">Halcyon</div>
+        <div id="pageAlbum" class="page-album"></div>
+        <div class="page-controls">
+          <button id="previousButton" class="button ghost icon-button" type="button" aria-label="上一首">‹‹</button>
+          <button id="pagePlay" class="play-button" type="button" aria-label="播放">▶</button>
+          <button id="nextButton" class="button ghost icon-button" type="button" aria-label="下一首">››</button>
+        </div>
+        <input id="pageSeek" class="page-seek" type="range" min="0" max="1000" value="0" aria-label="播放进度">
+        <div class="page-time"><span id="pageCurrentTime">0:00</span><span id="pageDuration">0:00</span></div>
+      </div>
+    </div>
+    <div class="lyrics-column">
+      <div class="lyrics-header"><strong>歌词</strong><span id="lyricsHint">同步歌词</span></div>
+      <div id="lyricsViewport" class="lyrics-viewport">
+        <div id="lyricsList" class="lyrics-list"><div class="lyrics-empty">选择歌曲后加载歌词</div></div>
+      </div>
+    </div>
+  </div>
 </section>
+
+<section id="miniPlayer" class="mini-player" aria-label="迷你播放器">
+  <img id="miniCover" class="mini-cover" alt="歌曲封面">
+  <div id="miniMeta" class="mini-meta">
+    <div id="miniTitle" class="title">选择一首歌曲</div>
+    <div id="miniArtist" class="artist">Halcyon</div>
+  </div>
+  <button id="miniPlay" class="play-button" type="button" aria-label="播放">▶</button>
+  <div id="miniTimeline" class="mini-timeline" role="slider" aria-label="播放进度" tabindex="0"><span id="miniProgress" class="mini-progress"></span></div>
+  <div id="miniTime" class="mini-time">0:00 / 0:00</div>
+</section>
+
+<audio id="audio" preload="metadata"></audio>
+
 <script>
-const list=document.querySelector('#list'),q=document.querySelector('#search'),audio=document.querySelector('#audio');
-const status=document.querySelector('#status'),title=document.querySelector('#title'),artist=document.querySelector('#artist'),cover=document.querySelector('#cover');
-let timer;
-function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
-async function load(){
-  status.textContent='正在读取曲库…';
-  const songs=await fetch('/api/songs?q='+encodeURIComponent(q.value)).then(r=>r.json());
-  status.textContent=`找到 ${songs.length} 首歌曲 · 仅限可信局域网使用`;
-  list.innerHTML=songs.map((s,i)=>`<article class="song" data-i="${i}"><img loading="lazy" src="${s.cover}"><div class="meta"><div class="title">${esc(s.title)}</div><div class="artist">${esc(s.artist)} · ${esc(s.album)}</div></div></article>`).join('');
-  list.onclick=e=>{const row=e.target.closest('.song');if(!row)return;const s=songs[+row.dataset.i];title.textContent=s.title;artist.textContent=s.artist;cover.src=s.cover;audio.src=s.stream;audio.play()}
+const list = document.querySelector('#list');
+const search = document.querySelector('#search');
+const refresh = document.querySelector('#refresh');
+const fileInput = document.querySelector('#file');
+const status = document.querySelector('#status');
+const audio = document.querySelector('#audio');
+const ambient = document.querySelector('#ambient');
+const miniPlayer = document.querySelector('#miniPlayer');
+const miniCover = document.querySelector('#miniCover');
+const miniMeta = document.querySelector('#miniMeta');
+const miniTitle = document.querySelector('#miniTitle');
+const miniArtist = document.querySelector('#miniArtist');
+const miniPlay = document.querySelector('#miniPlay');
+const miniTimeline = document.querySelector('#miniTimeline');
+const miniProgress = document.querySelector('#miniProgress');
+const miniTime = document.querySelector('#miniTime');
+const playerPage = document.querySelector('#playerPage');
+const backButton = document.querySelector('#backButton');
+const pageRefresh = document.querySelector('#pageRefresh');
+const pageCover = document.querySelector('#pageCover');
+const pageTitle = document.querySelector('#pageTitle');
+const pageArtist = document.querySelector('#pageArtist');
+const pageAlbum = document.querySelector('#pageAlbum');
+const pagePlay = document.querySelector('#pagePlay');
+const previousButton = document.querySelector('#previousButton');
+const nextButton = document.querySelector('#nextButton');
+const pageSeek = document.querySelector('#pageSeek');
+const pageCurrentTime = document.querySelector('#pageCurrentTime');
+const pageDuration = document.querySelector('#pageDuration');
+const lyricsHint = document.querySelector('#lyricsHint');
+const lyricsViewport = document.querySelector('#lyricsViewport');
+const lyricsList = document.querySelector('#lyricsList');
+
+const PLACEHOLDER = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" fill="#292b38"/><circle cx="80" cy="70" r="32" fill="#52566b"/><path d="M50 118c8-24 52-24 60 0" fill="#52566b"/><circle cx="80" cy="70" r="13" fill="#292b38"/></svg>'
+);
+
+let songs = [];
+let currentSong = null;
+let currentIndex = -1;
+let lyrics = [];
+let activeLyricIndex = -1;
+let lyricRequestId = 0;
+let searchTimer;
+
+function escapeHtml(value) {
+  const element = document.createElement('span');
+  element.textContent = value == null ? '' : String(value);
+  return element.innerHTML;
 }
-q.oninput=()=>{clearTimeout(timer);timer=setTimeout(load,220)};
-document.querySelector('#file').onchange=async e=>{
-  for(const file of e.target.files){status.textContent=`正在上传 ${file.name}…`;const r=await fetch('/api/upload?name='+encodeURIComponent(file.name),{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});if(!r.ok){status.textContent=`上传失败：${file.name}`;return}}
-  status.textContent='上传完成；系统媒体库更新后即可在 Halcyon 中扫描到。';e.target.value=''
-};
-load().catch(e=>status.textContent='无法读取曲库：'+e.message);
+
+function setImage(image, source) {
+  image.onerror = () => {
+    image.onerror = null;
+    image.src = PLACEHOLDER;
+    image.classList.add('is-fallback');
+  };
+  image.classList.remove('is-fallback');
+  image.src = source || PLACEHOLDER;
+}
+
+function formatTime(milliseconds) {
+  const totalSeconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function setStatus(message) { status.textContent = message; }
+
+function renderSongList() {
+  list.innerHTML = songs.map((song, index) => `
+    <article class="song${currentSong && currentSong.id === song.id ? ' is-current' : ''}" data-index="${index}" tabindex="0" role="button" aria-label="播放 ${escapeHtml(song.title)}">
+      <img loading="lazy" src="${escapeHtml(song.cover)}" alt="">
+      <div class="meta">
+        <div class="title">${escapeHtml(song.title)}</div>
+        <div class="artist">${escapeHtml(song.artist)} · ${escapeHtml(song.album)}</div>
+      </div>
+    </article>
+  `).join('');
+  list.querySelectorAll('img').forEach(image => {
+    image.onerror = () => {
+      image.onerror = null;
+      image.src = PLACEHOLDER;
+      image.classList.add('is-fallback');
+    };
+  });
+}
+
+async function loadSongs() {
+  setStatus('正在读取曲库…');
+  try {
+    const response = await fetch('/api/songs?q=' + encodeURIComponent(search.value));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    songs = await response.json();
+    renderSongList();
+    setStatus(`找到 ${songs.length} 首歌曲 · 仅限可信局域网使用`);
+  } catch (error) {
+    setStatus('无法读取曲库：' + error.message);
+  }
+}
+
+function showPlayerPage(open) {
+  playerPage.classList.toggle('is-open', open);
+  playerPage.setAttribute('aria-hidden', String(!open));
+  document.body.classList.toggle('player-open', open);
+}
+
+function updateSongMeta() {
+  const title = currentSong?.title || '选择一首歌曲';
+  const artist = currentSong?.artist || 'Halcyon';
+  miniTitle.textContent = title;
+  miniArtist.textContent = artist;
+  pageTitle.textContent = title;
+  pageArtist.textContent = artist;
+  pageAlbum.textContent = currentSong?.album || '';
+  document.title = currentSong ? `${title} · Halcyon` : 'Halcyon Web Beta';
+}
+
+function centerLyric(element, behavior = 'smooth') {
+  if (!element) return;
+  const viewportRect = lyricsViewport.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  const targetTop = lyricsViewport.scrollTop + elementRect.top - viewportRect.top -
+    (lyricsViewport.clientHeight - elementRect.height) / 2;
+  const maximum = Math.max(0, lyricsViewport.scrollHeight - lyricsViewport.clientHeight);
+  lyricsViewport.scrollTo({ top: Math.min(maximum, Math.max(0, targetTop)), behavior });
+}
+
+function updateActiveLyric(forceScroll = false) {
+  if (!lyrics.length) return;
+  const elapsed = (audio.currentTime || 0) * 1000;
+  let nextIndex = -1;
+  for (let index = 0; index < lyrics.length; index += 1) {
+    if (Number(lyrics[index].timeMs) <= elapsed) nextIndex = index;
+    else break;
+  }
+  if (nextIndex === activeLyricIndex && !forceScroll) return;
+  const oldElement = lyricsList.querySelector('.lyric-line.is-active');
+  oldElement?.classList.remove('is-active');
+  activeLyricIndex = nextIndex;
+  if (activeLyricIndex < 0) return;
+  const activeElement = lyricsList.querySelector(`[data-index="${activeLyricIndex}"]`);
+  activeElement?.classList.add('is-active');
+  centerLyric(activeElement, forceScroll ? 'auto' : 'smooth');
+}
+
+function renderLyrics(lines) {
+  lyrics = Array.isArray(lines) ? lines.filter(line => line && (line.text || line.backgroundText)) : [];
+  activeLyricIndex = -1;
+  lyricsList.replaceChildren();
+  if (!lyrics.length) {
+    const empty = document.createElement('div');
+    empty.className = 'lyrics-empty';
+    empty.textContent = '这首歌没有可用的同步歌词';
+    lyricsList.append(empty);
+    lyricsHint.textContent = '暂无歌词';
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  lyrics.forEach((line, index) => {
+    const row = document.createElement('div');
+    row.className = 'lyric-line' + (!line.text && line.backgroundText ? ' is-background' : '');
+    row.dataset.index = String(index);
+    const main = document.createElement('span');
+    main.className = 'lyric-main';
+    main.textContent = line.text || line.backgroundText || '♪';
+    row.append(main);
+    if (line.text && line.backgroundText) {
+      const background = document.createElement('span');
+      background.className = 'lyric-secondary';
+      background.textContent = line.backgroundText;
+      row.append(background);
+    }
+    if (line.translation) {
+      const translation = document.createElement('span');
+      translation.className = 'lyric-secondary';
+      translation.textContent = line.translation;
+      row.append(translation);
+    }
+    if (line.pronunciation) {
+      const pronunciation = document.createElement('span');
+      pronunciation.className = 'lyric-pronunciation';
+      pronunciation.textContent = line.pronunciation;
+      row.append(pronunciation);
+    }
+    fragment.append(row);
+  });
+  lyricsList.append(fragment);
+  lyricsHint.textContent = '同步歌词';
+  updateActiveLyric(true);
+}
+
+async function loadLyrics(song) {
+  const requestId = ++lyricRequestId;
+  lyricsHint.textContent = '正在加载';
+  lyricsList.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'lyrics-empty';
+  loading.textContent = '正在加载歌词…';
+  lyricsList.append(loading);
+  try {
+    const response = await fetch(`/api/lyrics/${encodeURIComponent(song.id)}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const loaded = await response.json();
+    if (requestId !== lyricRequestId || currentSong?.id !== song.id) return;
+    renderLyrics(loaded);
+  } catch (error) {
+    if (requestId !== lyricRequestId || currentSong?.id !== song.id) return;
+    lyrics = [];
+    lyricsHint.textContent = '歌词不可用';
+    lyricsList.replaceChildren();
+    const failed = document.createElement('div');
+    failed.className = 'lyrics-empty';
+    failed.textContent = '歌词加载失败：' + error.message;
+    lyricsList.append(failed);
+  }
+}
+
+async function selectSong(song, index) {
+  currentSong = song;
+  currentIndex = index;
+  updateSongMeta();
+  setImage(miniCover, song.cover);
+  setImage(pageCover, song.cover);
+  ambient.style.backgroundImage = `url("${song.cover}")`;
+  document.body.classList.add('has-song');
+  renderSongList();
+  showPlayerPage(true);
+  audio.src = song.stream;
+  audio.load();
+  loadLyrics(song);
+  try {
+    await audio.play();
+  } catch (_) {
+    updatePlaybackUi();
+  }
+}
+
+function updatePlaybackUi() {
+  const playing = !audio.paused && Boolean(audio.src);
+  const icon = playing ? 'Ⅱ' : '▶';
+  miniPlay.textContent = icon;
+  pagePlay.textContent = icon;
+  miniPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
+  pagePlay.setAttribute('aria-label', playing ? '暂停' : '播放');
+  const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+  const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  const ratio = duration > 0 ? Math.min(1, Math.max(0, current / duration)) : 0;
+  pageSeek.value = String(Math.round(ratio * 1000));
+  miniProgress.style.width = `${ratio * 100}%`;
+  const currentText = formatTime(current * 1000);
+  const durationText = formatTime(duration * 1000);
+  pageCurrentTime.textContent = currentText;
+  pageDuration.textContent = durationText;
+  miniTime.textContent = `${currentText} / ${durationText}`;
+}
+
+function togglePlayback() {
+  if (!currentSong) return;
+  if (audio.paused) audio.play().catch(() => updatePlaybackUi());
+  else audio.pause();
+}
+
+function seekTo(clientX) {
+  if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+  const rect = miniTimeline.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  audio.currentTime = ratio * audio.duration;
+  updatePlaybackUi();
+  updateActiveLyric(true);
+}
+
+function playRelative(offset) {
+  if (!songs.length) return;
+  const nextIndex = (currentIndex + offset + songs.length) % songs.length;
+  selectSong(songs[nextIndex], nextIndex);
+}
+
+list.addEventListener('click', event => {
+  const row = event.target.closest('.song');
+  if (!row) return;
+  const index = Number(row.dataset.index);
+  if (songs[index]) selectSong(songs[index], index);
+});
+list.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const row = event.target.closest('.song');
+  if (!row) return;
+  event.preventDefault();
+  const index = Number(row.dataset.index);
+  if (songs[index]) selectSong(songs[index], index);
+});
+search.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(loadSongs, 220);
+});
+refresh.addEventListener('click', loadSongs);
+backButton.addEventListener('click', () => showPlayerPage(false));
+pageRefresh.addEventListener('click', () => currentSong && loadLyrics(currentSong));
+miniPlay.addEventListener('click', event => { event.stopPropagation(); togglePlayback(); });
+pagePlay.addEventListener('click', togglePlayback);
+previousButton.addEventListener('click', () => playRelative(-1));
+nextButton.addEventListener('click', () => playRelative(1));
+miniMeta.addEventListener('click', () => currentSong && showPlayerPage(true));
+miniCover.addEventListener('click', () => currentSong && showPlayerPage(true));
+miniTimeline.addEventListener('click', event => seekTo(event.clientX));
+miniTimeline.addEventListener('keydown', event => {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault();
+    audio.currentTime = Math.max(0, (audio.currentTime || 0) + (event.key === 'ArrowLeft' ? -5 : 5));
+    updatePlaybackUi();
+    updateActiveLyric(true);
+  }
+});
+pageSeek.addEventListener('input', () => {
+  if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+  audio.currentTime = (Number(pageSeek.value) / 1000) * audio.duration;
+  updatePlaybackUi();
+  updateActiveLyric(true);
+});
+audio.addEventListener('play', updatePlaybackUi);
+audio.addEventListener('pause', updatePlaybackUi);
+audio.addEventListener('loadedmetadata', updatePlaybackUi);
+audio.addEventListener('timeupdate', () => {
+  updatePlaybackUi();
+  updateActiveLyric();
+});
+audio.addEventListener('ended', updatePlaybackUi);
+fileInput.addEventListener('change', async event => {
+  for (const file of event.target.files) {
+    setStatus(`正在上传 ${file.name}…`);
+    const response = await fetch('/api/upload?name=' + encodeURIComponent(file.name), {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file
+    });
+    if (!response.ok) {
+      setStatus(`上传失败：${file.name}`);
+      event.target.value = '';
+      return;
+    }
+  }
+  setStatus('上传完成；系统媒体库更新后即可在 Halcyon 中扫描到。');
+  event.target.value = '';
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && playerPage.classList.contains('is-open')) showPlayerPage(false);
+  if (event.code === 'Space' && event.target.tagName !== 'INPUT' && event.target.tagName !== 'BUTTON') {
+    event.preventDefault();
+    togglePlayback();
+  }
+});
+
+setImage(miniCover, '');
+setImage(pageCover, '');
+updatePlaybackUi();
+loadSongs();
 </script>
 </body>
 </html>
