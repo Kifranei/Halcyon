@@ -68,6 +68,7 @@ import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.SortDropdownMenu
@@ -96,6 +97,7 @@ private data class ArtistListAggregate(
     val artists: List<Artist> = emptyList(),
     val representativeSongsByArtist: Map<String, Song> = emptyMap(),
     val artistDurations: Map<String, Long> = emptyMap(),
+    val participatedAlbumCounts: Map<String, Int> = emptyMap(),
     val releaseAlbumCounts: Map<String, Int> = emptyMap()
 )
 
@@ -105,16 +107,21 @@ private class ArtistListAccumulator(
     var songCount: Int = 0
     var duration: Long = 0L
     val albumIds: MutableSet<Long> = linkedSetOf()
-    var representativeSong: Song? = null
-    private var representativeSongPriority: Int = Int.MAX_VALUE
+    val participatedAlbumIds: MutableSet<Long> = linkedSetOf()
+}
 
-    fun considerCoverCandidate(song: Song) {
-        val priority = artistCoverPriority(song, name) ?: return
-        if (priority < representativeSongPriority) {
-            representativeSong = song
-            representativeSongPriority = priority
-        }
+internal fun buildArtistCoverCandidates(songs: List<Song>): Map<String, List<Song>> {
+    val candidates = linkedMapOf<String, MutableList<Song>>()
+    songs.forEach { song ->
+        (splitArtistNames(song.artist) + splitArtistNames(song.albumArtist))
+            .distinctBy { it.tagIdentityKey() }
+            .forEach { rawName ->
+                candidates
+                    .getOrPut(rawName.tagIdentityKey()) { mutableListOf() }
+                    .add(song)
+            }
     }
+    return candidates
 }
 
 private fun buildArtistListAggregate(
@@ -123,6 +130,12 @@ private fun buildArtistListAggregate(
     includeAlbumArtists: Boolean
 ): ArtistListAggregate {
     val artistsByKey = linkedMapOf<String, ArtistListAccumulator>()
+    // Cover candidates are collected from both artist fields regardless of the
+    // "show album artists" list setting. That setting controls which artists appear and how
+    // their counts are calculated; it must not change the #266 image priority for an artist that
+    // is already visible in the list.
+    val coverCandidatesByArtist = buildArtistCoverCandidates(songs)
+    val participatedAlbumCounts = mutableMapOf<String, Int>()
     val releaseAlbumCounts = mutableMapOf<String, Int>()
 
     fun accumulatorFor(rawName: String): ArtistListAccumulator {
@@ -137,13 +150,12 @@ private fun buildArtistListAggregate(
             accumulator.songCount += 1
             accumulator.duration += song.duration
             accumulator.albumIds += albumIdentityId
-            accumulator.considerCoverCandidate(song)
+            accumulator.participatedAlbumIds += albumIdentityId
         }
         if (includeAlbumArtists) {
             splitArtistNames(song.albumArtist).forEach { artistName ->
                 val accumulator = accumulatorFor(artistName)
                 accumulator.albumIds += albumIdentityId
-                accumulator.considerCoverCandidate(song)
             }
         }
     }
@@ -171,16 +183,23 @@ private fun buildArtistListAggregate(
         }
         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
     val representativeSongsByArtist = artistsByKey.mapNotNull { (key, accumulator) ->
-        accumulator.representativeSong?.let { key to it }
+        selectArtistCoverSong(
+            songs = coverCandidatesByArtist[key].orEmpty(),
+            artistName = accumulator.name
+        )?.let { key to it }
     }.toMap()
     val artistDurations = artistsByKey.mapNotNull { (key, accumulator) ->
         accumulator.duration.takeIf { it > 0L }?.let { key to it }
     }.toMap()
+    artistsByKey.forEach { (key, accumulator) ->
+        participatedAlbumCounts[key] = accumulator.participatedAlbumIds.size
+    }
 
     return ArtistListAggregate(
         artists = artists,
         representativeSongsByArtist = representativeSongsByArtist,
         artistDurations = artistDurations,
+        participatedAlbumCounts = participatedAlbumCounts,
         releaseAlbumCounts = releaseAlbumCounts
     )
 }
@@ -214,7 +233,22 @@ fun ArtistListScreen(
     val tagIgnoreCase by mainViewModel.settingsManager.tagIgnoreCase.collectAsState(initial = false)
     val pinnedArtistKeys by mainViewModel.settingsManager.pinnedKeysFlow("artist").collectAsState(initial = emptyList())
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
-    val sortMode = ArtistSortMode.entries.getOrElse(sortIndex) { ArtistSortMode.Name }
+    val persistedSortMode = ArtistSortMode.entries.getOrElse(sortIndex) { ArtistSortMode.Name }
+    // Album-count modes depend on album-artist tags. When that setting is disabled, keep the
+    // persisted selection usable by falling back to the real participated-album count instead
+    // of leaving the list on a sort option that is no longer offered in the menu.
+    val sortMode = if (!showAlbumArtists && persistedSortMode in setOf(
+            ArtistSortMode.AlbumCount,
+            ArtistSortMode.AlbumCountAsc,
+            ArtistSortMode.ReleaseAlbumCount,
+            ArtistSortMode.ReleaseAlbumCountAsc
+        )
+    ) {
+        if (persistedSortMode.isDescending()) ArtistSortMode.ParticipatedAlbumCount
+        else ArtistSortMode.ParticipatedAlbumCountAsc
+    } else {
+        persistedSortMode
+    }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var scrollToTopRequest by remember { mutableStateOf(0) }
     var listCoversEnabled by remember { mutableStateOf(false) }
@@ -242,8 +276,9 @@ fun ArtistListScreen(
     val artists = aggregate.artists
     val representativeSongsByArtist = aggregate.representativeSongsByArtist
     val artistDurations = aggregate.artistDurations
+    val participatedAlbumCounts = aggregate.participatedAlbumCounts
     val releaseAlbumCounts = aggregate.releaseAlbumCounts
-    val filteredArtists = remember(artists, searchQuery, sortMode, artistDurations, releaseAlbumCounts, pinnedArtistKeys) {
+    val filteredArtists = remember(artists, searchQuery, sortMode, artistDurations, participatedAlbumCounts, releaseAlbumCounts, pinnedArtistKeys) {
         val filtered = if (searchQuery.isBlank()) {
             artists
         } else {
@@ -256,6 +291,12 @@ fun ArtistListScreen(
             ArtistSortMode.SongCountAsc -> filtered.sortedBy { it.songCount }
             ArtistSortMode.AlbumCount -> filtered.sortedByDescending { it.albumCount }
             ArtistSortMode.AlbumCountAsc -> filtered.sortedBy { it.albumCount }
+            ArtistSortMode.ParticipatedAlbumCount -> filtered.sortedByDescending {
+                participatedAlbumCounts[it.name.tagIdentityKey()] ?: 0
+            }
+            ArtistSortMode.ParticipatedAlbumCountAsc -> filtered.sortedBy {
+                participatedAlbumCounts[it.name.tagIdentityKey()] ?: 0
+            }
             ArtistSortMode.ReleaseAlbumCount -> filtered.sortedByDescending { releaseAlbumCounts[it.name.tagIdentityKey()] ?: 0 }
             ArtistSortMode.ReleaseAlbumCountAsc -> filtered.sortedBy { releaseAlbumCounts[it.name.tagIdentityKey()] ?: 0 }
             ArtistSortMode.Duration -> filtered.sortedByDescending { artistDurations[it.name.tagIdentityKey()] ?: 0L }
@@ -283,6 +324,17 @@ fun ArtistListScreen(
     }
     val filteredArtistKeys = remember(filteredArtists) {
         filteredArtists.map { it.name.tagIdentityKey() }
+    }
+    val randomArtistSongs = remember(filteredArtists, songs, showAlbumArtists) {
+        val visibleArtistKeys = filteredArtists.mapTo(mutableSetOf()) { it.name.tagIdentityKey() }
+        songs.filter { song ->
+            val names = if (showAlbumArtists) {
+                splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
+            } else {
+                splitArtistNames(song.artist)
+            }
+            names.any { it.tagIdentityKey() in visibleArtistKeys }
+        }.distinctBy { it.id }
     }
     val artistIndexByKey = remember(filteredArtists) {
         buildMap {
@@ -404,33 +456,54 @@ fun ArtistListScreen(
                         }
                         SortDropdownMenu(
                             items = directionalSortModeDropdownItems(
-                                fields = listOf(
-                                    DirectionalSortModeField(
-                                        text = stringResource(R.string.artist_list_sort_name),
-                                        ascendingMode = ArtistSortMode.Name,
-                                        descendingMode = ArtistSortMode.NameDesc
-                                    ),
-                                    DirectionalSortModeField(
-                                        text = stringResource(R.string.artist_list_sort_song_count),
-                                        ascendingMode = ArtistSortMode.SongCountAsc,
-                                        descendingMode = ArtistSortMode.SongCount
-                                    ),
-                                    DirectionalSortModeField(
-                                        text = stringResource(R.string.artist_list_sort_album_count),
-                                        ascendingMode = ArtistSortMode.AlbumCountAsc,
-                                        descendingMode = ArtistSortMode.AlbumCount
-                                    ),
-                                    DirectionalSortModeField(
-                                        text = stringResource(R.string.artist_list_sort_release_album_count),
-                                        ascendingMode = ArtistSortMode.ReleaseAlbumCountAsc,
-                                        descendingMode = ArtistSortMode.ReleaseAlbumCount
-                                    ),
-                                    DirectionalSortModeField(
-                                        text = stringResource(R.string.artist_list_sort_duration),
-                                        ascendingMode = ArtistSortMode.DurationAsc,
-                                        descendingMode = ArtistSortMode.Duration
+                                fields = buildList {
+                                    add(
+                                        DirectionalSortModeField(
+                                            text = stringResource(R.string.artist_list_sort_name),
+                                            ascendingMode = ArtistSortMode.Name,
+                                            descendingMode = ArtistSortMode.NameDesc
+                                        )
                                     )
-                                ),
+                                    add(
+                                        DirectionalSortModeField(
+                                            text = stringResource(R.string.artist_list_sort_song_count),
+                                            ascendingMode = ArtistSortMode.SongCountAsc,
+                                            descendingMode = ArtistSortMode.SongCount
+                                        )
+                                    )
+                                    if (showAlbumArtists) {
+                                        add(
+                                            DirectionalSortModeField(
+                                                text = stringResource(R.string.artist_list_sort_album_count),
+                                                ascendingMode = ArtistSortMode.AlbumCountAsc,
+                                                descendingMode = ArtistSortMode.AlbumCount
+                                            )
+                                        )
+                                    }
+                                    add(
+                                        DirectionalSortModeField(
+                                            text = stringResource(R.string.artist_list_sort_participated_album_count),
+                                            ascendingMode = ArtistSortMode.ParticipatedAlbumCountAsc,
+                                            descendingMode = ArtistSortMode.ParticipatedAlbumCount
+                                        )
+                                    )
+                                    if (showAlbumArtists) {
+                                        add(
+                                            DirectionalSortModeField(
+                                                text = stringResource(R.string.artist_list_sort_release_album_count),
+                                                ascendingMode = ArtistSortMode.ReleaseAlbumCountAsc,
+                                                descendingMode = ArtistSortMode.ReleaseAlbumCount
+                                            )
+                                        )
+                                    }
+                                    add(
+                                        DirectionalSortModeField(
+                                            text = stringResource(R.string.artist_list_sort_duration),
+                                            ascendingMode = ArtistSortMode.DurationAsc,
+                                            descendingMode = ArtistSortMode.Duration
+                                        )
+                                    )
+                                },
                                 selectedMode = sortMode,
                                 onSelect = { mode ->
                                     LibrarySortUiState.artistListSortIndex = mode.ordinal
@@ -521,7 +594,13 @@ fun ArtistListScreen(
                                 R.string.artist_list_summary,
                                 filteredArtists.size,
                                 com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
-                            )
+                            ),
+                            leadingContent = {
+                                ShuffleAllSummaryButton(
+                                    visible = !selection.selectionMode && randomArtistSongs.isNotEmpty(),
+                                    onClick = { playerViewModel.setPlaylist(randomArtistSongs.shuffled(), 0) }
+                                )
+                            }
                         )
                     }
                     items(filteredArtists, key = { it.name }) { artist ->
@@ -539,6 +618,7 @@ fun ArtistListScreen(
                             summary = artist.summaryForSort(
                                 sortMode = sortMode,
                                 duration = artistDurations[artistKey] ?: 0L,
+                                participatedAlbumCount = participatedAlbumCounts[artistKey] ?: 0,
                                 releaseAlbumCount = releaseAlbumCounts[artistKey] ?: 0,
                                 stringResolver = { resId, args -> context.getString(resId, *args) }
                             ),

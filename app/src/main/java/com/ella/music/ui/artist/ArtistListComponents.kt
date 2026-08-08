@@ -155,7 +155,10 @@ internal enum class ArtistSortMode(@param:StringRes val labelRes: Int) {
     SongCountAsc(R.string.artist_list_sort_song_count),
     AlbumCountAsc(R.string.artist_list_sort_album_count),
     ReleaseAlbumCountAsc(R.string.artist_list_sort_release_album_count),
-    DurationAsc(R.string.artist_list_sort_duration)
+    DurationAsc(R.string.artist_list_sort_duration),
+    // Keep the new modes at the end so previously persisted sort ordinals retain their meaning.
+    ParticipatedAlbumCount(R.string.artist_list_sort_participated_album_count),
+    ParticipatedAlbumCountAsc(R.string.artist_list_sort_participated_album_count)
 }
 
 internal fun ArtistSortMode.isDescending(): Boolean = when (this) {
@@ -163,19 +166,26 @@ internal fun ArtistSortMode.isDescending(): Boolean = when (this) {
     ArtistSortMode.SongCount,
     ArtistSortMode.AlbumCount,
     ArtistSortMode.ReleaseAlbumCount,
-    ArtistSortMode.Duration -> true
+    ArtistSortMode.Duration,
+    ArtistSortMode.ParticipatedAlbumCount -> true
     else -> false
 }
 
 internal fun Artist.summaryForSort(
     sortMode: ArtistSortMode,
     duration: Long,
+    participatedAlbumCount: Int,
     releaseAlbumCount: Int,
     stringResolver: (Int, Array<Any>) -> String
 ): String {
     return when (sortMode) {
         ArtistSortMode.Duration,
         ArtistSortMode.DurationAsc -> stringResolver(R.string.artist_list_summary_duration, arrayOf(duration.formatArtistDuration(), albumCount))
+        ArtistSortMode.ParticipatedAlbumCount,
+        ArtistSortMode.ParticipatedAlbumCountAsc -> stringResolver(
+            R.string.artist_list_summary_participated_album,
+            arrayOf(songCount, participatedAlbumCount)
+        )
         ArtistSortMode.ReleaseAlbumCount,
         ArtistSortMode.ReleaseAlbumCountAsc -> stringResolver(R.string.artist_list_summary_release_album, arrayOf(songCount, releaseAlbumCount))
         else -> stringResolver(R.string.artist_list_summary_default, arrayOf(songCount, albumCount))

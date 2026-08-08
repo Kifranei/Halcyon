@@ -923,7 +923,7 @@
     <string name="library_search_no_duplicates">No duplicate songs with the same title and album were found</string>
     <string name="library_search_song_unit">songs</string>
     <string name="library_search_song_count_unit">songs</string>
-    <string name="library_search_artist_summary">%1$d songs · %2$d participated albums</string>
+    <string name="library_search_artist_summary">%1$d songs · %2$d albums</string>
     <string name="library_search_lyric_prefix">Lyrics: </string>
     <string name="library_search_match_title">Title</string>
     <string name="library_search_match_artist">Artist</string>
@@ -1451,6 +1451,27 @@
     <string name="artist_song_count_sorted">%1$d songs · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d participated albums · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d release albums · %2$s</string>
+    <string name="artist_tab_music_videos">Music videos</string>
+    <string name="artist_music_video_count_sorted">%1$d music videos · %2$s</string>
+    <string name="artist_music_video_delete_title">Delete music videos</string>
+    <string name="artist_music_video_delete_message">Permanently delete the selected %1$d local music video files?</string>
+    <string name="artist_music_video_delete_result">Deleted %1$d of %2$d music videos</string>
+    <string name="artist_music_video_info">Video information</string>
+    <string name="artist_music_video_file_name">File name</string>
+    <string name="artist_music_video_path">Path</string>
+    <string name="artist_music_video_size">File size</string>
+    <string name="artist_music_video_modified">Modified</string>
+    <string name="artist_music_video_format">Format</string>
+    <string name="artist_music_video_resolution">Resolution</string>
+    <string name="artist_music_video_duration">Duration</string>
+    <string name="artist_music_video_audio_sample_rate">Audio sample rate</string>
+    <string name="artist_music_video_audio_bitrate">Audio bitrate</string>
+    <string name="artist_music_video_real_path">Real path</string>
+    <string name="artist_music_video_video_frame_rate">Video frame rate</string>
+    <string name="artist_music_video_video_bitrate">Video bitrate</string>
+    <string name="artist_music_video_info_copied">Video information copied</string>
+    <string name="artist_music_video_info_item_copied">%1$s copied</string>
+    <string name="artist_music_video_open_media_info">Open with MediaInfo</string>
     <string name="artist_no_albums">No albums yet</string>
     <string name="artist_composer_page">Composer page</string>
     <string name="artist_lyricist_page">Lyricist page</string>
@@ -1477,12 +1498,14 @@
     <string name="artist_list_summary">%1$d artists · %2$s</string>
     <string name="artist_list_sort_name">Name</string>
     <string name="artist_list_sort_song_count">Song count</string>
-    <string name="artist_list_sort_album_count">Albums appeared</string>
+    <string name="artist_list_sort_album_count">Albums</string>
+    <string name="artist_list_sort_participated_album_count">Participated albums</string>
     <string name="artist_list_sort_release_album_count">Release albums</string>
     <string name="artist_list_sort_duration">Duration</string>
-    <string name="artist_list_summary_duration">%1$s · %2$d albums appeared</string>
+    <string name="artist_list_summary_duration">%1$s · %2$d albums</string>
     <string name="artist_list_summary_release_album">%1$d songs · %2$d release albums</string>
-    <string name="artist_list_summary_default">%1$d songs · %2$d albums appeared</string>
+    <string name="artist_list_summary_default">%1$d songs · %2$d albums</string>
+    <string name="artist_list_summary_participated_album">%1$d songs · %2$d participated albums</string>
 
     <!-- i18n: Metadata category screen -->
     <string name="category_search_placeholder">Search %1$s</string>

@@ -51,6 +51,25 @@ internal object MusicVideoLauncher {
         context.startActivity(Intent.createChooser(intent, context.getString(com.ella.music.R.string.common_share)))
     }
 
+    fun share(context: Context, sources: List<Uri>, label: String) {
+        val shareUris = ArrayList(sources.distinct().map { it.asShareUri(context) })
+        if (shareUris.isEmpty()) return
+        if (shareUris.size == 1) {
+            share(context, shareUris.first(), label)
+            return
+        }
+        val clips = ClipData.newUri(context.contentResolver, label, shareUris.first()).apply {
+            shareUris.drop(1).forEach { addItem(ClipData.Item(it)) }
+        }
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "video/*"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, shareUris)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            clipData = clips
+        }
+        context.startActivity(Intent.createChooser(intent, context.getString(com.ella.music.R.string.common_share)))
+    }
+
     private fun Uri.asShareUri(context: Context): Uri {
         if (!scheme.equals("file", ignoreCase = true)) return this
         val file = File(path.orEmpty())

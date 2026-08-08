@@ -796,7 +796,7 @@
     <string name="library_search_no_duplicates">Aucun titre en double avec le même titre et le même album n’a été trouvé</string>
     <string name="library_search_song_unit">titres</string>
     <string name="library_search_song_count_unit">titres</string>
-    <string name="library_search_artist_summary">%1$d titres · %2$d albums avec participation</string>
+    <string name="library_search_artist_summary">%1$d titres · %2$d albums</string>
     <string name="library_search_lyric_prefix">Paroles : </string>
     <string name="rating_filter_all">Toutes les notes</string>
     <string name="rating_filter_rated">Tous les titres notés</string>
@@ -1277,6 +1277,27 @@
     <string name="artist_song_count_sorted">%1$d titres · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d albums avec participation · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d albums publiés · %2$s</string>
+    <string name="artist_tab_music_videos">Clips</string>
+    <string name="artist_music_video_count_sorted">%1$d clips · %2$s</string>
+    <string name="artist_music_video_delete_title">Supprimer les clips</string>
+    <string name="artist_music_video_delete_message">Supprimer définitivement les %1$d fichiers vidéo locaux sélectionnés ?</string>
+    <string name="artist_music_video_delete_result">%1$d clips supprimés sur %2$d</string>
+    <string name="artist_music_video_info">Informations vidéo</string>
+    <string name="artist_music_video_file_name">Nom du fichier</string>
+    <string name="artist_music_video_path">Chemin</string>
+    <string name="artist_music_video_size">Taille du fichier</string>
+    <string name="artist_music_video_modified">Modifié</string>
+    <string name="artist_music_video_format">Format</string>
+    <string name="artist_music_video_resolution">Résolution</string>
+    <string name="artist_music_video_duration">Durée</string>
+    <string name="artist_music_video_audio_sample_rate">Fréquence d echantillonnage audio</string>
+    <string name="artist_music_video_audio_bitrate">Débit audio</string>
+    <string name="artist_music_video_real_path">Chemin réel</string>
+    <string name="artist_music_video_video_frame_rate">Fréquence d’images vidéo</string>
+    <string name="artist_music_video_video_bitrate">Débit vidéo</string>
+    <string name="artist_music_video_info_copied">Informations vidéo copiées</string>
+    <string name="artist_music_video_info_item_copied">%1$s copié</string>
+    <string name="artist_music_video_open_media_info">Ouvrir avec MediaInfo</string>
     <string name="artist_no_albums">Aucun album pour le moment</string>
     <string name="artist_composer_page">Page du compositeur</string>
     <string name="artist_lyricist_page">Page du parolier</string>
@@ -1303,12 +1324,14 @@
     <string name="artist_list_summary">%1$d artistes · %2$s</string>
     <string name="artist_list_sort_name">Nom</string>
     <string name="artist_list_sort_song_count">Nombre de titres</string>
-    <string name="artist_list_sort_album_count">Albums avec apparition</string>
+    <string name="artist_list_sort_album_count">Albums</string>
+    <string name="artist_list_sort_participated_album_count">Albums avec participation</string>
     <string name="artist_list_sort_release_album_count">Albums publiés</string>
     <string name="artist_list_sort_duration">Durée</string>
-    <string name="artist_list_summary_duration">%1$s · %2$d albums avec apparition</string>
+    <string name="artist_list_summary_duration">%1$s · %2$d albums</string>
     <string name="artist_list_summary_release_album">%1$d titres · %2$d albums publiés</string>
-    <string name="artist_list_summary_default">%1$d titres · %2$d albums avec apparition</string>
+    <string name="artist_list_summary_default">%1$d titres · %2$d albums</string>
+    <string name="artist_list_summary_participated_album">%1$d titres · %2$d albums avec participation</string>
 
     <!-- i18n : écran de catégorie des métadonnées -->
     <string name="category_search_placeholder">Rechercher %1$s</string>

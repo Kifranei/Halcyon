@@ -796,7 +796,7 @@
     <string name="library_search_no_duplicates">동일한 제목과 앨범을 가진 중복 곡을 찾을 수 없습니다</string>
     <string name="library_search_song_unit">곡</string>
     <string name="library_search_song_count_unit">곡</string>
-    <string name="library_search_artist_summary">%1$d곡 · %2$d 참여 앨범</string>
+    <string name="library_search_artist_summary">%1$d곡 · %2$d 앨범</string>
     <string name="library_search_lyric_prefix">가사:</string>
     <string name="rating_filter_all">모든 평가</string>
     <string name="rating_filter_rated">평가된 항목 모두</string>
@@ -1277,6 +1277,27 @@
     <string name="artist_song_count_sorted">%1$d 곡 · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d 참여 앨범 · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d 발매 앨범 · %2$s</string>
+    <string name="artist_tab_music_videos">뮤직비디오</string>
+    <string name="artist_music_video_count_sorted">뮤직비디오 %1$d개 · %2$s</string>
+    <string name="artist_music_video_delete_title">뮤직비디오 삭제</string>
+    <string name="artist_music_video_delete_message">선택한 로컬 뮤직비디오 파일 %1$d개를 영구 삭제할까요?</string>
+    <string name="artist_music_video_delete_result">뮤직비디오 %1$d / %2$d개를 삭제했습니다</string>
+    <string name="artist_music_video_info">동영상 정보</string>
+    <string name="artist_music_video_file_name">파일 이름</string>
+    <string name="artist_music_video_path">경로</string>
+    <string name="artist_music_video_size">파일 크기</string>
+    <string name="artist_music_video_modified">수정 시간</string>
+    <string name="artist_music_video_format">형식</string>
+    <string name="artist_music_video_resolution">해상도</string>
+    <string name="artist_music_video_duration">재생 시간</string>
+    <string name="artist_music_video_audio_sample_rate">오디오 샘플링 레이트</string>
+    <string name="artist_music_video_audio_bitrate">오디오 비트레이트</string>
+    <string name="artist_music_video_real_path">실제 경로</string>
+    <string name="artist_music_video_video_frame_rate">동영상 프레임 레이트</string>
+    <string name="artist_music_video_video_bitrate">동영상 비트레이트</string>
+    <string name="artist_music_video_info_copied">동영상 정보가 복사되었습니다</string>
+    <string name="artist_music_video_info_item_copied">%1$s 복사됨</string>
+    <string name="artist_music_video_open_media_info">MediaInfo로 열기</string>
     <string name="artist_no_albums">아직 앨범이 없습니다</string>
     <string name="artist_composer_page">작곡가 페이지</string>
     <string name="artist_lyricist_page">작사가 페이지</string>
@@ -1303,12 +1324,14 @@
     <string name="artist_list_summary">%1$d 아티스트 · %2$s</string>
     <string name="artist_list_sort_name">이름</string>
     <string name="artist_list_sort_song_count">곡 수</string>
-    <string name="artist_list_sort_album_count">앨범이 나왔습니다</string>
+    <string name="artist_list_sort_album_count">앨범 수</string>
+    <string name="artist_list_sort_participated_album_count">참여 앨범 수</string>
     <string name="artist_list_sort_release_album_count">발매 앨범</string>
     <string name="artist_list_sort_duration">길이</string>
-    <string name="artist_list_summary_duration">%1$s·%2$d 앨범 등장</string>
+    <string name="artist_list_summary_duration">%1$s·%2$d 앨범</string>
     <string name="artist_list_summary_release_album">%1$d 곡 · %2$d 발매 앨범</string>
-    <string name="artist_list_summary_default">%1$d 곡 · %2$d 앨범 등장</string>
+    <string name="artist_list_summary_default">%1$d 곡 · %2$d 앨범</string>
+    <string name="artist_list_summary_participated_album">%1$d 곡 · %2$d 참여 앨범</string>
 
     <!-- i18n: Metadata category screen -->
     <string name="category_search_placeholder">%1$s 검색</string>

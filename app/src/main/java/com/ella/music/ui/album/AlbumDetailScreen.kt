@@ -272,7 +272,10 @@ fun AlbumDetailScreen(
                 mainViewModel = mainViewModel,
                 fallbackSong = albumSongs.firstOrNull(),
                 artistCoverName = artist,
-                artistCoverSong = selectArtistCoverSong(artistSongs, artist)
+                // Counts stay scoped to this album's participating tracks, but the artist image
+                // must use the library-wide #266 priority chain so album pages do not pick a
+                // collaboration cover merely because it appears first on this album.
+                artistCoverSong = selectArtistCoverSong(librarySongs, artist)
             )
         }
     }

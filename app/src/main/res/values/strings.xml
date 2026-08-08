@@ -1112,7 +1112,7 @@
     <string name="library_search_no_duplicates">没有找到同歌曲名、同专辑的重复歌曲</string>
     <string name="library_search_song_unit">首</string>
     <string name="library_search_song_count_unit">首歌曲</string>
-    <string name="library_search_artist_summary">%1$d 首歌曲 · %2$d 张参与专辑</string>
+    <string name="library_search_artist_summary">%1$d 首歌曲 · %2$d 张专辑</string>
     <string name="library_search_lyric_prefix">歌词：</string>
     <string name="library_search_match_title">歌名</string>
     <string name="library_search_match_artist">歌手</string>
@@ -1740,6 +1740,27 @@
     <string name="artist_song_count_sorted">%1$d 首歌曲 · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d 个参与专辑 · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d 个发行专辑 · %2$s</string>
+    <string name="artist_tab_music_videos">MV</string>
+    <string name="artist_music_video_count_sorted">%1$d 个 MV · %2$s</string>
+    <string name="artist_music_video_delete_title">删除 MV</string>
+    <string name="artist_music_video_delete_message">确定要永久删除选中的 %1$d 个本地 MV 文件吗？</string>
+    <string name="artist_music_video_delete_result">已删除 %1$d / %2$d 个 MV</string>
+    <string name="artist_music_video_info">视频信息</string>
+    <string name="artist_music_video_file_name">文件名</string>
+    <string name="artist_music_video_path">路径</string>
+    <string name="artist_music_video_size">文件大小</string>
+    <string name="artist_music_video_modified">修改时间</string>
+    <string name="artist_music_video_format">格式</string>
+    <string name="artist_music_video_resolution">分辨率</string>
+    <string name="artist_music_video_duration">时长</string>
+    <string name="artist_music_video_audio_sample_rate">音频采样率</string>
+    <string name="artist_music_video_audio_bitrate">音频比特率</string>
+    <string name="artist_music_video_real_path">真实路径</string>
+    <string name="artist_music_video_video_frame_rate">视频帧率</string>
+    <string name="artist_music_video_video_bitrate">视频比特率</string>
+    <string name="artist_music_video_info_copied">视频信息已复制</string>
+    <string name="artist_music_video_info_item_copied">已复制 %1$s</string>
+    <string name="artist_music_video_open_media_info">使用 MediaInfo 查看</string>
     <string name="artist_no_albums">暂无专辑</string>
     <string name="artist_composer_page">作曲家页</string>
     <string name="artist_arranger_page">编曲家页</string>
@@ -1767,12 +1788,14 @@
     <string name="artist_list_summary">%1$d 位艺术家 · %2$s</string>
     <string name="artist_list_sort_name">名称</string>
     <string name="artist_list_sort_song_count">歌曲数</string>
-    <string name="artist_list_sort_album_count">参与专辑数</string>
+    <string name="artist_list_sort_album_count">专辑数</string>
+    <string name="artist_list_sort_participated_album_count">参与专辑数</string>
     <string name="artist_list_sort_release_album_count">发行专辑数</string>
     <string name="artist_list_sort_duration">歌曲时长</string>
-    <string name="artist_list_summary_duration">%1$s · %2$d 张参与专辑</string>
+    <string name="artist_list_summary_duration">%1$s · %2$d 张专辑</string>
     <string name="artist_list_summary_release_album">%1$d 首歌曲 · %2$d 张发行专辑</string>
-    <string name="artist_list_summary_default">%1$d 首歌曲 · %2$d 张参与专辑</string>
+    <string name="artist_list_summary_default">%1$d 首歌曲 · %2$d 张专辑</string>
+    <string name="artist_list_summary_participated_album">%1$d 首歌曲 · %2$d 张参与专辑</string>
 
     <!-- i18n: Metadata category screen -->
     <string name="category_search_placeholder">搜索%1$s</string>

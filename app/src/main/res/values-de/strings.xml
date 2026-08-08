@@ -796,7 +796,7 @@
     <string name="library_search_no_duplicates">Keine doppelten Titel mit gleichem Titel und Album gefunden</string>
     <string name="library_search_song_unit">Titel</string>
     <string name="library_search_song_count_unit">Titel</string>
-    <string name="library_search_artist_summary">%1$d Titel · %2$d beteiligte Alben</string>
+    <string name="library_search_artist_summary">%1$d Titel · %2$d Alben</string>
     <string name="library_search_lyric_prefix">Liedtext: </string>
     <string name="rating_filter_all">Alle Bewertungen</string>
     <string name="rating_filter_rated">Alle bewerteten</string>
@@ -1277,6 +1277,27 @@
     <string name="artist_song_count_sorted">%1$d Titel · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d beteiligte Alben · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d veröffentlichte Alben · %2$s</string>
+    <string name="artist_tab_music_videos">Musikvideos</string>
+    <string name="artist_music_video_count_sorted">%1$d Musikvideos · %2$s</string>
+    <string name="artist_music_video_delete_title">Musikvideos löschen</string>
+    <string name="artist_music_video_delete_message">Die ausgewählten %1$d lokalen Musikvideodateien endgültig löschen?</string>
+    <string name="artist_music_video_delete_result">%1$d von %2$d Musikvideos gelöscht</string>
+    <string name="artist_music_video_info">Videoinformationen</string>
+    <string name="artist_music_video_file_name">Dateiname</string>
+    <string name="artist_music_video_path">Pfad</string>
+    <string name="artist_music_video_size">Dateigröße</string>
+    <string name="artist_music_video_modified">Geändert</string>
+    <string name="artist_music_video_format">Format</string>
+    <string name="artist_music_video_resolution">Auflösung</string>
+    <string name="artist_music_video_duration">Dauer</string>
+    <string name="artist_music_video_audio_sample_rate">Audio-Abtastrate</string>
+    <string name="artist_music_video_audio_bitrate">Audio-Bitrate</string>
+    <string name="artist_music_video_real_path">Echter Pfad</string>
+    <string name="artist_music_video_video_frame_rate">Videobildrate</string>
+    <string name="artist_music_video_video_bitrate">Video-Bitrate</string>
+    <string name="artist_music_video_info_copied">Videoinformationen kopiert</string>
+    <string name="artist_music_video_info_item_copied">%1$s kopiert</string>
+    <string name="artist_music_video_open_media_info">Mit MediaInfo öffnen</string>
     <string name="artist_no_albums">Noch keine Alben</string>
     <string name="artist_composer_page">Komponistenseite</string>
     <string name="artist_lyricist_page">Texterseite</string>
@@ -1303,12 +1324,14 @@
     <string name="artist_list_summary">%1$d Künstler · %2$s</string>
     <string name="artist_list_sort_name">Name</string>
     <string name="artist_list_sort_song_count">Titelanzahl</string>
-    <string name="artist_list_sort_album_count">Alben mit Beteiligung</string>
+    <string name="artist_list_sort_album_count">Alben</string>
+    <string name="artist_list_sort_participated_album_count">Beteiligte Alben</string>
     <string name="artist_list_sort_release_album_count">Veröffentlichte Alben</string>
     <string name="artist_list_sort_duration">Dauer</string>
-    <string name="artist_list_summary_duration">%1$s · %2$d Alben mit Beteiligung</string>
+    <string name="artist_list_summary_duration">%1$s · %2$d Alben</string>
     <string name="artist_list_summary_release_album">%1$d Titel · %2$d veröffentlichte Alben</string>
-    <string name="artist_list_summary_default">%1$d Titel · %2$d Alben mit Beteiligung</string>
+    <string name="artist_list_summary_default">%1$d Titel · %2$d Alben</string>
+    <string name="artist_list_summary_participated_album">%1$d Titel · %2$d beteiligte Alben</string>
 
     <!-- i18n: Metadata category screen -->
     <string name="category_search_placeholder">%1$s suchen</string>

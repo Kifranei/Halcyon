@@ -61,7 +61,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal enum class ArtistTab(@param:StringRes val labelRes: Int) {
     Songs(R.string.artist_tab_songs),
     ParticipatedAlbums(R.string.artist_tab_participated_albums),
-    ReleaseAlbums(R.string.artist_tab_release_albums)
+    ReleaseAlbums(R.string.artist_tab_release_albums),
+    MusicVideos(R.string.artist_tab_music_videos)
 }
 
 @Composable

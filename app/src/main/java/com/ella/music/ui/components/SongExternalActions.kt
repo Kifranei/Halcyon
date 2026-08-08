@@ -112,6 +112,40 @@ fun openSongWithMediaInfo(context: Context, song: Song) {
     }
 }
 
+/** Opens a local or document-backed video in the installed MediaInfo viewer. */
+fun openVideoWithMediaInfo(context: Context, uri: Uri, title: String, mimeType: String = "video/*") {
+    val shareUri = uri.externalShareUri(context)
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(shareUri, mimeType.ifBlank { "video/*" })
+        putExtra(Intent.EXTRA_STREAM, shareUri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        clipData = ClipData.newUri(context.contentResolver, title, shareUri)
+    }
+    val packageManager = context.packageManager
+    val resolved = packageManager.queryIntentActivities(intent, 0)
+        .firstOrNull { it.activityInfo.packageName == MEDIA_INFO_PACKAGE }
+        ?.activityInfo
+    val launchIntent = if (resolved != null) {
+        Intent(intent).setComponent(ComponentName(resolved.packageName, resolved.name))
+    } else {
+        Intent(intent).setComponent(ComponentName(MEDIA_INFO_PACKAGE, MEDIA_INFO_ACTIVITY))
+    }
+    runCatching { context.startActivity(launchIntent) }
+        .recoverCatching {
+            context.packageManager.getLaunchIntentForPackage(MEDIA_INFO_PACKAGE)
+                ?.also { fallback ->
+                    fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    fallback.putExtra(Intent.EXTRA_STREAM, shareUri)
+                    fallback.setDataAndType(shareUri, mimeType.ifBlank { "video/*" })
+                    context.startActivity(fallback)
+                }
+                ?: error("MediaInfo is not installed")
+        }
+        .onFailure {
+            Toast.makeText(context, context.getString(R.string.media_info_open_failed), Toast.LENGTH_SHORT).show()
+        }
+}
+
 fun shareLocalSong(context: Context, song: Song) {
     if (song.path.isHttpAudioSource()) {
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -162,6 +196,16 @@ fun shareLocalSongs(context: Context, songs: List<Song>) {
         context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_song)))
     }.onFailure {
         Toast.makeText(context, context.getString(R.string.share_no_available_app), Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun Uri.externalShareUri(context: Context): Uri {
+    if (!scheme.equals("file", ignoreCase = true)) return this
+    val file = File(path.orEmpty())
+    return if (file.exists()) {
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    } else {
+        this
     }
 }
 

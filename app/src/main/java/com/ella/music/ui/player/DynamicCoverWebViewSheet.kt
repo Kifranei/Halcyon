@@ -278,23 +278,6 @@ private fun buildDynamicCoverAutofillScript(song: Song): String {
         return null;
     }
 
-    function dismissTours() {
-        var styleId = 'ella-dynamic-cover-hide-tour';
-        if (!document.getElementById(styleId)) {
-            var style = document.createElement('style');
-            style.id = styleId;
-            style.textContent = '.tg-backdrop,.tg-dialog,.introjs-overlay,.introjs-tooltip,.driver-popover,[class*="tour"],[class*="onboard"]{display:none !important;visibility:hidden !important;pointer-events:none !important;}';
-            document.head.appendChild(style);
-        }
-        var blockers = document.querySelectorAll('.tg-backdrop,.tg-dialog,.introjs-overlay,.introjs-tooltip,[class*="tour"],[class*="onboard"]');
-        for (var i = 0; i < blockers.length; i++) {
-            blockers[i].style.display = 'none';
-            blockers[i].setAttribute('aria-hidden', 'true');
-        }
-        var closeNode = byText(['skip', 'close', 'got it', 'done', 'finish', '开始', '跳过', '关闭', '知道了', '完成']);
-        if (closeNode && typeof closeNode.click === 'function') closeNode.click();
-    }
-
     function matchField(field, keywords) {
         var id = ((field.id || '') + ' ' + (field.name || '') + ' ' + (field.placeholder || '') + ' ' + (field.getAttribute('aria-label') || '')).toLowerCase();
         for (var i = 0; i < keywords.length; i++) {
@@ -357,7 +340,6 @@ private fun buildDynamicCoverAutofillScript(song: Song): String {
     }
 
     function run() {
-        dismissTours();
         if (!fillFields()) {
             window.__ellaDynamicCoverAutofillDone = false;
             return;
