@@ -562,6 +562,7 @@ internal fun LyricsPageContent(
     onDismissLyrics: () -> Unit,
     enableSwipeDismiss: Boolean,
     backEnabled: Boolean = true,
+    pageVisible: Boolean = true,
     immersiveAlbumCover: Boolean,
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
@@ -670,6 +671,7 @@ internal fun LyricsPageContent(
         },
         enableSwipeDismiss = enableSwipeDismiss,
         backEnabled = backEnabled,
+        pageVisible = pageVisible,
         useBlurBackground = false,
         drawBackground = drawBackground,
         modifier = modifier

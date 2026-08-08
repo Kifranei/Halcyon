@@ -96,6 +96,7 @@ internal fun LyricsPlayerPage(
     onSecondaryTextSize: (Float) -> Unit,
     enableSwipeDismiss: Boolean,
     backEnabled: Boolean = true,
+    pageVisible: Boolean = true,
     useBlurBackground: Boolean,
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
@@ -182,12 +183,13 @@ internal fun LyricsPlayerPage(
                         lyricTextAlign = lyricTextAlign
                     )
             ) {
-                if (!lyricsLoading) {
+        if (!lyricsLoading) {
                     AppleMusicLyricsView(
                         lyrics = lyrics,
                         currentIndex = currentLyricIndex,
                         currentPositionMs = currentPositionMs,
                         isPlaying = isPlaying,
+                        pageVisible = pageVisible,
                         showTranslation = showTranslation,
                         showPronunciation = showPronunciation,
                         fontFamily = fontFamily,
@@ -211,9 +213,9 @@ internal fun LyricsPlayerPage(
         }
 
         AudioVisualizer(
-            enabled = visualizerEnabled,
+            enabled = visualizerEnabled && pageVisible,
             audioSessionId = audioSessionId,
-            isPlaying = isPlaying,
+            isPlaying = isPlaying && pageVisible,
             positionMs = currentPositionMs,
             opacity = visualizerOpacity,
             accent = palette.onBackground.copy(alpha = 0.86f),

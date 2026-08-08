@@ -81,6 +81,7 @@ internal fun AppleMusicSingleLyricLine(
     AppleMusicLyricLine(
         line = line,
         active = true,
+        paused = false,
         distance = 0,
         userScrolling = true,
         nonCurrentLineBlurEnabled = false,
@@ -115,6 +116,7 @@ internal fun AppleMusicSingleLyricLine(
 internal fun AppleMusicLyricLine(
     line: LyricLine,
     active: Boolean,
+    paused: Boolean = false,
     distance: Int,
     userScrolling: Boolean,
     nonCurrentLineBlurEnabled: Boolean,
@@ -150,7 +152,10 @@ internal fun AppleMusicLyricLine(
         label = "appleLyricsScale"
     )
     val alpha by animateFloatAsState(
-        targetValue = if (active) 1f else (0.24f - abs(distance) * 0.025f).coerceAtLeast(0.13f),
+        targetValue = when {
+            active || paused -> 1f
+            else -> (0.24f - abs(distance) * 0.025f).coerceAtLeast(0.13f)
+        },
         animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
         label = "appleLyricsAlpha"
     )

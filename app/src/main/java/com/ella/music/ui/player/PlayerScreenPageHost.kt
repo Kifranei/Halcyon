@@ -7,8 +7,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.flow.first
 
 @Composable
 internal fun PlayerPagerSyncEffects(
@@ -17,20 +19,28 @@ internal fun PlayerPagerSyncEffects(
     pagerState: PagerState,
     onShowLyricsChange: (Boolean) -> Unit
 ) {
-    LaunchedEffect(showLyrics) {
+    LaunchedEffect(showLyrics, immersiveAlbumCover) {
         if (immersiveAlbumCover) return@LaunchedEffect
+        // A pager gesture owns the offset until it settles. Waiting here prevents the lyric
+        // preference update (which is emitted by the same pager) from starting a second
+        // animation while the user is already swiping back from a long-open lyrics page (#409).
+        snapshotFlow { pagerState.isScrollInProgress }.first { !it }
         val target = if (showLyrics) PLAYER_PAGE_LYRICS else PLAYER_PAGE_COVER
-        if (showLyrics && pagerState.currentPage != target && !pagerState.isScrollInProgress) {
-            pagerState.animateScrollToPage(target)
-        } else if (!showLyrics && pagerState.currentPage == PLAYER_PAGE_LYRICS && !pagerState.isScrollInProgress) {
+        if (pagerState.currentPage != target && !pagerState.isScrollInProgress) {
             pagerState.animateScrollToPage(target)
         }
     }
-    LaunchedEffect(pagerState.currentPage) {
+    LaunchedEffect(pagerState, immersiveAlbumCover, showLyrics) {
         if (immersiveAlbumCover) return@LaunchedEffect
-        val lyricPageVisible = pagerState.currentPage == PLAYER_PAGE_LYRICS
-        if (showLyrics != lyricPageVisible) {
-            onShowLyricsChange(lyricPageVisible)
+        snapshotFlow {
+            pagerState.currentPage to pagerState.isScrollInProgress
+        }.collect { (currentPage, isScrollInProgress) ->
+            if (!isScrollInProgress) {
+                val lyricPageVisible = currentPage == PLAYER_PAGE_LYRICS
+                if (showLyrics != lyricPageVisible) {
+                    onShowLyricsChange(lyricPageVisible)
+                }
+            }
         }
     }
     LaunchedEffect(immersiveAlbumCover) {
@@ -52,7 +62,7 @@ internal fun PlayerScreenPageHost(
     onShowPagedLyrics: () -> Unit,
     onDismissPagedLyrics: () -> Unit,
     coverPage: @Composable (onShowLyrics: () -> Unit, Modifier) -> Unit,
-    lyricsPage: @Composable (onDismissLyrics: () -> Unit, enableSwipeDismiss: Boolean, backEnabled: Boolean, Modifier) -> Unit,
+    lyricsPage: @Composable (onDismissLyrics: () -> Unit, enableSwipeDismiss: Boolean, backEnabled: Boolean, pageVisible: Boolean, Modifier) -> Unit,
     detailPage: @Composable (Modifier) -> Unit,
     playerVisible: Boolean = true,
     modifier: Modifier = Modifier
@@ -71,6 +81,7 @@ internal fun PlayerScreenPageHost(
             if (showLyrics) {
             lyricsPage(
                 onDismissImmersiveLyrics,
+                true,
                 true,
                 true,
                 Modifier.fillMaxSize()
@@ -103,6 +114,14 @@ internal fun PlayerScreenPageHost(
                     onDismissPagedLyrics,
                     false,
                     false,
+                    // Stop the frame-driven lyric renderer as soon as a pager gesture starts.
+                    // Keeping it active while swiping back made the cover page wait behind the
+                    // lyrics recomposition after the lyrics page had been open for a while.
+                    isPlayerLyricsPageVisible(
+                        page = page,
+                        currentPage = pagerState.currentPage,
+                        isScrollInProgress = pagerState.isScrollInProgress
+                    ),
                     Modifier.fillMaxSize()
                 )
                 PLAYER_PAGE_DETAILS -> detailPage(Modifier.fillMaxSize())
@@ -115,3 +134,9 @@ internal const val PLAYER_PAGE_DETAILS = 0
 internal const val PLAYER_PAGE_COVER = 1
 internal const val PLAYER_PAGE_LYRICS = 2
 internal const val PLAYER_PAGE_COUNT = 3
+
+internal fun isPlayerLyricsPageVisible(
+    page: Int,
+    currentPage: Int,
+    isScrollInProgress: Boolean
+): Boolean = page == currentPage && !isScrollInProgress

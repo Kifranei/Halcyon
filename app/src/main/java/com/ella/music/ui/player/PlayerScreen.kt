@@ -601,7 +601,7 @@ fun PlayerScreen(
                         modifier = pageModifier
                     )
                 },
-                lyricsPage = { onDismissLyrics, enableSwipeDismiss, backEnabled, pageModifier ->
+                lyricsPage = { onDismissLyrics, enableSwipeDismiss, backEnabled, pageVisible, pageModifier ->
                     LyricsPageContent(
                         song = song,
                         embeddedCover = embeddedCover,
@@ -651,6 +651,7 @@ fun PlayerScreen(
                         onDismissLyrics = onDismissLyrics,
                         enableSwipeDismiss = enableSwipeDismiss,
                         backEnabled = backEnabled,
+                        pageVisible = pageVisible,
                         immersiveAlbumCover = immersiveAlbumCover,
                         drawBackground = false,
                         modifier = pageModifier

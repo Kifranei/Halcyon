@@ -49,6 +49,7 @@ internal fun AppleMusicLyricsView(
     currentIndex: Int,
     currentPositionMs: Long,
     isPlaying: Boolean,
+    pageVisible: Boolean = true,
     showTranslation: Boolean,
     showPronunciation: Boolean,
     fontFamily: FontFamily?,
@@ -101,10 +102,19 @@ internal fun AppleMusicLyricsView(
             deferAutoScroll = false
         }
     }
-    var keepLinesSharp by remember { mutableStateOf(!isPlaying) }
-    LaunchedEffect(userDragging, isPlaying) {
+    val parkedPositionMs = remember { mutableLongStateOf(currentPositionMs) }
+    val parkedCurrentIndex = remember { mutableIntStateOf(currentIndex) }
+    LaunchedEffect(pageVisible) {
+        parkedPositionMs.longValue = currentPositionMs
+        parkedCurrentIndex.intValue = currentIndex
+    }
+    val renderIsPlaying = isPlaying && pageVisible
+    val renderPositionMs = if (pageVisible) currentPositionMs else parkedPositionMs.longValue
+    val renderCurrentIndex = if (pageVisible) currentIndex else parkedCurrentIndex.intValue
+    var keepLinesSharp by remember { mutableStateOf(!renderIsPlaying) }
+    LaunchedEffect(userDragging, renderIsPlaying) {
         when {
-            !isPlaying -> keepLinesSharp = true
+            !renderIsPlaying -> keepLinesSharp = true
             userDragging -> keepLinesSharp = true
             else -> {
                 delay(MANUAL_SCROLL_BLUR_RESUME_DELAY_MS)
@@ -113,23 +123,23 @@ internal fun AppleMusicLyricsView(
         }
     }
     val interludes = remember(lyrics) { lyrics.interludes() }
-    var smoothPositionMs by remember { mutableLongStateOf(currentPositionMs) }
-    LaunchedEffect(currentPositionMs, isPlaying) {
-        val anchorPositionMs = currentPositionMs
+    var smoothPositionMs by remember { mutableLongStateOf(renderPositionMs) }
+    LaunchedEffect(renderPositionMs, renderIsPlaying) {
+        val anchorPositionMs = renderPositionMs
         val anchorFrameNs = withFrameNanos { it }
         smoothPositionMs = anchorPositionMs
-        while (isPlaying) {
+        while (renderIsPlaying) {
             val frameNs = withFrameNanos { it }
             smoothPositionMs = anchorPositionMs + ((frameNs - anchorFrameNs) / 1_000_000L)
         }
     }
     val activeInterlude = interludes.firstOrNull { it.isActiveAt(smoothPositionMs) }
-    val activeIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+    val activeIndex = renderCurrentIndex.coerceIn(0, lyrics.lastIndex)
     val scrollTargetIndex = activeInterlude?.let { interlude ->
         interlude.nextLineIndex + interludes.count { it.nextLineIndex < interlude.nextLineIndex }
     } ?: activeIndex + interludes.count { it.nextLineIndex <= activeIndex }
-    LaunchedEffect(scrollTargetIndex, userDragging, deferAutoScroll, trailingLineHeightPx) {
-        if (userDragging || deferAutoScroll) return@LaunchedEffect
+    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, trailingLineHeightPx) {
+        if (!pageVisible || userDragging || deferAutoScroll) return@LaunchedEffect
         // Do not issue the first scroll before LazyColumn has a viewport; that was making the
         // focus line land under the page header until the user manually scrolled.
         val viewportHeight = snapshotFlow {
@@ -225,9 +235,10 @@ internal fun AppleMusicLyricsView(
                     AppleMusicLyricLine(
                         line = line,
                         active = lineIsActive,
+                        paused = !renderIsPlaying,
                         distance = (index - activeIndex).coerceIn(-4, 4),
                         userScrolling = userDragging || keepLinesSharp,
-                        nonCurrentLineBlurEnabled = nonCurrentLineBlurEnabled,
+                        nonCurrentLineBlurEnabled = nonCurrentLineBlurEnabled && renderIsPlaying,
                         // Do not invalidate every retained LazyColumn row for every playback tick.
                         // Only the active (or simultaneous duet) line needs a changing karaoke position.
                         currentPositionMs = if (lineIsActive) smoothPositionMs else Long.MIN_VALUE,
