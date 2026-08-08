@@ -53,9 +53,11 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.repository.MusicScanSummary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import com.ella.music.ui.components.MiniPlayerLyricTiming
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.TagEditorEditTracker
@@ -79,6 +81,8 @@ fun EllaApp(
     playerViewModel: PlayerViewModel,
     isDarkTheme: Boolean
 ) {
+    val context = LocalContext.current
+    val activity = context as? Activity
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = when (val route = navBackStackEntry?.destination?.route) {
@@ -90,11 +94,32 @@ fun EllaApp(
         else -> route
     }
     val view = LocalView.current
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    // MainActivity has already primed DataStore before this composition. Read the settings that
+    // shape the root surface once so the first visible frame uses the saved dock, wallpaper and
+    // mini-player configuration instead of briefly drawing their defaults.
+    val initialUiSettings = remember(settingsManager) {
+        runBlocking(Dispatchers.IO) {
+            EllaInitialUiSettings(
+                miniPlayerLyricSecondary = settingsManager.miniPlayerLyricSecondary.first(),
+                miniPlayerCoverRotation = settingsManager.miniPlayerCoverRotation.first(),
+                miniPlayerLyricsEnabled = settingsManager.miniPlayerLyricsEnabled.first(),
+                miniPlayerRightButton = settingsManager.miniPlayerRightButton.first(),
+                bottomBarGlassEffect = settingsManager.bottomBarGlassEffect.first(),
+                bottomDockItems = settingsManager.bottomDockItems.first(),
+                appWallpaperEnabled = settingsManager.appWallpaperEnabled.first(),
+                appWallpaperUri = settingsManager.appWallpaperUri.first(),
+                appWallpaperOpacity = settingsManager.appWallpaperOpacity.first(),
+                appWallpaperDim = settingsManager.appWallpaperDim.first(),
+                startupPosterEnabled = settingsManager.startupPosterEnabled.first(),
+                startupPosterUri = settingsManager.startupPosterUri.first(),
+                startupPosterDurationMs = settingsManager.startupPosterDurationMs.first(),
+                notificationPermissionPromptHandled = settingsManager.notificationPermissionPromptHandled.first()
+            )
+        }
+    }
     val scope = rememberCoroutineScope()
-    val activity = context as? Activity
     val mainActivity = context as? MainActivity
     val currentProcessingIntent = remember { mutableStateOf(activity?.intent) }
     DisposableEffect(mainActivity) {
@@ -357,24 +382,26 @@ fun EllaApp(
     val duration by playerViewModel.duration.collectAsState()
     val lyrics by playerViewModel.lyrics.collectAsState()
     val currentLyricIndex by playerViewModel.currentLyricIndex.collectAsState()
-    val miniPlayerLyricSecondary by settingsManager.miniPlayerLyricSecondary.collectAsState(initial = SettingsManager.LYRIC_SECONDARY_TRANSLATION)
-    val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = true)
-    val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
-    val miniPlayerRightButton by settingsManager.miniPlayerRightButton.collectAsState(initial = 0)
-    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
+    val miniPlayerLyricSecondary by settingsManager.miniPlayerLyricSecondary.collectAsState(initial = initialUiSettings.miniPlayerLyricSecondary)
+    val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = initialUiSettings.miniPlayerCoverRotation)
+    val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = initialUiSettings.miniPlayerLyricsEnabled)
+    val miniPlayerRightButton by settingsManager.miniPlayerRightButton.collectAsState(initial = initialUiSettings.miniPlayerRightButton)
+    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = initialUiSettings.bottomBarGlassEffect)
     val bottomDockItemIds by settingsManager.bottomDockItems.collectAsState(
-        initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
+        initial = initialUiSettings.bottomDockItems
     )
-    val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = false)
-    val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = "")
-    val appWallpaperOpacity by settingsManager.appWallpaperOpacity.collectAsState(initial = 100)
-    val appWallpaperDim by settingsManager.appWallpaperDim.collectAsState(initial = 30)
-    val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = false)
-    val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = "")
+    val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = initialUiSettings.appWallpaperEnabled)
+    val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = initialUiSettings.appWallpaperUri)
+    val appWallpaperOpacity by settingsManager.appWallpaperOpacity.collectAsState(initial = initialUiSettings.appWallpaperOpacity)
+    val appWallpaperDim by settingsManager.appWallpaperDim.collectAsState(initial = initialUiSettings.appWallpaperDim)
+    val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = initialUiSettings.startupPosterEnabled)
+    val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = initialUiSettings.startupPosterUri)
     val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
-        initial = SettingsManager.DEFAULT_STARTUP_POSTER_DURATION_MS
+        initial = initialUiSettings.startupPosterDurationMs
     )
-    val notificationPermissionPromptHandled by settingsManager.notificationPermissionPromptHandled.collectAsState(initial = false)
+    val notificationPermissionPromptHandled by settingsManager.notificationPermissionPromptHandled.collectAsState(
+        initial = initialUiSettings.notificationPermissionPromptHandled
+    )
     var showStartupPoster by rememberSaveable { mutableStateOf(true) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -549,6 +576,7 @@ fun EllaApp(
                     navController = navController,
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,
+                    initialBottomDockItems = initialUiSettings.bottomDockItems,
                     modifier = contentModifier.nestedScroll(dockScrollConnection),
                     onNavigateToPlayer = {
                         playerDismissProgress = 0f
@@ -753,3 +781,20 @@ fun EllaApp(
         }
     }
 }
+
+private data class EllaInitialUiSettings(
+    val miniPlayerLyricSecondary: Int,
+    val miniPlayerCoverRotation: Boolean,
+    val miniPlayerLyricsEnabled: Boolean,
+    val miniPlayerRightButton: Int,
+    val bottomBarGlassEffect: BottomBarGlassEffect,
+    val bottomDockItems: List<String>,
+    val appWallpaperEnabled: Boolean,
+    val appWallpaperUri: String,
+    val appWallpaperOpacity: Int,
+    val appWallpaperDim: Int,
+    val startupPosterEnabled: Boolean,
+    val startupPosterUri: String,
+    val startupPosterDurationMs: Int,
+    val notificationPermissionPromptHandled: Boolean
+)

@@ -67,7 +67,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val songs: StateFlow<List<Song>> = repository.songs
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val playlistCoordinator = MainViewModelPlaylistCoordinator(
         playlistStore = playlistStore,
@@ -77,7 +76,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val albums: StateFlow<List<Album>> = repository.albums
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val isScanning: StateFlow<Boolean> = repository.isScanning
     val scanProgress: StateFlow<Int> = repository.scanProgress
@@ -305,6 +303,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cachedLibraryLoadJob?.takeIf { it.isActive }?.join()
     }
 
+    /** Wait until the persisted library snapshot is ready for the very first app frame. */
+    suspend fun awaitInitialLibraryRestore() {
+        cachedLibraryLoadJob?.join()
+    }
+
     private suspend fun scanFromCurrentSettings(fullRescan: Boolean = false, deepRescan: Boolean = fullRescan) {
         val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
         scanWithIncludeFolders(
@@ -392,7 +395,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadCachedLibrary() {
         if (_libraryCacheLoaded.value || cachedLibraryLoadJob?.isActive == true) return
-        cachedLibraryLoadJob = viewModelScope.launch {
+        cachedLibraryLoadJob = viewModelScope.launch(Dispatchers.IO) {
             val source = settingsManager.librarySource.first()
             if (source != SettingsManager.LIBRARY_SOURCE_LOCAL) {
                 // Load the cached remote library instantly on startup (network refresh happens via

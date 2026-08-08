@@ -184,11 +184,12 @@ fun AppNavigation(
     navController: NavHostController,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
+    initialBottomDockItems: List<String> = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(','),
     modifier: Modifier = Modifier,
     onNavigateToPlayer: () -> Unit = {}
 ) {
     val bottomDockItems by mainViewModel.settingsManager.bottomDockItems.collectAsState(
-        initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
+        initial = initialBottomDockItems
     )
     fun isDockItem(itemId: String): Boolean = itemId in bottomDockItems
 

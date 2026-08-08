@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.FolderPlaylist
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -44,6 +45,9 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 
 @Composable
@@ -72,26 +76,52 @@ fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val folderPlaylists by settingsManager.folderPlaylists.collectAsState(initial = emptyList())
-    val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
-    val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
-    val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = false)
-    val homeDailyMixVisible by settingsManager.homeDailyMixVisible.collectAsState(initial = true)
-    val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = true)
-    val homeSectionOrder by settingsManager.homeSectionOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_SECTION_ORDER)
-    val homeHiddenSections by settingsManager.homeHiddenSections.collectAsState(initial = "")
-    val homeLibraryTileOrder by settingsManager.homeLibraryTileOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER)
-    val homeHiddenLibraryTiles by settingsManager.homeHiddenLibraryTiles.collectAsState(initial = "")
-    val homeOnlineTileOrder by settingsManager.homeOnlineTileOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_ONLINE_TILE_ORDER)
-    val homeHiddenOnlineTiles by settingsManager.homeHiddenOnlineTiles.collectAsState(initial = "")
-    val homeTilePinButtonsVisible by settingsManager.homeTilePinButtonsVisible.collectAsState(initial = false)
-    val homeTileColorsRaw by settingsManager.homeTileColors.collectAsState(initial = "")
-    val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = false)
-    val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = "")
-    val homeCardColorRaw by settingsManager.homeCardColor.collectAsState(initial = "")
-    val homeCardOpacity by settingsManager.homeCardOpacity.collectAsState(initial = 58)
-    val homeTileGradientEnabled by settingsManager.homeTileGradientEnabled.collectAsState(initial = false)
-    val homeTileGradientStartColorRaw by settingsManager.homeTileGradientStartColor.collectAsState(initial = "")
+    val initialSettings = remember(settingsManager) {
+        runBlocking(Dispatchers.IO) {
+            HomeInitialSettings(
+                folderPlaylists = settingsManager.folderPlaylists.first(),
+                openPlayerOnPlay = settingsManager.openPlayerOnPlay.first(),
+                showAlbumArtists = settingsManager.showAlbumArtists.first(),
+                tagIgnoreCase = settingsManager.tagIgnoreCase.first(),
+                homeDailyMixVisible = settingsManager.homeDailyMixVisible.first(),
+                homeAiMixVisible = settingsManager.homeAiMixVisible.first(),
+                homeSectionOrder = settingsManager.homeSectionOrder.first(),
+                homeHiddenSections = settingsManager.homeHiddenSections.first(),
+                homeLibraryTileOrder = settingsManager.homeLibraryTileOrder.first(),
+                homeHiddenLibraryTiles = settingsManager.homeHiddenLibraryTiles.first(),
+                homeOnlineTileOrder = settingsManager.homeOnlineTileOrder.first(),
+                homeHiddenOnlineTiles = settingsManager.homeHiddenOnlineTiles.first(),
+                homeTilePinButtonsVisible = settingsManager.homeTilePinButtonsVisible.first(),
+                homeTileColors = settingsManager.homeTileColors.first(),
+                appWallpaperEnabled = settingsManager.appWallpaperEnabled.first(),
+                appWallpaperUri = settingsManager.appWallpaperUri.first(),
+                homeCardColor = settingsManager.homeCardColor.first(),
+                homeCardOpacity = settingsManager.homeCardOpacity.first(),
+                homeTileGradientEnabled = settingsManager.homeTileGradientEnabled.first(),
+                homeTileGradientStartColor = settingsManager.homeTileGradientStartColor.first()
+            )
+        }
+    }
+    val folderPlaylists by settingsManager.folderPlaylists.collectAsState(initial = initialSettings.folderPlaylists)
+    val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = initialSettings.openPlayerOnPlay)
+    val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = initialSettings.showAlbumArtists)
+    val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = initialSettings.tagIgnoreCase)
+    val homeDailyMixVisible by settingsManager.homeDailyMixVisible.collectAsState(initial = initialSettings.homeDailyMixVisible)
+    val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = initialSettings.homeAiMixVisible)
+    val homeSectionOrder by settingsManager.homeSectionOrder.collectAsState(initial = initialSettings.homeSectionOrder)
+    val homeHiddenSections by settingsManager.homeHiddenSections.collectAsState(initial = initialSettings.homeHiddenSections)
+    val homeLibraryTileOrder by settingsManager.homeLibraryTileOrder.collectAsState(initial = initialSettings.homeLibraryTileOrder)
+    val homeHiddenLibraryTiles by settingsManager.homeHiddenLibraryTiles.collectAsState(initial = initialSettings.homeHiddenLibraryTiles)
+    val homeOnlineTileOrder by settingsManager.homeOnlineTileOrder.collectAsState(initial = initialSettings.homeOnlineTileOrder)
+    val homeHiddenOnlineTiles by settingsManager.homeHiddenOnlineTiles.collectAsState(initial = initialSettings.homeHiddenOnlineTiles)
+    val homeTilePinButtonsVisible by settingsManager.homeTilePinButtonsVisible.collectAsState(initial = initialSettings.homeTilePinButtonsVisible)
+    val homeTileColorsRaw by settingsManager.homeTileColors.collectAsState(initial = initialSettings.homeTileColors)
+    val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = initialSettings.appWallpaperEnabled)
+    val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = initialSettings.appWallpaperUri)
+    val homeCardColorRaw by settingsManager.homeCardColor.collectAsState(initial = initialSettings.homeCardColor)
+    val homeCardOpacity by settingsManager.homeCardOpacity.collectAsState(initial = initialSettings.homeCardOpacity)
+    val homeTileGradientEnabled by settingsManager.homeTileGradientEnabled.collectAsState(initial = initialSettings.homeTileGradientEnabled)
+    val homeTileGradientStartColorRaw by settingsManager.homeTileGradientStartColor.collectAsState(initial = initialSettings.homeTileGradientStartColor)
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     var aiPlaylistLoading by remember { mutableStateOf(false) }
     val pageBackground = ellaPageBackground()
@@ -351,6 +381,29 @@ fun HomeScreen(
         }
     }
 }
+
+private data class HomeInitialSettings(
+    val folderPlaylists: List<FolderPlaylist>,
+    val openPlayerOnPlay: Boolean,
+    val showAlbumArtists: Boolean,
+    val tagIgnoreCase: Boolean,
+    val homeDailyMixVisible: Boolean,
+    val homeAiMixVisible: Boolean,
+    val homeSectionOrder: String,
+    val homeHiddenSections: String,
+    val homeLibraryTileOrder: String,
+    val homeHiddenLibraryTiles: String,
+    val homeOnlineTileOrder: String,
+    val homeHiddenOnlineTiles: String,
+    val homeTilePinButtonsVisible: Boolean,
+    val homeTileColors: String,
+    val appWallpaperEnabled: Boolean,
+    val appWallpaperUri: String,
+    val homeCardColor: String,
+    val homeCardOpacity: Int,
+    val homeTileGradientEnabled: Boolean,
+    val homeTileGradientStartColor: String
+)
 
 private fun String.parseHomeCardColorOrNull(): Color? {
     val value = trim()

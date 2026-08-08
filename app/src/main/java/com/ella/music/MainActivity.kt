@@ -30,11 +30,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalView
@@ -55,7 +53,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.ella.music.ui.player.PlayerPalette
 import com.ella.music.ui.player.loadPaletteCoverBitmap
-import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.components.ScriptFontPaths
 import com.ella.music.ui.theme.MONET_COVER
@@ -67,7 +64,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class MainActivity : ComponentActivity() {
 
-    // Keep creation lazy so the themed first frame can be drawn before library/playback restore.
     private val startupMainViewModel: MainViewModel by viewModels()
     private val startupPlayerViewModel: PlayerViewModel by viewModels()
 
@@ -107,21 +103,39 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
-        setContent {
-            var startupModels by remember { mutableStateOf<StartupViewModels?>(null) }
-            val mainVm = startupModels?.main
-            val playerVm = startupModels?.player
-            mainViewModel = mainVm
-
-            val settingsManager = remember { SettingsManager.getInstance(this@MainActivity) }
-            val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
-            val appLanguage by settingsManager.appLanguage.collectAsState(
-                initial = appliedLanguageTag ?: SettingsManager.APP_LANGUAGE_SYSTEM
+        // DataStore is read before Compose creates its first frame.  Rendering hard-coded defaults
+        // and replacing them a frame later made every cold launch visibly jump between themes and
+        // home layouts, while delaying the ViewModels behind a spinner made the app feel slower
+        // than the actual restore work.  Keep Android's system splash until this small snapshot is
+        // ready, then compose the real configured UI directly.
+        val settingsManager = SettingsManager.getInstance(this)
+        val startupAppearance = runBlocking(Dispatchers.IO) {
+            StartupAppearance(
+                themeMode = settingsManager.themeMode.first(),
+                appLanguage = settingsManager.appLanguage.first(),
+                legacyAppFontPath = settingsManager.lyricFontPath.first(),
+                globalWesternFontPath = settingsManager.globalWesternFontPath.first(),
+                globalCjkFontPath = settingsManager.globalCjkFontPath.first(),
+                appFontWeight = settingsManager.lyricFontWeight.first(),
+                monetMode = settingsManager.monetColorMode.first(),
+                systemBarsMode = settingsManager.systemBarsMode.first(),
+                systemBarsReserveSpace = settingsManager.systemBarsReserveSpace.first()
             )
-            val legacyAppFontPath by settingsManager.lyricFontPath.collectAsState(initial = "")
-            val globalWesternFontPath by settingsManager.globalWesternFontPath.collectAsState(initial = "")
-            val globalCjkFontPath by settingsManager.globalCjkFontPath.collectAsState(initial = "")
-            val appFontWeight by settingsManager.lyricFontWeight.collectAsState(initial = 800)
+        }
+        val mainVm = startupMainViewModel
+        val playerVm = startupPlayerViewModel
+        runBlocking { mainVm.awaitInitialLibraryRestore() }
+        mainViewModel = mainVm
+
+        setContent {
+            val themeMode by settingsManager.themeMode.collectAsState(initial = startupAppearance.themeMode)
+            val appLanguage by settingsManager.appLanguage.collectAsState(
+                initial = startupAppearance.appLanguage
+            )
+            val legacyAppFontPath by settingsManager.lyricFontPath.collectAsState(initial = startupAppearance.legacyAppFontPath)
+            val globalWesternFontPath by settingsManager.globalWesternFontPath.collectAsState(initial = startupAppearance.globalWesternFontPath)
+            val globalCjkFontPath by settingsManager.globalCjkFontPath.collectAsState(initial = startupAppearance.globalCjkFontPath)
+            val appFontWeight by settingsManager.lyricFontWeight.collectAsState(initial = startupAppearance.appFontWeight)
             val appFontPath = remember(legacyAppFontPath, globalWesternFontPath, globalCjkFontPath) {
                 val western = globalWesternFontPath.ifBlank { legacyAppFontPath }
                 if (western.isBlank() && globalCjkFontPath.isBlank()) {
@@ -130,16 +144,15 @@ class MainActivity : ComponentActivity() {
                     ScriptFontPaths(western, globalCjkFontPath).encode()
                 }
             }
-            val monetMode by settingsManager.monetColorMode.collectAsState(initial = 0)
+            val monetMode by settingsManager.monetColorMode.collectAsState(initial = startupAppearance.monetMode)
             val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
-                initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+                initial = startupAppearance.systemBarsMode
             )
             val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
-                initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+                initial = startupAppearance.systemBarsReserveSpace
             )
             val monetSong by produceState<Song?>(null, playerVm) {
-                val activePlayer = playerVm ?: return@produceState
-                activePlayer.currentSong.collect { value = it }
+                playerVm.currentSong.collect { value = it }
             }
             // Seed color for cover-based Monet: extract a representative color from the current cover.
             val coverSeed by produceState<ComposeColor?>(null, monetMode, monetSong?.id) {
@@ -217,17 +230,10 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(Unit) {
-                // Let Android present the first themed frame before restoring the two heavy models.
-                withFrameNanos { }
-                startupModels = StartupViewModels(
-                    main = startupMainViewModel,
-                    player = startupPlayerViewModel
-                )
                 checkAndRequestPermissions()
             }
 
             LaunchedEffect(mainVm, playerVm) {
-                if (mainVm == null || playerVm == null) return@LaunchedEffect
                 if (!startupPlaybackHandled) {
                     startupPlaybackHandled = true
                     when (settingsManager.startupPlayMode.first()) {
@@ -286,11 +292,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                     ) {
-                        if (mainVm != null && playerVm != null) {
-                            EllaApp(mainVm, playerVm, isDark)
-                        } else {
-                            EllaCenteredLoadingIndicator()
-                        }
+                        EllaApp(mainVm, playerVm, isDark)
                     }
                 }
             }
@@ -332,8 +334,15 @@ class MainActivity : ComponentActivity() {
         var startupPlaybackHandled = false
     }
 
-    private data class StartupViewModels(
-        val main: MainViewModel,
-        val player: PlayerViewModel
+    private data class StartupAppearance(
+        val themeMode: Int,
+        val appLanguage: String,
+        val legacyAppFontPath: String,
+        val globalWesternFontPath: String,
+        val globalCjkFontPath: String,
+        val appFontWeight: Int,
+        val monetMode: Int,
+        val systemBarsMode: Int,
+        val systemBarsReserveSpace: Boolean
     )
 }
