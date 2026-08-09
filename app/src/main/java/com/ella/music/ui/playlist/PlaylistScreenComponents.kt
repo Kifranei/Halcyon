@@ -41,6 +41,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Share
@@ -55,6 +56,7 @@ internal fun PlaylistScreenTopBar(
     sortItems: List<SortDropdownItem>,
     onBackClick: () -> Unit,
     onExportSelectedClick: () -> Unit,
+    onPinSelectedClick: () -> Unit,
     onPlayNextSelectedClick: () -> Unit,
     onAddSelectedToQueueClick: () -> Unit,
     onAddSelectedToPlaylistClick: () -> Unit,
@@ -89,6 +91,14 @@ internal fun PlaylistScreenTopBar(
         onDoubleTapTitle = onDoubleTapTitle,
         actions = {
             if (selectionMode) {
+                IconButton(onClick = onPinSelectedClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Pin,
+                        contentDescription = stringResource(R.string.common_pin_to_top),
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 IconButton(onClick = onExportSelectedClick) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Share,

@@ -58,6 +58,18 @@ internal val SearchFilter.acceptsSongResults: Boolean
 internal val SearchFilter.supportsDuplicateFilter: Boolean
     get() = this in listOf(SearchFilter.All, SearchFilter.Songs)
 
+/** Extra song-property filters available alongside duplicate search in All and Songs. */
+internal data class LibrarySearchContentFilters(
+    val noLyrics: Boolean = false,
+    val ttmlLyrics: Boolean = false,
+    val localMusicVideo: Boolean = false,
+    val onlineMusicVideo: Boolean = false,
+    val dynamicCover: Boolean = false
+) {
+    val hasActiveFilter: Boolean
+        get() = noLyrics || ttmlLyrics || localMusicVideo || onlineMusicVideo || dynamicCover
+}
+
 /**
  * Saver for [SearchFilter] so it can survive process death and — more importantly — be
  * retained via `rememberSaveable` across navigation back-stack pops (e.g. opening an
@@ -89,23 +101,26 @@ internal data class SongSearchResult(
 internal data class SongSearchMatch(
     val type: SearchSongMatchType,
     val labelRes: Int,
-    val value: String
+    val value: String,
+    /** Metadata fields retain their real tag name instead of the ambiguous generic “Tag”. */
+    val displayLabel: String? = null
 )
 
 internal enum class SearchSongMatchType(val storageKey: String, val labelRes: Int) {
     Title("title", R.string.library_search_match_title),
     Artist("artist", R.string.library_search_match_artist),
     Album("album", R.string.library_search_match_album),
+    FileName("file_name", R.string.library_search_match_file_name),
+    TranslatedName("translated_name", R.string.library_search_match_translated_name),
+    Alias("alias", R.string.library_search_match_alias),
+    Comment("comment", R.string.library_search_match_comment),
+    Tag("tag", R.string.library_search_match_tag),
+    Lyricist("lyricist", R.string.library_search_match_lyricist),
+    Composer("composer", R.string.library_search_match_composer),
+    Arranger("arranger", R.string.library_search_match_arranger),
     AlbumArtist("album_artist", R.string.library_search_match_album_artist),
     Genre("genre", R.string.library_search_match_genre),
     Year("year", R.string.library_search_match_year),
-    Composer("composer", R.string.library_search_match_composer),
-    Arranger("arranger", R.string.library_search_match_arranger),
-    Lyricist("lyricist", R.string.library_search_match_lyricist),
-    FileName("file_name", R.string.library_search_match_file_name),
-    Comment("comment", R.string.library_search_match_comment),
-    Alias("alias", R.string.library_search_match_alias),
-    Tag("tag", R.string.library_search_match_tag),
     Lyrics("lyrics", R.string.library_search_lyrics)
 }
 
@@ -173,23 +188,47 @@ internal fun Song.directSearchMatches(
         addMatch(SearchSongMatchType.Title, title, target)
         addMatch(SearchSongMatchType.Artist, artist, target)
         addMatch(SearchSongMatchType.Album, album, target)
+        addMatch(SearchSongMatchType.FileName, fileName, target)
+        decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty())?.let { key ->
+            key.translatedNames.forEach { translatedName ->
+                addMatch(SearchSongMatchType.TranslatedName, translatedName, target)
+            }
+            key.aliases.forEach { alias -> addMatch(SearchSongMatchType.Alias, alias, target) }
+        }
+        tagInfo?.displayComment?.let { addMatch(SearchSongMatchType.Comment, it, target) }
+        tagInfo?.customTags
+            .orEmpty()
+            .forEach { (rawKey, values) ->
+                val key = rawKey.trim()
+                if (key.normalizedSearchTagKey() in SEARCH_LYRIC_TAG_KEYS) return@forEach
+                values.forEach { rawValue ->
+                    val value = rawValue.trim()
+                    if (key.isNotBlank() && value.isNotBlank() && value.contains(target, ignoreCase = true)) {
+                        add(SongSearchMatch(SearchSongMatchType.Tag, SearchSongMatchType.Tag.labelRes, value, key))
+                    }
+                }
+            }
+        addMatch(SearchSongMatchType.Lyricist, lyricist, target)
+        addMatch(SearchSongMatchType.Composer, composer, target)
+        addMatch(SearchSongMatchType.Arranger, arranger, target)
         addMatch(SearchSongMatchType.AlbumArtist, albumArtist, target)
         addMatch(SearchSongMatchType.Genre, genre, target)
         addMatch(SearchSongMatchType.Year, year, target)
-        addMatch(SearchSongMatchType.Composer, composer, target)
-        addMatch(SearchSongMatchType.Arranger, arranger, target)
-        addMatch(SearchSongMatchType.Lyricist, lyricist, target)
-        addMatch(SearchSongMatchType.FileName, fileName, target)
-        tagInfo?.displayComment?.let { addMatch(SearchSongMatchType.Comment, it, target) }
-        decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty())
-            ?.aliases
-            .orEmpty()
-            .forEach { alias -> addMatch(SearchSongMatchType.Alias, alias, target) }
         if (includeSnapshotTag && isEmpty()) {
             add(SongSearchMatch(SearchSongMatchType.Tag, SearchSongMatchType.Tag.labelRes, target))
         }
     }
 }
+
+private val SEARCH_LYRIC_TAG_KEYS = setOf(
+    "LYRIC",
+    "LYRICS",
+    "SYNCEDLYRIC",
+    "SYNCEDLYRICS"
+)
+
+private fun String.normalizedSearchTagKey(): String =
+    uppercase().filter(Char::isLetterOrDigit)
 
 private fun MutableList<SongSearchMatch>.addMatch(type: SearchSongMatchType, value: String, query: String) {
     val trimmed = value.trim()

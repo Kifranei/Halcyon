@@ -640,7 +640,9 @@ class MusicScanner(private val context: Context) {
                 .ifBlank { tagInfo.comment.orEmpty().extractPrefixedNeteaseCommentKey() }
                 .cleanTagText(),
             rating = ratingStarsFromTagValues(tagInfo.rating?.toString()),
-            customTagText = tagInfo.customTags.flattenForSearch()
+            lyrics = tagInfo.lyrics.orEmpty().cleanTagText(),
+            customTagText = tagInfo.customTags.flattenForSearch(),
+            customTags = tagInfo.customTags
         )
     }
 

@@ -295,7 +295,7 @@ internal fun LyricSearchMatchLine(snippet: String, query: String) {
 internal fun SongSearchMatchLine(match: SongSearchMatch, query: String) {
     Text(
         text = buildAnnotatedString {
-            append(stringResource(match.labelRes))
+            append(match.displayLabel ?: stringResource(match.labelRes))
             append(": ")
             appendHighlightedQuery(match.value, query, MiuixTheme.colorScheme.primary)
         },

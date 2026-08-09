@@ -90,6 +90,7 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -393,9 +394,24 @@ fun ArtistListScreen(
                     }
                 },
                 titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
+                titleEndPadding = if (selection.selectionMode) 280.dp else 128.dp,
                 onDoubleTapTitle = { scrollToTopRequest++ },
                 actions = {
                     if (selection.selectionMode) {
+                        IconButton(onClick = {
+                            val keys = selection.selectedIdsInSelectionOrder()
+                            if (keys.isNotEmpty()) {
+                                scope.launch { mainViewModel.settingsManager.pinKeysInOrder("artist", keys) }
+                                selection.finishSelectionMode()
+                            }
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Pin,
+                                contentDescription = stringResource(R.string.common_pin_to_top),
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                         IconButton(onClick = {
                             val selectedSongs = selectedArtistSongs()
                             if (selectedSongs.isNotEmpty()) {

@@ -45,6 +45,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_ALL_CATEGORY_TYP
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_ALL_SONG_MATCH_TYPES
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ALBUM_ARTISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_PLAY_NEXT_IN_LISTS
+import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON
 import com.ella.music.data.SettingsManager.Companion.KEY_SONG_RATING_DISPLAY_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_TAG_IGNORE_CASE
 import com.ella.music.data.SettingsManager.Companion.KEY_USB_FOLDER_URIS
@@ -72,6 +73,7 @@ interface LibrarySettingsAccess {
     val minDurationSec: Flow<Int>
     val playlistSpecialEntriesVisible: Flow<Boolean>
     val showPlayNextInLists: Flow<Boolean>
+    val showRemoveFromPlaylistButton: Flow<Boolean>
     val excludeSearchResultsFromPlaylist: Flow<Boolean>
     val autoShowSearchKeyboard: Flow<Boolean>
     val playNextMode: Flow<Int>
@@ -108,6 +110,7 @@ interface LibrarySettingsAccess {
     suspend fun setMinDurationSec(seconds: Int)
     suspend fun setPlaylistSpecialEntriesVisible(visible: Boolean)
     suspend fun setShowPlayNextInLists(enabled: Boolean)
+    suspend fun setShowRemoveFromPlaylistButton(enabled: Boolean)
     suspend fun setExcludeSearchResultsFromPlaylist(enabled: Boolean)
     suspend fun setAutoShowSearchKeyboard(enabled: Boolean)
     suspend fun setPlayNextMode(mode: Int)
@@ -122,6 +125,7 @@ interface LibrarySettingsAccess {
     suspend fun setFolderPlaylistHiddenFolders(playlistId: String, paths: List<String>)
     fun pinnedKeysFlow(namespace: String): Flow<List<String>>
     suspend fun setPinned(namespace: String, key: String, pinned: Boolean)
+    suspend fun pinKeysInOrder(namespace: String, keys: List<String>)
     suspend fun setAddToPlaylistAppendToEnd(appendToEnd: Boolean)
     suspend fun setCategoryGridColumns(columns: Int)
     suspend fun upsertFolderPlaylist(
@@ -165,6 +169,8 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE] ?: false }
     override val showPlayNextInLists: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] ?: false }
+    override val showRemoveFromPlaylistButton: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON] ?: true }
     override val excludeSearchResultsFromPlaylist: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST] ?: false }
     override val autoShowSearchKeyboard: Flow<Boolean> =
@@ -273,6 +279,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setShowPlayNextInLists(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] = enabled }
+    }
+
+    override suspend fun setShowRemoveFromPlaylistButton(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON] = enabled }
     }
 
     override suspend fun setExcludeSearchResultsFromPlaylist(enabled: Boolean) {
@@ -409,6 +419,23 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
             current.remove(trimmed)
             if (pinned) current.add(0, trimmed)
             prefs[prefKey] = current.joinToString("\n")
+        }
+    }
+
+    override suspend fun pinKeysInOrder(namespace: String, keys: List<String>) {
+        val selectedKeys = keys.map(String::trim).filter(String::isNotBlank).distinct()
+        if (selectedKeys.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val prefKey = stringPreferencesKey("pinned_$namespace")
+            val existing = prefs[prefKey]
+                ?.split("\n")
+                ?.map(String::trim)
+                ?.filter(String::isNotBlank)
+                .orEmpty()
+            // Keep the caller's tap order at the top. Existing pins retain their relative order
+            // after the newly selected group, so a batch action never reverses the user's order.
+            prefs[prefKey] = (selectedKeys + existing.filterNot { it in selectedKeys })
+                .joinToString("\n")
         }
     }
 

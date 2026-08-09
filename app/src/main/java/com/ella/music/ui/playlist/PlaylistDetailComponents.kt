@@ -45,7 +45,8 @@ internal fun PlaylistDetailHero(
     coverModel: Any?,
     songCount: Int,
     playCount: Int = 0,
-    duration: Long
+    duration: Long,
+    onShuffle: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -108,17 +109,28 @@ internal fun PlaylistDetailHero(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = stringResource(
-                        R.string.playlist_detail_summary_basic,
-                        songCount,
-                        duration.formatPlaylistDuration()
-                    ),
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    ShuffleAllSummaryButton(
+                        visible = onShuffle != null,
+                        onClick = { onShuffle?.invoke() }
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.playlist_detail_summary_basic,
+                            songCount,
+                            duration.formatPlaylistDuration()
+                        ),
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }

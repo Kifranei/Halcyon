@@ -486,6 +486,16 @@ fun PlaylistScreen(
                     }
                 ),
             onBackClick = { if (selection.selectionMode) finishSelectionMode() else onBack() },
+            onPinSelectedClick = {
+                val keys = selection.selectedIdsInSelectionOrder()
+                if (keys.isNotEmpty()) {
+                    val orderedIds = keys + storedCustomPlaylists
+                        .map(UserPlaylist::id)
+                        .filterNot { it in keys }
+                    mainViewModel.reorderPlaylists(orderedIds)
+                    finishSelectionMode()
+                }
+            },
             onExportSelectedClick = {
                 val targets = selectedPlaylists()
                 if (targets.isEmpty()) {

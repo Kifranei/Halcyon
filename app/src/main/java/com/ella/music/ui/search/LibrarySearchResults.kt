@@ -179,21 +179,6 @@ internal fun LibrarySearchResultsPane(
                 }
             }
         }
-        if (albumResults.isNotEmpty() && filter in listOf(SearchFilter.All, SearchFilter.Albums)) {
-            item { SearchSectionHeader(stringResource(R.string.library_search_albums) + " (${albumResults.size})") }
-            items(albumResults, key = { it.id }) { album ->
-                AlbumResultRow(
-                    album = album,
-                    coverModel = mainViewModel.getAlbumArtUri(album.artAlbumId),
-                    query = trimmedQuery,
-                    onClick = {
-                        onCommitSearch()
-                        onNavigateToAlbum(album.id)
-                    },
-                    onLongClick = { onActionTarget(SearchActionTarget.AlbumTarget(album)) }
-                )
-            }
-        }
         if (artistResults.isNotEmpty() && filter in listOf(SearchFilter.All, SearchFilter.Artists)) {
             item { SearchSectionHeader(stringResource(R.string.library_search_artists) + " (${artistResults.size})") }
             items(artistResults, key = { it.artist.name }) { result ->
@@ -214,6 +199,21 @@ internal fun LibrarySearchResultsPane(
                         onNavigateToArtist(result.artist.name)
                     },
                     onLongClick = { onActionTarget(SearchActionTarget.ArtistTarget(result.artist)) }
+                )
+            }
+        }
+        if (albumResults.isNotEmpty() && filter in listOf(SearchFilter.All, SearchFilter.Albums)) {
+            item { SearchSectionHeader(stringResource(R.string.library_search_albums) + " (${albumResults.size})") }
+            items(albumResults, key = { it.id }) { album ->
+                AlbumResultRow(
+                    album = album,
+                    coverModel = mainViewModel.getAlbumArtUri(album.artAlbumId),
+                    query = trimmedQuery,
+                    onClick = {
+                        onCommitSearch()
+                        onNavigateToAlbum(album.id)
+                    },
+                    onLongClick = { onActionTarget(SearchActionTarget.AlbumTarget(album)) }
                 )
             }
         }

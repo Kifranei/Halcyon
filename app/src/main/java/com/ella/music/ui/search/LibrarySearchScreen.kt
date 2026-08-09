@@ -23,7 +23,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.matchesArtistName
+import com.ella.music.data.model.hasLyricMetadata
+import com.ella.music.data.model.hasTtmlLyricMetadata
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.tagIdentityKey
@@ -32,6 +35,8 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.folder.toFolderSettingList
 import com.ella.music.ui.navigation.Screen
+import com.ella.music.ui.player.dynamicCoverSource
+import com.ella.music.ui.player.musicVideoCustomFolderSource
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +80,8 @@ fun LibrarySearchScreen(
     val searchAllSongMatchTypes by settingsManager.searchAllSongMatchTypes.collectAsState(
         initial = SettingsManager.SEARCH_ALL_SONG_MATCH_TYPES
     )
+    val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFolders.collectAsState(initial = emptyList())
+    val musicVideoCustomFolders by settingsManager.musicVideoCustomFolders.collectAsState(initial = emptyList())
     val scanExcludeFolders by settingsManager.scanExcludeFolders.collectAsState(initial = "")
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
     var query by rememberSaveable(initialQuery) { mutableStateOf(initialQuery.orEmpty()) }
@@ -82,6 +89,12 @@ fun LibrarySearchScreen(
         mutableStateOf(SearchFilter.fromRouteType(initialFilterType))
     }
     var duplicatesOnly by remember { mutableStateOf(false) }
+    var noLyricsOnly by remember { mutableStateOf(false) }
+    var ttmlLyricsOnly by remember { mutableStateOf(false) }
+    var localMusicVideoOnly by remember { mutableStateOf(false) }
+    var onlineMusicVideoOnly by remember { mutableStateOf(false) }
+    var dynamicCoverOnly by remember { mutableStateOf(false) }
+    var mvFiltersExpanded by remember { mutableStateOf(false) }
     var actionSong by remember { mutableStateOf<Song?>(null) }
     var actionTarget by remember { mutableStateOf<SearchActionTarget?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
@@ -100,8 +113,64 @@ fun LibrarySearchScreen(
     val songSearchSource = remember(songs, duplicateSongs, duplicatesOnlyActive) {
         if (duplicatesOnlyActive) duplicateSongs else songs
     }
-    val cachedSongResults = remember(context, songs, trimmedQuery, filter, duplicatesOnlyActive, fullTagSearchEnabled) {
-        if (duplicatesOnlyActive || !fullTagSearchEnabled) {
+    val contentFilters = LibrarySearchContentFilters(
+        noLyrics = noLyricsOnly,
+        ttmlLyrics = ttmlLyricsOnly,
+        localMusicVideo = localMusicVideoOnly,
+        onlineMusicVideo = onlineMusicVideoOnly,
+        dynamicCover = dynamicCoverOnly
+    )
+    val contentFilteredSongKeys by produceState(
+        initialValue = emptySet<String>(),
+        contentFilters,
+        songSearchSource,
+        dynamicCoverCustomFolders,
+        musicVideoCustomFolders,
+        context
+    ) {
+        if (!contentFilters.hasActiveFilter) {
+            value = emptySet()
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            songSearchSource.asSequence()
+                .filter { song ->
+                    val tagInfo = mainViewModel.getSongTagInfo(song)
+                    val hasLocalMv = !contentFilters.localMusicVideo || song.musicVideoCustomFolderSource(
+                        context = context,
+                        musicVideoCustomFolders = musicVideoCustomFolders
+                    ) != null
+                    val hasOnlineMv = !contentFilters.onlineMusicVideo ||
+                        (decodeNeteaseKey(tagInfo.neteaseKey)?.mvId?.toLongOrNull() ?: 0L) > 0L
+                    val hasDynamicCover = !contentFilters.dynamicCover || song.dynamicCoverSource(
+                        context = context,
+                        customRootPaths = dynamicCoverCustomFolders
+                    ) != null
+                    (!contentFilters.noLyrics ||
+                        (song.onlineLyrics.isBlank() && !tagInfo.hasLyricMetadata())) &&
+                        (!contentFilters.ttmlLyrics || tagInfo.hasTtmlLyricMetadata()) &&
+                        hasLocalMv && hasOnlineMv && hasDynamicCover
+                }
+                .mapTo(linkedSetOf()) { it.searchIdentityKey() }
+        }
+    }
+    val effectiveSongSearchSource = remember(songSearchSource, contentFilters, contentFilteredSongKeys) {
+        if (contentFilters.hasActiveFilter) {
+            songSearchSource.filter { it.searchIdentityKey() in contentFilteredSongKeys }
+        } else {
+            songSearchSource
+        }
+    }
+    val cachedSongResults = remember(
+        context,
+        songs,
+        trimmedQuery,
+        filter,
+        duplicatesOnlyActive,
+        fullTagSearchEnabled,
+        contentFilters
+    ) {
+        if (duplicatesOnlyActive || contentFilters.hasActiveFilter || !fullTagSearchEnabled) {
             emptyList()
         } else {
             loadCachedSongSearchResults(context, songs, trimmedQuery, filter)
@@ -109,14 +178,15 @@ fun LibrarySearchScreen(
     }
     val songResults by produceState(
         initialValue = cachedSongResults,
-        songSearchSource,
+        effectiveSongSearchSource,
         trimmedQuery,
         filter,
         duplicateSongs,
         duplicatesOnlyActive,
         cachedSongResults,
         lyricSourceMode,
-        fullTagSearchEnabled
+        fullTagSearchEnabled,
+        contentFilters
     ) {
         val initialResults = cachedSongResults
         value = initialResults
@@ -125,9 +195,9 @@ fun LibrarySearchScreen(
             return@produceState
         }
         if (trimmedQuery.isBlank()) {
-            value = if (duplicatesOnlyActive) {
+            value = if (duplicatesOnlyActive || contentFilters.hasActiveFilter) {
                 withContext(Dispatchers.Default) {
-                    buildDirectSongSearchResults(songSearchSource, trimmedQuery, filter)
+                    buildDirectSongSearchResults(effectiveSongSearchSource, trimmedQuery, filter)
                 }
             } else {
                 emptyList()
@@ -139,7 +209,7 @@ fun LibrarySearchScreen(
         }
         if (filter == SearchFilter.Lyrics) {
             val current = mutableListOf<SongSearchResult>()
-            for (song in songSearchSource) {
+            for (song in effectiveSongSearchSource) {
                 val snippet = mainViewModel.repository
                     .getLyrics(song, lyricSourceMode)
                     .firstMatchingLyricSnippet(trimmedQuery)
@@ -151,7 +221,7 @@ fun LibrarySearchScreen(
         }
         if (duplicatesOnlyActive) {
             value = withContext(Dispatchers.Default) {
-                buildDirectSongSearchResults(songSearchSource, trimmedQuery, filter)
+                buildDirectSongSearchResults(effectiveSongSearchSource, trimmedQuery, filter)
             }
             return@produceState
         }
@@ -172,12 +242,12 @@ fun LibrarySearchScreen(
             }.toMutableList()
         } else {
             withContext(Dispatchers.Default) {
-                buildDirectSongSearchResults(songSearchSource, trimmedQuery, filter)
+                buildDirectSongSearchResults(effectiveSongSearchSource, trimmedQuery, filter)
             }.toMutableList()
         }
         if (current != initialResults) value = current.toList()
         val seenKeys = current.map { it.song.searchIdentityKey() }.toMutableSet()
-        val remainingSongs = songSearchSource.filter { it.searchIdentityKey() !in seenKeys }
+        val remainingSongs = effectiveSongSearchSource.filter { it.searchIdentityKey() !in seenKeys }
         val snapshotMatches = mainViewModel
             .filterSongsBySearchSnapshot(remainingSongs, trimmedQuery)
             .asSequence()
@@ -209,15 +279,16 @@ fun LibrarySearchScreen(
             seenKeys += song.searchIdentityKey()
             value = current.toList()
         }
-        saveCachedSongSearchResults(context, trimmedQuery, filter, current)
+        if (!contentFilters.hasActiveFilter) {
+            saveCachedSongSearchResults(context, trimmedQuery, filter, current)
+        }
     }
 
     val requestedCategoryTypes = remember(filter, searchAllCategoryTypes) {
         when (filter) {
             SearchFilter.All -> {
-                val preferredOrder = listOf("composer", "arranger", "lyricist")
-                preferredOrder.filter { it in searchAllCategoryTypes } +
-                    searchAllCategoryTypes.filterNot { it in preferredOrder }.sorted()
+                listOf("folder", "composer", "arranger", "lyricist", "genre", "year")
+                    .filter { it in searchAllCategoryTypes }
             }
             SearchFilter.Folders -> listOf("folder")
             SearchFilter.Composers -> listOf("composer")
@@ -352,10 +423,14 @@ fun LibrarySearchScreen(
     val visibleArtistCount = if (filter in listOf(SearchFilter.All, SearchFilter.Artists)) artistResults.size else 0
     val visiblePlaylistCount = if (filter in listOf(SearchFilter.All, SearchFilter.Playlists)) playlistResults.size else 0
     val songResultGroups = remember(songResults, filter, searchAllSongMatchTypes) {
+        val groupOrder = SearchSongMatchType.entries
+            .map { it.labelRes }
+            .distinct()
         songResults
             .flatMap { it.toSearchGroupEntries(filter, searchAllSongMatchTypes) }
             .groupBy({ it.first }, { it.second })
             .map { it.key to it.value }
+            .sortedBy { (labelRes, _) -> groupOrder.indexOf(labelRes).takeIf { it >= 0 } ?: Int.MAX_VALUE }
     }
     val displayedSongResults = remember(songResultGroups) {
         songResultGroups
@@ -487,6 +562,17 @@ fun LibrarySearchScreen(
             visible = filter.supportsDuplicateFilter,
             duplicatesOnly = duplicatesOnly,
             onToggle = { duplicatesOnly = !duplicatesOnly }
+        )
+        LibrarySearchContentFilterBar(
+            visible = filter.supportsDuplicateFilter,
+            filters = contentFilters,
+            mvExpanded = mvFiltersExpanded,
+            onNoLyricsChange = { noLyricsOnly = it },
+            onTtmlLyricsChange = { ttmlLyricsOnly = it },
+            onMvExpandedChange = { mvFiltersExpanded = it },
+            onLocalMusicVideoChange = { localMusicVideoOnly = it },
+            onOnlineMusicVideoChange = { onlineMusicVideoOnly = it },
+            onDynamicCoverChange = { dynamicCoverOnly = it }
         )
         if (selection.selectionMode) {
             LibrarySearchSelectionToolbar(

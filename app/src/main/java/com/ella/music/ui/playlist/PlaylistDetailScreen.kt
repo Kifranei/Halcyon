@@ -85,6 +85,7 @@ fun PlaylistDetailScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
+    val showRemoveFromPlaylistButton by mainViewModel.settingsManager.showRemoveFromPlaylistButton.collectAsState(initial = true)
     val isFiveStarPlaylist = playlistId == FIVE_STAR_PLAYLIST_ID
     val storedPlaylist = playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
     val fiveStarSongs by produceState(initialValue = emptyList(), isFiveStarPlaylist, librarySongs, ratingRevision) {
@@ -384,7 +385,17 @@ fun PlaylistDetailScreen(
                         coverModel = playlistCoverModel,
                         songCount = sortedSongs.size,
                         playCount = playlistPlayCount,
-                        duration = sortedSongs.sumOf { it.duration }
+                        duration = sortedSongs.sumOf { it.duration },
+                        onShuffle = if (selection.selectionMode) {
+                            null
+                        } else {
+                            {
+                                if (displayedSongs.isNotEmpty()) {
+                                    playerViewModel.setPlaylist(displayedSongs.shuffled(), 0)
+                                    if (openPlayerOnPlay) onNavigateToPlayer()
+                                }
+                            }
+                        }
                     )
                 }
 
@@ -398,16 +409,7 @@ fun PlaylistDetailScreen(
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         },
-                        onShuffle = if (selection.selectionMode) {
-                            null
-                        } else {
-                            {
-                                if (displayedSongs.isNotEmpty()) {
-                                    playerViewModel.setPlaylist(displayedSongs.shuffled(), 0)
-                                    if (openPlayerOnPlay) onNavigateToPlayer()
-                                }
-                            }
-                        },
+                        onShuffle = null,
                         sortItems = directionalSortModeDropdownItems(
                             fields = listOf(
                                 DirectionalSortModeField(
@@ -531,7 +533,11 @@ fun PlaylistDetailScreen(
                                 selection.updateRangeAnchorsForManualSelection(songKey, selectedNow = true)
                             },
                             onPlayNext = { playerViewModel.playNext(song) },
-                            onRemove = if (playlist.isFiveStarRating || isRemoteReadOnly) null else {
+                            onRemove = if (
+                                playlist.isFiveStarRating ||
+                                isRemoteReadOnly ||
+                                !showRemoveFromPlaylistButton
+                            ) null else {
                                 {
                                     removeFromPlaylistSong = song
                                 }
@@ -611,7 +617,10 @@ fun PlaylistDetailScreen(
                 onDismissAction = { actionSong = null },
                 onNavigateToAlbum = onNavigateToAlbum,
                 onNavigateToArtist = onNavigateToArtist,
-                onSongRemovedFromPlaylist = if (playlist.isFiveStarRating || isRemoteReadOnly) null else {
+                onSongRemovedFromPlaylist = if (
+                    playlist.isFiveStarRating ||
+                    isRemoteReadOnly
+                ) null else {
                     { song -> removeFromPlaylistSong = song }
                 }
             )

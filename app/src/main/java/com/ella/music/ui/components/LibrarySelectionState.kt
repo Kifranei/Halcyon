@@ -48,6 +48,13 @@ class LibrarySelectionState<T : Any> {
         updateRangeAnchorsForManualSelection(id, selecting)
     }
 
+    /**
+     * [selectedIds] is built through ordered set operations, so its iteration order reflects
+     * the user's selection sequence. Expose that intent at the call site instead of making
+     * each category screen re-sort by its current grid/list order.
+     */
+    fun selectedIdsInSelectionOrder(): List<T> = selectedIds.toList()
+
     fun isRangeSelectionAvailable(indexById: Map<T, Int>): Boolean {
         val anchor = rangeAnchorId
         val target = rangeTargetId

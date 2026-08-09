@@ -29,8 +29,11 @@ data class SongTagInfo(
     val comment: String = "",
     val copyright: String = "",
     val neteaseKey: String = "",
+    val lyrics: String = "",
     val rating: Int = 0,
-    val customTagText: String = ""
+    val customTagText: String = "",
+    /** Keeps individual metadata keys available to search UI and content filters. */
+    val customTags: Map<String, List<String>> = emptyMap()
 ) {
     val displayComment: String
         get() = comment
@@ -86,6 +89,7 @@ fun Song.searchableTagValues(tagInfo: SongTagInfo = SongTagInfo()): Sequence<Str
         yieldNonBlank(key.musicName)
         yieldNonBlank(key.mvId)
         key.aliases.forEach { yieldNonBlank(it) }
+        key.translatedNames.forEach { yieldNonBlank(it) }
         yieldNonBlank(key.albumId)
         yieldNonBlank(key.albumName)
         yieldNonBlank(key.comment)
@@ -99,6 +103,24 @@ fun Song.searchableTagValues(tagInfo: SongTagInfo = SongTagInfo()): Sequence<Str
         }
     }
 }
+
+private val LYRIC_METADATA_TAGS = setOf(
+    "LYRIC", "LYRICS", "SYNCEDLYRIC", "SYNCEDLYRICS", "UNSYNCEDLYRIC", "UNSYNCEDLYRICS",
+    "TTML", "TTMLLYRIC", "TTMLLYRICS"
+)
+
+fun SongTagInfo.hasLyricMetadata(): Boolean =
+    lyrics.isNotBlank() || customTags.any { (rawKey, values) ->
+        rawKey.normalizeMetadataTagKey() in LYRIC_METADATA_TAGS && values.any { it.isNotBlank() }
+    }
+
+fun SongTagInfo.hasTtmlLyricMetadata(): Boolean = customTags.any { (rawKey, values) ->
+    rawKey.normalizeMetadataTagKey() in setOf("TTML", "TTMLLYRIC", "TTMLLYRICS") &&
+        values.any { it.isNotBlank() }
+}
+
+private fun String.normalizeMetadataTagKey(): String =
+    uppercase().filter(Char::isLetterOrDigit)
 
 private suspend fun SequenceScope<String>.yieldNonBlank(value: String?) {
     value?.trim()?.takeIf { it.isNotBlank() }?.let { yield(it) }

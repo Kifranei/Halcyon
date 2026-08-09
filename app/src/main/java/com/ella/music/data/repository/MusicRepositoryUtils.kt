@@ -261,8 +261,10 @@ internal fun AudioTagInfo.toSongTagInfo(): com.ella.music.data.model.SongTagInfo
         comment = comment.orEmpty(),
         copyright = copyright.orEmpty(),
         neteaseKey = neteaseKey.orEmpty(),
+        lyrics = lyrics.orEmpty(),
         rating = rating.normalizeTagRatingToStars(),
-        customTagText = customTags.flattenForSearch()
+        customTagText = customTags.flattenForSearch(),
+        customTags = customTags
     )
 
 internal fun Map<String, List<String>>.flattenForSearch(): String =

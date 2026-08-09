@@ -2,6 +2,7 @@ package com.ella.music.ui.search
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -125,6 +126,71 @@ internal fun LibrarySearchDuplicateToggle(
             selected = duplicatesOnly,
             onClick = onToggle
         )
+    }
+}
+
+@Composable
+internal fun LibrarySearchContentFilterBar(
+    visible: Boolean,
+    filters: LibrarySearchContentFilters,
+    mvExpanded: Boolean,
+    onNoLyricsChange: (Boolean) -> Unit,
+    onTtmlLyricsChange: (Boolean) -> Unit,
+    onMvExpandedChange: (Boolean) -> Unit,
+    onLocalMusicVideoChange: (Boolean) -> Unit,
+    onOnlineMusicVideoChange: (Boolean) -> Unit,
+    onDynamicCoverChange: (Boolean) -> Unit
+) {
+    if (!visible) return
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SearchPill(
+                text = stringResource(R.string.library_search_filter_no_lyrics),
+                selected = filters.noLyrics,
+                onClick = { onNoLyricsChange(!filters.noLyrics) }
+            )
+            SearchPill(
+                text = stringResource(R.string.library_search_filter_ttml_lyrics),
+                selected = filters.ttmlLyrics,
+                onClick = { onTtmlLyricsChange(!filters.ttmlLyrics) }
+            )
+            SearchPill(
+                text = stringResource(R.string.library_search_filter_mv),
+                selected = filters.localMusicVideo || filters.onlineMusicVideo,
+                onClick = { onMvExpandedChange(!mvExpanded) }
+            )
+            SearchPill(
+                text = stringResource(R.string.library_search_filter_dynamic_cover),
+                selected = filters.dynamicCover,
+                onClick = { onDynamicCoverChange(!filters.dynamicCover) }
+            )
+        }
+        if (mvExpanded) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 28.dp, end = 16.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SearchPill(
+                    text = stringResource(R.string.library_search_filter_local_mv),
+                    selected = filters.localMusicVideo,
+                    onClick = { onLocalMusicVideoChange(!filters.localMusicVideo) }
+                )
+                SearchPill(
+                    text = stringResource(R.string.library_search_filter_online_mv),
+                    selected = filters.onlineMusicVideo,
+                    onClick = { onOnlineMusicVideoChange(!filters.onlineMusicVideo) }
+                )
+            }
+        }
     }
 }
 
