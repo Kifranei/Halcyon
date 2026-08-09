@@ -1635,7 +1635,6 @@
     <string name="about_summary_lyricgetter">Lyric Getter original lyric delivery API (LGPL-2.1)</string>
     <string name="about_summary_lyrico">Reference for song tag reading and app log page (Apache-2.0)</string>
     <string name="about_summary_163keydecrypter">Reference for NetEase Cloud Music 163 key decryption (MIT)</string>
-    <string name="about_summary_kyant_backdrop">Liquid glass and background blur effects (Apache-2.0)</string>
     <string name="about_summary_coil">Kotlin image loading library (Apache-2.0)</string>
     <string name="about_summary_quickjs">LX Music API JavaScript runtime (Apache-2.0)</string>
     <string name="about_summary_lxmusic">Online music source and API adaptation reference (Apache-2.0)</string>

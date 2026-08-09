@@ -72,8 +72,8 @@ import com.ella.music.player.DesktopLyricService
 import com.ella.music.ui.player.PlayerScreen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop as layerMiuixBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop as rememberMiuixLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -499,7 +499,7 @@ fun EllaApp(
         }
     }
 
-    val backdrop = rememberLayerBackdrop()
+    val miuixBackdrop = rememberMiuixLayerBackdrop()
     val useGlass = true
     val bottomDockSpecs = bottomDockTabCatalog()
     val tabs = bottomDockItemIds
@@ -530,7 +530,7 @@ fun EllaApp(
     val contentModifier = Modifier
         .fillMaxSize()
         .then(if (wallpaperVisible) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
-        .layerBackdrop(backdrop)
+        .layerMiuixBackdrop(miuixBackdrop)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -624,7 +624,7 @@ fun EllaApp(
                     currentRoute = currentRoute,
                     bottomDockMode = bottomDockMode,
                     canCompact = canCompactBottomDock,
-                    backdrop = backdrop,
+                    backdrop = miuixBackdrop,
                     glassEffect = bottomBarGlassEffect,
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,

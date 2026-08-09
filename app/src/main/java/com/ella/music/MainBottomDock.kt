@@ -55,8 +55,9 @@ import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.CompactMiniPlayer
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.GlassPill
-import com.ella.music.ui.components.LiquidGlassBottomBar
-import com.ella.music.ui.components.LiquidGlassBottomBarItem
+import com.ella.music.ui.components.FloatingBottomBar
+import com.ella.music.ui.components.FloatingBottomBarItem
+import com.ella.music.ui.components.FloatingBottomBarMode
 import com.ella.music.ui.components.MiniPlayer
 import com.ella.music.ui.components.MiniPlayerLyricTiming
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
@@ -103,7 +104,7 @@ internal fun FloatingBottomControls(
     currentRoute: String?,
     bottomDockMode: BottomDockMode,
     canCompact: Boolean,
-    backdrop: com.kyant.backdrop.Backdrop?,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
     glassEffect: BottomBarGlassEffect,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
@@ -217,42 +218,43 @@ internal fun FloatingBottomControls(
                                         val selectedBottomTabIndex = tabs
                                             .indexOfFirst { currentTabRoute == it.route }
                                             .takeIf { it >= 0 }
-                                        LiquidGlassBottomBar(
-                                            backdrop = backdrop,
-                                            isBlurEnabled = true,
-                                            glassEffect = glassEffect,
-                                            selectedIndex = selectedBottomTabIndex,
-                                            itemCount = tabs.size,
+                                        val barMode = when (glassEffect) {
+                                            BottomBarGlassEffect.LiquidGlass -> FloatingBottomBarMode.LiquidGlass
+                                            BottomBarGlassEffect.Blur -> FloatingBottomBarMode.Blur
+                                            else -> FloatingBottomBarMode.None
+                                        }
+                                        FloatingBottomBar(
+                                            selectedIndex = { selectedBottomTabIndex ?: 0 },
                                             onSelected = { index ->
                                                 tabs.getOrNull(index)?.let { onNavigate(it.route) }
-                                            }
+                                            },
+                                            backdrop = backdrop ?: return@Box,
+                                            tabsCount = tabs.size,
+                                            mode = barMode
                                         ) {
                                             tabs.forEachIndexed { index, tab ->
-                                                LiquidGlassBottomBarItem(
-                                                    selected = currentTabRoute == tab.route,
-                                                    onClick = {},
-                                                    backdrop = backdrop,
-                                                    isBlurEnabled = true,
-                                                    showSelectedIndicator = glassEffect == BottomBarGlassEffect.LiquidGlass,
-                                                    index = index,
-                                                    icon = {
-                                                        Icon(
-                                                            imageVector = tab.icon,
-                                                            contentDescription = tab.label,
-                                                            tint = if (currentTabRoute == tab.route) MiuixTheme.colorScheme.primary
-                                                            else MiuixTheme.colorScheme.onSurface,
-                                                            modifier = Modifier.size(26.dp)
-                                                        )
-                                                    },
-                                                    label = {
-                                                        top.yukonga.miuix.kmp.basic.Text(
-                                                            text = tab.label,
-                                                            fontSize = 11.sp,
-                                                            color = if (currentTabRoute == tab.route) MiuixTheme.colorScheme.primary
-                                                            else MiuixTheme.colorScheme.onSurface
-                                                        )
+                                                val selected = currentTabRoute == tab.route
+                                                FloatingBottomBarItem(
+                                                    onClick = {
+                                                        if (!selected) {
+                                                            tabs.getOrNull(index)?.let { onNavigate(it.route) }
+                                                        }
                                                     }
-                                                )
+                                                ) {
+                                                    Icon(
+                                                        imageVector = tab.icon,
+                                                        contentDescription = tab.label,
+                                                        tint = if (selected) MiuixTheme.colorScheme.primary
+                                                        else MiuixTheme.colorScheme.onSurface,
+                                                        modifier = Modifier.size(26.dp)
+                                                    )
+                                                    top.yukonga.miuix.kmp.basic.Text(
+                                                        text = tab.label,
+                                                        fontSize = 11.sp,
+                                                        color = if (selected) MiuixTheme.colorScheme.primary
+                                                        else MiuixTheme.colorScheme.onSurface
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -377,7 +379,7 @@ private fun CompactBottomDock(
     swipeUpToOpenPlayer: Boolean,
     albumArtUri: Uri?,
     loadCoverArt: ((Song) -> android.graphics.Bitmap?)?,
-    backdrop: com.kyant.backdrop.Backdrop?,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
     glassEffect: BottomBarGlassEffect,
     currentTab: BottomDockTab?,
     currentTabRoute: String?,
@@ -469,7 +471,7 @@ private fun BottomDockActionPill(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
-    backdrop: com.kyant.backdrop.Backdrop?,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
     glassEffect: BottomBarGlassEffect,
     modifier: Modifier = Modifier
 ) {

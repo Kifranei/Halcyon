@@ -1,3 +1,39 @@
+# 1.2.5
+
+From `1.2.4` to the latest `main` commit on 2026-08-09.
+
+中文更新日志
+- 更新 AndroidX Media3 至 `1.11.0`。
+- 新增 Android 16 Live Update 歌词通知，支持原文/翻译/注音选择、封面、Promoted Ongoing Notification，以及逐字歌词实时更新。
+- 新增小米 HyperOS 超级岛歌词，通过 Shizuku 接入 XMSF，支持可配置 Focus 歌词、封面、更新节流和桌面歌词重新同步，并避免影响媒体通知歌词与歌词页 seek。
+- 新增 iOS 风格液态玻璃悬浮底栏；移除 Kyant Backdrop，玻璃表面迁移至 miuix blur，支持拖拽切换、阻尼回弹、高光折射、按压气泡、内阴影和色散效果。
+- 修复底栏宽度塌陷、点击/滑动切换、指示气泡同步、拖拽回首页路由和从底栏进入设置页的标题间距；统一 GlassPill、MiniPlayer 与底栏的阴影和浮层高度，并放大 HyperOS 播放模式、随机和队列图标。
+- 修复暂停、seek、逐字、逐行、后台/不可见、静态歌词和暂无歌词渲染，避免暂停或多行歌词错误全亮、重复推进和滚动错位。
+- 恢复迷你播放条旧版播放图标，增加“播放条上滑进入播放页”开关，首页最近内容可在“最近听过/最近添加”之间切换；补充桌面小组件歌词和播放会话统计。
+- 频谱频率刻度改为自适应，新增荣耀 HD Audio 播放支持。
+- 完善音乐库多选拖拽、排序、文件夹歌单管理、批量置顶和置顶状态持久化；修复艺术家、专辑、流派、年份、作词家、作曲家、编曲家分类页多选置顶按钮点击区域问题。
+- 优化评分筛选、行内随机、导航状态、搜索分类顺序、内容筛选和歌词标签去重；合并 `#390`、`#410`、`#432`、`#435`、`#437` 修复，并保留歌词/自定义标签元数据供筛选使用。
+- 优化小米媒体岛分享、歌词分享卡片取色、歌词视频分享进度弹窗和全局拖拽音频 MIME 类型；恢复 Web 播放器和 Beautiful Lyrics 播放器封面显示。
+- 完善 MV 浏览、专辑歌曲计数、MV 加载和歌词视频分享；保留远程音乐源切换，并更新设置分类和本地化文案。
+
+English Changelog
+- Updated AndroidX Media3 to `1.11.0`.
+- Added Android 16 Live Update lyric notifications with original / translation / pronunciation selection, artwork, promoted ongoing notification support, and word-level updates.
+- Added Xiaomi HyperOS Super Island lyric delivery through a Shizuku-backed XMSF bridge, with configurable Focus lyrics, artwork, throttled updates, and desktop-lyric resynchronization without disturbing media-notification lyrics or lyric-page seeking.
+- Added an iOS-style liquid-glass floating bottom bar. Removed Kyant Backdrop and migrated glass surfaces to miuix blur, with drag-to-switch navigation, damped rubber-band motion, highlight refraction, press bubbles, inner shadows, and chromatic aberration.
+- Fixed bottom-bar width collapse, click/slide switching, indicator synchronization, drag-to-home routing, and Settings title spacing; aligned GlassPill and MiniPlayer shadows with the bottom bar and enlarged HyperOS playback-mode, shuffle, and queue icons.
+- Fixed pause, seek, word-by-word, multi-line, off-screen, static, and no-lyrics rendering so paused or multi-line lyrics do not highlight, advance, or scroll incorrectly.
+- Restored the legacy mini-player play glyph, added the swipe-up-to-open-player setting, made the home recent section switchable between played and added songs, and added widget lyrics and playback-session statistics.
+- Made the spectrum frequency scale adaptive and added Honor HD Audio playback support.
+- Improved library multi-select drag, sorting, folder-playlist management, batch pinning, and pin persistence; fixed the multi-select pin hit area in artist, album, genre, year, lyricist, composer, and arranger category pages.
+- Refined rating filters, inline shuffle, navigation state, search category ordering, content filters, and lyric-tag de-duplication; included fixes for `#390`, `#410`, `#432`, `#435`, and `#437`, while preserving lyric and custom-tag metadata for filtering.
+- Improved Xiaomi media-island sharing, lyric-share-card palette handling, lyric-video progress presentation, and global drag payload MIME types; restored artwork in the web and Beautiful Lyrics players.
+- Improved MV browsing, album track counts, MV loading, and lyric-video sharing; retained remote-provider switching and updated settings organization and localization.
+
+Version
+- Version name: `1.2.5`
+- Version code: `33` (updated from `32`)
+
 # 1.2.4
 
 From `1.2.3` to `1.2.4`.
@@ -108,7 +144,7 @@ English Changelog
 
 # 1.2.0
 
-From tag `1.1.97` to current `HEAD`.
+From `1.1.97` to current `HEAD`.
 
 中文更新日志
 - 新增自定义艺术家封面文件夹，支持按艺术家名称匹配封面资源。

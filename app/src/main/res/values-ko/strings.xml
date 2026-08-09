@@ -1484,7 +1484,6 @@
     <string name="about_summary_lyricgetter">Lyric Getter 원곡 전달 API (LGPL-2.1)</string>
     <string name="about_summary_lyrico">곡 태그 읽기 및 앱 로그 페이지 참고 (Apache-2.0)</string>
     <string name="about_summary_163keydecrypter">NetEase Cloud Music 163 키 복호화에 대한 참조(MIT)</string>
-    <string name="about_summary_kyant_backdrop">Liquid Glass 및 배경 흐림 효과(Apache-2.0)</string>
     <string name="about_summary_coil">Kotlin 이미지 로딩 라이브러리(Apache-2.0)</string>
     <string name="about_summary_quickjs">LX Music API JavaScript 런타임(Apache-2.0)</string>
     <string name="about_summary_lxmusic">온라인 음악 소스 및 API 연동 참고(Apache-2.0)</string>

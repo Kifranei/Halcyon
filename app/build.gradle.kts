@@ -16,7 +16,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-val appVersionName = "1.2.4"
+val appVersionName = "1.2.5"
 
 fun variantChannelMarker(variantName: String): String =
     when (variantName.lowercase(Locale.US)) {
@@ -115,7 +115,7 @@ android {
         applicationId = "com.ella.music"
         minSdk = 29
         targetSdk = 37
-        versionCode = 32
+        versionCode = 33
         versionName = appVersionName
         externalNativeBuild {
             cmake {
@@ -276,7 +276,6 @@ dependencies {
     implementation("com.github.HChenX:SuperLyricApi:3.4")
     // Full LGPL build supplies muxers and encoders for the local conversion tool.
     implementation("com.arthenica:ffmpeg-kit-full:6.0-2.LTS")
-    implementation(libs.backdrop)
     implementation(libs.reorderable)
     implementation(libs.compose.material.icons.extended)
     implementation(project(":lyrico-audiotag"))

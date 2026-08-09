@@ -388,7 +388,7 @@ internal fun PlayerTransportControls(
             PlayerTransportIconButton(onClick = onToggleQueue) {
                 PlayerQueueListIcon(
                     color = palette.onBackground.copy(alpha = 0.92f),
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(34.dp)
                 )
             }
             PlayerQueueSheet(

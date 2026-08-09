@@ -14,7 +14,6 @@ datastore = "1.2.0"
 kotlinx-coroutines = "1.10.2"
 lyricon-provider = "0.1.70"
 lyric-getter-api = "7.0.0"
-backdrop = "1.0.6"
 reorderable = "3.1.0"
 materialIcons = "1.7.3"
 mcp = "0.13.0"
@@ -42,7 +41,6 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 lyricon-provider = { module = "io.github.proify.lyricon:provider", version.ref = "lyricon-provider" }
 lyric-getter-api = { module = "com.github.HChenX:Lyric-Getter-Api", version.ref = "lyric-getter-api" }
-backdrop = { module = "io.github.kyant0:backdrop", version.ref = "backdrop" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "materialIcons" }
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version.ref = "miuix" }

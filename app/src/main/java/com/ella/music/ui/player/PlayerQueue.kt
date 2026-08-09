@@ -223,7 +223,7 @@ internal fun PlayerQueueMenu(
                             painter = painterResource(id = R.drawable.ic_shuffle),
                             contentDescription = stringResource(R.string.player_randomize_queue),
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -522,6 +522,6 @@ private fun QueuePlaybackModeIcon(
         shuffleEnabled = shuffleEnabled,
         repeatMode = repeatMode,
         color = color,
-        modifier = Modifier.size(20.dp)
+        modifier = Modifier.size(22.dp)
     )
 }

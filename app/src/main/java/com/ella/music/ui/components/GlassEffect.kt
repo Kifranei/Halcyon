@@ -9,9 +9,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ella.music.data.BottomBarGlassEffect
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
+import com.ella.music.ui.components.liquid.lens
+import top.yukonga.miuix.kmp.blur.BackdropEffectScope
+import top.yukonga.miuix.kmp.blur.blur
 import kotlin.math.max
 
 internal fun BackdropEffectScope.applyBottomBarGlassEffect(

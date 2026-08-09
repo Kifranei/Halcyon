@@ -1473,7 +1473,6 @@
     <string name="about_summary_lyricgetter">Lyric Getter оригинальная лирическая версия API (LGPL-2.1)</string>
     <string name="about_summary_lyrico">Справочник по чтению тегов песен и странице журнала приложений (Apache-2.0)</string>
     <string name="about_summary_163keydecrypter">Справочник по расшифровке ключей NetEase Cloud Music 163 (MIT)</string>
-    <string name="about_summary_kyant_backdrop">Жидкое стекло и эффекты размытия фона (Apache-2.0)</string>
     <string name="about_summary_coil">Библиотека загрузки изображений Kotlin (Apache-2.0)</string>
     <string name="about_summary_quickjs">LX Music API Среда выполнения JavaScript (Apache-2.0)</string>
     <string name="about_summary_lxmusic">Интернет-источник музыки и справочник по адаптации API (Apache-2.0)</string>

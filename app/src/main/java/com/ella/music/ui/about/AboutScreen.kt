@@ -342,11 +342,6 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://github.com/lycode404/163KeyDecrypter") },
                     )
                     BasicComponent(
-                        title = "Kyant Backdrop",
-                        summary = stringResource(R.string.about_summary_kyant_backdrop),
-                        onClick = { uriHandler.openUri("https://github.com/Kyant0/AndroidLiquidGlass") },
-                    )
-                    BasicComponent(
                         title = "Coil",
                         summary = stringResource(R.string.about_summary_coil),
                         onClick = { uriHandler.openUri("https://github.com/coil-kt/coil") },

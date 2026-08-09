@@ -68,7 +68,7 @@ internal fun PlaybackModeIcon(
     shuffleEnabled: Boolean,
     repeatMode: Int,
     color: Color,
-    modifier: Modifier = Modifier.size(30.dp)
+    modifier: Modifier = Modifier.size(34.dp)
 ) {
     val label = when {
         shuffleEnabled -> stringResource(R.string.player_playback_mode_shuffle)

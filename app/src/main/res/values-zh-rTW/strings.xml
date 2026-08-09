@@ -1504,7 +1504,6 @@
     <string name="about_summary_lyricgetter">Lyric Getter 原文歌詞傳遞 API（LGPL-2.1）</string>
     <string name="about_summary_lyrico">歌曲標籤讀取與應用日誌頁面參考（Apache-2.0）</string>
     <string name="about_summary_163keydecrypter">網易雲音樂 163 key 解密流程參考（MIT）</string>
-    <string name="about_summary_kyant_backdrop">液態玻璃與背景模糊效果（Apache-2.0）</string>
     <string name="about_summary_coil">Kotlin 圖片載入函式庫（Apache-2.0）</string>
     <string name="about_summary_quickjs">LX Music API JavaScript 執行環境（Apache-2.0）</string>
     <string name="about_summary_lxmusic">線上音樂來源與 API 適配參考（Apache-2.0）</string>

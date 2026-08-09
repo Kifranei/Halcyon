@@ -1977,7 +1977,6 @@
     <string name="about_summary_lyricgetter">Lyric Getter 原文歌词传递 API（LGPL-2.1）</string>
     <string name="about_summary_lyrico">歌曲标签读取与应用日志页面参考（Apache-2.0）</string>
     <string name="about_summary_163keydecrypter">网易云音乐 163 key 解密流程参考（MIT）</string>
-    <string name="about_summary_kyant_backdrop">液态玻璃与背景模糊效果（Apache-2.0）</string>
     <string name="about_summary_coil">Kotlin 图片加载库（Apache-2.0）</string>
     <string name="about_summary_quickjs">LX Music API JavaScript 运行时（Apache-2.0）</string>
     <string name="about_summary_lxmusic">在线音乐源与 API 适配参考（Apache-2.0）</string>

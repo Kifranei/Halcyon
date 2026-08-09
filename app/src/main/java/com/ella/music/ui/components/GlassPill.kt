@@ -7,13 +7,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.unit.dp
 import com.ella.music.data.BottomBarGlassEffect
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.shadow.Shadow
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -27,6 +28,7 @@ fun GlassPill(
     content: @Composable BoxScope.() -> Unit
 ) {
     val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
+    val isInDark = !isLight
     val containerColor = bottomBarGlassContainerColor(
         isLight = isLight,
         glassEffect = glassEffect,
@@ -50,11 +52,6 @@ fun GlassPill(
             highlight = {
                 Highlight.Default.copy(alpha = bottomBarGlassHighlightAlpha(isLight, glassEffect))
             },
-            shadow = {
-                Shadow.Default.copy(
-                    color = Color.Black.copy(alpha = bottomBarGlassShadowAlpha(isLight, glassEffect))
-                )
-            },
             onDrawSurface = {
                 drawRect(containerColor)
             }
@@ -66,11 +63,15 @@ fun GlassPill(
     Box(
         modifier = modifier
             .clip(shape)
-            .then(glassModifier)
-            .liquidGlassDepthOverlay(
-                enabled = false,
-                isLight = isLight
-            ),
+            .dropShadow(
+                shape = shape,
+                shadow = Shadow(
+                    radius = 10.dp,
+                    color = Color.Black,
+                    alpha = if (isInDark) 0.2f else 0.1f,
+                ),
+            )
+            .then(glassModifier),
         content = content
     )
 }

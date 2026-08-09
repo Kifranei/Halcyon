@@ -131,7 +131,8 @@ fun SettingsScreen(
                         )
                     }
                 }
-            }
+            },
+            titleStartPadding = if (showBackButton) 64.dp else 20.dp
         )
 
         Column(

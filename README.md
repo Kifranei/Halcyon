@@ -327,7 +327,7 @@ Halcyon 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各�
 - **LX Music Mobile** — 提供 LX Music API 兼容实现与测试参考。
 - **RawS Music** — 为 10 段均衡器、BiQuad 参数均衡、360° 环绕 / 全景音、等响度、动态均衡/齿音抑制、Moog 梯形滤波器与峰值保护提供 Apache-2.0 的算法参考与 Kotlin 移植基础。
 - **光锥音乐** — 界面设计与功能实现参考。
-- 感谢 Halcyon 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、lyrico-audiotag / Lyrico、TagLib、163KeyDecrypter、Kyant Backdrop、Coil、OkHttp、Reorderable、accompanist-lyrics-core、LySy、Beautiful Lyrics、RawS Music 以及其它开源项目。
+- 感谢 Halcyon 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、lyrico-audiotag / Lyrico、TagLib、163KeyDecrypter、Coil、OkHttp、Reorderable、accompanist-lyrics-core、LySy、Beautiful Lyrics、RawS Music 以及其它开源项目。
 
 * 以及感谢各位群友积极的测试反馈。Halcyon 的开发与测试过程，也离不开各位群友的支持与鼓励。
 
@@ -335,7 +335,7 @@ Halcyon 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各�
 
 ## 赞助
 
-此项目确实让我感受到个人开发者的艰难。开发不易，即使是用 Codex/Claude Code去处理 issue，有些问题也并非一次就能解决的。且已经为爱发电一个多月了。如果您觉得 Halcyon 对您有帮助，欢迎赞助支持，谢谢。
+此项目确实让我感受到个人开发者的艰难。开发不易，即使是用 Codex/Claude Code去处理 issue，有些问题也并非一次就能解决的。且已经为爱发电3个多月了。如果您觉得 Halcyon 对您有帮助，欢迎赞助支持，谢谢。
 
 <img src="./fundingimg/alipay.jpg" alt="支付宝" width="200" />
 <img src="./fundingimg/weixin.png" alt="微信赞赏码" width="200" />

@@ -23,7 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -32,10 +34,9 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.model.Song
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.shadow.Shadow
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -134,6 +135,14 @@ fun MiniPlayer(
             .then(
                 if (glassBackdrop != null) {
                     Modifier
+                        .dropShadow(
+                            shape = shape,
+                            shadow = Shadow(
+                                radius = 10.dp,
+                                color = Color.Black,
+                                alpha = if (!isLight) 0.2f else 0.1f,
+                            ),
+                        )
                         .clip(shape)
                         .drawBackdrop(
                             backdrop = glassBackdrop,
@@ -151,16 +160,6 @@ fun MiniPlayer(
                                         BottomBarGlassEffect.Blur -> if (isLight) 0.26f else 0.16f
                                         BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.10f
                                     }
-                                )
-                            },
-                            shadow = {
-                                Shadow.Default.copy(
-                                    color = Color.Black.copy(
-                                        alpha = when (glassEffect) {
-                                            BottomBarGlassEffect.Blur -> if (isLight) 0.12f else 0.30f
-                                            BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.12f else 0.26f
-                                        }
-                                    )
                                 )
                             },
                             onDrawSurface = {
@@ -259,7 +258,7 @@ fun MiniPlayer(
                 PlayerQueueListIcon(
                     contentDescription = stringResource(R.string.player_queue_title),
                     color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
