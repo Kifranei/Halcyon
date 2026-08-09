@@ -34,7 +34,6 @@ internal fun SongMoreInfoActionSheets(
         ) {
             RatingSheet(
                 currentRating = mainViewModel.getSongRating(song),
-                onDismiss = { onRatingSongChange(null) },
                 onRatingSelected = { rating ->
                     scope.launch {
                         val result = mainViewModel.writeSongRating(song, rating)

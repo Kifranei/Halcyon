@@ -764,14 +764,16 @@ internal fun SettingsAppearanceSection(
 
     SettingsCardGroup(highlight = highlightKey == "appearance") {
         Column {
-            SwitchPreference(
-                title = stringResource(R.string.settings_hi_res_logo),
-                summary = stringResource(R.string.settings_hi_res_logo_summary),
-                checked = hiResLogoEnabled,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setHiResLogoEnabled(it) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "appearance") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_hi_res_logo),
+                    summary = stringResource(R.string.settings_hi_res_logo_summary),
+                    checked = hiResLogoEnabled,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setHiResLogoEnabled(it) }
+                    }
+                )
+            }
             ArrowPreference(
                 title = stringResource(R.string.settings_hi_res_logo_image),
                 summary = if (hiResLogoUri.isBlank()) {

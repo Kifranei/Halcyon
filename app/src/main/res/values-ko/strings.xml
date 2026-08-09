@@ -1725,8 +1725,8 @@
     <string name="library_search_filter_no_lyrics">가사 없음</string>
     <string name="library_search_filter_ttml_lyrics">TTML 가사</string>
     <string name="library_search_filter_mv">MV</string>
-    <string name="library_search_filter_local_mv">로컬 MV</string>
-    <string name="library_search_filter_online_mv">온라인 MV</string>
+    <string name="library_search_filter_local_mv">로컬MV</string>
+    <string name="library_search_filter_online_mv">온라인MV</string>
     <string name="library_search_filter_dynamic_cover">동적 커버</string>
     <string name="library_search_match_title">곡명</string>
     <string name="library_search_match_year">연도</string>

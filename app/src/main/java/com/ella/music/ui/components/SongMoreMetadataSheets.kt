@@ -55,7 +55,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun RatingSheet(
     currentRating: Int,
-    onDismiss: () -> Unit,
     onRatingSelected: (Int) -> Unit
 ) {
     var rating by remember(currentRating) { mutableStateOf(currentRating.coerceIn(0, 5)) }
@@ -96,23 +95,12 @@ internal fun RatingSheet(
                 )
             }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            top.yukonga.miuix.kmp.basic.TextButton(
-                text = stringResource(R.string.common_cancel),
-                onClick = onDismiss
-            )
-        }
         Button(
             enabled = hasRatingChanged,
             onClick = { onRatingSelected(rating) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 4.dp)
+                .padding(horizontal = 18.dp)
         ) {
             Text(text = stringResource(R.string.common_save))
         }

@@ -558,13 +558,10 @@ fun LibrarySearchScreen(
                 if (!item.supportsDuplicateFilter) duplicatesOnly = false
             }
         )
-        LibrarySearchDuplicateToggle(
-            visible = filter.supportsDuplicateFilter,
-            duplicatesOnly = duplicatesOnly,
-            onToggle = { duplicatesOnly = !duplicatesOnly }
-        )
         LibrarySearchContentFilterBar(
             visible = filter.supportsDuplicateFilter,
+            duplicatesOnly = duplicatesOnly,
+            onDuplicatesToggle = { duplicatesOnly = !duplicatesOnly },
             filters = contentFilters,
             mvExpanded = mvFiltersExpanded,
             onNoLyricsChange = { noLyricsOnly = it },

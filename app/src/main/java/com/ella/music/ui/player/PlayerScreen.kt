@@ -266,12 +266,12 @@ fun PlayerScreen(
     )
     val embeddedCover = songPresentation.embeddedCover
     val paletteBitmap = songPresentation.paletteBitmap
-    val palette = if (coverContentColor) {
+    val palette = if (coverContentColor && !(landscapeState.expanded && uiState.musicVideoVisible)) {
         songPresentation.palette.withCoverContentColor()
     } else {
         songPresentation.palette
     }
-    val lyricPalette = if (coverContentColor) {
+    val lyricPalette = if (coverContentColor && !(landscapeState.expanded && uiState.musicVideoVisible)) {
         songPresentation.lyricPalette.withCoverContentColor()
     } else {
         songPresentation.lyricPalette

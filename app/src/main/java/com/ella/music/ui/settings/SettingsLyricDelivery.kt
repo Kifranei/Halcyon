@@ -130,7 +130,8 @@ internal fun SettingsLiveUpdateLyricControls(
 
 @Composable
 internal fun SettingsLyriconControls(
-    playerViewModel: PlayerViewModel?
+    playerViewModel: PlayerViewModel?,
+    highlightKey: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -141,15 +142,17 @@ internal fun SettingsLyriconControls(
     val labels = rememberLyricSecondaryLabels()
     val entries = remember(labels) { labels.map { DropdownItem(title = it) } }
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_enable_lyricon),
-        summary = stringResource(R.string.settings_enable_lyricon_summary),
-        checked = lyriconEnabled,
-        onCheckedChange = { enabled ->
-            playerViewModel?.setLyriconEnabled(enabled)
-                ?: scope.launch { settingsManager.setLyriconEnabled(enabled) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "lyricon") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_enable_lyricon),
+            summary = stringResource(R.string.settings_enable_lyricon_summary),
+            checked = lyriconEnabled,
+            onCheckedChange = { enabled ->
+                playerViewModel?.setLyriconEnabled(enabled)
+                    ?: scope.launch { settingsManager.setLyriconEnabled(enabled) }
+            }
+        )
+    }
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_secondary_delivery_content),
@@ -192,7 +195,8 @@ internal fun SettingsLyriconControls(
 
 @Composable
 internal fun SettingsLyricOutputControls(
-    playerViewModel: PlayerViewModel?
+    playerViewModel: PlayerViewModel?,
+    highlightKey: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -225,15 +229,17 @@ internal fun SettingsLyricOutputControls(
     )
     val oplusModeEntries = remember(oplusModeLabels) { oplusModeLabels.map { DropdownItem(title = it) } }
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_enable_super_lyric),
-        summary = stringResource(R.string.settings_enable_super_lyric_summary),
-        checked = superLyricEnabled,
-        onCheckedChange = { enabled ->
-            playerViewModel?.setSuperLyricEnabled(enabled)
-                ?: scope.launch { settingsManager.setSuperLyricEnabled(enabled) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "lyric_output") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_enable_super_lyric),
+            summary = stringResource(R.string.settings_enable_super_lyric_summary),
+            checked = superLyricEnabled,
+            onCheckedChange = { enabled ->
+                playerViewModel?.setSuperLyricEnabled(enabled)
+                    ?: scope.launch { settingsManager.setSuperLyricEnabled(enabled) }
+            }
+        )
+    }
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_secondary_delivery_content),
@@ -347,14 +353,16 @@ internal fun SettingsLyricOutputControls(
         }
     )
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_enable_coloros_lock_screen_lyric),
-        summary = stringResource(R.string.settings_enable_coloros_lock_screen_lyric_summary),
-        checked = colorOsLockScreenLyricEnabled,
-        onCheckedChange = { enabled ->
-            scope.launch { settingsManager.setColorOsLockScreenLyricEnabled(enabled) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "coloros_lock_screen_lyric") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_enable_coloros_lock_screen_lyric),
+            summary = stringResource(R.string.settings_enable_coloros_lock_screen_lyric_summary),
+            checked = colorOsLockScreenLyricEnabled,
+            onCheckedChange = { enabled ->
+                scope.launch { settingsManager.setColorOsLockScreenLyricEnabled(enabled) }
+            }
+        )
+    }
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_coloros_lock_screen_lyric_mode),

@@ -327,31 +327,35 @@ fun AudioSettingsScreen(
             SmallTitle(text = stringResource(R.string.equalizer_section_effects))
 
             SettingsCardGroup(highlight = highlightKey == "audio_effects") {
-                ArrowPreference(
-                    title = stringResource(R.string.equalizer_screen_title),
-                    summary = stringResource(R.string.settings_audio_equalizer_summary),
-                    onClick = onNavigateToEqualizer
-                )
+                SettingsFocusAnchor(active = highlightKey == "audio_effects") {
+                    ArrowPreference(
+                        title = stringResource(R.string.equalizer_screen_title),
+                        summary = stringResource(R.string.settings_audio_equalizer_summary),
+                        onClick = onNavigateToEqualizer
+                    )
+                }
             }
 
             SmallTitle(text = stringResource(R.string.settings_audio_output_section))
 
             SettingsCardGroup(highlight = highlightKey == "audio_output") {
                 Column {
-                    WindowSpinnerPreference(
-                        title = stringResource(R.string.settings_audio_output_backend),
-                        summary = stringResource(
-                            R.string.settings_current_value,
-                            audioOutputBackendLabels[selectedAudioOutputBackendIndex]
-                        ),
-                        items = audioOutputBackendEntries,
-                        selectedIndex = selectedAudioOutputBackendIndex,
-                        onSelectedIndexChange = { index ->
-                            scope.launch {
-                                settingsManager.setAudioOutputBackend(audioOutputBackendValues[index])
+                    SettingsFocusAnchor(active = highlightKey == "audio_output") {
+                        WindowSpinnerPreference(
+                            title = stringResource(R.string.settings_audio_output_backend),
+                            summary = stringResource(
+                                R.string.settings_current_value,
+                                audioOutputBackendLabels[selectedAudioOutputBackendIndex]
+                            ),
+                            items = audioOutputBackendEntries,
+                            selectedIndex = selectedAudioOutputBackendIndex,
+                            onSelectedIndexChange = { index ->
+                                scope.launch {
+                                    settingsManager.setAudioOutputBackend(audioOutputBackendValues[index])
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_audio_output_bit_depth),
                         summary = stringResource(
@@ -398,14 +402,16 @@ fun AudioSettingsScreen(
 
             SettingsCardGroup(highlight = highlightKey == "audio_playback") {
                 Column {
-                    SwitchPreference(
-                        title = stringResource(R.string.settings_gapless_playback),
-                        summary = stringResource(R.string.settings_gapless_playback_summary),
-                        checked = gaplessPlayback,
-                        onCheckedChange = {
-                            scope.launch { settingsManager.setGaplessPlayback(it) }
-                        }
-                    )
+                    SettingsFocusAnchor(active = highlightKey == "audio_playback") {
+                        SwitchPreference(
+                            title = stringResource(R.string.settings_gapless_playback),
+                            summary = stringResource(R.string.settings_gapless_playback_summary),
+                            checked = gaplessPlayback,
+                            onCheckedChange = {
+                                scope.launch { settingsManager.setGaplessPlayback(it) }
+                            }
+                        )
+                    }
                     ArrowPreference(
                         title = stringResource(R.string.settings_crossfade),
                         summary = stringResource(
@@ -518,14 +524,16 @@ fun AudioSettingsScreen(
 
             SettingsCardGroup(highlight = highlightKey == "audio_system") {
                 Column {
-                    SwitchPreference(
-                        title = stringResource(R.string.settings_disable_audio_focus),
-                        summary = stringResource(R.string.settings_disable_audio_focus_summary),
-                        checked = audioFocusDisabled,
-                        onCheckedChange = {
-                            scope.launch { settingsManager.setAudioFocusDisabled(it) }
-                        }
-                    )
+                    SettingsFocusAnchor(active = highlightKey == "audio_system") {
+                        SwitchPreference(
+                            title = stringResource(R.string.settings_disable_audio_focus),
+                            summary = stringResource(R.string.settings_disable_audio_focus_summary),
+                            checked = audioFocusDisabled,
+                            onCheckedChange = {
+                                scope.launch { settingsManager.setAudioFocusDisabled(it) }
+                            }
+                        )
+                    }
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_decoder),
                         summary = stringResource(R.string.settings_current_value, decoderLabels[selectedDecoderMode]),

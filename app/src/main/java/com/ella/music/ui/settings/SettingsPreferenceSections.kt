@@ -106,22 +106,24 @@ internal fun SettingsLibrarySourceSection(
 
     SettingsCardGroup(highlight = highlightKey == "library_source") {
         Column {
-            if (librarySource.isNotBlank()) {
-                WindowSpinnerPreference(
-                    title = stringResource(R.string.settings_library_source),
-                    summary = stringResource(R.string.settings_library_source_summary),
-                    items = librarySourceEntries,
-                    selectedIndex = selectedLibrarySourceIndex,
-                    onSelectedIndexChange = { index ->
-                        librarySourceOptions.getOrNull(index)?.first?.let { source ->
-                            if (mainViewModel != null) {
-                                mainViewModel.setLibrarySource(source)
-                            } else {
-                                scope.launch { settingsManager.setLibrarySource(source) }
+            SettingsFocusAnchor(active = highlightKey == "library_source") {
+                if (librarySource.isNotBlank()) {
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_library_source),
+                        summary = stringResource(R.string.settings_library_source_summary),
+                        items = librarySourceEntries,
+                        selectedIndex = selectedLibrarySourceIndex,
+                        onSelectedIndexChange = { index ->
+                            librarySourceOptions.getOrNull(index)?.first?.let { source ->
+                                if (mainViewModel != null) {
+                                    mainViewModel.setLibrarySource(source)
+                                } else {
+                                    scope.launch { settingsManager.setLibrarySource(source) }
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
             ArrowPreference(
                 title = stringResource(R.string.settings_scan_folders),
@@ -167,12 +169,14 @@ internal fun SettingsAiInterpretationSection(
 
     SettingsCardGroup(highlight = highlightKey == "ai") {
         Column {
-            SplitSettingTextField(
-                label = "OpenAI API Key",
-                value = openAiApiKey,
-                summary = stringResource(R.string.settings_openai_api_key_summary),
-                onValueChange = { value -> scope.launch { settingsManager.setOpenAiApiKey(value) } }
-            )
+            SettingsFocusAnchor(active = highlightKey == "ai") {
+                SplitSettingTextField(
+                    label = "OpenAI API Key",
+                    value = openAiApiKey,
+                    summary = stringResource(R.string.settings_openai_api_key_summary),
+                    onValueChange = { value -> scope.launch { settingsManager.setOpenAiApiKey(value) } }
+                )
+            }
             SplitSettingTextField(
                 label = "OpenAI Base URL",
                 value = openAiBaseUrl,
@@ -207,42 +211,46 @@ internal fun SettingsMcpSection(
 
     SettingsCardGroup(highlight = highlightKey == "mcp") {
         Column {
-            SwitchPreference(
-                title = stringResource(R.string.settings_mcp_server),
-                summary = stringResource(R.string.settings_mcp_server_summary),
-                checked = mcpServerEnabled,
-                onCheckedChange = { enabled ->
-                    scope.launch {
-                        settingsManager.setMcpServerEnabled(enabled)
-                        if (enabled) {
-                            com.ella.music.mcp.McpServerService.start(context)
-                        } else {
-                            com.ella.music.mcp.McpServerService.stop(context)
+            SettingsFocusAnchor(active = highlightKey == "mcp") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_mcp_server),
+                    summary = stringResource(R.string.settings_mcp_server_summary),
+                    checked = mcpServerEnabled,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            settingsManager.setMcpServerEnabled(enabled)
+                            if (enabled) {
+                                com.ella.music.mcp.McpServerService.start(context)
+                            } else {
+                                com.ella.music.mcp.McpServerService.stop(context)
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         }
     }
 
     SmallTitle(text = stringResource(R.string.web_music_beta_title))
     SettingsCardGroup(highlight = highlightKey == "web_music") {
         Column {
-            SwitchPreference(
-                title = stringResource(R.string.web_music_beta_title),
-                summary = stringResource(R.string.web_music_beta_summary),
-                checked = webMusicServerEnabled,
-                onCheckedChange = { enabled ->
-                    scope.launch {
-                        settingsManager.setWebMusicServerEnabled(enabled)
-                        if (enabled) {
-                            com.ella.music.web.WebMusicService.start(context)
-                        } else {
-                            com.ella.music.web.WebMusicService.stop(context)
+            SettingsFocusAnchor(active = highlightKey == "web_music") {
+                SwitchPreference(
+                    title = stringResource(R.string.web_music_beta_title),
+                    summary = stringResource(R.string.web_music_beta_summary),
+                    checked = webMusicServerEnabled,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            settingsManager.setWebMusicServerEnabled(enabled)
+                            if (enabled) {
+                                com.ella.music.web.WebMusicService.start(context)
+                            } else {
+                                com.ella.music.web.WebMusicService.stop(context)
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
             if (webMusicServerEnabled) {
                 ArrowPreference(
                     title = stringResource(R.string.web_music_beta_address),
@@ -364,19 +372,21 @@ internal fun SettingsTagScrapingSection(
 
     SettingsCardGroup(highlight = highlightKey == "tag_scraping") {
         Column {
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_metadata_editor),
-                summary = stringResource(R.string.settings_current_value, metadataEditorOptions.getOrNull(metadataEditorIndex)?.second.orEmpty()),
-                items = metadataEditorEntries,
-                selectedIndex = metadataEditorIndex,
-                onSelectedIndexChange = { index ->
-                    scope.launch {
-                        settingsManager.setMetadataEditorId(
-                            metadataEditorOptions.getOrNull(index)?.first.orEmpty()
-                        )
+            SettingsFocusAnchor(active = highlightKey == "tag_scraping") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_metadata_editor),
+                    summary = stringResource(R.string.settings_current_value, metadataEditorOptions.getOrNull(metadataEditorIndex)?.second.orEmpty()),
+                    items = metadataEditorEntries,
+                    selectedIndex = metadataEditorIndex,
+                    onSelectedIndexChange = { index ->
+                        scope.launch {
+                            settingsManager.setMetadataEditorId(
+                                metadataEditorOptions.getOrNull(index)?.first.orEmpty()
+                            )
+                        }
                     }
-                }
-            )
+                )
+            }
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_lyric_timing_editor),
                 summary = stringResource(R.string.settings_current_value, lyricTimingEditorOptions.getOrNull(lyricTimingEditorIndex)?.second.orEmpty()),

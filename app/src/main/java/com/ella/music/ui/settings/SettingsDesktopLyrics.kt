@@ -42,7 +42,8 @@ import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
 internal fun SettingsDesktopLyricControls(
-    playerViewModel: PlayerViewModel?
+    playerViewModel: PlayerViewModel?,
+    highlightKey: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -144,25 +145,27 @@ internal fun SettingsDesktopLyricControls(
         playerViewModel?.applyDesktopLyricSettings()
     }
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_enable_desktop_lyric),
-        summary = stringResource(R.string.settings_enable_desktop_lyric_summary),
-        checked = desktopLyricEnabled,
-        onCheckedChange = { enabled ->
-            if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
-                Toast.makeText(context, context.getString(R.string.desktop_lyric_overlay_permission_required), Toast.LENGTH_SHORT).show()
-                context.startActivity(
-                    Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}")
+    SettingsFocusAnchor(active = highlightKey == "desktop_lyric") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_enable_desktop_lyric),
+            summary = stringResource(R.string.settings_enable_desktop_lyric_summary),
+            checked = desktopLyricEnabled,
+            onCheckedChange = { enabled ->
+                if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                    Toast.makeText(context, context.getString(R.string.desktop_lyric_overlay_permission_required), Toast.LENGTH_SHORT).show()
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
                     )
-                )
-            } else {
-                playerViewModel?.setDesktopLyricEnabled(enabled)
-                    ?: scope.launch { settingsManager.setDesktopLyricEnabled(enabled) }
+                } else {
+                    playerViewModel?.setDesktopLyricEnabled(enabled)
+                        ?: scope.launch { settingsManager.setDesktopLyricEnabled(enabled) }
+                }
             }
-        }
-    )
+        )
+    }
 
     SwitchPreference(
         title = stringResource(R.string.desktop_lyric_status_bar_mode),

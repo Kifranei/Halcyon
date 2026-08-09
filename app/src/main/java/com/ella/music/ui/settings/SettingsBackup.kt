@@ -316,13 +316,15 @@ fun BackupSettingsScreen(
 
             SettingsCardGroup(highlight = highlightKey == "backup_settings") {
                 Column {
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_backup_export_settings_title),
-                        summary = stringResource(R.string.settings_backup_export_settings_summary),
-                        onClick = {
-                            showExportTypeSheet = true
-                        }
-                    )
+                    SettingsFocusAnchor(active = highlightKey == "backup_settings") {
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_backup_export_settings_title),
+                            summary = stringResource(R.string.settings_backup_export_settings_summary),
+                            onClick = {
+                                showExportTypeSheet = true
+                            }
+                        )
+                    }
                     ArrowPreference(
                         title = stringResource(R.string.settings_backup_restore_settings_title),
                         summary = stringResource(R.string.settings_backup_restore_settings_summary),
@@ -338,13 +340,15 @@ fun BackupSettingsScreen(
 
             SettingsCardGroup(highlight = highlightKey == "backup_playback") {
                 Column {
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_backup_export_playback_title),
-                        summary = stringResource(R.string.settings_backup_export_playback_summary),
-                        onClick = {
-                            playbackExportLauncher.launch("prism-listening-sessions_${System.currentTimeMillis()}.json")
-                        }
-                    )
+                    SettingsFocusAnchor(active = highlightKey == "backup_playback") {
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_backup_export_playback_title),
+                            summary = stringResource(R.string.settings_backup_export_playback_summary),
+                            onClick = {
+                                playbackExportLauncher.launch("prism-listening-sessions_${System.currentTimeMillis()}.json")
+                            }
+                        )
+                    }
                 }
             }
 
@@ -352,12 +356,14 @@ fun BackupSettingsScreen(
 
             SettingsCardGroup(highlight = highlightKey == "backup_webdav") {
                 Column {
-                    SplitSettingTextField(
-                        label = stringResource(R.string.settings_backup_webdav_url_label),
-                        value = webDavBackupUrl,
-                        summary = stringResource(R.string.settings_backup_webdav_url_summary),
-                        onValueChange = { webDavBackupUrl = it }
-                    )
+                    SettingsFocusAnchor(active = highlightKey == "backup_webdav") {
+                        SplitSettingTextField(
+                            label = stringResource(R.string.settings_backup_webdav_url_label),
+                            value = webDavBackupUrl,
+                            summary = stringResource(R.string.settings_backup_webdav_url_summary),
+                            onValueChange = { webDavBackupUrl = it }
+                        )
+                    }
                     SplitSettingTextField(
                         label = stringResource(R.string.settings_backup_webdav_username_label),
                         value = webDavBackupUser,

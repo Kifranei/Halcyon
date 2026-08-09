@@ -1723,10 +1723,10 @@
     <string name="library_search_match_lyricist">作詞者</string>
     <string name="library_search_match_tag">タグ</string>
     <string name="library_search_filter_no_lyrics">歌詞なし</string>
-    <string name="library_search_filter_ttml_lyrics">TTML 歌詞</string>
+    <string name="library_search_filter_ttml_lyrics">TTML歌詞</string>
     <string name="library_search_filter_mv">MV</string>
-    <string name="library_search_filter_local_mv">ローカル MV</string>
-    <string name="library_search_filter_online_mv">オンライン MV</string>
+    <string name="library_search_filter_local_mv">ローカルMV</string>
+    <string name="library_search_filter_online_mv">オンラインMV</string>
     <string name="library_search_filter_dynamic_cover">動的カバー</string>
     <string name="library_search_match_title">曲名</string>
     <string name="library_search_match_year">年</string>

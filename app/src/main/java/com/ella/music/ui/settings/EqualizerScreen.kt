@@ -173,12 +173,14 @@ fun EqualizerScreen(
                 SmallTitle(text = stringResource(R.string.equalizer_section_eq))
                 SettingsCardGroup(highlight = highlightKey == "equalizer") {
                     Column {
-                        SwitchPreference(
-                            title = stringResource(R.string.equalizer_master),
-                            summary = stringResource(R.string.equalizer_band_count, caps.displayBandCount),
-                            checked = eqEnabled,
-                            onCheckedChange = { scope.launch { settingsManager.setEqEnabled(it) } }
-                        )
+                        SettingsFocusAnchor(active = highlightKey == "equalizer") {
+                            SwitchPreference(
+                                title = stringResource(R.string.equalizer_master),
+                                summary = stringResource(R.string.equalizer_band_count, caps.displayBandCount),
+                                checked = eqEnabled,
+                                onCheckedChange = { scope.launch { settingsManager.setEqEnabled(it) } }
+                            )
+                        }
 
                         val presetNames = eqPresetDisplayNames()
                         val presetItems = buildList {
@@ -209,28 +211,30 @@ fun EqualizerScreen(
                 }
 
                 SettingsCardGroup(highlight = highlightKey == "equalizer_bands") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        for (band in 0 until caps.displayBandCount) {
-                            val levelMb = bandLevels.getOrElse(band) { 0 }
-                            val freqHz = caps.displayCenterFreqsHz.getOrElse(band) { 0 }
-                            EqBandColumn(
-                                freqLabel = formatFreq(freqHz),
-                                gainLabel = formatGainDb(levelMb),
-                                levelMb = levelMb,
-                                minMb = caps.minLevelMb,
-                                maxMb = caps.maxLevelMb,
-                                onLevelChange = { newLevel ->
-                                    val updated = MutableList(caps.displayBandCount) { idx -> bandLevels.getOrElse(idx) { 0 } }
-                                    updated[band] = newLevel.coerceIn(caps.minLevelMb, caps.maxLevelMb)
-                                    scope.launch { settingsManager.setEqBandLevelsMb(updated) }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
+                    SettingsFocusAnchor(active = highlightKey == "equalizer_bands") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            for (band in 0 until caps.displayBandCount) {
+                                val levelMb = bandLevels.getOrElse(band) { 0 }
+                                val freqHz = caps.displayCenterFreqsHz.getOrElse(band) { 0 }
+                                EqBandColumn(
+                                    freqLabel = formatFreq(freqHz),
+                                    gainLabel = formatGainDb(levelMb),
+                                    levelMb = levelMb,
+                                    minMb = caps.minLevelMb,
+                                    maxMb = caps.maxLevelMb,
+                                    onLevelChange = { newLevel ->
+                                        val updated = MutableList(caps.displayBandCount) { idx -> bandLevels.getOrElse(idx) { 0 } }
+                                        updated[band] = newLevel.coerceIn(caps.minLevelMb, caps.maxLevelMb)
+                                        scope.launch { settingsManager.setEqBandLevelsMb(updated) }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 }

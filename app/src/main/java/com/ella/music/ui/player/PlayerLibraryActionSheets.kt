@@ -34,7 +34,6 @@ internal fun PlayerLibraryActionSheets(
         ) {
             RatingSheet(
                 currentRating = mainViewModel.getSongRating(currentSong),
-                onDismiss = { onRatingSheetSongChange(null) },
                 onRatingSelected = { rating ->
                     // The save button commits the staged star selection before closing the sheet.
                     onRatingSheetSongChange(null)

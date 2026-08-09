@@ -110,28 +110,10 @@ internal fun LibrarySearchFilterBar(
 }
 
 @Composable
-internal fun LibrarySearchDuplicateToggle(
-    visible: Boolean,
-    duplicatesOnly: Boolean,
-    onToggle: () -> Unit
-) {
-    if (!visible) return
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-    ) {
-        SearchPill(
-            text = stringResource(R.string.library_search_duplicates),
-            selected = duplicatesOnly,
-            onClick = onToggle
-        )
-    }
-}
-
-@Composable
 internal fun LibrarySearchContentFilterBar(
     visible: Boolean,
+    duplicatesOnly: Boolean,
+    onDuplicatesToggle: () -> Unit,
     filters: LibrarySearchContentFilters,
     mvExpanded: Boolean,
     onNoLyricsChange: (Boolean) -> Unit,
@@ -150,6 +132,11 @@ internal fun LibrarySearchContentFilterBar(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            SearchPill(
+                text = stringResource(R.string.library_search_duplicates),
+                selected = duplicatesOnly,
+                onClick = onDuplicatesToggle
+            )
             SearchPill(
                 text = stringResource(R.string.library_search_filter_no_lyrics),
                 selected = filters.noLyrics,

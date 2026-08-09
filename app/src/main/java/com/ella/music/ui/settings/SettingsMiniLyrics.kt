@@ -15,7 +15,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
-internal fun SettingsMiniLyricsControls() {
+internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
@@ -35,14 +35,16 @@ internal fun SettingsMiniLyricsControls() {
         statusLyricSecondaryLabels.map { DropdownItem(title = it) }
     }
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_mini_player_lyrics),
-        summary = stringResource(R.string.settings_mini_player_lyrics_summary),
-        checked = miniPlayerLyricsEnabled,
-        onCheckedChange = { enabled ->
-            scope.launch { settingsManager.setMiniPlayerLyricsEnabled(enabled) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "mini_lyrics") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_mini_player_lyrics),
+            summary = stringResource(R.string.settings_mini_player_lyrics_summary),
+            checked = miniPlayerLyricsEnabled,
+            onCheckedChange = { enabled ->
+                scope.launch { settingsManager.setMiniPlayerLyricsEnabled(enabled) }
+            }
+        )
+    }
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_mini_player_secondary),

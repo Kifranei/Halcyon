@@ -1747,10 +1747,10 @@
     <string name="library_search_match_lyricist">作詞</string>
     <string name="library_search_match_tag">標籤</string>
     <string name="library_search_filter_no_lyrics">無歌詞</string>
-    <string name="library_search_filter_ttml_lyrics">TTML 歌詞</string>
+    <string name="library_search_filter_ttml_lyrics">TTML歌詞</string>
     <string name="library_search_filter_mv">MV</string>
-    <string name="library_search_filter_local_mv">本地 MV</string>
-    <string name="library_search_filter_online_mv">在線 MV</string>
+    <string name="library_search_filter_local_mv">本地MV</string>
+    <string name="library_search_filter_online_mv">在線MV</string>
     <string name="library_search_filter_dynamic_cover">動態封面</string>
     <string name="library_search_match_title">歌名</string>
     <string name="library_search_match_year">年份</string>

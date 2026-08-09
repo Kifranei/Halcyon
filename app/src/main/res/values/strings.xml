@@ -1145,10 +1145,10 @@
     <string name="library_search_match_translated_name">译名</string>
     <string name="library_search_match_tag">标签</string>
     <string name="library_search_filter_no_lyrics">无歌词</string>
-    <string name="library_search_filter_ttml_lyrics">TTML 歌词</string>
+    <string name="library_search_filter_ttml_lyrics">TTML歌词</string>
     <string name="library_search_filter_mv">MV</string>
-    <string name="library_search_filter_local_mv">本地 MV</string>
-    <string name="library_search_filter_online_mv">在线 MV</string>
+    <string name="library_search_filter_local_mv">本地MV</string>
+    <string name="library_search_filter_online_mv">在线MV</string>
     <string name="library_search_filter_dynamic_cover">动态封面</string>
     <string name="rating_filter_all">全部星级</string>
     <string name="rating_filter_rated">全部评分</string>

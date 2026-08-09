@@ -64,7 +64,9 @@ internal fun SettingsLyricsSection(
                 summary = stringResource(R.string.settings_lyric_plugin_sources_summary),
                 onClick = onNavigateToLyricPluginSources
             )
-            SettingsPlayerLyricAlignmentPreference()
+            SettingsFocusAnchor(active = highlightKey == "lyric_basic") {
+                SettingsPlayerLyricAlignmentPreference()
+            }
             ArrowPreference(
                 title = stringResource(R.string.player_lyric_style_settings),
                 summary = stringResource(R.string.settings_lyrics_summary),
@@ -114,13 +116,13 @@ internal fun SettingsLyricsSection(
 
     SettingsCardGroup(highlight = highlightKey == "mini_lyrics") {
         Column {
-            SettingsMiniLyricsControls()
+            SettingsMiniLyricsControls(highlightKey = highlightKey)
         }
     }
 
     SettingsCardGroup(highlight = highlightKey == "lyricon") {
         Column {
-            SettingsLyriconControls(playerViewModel = playerViewModel)
+            SettingsLyriconControls(playerViewModel = playerViewModel, highlightKey = highlightKey)
         }
     }
 
@@ -151,13 +153,16 @@ internal fun SettingsLyricsSection(
 
     SettingsCardGroup(highlight = highlightKey == "desktop_lyric") {
         Column {
-            SettingsDesktopLyricControls(playerViewModel = playerViewModel)
+            SettingsDesktopLyricControls(playerViewModel = playerViewModel, highlightKey = highlightKey)
         }
     }
 
     SettingsCardGroup(highlight = highlightKey == "lyric_output" || highlightKey == "coloros_lock_screen_lyric") {
         Column {
-            SettingsLyricOutputControls(playerViewModel = playerViewModel)
+            SettingsLyricOutputControls(
+                playerViewModel = playerViewModel,
+                highlightKey = highlightKey
+            )
         }
     }
 
