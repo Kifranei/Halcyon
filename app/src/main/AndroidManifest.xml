@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur,rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl" />
 
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
@@ -24,6 +24,7 @@
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <queries>
         <package android:name="com.lonx.lyrico" />
@@ -76,6 +77,15 @@
         <!-- Shown by MIUI/HyperOS in the uninstall confirmation dialog. -->
         <meta-data android:name="app_description_title" android:resource="@string/miui_uninstall_title" />
         <meta-data android:name="app_description_content" android:resource="@string/miui_uninstall_content" />
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true" />
 
         <activity
             android:name=".MainActivity"
@@ -259,6 +269,15 @@
         <service
             android:name=".player.DesktopLyricService"
             android:exported="false" />
+
+        <service
+            android:name=".player.XiaomiSuperIslandLyricService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Live rendering of lyrics for Xiaomi Super Island" />
+        </service>
 
         <service
             android:name=".mcp.McpServerService"

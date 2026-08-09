@@ -541,9 +541,12 @@ class PlaybackService : MediaLibraryService() {
         super.onStartCommand(intent, flags, startId)
         mediaSession?.player?.let { player ->
             when (intent?.action) {
-                ACTION_WIDGET_PREVIOUS -> player.seekToPreviousMediaItem()
-                ACTION_WIDGET_PLAY_PAUSE -> if (player.isPlaying) player.pause() else player.play()
-                ACTION_WIDGET_NEXT -> player.seekToNextMediaItem()
+                ACTION_WIDGET_PREVIOUS,
+                ACTION_SKIP_PREVIOUS -> player.seekToPreviousMediaItem()
+                ACTION_WIDGET_PLAY_PAUSE,
+                ACTION_PLAY_PAUSE -> if (player.isPlaying) player.pause() else player.play()
+                ACTION_WIDGET_NEXT,
+                ACTION_SKIP_NEXT -> player.seekToNextMediaItem()
             }
             PlaybackWidgetUpdater.updateFromPlayer(this, player)
         }

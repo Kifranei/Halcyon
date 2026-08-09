@@ -1,6 +1,7 @@
 package com.ella.music
 
 import android.app.Application
+import android.os.Build
 import com.ella.music.data.AppLogcatCollector
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.AppIconManager
@@ -21,10 +22,15 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class EllaApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            runCatching { HiddenApiBypass.addHiddenApiExemptions("") }
+                .onFailure { AppLogStore.warn(this, "EllaApp", "Unable to exempt hidden APIs", it) }
+        }
         WebDavClient.initContext(this)
         AppLogStore.install(this)
         AppLogcatCollector.start(this)

@@ -24,3 +24,4 @@ rootProject.name = "Halcyon"
 include(":app")
 include(":ffmpeg-decoder")
 include(":lyrico-audiotag")
+include(":hidden-api")

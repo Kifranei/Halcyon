@@ -141,7 +141,6 @@ class DesktopLyricService : Service() {
         when (intent?.action) {
             ACTION_ENABLE -> {
                 userHidden = false
-                if (rootView == null) stopSelf()
             }
             ACTION_SHOW, ACTION_UPDATE -> showOrUpdate(intent)
             ACTION_SET_HOST_PAGE -> {

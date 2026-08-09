@@ -13,13 +13,15 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
 internal fun SettingsLiveUpdateLyricControls(
     playerViewModel: PlayerViewModel?,
-    highlightKey: String? = null
+    highlightKey: String? = null,
+    onOpenXiaomiSuperIslandSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -108,6 +110,22 @@ internal fun SettingsLiveUpdateLyricControls(
             }
         )
     }
+
+    val xiaomiSuperIslandEnabled by settingsManager.xiaomiSuperIslandLyricEnabled.collectAsState(initial = false)
+    SwitchPreference(
+        title = stringResource(R.string.settings_enable_xiaomi_super_island_lyric),
+        summary = stringResource(R.string.settings_enable_xiaomi_super_island_lyric_summary),
+        checked = xiaomiSuperIslandEnabled,
+        onCheckedChange = { nextEnabled ->
+            playerViewModel?.setXiaomiSuperIslandLyricEnabled(nextEnabled)
+                ?: scope.launch { settingsManager.setXiaomiSuperIslandLyricEnabled(nextEnabled) }
+        }
+    )
+    ArrowPreference(
+        title = stringResource(R.string.settings_xiaomi_super_island_custom),
+        summary = stringResource(R.string.settings_xiaomi_super_island_custom_summary),
+        onClick = onOpenXiaomiSuperIslandSettings
+    )
 }
 
 @Composable

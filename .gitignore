@@ -14,6 +14,7 @@ local.properties
 /app/debug
 /app/fastRelease
 /app/release
+/hidden-api/build
 /.tmp
 /ffmpeg-decoder/build
 /lyrico-audiotag/build

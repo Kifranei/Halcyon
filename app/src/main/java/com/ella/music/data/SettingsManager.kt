@@ -82,6 +82,8 @@ class SettingsManager(private val context: Context) :
         val KEY_LIVE_UPDATE_LYRIC_MODE = intPreferencesKey("live_update_lyric_mode")
         val KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE = intPreferencesKey("live_update_lyric_display_mode")
         val KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE = intPreferencesKey("live_update_lyric_secondary_mode")
+        val KEY_XIAOMI_SUPER_ISLAND_LYRIC_ENABLED = booleanPreferencesKey("xiaomi_super_island_lyric_enabled")
+        val KEY_XIAOMI_SUPER_ISLAND_SETTINGS = stringPreferencesKey("xiaomi_super_island_settings")
         val KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION = booleanPreferencesKey("samsung_floating_lyric_translation")
         val KEY_STATUS_BAR_ALLOW_PHONETIC = booleanPreferencesKey("status_bar_allow_phonetic")
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
@@ -249,6 +251,7 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYLIST_CUSTOM_ORDER = stringPreferencesKey("playlist_custom_order")
         val KEY_FOLDER_PLAYLIST_CUSTOM_ORDER = stringPreferencesKey("folder_playlist_custom_order")
         val KEY_SHOW_PLAY_NEXT_IN_LISTS = booleanPreferencesKey("show_play_next_in_lists")
+        val KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON = booleanPreferencesKey("show_remove_from_playlist_button")
         val KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST = booleanPreferencesKey("exclude_search_results_from_playlist")
         val KEY_AUTO_SHOW_SEARCH_KEYBOARD = booleanPreferencesKey("auto_show_search_keyboard")
         val KEY_PLAY_NEXT_MODE = intPreferencesKey("play_next_mode")
@@ -374,6 +377,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LISTENING_HISTORY_SOURCE = intPreferencesKey("listening_history_source")
         val KEY_HOME_DAILY_MIX_VISIBLE = booleanPreferencesKey("home_daily_mix_visible")
         val KEY_HOME_AI_MIX_VISIBLE = booleanPreferencesKey("home_ai_mix_visible")
+        val KEY_HOME_RECENT_SECTION_MODE = intPreferencesKey("home_recent_section_mode")
         val KEY_HOME_SECTION_ORDER = stringPreferencesKey("home_section_order")
         val KEY_HOME_HIDDEN_SECTIONS = stringPreferencesKey("home_hidden_sections")
         val KEY_HOME_LIBRARY_TILE_ORDER = stringPreferencesKey("home_library_tile_order")
@@ -635,9 +639,9 @@ class SettingsManager(private val context: Context) :
                 .take(2)
         }
         val SEARCH_ALL_CATEGORY_TYPES = setOf("folder", "composer", "arranger", "lyricist", "genre", "year")
-        val SEARCH_ALL_SONG_MATCH_TYPES = setOf(
-            "title", "artist", "album", "album_artist", "genre", "year", "composer", "arranger",
-            "lyricist", "file_name", "comment", "alias", "tag", "lyrics"
+        val SEARCH_ALL_SONG_MATCH_TYPES = linkedSetOf(
+            "title", "artist", "album", "file_name", "translated_name", "alias", "comment", "tag",
+            "lyricist", "composer", "arranger", "album_artist", "genre", "year", "lyrics"
         )
 
         const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
@@ -710,6 +714,8 @@ class SettingsManager(private val context: Context) :
         fun defaultShortcutFolderLabel(context: Context): String =
             context.getString(DEFAULT_SHORTCUT_FOLDER_LABEL_RES)
         const val DEFAULT_HOME_SECTION_ORDER = "library,online,recent"
+        const val HOME_RECENT_SECTION_MODE_PLAYED = 0
+        const val HOME_RECENT_SECTION_MODE_ADDED = 1
         const val DEFAULT_HOME_LIBRARY_TILE_ORDER = "artist,album,folder,folder_tree,folder_playlist,playlist,analytics,genre,year,composer,arranger,lyricist"
         const val DEFAULT_HOME_ONLINE_TILE_ORDER = "lx,webdav"
         const val DEFAULT_ARTIST_SEPARATORS = "/\nfeat.\n&\n,"
@@ -888,6 +894,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_TICKER_HIDE_NOTIFICATION)
             setBoolean(KEY_TICKER_HEADS_UP_LYRICS)
             setBoolean(KEY_LIVE_UPDATE_LYRIC_ENABLED)
+            setBoolean(KEY_XIAOMI_SUPER_ISLAND_LYRIC_ENABLED)
+            setString(KEY_XIAOMI_SUPER_ISLAND_SETTINGS)
             setBoolean(KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION)
             setBoolean(KEY_STATUS_BAR_ALLOW_PHONETIC)
             setBoolean(KEY_DESKTOP_LYRIC_ENABLED)
@@ -951,6 +959,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_HI_RES_LOGO_ENABLED)
             setBoolean(KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE)
             setBoolean(KEY_SHOW_PLAY_NEXT_IN_LISTS)
+            setBoolean(KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON)
             setBoolean(KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST)
             setBoolean(KEY_AUTO_SHOW_SEARCH_KEYBOARD)
             setBoolean(KEY_ADD_TO_PLAYLIST_APPEND_TO_END)
@@ -1100,6 +1109,7 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_PLAYER_BACKGROUND_DIM)
             setInt(KEY_AUDIO_VISUALIZER_OPACITY)
             setInt(KEY_HOME_CARD_OPACITY)
+            setInt(KEY_HOME_RECENT_SECTION_MODE)
             setString(KEY_HOME_TILE_COLORS)
             setString(KEY_HOME_TILE_GRADIENT_START_COLOR)
             setString(KEY_HOME_ONLINE_TILE_ORDER)
