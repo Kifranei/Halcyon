@@ -2,15 +2,10 @@ package com.ella.music.ui.player
 
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -20,7 +15,6 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 
 // Keep the player layout stable when TTML background/translation layers appear or disappear.
@@ -122,22 +116,13 @@ internal fun MiniNoLyricsPreview(
             .playerNoIndicationClick(onClick),
         contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                painter = painterResource(R.drawable.ic_lyrics),
-                contentDescription = null,
-                tint = contentColor.copy(alpha = 0.68f),
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.player_no_lyrics),
-                color = contentColor.copy(alpha = 0.68f),
-                fontSize = 19.sp,
-                fontWeight = fontWeight,
-                textAlign = TextAlign.Start
-            )
-        }
+        Text(
+            text = stringResource(R.string.player_no_lyrics),
+            color = contentColor.copy(alpha = 0.68f),
+            fontSize = 19.sp,
+            fontWeight = fontWeight,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

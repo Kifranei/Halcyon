@@ -4,7 +4,9 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -84,6 +86,51 @@ internal fun AppleMusicLyricsView(
                 text = "♪",
                 style = TextStyle(fontSize = 28.sp, color = contentColor.copy(alpha = 0.58f), fontFamily = fontFamily)
             )
+        }
+        return
+    }
+
+    // Some files use a shared 00:00 timestamp for static credits / instrumental notices. They
+    // are not a scrolling timeline: render every row as a readable, centered card instead of
+    // pinning the first row to the normal lyric focus offset.
+    val singleTimestampTimeline = lyrics.firstOrNull()?.timeMs?.let { timestamp ->
+        lyrics.all { it.timeMs == timestamp }
+    } == true
+    if (singleTimestampTimeline) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(lineSpacing),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                lyrics.forEach { line ->
+                    AppleMusicLyricLine(
+                        line = line,
+                        active = true,
+                        paused = true,
+                        distance = 0,
+                        userScrolling = true,
+                        nonCurrentLineBlurEnabled = false,
+                        currentPositionMs = Long.MIN_VALUE,
+                        showTranslation = showTranslation,
+                        showPronunciation = showPronunciation,
+                        pronunciationBelow = pronunciationBelow,
+                        fontFamily = fontFamily,
+                        translationFontFamily = translationFontFamily,
+                        fontWeight = fontWeight,
+                        fontScale = fontScale,
+                        secondaryFontScale = secondaryFontScale,
+                        primaryTextSizeSp = primaryTextSizeSp,
+                        secondaryTextSizeSp = secondaryTextSizeSp,
+                        defaultTextAlign = TextAlign.Center,
+                        contentColor = contentColor,
+                        wordLiftEnabled = false,
+                        reserveExtraLyricSpace = false,
+                        onClick = { onLineClick(line) },
+                        onDoubleClick = onLineDoubleClick,
+                        onLongClick = { onLineLongClick(line) }
+                    )
+                }
+            }
         }
         return
     }
