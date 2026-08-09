@@ -764,7 +764,7 @@ private fun Song.musicVideoDocumentSource(
  * suffixed names are still accepted) and the container list is relaxed to mp4/mkv/webm/mov.
  * Both SAF tree URIs (from the folder picker) and plain filesystem paths are supported.
  */
-private fun Song.musicVideoCustomFolderSource(
+internal fun Song.musicVideoCustomFolderSource(
     context: Context,
     musicVideoCustomFolders: List<String>
 ): DynamicCoverSource? {

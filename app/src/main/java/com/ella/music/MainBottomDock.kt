@@ -97,6 +97,7 @@ internal fun FloatingBottomControls(
     lyricPositionMs: Long,
     lyricTiming: MiniPlayerLyricTiming?,
     miniPlayerRightButton: Int = 0,
+    miniPlayerSwipeToOpenPlayer: Boolean = true,
     tabs: List<BottomDockTab>,
     currentTabRoute: String?,
     currentRoute: String?,
@@ -149,6 +150,7 @@ internal fun FloatingBottomControls(
                 lyricPositionMs = lyricPositionMs,
                 lyricTiming = lyricTiming,
                 coverRotationEnabled = coverRotationEnabled,
+                swipeUpToOpenPlayer = miniPlayerSwipeToOpenPlayer,
                 albumArtUri = mainViewModel.getAlbumArtUri(currentSong.albumId),
                 loadCoverArt = mainViewModel::getCoverArtBitmap,
                 backdrop = if (useGlass) backdrop else null,
@@ -184,6 +186,7 @@ internal fun FloatingBottomControls(
                                 liquidGlass = useGlass,
                                 glassEffect = glassEffect,
                                 showQueueButton = miniPlayerRightButton == SettingsManager.MINI_PLAYER_RIGHT_QUEUE,
+                                swipeUpToOpenPlayer = miniPlayerSwipeToOpenPlayer,
                                 onClick = onNavigatePlayer,
                                 onPlayPause = { playerViewModel.togglePlayPause() },
                                 onSkipNext = { playerViewModel.skipToNext() },
@@ -371,6 +374,7 @@ private fun CompactBottomDock(
     lyricPositionMs: Long,
     lyricTiming: MiniPlayerLyricTiming?,
     coverRotationEnabled: Boolean,
+    swipeUpToOpenPlayer: Boolean,
     albumArtUri: Uri?,
     loadCoverArt: ((Song) -> android.graphics.Bitmap?)?,
     backdrop: com.kyant.backdrop.Backdrop?,
@@ -423,6 +427,7 @@ private fun CompactBottomDock(
             onPlayPause = onPlayPause,
             onSkipNext = onSkipNext,
             showSkipButton = false,
+            swipeUpToOpenPlayer = swipeUpToOpenPlayer,
             modifier = Modifier.weight(1f)
         )
         BottomDockActionPill(

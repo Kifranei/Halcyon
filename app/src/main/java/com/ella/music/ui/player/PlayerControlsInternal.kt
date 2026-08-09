@@ -56,7 +56,7 @@ internal fun CenteredPlayPauseGlyph(
     modifier: Modifier = Modifier
 ) {
     Icon(
-        painter = painterResource(id = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play),
+        painter = painterResource(id = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play_legacy),
         contentDescription = if (isPlaying) stringResource(R.string.common_pause) else stringResource(R.string.common_play),
         tint = tint,
         modifier = modifier

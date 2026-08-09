@@ -58,6 +58,7 @@ fun MiniPlayer(
     liquidGlass: Boolean = false,
     glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
     showQueueButton: Boolean = false,
+    swipeUpToOpenPlayer: Boolean = true,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipPrevious: () -> Unit = {},
@@ -110,7 +111,7 @@ fun MiniPlayer(
                     onDragCancel = { dragAmount = 0f }
                 )
             }
-            .pointerInput(song.id) {
+            .pointerInput(song.id, swipeUpToOpenPlayer) {
                 var verticalDragAmount = 0f
                 detectVerticalDragGestures(
                     onDragStart = { verticalDragAmount = 0f },
@@ -119,7 +120,7 @@ fun MiniPlayer(
                         change.consume()
                     },
                     onDragEnd = {
-                        if (verticalDragAmount < -48f) onClick()
+                        if (swipeUpToOpenPlayer && verticalDragAmount < -48f) onClick()
                         verticalDragAmount = 0f
                     },
                     onDragCancel = { verticalDragAmount = 0f }
@@ -228,7 +229,7 @@ fun MiniPlayer(
             modifier = Modifier.size(36.dp)
         ) {
             Icon(
-                painter = painterResource(id = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play),
+                painter = painterResource(id = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play_legacy),
                 contentDescription = if (isPlaying) stringResource(R.string.common_pause) else stringResource(R.string.common_play),
                 tint = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.size(22.dp)
@@ -283,6 +284,7 @@ fun CompactMiniPlayer(
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit = {},
     showSkipButton: Boolean = true,
+    swipeUpToOpenPlayer: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val coverState = rememberMiniPlayerCoverModel(song, albumArtUri, loadCoverArt)
@@ -305,7 +307,7 @@ fun CompactMiniPlayer(
                 modifier = Modifier
                     .weight(1f)
                     .height(64.dp)
-                    .pointerInput(song.id) {
+                    .pointerInput(song.id, swipeUpToOpenPlayer) {
                         var verticalDragAmount = 0f
                         detectVerticalDragGestures(
                             onDragStart = { verticalDragAmount = 0f },
@@ -314,7 +316,7 @@ fun CompactMiniPlayer(
                                 change.consume()
                             },
                             onDragEnd = {
-                                if (verticalDragAmount < -48f) onClick()
+                                if (swipeUpToOpenPlayer && verticalDragAmount < -48f) onClick()
                                 verticalDragAmount = 0f
                             },
                             onDragCancel = { verticalDragAmount = 0f }
@@ -354,7 +356,7 @@ fun CompactMiniPlayer(
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
-                    painter = painterResource(id = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play),
+                    painter = painterResource(id = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play_legacy),
                     contentDescription = if (isPlaying) stringResource(R.string.common_pause) else stringResource(R.string.common_play),
                     tint = MiuixTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)

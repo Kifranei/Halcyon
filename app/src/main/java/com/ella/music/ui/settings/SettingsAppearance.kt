@@ -99,10 +99,10 @@ internal fun SettingsAppearanceSection(
     )
     val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
+    val showRemoveFromPlaylistButton by settingsManager.showRemoveFromPlaylistButton.collectAsState(initial = true)
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = true)
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
-    val miniPlayerSwipeToOpenPlayer by settingsManager.miniPlayerSwipeToOpenPlayer.collectAsState(initial = true)
     val categoryGridColumns by settingsManager.categoryGridColumns.collectAsState(initial = 2)
     val playerBgTheme by settingsManager.playerBackgroundTheme.collectAsState(initial = SettingsManager.PLAYER_BG_THEME_DARK)
     val beautifulLyricsBackgroundLabels = listOf(
@@ -650,19 +650,19 @@ internal fun SettingsAppearanceSection(
                 }
             )
             SwitchPreference(
-                title = stringResource(R.string.settings_mini_player_swipe_to_open_player),
-                summary = stringResource(R.string.settings_mini_player_swipe_to_open_player_summary),
-                checked = miniPlayerSwipeToOpenPlayer,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setMiniPlayerSwipeToOpenPlayer(it) }
-                }
-            )
-            SwitchPreference(
                 title = stringResource(R.string.settings_show_play_next_in_lists),
                 summary = stringResource(R.string.settings_show_play_next_in_lists_summary),
                 checked = showPlayNextInLists,
                 onCheckedChange = {
                     scope.launch { settingsManager.setShowPlayNextInLists(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_show_remove_from_playlist_button),
+                summary = stringResource(R.string.settings_show_remove_from_playlist_button_summary),
+                checked = showRemoveFromPlaylistButton,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setShowRemoveFromPlaylistButton(it) }
                 }
             )
             SwitchPreference(

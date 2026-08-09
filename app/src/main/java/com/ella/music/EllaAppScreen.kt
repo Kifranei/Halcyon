@@ -68,6 +68,7 @@ import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.navigation.EXTRA_SHORTCUT_ACTION
 import com.ella.music.ui.navigation.SHORTCUT_ACTION_PLAY
 import com.ella.music.ui.navigation.SHORTCUT_ACTION_SHUFFLE_ALL
+import com.ella.music.player.DesktopLyricService
 import com.ella.music.ui.player.PlayerScreen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -106,6 +107,7 @@ fun EllaApp(
                 miniPlayerCoverRotation = settingsManager.miniPlayerCoverRotation.first(),
                 miniPlayerLyricsEnabled = settingsManager.miniPlayerLyricsEnabled.first(),
                 miniPlayerRightButton = settingsManager.miniPlayerRightButton.first(),
+                miniPlayerSwipeToOpenPlayer = settingsManager.miniPlayerSwipeToOpenPlayer.first(),
                 bottomBarGlassEffect = settingsManager.bottomBarGlassEffect.first(),
                 bottomDockItems = settingsManager.bottomDockItems.first(),
                 appWallpaperEnabled = settingsManager.appWallpaperEnabled.first(),
@@ -148,6 +150,21 @@ fun EllaApp(
         )
     }
     val isPlayerVisible = showPlayerOverlay || currentRoute == Screen.Player.route
+    val showLyrics by playerViewModel.showLyrics.collectAsState()
+    LaunchedEffect(isPlayerVisible, showLyrics) {
+        playerViewModel.desktopLyricBridge.setHostPage(
+            when {
+                isPlayerVisible && showLyrics -> DesktopLyricService.HOST_PAGE_LYRICS
+                isPlayerVisible -> DesktopLyricService.HOST_PAGE_PLAYER
+                else -> DesktopLyricService.HOST_PAGE_NONE
+            }
+        )
+    }
+    DisposableEffect(playerViewModel) {
+        onDispose {
+            playerViewModel.desktopLyricBridge.setHostPage(DesktopLyricService.HOST_PAGE_NONE)
+        }
+    }
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val initialScanPromptHandled by settingsManager.initialScanPromptHandled.collectAsState(initial = true)
     val fullTagSearchPromptHandled by settingsManager.fullTagSearchPromptHandled.collectAsState(initial = true)
@@ -386,6 +403,9 @@ fun EllaApp(
     val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = initialUiSettings.miniPlayerCoverRotation)
     val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = initialUiSettings.miniPlayerLyricsEnabled)
     val miniPlayerRightButton by settingsManager.miniPlayerRightButton.collectAsState(initial = initialUiSettings.miniPlayerRightButton)
+    val miniPlayerSwipeToOpenPlayer by settingsManager.miniPlayerSwipeToOpenPlayer.collectAsState(
+        initial = initialUiSettings.miniPlayerSwipeToOpenPlayer
+    )
     val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = initialUiSettings.bottomBarGlassEffect)
     val bottomDockItemIds by settingsManager.bottomDockItems.collectAsState(
         initial = initialUiSettings.bottomDockItems
@@ -598,6 +618,7 @@ fun EllaApp(
                     lyricPositionMs = currentPosition,
                     lyricTiming = miniPlayerLyricTiming,
                     miniPlayerRightButton = miniPlayerRightButton,
+                    miniPlayerSwipeToOpenPlayer = miniPlayerSwipeToOpenPlayer,
                     tabs = tabs,
                     currentTabRoute = currentTabRoute,
                     currentRoute = currentRoute,
@@ -787,6 +808,7 @@ private data class EllaInitialUiSettings(
     val miniPlayerCoverRotation: Boolean,
     val miniPlayerLyricsEnabled: Boolean,
     val miniPlayerRightButton: Int,
+    val miniPlayerSwipeToOpenPlayer: Boolean,
     val bottomBarGlassEffect: BottomBarGlassEffect,
     val bottomDockItems: List<String>,
     val appWallpaperEnabled: Boolean,

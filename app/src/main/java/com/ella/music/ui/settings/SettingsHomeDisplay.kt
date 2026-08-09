@@ -42,12 +42,14 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ColorPicker
 import top.yukonga.miuix.kmp.basic.ColorSpace
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
 
@@ -72,6 +74,7 @@ internal fun <T> Flow<T>.collectSettingsState(initialValue: T): State<T> {
 internal fun HomeDisplaySettingsPage(
     sectionItems: List<HomePreferenceItem>,
     sectionOrder: String,
+    recentSectionMode: Int,
     hiddenSections: String,
     tileItems: List<HomePreferenceItem>,
     tileOrder: String,
@@ -90,6 +93,7 @@ internal fun HomeDisplaySettingsPage(
     onHiddenTilesChange: (String) -> Unit,
     onHiddenOnlineTilesChange: (String) -> Unit,
     onSectionOrderChange: (String) -> Unit,
+    onRecentSectionModeChange: (Int) -> Unit,
     onTileOrderChange: (String) -> Unit,
     onOnlineOrderChange: (String) -> Unit,
     onTilePinButtonsVisibleChange: (Boolean) -> Unit,
@@ -139,6 +143,21 @@ internal fun HomeDisplaySettingsPage(
         onHiddenIdsChange = onHiddenSectionsChange,
         onOrderChange = onSectionOrderChange
     )
+    SettingsCardGroup(highlight = highlightKey == "home_recent_section_mode") {
+        WindowSpinnerPreference(
+            title = stringResource(R.string.settings_home_recent_content),
+            summary = stringResource(R.string.settings_home_recent_content_summary),
+            items = listOf(
+                DropdownItem(stringResource(R.string.home_recent_played)),
+                DropdownItem(stringResource(R.string.home_recent_added))
+            ),
+            selectedIndex = recentSectionMode.coerceIn(
+                SettingsManager.HOME_RECENT_SECTION_MODE_PLAYED,
+                SettingsManager.HOME_RECENT_SECTION_MODE_ADDED
+            ),
+            onSelectedIndexChange = onRecentSectionModeChange
+        )
+    }
     SmallTitle(text = stringResource(R.string.settings_home_library_grid_title))
     HomeDisplayGroup(
         title = null,

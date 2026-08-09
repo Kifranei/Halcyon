@@ -73,6 +73,9 @@ fun SettingsDetailScreen(
     val lyricWesternFontName by settingsManager.lyricWesternFontName.collectAsState(initial = "")
     val lyricCjkFontName by settingsManager.lyricCjkFontName.collectAsState(initial = "")
     val homeSectionOrder by settingsManager.homeSectionOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_SECTION_ORDER)
+    val homeRecentSectionMode by settingsManager.homeRecentSectionMode.collectAsState(
+        initial = SettingsManager.HOME_RECENT_SECTION_MODE_ADDED
+    )
     val homeHiddenSections by settingsManager.homeHiddenSections.collectAsState(initial = "")
     val homeLibraryTileOrder by settingsManager.homeLibraryTileOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER)
     val homeHiddenLibraryTiles by settingsManager.homeHiddenLibraryTiles.collectAsState(initial = "")
@@ -153,6 +156,7 @@ fun SettingsDetailScreen(
                 HomeDisplaySettingsPage(
                     sectionItems = homeSectionItems,
                     sectionOrder = homeSectionOrder,
+                    recentSectionMode = homeRecentSectionMode,
                     hiddenSections = homeHiddenSections,
                     tileItems = homeLibraryTileItems,
                     tileOrder = homeLibraryTileOrder,
@@ -178,6 +182,9 @@ fun SettingsDetailScreen(
                     },
                     onSectionOrderChange = { value ->
                         scope.launch { settingsManager.setHomeSectionOrder(value) }
+                    },
+                    onRecentSectionModeChange = { value ->
+                        scope.launch { settingsManager.setHomeRecentSectionMode(value) }
                     },
                     onTileOrderChange = { value ->
                         scope.launch { settingsManager.setHomeLibraryTileOrder(value) }

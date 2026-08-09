@@ -10,7 +10,7 @@ import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Music
-import top.yukonga.miuix.kmp.icon.extended.Playlist
+import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Settings
 
 /**
@@ -31,7 +31,7 @@ internal fun bottomDockTabCatalog(): Map<String, BottomDockTab> = linkedMapOf(
     SettingsManager.BOTTOM_DOCK_ITEM_PLAYLISTS to BottomDockTab(
         route = Screen.Playlists.createRoute(fromDock = true),
         label = stringResource(R.string.category_playlist),
-        icon = MiuixIcons.Regular.Playlist
+        icon = MiuixIcons.Regular.Notes
     ),
     SettingsManager.BOTTOM_DOCK_ITEM_FOLDER to BottomDockTab(
         route = Screen.MetadataCategory.createRoute("folder", fromDock = true),

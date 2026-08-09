@@ -71,6 +71,7 @@ fun HomeScreen(
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
+    val playbackHistory by mainViewModel.playbackHistory.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -84,6 +85,7 @@ fun HomeScreen(
                 tagIgnoreCase = settingsManager.tagIgnoreCase.first(),
                 homeDailyMixVisible = settingsManager.homeDailyMixVisible.first(),
                 homeAiMixVisible = settingsManager.homeAiMixVisible.first(),
+                homeRecentSectionMode = settingsManager.homeRecentSectionMode.first(),
                 homeSectionOrder = settingsManager.homeSectionOrder.first(),
                 homeHiddenSections = settingsManager.homeHiddenSections.first(),
                 homeLibraryTileOrder = settingsManager.homeLibraryTileOrder.first(),
@@ -107,6 +109,7 @@ fun HomeScreen(
     val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = initialSettings.tagIgnoreCase)
     val homeDailyMixVisible by settingsManager.homeDailyMixVisible.collectAsState(initial = initialSettings.homeDailyMixVisible)
     val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = initialSettings.homeAiMixVisible)
+    val homeRecentSectionMode by settingsManager.homeRecentSectionMode.collectAsState(initial = initialSettings.homeRecentSectionMode)
     val homeSectionOrder by settingsManager.homeSectionOrder.collectAsState(initial = initialSettings.homeSectionOrder)
     val homeHiddenSections by settingsManager.homeHiddenSections.collectAsState(initial = initialSettings.homeHiddenSections)
     val homeLibraryTileOrder by settingsManager.homeLibraryTileOrder.collectAsState(initial = initialSettings.homeLibraryTileOrder)
@@ -156,10 +159,36 @@ fun HomeScreen(
     val composerCount = metadataCategoryCounts["composer"] ?: 0
     val arrangerCount = metadataCategoryCounts["arranger"] ?: 0
     val lyricistCount = metadataCategoryCounts["lyricist"] ?: 0
-    val recentSongs = remember(songs) {
+    val recentlyAddedSongs = remember(songs) {
         songs
             .sortedWith(compareByDescending<Song> { it.dateAdded }.thenByDescending { it.dateModified })
             .take(5)
+    }
+    val recentlyPlayedSongs = remember(songs, playbackHistory) {
+        val songsById = songs.associateBy(Song::id)
+        playbackHistory
+            .asSequence()
+            .sortedByDescending { it.playedAt }
+            .mapNotNull { entry ->
+                songsById[entry.songId] ?: songs.firstOrNull { song ->
+                    song.title.equals(entry.title, ignoreCase = true) &&
+                        song.artist.equals(entry.artist, ignoreCase = true) &&
+                        song.album.equals(entry.album, ignoreCase = true)
+                }
+            }
+            .distinctBy { it.id to it.path }
+            .take(5)
+            .toList()
+    }
+    val recentSongs = if (homeRecentSectionMode == SettingsManager.HOME_RECENT_SECTION_MODE_PLAYED) {
+        recentlyPlayedSongs
+    } else {
+        recentlyAddedSongs
+    }
+    val recentSectionTitle = if (homeRecentSectionMode == SettingsManager.HOME_RECENT_SECTION_MODE_PLAYED) {
+        stringResource(R.string.home_recent_played)
+    } else {
+        stringResource(R.string.home_recent_added)
     }
 
     Column(
@@ -334,7 +363,7 @@ fun HomeScreen(
                         }
                     }
                     "recent" -> {
-                        SectionTitle(stringResource(R.string.home_recent))
+                        SectionTitle(recentSectionTitle)
                         if (recentSongs.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.home_no_history),
@@ -371,6 +400,7 @@ private data class HomeInitialSettings(
     val tagIgnoreCase: Boolean,
     val homeDailyMixVisible: Boolean,
     val homeAiMixVisible: Boolean,
+    val homeRecentSectionMode: Int,
     val homeSectionOrder: String,
     val homeHiddenSections: String,
     val homeLibraryTileOrder: String,

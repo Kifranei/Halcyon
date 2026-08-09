@@ -17,6 +17,8 @@ import com.ella.music.data.SettingsManager.Companion.DEFAULT_BOTTOM_DOCK_ITEMS
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_LIBRARY_TILE_ORDER
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_ONLINE_TILE_ORDER
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_SECTION_ORDER
+import com.ella.music.data.SettingsManager.Companion.HOME_RECENT_SECTION_MODE_ADDED
+import com.ella.music.data.SettingsManager.Companion.HOME_RECENT_SECTION_MODE_PLAYED
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_SHORTCUT_FOLDER_LABEL
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_SHORTCUT_LIBRARY_LABEL
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_SHORTCUT_PLAYLISTS_LABEL
@@ -52,6 +54,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_HOME_HIDDEN_SECTIONS
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_LIBRARY_TILE_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_ONLINE_TILE_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_SECTION_ORDER
+import com.ella.music.data.SettingsManager.Companion.KEY_HOME_RECENT_SECTION_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_COLORS
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_GRADIENT_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_GRADIENT_START_COLOR
@@ -112,6 +115,7 @@ interface AppearanceSettingsAccess {
     val appShortcutOrder: Flow<List<String>>
     val homeDailyMixVisible: Flow<Boolean>
     val homeAiMixVisible: Flow<Boolean>
+    val homeRecentSectionMode: Flow<Int>
     val homeSectionOrder: Flow<String>
     val homeHiddenSections: Flow<String>
     val homeLibraryTileOrder: Flow<String>
@@ -151,6 +155,7 @@ interface AppearanceSettingsAccess {
     suspend fun setAppShortcutOrder(shortcutIds: List<String>)
     suspend fun setHomeDailyMixVisible(visible: Boolean)
     suspend fun setHomeAiMixVisible(visible: Boolean)
+    suspend fun setHomeRecentSectionMode(mode: Int)
     suspend fun setHomeSectionOrder(order: String)
     suspend fun setHomeHiddenSections(hidden: String)
     suspend fun setHomeLibraryTileOrder(order: String)
@@ -259,6 +264,11 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         context.dataStore.data.map { it[KEY_HOME_DAILY_MIX_VISIBLE] ?: true }
     override val homeAiMixVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HOME_AI_MIX_VISIBLE] ?: true }
+    override val homeRecentSectionMode: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_HOME_RECENT_SECTION_MODE] ?: HOME_RECENT_SECTION_MODE_ADDED)
+                .coerceIn(HOME_RECENT_SECTION_MODE_PLAYED, HOME_RECENT_SECTION_MODE_ADDED)
+        }
     override val homeSectionOrder: Flow<String> =
         context.dataStore.data.map { it[KEY_HOME_SECTION_ORDER] ?: DEFAULT_HOME_SECTION_ORDER }
     override val homeHiddenSections: Flow<String> =
@@ -472,6 +482,15 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setHomeAiMixVisible(visible: Boolean) {
         context.dataStore.edit { it[KEY_HOME_AI_MIX_VISIBLE] = visible }
+    }
+
+    override suspend fun setHomeRecentSectionMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_HOME_RECENT_SECTION_MODE] = mode.coerceIn(
+                HOME_RECENT_SECTION_MODE_PLAYED,
+                HOME_RECENT_SECTION_MODE_ADDED
+            )
+        }
     }
 
     override suspend fun setHomeSectionOrder(order: String) {

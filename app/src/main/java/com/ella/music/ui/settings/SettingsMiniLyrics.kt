@@ -23,6 +23,7 @@ internal fun SettingsMiniLyricsControls() {
     val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = true)
     val miniPlayerRightButton by settingsManager.miniPlayerRightButton.collectAsState(initial = 0)
     val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
+    val miniPlayerSwipeToOpenPlayer by settingsManager.miniPlayerSwipeToOpenPlayer.collectAsState(initial = true)
     val lyricSourcePriority by settingsManager.lyricSourcePriority.collectAsState(initial = SettingsManager.DEFAULT_LYRIC_SOURCE_PRIORITY)
 
     val statusLyricSecondaryLabels = listOf(
@@ -63,6 +64,15 @@ internal fun SettingsMiniLyricsControls() {
         checked = miniPlayerCoverRotation,
         onCheckedChange = { enabled ->
             scope.launch { settingsManager.setMiniPlayerCoverRotation(enabled) }
+        }
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.settings_mini_player_swipe_to_open_player),
+        summary = stringResource(R.string.settings_mini_player_swipe_to_open_player_summary),
+        checked = miniPlayerSwipeToOpenPlayer,
+        onCheckedChange = { enabled ->
+            scope.launch { settingsManager.setMiniPlayerSwipeToOpenPlayer(enabled) }
         }
     )
 
