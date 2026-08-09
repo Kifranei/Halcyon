@@ -1,6 +1,7 @@
 package com.ella.music.ui.components
 
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
@@ -13,6 +14,7 @@ import android.graphics.RectF
 import android.net.Uri
 import android.os.StrictMode
 import android.provider.MediaStore
+import android.util.Log
 import android.widget.Toast
 import android.view.View
 import androidx.core.content.FileProvider
@@ -28,6 +30,7 @@ private const val ASPECT_PRO_ACTIVITY = "com.andrewkhandr.aspectpro.MainActivity
 private const val KASPEK_PACKAGE = "ka.spek"
 private const val MEDIA_INFO_PACKAGE = "net.mediaarea.mediainfo"
 private const val MEDIA_INFO_ACTIVITY = "net.mediaarea.mediainfo.ReportListActivity"
+private const val TAG = "SongExternalActions"
 
 fun openSongSpectrumWithAspectPro(context: Context, song: Song) {
     openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.AspectPro)
@@ -215,29 +218,42 @@ fun shareLocalSongs(context: Context, songs: List<Song>) {
  * access to our MediaStore query result.
  */
 fun startDraggingLocalSongs(sourceView: View, context: Context, songs: List<Song>): Boolean {
-    val uris = songs
+    val draggedSongs = songs
         .asSequence()
         .filterNot { it.path.isHttpAudioSource() }
         .mapNotNull { song ->
             runCatching { song.dragShareUri(context) }
                 .getOrNull()
                 ?.takeIf { it.isReadableForDrag(context) }
+                ?.let { uri -> song to uri }
         }
-        .distinct()
         .toList()
-    if (uris.isEmpty()) return false
+    if (draggedSongs.isEmpty()) return false
+    val uris = draggedSongs.map { it.second }.distinct()
+    val mimeTypes = draggedSongs
+        .map { (song, uri) -> context.contentResolver.getType(uri) ?: song.shareMimeType() }
+        .filter { it.startsWith("audio/") }
+        .ifEmpty { listOf("audio/*") }
+        .plus(ClipDescription.MIMETYPE_TEXT_URILIST)
+        .distinct()
+        .toTypedArray()
 
-    // Xiaomi's global-drag contract uses a raw URI for arbitrary files. Keeping the
-    // description as text/uri-list also lets QQ recognize the drop instead of rejecting a
-    // mixed audio/*/text/* description before it asks for the URI grant.
-    val clipData = ClipData.newRawUri("Halcyon audio", uris.first())
+    // HyperOS global drag expects a URI-backed ClipData payload. QQ rejects the previous
+    // text/uri-list-only description before requesting the read grant, so advertise the actual
+    // audio MIME type as well while retaining URI-list compatibility for other targets.
+    val clipData = ClipData(
+        ClipDescription("Halcyon audio", mimeTypes),
+        ClipData.Item(uris.first())
+    )
     uris.drop(1).forEach { uri -> clipData.addItem(ClipData.Item(uri)) }
-    return sourceView.startDragAndDrop(
+    val started = sourceView.startDragAndDrop(
         clipData,
-        SongDragShadowBuilder(context, uris.size, songs.firstOrNull()?.title.orEmpty()),
+        SongDragShadowBuilder(context, uris.size, draggedSongs.first().first.title),
         null,
         View.DRAG_FLAG_GLOBAL or View.DRAG_FLAG_GLOBAL_URI_READ
     )
+    Log.d(TAG, "Global song drag started=$started count=${uris.size} mime=${mimeTypes.joinToString()}")
+    return started
 }
 
 /** A compact drag card keeps Compose's root view from being used as the drag preview. */

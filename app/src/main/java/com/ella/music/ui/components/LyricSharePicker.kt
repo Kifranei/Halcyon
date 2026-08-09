@@ -440,8 +440,8 @@ private fun LyricSharePreviewCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val backgroundPalette = remember(colors, cover) {
-        resolveLyricShareBackgroundColors(cover, colors.map(Color::toArgb))
+    val backgroundPalette = remember(colors) {
+        colors.map(Color::toArgb)
     }
     val content = remember(song, annotation, customInfo, lines, backgroundPalette, includeTranslation) {
         buildLyricShareCardContent(

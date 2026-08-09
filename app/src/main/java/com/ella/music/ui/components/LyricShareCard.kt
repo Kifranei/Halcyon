@@ -125,12 +125,14 @@ private fun createLyricShareCard(
     shareTypeface: android.graphics.Typeface?,
     includeTranslation: Boolean
 ): Bitmap {
-    val resolvedBackgroundColors = resolveLyricShareBackgroundColors(cover, backgroundColors)
     val content = buildLyricShareCardContent(
         context = context,
         song = song,
         lines = lines,
-        backgroundColors = resolvedBackgroundColors,
+        // The caller already supplies the exact palette used by the player background. Re-sampling
+        // the cover here can pick a different dominant region and make preview/export disagree
+        // with the Apple-style player surface.
+        backgroundColors = backgroundColors,
         annotation = annotation,
         customInfo = customInfo,
         includeTranslation = includeTranslation

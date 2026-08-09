@@ -121,10 +121,9 @@ private fun drawShareBackground(
         Color.rgb(19, 25, 34)
     )
     val picked = colors.filter { Color.alpha(it) > 0 }.ifEmpty { fallbackColors }
-    val boosted = picked.map { it.boostForShare() }
-    val c1 = boosted.first()
-    val c2 = boosted.getOrElse(1) { c1 }
-    val c3 = boosted.last()
+    val c1 = picked.first()
+    val c2 = picked.getOrElse(1) { c1 }
+    val c3 = picked.last()
 
     Paint(Paint.ANTI_ALIAS_FLAG).apply {
         shader = LinearGradient(
@@ -152,7 +151,7 @@ private fun drawShareBackground(
         ShareColorBlob(width * 0.50f, height * 0.38f, width * 0.66f, 74, 1.10f),
         ShareColorBlob(width * 0.58f, height * 0.08f, width * 0.48f, 68, 1.10f)
     )
-    boosted.forEachIndexed { index, color ->
+    picked.forEachIndexed { index, color ->
         val slot = blobSlots[index % blobSlots.size]
         drawShareColorBlob(
             canvas = canvas,
