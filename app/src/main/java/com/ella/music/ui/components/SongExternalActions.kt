@@ -28,9 +28,17 @@ import kotlin.math.roundToInt
 private const val ASPECT_PRO_PACKAGE = "com.andrewkhandr.aspectpro"
 private const val ASPECT_PRO_ACTIVITY = "com.andrewkhandr.aspectpro.MainActivity"
 private const val KASPEK_PACKAGE = "ka.spek"
+private const val HEARUSY_PACKAGE = "com.hearusy.spectrum"
+private const val HEARUSY_ACTIVITY = "com.hearusy.spectrum.MainActivity"
 private const val MEDIA_INFO_PACKAGE = "net.mediaarea.mediainfo"
 private const val MEDIA_INFO_ACTIVITY = "net.mediaarea.mediainfo.ReportListActivity"
 private const val TAG = "SongExternalActions"
+
+private fun independentExternalTaskFlags(): Int =
+    Intent.FLAG_ACTIVITY_NEW_TASK or
+        Intent.FLAG_ACTIVITY_NEW_DOCUMENT or
+        Intent.FLAG_ACTIVITY_MULTIPLE_TASK or
+        Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
 
 fun openSongSpectrumWithAspectPro(context: Context, song: Song) {
     openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.AspectPro)
@@ -40,9 +48,14 @@ fun openSongSpectrumWithKaspek(context: Context, song: Song) {
     openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.Kaspek)
 }
 
+fun openSongSpectrumWithHearusy(context: Context, song: Song) {
+    openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.Hearusy)
+}
+
 private enum class SpectrumExternalApp {
     AspectPro,
-    Kaspek
+    Kaspek,
+    Hearusy
 }
 
 private fun openSongSpectrumWithExternalApp(
@@ -61,6 +74,7 @@ private fun openSongSpectrumWithExternalApp(
         if (launchIntent == null) {
             Toast.makeText(context, context.getString(R.string.kaspek_open_failed), Toast.LENGTH_SHORT).show()
         } else {
+            launchIntent.addFlags(independentExternalTaskFlags())
             context.startActivity(launchIntent)
         }
         return
@@ -68,19 +82,33 @@ private fun openSongSpectrumWithExternalApp(
 
     val uri = song.aspectProUri(context)
     val mimeType = song.aspectMimeType()
+    val (targetPackage, targetActivity, failureMessage) = when (target) {
+        SpectrumExternalApp.AspectPro -> Triple(
+            ASPECT_PRO_PACKAGE,
+            ASPECT_PRO_ACTIVITY,
+            R.string.aspect_pro_open_failed
+        )
+        SpectrumExternalApp.Hearusy -> Triple(
+            HEARUSY_PACKAGE,
+            HEARUSY_ACTIVITY,
+            R.string.hearusy_open_failed
+        )
+        SpectrumExternalApp.Kaspek -> error("Kaspek is handled above")
+    }
     val intent = Intent(Intent.ACTION_VIEW).apply {
-        component = ComponentName(ASPECT_PRO_PACKAGE, ASPECT_PRO_ACTIVITY)
+        component = ComponentName(targetPackage, targetActivity)
         setDataAndType(uri, mimeType)
         putExtra(Intent.EXTRA_STREAM, uri)
         putExtra("android.intent.extra.STREAM", uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(independentExternalTaskFlags())
         clipData = ClipData.newUri(context.contentResolver, song.title, uri)
     }
     runCatching {
         allowFileUriForLegacyAudioApp(uri)
         context.startActivity(intent)
     }.onFailure {
-        Toast.makeText(context, context.getString(R.string.aspect_pro_open_failed), Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(failureMessage), Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -95,6 +123,7 @@ fun openSongWithMediaInfo(context: Context, song: Song) {
         setDataAndType(uri, song.shareMimeType())
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(independentExternalTaskFlags())
         clipData = ClipData.newUri(context.contentResolver, song.title, uri)
     }
     val packageManager = context.packageManager
@@ -106,11 +135,13 @@ fun openSongWithMediaInfo(context: Context, song: Song) {
     } else {
         Intent(intent).setComponent(ComponentName(MEDIA_INFO_PACKAGE, MEDIA_INFO_ACTIVITY))
     }
+    launchIntent.addFlags(independentExternalTaskFlags())
     runCatching { context.startActivity(launchIntent) }
         .recoverCatching {
             context.packageManager.getLaunchIntentForPackage(MEDIA_INFO_PACKAGE)
                 ?.also { fallback ->
                     fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    fallback.addFlags(independentExternalTaskFlags())
                     fallback.putExtra(Intent.EXTRA_STREAM, uri)
                     fallback.setDataAndType(uri, song.shareMimeType())
                     context.startActivity(fallback)
@@ -129,6 +160,7 @@ fun openVideoWithMediaInfo(context: Context, uri: Uri, title: String, mimeType: 
         setDataAndType(shareUri, mimeType.ifBlank { "video/*" })
         putExtra(Intent.EXTRA_STREAM, shareUri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(independentExternalTaskFlags())
         clipData = ClipData.newUri(context.contentResolver, title, shareUri)
     }
     val packageManager = context.packageManager
@@ -140,11 +172,13 @@ fun openVideoWithMediaInfo(context: Context, uri: Uri, title: String, mimeType: 
     } else {
         Intent(intent).setComponent(ComponentName(MEDIA_INFO_PACKAGE, MEDIA_INFO_ACTIVITY))
     }
+    launchIntent.addFlags(independentExternalTaskFlags())
     runCatching { context.startActivity(launchIntent) }
         .recoverCatching {
             context.packageManager.getLaunchIntentForPackage(MEDIA_INFO_PACKAGE)
                 ?.also { fallback ->
                     fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    fallback.addFlags(independentExternalTaskFlags())
                     fallback.putExtra(Intent.EXTRA_STREAM, shareUri)
                     fallback.setDataAndType(shareUri, mimeType.ifBlank { "video/*" })
                     context.startActivity(fallback)
@@ -234,15 +268,18 @@ fun startDraggingLocalSongs(sourceView: View, context: Context, songs: List<Song
         .map { (song, uri) -> context.contentResolver.getType(uri) ?: song.shareMimeType() }
         .filter { it.startsWith("audio/") }
         .ifEmpty { listOf("audio/*") }
-        .plus(ClipDescription.MIMETYPE_TEXT_URILIST)
         .distinct()
         .toTypedArray()
 
-    // HyperOS global drag expects a URI-backed ClipData payload. QQ rejects the previous
-    // text/uri-list-only description before requesting the read grant, so advertise the actual
-    // audio MIME type as well while retaining URI-list compatibility for other targets.
+    // Keep the first item URI-only, matching Xiaomi's arbitrary-file example. QQ's drop target
+    // checks the first item as an audio URI and silently ignores a text-first or mixed item.
+    val firstSong = draggedSongs.first().first
+    val firstLabel = listOf(firstSong.title.trim(), firstSong.artist.trim())
+        .filter(String::isNotBlank)
+        .joinToString(" - ")
+        .ifBlank { firstSong.fileName.trim() }
     val clipData = ClipData(
-        ClipDescription("Halcyon audio", mimeTypes),
+        ClipDescription(firstLabel.ifBlank { "Halcyon audio" }, mimeTypes),
         ClipData.Item(uris.first())
     )
     uris.drop(1).forEach { uri -> clipData.addItem(ClipData.Item(uri)) }
@@ -328,6 +365,10 @@ private fun Song.localShareUri(context: Context): Uri {
 
 private fun Song.dragShareUri(context: Context): Uri {
     if (path.isContentAudioSource()) return Uri.parse(path)
+
+    // Prefer the system MediaStore URI when the file is indexed. QQ and other targets commonly
+    // accept this provider directly; fall back to our FileProvider for files outside MediaStore.
+    mediaStoreUriByPath(context)?.let { return it }
 
     val file = when {
         path.startsWith("file://", ignoreCase = true) -> {

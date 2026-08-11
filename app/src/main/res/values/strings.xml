@@ -28,6 +28,7 @@
     <string name="duration_format" formatted="false">%02d:%02d</string>
     <string name="no_lyrics">暂无歌词</string>
     <string name="now_playing">正在播放</string>
+    <string name="continue_playback">继续播放：%1$s - %2$s</string>
     <string name="play_all">播放全部</string>
     <string name="album_play_all">播放全部</string>
     <string name="album_sort_summary">%1$d 首歌曲 · %2$s · %3$s</string>
@@ -1148,6 +1149,7 @@
     <string name="library_search_filter_ttml_lyrics">TTML歌词</string>
     <string name="library_search_filter_mv">MV</string>
     <string name="library_search_filter_local_mv">本地MV</string>
+    <string name="local_mv">本地 MV</string>
     <string name="library_search_filter_online_mv">在线MV</string>
     <string name="library_search_filter_dynamic_cover">动态封面</string>
     <string name="rating_filter_all">全部星级</string>
@@ -1361,6 +1363,7 @@
     <string name="settings_enable_xiaomi_super_island_lyric">小米超级岛歌词</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">通过 HyperOS 超级岛显示歌词；需要 Shizuku 权限临时阻断小米服务框架网络后才能发送</string>
     <string name="settings_live_update_lyric_content">实时活动通知主歌词</string>
+    <string name="settings_xiaomi_super_island_lyric_content">超级岛通知主歌词</string>
     <string name="settings_live_update_lyric_original">原文</string>
     <string name="settings_live_update_lyric_translation">翻译</string>
     <string name="settings_live_update_lyric_pronunciation">注音</string>
@@ -1533,6 +1536,7 @@
     <string name="player_playback_mode_repeat_one">单曲循环</string>
     <string name="player_playback_mode_repeat_all">列表循环</string>
     <string name="player_playback_mode_in_order">顺序播放</string>
+    <string name="player_repeat_mode">复读模式</string>
     <string name="player_locate_current_song">定位当前歌曲</string>
     <string name="player_clear_queue">清空播放列表</string>
     <string name="player_lock_queue">锁定播放列表</string>
@@ -1629,6 +1633,10 @@
     <string name="settings_music_video_folder_saved">已添加 MV 文件夹</string>
     <string name="settings_music_video_capture_subtitles">MV 截图包含字幕</string>
     <string name="settings_music_video_capture_subtitles_summary">在歌曲详情页有声 MV 的截图中叠加当前外挂字幕</string>
+    <string name="settings_show_local_mv_in_lists">列表中显示本地 MV 按钮</string>
+    <string name="settings_show_local_mv_in_lists_summary">歌曲存在本地 MV 时，在歌曲列表显示本地 MV 入口</string>
+    <string name="settings_show_online_mv_in_lists">列表中显示在线 MV 按钮</string>
+    <string name="settings_show_online_mv_in_lists_summary">歌曲有网易云 MV 信息时，在歌曲列表显示在线 MV 入口</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">横屏</string>
     <string name="player_landscape_hide_covers">隐藏无关封面</string>
@@ -1640,6 +1648,9 @@
     <string name="music_video_caption_settings">字幕设置</string>
     <string name="music_video_caption_display">字幕显示</string>
     <string name="music_video_caption_translation">显示翻译</string>
+    <string name="music_video_video_ratio">MV画面比例</string>
+    <string name="music_video_video_ratio_fit">完整显示</string>
+    <string name="music_video_video_ratio_zoom">铺满裁切</string>
     <string name="music_video_caption_sync">同步</string>
     <string name="music_video_caption_sync_hint">输入毫秒数；正数后移，负数前移</string>
     <string name="music_video_caption_custom">自定义</string>
@@ -1811,9 +1822,11 @@
     <string name="artist_lyricist_page">作词家页</string>
     <string name="artist_netease_artist_page">网易云歌手页</string>
     <string name="artist_sort_title">歌曲名称</string>
+    <string name="artist_music_video_sort_title">名称</string>
     <string name="artist_sort_album_track">专辑曲序</string>
     <string name="artist_sort_file_name">文件名</string>
     <string name="artist_sort_duration">歌曲时长</string>
+    <string name="artist_music_video_sort_duration">时长</string>
     <string name="artist_sort_date_added">添加时间</string>
     <string name="artist_sort_date_added_asc">添加时间升序</string>
     <string name="artist_sort_date_modified">修改时间</string>
@@ -2119,6 +2132,8 @@
     <string name="settings_apple_music_lyrics_word_lift_summary">演唱时让当前单词轻微上浮；关闭后仍保留逐字羽化与长音发光</string>
     <string name="player_enable_lyrics_word_lift">开启歌词逐词上浮</string>
     <string name="player_disable_lyrics_word_lift">关闭歌词逐词上浮</string>
+    <string name="player_lyrics_sustain_threshold">拉长音触发阈值</string>
+    <string name="player_lyrics_sustain_threshold_value">%1$d 毫秒</string>
 
     <!-- Last.fm listening history -->
     <string name="settings_lastfm">Last.fm 听歌历史</string>
@@ -2206,16 +2221,8 @@
     <string name="settings_xiaomi_super_island_button_layout">媒体按钮布局</string>
     <string name="settings_xiaomi_super_island_buttons_two">播放/暂停、下一首</string>
     <string name="settings_xiaomi_super_island_buttons_three">上一首、播放/暂停、下一首</string>
-    <string name="settings_xiaomi_super_island_click">点击超级岛</string>
-    <string name="settings_xiaomi_super_island_click_default">系统默认</string>
-    <string name="settings_xiaomi_super_island_click_player">打开播放页</string>
-    <string name="settings_xiaomi_super_island_click_app">打开应用</string>
-    <string name="settings_xiaomi_super_island_share">超级岛分享</string>
-    <string name="settings_xiaomi_super_island_share_summary">在展开的超级岛中提供当前歌词分享入口</string>
-    <string name="settings_xiaomi_super_island_share_format">分享文字格式</string>
-    <string name="settings_xiaomi_super_island_share_format_one">歌词换行：歌曲 by 歌手</string>
-    <string name="settings_xiaomi_super_island_share_format_two">歌词 -歌手，歌曲</string>
-    <string name="settings_xiaomi_super_island_share_format_three">歌词换行：歌手，歌曲</string>
+    <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
+    <string name="hearusy_open_failed">无法打开 Hearusy Spectrum</string>
     <string name="settings_xiaomi_super_island_xmsf_mode">XMSF 断网兼容模式</string>
     <string name="settings_xiaomi_super_island_xmsf_disabled">关闭</string>
     <string name="settings_xiaomi_super_island_xmsf_disabled_summary">直接发送通知，不使用 Shizuku</string>

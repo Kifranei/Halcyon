@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.net.Uri
 import android.content.pm.PackageManager
 import com.ella.music.ui.listmodel.MusicSortKeyCache
 import java.io.File
@@ -60,6 +61,7 @@ import com.ella.music.ui.theme.THEME_DARK
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
+import com.ella.music.oem.XiaomiHandoffBridge
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class MainActivity : ComponentActivity() {
@@ -77,6 +79,8 @@ class MainActivity : ComponentActivity() {
     var latestIntent: Intent? = null
         private set
     var onNewIntentCallback: ((Intent) -> Unit)? = null
+
+    private var xiaomiHandoffBridge: XiaomiHandoffBridge? = null
 
     override fun attachBaseContext(newBase: Context) {
         val language = runBlocking(Dispatchers.IO) {
@@ -96,6 +100,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        latestIntent = intent
+        xiaomiHandoffBridge = XiaomiHandoffBridge(this) {
+            val song = startupPlayerViewModel.currentSong.value
+            Uri.Builder()
+                .scheme("halcyon")
+                .authority(if (song == null) "home" else "player")
+                .appendPath("main")
+                .apply {
+                    if (song != null) {
+                        appendQueryParameter("id", song.id.toString())
+                        appendQueryParameter("path", song.path)
+                        appendQueryParameter("position", startupPlayerViewModel.currentPosition.value.toString())
+                    }
+                }
+                .build()
+        }.also { it.publish() }
         MusicSortKeyCache.configure(File(filesDir, "music_sort_keys.json"))
         currentSystemNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
 
@@ -327,7 +347,14 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         latestIntent = intent
+        xiaomiHandoffBridge?.onNewIntent(intent)
         onNewIntentCallback?.invoke(intent)
+    }
+
+    override fun onDestroy() {
+        xiaomiHandoffBridge?.cancel()
+        xiaomiHandoffBridge = null
+        super.onDestroy()
     }
 
     private companion object {

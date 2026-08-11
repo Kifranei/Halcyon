@@ -511,6 +511,7 @@ fun PlaylistDetailScreen(
                             albumArtUri = albumArtUri,
                             loadCoverArt = mainViewModel::getCoverArtBitmap,
                             loadAudioInfo = mainViewModel::getAudioInfo,
+                            loadSongTagInfo = mainViewModel::getSongTagInfo,
                             selectionMode = selection.selectionMode,
                             selected = song.playlistIdentityKey() in selection.selectedIds,
                             dragSelectedSongs = selectedSongsForDrag,

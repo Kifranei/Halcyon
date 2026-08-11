@@ -859,12 +859,17 @@ class PlaybackService : MediaLibraryService() {
     internal fun xiaomiMediaIslandShareParams(song: Song): String? {
         val tagInfo = musicRepository.getCachedSongTagInfo(song)
             ?: musicRepository.getSongTagInfo(song)
-        val neteaseUrl = decodeNeteaseKey(tagInfo.neteaseKey)
+        val shareContent = decodeNeteaseKey(tagInfo.neteaseKey)
             ?.musicId
             ?.takeIf { it.isNotBlank() }
             ?.let(::neteaseShareSongUrl)
-            ?: return null
-        return song.toXiaomiMediaIslandShareParams(neteaseUrl)
+            ?: listOf(song.title.trim(), song.artist.trim())
+                .filter(String::isNotBlank)
+                .joinToString(" - ")
+                .ifBlank { song.fileName.trim() }
+                .takeIf(String::isNotBlank)
+                ?: return null
+        return song.toXiaomiMediaIslandShareParams(shareContent)
     }
 
     private fun Player.shouldPublishOplusTranslationAction(): Boolean {

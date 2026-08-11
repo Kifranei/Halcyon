@@ -231,6 +231,7 @@ fun FloatingBottomBar(
     backdrop: Backdrop,
     tabsCount: Int,
     mode: FloatingBottomBarMode = FloatingBottomBarMode.LiquidGlass,
+    disableRefraction: Boolean = false,
     colors: FloatingBottomBarColors = FloatingBottomBarDefaults.colors(),
     content: @Composable RowScope.() -> Unit
 ) {
@@ -308,6 +309,12 @@ fun FloatingBottomBar(
                 val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
                 currentIndex = targetIndex
                 onSelectedState.value(targetIndex)
+                // Always snap the indicator to an integer tab. When the rounded index is
+                // already selected, currentIndex does not change and the external-selection
+                // effect below is intentionally not re-triggered; without this explicit
+                // animation the bubble can keep the fractional drag target and settle between
+                // two buttons.
+                animateToValue(targetIndex.toFloat())
                 animationScope.launch {
                     offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
                 }
@@ -392,12 +399,16 @@ fun FloatingBottomBar(
                                 backdrop = backdrop,
                                 shape = { pillShape },
                                 effects = {
-                                    vibrancy()
+                                    if (!disableRefraction) {
+                                        vibrancy()
+                                    }
                                     blur(4.dp.toPx(), 4.dp.toPx())
-                                    lens(
-                                        refractionHeight = 24.dp.toPx(),
-                                        refractionAmount = 24.dp.toPx(),
-                                    )
+                                    if (!disableRefraction) {
+                                        lens(
+                                            refractionHeight = 24.dp.toPx(),
+                                            refractionAmount = 24.dp.toPx(),
+                                        )
+                                    }
                                 },
                                 highlight = { baseHighlight.copy(alpha = 0.75f) },
                                 layerBlock = {
@@ -448,12 +459,16 @@ fun FloatingBottomBar(
                             backdrop = backdrop,
                             shape = { pillShape },
                             effects = {
-                                vibrancy()
+                                if (!disableRefraction) {
+                                    vibrancy()
+                                }
                                 blur(4.dp.toPx(), 4.dp.toPx())
-                                lens(
-                                    refractionHeight = 24.dp.toPx(),
-                                    refractionAmount = 24.dp.toPx(),
-                                )
+                                if (!disableRefraction) {
+                                    lens(
+                                        refractionHeight = 24.dp.toPx(),
+                                        refractionAmount = 24.dp.toPx(),
+                                    )
+                                }
                             },
                             onDrawSurface = { drawRect(containerColor) },
                         )
@@ -484,12 +499,14 @@ fun FloatingBottomBar(
                             shape = { pillShape },
                             effects = {
                                 val progress = dampedDragAnimation.pressProgress
-                                lens(
-                                    refractionHeight = 10.dp.toPx() * progress,
-                                    refractionAmount = 14.dp.toPx() * progress,
-                                    depthEffect = true,
-                                    chromaticAberration = 0.5f,
-                                )
+                                if (!disableRefraction) {
+                                    lens(
+                                        refractionHeight = 10.dp.toPx() * progress,
+                                        refractionAmount = 14.dp.toPx() * progress,
+                                        depthEffect = true,
+                                        chromaticAberration = 0.5f,
+                                    )
+                                }
                             },
                             highlight = { pillHighlight.copy(alpha = dampedDragAnimation.pressProgress) },
                             layerBlock = {

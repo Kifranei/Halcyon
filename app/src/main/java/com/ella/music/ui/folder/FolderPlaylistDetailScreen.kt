@@ -88,8 +88,10 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -539,10 +541,10 @@ fun FolderPlaylistDetailScreen(
                         }
                     }) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Play,
+                            imageVector = MiuixIcons.Regular.Forward,
                             contentDescription = stringResource(R.string.song_more_play_next),
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                     IconButton(onClick = {
@@ -550,10 +552,10 @@ fun FolderPlaylistDetailScreen(
                         if (selected.isNotEmpty()) playlistPickerSongs = selected
                     }) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Add,
+                            imageVector = MiuixIcons.Regular.AddFolder,
                             contentDescription = stringResource(R.string.player_add_to_playlist),
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                     IconButton(onClick = {
@@ -818,6 +820,7 @@ fun FolderPlaylistDetailScreen(
                                 albumArtUri = albumArtUri,
                                 loadCoverArt = mainViewModel::getCoverArtBitmap,
                                 loadAudioInfo = mainViewModel::getAudioInfo,
+                                loadSongTagInfo = mainViewModel::getSongTagInfo,
                                 selectionMode = selectionMode,
                                 selected = songKey in selectedSongKeys,
                                 dragSelectedSongs = selectedSongsForDrag,

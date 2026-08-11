@@ -32,6 +32,7 @@
         <package android:name="com.xjcheng.musictageditor" />
         <package android:name="com.andrewkhandr.aspectpro" />
         <package android:name="ka.spek" />
+        <package android:name="com.hearusy.spectrum" />
         <package android:name="net.mediaarea.mediainfo" />
         <package android:name="com.android.musicfx" />
         <package android:name="com.miui.misound" />
@@ -77,6 +78,15 @@
         <!-- Shown by MIUI/HyperOS in the uninstall confirmation dialog. -->
         <meta-data android:name="app_description_title" android:resource="@string/miui_uninstall_title" />
         <meta-data android:name="app_description_content" android:resource="@string/miui_uninstall_content" />
+
+        <!-- HyperOS provides this service through its optional application-handoff SDK. -->
+        <service
+            android:name="com.xiaomi.dist.handoff.sdk.HandoffClientService"
+            android:exported="false">
+            <meta-data
+                android:name="com.xiaomi.dist.handoff.metadata.SECURITY_CONFIG"
+                android:resource="@xml/handoff_signature" />
+        </service>
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

@@ -92,6 +92,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
@@ -310,10 +311,10 @@ fun LibraryScreen(
                             }
                         }) {
                             Icon(
-                                imageVector = MiuixIcons.Regular.Add,
+                                imageVector = MiuixIcons.Regular.AddFolder,
                                 contentDescription = stringResource(R.string.category_playlist),
                                 tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                         IconButton(onClick = {
@@ -612,6 +613,7 @@ fun LibraryScreen(
                                 albumArtUri = albumArtUri,
                                 loadCoverArt = mainViewModel::getCoverArtBitmap,
                                 loadAudioInfo = mainViewModel::getAudioInfo,
+                                loadSongTagInfo = mainViewModel::getSongTagInfo,
                                 isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
                                 loadSongRating = mainViewModel::getSongRating,
                                 showPlayNextInLists = showPlayNextInLists,

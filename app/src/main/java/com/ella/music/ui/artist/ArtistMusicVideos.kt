@@ -121,9 +121,9 @@ internal fun ArtistMusicVideoSortMode.labelRes(): Int = when (this) {
     ArtistMusicVideoSortMode.ReleaseAsc,
     ArtistMusicVideoSortMode.ReleaseDesc -> R.string.playlist_song_sort_year
     ArtistMusicVideoSortMode.DurationAsc,
-    ArtistMusicVideoSortMode.DurationDesc -> R.string.artist_sort_duration
+    ArtistMusicVideoSortMode.DurationDesc -> R.string.artist_music_video_sort_duration
     ArtistMusicVideoSortMode.NameAsc,
-    ArtistMusicVideoSortMode.NameDesc -> R.string.artist_sort_title
+    ArtistMusicVideoSortMode.NameDesc -> R.string.artist_music_video_sort_title
 }
 
 internal fun ArtistMusicVideoSortMode.isDescending(): Boolean = when (this) {

@@ -333,7 +333,8 @@ internal fun SettingsTagScrapingSection(
     val spectrumViewerOptions = listOf(
         SpectrumViewerLauncher.BUILTIN to stringResource(R.string.settings_spectrum_builtin),
         SpectrumViewerLauncher.ASPECT_PRO to stringResource(R.string.settings_spectrum_aspect_pro),
-        SpectrumViewerLauncher.KASPEK to stringResource(R.string.settings_spectrum_kaspek)
+        SpectrumViewerLauncher.KASPEK to stringResource(R.string.settings_spectrum_kaspek),
+        SpectrumViewerLauncher.HEARUSY to stringResource(R.string.settings_spectrum_hearusy)
     )
     val metadataEditorIndex = metadataEditorOptions
         .indexOfFirst { it.first == metadataEditorId }

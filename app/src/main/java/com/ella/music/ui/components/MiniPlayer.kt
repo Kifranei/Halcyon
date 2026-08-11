@@ -58,6 +58,7 @@ fun MiniPlayer(
     backdrop: Backdrop? = null,
     liquidGlass: Boolean = false,
     glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
+    disableRefraction: Boolean = false,
     showQueueButton: Boolean = false,
     swipeUpToOpenPlayer: Boolean = true,
     onClick: () -> Unit,
@@ -151,7 +152,8 @@ fun MiniPlayer(
                                 applyBottomBarGlassEffect(
                                     glassEffect = glassEffect,
                                     blurRadius = 42f,
-                                    liquidBlurRadius = 12f
+                                    liquidBlurRadius = 12f,
+                                    disableRefraction = disableRefraction
                                 )
                             },
                             highlight = {
@@ -253,12 +255,12 @@ fun MiniPlayer(
         if (showQueueButton) {
             IconButton(
                 onClick = onShowQueue,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 PlayerQueueListIcon(
                     contentDescription = stringResource(R.string.player_queue_title),
                     color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             }
         }
@@ -279,6 +281,7 @@ fun CompactMiniPlayer(
     loadCoverArt: ((Song) -> Bitmap?)? = null,
     backdrop: Backdrop? = null,
     glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
+    disableRefraction: Boolean = false,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit = {},
@@ -294,7 +297,8 @@ fun CompactMiniPlayer(
         backdrop = backdrop,
         modifier = modifier.height(64.dp),
         shape = RoundedCornerShape(32.dp),
-        glassEffect = glassEffect
+        glassEffect = glassEffect,
+        disableRefraction = disableRefraction
     ) {
         Row(
             modifier = Modifier

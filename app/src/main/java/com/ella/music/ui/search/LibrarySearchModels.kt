@@ -62,12 +62,14 @@ internal val SearchFilter.supportsDuplicateFilter: Boolean
 internal data class LibrarySearchContentFilters(
     val noLyrics: Boolean = false,
     val ttmlLyrics: Boolean = false,
+    /** The parent MV filter means local MV OR online MV. */
+    val musicVideo: Boolean = false,
     val localMusicVideo: Boolean = false,
     val onlineMusicVideo: Boolean = false,
     val dynamicCover: Boolean = false
 ) {
     val hasActiveFilter: Boolean
-        get() = noLyrics || ttmlLyrics || localMusicVideo || onlineMusicVideo || dynamicCover
+        get() = noLyrics || ttmlLyrics || musicVideo || localMusicVideo || onlineMusicVideo || dynamicCover
 }
 
 /**

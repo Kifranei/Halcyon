@@ -17,7 +17,8 @@ import kotlin.math.max
 internal fun BackdropEffectScope.applyBottomBarGlassEffect(
     glassEffect: BottomBarGlassEffect,
     blurRadius: Float,
-    liquidBlurRadius: Float
+    liquidBlurRadius: Float,
+    disableRefraction: Boolean = false
 ) {
     when (glassEffect) {
         BottomBarGlassEffect.Blur -> {
@@ -26,12 +27,14 @@ internal fun BackdropEffectScope.applyBottomBarGlassEffect(
 
         BottomBarGlassEffect.LiquidGlass -> {
             blur(6f.dp.toPx())
-            runCatching {
-                val refraction = max(24f, liquidBlurRadius).dp.toPx()
-                lens(
-                    refractionHeight = refraction,
-                    refractionAmount = refraction
-                )
+            if (!disableRefraction) {
+                runCatching {
+                    val refraction = max(24f, liquidBlurRadius).dp.toPx()
+                    lens(
+                        refractionHeight = refraction,
+                        refractionAmount = refraction
+                    )
+                }
             }
         }
     }

@@ -353,6 +353,7 @@ fun LxOnlineScreen(
                         SongItem(
                             song = item.song,
                             albumArtUri = item.coverUrl.takeIf { it.isNotBlank() }?.let(Uri::parse),
+                            loadSongTagInfo = mainViewModel::getSongTagInfo,
                             showPlayNextInLists = showPlayNextInLists,
                             onClick = {
                                 val visible = remoteResults.ifEmpty { listOf(item) }
@@ -427,6 +428,7 @@ fun LxOnlineScreen(
                         SongItem(
                             song = item.song,
                             albumArtUri = item.coverUrl.takeIf { it.isNotBlank() }?.let(Uri::parse),
+                            loadSongTagInfo = mainViewModel::getSongTagInfo,
                             showPlayNextInLists = showPlayNextInLists,
                             onClick = {
                                 scope.launch {

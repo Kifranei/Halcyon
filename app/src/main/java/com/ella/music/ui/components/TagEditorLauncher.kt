@@ -342,8 +342,7 @@ fun launchTagEditorOption(context: Context, option: TagEditorOption) {
     }
 }
 
-private fun tagEditorActivityFlags(): Int =
-    Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+private fun tagEditorActivityFlags(): Int = 0
 
 private fun Context.grantTagEditorUriPermission(packageName: String, uri: Uri?) {
     if (uri == null) return

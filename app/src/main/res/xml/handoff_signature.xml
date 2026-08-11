@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<handoff-app>
+    <item
+        deviceTypes="phone"
+        packageName="com.ella.music"
+        signature="0D:92:0A:E2:8D:60:08:F8:38:AF:D7:68:49:9E:5D:AB:51:41:2E:6E" />
+    <item
+        deviceTypes="pad"
+        packageName="com.ella.music"
+        signature="0D:92:0A:E2:8D:60:08:F8:38:AF:D7:68:49:9E:5D:AB:51:41:2E:6E" />
+    <item
+        deviceTypes="pc"
+        packageName="com.ella.music"
+        signature="0D:92:0A:E2:8D:60:08:F8:38:AF:D7:68:49:9E:5D:AB:51:41:2E:6E" />
+</handoff-app>

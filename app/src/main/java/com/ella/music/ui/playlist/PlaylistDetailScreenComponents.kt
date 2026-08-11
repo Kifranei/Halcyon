@@ -36,9 +36,11 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -75,18 +77,18 @@ internal fun PlaylistDetailTopBar(
             if (selectionMode) {
                 IconButton(onClick = onPlayNextSelectedClick) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Play,
+                        imageVector = MiuixIcons.Regular.Forward,
                         contentDescription = stringResource(R.string.song_more_play_next),
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
                 IconButton(onClick = onAddSelectedClick) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Add,
+                        imageVector = MiuixIcons.Regular.AddFolder,
                         contentDescription = stringResource(R.string.player_add_to_playlist),
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
                 if (showRemoveSelected) {

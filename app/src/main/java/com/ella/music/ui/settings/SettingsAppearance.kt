@@ -76,6 +76,8 @@ internal fun SettingsAppearanceSection(
         initial = SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED
     )
     val musicVideoCaptureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
+    val showLocalMusicVideoInLists by settingsManager.showLocalMusicVideoInLists.collectAsState(initial = true)
+    val showOnlineMusicVideoInLists by settingsManager.showOnlineMusicVideoInLists.collectAsState(initial = true)
     val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectAsState(initial = "")
     val musicVideoCustomFolders by settingsManager.musicVideoCustomFoldersRaw.collectAsState(initial = "")
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
@@ -715,6 +717,22 @@ internal fun SettingsAppearanceSection(
                 checked = musicVideoCaptureSubtitles,
                 onCheckedChange = {
                     scope.launch { settingsManager.setMusicVideoCaptureSubtitles(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_show_local_mv_in_lists),
+                summary = stringResource(R.string.settings_show_local_mv_in_lists_summary),
+                checked = showLocalMusicVideoInLists,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setShowLocalMusicVideoInLists(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_show_online_mv_in_lists),
+                summary = stringResource(R.string.settings_show_online_mv_in_lists_summary),
+                checked = showOnlineMusicVideoInLists,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setShowOnlineMusicVideoInLists(it) }
                 }
             )
             ArrowPreference(

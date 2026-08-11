@@ -51,7 +51,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
         stringResource(R.string.settings_live_update_lyric_pronunciation)
     )
     SuperIslandSpinner(
-        title = stringResource(R.string.settings_live_update_lyric_content),
+        title = stringResource(R.string.settings_xiaomi_super_island_lyric_content),
         labels = contentLabels,
         selectedIndex = settings.lyricTextMode,
         onSelected = { update(settings.copy(lyricTextMode = it)) }
@@ -200,37 +200,6 @@ internal fun SettingsXiaomiSuperIslandControls() {
             )
         }
     }
-    val clickLabels = listOf(
-        stringResource(R.string.settings_xiaomi_super_island_click_default),
-        stringResource(R.string.settings_xiaomi_super_island_click_player),
-        stringResource(R.string.settings_xiaomi_super_island_click_app)
-    )
-    SuperIslandSpinner(
-        title = stringResource(R.string.settings_xiaomi_super_island_click),
-        labels = clickLabels,
-        selectedIndex = settings.clickStyle,
-        onSelected = { update(settings.copy(clickStyle = it)) }
-    )
-    SwitchPreference(
-        title = stringResource(R.string.settings_xiaomi_super_island_share),
-        summary = stringResource(R.string.settings_xiaomi_super_island_share_summary),
-        checked = settings.shareEnabled,
-        onCheckedChange = { update(settings.copy(shareEnabled = it)) }
-    )
-    if (settings.shareEnabled) {
-        val shareFormatLabels = listOf(
-            stringResource(R.string.settings_xiaomi_super_island_share_format_one),
-            stringResource(R.string.settings_xiaomi_super_island_share_format_two),
-            stringResource(R.string.settings_xiaomi_super_island_share_format_three)
-        )
-        SuperIslandSpinner(
-            title = stringResource(R.string.settings_xiaomi_super_island_share_format),
-            labels = shareFormatLabels,
-            selectedIndex = settings.shareFormat,
-            onSelected = { update(settings.copy(shareFormat = it)) }
-        )
-    }
-
     SmallTitle(text = stringResource(R.string.settings_xiaomi_super_island_compat_section))
     val xmsfLabels = listOf(
         stringResource(R.string.settings_xiaomi_super_island_xmsf_disabled),

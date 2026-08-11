@@ -46,6 +46,8 @@ private fun Uri.toHalcyonRoute(): String? {
                 focus = keyword.isNullOrBlank()
             )
         }
+        "home", "main" -> Screen.Home.route
+        "player" -> Screen.Player.route
         "shortcut" -> getQueryParameter("route")?.takeIf { it.isNotBlank() }
         "analytics" -> Screen.Analytics.route
         "settings" -> Screen.Settings.createRoute()
@@ -137,6 +139,12 @@ internal fun NavHostController.navigateBottomDockRoute(
     route: String,
     currentRoute: String?
 ) {
+    // Search is opened from the current page as a transient library tool. Keeping the
+    // previous destination in the stack makes Back return to that page instead of Home.
+    if (route.startsWith(Screen.LibrarySearch.baseRoute) && !currentRoute.isSearchRoute()) {
+        navigate(route) { launchSingleTop = true }
+        return
+    }
     navigate(route) {
         popUpTo(graph.findStartDestination().id) {
             saveState = currentRoute.isBottomDockRoute()

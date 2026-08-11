@@ -38,6 +38,7 @@ internal fun LibrarySearchResultsPane(
     filter: SearchFilter,
     trimmedQuery: String,
     duplicatesOnlyActive: Boolean,
+    hasActiveContentFilter: Boolean,
     history: List<String>,
     selectionMode: Boolean,
     selectedSongKeys: Set<String>,
@@ -80,7 +81,7 @@ internal fun LibrarySearchResultsPane(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 128.dp)
     ) {
-        if (trimmedQuery.isBlank() && !duplicatesOnlyActive) {
+        if (trimmedQuery.isBlank() && !duplicatesOnlyActive && !hasActiveContentFilter) {
             if (history.isNotEmpty()) {
                 item {
                     SearchSectionHeader(
@@ -130,6 +131,7 @@ internal fun LibrarySearchResultsPane(
                                 isCurrent = currentSong?.id == result.song.id,
                                 loadCoverArt = { song -> mainViewModel.getCoverArtBitmap(song) },
                                 loadAudioInfo = mainViewModel::getAudioInfo,
+                                loadSongTagInfo = mainViewModel::getSongTagInfo,
                                 showPlayNextInLists = showPlayNextInLists,
                                 ratingDisplayMode = songRatingDisplayMode,
                                 selectionMode = selectionMode,

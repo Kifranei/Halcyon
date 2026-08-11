@@ -79,6 +79,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Pin
@@ -432,7 +433,7 @@ fun FolderPlaylistsScreen(
                             imageVector = MiuixIcons.Regular.Forward,
                             contentDescription = stringResource(R.string.song_more_play_next),
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                     IconButton(onClick = {
@@ -454,10 +455,10 @@ fun FolderPlaylistsScreen(
                         selectedActionSongs().takeIf { it.isNotEmpty() }?.let { playlistPickerSongs = it }
                     }) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Add,
+                            imageVector = MiuixIcons.Regular.AddFolder,
                             contentDescription = stringResource(R.string.player_add_to_playlist),
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                 } else {

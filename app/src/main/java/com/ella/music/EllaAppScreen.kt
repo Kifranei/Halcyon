@@ -16,8 +16,21 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +55,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
@@ -74,6 +89,12 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.blur.layerBackdrop as layerMiuixBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop as rememberMiuixLayerBackdrop
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -250,6 +271,24 @@ fun EllaApp(
             }
         }
 
+        val handoffUri = currentProcessingIntent.value?.data
+            ?.takeIf { it.scheme == "halcyon" && it.host == "player" }
+        if (handoffUri != null) {
+            val handoffId = handoffUri.getQueryParameter("id")?.toLongOrNull()
+            val handoffPath = handoffUri.getQueryParameter("path")
+            val songs = mainViewModel.songs.first { it.isNotEmpty() }
+            val handoffSong = songs.firstOrNull { song ->
+                (handoffId != null && song.id == handoffId) ||
+                    (!handoffPath.isNullOrBlank() && song.path == handoffPath)
+            }
+            if (handoffSong != null) {
+                playerViewModel.playSong(handoffSong)
+                handoffUri.getQueryParameter("position")?.toLongOrNull()?.let { positionMs ->
+                    playerViewModel.seekTo(positionMs.coerceAtLeast(0L))
+                }
+            }
+        }
+
         val shortcutRoute = currentProcessingIntent.value?.resolveShortcutRoute().orEmpty()
         if (shortcutRoute.isNotBlank()) {
             runCatching {
@@ -317,6 +356,7 @@ fun EllaApp(
     val showBottomBar = currentRoute.isBottomDockRoute()
     val canCompactBottomDock = showBottomBar
     var bottomDockMode by rememberSaveable { mutableStateOf(BottomDockMode.Expanded) }
+    var dismissedContinuePlaybackSongKey by rememberSaveable { mutableStateOf<String?>(null) }
 
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
@@ -482,6 +522,14 @@ fun EllaApp(
         currentRoute != Screen.Player.route &&
         currentRoute != Screen.AiChat.route &&
         !showPlayerOverlay
+    val currentSongKey = currentSong?.let { "${it.id}:${it.path}" }
+    val showContinuePlayback = currentSong != null &&
+        !isPlaying &&
+        currentPosition > 0L &&
+        duration > currentPosition + 1_000L &&
+        currentRoute != Screen.Player.route &&
+        !showPlayerOverlay &&
+        currentSongKey != dismissedContinuePlaybackSongKey
     LaunchedEffect(showMiniPlayer, canCompactBottomDock) {
         if (!showMiniPlayer || !canCompactBottomDock) bottomDockMode = BottomDockMode.Expanded
     }
@@ -604,6 +652,18 @@ fun EllaApp(
                         showPlayerOverlay = true
                     }
                 )
+                if (showContinuePlayback) {
+                    currentSong?.let { song ->
+                        ContinuePlaybackBanner(
+                            song = song,
+                            onPlay = playerViewModel::togglePlayPause,
+                            onDismiss = { dismissedContinuePlaybackSongKey = currentSongKey },
+                            modifier = Modifier
+                                .align(androidx.compose.ui.Alignment.TopCenter)
+                                .windowInsetsPadding(WindowInsets.statusBars)
+                        )
+                    }
+                }
                 FloatingBottomControls(
                     showMiniPlayer = showMiniPlayer,
                     showBottomBar = showBottomBar,
@@ -626,6 +686,7 @@ fun EllaApp(
                     canCompact = canCompactBottomDock,
                     backdrop = miuixBackdrop,
                     glassEffect = bottomBarGlassEffect,
+                    stabilizeOverWallpaper = wallpaperVisible,
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,
                     onNavigate = { route ->
@@ -798,6 +859,51 @@ fun EllaApp(
                             }
                     }
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContinuePlaybackBanner(
+    song: com.ella.music.data.model.Song,
+    onPlay: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f))
+            .clickable(onClick = onPlay)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Icon(
+            imageVector = MiuixIcons.Regular.Play,
+            contentDescription = stringResource(R.string.continue_playback),
+            tint = MiuixTheme.colorScheme.primary,
+            modifier = Modifier.size(28.dp)
+        )
+        Text(
+            text = stringResource(
+                R.string.continue_playback,
+                song.title.ifBlank { song.fileName },
+                song.artist
+            ),
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+        IconButton(onClick = onDismiss) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Close,
+                contentDescription = stringResource(R.string.common_close),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.size(24.dp)
             )
         }
     }

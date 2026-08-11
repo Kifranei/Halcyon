@@ -87,8 +87,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -661,7 +663,7 @@ fun AlbumDetailScreen(
                 .align(Alignment.TopEnd)
         ) {
             Icon(
-                imageVector = if (selection.selectionMode) MiuixIcons.Regular.Add else MiuixIcons.Regular.SelectAll,
+                imageVector = if (selection.selectionMode) MiuixIcons.Regular.AddFolder else MiuixIcons.Regular.SelectAll,
                 contentDescription = if (selection.selectionMode) stringResource(R.string.player_add_to_playlist) else stringResource(R.string.common_multi_select),
                 tint = MiuixTheme.colorScheme.onSurface,
                 modifier = Modifier.size(24.dp)
@@ -684,10 +686,10 @@ fun AlbumDetailScreen(
                     .align(Alignment.TopEnd)
             ) {
                 Icon(
-                    imageVector = MiuixIcons.Regular.Play,
+                    imageVector = MiuixIcons.Regular.Forward,
                     contentDescription = stringResource(R.string.song_more_play_next),
                     tint = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
             IconButton(

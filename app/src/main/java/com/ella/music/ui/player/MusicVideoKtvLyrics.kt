@@ -38,6 +38,7 @@ internal fun MusicVideoKtvLyrics(
     lyrics: List<LyricLine>,
     position: Long,
     videoAspectRatio: Float?,
+    fillVideoBounds: Boolean = false,
     avoidBottomStartContent: Boolean = false,
     outlined: Boolean = false,
     alternateCurrentAndNext: Boolean = false,
@@ -56,7 +57,7 @@ internal fun MusicVideoKtvLyrics(
     BoxWithConstraints(modifier = modifier) {
         val screenRatio = maxWidth.value / maxHeight.value.coerceAtLeast(1f)
         val frameModifier = when {
-            videoAspectRatio == null -> Modifier.fillMaxSize()
+            fillVideoBounds || videoAspectRatio == null -> Modifier.fillMaxSize()
             videoAspectRatio >= screenRatio -> Modifier.fillMaxWidth().aspectRatio(videoAspectRatio)
             else -> Modifier.fillMaxHeight().aspectRatio(videoAspectRatio)
         }.align(Alignment.Center)

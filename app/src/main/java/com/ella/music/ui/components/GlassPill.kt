@@ -25,6 +25,7 @@ fun GlassPill(
     blurRadius: Float = 34f,
     liquidBlurRadius: Float = 12f,
     glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
+    disableRefraction: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
     val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
@@ -46,7 +47,8 @@ fun GlassPill(
                 applyBottomBarGlassEffect(
                     glassEffect = glassEffect,
                     blurRadius = blurRadius,
-                    liquidBlurRadius = liquidBlurRadius
+                    liquidBlurRadius = liquidBlurRadius,
+                    disableRefraction = disableRefraction
                 )
             },
             highlight = {

@@ -79,6 +79,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.ella.music.data.SettingsManager
@@ -155,6 +156,14 @@ internal fun DetailMusicVideoScreen(
     var captionSyncOffsetMs by remember(source) {
         mutableStateOf(captionPreferences.getLong(source.captionSyncPreferenceKey(), 0L))
     }
+    var videoResizeMode by remember(captionPreferences) {
+        mutableStateOf(
+            captionPreferences.getInt(
+                MUSIC_VIDEO_RESIZE_MODE,
+                AspectRatioFrameLayout.RESIZE_MODE_FIT
+            ).normalizedMusicVideoResizeMode()
+        )
+    }
     var showCaptionSettings by remember { mutableStateOf(false) }
     var showCaptureActions by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
@@ -196,12 +205,21 @@ internal fun DetailMusicVideoScreen(
     }
     val accompanimentProcessor = remember { CenterChannelSuppressorAudioProcessor() }
     val player = remember(source) {
+        val trackSelector = DefaultTrackSelector(context).apply {
+            // MV subtitle tracks are often undetermined-language TTML/WebVTT tracks. Keep them
+            // selectable so PlayerView can render the embedded KTV line when the video provides it.
+            parameters = buildUponParameters()
+                .setSelectUndeterminedTextLanguage(true)
+                .build()
+        }
         val renderersFactory = EllaRenderersFactory(context).apply {
             setExtraAudioProcessors(listOf(accompanimentProcessor))
             setEnableDecoderFallback(true)
             setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
         }
-        ExoPlayer.Builder(context, renderersFactory).build().apply {
+        ExoPlayer.Builder(context, renderersFactory)
+            .setTrackSelector(trackSelector)
+            .build().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -303,6 +321,7 @@ internal fun DetailMusicVideoScreen(
         if (inPictureInPictureMode) {
             VideoSurface(
                 player = player,
+                resizeMode = videoResizeMode,
                 modifier = Modifier.fillMaxSize()
             )
             if (captionsEnabled) {
@@ -310,6 +329,7 @@ internal fun DetailMusicVideoScreen(
                     lyrics = lyrics,
                     position = position,
                     videoAspectRatio = videoAspectRatio,
+                    fillVideoBounds = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
                     positionOffset = captionOffset,
                     style = captionStyle,
                     showTranslation = captionTranslationEnabled,
@@ -327,6 +347,7 @@ internal fun DetailMusicVideoScreen(
                 duration = duration,
                 lyrics = lyrics,
                 videoAspectRatio = videoAspectRatio,
+                videoResizeMode = videoResizeMode,
                 captionsEnabled = captionsEnabled,
                 captionTranslationEnabled = captionTranslationEnabled,
                 captionsAvailable = captionsAvailable,
@@ -369,6 +390,7 @@ internal fun DetailMusicVideoScreen(
             PortraitMusicVideoLayout(
                 song = song,
                 player = player,
+                videoResizeMode = videoResizeMode,
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
@@ -386,6 +408,7 @@ internal fun DetailMusicVideoScreen(
                 enabled = captionsEnabled,
                 translationEnabled = captionTranslationEnabled,
                 syncOffsetMs = captionSyncOffsetMs,
+                videoResizeMode = videoResizeMode,
                 style = captionStyle,
                 onEnabledChange = { enabled ->
                     captionsEnabled = enabled
@@ -401,6 +424,12 @@ internal fun DetailMusicVideoScreen(
                     captionSyncOffsetMs = offsetMs.coerceIn(-60_000L, 60_000L)
                     captionPreferences.edit()
                         .putLong(source.captionSyncPreferenceKey(), captionSyncOffsetMs)
+                        .apply()
+                },
+                onVideoResizeModeChange = { resizeMode ->
+                    videoResizeMode = resizeMode.normalizedMusicVideoResizeMode()
+                    captionPreferences.edit()
+                        .putInt(MUSIC_VIDEO_RESIZE_MODE, videoResizeMode)
                         .apply()
                 },
                 onStyleChange = { style ->
@@ -465,6 +494,7 @@ internal fun DetailMusicVideoScreen(
 private fun PortraitMusicVideoLayout(
     song: Song,
     player: ExoPlayer,
+    videoResizeMode: Int,
     isPlaying: Boolean,
     position: Long,
     duration: Long,
@@ -479,6 +509,7 @@ private fun PortraitMusicVideoLayout(
     Box(modifier = Modifier.fillMaxSize()) {
         VideoSurface(
             player = player,
+            resizeMode = videoResizeMode,
             modifier = Modifier.fillMaxSize()
         )
         // Keep the gesture surface behind the controls but above the video. This makes a tap on
@@ -531,6 +562,7 @@ private fun PortraitMusicVideoLayout(
 private fun LandscapeMusicVideoLayout(
     song: Song,
     player: ExoPlayer,
+    videoResizeMode: Int,
     isPlaying: Boolean,
     position: Long,
     duration: Long,
@@ -570,6 +602,7 @@ private fun LandscapeMusicVideoLayout(
     Box(modifier = Modifier.fillMaxSize()) {
         VideoSurface(
             player = player,
+            resizeMode = videoResizeMode,
             modifier = Modifier.fillMaxSize()
         )
         // Keep the whole view tappable; controls sit above this layer and retain their own actions.
@@ -596,6 +629,7 @@ private fun LandscapeMusicVideoLayout(
                 lyrics = lyrics,
                 position = position,
                 videoAspectRatio = videoAspectRatio,
+                fillVideoBounds = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
                 outlined = true,
                 alternateCurrentAndNext = true,
                 modifier = Modifier.fillMaxSize()
@@ -605,6 +639,7 @@ private fun LandscapeMusicVideoLayout(
                 lyrics = lyrics,
                 position = position,
                 videoAspectRatio = videoAspectRatio,
+                fillVideoBounds = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
                 positionOffset = captionOffset,
                 style = captionStyle,
                 showTranslation = captionTranslationEnabled,
@@ -1022,10 +1057,12 @@ private fun MusicVideoCaptionSettingsOverlay(
     enabled: Boolean,
     translationEnabled: Boolean,
     syncOffsetMs: Long,
+    videoResizeMode: Int,
     style: MusicVideoCaptionStyle,
     onEnabledChange: (Boolean) -> Unit,
     onTranslationEnabledChange: (Boolean) -> Unit,
     onSyncOffsetChange: (Long) -> Unit,
+    onVideoResizeModeChange: (Int) -> Unit,
     onStyleChange: (MusicVideoCaptionStyle) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1086,6 +1123,29 @@ private fun MusicVideoCaptionSettingsOverlay(
                 onClick = { onTranslationEnabledChange(!translationEnabled) },
                 selected = translationEnabled
             )
+
+            CaptionSettingsHeading(stringResource(R.string.music_video_video_ratio))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                VideoTextButton(
+                    text = stringResource(R.string.music_video_video_ratio_fit),
+                    onClick = {
+                        onVideoResizeModeChange(AspectRatioFrameLayout.RESIZE_MODE_FIT)
+                    },
+                    selected = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                    modifier = Modifier.weight(1f)
+                )
+                VideoTextButton(
+                    text = stringResource(R.string.music_video_video_ratio_zoom),
+                    onClick = {
+                        onVideoResizeModeChange(AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
+                    },
+                    selected = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
             CaptionSettingsHeading(stringResource(R.string.music_video_caption_sync))
             Row(
@@ -1264,19 +1324,36 @@ private fun CaptionColorChoices(
 }
 
 @Composable
-private fun VideoSurface(player: ExoPlayer, modifier: Modifier) {
+private fun VideoSurface(
+    player: ExoPlayer,
+    resizeMode: Int,
+    modifier: Modifier
+) {
     AndroidView(
         factory = { viewContext ->
             PlayerView(viewContext).apply {
                 useController = false
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                this.resizeMode = resizeMode
                 setShutterBackgroundColor(Color.BLACK)
+                configureEmbeddedSubtitles()
                 this.player = player
             }
         },
-        update = { it.player = player },
+        update = {
+            it.resizeMode = resizeMode
+            it.configureEmbeddedSubtitles()
+            it.player = player
+        },
         modifier = modifier
     )
+}
+
+private fun PlayerView.configureEmbeddedSubtitles() {
+    subtitleView?.apply {
+        visibility = android.view.View.VISIBLE
+        setApplyEmbeddedStyles(true)
+        setApplyEmbeddedFontSizes(true)
+    }
 }
 
 @Composable
@@ -1402,6 +1479,7 @@ private fun MusicVideoCaptions(
     lyrics: List<LyricLine>,
     position: Long,
     videoAspectRatio: Float?,
+    fillVideoBounds: Boolean,
     positionOffset: Offset?,
     style: MusicVideoCaptionStyle,
     showTranslation: Boolean,
@@ -1415,9 +1493,10 @@ private fun MusicVideoCaptions(
     BoxWithConstraints(modifier = modifier) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val screenRatio = maxWidth.value / maxHeight.value.coerceAtLeast(1f)
-        // PlayerView uses FIT, so place captions in this same fitted box rather than its black bars.
+        // Match PlayerView: FIT keeps the subtitle inside the video frame, while ZOOM uses the
+        // whole surface because the video itself is cropped to fill it.
         val frameModifier = when {
-            videoAspectRatio == null -> Modifier.fillMaxSize()
+            fillVideoBounds || videoAspectRatio == null -> Modifier.fillMaxSize()
             videoAspectRatio >= screenRatio -> Modifier.fillMaxWidth().aspectRatio(videoAspectRatio)
             else -> Modifier.fillMaxHeight().aspectRatio(videoAspectRatio)
         }.align(Alignment.Center)
@@ -1609,6 +1688,12 @@ private fun Uri.captionSyncPreferenceKey(): String =
 
 private const val MUSIC_VIDEO_CAPTION_PREFERENCES = "music_video_caption_preferences"
 private const val MUSIC_VIDEO_CAPTION_TRANSLATION_ENABLED = "translation_enabled"
+private const val MUSIC_VIDEO_RESIZE_MODE = "video_resize_mode"
+
+private fun Int.normalizedMusicVideoResizeMode(): Int = when (this) {
+    AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+    else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+}
 
 private val CAPTION_TEXT_COLORS = listOf(
     0xFFFFFFFF.toInt(),

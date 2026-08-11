@@ -1,5 +1,6 @@
 package com.ella.music.ui.components
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -36,12 +37,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.MusicVideoLauncher
 import com.ella.music.R
 import com.ella.music.data.DOLBY_MARK
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.audioQualitySummary
+import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.SongTagInfo
+import com.ella.music.data.neteaseMvUrl
+import com.ella.music.ui.player.DynamicCoverSource
+import com.ella.music.ui.player.musicVideoSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
@@ -59,6 +66,7 @@ fun SongItem(
     albumArtUri: Uri? = null,
     loadCoverArt: ((Song) -> Bitmap?)? = null,
     loadAudioInfo: ((Song) -> AudioInfo)? = null,
+    loadSongTagInfo: ((Song) -> SongTagInfo)? = null,
     selectionMode: Boolean = false,
     selected: Boolean = false,
     onClick: () -> Unit,
@@ -84,16 +92,65 @@ fun SongItem(
 ) {
     val unknown = stringResource(R.string.common_unknown)
     val unknownArtist = stringResource(R.string.player_unknown_artist)
-    val musicVideoDescription = stringResource(R.string.online_mv)
+    val localMusicVideoDescription = stringResource(R.string.local_mv)
+    val onlineMusicVideoDescription = stringResource(R.string.online_mv)
     val context = androidx.compose.ui.platform.LocalContext.current
     val sourceView = LocalView.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val showLocalMusicVideoInLists by settingsManager.showLocalMusicVideoInLists.collectAsState(initial = true)
+    val showOnlineMusicVideoInLists by settingsManager.showOnlineMusicVideoInLists.collectAsState(initial = true)
+    val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFolders.collectAsState(initial = emptyList())
+    val musicVideoCustomFolders by settingsManager.musicVideoCustomFolders.collectAsState(initial = emptyList())
     val preferredRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
     val effectiveRatingDisplayMode = ratingDisplayMode ?: preferredRatingDisplayMode
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
         value = withContext(Dispatchers.IO) { loadAudioInfo?.invoke(song) }
+    }
+    val localMusicVideoSource by produceState<DynamicCoverSource?>(
+        initialValue = null,
+        song.id,
+        song.path,
+        song.dateModified,
+        song.fileSize,
+        dynamicCoverCustomFolders,
+        musicVideoCustomFolders,
+        showLocalMusicVideoInLists,
+        selectionMode
+    ) {
+        value = if (showLocalMusicVideoInLists && !selectionMode) {
+            withContext(Dispatchers.IO) {
+                song.musicVideoSource(
+                    context = context,
+                    customRootPaths = dynamicCoverCustomFolders,
+                    musicVideoCustomFolders = musicVideoCustomFolders
+                )
+            }
+        } else {
+            null
+        }
+    }
+    val tagInfo by produceState<SongTagInfo?>(
+        initialValue = null,
+        song.id,
+        song.path,
+        song.dateModified,
+        loadSongTagInfo,
+        showOnlineMusicVideoInLists,
+        selectionMode
+    ) {
+        value = if (showOnlineMusicVideoInLists && !selectionMode) {
+            withContext(Dispatchers.IO) { loadSongTagInfo?.invoke(song) }
+        } else {
+            null
+        }
+    }
+    val onlineMusicVideoUrl = remember(tagInfo?.neteaseKey) {
+        decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty())
+            ?.mvId
+            ?.takeIf { id -> id.toLongOrNull()?.let { it > 0L } == true }
+            ?.let(::neteaseMvUrl)
     }
     val coverState = rememberSongArtworkState(
         song = song,
@@ -251,22 +308,34 @@ fun SongItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        if (!selectionMode && onMusicVideo != null) {
-            Text(
-                text = stringResource(R.string.online_mv),
-                fontSize = 11.sp,
-                color = MiuixTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
-                    .semantics {
-                        contentDescription = musicVideoDescription
-                        role = Role.Button
-                    }
-                    .clickable(onClick = onMusicVideo)
-                    .padding(horizontal = 5.dp, vertical = 3.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+        if (!selectionMode) {
+            localMusicVideoSource?.let { source ->
+                MusicVideoListAction(
+                    label = stringResource(R.string.local_mv),
+                    contentDescription = localMusicVideoDescription,
+                    color = MiuixTheme.colorScheme.primary,
+                    onClick = { MusicVideoLauncher.open(context, song, source) }
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            onlineMusicVideoUrl?.takeUnless { localMusicVideoSource != null }?.let { url ->
+                MusicVideoListAction(
+                    label = stringResource(R.string.online_mv),
+                    contentDescription = onlineMusicVideoDescription,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    onClick = { openSongExternalUrl(context, url) }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            if (onMusicVideo != null) {
+                MusicVideoListAction(
+                    label = stringResource(R.string.online_mv),
+                    contentDescription = onlineMusicVideoDescription,
+                    color = MiuixTheme.colorScheme.primary,
+                    onClick = onMusicVideo
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
         }
 
         Text(
@@ -335,6 +404,33 @@ fun SongItem(
             trailingContent()
         }
     }
+}
+
+@Composable
+private fun MusicVideoListAction(
+    label: String,
+    contentDescription: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Text(
+        text = label,
+        fontSize = 11.sp,
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(color.copy(alpha = 0.12f))
+            .semantics {
+                this.contentDescription = contentDescription
+                role = Role.Button
+            }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 5.dp, vertical = 3.dp)
+    )
+}
+
+private fun openSongExternalUrl(context: android.content.Context, url: String) {
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }
 
 @Composable

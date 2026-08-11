@@ -44,6 +44,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SCAN_INCLUDE_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_ALL_CATEGORY_TYPES
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_ALL_SONG_MATCH_TYPES
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ALBUM_ARTISTS
+import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_LOCAL_MV_IN_LISTS
+import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ONLINE_MV_IN_LISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_PLAY_NEXT_IN_LISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON
 import com.ella.music.data.SettingsManager.Companion.KEY_SONG_RATING_DISPLAY_MODE
@@ -73,6 +75,8 @@ interface LibrarySettingsAccess {
     val minDurationSec: Flow<Int>
     val playlistSpecialEntriesVisible: Flow<Boolean>
     val showPlayNextInLists: Flow<Boolean>
+    val showLocalMusicVideoInLists: Flow<Boolean>
+    val showOnlineMusicVideoInLists: Flow<Boolean>
     val showRemoveFromPlaylistButton: Flow<Boolean>
     val excludeSearchResultsFromPlaylist: Flow<Boolean>
     val autoShowSearchKeyboard: Flow<Boolean>
@@ -110,6 +114,8 @@ interface LibrarySettingsAccess {
     suspend fun setMinDurationSec(seconds: Int)
     suspend fun setPlaylistSpecialEntriesVisible(visible: Boolean)
     suspend fun setShowPlayNextInLists(enabled: Boolean)
+    suspend fun setShowLocalMusicVideoInLists(enabled: Boolean)
+    suspend fun setShowOnlineMusicVideoInLists(enabled: Boolean)
     suspend fun setShowRemoveFromPlaylistButton(enabled: Boolean)
     suspend fun setExcludeSearchResultsFromPlaylist(enabled: Boolean)
     suspend fun setAutoShowSearchKeyboard(enabled: Boolean)
@@ -169,6 +175,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE] ?: false }
     override val showPlayNextInLists: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] ?: false }
+    override val showLocalMusicVideoInLists: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SHOW_LOCAL_MV_IN_LISTS] ?: true }
+    override val showOnlineMusicVideoInLists: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SHOW_ONLINE_MV_IN_LISTS] ?: true }
     override val showRemoveFromPlaylistButton: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON] ?: true }
     override val excludeSearchResultsFromPlaylist: Flow<Boolean> =
@@ -279,6 +289,14 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setShowPlayNextInLists(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] = enabled }
+    }
+
+    override suspend fun setShowLocalMusicVideoInLists(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SHOW_LOCAL_MV_IN_LISTS] = enabled }
+    }
+
+    override suspend fun setShowOnlineMusicVideoInLists(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SHOW_ONLINE_MV_IN_LISTS] = enabled }
     }
 
     override suspend fun setShowRemoveFromPlaylistButton(enabled: Boolean) {

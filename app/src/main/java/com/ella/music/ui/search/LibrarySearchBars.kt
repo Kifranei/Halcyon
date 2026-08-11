@@ -20,9 +20,11 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.Share
@@ -119,6 +121,7 @@ internal fun LibrarySearchContentFilterBar(
     onNoLyricsChange: (Boolean) -> Unit,
     onTtmlLyricsChange: (Boolean) -> Unit,
     onMvExpandedChange: (Boolean) -> Unit,
+    onMusicVideoChange: (Boolean) -> Unit,
     onLocalMusicVideoChange: (Boolean) -> Unit,
     onOnlineMusicVideoChange: (Boolean) -> Unit,
     onDynamicCoverChange: (Boolean) -> Unit
@@ -149,8 +152,14 @@ internal fun LibrarySearchContentFilterBar(
             )
             SearchPill(
                 text = stringResource(R.string.library_search_filter_mv),
-                selected = filters.localMusicVideo || filters.onlineMusicVideo,
-                onClick = { onMvExpandedChange(!mvExpanded) }
+                selected = filters.musicVideo,
+                onClick = {
+                    if (filters.musicVideo) {
+                        onMusicVideoChange(false)
+                    } else {
+                        onMusicVideoChange(true)
+                    }
+                }
             )
             SearchPill(
                 text = stringResource(R.string.library_search_filter_dynamic_cover),
@@ -214,18 +223,18 @@ internal fun LibrarySearchSelectionToolbar(
     ) {
         IconButton(onClick = onPlayNext) {
             Icon(
-                imageVector = MiuixIcons.Regular.Play,
+                imageVector = MiuixIcons.Regular.Forward,
                 contentDescription = stringResource(R.string.song_more_play_next),
                 tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         IconButton(onClick = onAddToPlaylist) {
             Icon(
-                imageVector = MiuixIcons.Regular.Add,
+                imageVector = MiuixIcons.Regular.AddFolder,
                 contentDescription = stringResource(R.string.player_add_to_playlist),
                 tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         IconButton(onClick = onAddToQueue) {
@@ -233,7 +242,7 @@ internal fun LibrarySearchSelectionToolbar(
                 imageVector = MiuixIcons.Regular.Playlist,
                 contentDescription = stringResource(R.string.common_add_to_queue),
                 tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         IconButton(onClick = onShare) {

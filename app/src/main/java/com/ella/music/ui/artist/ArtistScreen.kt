@@ -83,8 +83,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Share
@@ -273,7 +275,7 @@ fun ArtistScreen(
             add(ArtistTab.Songs)
             add(ArtistTab.ParticipatedAlbums)
             if (showReleaseAlbums) add(ArtistTab.ReleaseAlbums)
-            if (artistMusicVideos.isNotEmpty() || artistMusicVideosLoading) add(ArtistTab.MusicVideos)
+            if (artistMusicVideos.isNotEmpty()) add(ArtistTab.MusicVideos)
         }
     }
     val selectedArtistTab = selectedTabTarget.takeIf { it in tabs } ?: ArtistTab.Songs
@@ -579,6 +581,7 @@ fun ArtistScreen(
                             albumArtUri = albumArtUri,
                             loadCoverArt = mainViewModel::getCoverArtBitmap,
                             loadAudioInfo = mainViewModel::getAudioInfo,
+                            loadSongTagInfo = mainViewModel::getSongTagInfo,
                             isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
                             loadSongRating = mainViewModel::getSongRating,
                             showPlayNextInLists = showPlayNextInLists,
@@ -833,7 +836,7 @@ fun ArtistScreen(
                             imageVector = if (selectedArtistTab == ArtistTab.MusicVideos) {
                                 MiuixIcons.Regular.Share
                             } else {
-                                MiuixIcons.Regular.Add
+                                MiuixIcons.Regular.AddFolder
                             },
                             contentDescription = stringResource(
                                 if (selectedArtistTab == ArtistTab.MusicVideos) R.string.common_share
@@ -854,10 +857,10 @@ fun ArtistScreen(
                             }
                         ) {
                             Icon(
-                                imageVector = MiuixIcons.Regular.Play,
+                                imageVector = MiuixIcons.Regular.Forward,
                                 contentDescription = stringResource(R.string.song_more_play_next),
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
@@ -960,12 +963,12 @@ fun ArtistScreen(
                                     descendingMode = ArtistMusicVideoSortMode.ReleaseDesc
                                 ),
                                 DirectionalSortModeField(
-                                    text = stringResource(R.string.artist_sort_duration),
+                                    text = stringResource(R.string.artist_music_video_sort_duration),
                                     ascendingMode = ArtistMusicVideoSortMode.DurationAsc,
                                     descendingMode = ArtistMusicVideoSortMode.DurationDesc
                                 ),
                                 DirectionalSortModeField(
-                                    text = stringResource(R.string.artist_sort_title),
+                                    text = stringResource(R.string.artist_music_video_sort_title),
                                     ascendingMode = ArtistMusicVideoSortMode.NameAsc,
                                     descendingMode = ArtistMusicVideoSortMode.NameDesc
                                 )

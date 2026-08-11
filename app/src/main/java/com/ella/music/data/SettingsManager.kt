@@ -138,6 +138,11 @@ class SettingsManager(private val context: Context) :
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_LYRIC_PAGE_KEEP_SCREEN_ON = booleanPreferencesKey("lyric_page_keep_screen_on")
         val KEY_APPLE_MUSIC_LYRICS_WORD_LIFT = booleanPreferencesKey("apple_music_lyrics_word_lift")
+        val KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = intPreferencesKey("apple_music_lyrics_sustain_threshold_ms")
+        const val DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 1_200
+        const val MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 300
+        const val MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 3_000
+        const val STEP_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 100
         val KEY_MINI_PLAYER_LYRIC_TRANSLATION = booleanPreferencesKey("mini_player_lyric_translation")
         val KEY_MINI_PLAYER_LYRIC_SECONDARY = intPreferencesKey("mini_player_lyric_secondary")
         val KEY_MINI_PLAYER_COVER_ROTATION = booleanPreferencesKey("mini_player_cover_rotation")
@@ -220,6 +225,8 @@ class SettingsManager(private val context: Context) :
         val KEY_MUSIC_VIDEO_OFFSETS_JSON = stringPreferencesKey("music_video_offsets_json")
         val KEY_DYNAMIC_COVER_CUSTOM_FOLDERS = stringPreferencesKey("dynamic_cover_custom_folders")
         val KEY_MUSIC_VIDEO_CUSTOM_FOLDERS = stringPreferencesKey("music_video_custom_folders")
+        val KEY_SHOW_LOCAL_MV_IN_LISTS = booleanPreferencesKey("show_local_mv_in_lists")
+        val KEY_SHOW_ONLINE_MV_IN_LISTS = booleanPreferencesKey("show_online_mv_in_lists")
         val KEY_ARTIST_COVER_FOLDER_URI = stringPreferencesKey("artist_cover_folder_uri")
         val KEY_ARTIST_COVER_CAROUSEL = booleanPreferencesKey("artist_cover_carousel")
         val KEY_STARTUP_POSTER_ENABLED = booleanPreferencesKey("startup_poster_enabled")
@@ -921,6 +928,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_LYRIC_PAGE_TRANSLATION)
             setBoolean(KEY_LYRIC_PAGE_KEEP_SCREEN_ON)
             setBoolean(KEY_APPLE_MUSIC_LYRICS_WORD_LIFT)
+            setInt(KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
             setBoolean(KEY_LYRIC_PRONUNCIATION_BELOW)
             setBoolean(KEY_LYRIC_FONT_ITALIC)
             setBoolean(KEY_LYRIC_FONT_APPLY_TO_PAGE)
@@ -951,6 +959,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_SYNC_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES)
+            setBoolean(KEY_SHOW_LOCAL_MV_IN_LISTS)
+            setBoolean(KEY_SHOW_ONLINE_MV_IN_LISTS)
             setBoolean(KEY_ARTIST_COVER_CAROUSEL)
             setBoolean(KEY_STARTUP_POSTER_ENABLED)
             setBoolean(KEY_APP_WALLPAPER_ENABLED)

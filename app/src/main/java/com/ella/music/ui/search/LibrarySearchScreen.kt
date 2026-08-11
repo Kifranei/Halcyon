@@ -36,7 +36,7 @@ import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.folder.toFolderSettingList
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.player.dynamicCoverSource
-import com.ella.music.ui.player.musicVideoCustomFolderSource
+import com.ella.music.ui.player.musicVideoSource
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +91,7 @@ fun LibrarySearchScreen(
     var duplicatesOnly by remember { mutableStateOf(false) }
     var noLyricsOnly by remember { mutableStateOf(false) }
     var ttmlLyricsOnly by remember { mutableStateOf(false) }
+    var musicVideoOnly by remember { mutableStateOf(false) }
     var localMusicVideoOnly by remember { mutableStateOf(false) }
     var onlineMusicVideoOnly by remember { mutableStateOf(false) }
     var dynamicCoverOnly by remember { mutableStateOf(false) }
@@ -116,6 +117,7 @@ fun LibrarySearchScreen(
     val contentFilters = LibrarySearchContentFilters(
         noLyrics = noLyricsOnly,
         ttmlLyrics = ttmlLyricsOnly,
+        musicVideo = musicVideoOnly,
         localMusicVideo = localMusicVideoOnly,
         onlineMusicVideo = onlineMusicVideoOnly,
         dynamicCover = dynamicCoverOnly
@@ -136,12 +138,26 @@ fun LibrarySearchScreen(
             songSearchSource.asSequence()
                 .filter { song ->
                     val tagInfo = mainViewModel.getSongTagInfo(song)
-                    val hasLocalMv = !contentFilters.localMusicVideo || song.musicVideoCustomFolderSource(
-                        context = context,
-                        musicVideoCustomFolders = musicVideoCustomFolders
-                    ) != null
-                    val hasOnlineMv = !contentFilters.onlineMusicVideo ||
+                    val hasLocalMv = if (contentFilters.musicVideo || contentFilters.localMusicVideo) {
+                        song.musicVideoSource(
+                            context = context,
+                            customRootPaths = dynamicCoverCustomFolders,
+                            musicVideoCustomFolders = musicVideoCustomFolders
+                        ) != null
+                    } else {
+                        false
+                    }
+                    val hasOnlineMv = if (contentFilters.musicVideo || contentFilters.onlineMusicVideo) {
                         (decodeNeteaseKey(tagInfo.neteaseKey)?.mvId?.toLongOrNull() ?: 0L) > 0L
+                    } else {
+                        false
+                    }
+                    val mvMatches = if (contentFilters.musicVideo) {
+                        hasLocalMv || hasOnlineMv
+                    } else {
+                        (!contentFilters.localMusicVideo || hasLocalMv) &&
+                            (!contentFilters.onlineMusicVideo || hasOnlineMv)
+                    }
                     val hasDynamicCover = !contentFilters.dynamicCover || song.dynamicCoverSource(
                         context = context,
                         customRootPaths = dynamicCoverCustomFolders
@@ -149,7 +165,7 @@ fun LibrarySearchScreen(
                     (!contentFilters.noLyrics ||
                         (song.onlineLyrics.isBlank() && !tagInfo.hasLyricMetadata())) &&
                         (!contentFilters.ttmlLyrics || tagInfo.hasTtmlLyricMetadata()) &&
-                        hasLocalMv && hasOnlineMv && hasDynamicCover
+                        mvMatches && hasDynamicCover
                 }
                 .mapTo(linkedSetOf()) { it.searchIdentityKey() }
         }
@@ -567,8 +583,24 @@ fun LibrarySearchScreen(
             onNoLyricsChange = { noLyricsOnly = it },
             onTtmlLyricsChange = { ttmlLyricsOnly = it },
             onMvExpandedChange = { mvFiltersExpanded = it },
-            onLocalMusicVideoChange = { localMusicVideoOnly = it },
-            onOnlineMusicVideoChange = { onlineMusicVideoOnly = it },
+            onMusicVideoChange = { enabled ->
+                musicVideoOnly = enabled
+                if (enabled) {
+                    localMusicVideoOnly = false
+                    onlineMusicVideoOnly = false
+                    mvFiltersExpanded = true
+                } else {
+                    mvFiltersExpanded = false
+                }
+            },
+            onLocalMusicVideoChange = { enabled ->
+                musicVideoOnly = false
+                localMusicVideoOnly = enabled
+            },
+            onOnlineMusicVideoChange = { enabled ->
+                musicVideoOnly = false
+                onlineMusicVideoOnly = enabled
+            },
             onDynamicCoverChange = { dynamicCoverOnly = it }
         )
         if (selection.selectionMode) {
@@ -626,6 +658,7 @@ fun LibrarySearchScreen(
             filter = filter,
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,
+            hasActiveContentFilter = contentFilters.hasActiveFilter,
             history = history,
             selectionMode = selection.selectionMode,
             selectedSongKeys = selection.selectedIds,

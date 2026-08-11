@@ -60,7 +60,7 @@ internal fun ShuffleAllSummaryButton(
             painter = painterResource(id = R.drawable.ic_shuffle),
             contentDescription = stringResource(R.string.shuffle),
             tint = MiuixTheme.colorScheme.primary,
-            modifier = Modifier.size(21.dp)
+            modifier = Modifier.size(25.dp)
         )
     }
 }

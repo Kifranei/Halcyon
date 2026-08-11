@@ -113,7 +113,8 @@ internal fun FloatingBottomControls(
     onNavigatePlayer: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
-    useGlass: Boolean = true
+    useGlass: Boolean = true,
+    stabilizeOverWallpaper: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var queueSheetExpanded by remember { mutableStateOf(false) }
@@ -156,6 +157,7 @@ internal fun FloatingBottomControls(
                 loadCoverArt = mainViewModel::getCoverArtBitmap,
                 backdrop = if (useGlass) backdrop else null,
                 glassEffect = glassEffect,
+                disableRefraction = stabilizeOverWallpaper,
                 currentTab = tabs.firstOrNull { it.route == currentTabRoute },
                 currentTabRoute = currentTabRoute,
                 isSearchSelected = currentRoute.isSearchRoute(),
@@ -186,6 +188,7 @@ internal fun FloatingBottomControls(
                                 backdrop = if (useGlass) backdrop else null,
                                 liquidGlass = useGlass,
                                 glassEffect = glassEffect,
+                                disableRefraction = stabilizeOverWallpaper,
                                 showQueueButton = miniPlayerRightButton == SettingsManager.MINI_PLAYER_RIGHT_QUEUE,
                                 swipeUpToOpenPlayer = miniPlayerSwipeToOpenPlayer,
                                 onClick = onNavigatePlayer,
@@ -230,7 +233,8 @@ internal fun FloatingBottomControls(
                                             },
                                             backdrop = backdrop ?: return@Box,
                                             tabsCount = tabs.size,
-                                            mode = barMode
+                                            mode = barMode,
+                                            disableRefraction = stabilizeOverWallpaper
                                         ) {
                                             tabs.forEachIndexed { index, tab ->
                                                 val selected = currentTabRoute == tab.route
@@ -266,6 +270,7 @@ internal fun FloatingBottomControls(
                                     onClick = onNavigateSearch,
                                     backdrop = backdrop,
                                     glassEffect = glassEffect,
+                                    disableRefraction = stabilizeOverWallpaper,
                                     modifier = Modifier.size(64.dp)
                                 )
                             }
@@ -388,7 +393,8 @@ private fun CompactBottomDock(
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onNavigateSearch: () -> Unit,
-    onExpand: () -> Unit
+    onExpand: () -> Unit,
+    disableRefraction: Boolean
 ) {
     val showCompactLyrics = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val isHomeSelected = currentTabRoute == Screen.Home.route
@@ -409,6 +415,7 @@ private fun CompactBottomDock(
             onClick = onExpand,
             backdrop = backdrop,
             glassEffect = glassEffect,
+            disableRefraction = disableRefraction,
             modifier = Modifier.size(64.dp)
         )
         CompactMiniPlayer(
@@ -425,6 +432,7 @@ private fun CompactBottomDock(
             loadCoverArt = loadCoverArt,
             backdrop = backdrop,
             glassEffect = glassEffect,
+            disableRefraction = disableRefraction,
             onClick = onOpenPlayer,
             onPlayPause = onPlayPause,
             onSkipNext = onSkipNext,
@@ -439,6 +447,7 @@ private fun CompactBottomDock(
             onClick = onNavigateSearch,
             backdrop = backdrop,
             glassEffect = glassEffect,
+            disableRefraction = disableRefraction,
             modifier = Modifier.size(64.dp)
         )
     }
@@ -473,6 +482,7 @@ private fun BottomDockActionPill(
     onClick: () -> Unit,
     backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
     glassEffect: BottomBarGlassEffect,
+    disableRefraction: Boolean,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -502,7 +512,8 @@ private fun BottomDockActionPill(
         backdrop = backdrop,
         modifier = modifier.height(64.dp),
         shape = RoundedCornerShape(32.dp),
-        glassEffect = glassEffect
+        glassEffect = glassEffect,
+        disableRefraction = disableRefraction
     ) {
         Box(
             modifier = Modifier

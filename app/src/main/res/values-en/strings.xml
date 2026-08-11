@@ -28,6 +28,7 @@
     <string name="duration_format" formatted="false">%02d:%02d</string>
     <string name="no_lyrics">No lyrics</string>
     <string name="now_playing">Now playing</string>
+    <string name="continue_playback">Continue playback: %1$s - %2$s</string>
     <string name="play_all">Play all</string>
     <string name="album_play_all">Play all</string>
     <string name="album_sort_summary">%1$d songs · %2$s · %3$s</string>
@@ -957,6 +958,7 @@
     <string name="library_search_filter_ttml_lyrics">TTML lyrics</string>
     <string name="library_search_filter_mv">MV</string>
     <string name="library_search_filter_local_mv">Local MV</string>
+    <string name="local_mv">Local MV</string>
     <string name="library_search_filter_online_mv">Online MV</string>
     <string name="library_search_filter_dynamic_cover">Dynamic cover</string>
     <string name="settings_search_all_song_match_types">Song match groups in Search All</string>
@@ -1499,9 +1501,11 @@
     <string name="artist_lyricist_page">Lyricist page</string>
     <string name="artist_netease_artist_page">NetEase artist page</string>
     <string name="artist_sort_title">Song title</string>
+    <string name="artist_music_video_sort_title">Name</string>
     <string name="artist_sort_album_track">Album track order</string>
     <string name="artist_sort_file_name">File name</string>
     <string name="artist_sort_duration">Duration</string>
+    <string name="artist_music_video_sort_duration">Duration</string>
     <string name="artist_sort_date_added">Date added</string>
     <string name="artist_sort_date_added_asc">Date added ascending</string>
     <string name="artist_sort_date_modified">Date modified</string>
@@ -1942,6 +1946,8 @@
     <string name="settings_player_dynamic_flow_summary">Keep the Apple Music background style but stop its continuous motion when disabled; only affects the Apple Music background</string>
     <string name="player_enable_lyrics_word_lift">Enable word lift</string>
     <string name="player_disable_lyrics_word_lift">Disable word lift</string>
+    <string name="player_lyrics_sustain_threshold">Sustained-note trigger threshold</string>
+    <string name="player_lyrics_sustain_threshold_value">%1$d ms</string>
     <!-- Arranger metadata -->
     <string name="settings_library_tile_arranger">Arrangers</string>
     <string name="settings_library_tile_arranger_summary">Browse by arranger</string>
@@ -2023,6 +2029,10 @@
     <string name="settings_music_video_folder_saved">MV folder added</string>
     <string name="settings_music_video_capture_subtitles">Include captions in MV captures</string>
     <string name="settings_music_video_capture_subtitles_summary">Overlay the current external lyric caption in screenshots from the song-detail MV.</string>
+    <string name="settings_show_local_mv_in_lists">Show local MV buttons in lists</string>
+    <string name="settings_show_local_mv_in_lists_summary">Show a local MV action when a song has a matching local video.</string>
+    <string name="settings_show_online_mv_in_lists">Show online MV buttons in lists</string>
+    <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">Landscape</string>
     <string name="player_landscape_hide_covers">Hide other covers</string>
@@ -2034,6 +2044,9 @@
     <string name="music_video_caption_settings">Caption settings</string>
     <string name="music_video_caption_display">Caption display</string>
     <string name="music_video_caption_translation">Show translation</string>
+    <string name="music_video_video_ratio">MV video framing</string>
+    <string name="music_video_video_ratio_fit">Fit video</string>
+    <string name="music_video_video_ratio_zoom">Fill and crop</string>
     <string name="music_video_caption_sync">Sync</string>
     <string name="music_video_caption_sync_hint">Enter milliseconds; positive delays and negative advances</string>
     <string name="music_video_caption_custom">Customize</string>
@@ -2157,6 +2170,7 @@
     <string name="settings_enable_xiaomi_super_island_lyric">Xiaomi Super Island lyrics</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">Show lyrics in the HyperOS Super Island; Shizuku permission is required to temporarily block XMSF networking</string>
     <string name="settings_live_update_lyric_content">Live Activity main lyric</string>
+    <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
     <string name="settings_live_update_lyric_original">Original</string>
     <string name="settings_live_update_lyric_translation">Translation</string>
     <string name="settings_live_update_lyric_pronunciation">Pronunciation</string>
@@ -2204,16 +2218,8 @@
     <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
     <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
     <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
-    <string name="settings_xiaomi_super_island_click">Tap Super Island</string>
-    <string name="settings_xiaomi_super_island_click_default">System default</string>
-    <string name="settings_xiaomi_super_island_click_player">Open player</string>
-    <string name="settings_xiaomi_super_island_click_app">Open app</string>
-    <string name="settings_xiaomi_super_island_share">Super Island sharing</string>
-    <string name="settings_xiaomi_super_island_share_summary">Offer a current-lyric share action in expanded Super Island</string>
-    <string name="settings_xiaomi_super_island_share_format">Share text format</string>
-    <string name="settings_xiaomi_super_island_share_format_one">Lyric newline song by artist</string>
-    <string name="settings_xiaomi_super_island_share_format_two">Lyric - artist, song</string>
-    <string name="settings_xiaomi_super_island_share_format_three">Lyric newline artist, song</string>
+    <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
+    <string name="hearusy_open_failed">Unable to open Hearusy Spectrum</string>
     <string name="settings_xiaomi_super_island_xmsf_mode">XMSF network bypass</string>
     <string name="settings_xiaomi_super_island_xmsf_disabled">Disabled</string>
     <string name="settings_xiaomi_super_island_xmsf_disabled_summary">Send directly without Shizuku</string>

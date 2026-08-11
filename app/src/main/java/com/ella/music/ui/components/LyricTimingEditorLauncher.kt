@@ -6,7 +6,7 @@ import com.ella.music.LyricTimingEditorActivity
 import com.ella.music.data.model.Song
 import org.json.JSONObject
 
-/** Keeps the editor in its own task surface without making [Song] Parcelable. */
+/** Launches the editor in the current task without making [Song] Parcelable. */
 internal object LyricTimingEditorLauncher {
     private const val EXTRA_SONG = "lyric_timing_song"
 
