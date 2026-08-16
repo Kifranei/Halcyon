@@ -27,6 +27,7 @@ import com.ella.music.data.SettingsManager.Companion.LYRIC_WIDE_SECONDARY_TEXT_S
 import com.ella.music.data.SettingsManager.Companion.normalizeLyricSourcePriority
 import com.ella.music.data.SettingsManager.Companion.PLAYER_LYRIC_ALIGN_LEFT
 import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_WORD_LIFT
+import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_CJK_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_CJK_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_WESTERN_FONT_NAME
@@ -99,6 +100,7 @@ interface LyricSettingsAccess {
     val lyricPageTranslation: Flow<Boolean>
     val lyricPageKeepScreenOn: Flow<Boolean>
     val appleMusicLyricsWordLift: Flow<Boolean>
+    val appleMusicLyricsSustainThresholdMs: Flow<Int>
     val lyricParserEngine: Flow<Int>
     val lyricShareCustomInfo: Flow<String>
     val lyricFontName: Flow<String>
@@ -144,6 +146,7 @@ interface LyricSettingsAccess {
     suspend fun setLyricPageTranslation(enabled: Boolean)
     suspend fun setLyricPageKeepScreenOn(enabled: Boolean)
     suspend fun setAppleMusicLyricsWordLift(enabled: Boolean)
+    suspend fun setAppleMusicLyricsSustainThresholdMs(thresholdMs: Int)
     suspend fun setLyricPerspectiveEffect(enabled: Boolean)
     suspend fun setLyricPerspectiveYAngle(angle: Int)
     suspend fun setLyricShareCustomInfo(info: String)
@@ -199,6 +202,15 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         context.dataStore.data.map { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] ?: false }
     override val appleMusicLyricsWordLift: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_APPLE_MUSIC_LYRICS_WORD_LIFT] ?: true }
+    override val appleMusicLyricsSustainThresholdMs: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS]
+                ?: SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
+                .coerceIn(
+                    SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
+                    SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+                )
+        }
 
     override val lyricParserEngine: Flow<Int> =
         context.dataStore.data.map { it[KEY_LYRIC_PARSER_ENGINE] ?: LYRIC_PARSER_ENGINE_ELLA }
@@ -322,6 +334,15 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
 
     override suspend fun setAppleMusicLyricsWordLift(enabled: Boolean) {
         context.dataStore.edit { it[KEY_APPLE_MUSIC_LYRICS_WORD_LIFT] = enabled }
+    }
+
+    override suspend fun setAppleMusicLyricsSustainThresholdMs(thresholdMs: Int) {
+        context.dataStore.edit {
+            it[KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS] = thresholdMs.coerceIn(
+                SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
+                SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+            )
+        }
     }
 
     override suspend fun setLyricPerspectiveEffect(enabled: Boolean) {

@@ -157,6 +157,7 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYER_COVER_SWIPE_ENABLED = booleanPreferencesKey("player_cover_swipe_enabled")
         val KEY_LYRIC_PARSER_ENGINE = intPreferencesKey("lyric_parser_engine")
         val KEY_PLAYER_TITLE_POSITION = intPreferencesKey("player_title_position")
+        val KEY_PLAYER_PAGE_STYLE = intPreferencesKey("player_page_style")
         val KEY_PLAYER_LANDSCAPE_STYLE = intPreferencesKey("player_landscape_style")
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
@@ -222,6 +223,7 @@ class SettingsManager(private val context: Context) :
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_MUSIC_VIDEO_SYNC_ENABLED = booleanPreferencesKey("music_video_sync_enabled")
         val KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES = booleanPreferencesKey("music_video_capture_subtitles")
+        val KEY_MUSIC_VIDEO_ORIENTATION = intPreferencesKey("music_video_orientation")
         val KEY_MUSIC_VIDEO_OFFSETS_JSON = stringPreferencesKey("music_video_offsets_json")
         val KEY_DYNAMIC_COVER_CUSTOM_FOLDERS = stringPreferencesKey("dynamic_cover_custom_folders")
         val KEY_MUSIC_VIDEO_CUSTOM_FOLDERS = stringPreferencesKey("music_video_custom_folders")
@@ -384,6 +386,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LISTENING_HISTORY_SOURCE = intPreferencesKey("listening_history_source")
         val KEY_HOME_DAILY_MIX_VISIBLE = booleanPreferencesKey("home_daily_mix_visible")
         val KEY_HOME_AI_MIX_VISIBLE = booleanPreferencesKey("home_ai_mix_visible")
+        val KEY_CONTINUE_PLAYBACK_ROW_VISIBLE = booleanPreferencesKey("continue_playback_row_visible")
         val KEY_HOME_RECENT_SECTION_MODE = intPreferencesKey("home_recent_section_mode")
         val KEY_HOME_SECTION_ORDER = stringPreferencesKey("home_section_order")
         val KEY_HOME_HIDDEN_SECTIONS = stringPreferencesKey("home_hidden_sections")
@@ -431,6 +434,10 @@ class SettingsManager(private val context: Context) :
         const val REPLAY_GAIN_AUTO = 3
         const val PLAYER_TITLE_POSITION_BELOW_COVER = 0
         const val PLAYER_TITLE_POSITION_ABOVE_COVER = 1
+        const val PLAYER_PAGE_STYLE_HALCYON = 0
+        const val PLAYER_PAGE_STYLE_APPLE_MUSIC = 1
+        const val PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS = 2
+        const val DEFAULT_PLAYER_PAGE_STYLE = PLAYER_PAGE_STYLE_HALCYON
         const val PLAYER_LANDSCAPE_STYLE_WIDE = 0
         const val PLAYER_LANDSCAPE_STYLE_COVER_FLOW = 2
         const val PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO = 3
@@ -441,6 +448,13 @@ class SettingsManager(private val context: Context) :
             PLAYER_LANDSCAPE_STYLE_COVER_FLOW,
             PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO -> style
             else -> DEFAULT_PLAYER_LANDSCAPE_STYLE
+        }
+
+        fun normalizePlayerPageStyle(style: Int?): Int = when (style) {
+            PLAYER_PAGE_STYLE_HALCYON,
+            PLAYER_PAGE_STYLE_APPLE_MUSIC,
+            PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS -> style
+            else -> DEFAULT_PLAYER_PAGE_STYLE
         }
 
         const val SYSTEM_BARS_MODE_SHOW_BOTH = 0
@@ -528,6 +542,11 @@ class SettingsManager(private val context: Context) :
         const val DEFAULT_TRANSPORT_BUTTON_OUTLINES = true
         const val DEFAULT_PLAYER_SHOW_TOTAL_DURATION = true
         const val DEFAULT_MUSIC_VIDEO_SYNC_ENABLED = true
+        const val MUSIC_VIDEO_ORIENTATION_SYSTEM = 0
+        const val MUSIC_VIDEO_ORIENTATION_VIDEO = 1
+        const val MUSIC_VIDEO_ORIENTATION_LANDSCAPE = 2
+        const val MUSIC_VIDEO_ORIENTATION_PORTRAIT = 3
+        const val DEFAULT_MUSIC_VIDEO_ORIENTATION = MUSIC_VIDEO_ORIENTATION_VIDEO
 
         const val LYRIC_SOURCE_AUTO = 0
         const val LYRIC_SOURCE_EXTERNAL = 1
@@ -990,6 +1009,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_STARTUP_AUTO_PLAY)
             setBoolean(KEY_HOME_DAILY_MIX_VISIBLE)
             setBoolean(KEY_HOME_AI_MIX_VISIBLE)
+            setBoolean(KEY_CONTINUE_PLAYBACK_ROW_VISIBLE)
             setBoolean(KEY_MCP_SERVER_ENABLED)
             setBoolean(KEY_WEB_MUSIC_SERVER_ENABLED)
             setBoolean(KEY_SLEEP_TIMER_STOP_AFTER_CURRENT)
@@ -1061,7 +1081,9 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_LYRIC_SOURCE_MODE)
             setInt(KEY_LYRIC_PARSER_ENGINE)
             setInt(KEY_PLAYER_TITLE_POSITION)
+            setInt(KEY_PLAYER_PAGE_STYLE)
             setInt(KEY_PLAYER_LANDSCAPE_STYLE)
+            setInt(KEY_MUSIC_VIDEO_ORIENTATION)
             setInt(KEY_PLAYER_LYRIC_TEXT_ALIGN)
             setInt(KEY_DESKTOP_LYRIC_FONT_SCALE)
             setInt(KEY_DESKTOP_LYRIC_WIDTH)

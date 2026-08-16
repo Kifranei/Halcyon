@@ -34,6 +34,7 @@ import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
+import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -102,7 +103,9 @@ internal fun LyricTimingEditorSheet(
             LyricTimingFormat.Elrc -> "elrc"
             LyricTimingFormat.Ttml -> "ttml"
         }
-        return "${song.fileName.substringBeforeLast('.', song.fileName)}.$extension"
+        val baseName = song.fileName.substringBeforeLast('.', song.fileName)
+            .sanitizeExportFileName(fallback = "lyrics", maxLength = 110)
+        return "$baseName.$extension"
     }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->

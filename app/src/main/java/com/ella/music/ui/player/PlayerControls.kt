@@ -108,12 +108,16 @@ internal fun LandscapeTransportControls(
     onCyclePlaybackMode: () -> Unit,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    controlHeight: androidx.compose.ui.unit.Dp = 58.dp,
+    sideIconSize: androidx.compose.ui.unit.Dp = 30.dp,
+    playButtonSize: androidx.compose.ui.unit.Dp = 54.dp,
+    playIconSize: androidx.compose.ui.unit.Dp = 34.dp
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp),
+            .height(controlHeight),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -122,12 +126,12 @@ internal fun LandscapeTransportControls(
                 painter = painterResource(id = R.drawable.ic_skip_previous),
                 contentDescription = stringResource(R.string.common_previous),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(sideIconSize)
             )
         }
         Box(
             modifier = Modifier
-                .size(54.dp)
+                .size(playButtonSize)
                 .clip(CircleShape)
                 .playerNoIndicationClick(onPlayPause),
             contentAlignment = Alignment.Center
@@ -135,7 +139,7 @@ internal fun LandscapeTransportControls(
             CenteredPlayPauseGlyph(
                 isPlaying = isPlaying,
                 tint = palette.onBackground.copy(alpha = 0.96f),
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(playIconSize)
             )
         }
         PlayerTransportIconButton(onClick = onNext) {
@@ -143,7 +147,7 @@ internal fun LandscapeTransportControls(
                 painter = painterResource(id = R.drawable.ic_skip_next),
                 contentDescription = stringResource(R.string.common_next),
                 tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(sideIconSize)
             )
         }
     }

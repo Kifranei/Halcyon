@@ -74,6 +74,9 @@ internal fun AppleMusicSingleLyricLine(
     val context = LocalContext.current
     val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
         .collectAsState(initial = false)
+    val sustainThresholdMs by remember(context) {
+        SettingsManager.getInstance(context).appleMusicLyricsSustainThresholdMs
+    }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
     val defaultTextAlign = when (lyricTextAlign) {
         SettingsManager.PLAYER_LYRIC_ALIGN_CENTER -> TextAlign.Center
         SettingsManager.PLAYER_LYRIC_ALIGN_RIGHT -> TextAlign.End
@@ -100,6 +103,7 @@ internal fun AppleMusicSingleLyricLine(
         defaultTextAlign = defaultTextAlign,
         contentColor = contentColor,
         wordLiftEnabled = wordLiftEnabled,
+        sustainThresholdMs = sustainThresholdMs,
         singleLine = singleLine,
         inlineStaticSecondaryText = inlineStaticSecondaryText,
         inlineStaticSecondaryWords = inlineStaticSecondaryWords,
@@ -135,6 +139,7 @@ internal fun AppleMusicLyricLine(
     defaultTextAlign: TextAlign,
     contentColor: Color,
     wordLiftEnabled: Boolean,
+    sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
     singleLine: Boolean = false,
     inlineStaticSecondaryText: String = "",
     inlineStaticSecondaryWords: List<LyricWord> = emptyList(),
@@ -237,6 +242,7 @@ internal fun AppleMusicLyricLine(
                 contentColor = contentColor,
                 secondaryAlpha = secondaryAlpha,
                 wordLiftEnabled = wordLiftEnabled,
+                sustainThresholdMs = sustainThresholdMs,
                 textAlign = textAlign
             )
         } else if (hasInlineSecondary) {
@@ -251,6 +257,7 @@ internal fun AppleMusicLyricLine(
                 secondaryStyle = secondaryStyle,
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
+                sustainThresholdMs = sustainThresholdMs,
                 statusBarMarquee = statusBarMarquee
             )
         } else {
@@ -262,6 +269,7 @@ internal fun AppleMusicLyricLine(
                 style = primaryStyle,
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
+                sustainThresholdMs = sustainThresholdMs,
                 singleLine = singleLine,
                 statusBarMarquee = statusBarMarquee,
                 modifier = Modifier.fillMaxWidth()
@@ -302,6 +310,7 @@ internal fun AppleMusicLyricLine(
                         style = secondaryStyle.copy(color = contentColor.copy(alpha = alpha * 0.72f)),
                         contentColor = contentColor,
                         wordLiftEnabled = wordLiftEnabled,
+                        sustainThresholdMs = sustainThresholdMs,
                         singleLine = singleLine,
                         modifier = Modifier.fillMaxWidth().padding(top = 7.dp)
                     )
@@ -366,6 +375,7 @@ private fun StatusBarSeparatedTimedLyricLines(
     secondaryStyle: TextStyle,
     contentColor: Color,
     wordLiftEnabled: Boolean,
+    sustainThresholdMs: Int,
     statusBarMarquee: Boolean
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -377,6 +387,7 @@ private fun StatusBarSeparatedTimedLyricLines(
             style = primaryStyle,
             contentColor = contentColor,
             wordLiftEnabled = wordLiftEnabled,
+            sustainThresholdMs = sustainThresholdMs,
             singleLine = true,
             statusBarMarquee = statusBarMarquee,
             modifier = Modifier.fillMaxWidth()
@@ -389,6 +400,7 @@ private fun StatusBarSeparatedTimedLyricLines(
             style = secondaryStyle,
             contentColor = contentColor,
             wordLiftEnabled = wordLiftEnabled,
+            sustainThresholdMs = sustainThresholdMs,
             singleLine = true,
             statusBarMarquee = statusBarMarquee,
             modifier = Modifier
@@ -409,6 +421,7 @@ private fun StatusBarMergedTimedLyricRow(
     contentColor: Color,
     secondaryAlpha: Float,
     wordLiftEnabled: Boolean,
+    sustainThresholdMs: Int,
     textAlign: TextAlign
 ) {
     val primaryEndMs = remember(primaryWords) { primaryWords.maxOfOrNull { it.endMs } }
@@ -461,6 +474,7 @@ private fun StatusBarMergedTimedLyricRow(
                 style = primaryStyle,
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
+                sustainThresholdMs = sustainThresholdMs,
                 singleLine = true,
                 modifier = Modifier.wrapContentWidth(unbounded = true)
             )

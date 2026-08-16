@@ -4,6 +4,7 @@ import android.net.Uri
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.listmodel.LibraryListSorter
 import com.ella.music.ui.listmodel.SongDisplaySpec
@@ -193,7 +194,7 @@ internal fun Song?.playlistCoverModel(): Any? {
 }
 
 internal fun String.safePlaylistFileName(): String =
-    replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Halcyon Playlist" }
+    sanitizeExportFileName(fallback = "Halcyon Playlist")
 
 private fun PlaylistSongSortMode.toSongSortSpec(): SortSpec<SongSortField> =
     SortSpec(

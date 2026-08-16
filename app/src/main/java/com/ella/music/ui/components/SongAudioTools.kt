@@ -31,6 +31,7 @@ import com.ella.music.data.isContentAudioSource
 import com.ella.music.data.isFileUriAudioSource
 import com.ella.music.data.isHttpAudioSource
 import com.ella.music.data.model.Song
+import com.ella.music.data.sanitizeExportFileName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -715,11 +716,8 @@ private fun publishCueTrack(context: Context, output: File, album: CueAlbum, tra
     )
 }
 
-private fun safeAudioName(value: String): String = value
-    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
-    .trim()
-    .take(96)
-    .ifBlank { "audio" }
+private fun safeAudioName(value: String): String =
+    value.sanitizeExportFileName(fallback = "audio", maxLength = 96)
 
 private fun convertAudio(context: Context, song: Song, format: AudioExportFormat): Int {
     val source = prepareAudioSource(context, song)
@@ -905,11 +903,7 @@ private fun nextAvailableDisplayName(
 private fun outputDisplayName(song: Song, trackOrdinal: Int?, extension: String): String {
     val rawName = song.title.ifBlank { song.fileName.substringBeforeLast('.') }
         .ifBlank { "audio" }
-    val safeName = rawName
-        .replace(Regex("[\\\\/:*?\"<>|]"), "_")
-        .trim()
-        .take(96)
-        .ifBlank { "audio" }
+    val safeName = rawName.sanitizeExportFileName(fallback = "audio", maxLength = 96)
     val suffix = trackOrdinal?.let { " - Track $it" }.orEmpty()
     return "$safeName$suffix.$extension"
 }

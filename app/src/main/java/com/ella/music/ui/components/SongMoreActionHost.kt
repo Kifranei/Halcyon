@@ -453,7 +453,12 @@ fun SongMoreActionHost(
         if (model != null) {
             CoverPreviewDialog(
                 model = model,
-                title = song.title.ifBlank { song.fileName },
+                title = listOf(song.title.ifBlank { song.fileName }, song.artist.takeIf(String::isNotBlank))
+                    .filterNotNull()
+                    .joinToString(" - "),
+                saveName = listOf(song.artist.takeIf(String::isNotBlank), song.title.ifBlank { song.fileName })
+                    .filterNotNull()
+                    .joinToString(" - "),
                 onDismiss = { coverPreviewSong = null }
             )
         } else {

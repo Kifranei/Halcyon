@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricWord
 import kotlin.math.cos
 import kotlin.math.PI
@@ -34,6 +35,7 @@ internal fun TimedLyricText(
     style: TextStyle,
     contentColor: Color,
     wordLiftEnabled: Boolean,
+    sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
     singleLine: Boolean = false,
     statusBarMarquee: Boolean = false,
     modifier: Modifier = Modifier
@@ -41,8 +43,8 @@ internal fun TimedLyricText(
     // TTML may encode the blank before a word as part of that word. Move it to the prior
     // karaoke unit before wrapping so every v1 line, including wrapped continuations, starts
     // at the same left edge. Right-aligned v2 rows are visually tolerant of this, but v1 is not.
-    val timedWords = remember(text, words) {
-        words.moveLeadingSpacesToPreviousWord().toAppleMusicRenderWords(text)
+    val timedWords = remember(text, words, sustainThresholdMs) {
+        words.moveLeadingSpacesToPreviousWord().toAppleMusicRenderWords(text, sustainThresholdMs)
     }
     if (timedWords.isEmpty()) {
         BasicText(
@@ -266,7 +268,10 @@ private data class AppleMusicRenderWord(
     val sustainEndMs: Long? = null
 )
 
-private fun List<LyricWord>.toAppleMusicRenderWords(lineText: String): List<AppleMusicRenderWord> {
+private fun List<LyricWord>.toAppleMusicRenderWords(
+    lineText: String,
+    sustainThresholdMs: Int
+): List<AppleMusicRenderWord> {
     if (isEmpty() || lineText.isBlank()) return emptyList()
     val result = mutableListOf<AppleMusicRenderWord>()
     var cursor = 0
@@ -282,7 +287,7 @@ private fun List<LyricWord>.toAppleMusicRenderWords(lineText: String): List<Appl
             else -> ""
         }
         val duration = word.endMs - word.startMs
-        val splitForCharacters = word.shouldSplitForAppleMusicCharacters()
+        val splitForCharacters = word.shouldSplitForAppleMusicCharacters(sustainThresholdMs)
         if (splitForCharacters) {
             val chars = word.text.toCharArray()
             val segmentDuration = duration / chars.size
@@ -318,8 +323,10 @@ private fun List<LyricWord>.toAppleMusicRenderWords(lineText: String): List<Appl
  * the player, a single BasicText child gives every visual row the same progress. Split long
  * timed phrases into character-sized children so wrapped rows can complete from top to bottom.
  */
-internal fun LyricWord.shouldSplitForAppleMusicCharacters(): Boolean {
-    if (endMs - startMs < 1_200L || text.length <= 1) return false
+internal fun LyricWord.shouldSplitForAppleMusicCharacters(
+    sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+): Boolean {
+    if (endMs - startMs < sustainThresholdMs.coerceAtLeast(0).toLong() || text.length <= 1) return false
     return text.any { it.isAppleMusicLatinLetter() || it.isAppleMusicCjkCharacter() }
 }
 

@@ -6,6 +6,7 @@ import android.os.Environment
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
@@ -50,7 +51,7 @@ internal class DynamicCoverDownloadHelper(
 
     private fun determineFileName(): String {
         val albumName = song.album.ifBlank { "Unknown" }
-        return "${albumName.toSafeFileName()}.mp4"
+        return "${albumName.sanitizeExportFileName(fallback = "Unknown", maxLength = 120)}.mp4"
     }
 
     private suspend fun determineTarget(fileName: String): DynamicCoverDownloadTarget {
@@ -139,11 +140,6 @@ internal class DynamicCoverDownloadHelper(
             ?: return null
         return DynamicCoverDownloadTarget.DocumentTarget(context, target)
     }
-
-    private fun String.toSafeFileName(): String = trim()
-        .replace(Regex("""[:*?"<>|]"""), "_")
-        .replace(Regex("""\s+"""), " ")
-        .ifBlank { "Unknown" }
 
     private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFile? =
         listFiles().firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }

@@ -11,4 +11,12 @@ class PlayerScreenPageHostTest {
         assertFalse(isPlayerLyricsPageVisible(PLAYER_PAGE_LYRICS, PLAYER_PAGE_LYRICS, true))
         assertFalse(isPlayerLyricsPageVisible(PLAYER_PAGE_COVER, PLAYER_PAGE_LYRICS, false))
     }
+
+    @Test
+    fun backIsInterceptedOnlyOnLyricsPage() {
+        assertTrue(shouldInterceptPlayerPagerBack(true, PLAYER_PAGE_LYRICS))
+        assertFalse(shouldInterceptPlayerPagerBack(true, PLAYER_PAGE_DETAILS))
+        assertFalse(shouldInterceptPlayerPagerBack(true, PLAYER_PAGE_COVER))
+        assertFalse(shouldInterceptPlayerPagerBack(false, PLAYER_PAGE_LYRICS))
+    }
 }

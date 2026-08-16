@@ -27,6 +27,9 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /** Independent, audible MV player used exclusively by the song-detail MV action. */
 class MusicVideoActivity : ComponentActivity() {
@@ -52,17 +55,35 @@ class MusicVideoActivity : ComponentActivity() {
             return
         }
         val videoAspectRatio = MusicVideoLauncher.sourceAspectRatioFrom(intent)
-        // Detail-page MVs are designed around the landscape transport, gesture, caption and PiP
-        // controls. Request landscape before Compose draws to avoid a portrait first-frame flash.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        val settingsManager = SettingsManager.getInstance(this)
+        val orientationMode = runBlocking(Dispatchers.IO) {
+            settingsManager.musicVideoOrientation.first()
+        }
+        val initialLandscape = when (orientationMode) {
+            SettingsManager.MUSIC_VIDEO_ORIENTATION_SYSTEM ->
+                resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            SettingsManager.MUSIC_VIDEO_ORIENTATION_PORTRAIT -> false
+            SettingsManager.MUSIC_VIDEO_ORIENTATION_LANDSCAPE -> true
+            else -> (videoAspectRatio ?: (16f / 9f)) >= 1f
+        }
+        requestedOrientation = when (orientationMode) {
+            SettingsManager.MUSIC_VIDEO_ORIENTATION_SYSTEM -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            else -> if (initialLandscape) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+        }
         setContent {
-            val settings = remember { SettingsManager.getInstance(this) }
+            val settings = remember { settingsManager }
             val themeMode by settings.themeMode.collectAsState(initial = THEME_FOLLOW_SYSTEM)
             EllaTheme(themeMode = themeMode) {
                 DetailMusicVideoScreen(
                     song = song,
                     source = source,
                     videoAspectRatio = videoAspectRatio,
+                    initialLandscape = initialLandscape,
+                    initialOrientationMode = orientationMode,
                     onBack = ::finish
                 )
             }

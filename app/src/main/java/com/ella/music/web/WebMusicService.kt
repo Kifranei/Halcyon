@@ -17,6 +17,7 @@ import android.util.Log
 import com.ella.music.MainActivity
 import com.ella.music.R
 import com.ella.music.data.model.Song
+import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.repository.MusicRepository
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -313,9 +314,7 @@ class WebMusicService : Service() {
 
         private fun sanitizeFileName(value: String): String =
             value.substringAfterLast('/').substringAfterLast('\\')
-                .replace(Regex("[\\u0000-\\u001f:*?\"<>|]"), "_")
-                .trim()
-                .take(180)
+                .sanitizeExportFileName(fallback = "upload", maxLength = 180)
 
         private fun jsonString(value: String): String =
             buildJsonObject { put("value", value) }.toString()

@@ -40,6 +40,7 @@ internal data class PlayerScreenSettings(
     val coverSwipeEnabled: Boolean = true,
     val lyricParserEngine: Int = SettingsManager.LYRIC_PARSER_ENGINE_ELLA,
     val playerTitlePosition: Int = SettingsManager.PLAYER_TITLE_POSITION_BELOW_COVER,
+    val playerPageStyle: Int = SettingsManager.DEFAULT_PLAYER_PAGE_STYLE,
     val playerLandscapeStyle: Int = SettingsManager.DEFAULT_PLAYER_LANDSCAPE_STYLE,
     val playerKeepScreenOn: Boolean = false,
     val hiResLogoEnabled: Boolean = false,
@@ -93,6 +94,7 @@ private data class PlayerSettingsGroupB(
     val coverSwipeEnabled: Boolean,
     val lyricParserEngine: Int,
     val playerTitlePosition: Int,
+    val playerPageStyle: Int,
     val playerLandscapeStyle: Int,
     val playerKeepScreenOn: Boolean,
     val hiResLogoEnabled: Boolean,
@@ -119,6 +121,7 @@ private data class PlayerSettingsGroupBExtra(
     val coverSwipeEnabled: Boolean,
     val lyricParserEngine: Int,
     val playerTitlePosition: Int,
+    val playerPageStyle: Int,
     val playerLandscapeStyle: Int,
     val playerKeepScreenOn: Boolean,
     val hiResLogoEnabled: Boolean,
@@ -140,6 +143,7 @@ private data class PlayerSettingsGroupBFlags(
     val coverSwipeEnabled: Boolean,
     val lyricParserEngine: Int,
     val playerTitlePosition: Int,
+    val playerPageStyle: Int,
     val playerLandscapeStyle: Int,
     val playerKeepScreenOn: Boolean
 )
@@ -234,9 +238,10 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         val groupBFlags = combine(
             groupBFlagsPart1,
             settingsManager.playerTitlePosition,
+            settingsManager.playerPageStyle,
             settingsManager.playerLandscapeStyle,
             settingsManager.playerKeepScreenOn
-        ) { part1, titlePosition, landscapeStyle, keepScreenOn ->
+        ) { part1, titlePosition, pageStyle, landscapeStyle, keepScreenOn ->
             PlayerSettingsGroupBFlags(
                 beautifulLyricsBackground = part1.beautifulLyricsBackground,
                 playerDynamicFlowEnabled = part1.playerDynamicFlowEnabled,
@@ -244,6 +249,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 coverSwipeEnabled = part1.coverSwipeEnabled,
                 lyricParserEngine = part1.lyricParserEngine,
                 playerTitlePosition = titlePosition,
+                playerPageStyle = pageStyle,
                 playerLandscapeStyle = landscapeStyle,
                 playerKeepScreenOn = keepScreenOn
             )
@@ -262,6 +268,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 coverSwipeEnabled = flags.coverSwipeEnabled,
                 lyricParserEngine = flags.lyricParserEngine,
                 playerTitlePosition = flags.playerTitlePosition,
+                playerPageStyle = flags.playerPageStyle,
                 playerLandscapeStyle = flags.playerLandscapeStyle,
                 playerKeepScreenOn = flags.playerKeepScreenOn,
                 hiResLogoEnabled = hiRes.hiResLogoEnabled,
@@ -282,6 +289,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 coverSwipeEnabled = extra.coverSwipeEnabled,
                 lyricParserEngine = extra.lyricParserEngine,
                 playerTitlePosition = extra.playerTitlePosition,
+                playerPageStyle = extra.playerPageStyle,
                 playerLandscapeStyle = extra.playerLandscapeStyle,
                 playerKeepScreenOn = extra.playerKeepScreenOn,
                 hiResLogoEnabled = extra.hiResLogoEnabled,
@@ -335,6 +343,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 coverSwipeEnabled = b.coverSwipeEnabled,
                 lyricParserEngine = b.lyricParserEngine,
                 playerTitlePosition = b.playerTitlePosition,
+                playerPageStyle = b.playerPageStyle,
                 playerLandscapeStyle = b.playerLandscapeStyle,
                 playerKeepScreenOn = b.playerKeepScreenOn,
                 hiResLogoEnabled = b.hiResLogoEnabled,

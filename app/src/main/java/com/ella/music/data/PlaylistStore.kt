@@ -637,7 +637,7 @@ class PlaylistStore private constructor(context: Context) {
     }
 
     private fun String.safePlaylistFileName(): String =
-        replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Halcyon Playlist" }
+        sanitizeExportFileName(fallback = "Halcyon Playlist")
 
     private fun DocumentFile.createUniqueChildFile(
         mimeType: String,

@@ -126,12 +126,15 @@ internal fun DetailMusicVideoScreen(
     song: Song,
     source: Uri,
     videoAspectRatio: Float?,
+    initialLandscape: Boolean,
+    initialOrientationMode: Int,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as MusicVideoActivity
     val inPictureInPictureMode = activity.pictureInPictureMode
-    var landscape by remember { mutableStateOf(true) }
+    var landscape by remember { mutableStateOf(initialLandscape) }
+    var orientationMode by remember { mutableStateOf(initialOrientationMode) }
     var captionsEnabled by remember { mutableStateOf(false) }
     var ktvLyricsEnabled by remember { mutableStateOf(false) }
     var accompanimentEnabled by remember { mutableStateOf(false) }
@@ -282,11 +285,14 @@ internal fun DetailMusicVideoScreen(
             delay(100L)
         }
     }
-    LaunchedEffect(landscape) {
-        activity.requestedOrientation = if (landscape) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    LaunchedEffect(landscape, orientationMode) {
+        activity.requestedOrientation = when (orientationMode) {
+            SettingsManager.MUSIC_VIDEO_ORIENTATION_SYSTEM -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            else -> if (landscape) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
         }
         controlsVisible = true
         activity.setLandscapeImmersive(landscape)
@@ -372,7 +378,10 @@ internal fun DetailMusicVideoScreen(
                 },
                 onToggleAccompaniment = { accompanimentEnabled = !accompanimentEnabled },
                 onToggleLock = { controlsLocked = !controlsLocked },
-                onPortrait = { landscape = false },
+                onPortrait = {
+                    orientationMode = SettingsManager.MUSIC_VIDEO_ORIENTATION_PORTRAIT
+                    landscape = false
+                },
                 onCapture = { showCaptureActions = true },
                 onPictureInPicture = {
                     if (!activity.enterMusicVideoPictureInPicture(videoAspectRatio)) {
@@ -398,7 +407,10 @@ internal fun DetailMusicVideoScreen(
                 onBack = { player.pause(); onBack() },
                 onTogglePlay = { if (player.isPlaying) player.pause() else player.play() },
                 onSeek = { player.seekTo(it) },
-                onLandscape = { landscape = true },
+                onLandscape = {
+                    orientationMode = SettingsManager.MUSIC_VIDEO_ORIENTATION_LANDSCAPE
+                    landscape = true
+                },
                 onShare = { MusicVideoLauncher.share(context, source, song.title) },
                 onControlsVisibleChange = { controlsVisible = it }
             )
@@ -530,15 +542,21 @@ private fun PortraitMusicVideoLayout(
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .padding(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
-                    VideoIconButton(MiuixIcons.Regular.Share, stringResource(R.string.common_share), onShare)
+                    IconButton(onClick = onShare) {
+                        com.ella.music.ui.player.QuickActionIcon(
+                            kind = com.ella.music.ui.player.PlayerQuickActionKind.Share,
+                            color = ComposeColor.White,
+                            modifier = Modifier.size(25.dp)
+                        )
+                    }
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ArtistTitleBlock(song = song)
@@ -681,8 +699,8 @@ private fun LandscapeMusicVideoLayout(
                     }
                     IconButton(onClick = onPortrait) {
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_fullscreen_exit),
-                            contentDescription = stringResource(R.string.player_music_video_landscape),
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_music_video_landscape),
+                            contentDescription = stringResource(R.string.player_music_video_portrait),
                             tint = ComposeColor.White,
                             modifier = Modifier.size(25.dp)
                         )

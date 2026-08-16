@@ -65,7 +65,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Unlock
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -168,7 +168,7 @@ internal fun PlayerQueueMenu(
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
                     .playerNoIndicationClick(onCyclePlaybackMode),
                 contentAlignment = Alignment.Center
@@ -193,7 +193,7 @@ internal fun PlayerQueueMenu(
             if (playlist.isNotEmpty()) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .playerNoIndicationClick(onToggleQueueLock),
                     contentAlignment = Alignment.Center
@@ -208,13 +208,13 @@ internal fun PlayerQueueMenu(
                         } else {
                             MiuixTheme.colorScheme.onSurfaceVariantSummary
                         },
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
                 if (!queueLocked && playlist.size > 1) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
                             .playerNoIndicationClick(onRandomizeQueue),
                         contentAlignment = Alignment.Center
@@ -223,27 +223,26 @@ internal fun PlayerQueueMenu(
                             painter = painterResource(id = R.drawable.ic_shuffle),
                             contentDescription = stringResource(R.string.player_randomize_queue),
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 }
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .playerNoIndicationClick(onAddQueueToPlaylist),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Add,
+                    com.ella.music.ui.components.AddToPlaylistActionIcon(
                         contentDescription = stringResource(R.string.player_add_to_playlist),
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .playerNoIndicationClick {
                             if (currentIndex >= 0) {
@@ -256,13 +255,13 @@ internal fun PlayerQueueMenu(
                         painter = painterResource(id = R.drawable.ic_my_location),
                         contentDescription = stringResource(R.string.player_locate_current_song),
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
                 if (!queueLocked) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
                             .playerNoIndicationClick(onClearQueue),
                         contentAlignment = Alignment.Center
@@ -271,7 +270,7 @@ internal fun PlayerQueueMenu(
                             painter = painterResource(id = R.drawable.ic_delete),
                             contentDescription = stringResource(R.string.player_clear_queue),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 }
@@ -416,7 +415,7 @@ internal fun PlayerQueueMenu(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(42.dp)
                                         .clip(CircleShape)
                                         .playerNoIndicationClick { onRemoveSong(index) },
                                     contentAlignment = Alignment.Center
@@ -522,6 +521,6 @@ private fun QueuePlaybackModeIcon(
         shuffleEnabled = shuffleEnabled,
         repeatMode = repeatMode,
         color = color,
-        modifier = Modifier.size(22.dp)
+        modifier = Modifier.size(26.dp)
     )
 }

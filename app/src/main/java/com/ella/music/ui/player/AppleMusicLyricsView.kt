@@ -80,6 +80,9 @@ internal fun AppleMusicLyricsView(
     val context = LocalContext.current
     val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
         .collectAsState(initial = false)
+    val sustainThresholdMs by remember(context) {
+        SettingsManager.getInstance(context).appleMusicLyricsSustainThresholdMs
+    }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
     if (lyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             BasicText(
@@ -124,6 +127,7 @@ internal fun AppleMusicLyricsView(
                         defaultTextAlign = TextAlign.Center,
                         contentColor = contentColor,
                         wordLiftEnabled = false,
+                        sustainThresholdMs = sustainThresholdMs,
                         reserveExtraLyricSpace = false,
                         onClick = { onLineClick(line) },
                         onDoubleClick = onLineDoubleClick,
@@ -297,6 +301,7 @@ internal fun AppleMusicLyricsView(
                         defaultTextAlign = defaultTextAlign,
                         contentColor = contentColor,
                         wordLiftEnabled = wordLiftEnabled,
+                        sustainThresholdMs = sustainThresholdMs,
                         reserveExtraLyricSpace = reserveExtraLyricSpace,
                         onClick = { onLineClick(line) },
                         onDoubleClick = onLineDoubleClick,

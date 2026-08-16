@@ -349,6 +349,13 @@ fun BackupSettingsScreen(
                             }
                         )
                     }
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_backup_restore_playback_title),
+                        summary = stringResource(R.string.settings_backup_restore_playback_summary),
+                        onClick = {
+                            playbackImportLauncher.launch(arrayOf("application/json", "text/json", "text/*"))
+                        }
+                    )
                 }
             }
 

@@ -50,6 +50,7 @@ import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.Song
+import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.ui.components.EllaMiuixChip
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixTextField
@@ -326,7 +327,8 @@ internal fun LyricTimingEditorScreen(
         LyricTimingFormat.Elrc -> currentLines().toEmbeddedElrc()
         LyricTimingFormat.Ttml -> currentLines().toEmbeddedTtml(song)
     }
-    fun exportName(format: LyricTimingFormat): String = song.fileName.substringBeforeLast('.', song.fileName) + when (format) {
+    fun exportName(format: LyricTimingFormat): String = song.fileName.substringBeforeLast('.', song.fileName)
+        .sanitizeExportFileName(fallback = "lyrics", maxLength = 110) + when (format) {
         LyricTimingFormat.Lrc -> ".lrc"
         LyricTimingFormat.Elrc -> ".elrc"
         LyricTimingFormat.Ttml -> ".ttml"

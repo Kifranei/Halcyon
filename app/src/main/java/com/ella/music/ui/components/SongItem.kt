@@ -50,6 +50,9 @@ import com.ella.music.data.neteaseMvUrl
 import com.ella.music.ui.player.DynamicCoverSource
 import com.ella.music.ui.player.musicVideoSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -57,6 +60,14 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private data class SongListVideoActions(
+    val localSource: DynamicCoverSource? = null,
+    val onlineUrl: String? = null
+)
+
+/** MV folder and tag probing is intentionally kept behind cover loading and tightly bounded. */
+private val SongListVideoActionLimiter = Semaphore(2)
 
 @Composable
 fun SongItem(
@@ -105,53 +116,6 @@ fun SongItem(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
     val effectiveRatingDisplayMode = ratingDisplayMode ?: preferredRatingDisplayMode
-    val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
-        value = withContext(Dispatchers.IO) { loadAudioInfo?.invoke(song) }
-    }
-    val localMusicVideoSource by produceState<DynamicCoverSource?>(
-        initialValue = null,
-        song.id,
-        song.path,
-        song.dateModified,
-        song.fileSize,
-        dynamicCoverCustomFolders,
-        musicVideoCustomFolders,
-        showLocalMusicVideoInLists,
-        selectionMode
-    ) {
-        value = if (showLocalMusicVideoInLists && !selectionMode) {
-            withContext(Dispatchers.IO) {
-                song.musicVideoSource(
-                    context = context,
-                    customRootPaths = dynamicCoverCustomFolders,
-                    musicVideoCustomFolders = musicVideoCustomFolders
-                )
-            }
-        } else {
-            null
-        }
-    }
-    val tagInfo by produceState<SongTagInfo?>(
-        initialValue = null,
-        song.id,
-        song.path,
-        song.dateModified,
-        loadSongTagInfo,
-        showOnlineMusicVideoInLists,
-        selectionMode
-    ) {
-        value = if (showOnlineMusicVideoInLists && !selectionMode) {
-            withContext(Dispatchers.IO) { loadSongTagInfo?.invoke(song) }
-        } else {
-            null
-        }
-    }
-    val onlineMusicVideoUrl = remember(tagInfo?.neteaseKey) {
-        decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty())
-            ?.mvId
-            ?.takeIf { id -> id.toLongOrNull()?.let { it > 0L } == true }
-            ?.let(::neteaseMvUrl)
-    }
     val coverState = rememberSongArtworkState(
         song = song,
         albumArtUri = albumArtUri,
@@ -159,6 +123,54 @@ fun SongItem(
         usage = ArtworkUsage.ListThumbnail,
         showDefaultWhenMissing = false
     )
+    val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
+        value = withContext(Dispatchers.IO) { loadAudioInfo?.invoke(song) }
+    }
+    val videoActions by produceState(
+        initialValue = SongListVideoActions(),
+        song.id,
+        song.path,
+        song.dateModified,
+        song.fileSize,
+        dynamicCoverCustomFolders,
+        musicVideoCustomFolders,
+        showLocalMusicVideoInLists,
+        showOnlineMusicVideoInLists,
+        loadSongTagInfo,
+        selectionMode
+    ) {
+        if (selectionMode || (!showLocalMusicVideoInLists && !showOnlineMusicVideoInLists)) {
+            value = SongListVideoActions()
+            return@produceState
+        }
+        // Let the artwork request enter its own limiter first. Scanning SAF/file-system MV
+        // folders for every visible row used to starve embedded cover extraction (#453).
+        delay(180L)
+        value = SongListVideoActionLimiter.withPermit {
+            withContext(Dispatchers.IO) {
+                val localSource = if (showLocalMusicVideoInLists) {
+                    song.musicVideoSource(
+                        context = context,
+                        customRootPaths = dynamicCoverCustomFolders,
+                        musicVideoCustomFolders = musicVideoCustomFolders
+                    )
+                } else {
+                    null
+                }
+                val onlineUrl = if (localSource == null && showOnlineMusicVideoInLists) {
+                    decodeNeteaseKey(loadSongTagInfo?.invoke(song)?.neteaseKey.orEmpty())
+                        ?.mvId
+                        ?.takeIf { id -> id.toLongOrNull()?.let { it > 0L } == true }
+                        ?.let(::neteaseMvUrl)
+                } else {
+                    null
+                }
+                SongListVideoActions(localSource = localSource, onlineUrl = onlineUrl)
+            }
+        }
+    }
+    val localMusicVideoSource = videoActions.localSource
+    val onlineMusicVideoUrl = videoActions.onlineUrl
     val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
     val rating by produceState<Int>(initialValue = 0, song.id, song.dateModified, ratingRevision, loadSongRating) {
         value = withContext(Dispatchers.IO) { loadSongRating?.invoke(song) ?: 0 }
@@ -311,7 +323,7 @@ fun SongItem(
         if (!selectionMode) {
             localMusicVideoSource?.let { source ->
                 MusicVideoListAction(
-                    label = stringResource(R.string.local_mv),
+                    label = stringResource(R.string.library_search_filter_mv),
                     contentDescription = localMusicVideoDescription,
                     color = MiuixTheme.colorScheme.primary,
                     onClick = { MusicVideoLauncher.open(context, song, source) }

@@ -101,6 +101,12 @@ internal fun LyricActionMenu(
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val pronunciationBelow by settingsManager.lyricPronunciationBelow.collectAsState(initial = false)
+    val sustainThresholdMs by settingsManager.appleMusicLyricsSustainThresholdMs.collectAsState(
+        initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+    )
+    var sustainThresholdPreview by remember(sustainThresholdMs) {
+        mutableStateOf(sustainThresholdMs.toFloat())
+    }
     val containerModifier = if (applyScrollableContainer) {
         modifier
             .verticalScroll(rememberScrollState())
@@ -144,6 +150,29 @@ internal fun LyricActionMenu(
             onClick = {
                 scope.launch { settingsManager.setAppleMusicLyricsWordLift(!wordLiftEnabled) }
             }
+        )
+        Text(
+            text = stringResource(R.string.player_lyrics_sustain_threshold),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+        )
+        DottedValueSlider(
+            value = sustainThresholdPreview,
+            valueRange = SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS.toFloat()..
+                SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS.toFloat(),
+            steps = (SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS -
+                SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS) /
+                SettingsManager.STEP_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
+            label = stringResource(R.string.player_lyrics_sustain_threshold_value, sustainThresholdPreview.toInt()),
+            onValueChange = { sustainThresholdPreview = it },
+            onValueChangeFinished = { value ->
+                scope.launch { settingsManager.setAppleMusicLyricsSustainThresholdMs(value.toInt()) }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(82.dp)
         )
         PlayerActionMenuItem(
             text = stringResource(if (keepScreenOn) R.string.player_disable_keep_screen_on else R.string.player_enable_keep_screen_on),

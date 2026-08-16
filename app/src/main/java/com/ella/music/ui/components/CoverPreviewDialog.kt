@@ -69,6 +69,7 @@ import coil3.size.Size
 import coil3.toBitmap
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.sanitizeExportFileName
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +86,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 internal fun CoverPreviewDialog(
     model: Any,
     title: String,
+    saveName: String = title,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -236,7 +238,7 @@ internal fun CoverPreviewDialog(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 16.dp)
+                                .padding(start = 8.dp, end = 8.dp)
                         )
                         Row {
                             CoverPreviewAction(
@@ -244,7 +246,7 @@ internal fun CoverPreviewDialog(
                                 action = CoverPreviewActionKind.Save,
                                 onClick = {
                                     scope.launch {
-                                        val saved = saveCoverToPictures(context, model, title)
+                                        val saved = saveCoverToPictures(context, model, saveName)
                                         Toast.makeText(
                                             context,
                                             context.getString(
@@ -423,10 +425,7 @@ private suspend fun saveCoverToPictures(context: Context, model: Any, title: Str
     return withContext(Dispatchers.IO) {
         var uri: Uri? = null
         try {
-            val safeTitle = title
-                .ifBlank { "cover" }
-                .replace(Regex("""[\\/:*?\"<>|]"""), "_")
-                .take(80)
+            val safeTitle = title.sanitizeExportFileName(fallback = "cover", maxLength = 80)
             val displayName = "$safeTitle.png"
             val customFolderUri = SettingsManager.getInstance(context).coverExportFolderUri.first()
             if (customFolderUri.isNotBlank()) {

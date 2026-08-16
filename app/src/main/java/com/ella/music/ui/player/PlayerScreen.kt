@@ -79,6 +79,7 @@ fun PlayerScreen(
     val coverSwipeEnabled = playerSettings.coverSwipeEnabled
     val lyricParserEngine = playerSettings.lyricParserEngine
     val playerTitlePosition = playerSettings.playerTitlePosition
+    val playerPageStyle = playerSettings.playerPageStyle
     val playerLandscapeStyle = playerSettings.playerLandscapeStyle
     val playerKeepScreenOn = playerSettings.playerKeepScreenOn
     val lyricSourceMode = playerSettings.lyricSourceMode
@@ -548,6 +549,7 @@ fun PlayerScreen(
                         playerShowTotalDuration = playerShowTotalDuration,
                         coverSwipeEnabled = coverSwipeEnabled,
                         playerTitlePosition = playerTitlePosition,
+                        playerPageStyle = playerPageStyle,
                         showPlayerKeepScreenOnAction = true,
                         playerKeepScreenOn = playerKeepScreenOn,
                         menuExpanded = uiState.menuExpanded,

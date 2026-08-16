@@ -44,6 +44,7 @@ import com.ella.music.data.lx.LxOnlineService
 import com.ella.music.data.lx.LxOnlineSong
 import com.ella.music.data.lx.LxSearchPlatform
 import com.ella.music.data.model.Song
+import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.remote.EmbyService
 import com.ella.music.data.remote.NavidromeService
 import com.ella.music.data.remote.RemoteMusicProvider
@@ -507,7 +508,8 @@ private fun RemoteMusicProvider.displayName(context: Context): String =
     }
 
 private fun enqueueDownload(context: Context, song: com.ella.music.data.model.Song) {
-    val fileName = song.fileName.ifBlank { "${song.title}-${song.artist}.mp3" }.sanitizeFileName()
+    val fileName = song.fileName.ifBlank { "${song.title}-${song.artist}.mp3" }
+        .sanitizeExportFileName(fallback = "Halcyon.mp3", maxLength = 160)
     val request = DownloadManager.Request(Uri.parse(song.path))
         .setTitle(fileName)
         .setDescription("${song.title} - ${song.artist}")
@@ -518,11 +520,4 @@ private fun enqueueDownload(context: Context, song: com.ella.music.data.model.So
         .setAllowedOverRoaming(true)
     val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     manager.enqueue(request)
-}
-
-private fun String.sanitizeFileName(): String {
-    return replace(Regex("""[\\/:*?"<>|]"""), "_")
-        .replace(Regex("""\s+"""), " ")
-        .trim()
-        .ifBlank { "Halcyon.mp3" }
 }

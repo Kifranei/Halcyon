@@ -79,6 +79,8 @@ internal fun PlayerSongMetaText(
     contentColor: Color = Color.White,
     textAlign: TextAlign = TextAlign.Start,
     fontFamily: FontFamily? = null,
+    titleMarqueeEnabled: Boolean = true,
+    artistMarqueeEnabled: Boolean = true,
     onArtistClick: (() -> Unit)? = null,
     onAlbumClick: (() -> Unit)? = null
 ) {
@@ -104,6 +106,7 @@ internal fun PlayerSongMetaText(
             color = contentColor.copy(alpha = 0.96f),
             textAlign = textAlign,
             fontFamily = fontFamily,
+            marqueeEnabled = titleMarqueeEnabled,
             modifier = Modifier.fillMaxWidth()
         )
         if (annotation.isNotBlank()) {
@@ -114,6 +117,7 @@ internal fun PlayerSongMetaText(
                 color = contentColor.copy(alpha = (artistAlpha + 0.16f).coerceAtMost(0.82f)),
                 textAlign = textAlign,
                 fontFamily = fontFamily,
+                enabled = artistMarqueeEnabled,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -140,6 +144,7 @@ internal fun PlayerSongMetaText(
                         color = contentColor.copy(alpha = artistAlpha),
                         textAlign = textAlign,
                         fontFamily = fontFamily,
+                        enabled = artistMarqueeEnabled,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -151,6 +156,7 @@ internal fun PlayerSongMetaText(
                     color = contentColor.copy(alpha = artistAlpha),
                     textAlign = textAlign,
                     fontFamily = fontFamily,
+                    enabled = artistMarqueeEnabled,
                     modifier = artistModifier
                 )
             }
@@ -166,21 +172,38 @@ internal fun PlayerSongTitleText(
     color: Color,
     textAlign: TextAlign = TextAlign.Start,
     fontFamily: FontFamily? = null,
+    marqueeEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    ExplicitSongTitle(
-        title = text,
-        fontSize = fontSize,
-        fontWeight = fontWeight,
-        color = color,
-        fontFamily = fontFamily,
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Clip,
-        textAlign = textAlign,
-        modifier = modifier,
-        titleModifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
-    )
+    if (marqueeEnabled) {
+        ExplicitSongTitle(
+            title = text,
+            fontSize = fontSize,
+            fontWeight = fontWeight,
+            color = color,
+            fontFamily = fontFamily,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            textAlign = textAlign,
+            modifier = modifier,
+            titleModifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+        )
+    } else {
+        BasicText(
+            text = text,
+            style = TextStyle(
+                fontSize = fontSize,
+                fontWeight = fontWeight,
+                fontFamily = fontFamily,
+                color = color,
+                textAlign = textAlign
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
@@ -191,8 +214,25 @@ internal fun PlayerMarqueeText(
     color: Color,
     textAlign: TextAlign = TextAlign.Start,
     fontFamily: FontFamily? = null,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    if (!enabled) {
+        BasicText(
+            text = text,
+            style = TextStyle(
+                fontSize = fontSize,
+                fontWeight = fontWeight,
+                fontFamily = fontFamily,
+                color = color,
+                textAlign = textAlign
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = modifier.fillMaxWidth()
+        )
+        return
+    }
     LyriconStyleMarqueeText(
         text = AnnotatedString(text),
         style = TextStyle(

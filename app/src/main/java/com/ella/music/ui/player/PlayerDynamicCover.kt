@@ -770,20 +770,8 @@ internal fun Song.musicVideoCustomFolderSource(
 ): DynamicCoverSource? {
     val cleaned = musicVideoCustomFolders.map(String::trim).filter(String::isNotBlank)
     if (cleaned.isEmpty()) return null
-
-    val fileDirs = cleaned
-        .filterNot { it.startsWith("content://", ignoreCase = true) }
-        .map(::File)
-        .filter { it.exists() && it.isDirectory }
-        .distinctBy { it.absolutePath.lowercase() }
-    val documentListings = cleaned
-        .filter { it.startsWith("content://", ignoreCase = true) }
-        .mapNotNull { rawUri ->
-            runCatching { DocumentFile.fromTreeUri(context, Uri.parse(rawUri)) }
-                .getOrNull()
-                ?.let { rawUri to it.listFiles().toList() }
-        }
-    if (fileDirs.isEmpty() && documentListings.isEmpty()) return null
+    val folderIndex = MusicVideoCustomFolderIndexCache.get(context, cleaned)
+    if (folderIndex.files.isEmpty() && folderIndex.documents.isEmpty()) return null
 
     val songFile = path
         .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
@@ -796,40 +784,85 @@ internal fun Song.musicVideoCustomFolderSource(
     tiers.forEach { tier ->
         val names = musicVideoFolderFileNameCandidates(tier)
         val exactFileNames = musicVideoFileNameCandidates(names)
-        fileDirs.firstNotNullOfOrNull { dir ->
-            exactFileNames.firstNotNullOfOrNull { name ->
-                File(dir, name).takeIf { it.exists() && it.isFile && it.length() > 0L }
-            }
+        exactFileNames.firstNotNullOfOrNull { name ->
+            folderIndex.files.firstOrNull { file -> file.name.equals(name, ignoreCase = true) }
         }?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
-        documentListings.firstNotNullOfOrNull { (rawUri, files) ->
+        folderIndex.documents.firstNotNullOfOrNull { (rawUri, files) ->
             exactFileNames.firstNotNullOfOrNull { name ->
                 files.firstOrNull { file ->
-                    file.isFile && file.length() > 0L && file.name.equals(name, ignoreCase = true)
+                    file.name.equals(name, ignoreCase = true)
                 }
             }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
         }?.let { return it }
 
         val fuzzyTokens = names.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
-        fileDirs.firstNotNullOfOrNull { dir ->
-            dir.listFiles { file ->
-                file.isFile &&
-                    file.length() > 0L &&
-                    isSupportedMusicVideoExtension(file.extension) &&
-                    file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzyTokens
-            }?.firstOrNull()
+        folderIndex.files.firstOrNull { file ->
+            file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzyTokens
         }?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
-        documentListings.firstNotNullOfOrNull { (rawUri, files) ->
+        folderIndex.documents.firstNotNullOfOrNull { (rawUri, files) ->
             files.firstOrNull { file ->
                 val name = file.name.orEmpty()
-                val extension = name.substringAfterLast('.', "")
-                file.isFile &&
-                    file.length() > 0L &&
-                    isSupportedMusicVideoExtension(extension) &&
-                    name.substringBeforeLast('.').toDynamicCoverMatchToken() in fuzzyTokens
+                name.substringBeforeLast('.').toDynamicCoverMatchToken() in fuzzyTokens
             }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
         }?.let { return it }
     }
     return null
+}
+
+private data class MusicVideoCustomFolderIndex(
+    val createdAt: Long,
+    val files: List<File>,
+    val documents: List<Pair<String, List<DocumentFile>>>
+)
+
+private object MusicVideoCustomFolderIndexCache {
+    private const val CACHE_TTL_MS = 15_000L
+    private val entries = ConcurrentHashMap<String, MusicVideoCustomFolderIndex>()
+
+    fun get(context: Context, folders: List<String>): MusicVideoCustomFolderIndex {
+        val key = folders.joinToString("\u0000")
+        val now = android.os.SystemClock.elapsedRealtime()
+        entries[key]?.takeIf { now - it.createdAt <= CACHE_TTL_MS }?.let { return it }
+
+        val files = folders.asSequence()
+            .filterNot { it.startsWith("content://", ignoreCase = true) }
+            .map(::File)
+            .filter { it.exists() && it.isDirectory }
+            .distinctBy { it.absolutePath.lowercase() }
+            .flatMap { root -> root.walkTopDown().maxDepth(3).asSequence() }
+            .filter { file ->
+                file.isFile && file.length() > 0L && isSupportedMusicVideoExtension(file.extension)
+            }
+            .distinctBy { it.absolutePath.lowercase() }
+            .toList()
+        val documents = folders.asSequence()
+            .filter { it.startsWith("content://", ignoreCase = true) }
+            .mapNotNull { rawUri ->
+                runCatching { DocumentFile.fromTreeUri(context, Uri.parse(rawUri)) }
+                    .getOrNull()
+                    ?.let { root -> rawUri to root.collectMusicVideoDocuments(maxDepth = 3) }
+            }
+            .toList()
+        return MusicVideoCustomFolderIndex(now, files, documents).also { index ->
+            entries.clear()
+            entries[key] = index
+        }
+    }
+}
+
+private fun DocumentFile.collectMusicVideoDocuments(maxDepth: Int): List<DocumentFile> {
+    val result = ArrayList<DocumentFile>()
+    fun visit(folder: DocumentFile, depth: Int) {
+        folder.listFiles().forEach { child ->
+            when {
+                child.isDirectory && depth < maxDepth -> visit(child, depth + 1)
+                child.isFile && child.length() > 0L &&
+                    isSupportedMusicVideoExtension(child.name.orEmpty().substringAfterLast('.', "")) -> result += child
+            }
+        }
+    }
+    visit(this, 0)
+    return result
 }
 
 /** Keeps an ambient video's loop position while Compose swaps player pages. */

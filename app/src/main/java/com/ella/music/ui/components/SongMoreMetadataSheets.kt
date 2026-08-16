@@ -507,7 +507,14 @@ internal fun SongMetadataEditorSheet(
         if (previewModel != null) {
             CoverPreviewDialog(
                 model = previewModel,
-                title = title.ifBlank { song.title.ifBlank { song.fileName } },
+                title = listOf(
+                    title.ifBlank { song.title.ifBlank { song.fileName } },
+                    artist.ifBlank { song.artist }.takeIf(String::isNotBlank)
+                ).filterNotNull().joinToString(" - "),
+                saveName = listOf(
+                    artist.ifBlank { song.artist }.takeIf(String::isNotBlank),
+                    title.ifBlank { song.title.ifBlank { song.fileName } }
+                ).filterNotNull().joinToString(" - "),
                 onDismiss = { coverPreviewVisible = false }
             )
         } else {

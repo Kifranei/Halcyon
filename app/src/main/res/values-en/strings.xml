@@ -29,6 +29,10 @@
     <string name="no_lyrics">No lyrics</string>
     <string name="now_playing">Now playing</string>
     <string name="continue_playback">Continue playback: %1$s - %2$s</string>
+    <string name="continue_playback_title">Continue playback</string>
+    <string name="continue_playback_song">%1$s - %2$s</string>
+    <string name="settings_continue_playback_row">Show Continue Playback row</string>
+    <string name="settings_continue_playback_row_summary">Show the most recently played song in each library category and detail page</string>
     <string name="play_all">Play all</string>
     <string name="album_play_all">Play all</string>
     <string name="album_sort_summary">%1$d songs · %2$s · %3$s</string>
@@ -537,6 +541,7 @@
     <string name="folder_playlist_show">Show</string>
     <string name="folder_playlist_associate">Link to folder playlist</string>
     <string name="folder_playlist_associate_done">Linked to \"%1$s\"</string>
+    <string name="folder_playlist_associate_multi_done">Linked to %1$d folder playlists</string>
     <string name="folder_playlist_more_share">Share</string>
     <string name="folder_playlist_more_refresh">Refresh</string>
     <string name="folder_playlist_more_pin">Pin</string>
@@ -1010,6 +1015,11 @@
     <string name="settings_player_title_position">Non-immersive player title position</string>
     <string name="settings_player_title_position_below_cover">Below cover</string>
     <string name="settings_player_title_position_above_cover">Above cover</string>
+    <string name="settings_player_page_style">Playback page</string>
+    <string name="settings_player_page_style_summary">Choose the playback page layout</string>
+    <string name="settings_player_page_style_halcyon">Halcyon</string>
+    <string name="settings_player_page_style_apple_music">Apple Music</string>
+    <string name="settings_player_page_style_immersive_lyrics">Immersive lyrics</string>
     <string name="settings_player_landscape_style">Default landscape player style</string>
     <string name="settings_player_landscape_style_summary">Used when opening landscape playback: %1$s</string>
     <string name="settings_player_landscape_style_wide">Adaptive tablet / large-screen player</string>
@@ -2029,12 +2039,18 @@
     <string name="settings_music_video_folder_saved">MV folder added</string>
     <string name="settings_music_video_capture_subtitles">Include captions in MV captures</string>
     <string name="settings_music_video_capture_subtitles_summary">Overlay the current external lyric caption in screenshots from the song-detail MV.</string>
+    <string name="settings_music_video_orientation">Audible MV orientation</string>
+    <string name="settings_music_video_orientation_system">System default</string>
+    <string name="settings_music_video_orientation_video">Match video</string>
+    <string name="settings_music_video_orientation_landscape">Landscape</string>
+    <string name="settings_music_video_orientation_portrait">Portrait</string>
     <string name="settings_show_local_mv_in_lists">Show local MV buttons in lists</string>
     <string name="settings_show_local_mv_in_lists_summary">Show a local MV action when a song has a matching local video.</string>
     <string name="settings_show_online_mv_in_lists">Show online MV buttons in lists</string>
     <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="player_detail_music_video">MV</string>
     <string name="player_music_video_landscape">Landscape</string>
+    <string name="player_music_video_portrait">Portrait</string>
     <string name="player_landscape_hide_covers">Hide other covers</string>
     <string name="music_video_captions">Captions</string>
     <string name="music_video_picture_in_picture">Picture in picture</string>
@@ -2236,4 +2252,5 @@
     <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
     <string name="settings_xiaomi_super_island_dismiss_five">5 seconds</string>
+    <string name="player_repeat_mode">Repeat mode</string>
 </resources>

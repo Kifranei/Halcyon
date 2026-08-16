@@ -24,6 +24,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LYRICS_ENAB
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_RIGHT_BUTTON
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES
+import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_ORIENTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CUSTOM_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_OFFSETS_JSON
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_SYNC_ENABLED
@@ -43,6 +44,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_HDR_GLOW
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_COVER
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_KEEP_SCREEN_ON
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LANDSCAPE_STYLE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PAGE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_INDEX
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_TOTAL_DURATION
@@ -77,6 +79,7 @@ interface PlayerUiSettingsAccess {
     val playerShowSongAnnotation: Flow<Boolean>
     val playerCoverSwipeEnabled: Flow<Boolean>
     val playerTitlePosition: Flow<Int>
+    val playerPageStyle: Flow<Int>
     val playerLandscapeStyle: Flow<Int>
     val playerKeepScreenOn: Flow<Boolean>
     val playerHdrGlow: Flow<Boolean>
@@ -90,6 +93,7 @@ interface PlayerUiSettingsAccess {
     val dynamicCoverEnabled: Flow<Boolean>
     val musicVideoSyncEnabled: Flow<Boolean>
     val musicVideoCaptureSubtitles: Flow<Boolean>
+    val musicVideoOrientation: Flow<Int>
     val musicVideoOffsetsJson: Flow<String>
     val dynamicCoverCustomFoldersRaw: Flow<String>
     val dynamicCoverCustomFolders: Flow<List<String>>
@@ -123,6 +127,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setDynamicCoverEnabled(enabled: Boolean)
     suspend fun setMusicVideoSyncEnabled(enabled: Boolean)
     suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean)
+    suspend fun setMusicVideoOrientation(orientation: Int)
     suspend fun setMusicVideoOffsetsJson(json: String)
     suspend fun setDynamicCoverCustomFolders(folders: String)
     suspend fun setMusicVideoCustomFolders(folders: String)
@@ -139,6 +144,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerShowSongAnnotation(enabled: Boolean)
     suspend fun setPlayerCoverSwipeEnabled(enabled: Boolean)
     suspend fun setPlayerTitlePosition(position: Int)
+    suspend fun setPlayerPageStyle(style: Int)
     suspend fun setPlayerLandscapeStyle(style: Int)
     suspend fun setPlayerKeepScreenOn(enabled: Boolean)
 }
@@ -191,6 +197,8 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
             (it[KEY_PLAYER_TITLE_POSITION] ?: PLAYER_TITLE_POSITION_BELOW_COVER)
                 .coerceIn(PLAYER_TITLE_POSITION_BELOW_COVER, PLAYER_TITLE_POSITION_ABOVE_COVER)
         }
+    override val playerPageStyle: Flow<Int> =
+        context.dataStore.data.map { SettingsManager.normalizePlayerPageStyle(it[KEY_PLAYER_PAGE_STYLE]) }
     override val playerLandscapeStyle: Flow<Int> =
         context.dataStore.data.map { SettingsManager.normalizePlayerLandscapeStyle(it[KEY_PLAYER_LANDSCAPE_STYLE]) }
     override val playerKeepScreenOn: Flow<Boolean> =
@@ -232,6 +240,15 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         }
     override val musicVideoCaptureSubtitles: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] ?: false }
+    override val musicVideoOrientation: Flow<Int> =
+        context.dataStore.data.map {
+            it[KEY_MUSIC_VIDEO_ORIENTATION]
+                ?.coerceIn(
+                    SettingsManager.MUSIC_VIDEO_ORIENTATION_SYSTEM,
+                    SettingsManager.MUSIC_VIDEO_ORIENTATION_PORTRAIT
+                )
+                ?: SettingsManager.DEFAULT_MUSIC_VIDEO_ORIENTATION
+        }
     override val musicVideoOffsetsJson: Flow<String> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_OFFSETS_JSON].orEmpty() }
     override val dynamicCoverCustomFoldersRaw: Flow<String> =
@@ -350,6 +367,15 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] = enabled }
     }
 
+    override suspend fun setMusicVideoOrientation(orientation: Int) {
+        context.dataStore.edit {
+            it[KEY_MUSIC_VIDEO_ORIENTATION] = orientation.coerceIn(
+                SettingsManager.MUSIC_VIDEO_ORIENTATION_SYSTEM,
+                SettingsManager.MUSIC_VIDEO_ORIENTATION_PORTRAIT
+            )
+        }
+    }
+
     override suspend fun setMusicVideoOffsetsJson(json: String) {
         context.dataStore.edit {
             val value = json.trim()
@@ -436,6 +462,12 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
                 PLAYER_TITLE_POSITION_BELOW_COVER,
                 PLAYER_TITLE_POSITION_ABOVE_COVER
             )
+        }
+    }
+
+    override suspend fun setPlayerPageStyle(style: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_PAGE_STYLE] = SettingsManager.normalizePlayerPageStyle(style)
         }
     }
 

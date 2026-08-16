@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.ui.components.CoverPreviewDialog
+import com.ella.music.ui.components.PlayerQueueListIcon
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -126,6 +128,7 @@ internal fun CoverPlayerPage(
     playerShowTotalDuration: Boolean,
     coverSwipeEnabled: Boolean,
     playerTitlePosition: Int,
+    playerPageStyle: Int,
     showPlayerKeepScreenOnAction: Boolean,
     playerKeepScreenOn: Boolean,
     menuExpanded: Boolean,
@@ -334,9 +337,14 @@ internal fun CoverPlayerPage(
         // foreground color is not a reliable contrast signal, so use the root safety color
         // consistently for every page component that receives a palette directly.
         val pagePalette = palette.copy(onBackground = LocalPlayerContentColor.current)
+        val selectedPlayerPageStyle =
+            com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle)
+        val usesAlternatePortraitPage =
+            selectedPlayerPageStyle != com.ella.music.data.SettingsManager.DEFAULT_PLAYER_PAGE_STYLE
         val showCustomPlayerBackground =
-            playerBackgroundEnabled && playerBackgroundUri.isNotBlank() && (useWidePlayer || !immersiveAlbumCover)
-        if (drawBackground && !useWidePlayer && !immersiveAlbumCover) {
+            playerBackgroundEnabled && playerBackgroundUri.isNotBlank() &&
+                (useWidePlayer || !immersiveAlbumCover || usesAlternatePortraitPage)
+        if (drawBackground && !useWidePlayer && (!immersiveAlbumCover || usesAlternatePortraitPage)) {
             SharedPlayerPageBackground(
                 song = song,
                 embeddedCover = embeddedCover,
@@ -354,6 +362,421 @@ internal fun CoverPlayerPage(
                 modifier = Modifier.fillMaxSize()
             )
         }
+
+        @Composable
+        fun StyledPlayerArtwork(
+            cornerRadius: androidx.compose.ui.unit.Dp,
+            modifier: Modifier = Modifier
+        ) {
+            val coverShape = RoundedCornerShape(cornerRadius)
+            Box(
+                modifier = modifier
+                    .graphicsLayer {
+                        shape = coverShape
+                        clip = true
+                    }
+                    .clip(coverShape)
+                    .then(
+                        if (resolvedStaticCoverPreviewModel != null) {
+                            Modifier.combinedClickable(
+                                onClick = {},
+                                onLongClick = {
+                                    previewCover = PlayerCoverPreview(
+                                        model = resolvedStaticCoverPreviewModel,
+                                        title = song?.coverPreviewDisplayTitle().orEmpty(),
+                                        saveName = song?.coverPreviewSaveName().orEmpty()
+                                    )
+                                }
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .then(coverSwipeModifier),
+                contentAlignment = Alignment.Center
+            ) {
+                val musicVideoSource = resolvedMusicVideo
+                val dynamicCoverSource = displayedDynamicCover
+                androidx.compose.runtime.LaunchedEffect(
+                    musicVideoSource?.failureKey,
+                    currentPosition,
+                    duration,
+                    isPlaying,
+                    videoPlaybackActive
+                ) {
+                    if (videoPlaybackActive && musicVideoVisible) {
+                        musicVideoSource?.let { source ->
+                            MusicVideoPlaybackBridge.syncToAudio(
+                                source,
+                                currentPosition,
+                                duration,
+                                isPlaying
+                            )
+                        }
+                    }
+                }
+                when {
+                    videoPlaybackActive && musicVideoVisible && musicVideoSource != null -> {
+                        DynamicCoverVideo(
+                            source = musicVideoSource,
+                            isPlaying = isPlaying,
+                            syncPositionMs = currentPosition,
+                            syncDurationMs = duration,
+                            onPlaybackError = { onDynamicCoverFailed(musicVideoSource.failureKey) },
+                            modifier = Modifier.fillMaxSize(),
+                            cornerRadiusDp = cornerRadius.value
+                        )
+                    }
+                    videoPlaybackActive && !musicVideoVisible && dynamicCoverSource != null -> {
+                        DynamicCoverVideo(
+                            source = dynamicCoverSource,
+                            isPlaying = isPlaying,
+                            onPlaybackError = { onDynamicCoverFailed(dynamicCoverSource.failureKey) },
+                            modifier = Modifier.fillMaxSize(),
+                            cornerRadiusDp = cornerRadius.value
+                        )
+                    }
+                    else -> {
+                        AlbumArtView(
+                            song = song,
+                            embeddedCover = embeddedCover,
+                            coverModel = resolvedStaticCoverPreviewModel,
+                            cornerRadius = cornerRadius,
+                            showHiResLogo = false,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                if (showHiResLogo) {
+                    HiResLogoBadge(
+                        logoUri = hiResLogoUri,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(10.dp)
+                    )
+                }
+                if (musicVideoSource != null) {
+                    if (musicVideoVisible) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 10.dp, end = 60.dp)
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(pagePalette.middle.copy(alpha = 0.62f))
+                                .clickable(onClick = onOpenMusicVideoLandscape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_fullscreen),
+                                contentDescription = stringResource(R.string.player_music_video_landscape),
+                                tint = pagePalette.onBackground.copy(alpha = 0.94f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(10.dp)
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(pagePalette.middle.copy(alpha = 0.62f))
+                            .clickable(onClick = onToggleMusicVideo),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.player_detail_music_video),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = pagePalette.onBackground.copy(alpha = 0.94f)
+                        )
+                    }
+                }
+            }
+        }
+
+        @Composable
+        fun AppleMusicFooterActions(height: androidx.compose.ui.unit.Dp = 56.dp) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(height),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PlayerTransportIconButton(onClick = onShowLyrics) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lyrics),
+                        contentDescription = stringResource(R.string.player_lyrics_display),
+                        tint = pagePalette.onBackground.copy(alpha = 0.90f),
+                        modifier = Modifier.size(27.dp)
+                    )
+                }
+                PlayerTransportIconButton(onClick = onSongInfo) {
+                    QuickActionIcon(
+                        kind = PlayerQuickActionKind.Info,
+                        color = pagePalette.onBackground.copy(alpha = 0.90f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Box(contentAlignment = Alignment.Center) {
+                    PlayerTransportIconButton(onClick = onToggleQueue) {
+                        PlayerQueueListIcon(
+                            color = pagePalette.onBackground.copy(alpha = 0.90f),
+                            modifier = Modifier.size(31.dp)
+                        )
+                    }
+                    PlayerQueueSheet(
+                        show = queueExpanded,
+                        playlist = playlist,
+                        currentSongKey = song?.playlistIdentityKey(),
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
+                        queueLocked = queueLocked,
+                        favoriteSongKeys = favoriteSongKeys,
+                        loadSongRating = loadSongRating,
+                        ratingRevision = ratingRevision,
+                        onCyclePlaybackMode = onCyclePlaybackMode,
+                        onToggleQueueLock = playerViewModel::toggleQueueLock,
+                        onDismiss = onDismissQueue,
+                        onSongClick = onQueueSongClick,
+                        onRemoveSong = onRemoveQueueSong,
+                        onMoveSong = onMoveQueueSong,
+                        onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
+                        onAddQueueToPlaylist = onAddQueueToPlaylist,
+                        onClearQueue = onClearQueue
+                    )
+                }
+            }
+        }
+
+        @Composable
+        fun AppleMusicPlayerPage() {
+            val coverSize = minOf(
+                (maxWidth - 48.dp).coerceAtLeast(0.dp),
+                maxHeight * if (compactWindow) 0.40f else 0.46f
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(if (compactWindow) 12.dp else 24.dp))
+                StyledPlayerArtwork(
+                    cornerRadius = 24.dp,
+                    modifier = Modifier.size(coverSize)
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PlayerSongMetaText(
+                        song = song,
+                        annotation = annotation,
+                        titleFontSize = 25.sp,
+                        artistFontSize = 18.sp,
+                        artistAlpha = 0.64f,
+                        showArtistWithAnnotation = true,
+                        contentColor = pagePalette.onBackground,
+                        fontFamily = fontFamily,
+                        onArtistClick = onArtist,
+                        titleMarqueeEnabled = false,
+                        artistMarqueeEnabled = false,
+                        modifier = Modifier
+                            .weight(1f)
+                            .widthIn(min = 0.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    PlayerHeaderAction(
+                        kind = PlayerHeaderActionKind.Favorite,
+                        selected = isFavorite,
+                        onClick = onToggleFavorite
+                    )
+                    PlayerHeaderAction(
+                        kind = PlayerHeaderActionKind.More,
+                        onClick = onToggleMenu
+                    )
+                }
+                Spacer(modifier = Modifier.height(if (compactWindow) 12.dp else 18.dp))
+                PlayerProgressBlock(
+                    currentPosition = currentPosition,
+                    duration = duration,
+                    audioInfo = audioInfo,
+                    bluetoothDeviceName = bluetoothDeviceName,
+                    playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                    palette = pagePalette,
+                    allowTapSeek = playerTapSeekEnabled,
+                    showTotalDuration = playerShowTotalDuration,
+                    onSeek = onSeek
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                LandscapeTransportControls(
+                    isPlaying = isPlaying,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    palette = pagePalette,
+                    onCyclePlaybackMode = onCyclePlaybackMode,
+                    onPrevious = onPrevious,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    controlHeight = if (compactWindow) 70.dp else 96.dp,
+                    sideIconSize = if (compactWindow) 34.dp else 40.dp,
+                    playButtonSize = if (compactWindow) 66.dp else 78.dp,
+                    playIconSize = if (compactWindow) 40.dp else 48.dp
+                )
+                if (compactWindow) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                AppleMusicFooterActions(height = if (compactWindow) 60.dp else 76.dp)
+                Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            }
+        }
+
+        @Composable
+        fun ImmersiveLyricsPlayerPage() {
+            val artworkHeight = minOf(maxWidth, maxHeight * if (compactWindow) 0.38f else 0.46f)
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(artworkHeight)
+                ) {
+                    StyledPlayerArtwork(
+                        cornerRadius = 0.dp,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    0.0f to Color.Transparent,
+                                    0.58f to Color.Black.copy(alpha = 0.08f),
+                                    1.0f to pagePalette.bottom.copy(alpha = 0.92f)
+                                )
+                            )
+                    )
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 28.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        PlayerSongMetaText(
+                            song = song,
+                            annotation = annotation,
+                            titleFontSize = 21.sp,
+                            artistFontSize = 14.sp,
+                            artistAlpha = 0.66f,
+                            showArtistWithAnnotation = true,
+                            contentColor = pagePalette.onBackground,
+                            fontFamily = fontFamily,
+                            onArtistClick = onArtist,
+                            titleMarqueeEnabled = false,
+                            artistMarqueeEnabled = false,
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(min = 0.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(25.dp))
+                                .background(pagePalette.onBackground.copy(alpha = 0.16f))
+                                .playerNoIndicationClick(onPlayPause),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CenteredPlayPauseGlyph(
+                                isPlaying = isPlaying,
+                                tint = pagePalette.onBackground.copy(alpha = 0.96f),
+                                modifier = Modifier.size(27.dp)
+                            )
+                        }
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.Favorite,
+                            selected = isFavorite,
+                            onClick = onToggleFavorite
+                        )
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.More,
+                            onClick = onToggleMenu
+                        )
+                    }
+                }
+                AppleMusicLyricsView(
+                    lyrics = lyrics,
+                    currentIndex = currentLyricIndex,
+                    currentPositionMs = currentPosition,
+                    isPlaying = isPlaying,
+                    isPaused = isActuallyPaused,
+                    pageVisible = true,
+                    showTranslation = showTranslation,
+                    showPronunciation = showPronunciation,
+                    fontFamily = fontFamily,
+                    translationFontFamily = translationFontFamily,
+                    fontWeight = fontWeight,
+                    fontScale = fontScale,
+                    secondaryFontScale = secondaryFontScale,
+                    primaryTextSizeSp = primaryTextSizeSp,
+                    secondaryTextSizeSp = secondaryTextSizeSp,
+                    lyricTextAlign = lyricTextAlign,
+                    contentColor = pagePalette.onBackground,
+                    wordLiftEnabled = appleMusicWordLiftEnabled,
+                    onLineClick = onLyricLineClick,
+                    onLineDoubleClick = onShowLyrics,
+                    onLineLongClick = onLyricLineLongClick,
+                    topContentPadding = 18.dp,
+                    bottomContentPadding = if (compactWindow) 16.dp else 38.dp,
+                    lineSpacing = if (compactWindow) 14.dp else 20.dp,
+                    focusOffsetRatio = 0.22f,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp)
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp)
+                ) {
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        palette = pagePalette,
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = onSeek
+                    )
+                    LandscapeTransportControls(
+                        isPlaying = isPlaying,
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
+                        palette = pagePalette,
+                        onCyclePlaybackMode = onCyclePlaybackMode,
+                        onPrevious = onPrevious,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        controlHeight = if (compactWindow) 68.dp else 84.dp,
+                        sideIconSize = if (compactWindow) 32.dp else 36.dp,
+                        playButtonSize = if (compactWindow) 62.dp else 70.dp,
+                        playIconSize = if (compactWindow) 38.dp else 44.dp
+                    )
+                    AppleMusicFooterActions(height = if (compactWindow) 56.dp else 64.dp)
+                    Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+                }
+            }
+        }
+
         if (useWidePlayer) {
             LandscapeCoverPlayerPage(
                 song = song,
@@ -433,6 +856,14 @@ internal fun CoverPlayerPage(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
+            when (selectedPlayerPageStyle) {
+                com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC -> {
+                    AppleMusicPlayerPage()
+                }
+                com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS -> {
+                    ImmersiveLyricsPlayerPage()
+                }
+                else -> {
             val immersiveCoverHeight = minOf(
                 maxWidth,
                 maxHeight * if (annotation.isNotBlank()) 0.42f else 0.47f
@@ -466,7 +897,8 @@ internal fun CoverPlayerPage(
                                         onLongClick = {
                                             previewCover = PlayerCoverPreview(
                                                 model = resolvedStaticCoverPreviewModel,
-                                                title = song?.title.orEmpty()
+                                                title = song?.coverPreviewDisplayTitle().orEmpty(),
+                                                saveName = song?.coverPreviewSaveName().orEmpty()
                                             )
                                         }
                                     )
@@ -755,7 +1187,8 @@ internal fun CoverPlayerPage(
                                             onLongClick = {
                                                 previewCover = PlayerCoverPreview(
                                                     model = resolvedStaticCoverPreviewModel,
-                                                    title = song?.title.orEmpty()
+                                                    title = song?.coverPreviewDisplayTitle().orEmpty(),
+                                                    saveName = song?.coverPreviewSaveName().orEmpty()
                                                 )
                                             }
                                         )
@@ -985,6 +1418,8 @@ internal fun CoverPlayerPage(
                     }
                 }
             }
+                }
+            }
         }
 
         PlayerCoverActionSheet(
@@ -1020,6 +1455,7 @@ internal fun CoverPlayerPage(
             sleepTimerCustomMinutes = sleepTimerCustomMinutes,
             sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
             remoteStreamMaxBitRate = remoteStreamMaxBitRate,
+            onCyclePlaybackMode = onCyclePlaybackMode,
             onDismiss = onDismissMenu,
             onAlbum = onAlbum,
             onArtist = onArtist,
@@ -1064,7 +1500,11 @@ internal fun CoverPlayerPage(
             onCycleRemoteStreamQuality = playerViewModel::cycleRemoteStreamQuality,
             onPreviewCover = {
                 resolvedStaticCoverPreviewModel?.let { model ->
-                    previewCover = PlayerCoverPreview(model = model, title = song?.title.orEmpty())
+                    previewCover = PlayerCoverPreview(
+                        model = model,
+                        title = song?.coverPreviewDisplayTitle().orEmpty(),
+                        saveName = song?.coverPreviewSaveName().orEmpty()
+                    )
                 }
             },
             initialPage = actionMenuInitialPage
@@ -1073,6 +1513,7 @@ internal fun CoverPlayerPage(
             CoverPreviewDialog(
                 model = cover.model,
                 title = cover.title,
+                saveName = cover.saveName,
                 onDismiss = { previewCover = null }
             )
         }
@@ -1081,8 +1522,19 @@ internal fun CoverPlayerPage(
 
 private data class PlayerCoverPreview(
     val model: Any,
-    val title: String
+    val title: String,
+    val saveName: String
 )
+
+private fun Song.coverPreviewDisplayTitle(): String =
+    listOf(title.ifBlank { fileName }, artist.takeIf(String::isNotBlank))
+        .filterNotNull()
+        .joinToString(" - ")
+
+private fun Song.coverPreviewSaveName(): String =
+    listOf(artist.takeIf(String::isNotBlank), title.ifBlank { fileName })
+        .filterNotNull()
+        .joinToString(" - ")
 
 @Composable
 private fun PlayerCoverTitleRow(

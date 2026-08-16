@@ -53,6 +53,7 @@ internal fun PlayerActionMenu(
     sleepTimerCustomMinutes: Int,
     sleepTimerStopAfterCurrent: Boolean,
     remoteStreamMaxBitRate: Int?,
+    onCyclePlaybackMode: () -> Unit,
     onClose: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
@@ -129,6 +130,7 @@ internal fun PlayerActionMenu(
                     PlayerActionMenuItem(stringResource(R.string.common_share), onShare)
                     PlayerActionMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
                     PlayerActionMenuItem(stringResource(R.string.player_song_info), onSongInfo)
+                    PlayerActionMenuItem(stringResource(R.string.player_repeat_mode), onCyclePlaybackMode)
                     remoteStreamMaxBitRate?.let { bitRate ->
                         PlayerActionMenuItem(
                             stringResource(

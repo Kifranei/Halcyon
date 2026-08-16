@@ -7,10 +7,16 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
 
 @Composable
 internal fun PlayerPagerSyncEffects(
@@ -19,25 +25,40 @@ internal fun PlayerPagerSyncEffects(
     pagerState: PagerState,
     onShowLyricsChange: (Boolean) -> Unit
 ) {
+    var previousShowLyrics by remember(immersiveAlbumCover) { mutableStateOf(showLyrics) }
+    val showLyricsState = rememberUpdatedState(showLyrics)
     LaunchedEffect(showLyrics, immersiveAlbumCover) {
-        if (immersiveAlbumCover) return@LaunchedEffect
+        if (immersiveAlbumCover || previousShowLyrics == showLyrics) return@LaunchedEffect
+        previousShowLyrics = showLyrics
+        // The details page is a real pager destination. A lyrics preference update must not
+        // pull the user out of it and back to the cover/lyrics pair (#443).
+        if (pagerState.currentPage != PLAYER_PAGE_COVER &&
+            pagerState.currentPage != PLAYER_PAGE_LYRICS
+        ) {
+            return@LaunchedEffect
+        }
         // A pager gesture owns the offset until it settles. Waiting here prevents the lyric
         // preference update (which is emitted by the same pager) from starting a second
         // animation while the user is already swiping back from a long-open lyrics page (#409).
         snapshotFlow { pagerState.isScrollInProgress }.first { !it }
+        if (pagerState.currentPage != PLAYER_PAGE_COVER &&
+            pagerState.currentPage != PLAYER_PAGE_LYRICS
+        ) {
+            return@LaunchedEffect
+        }
         val target = if (showLyrics) PLAYER_PAGE_LYRICS else PLAYER_PAGE_COVER
         if (pagerState.currentPage != target && !pagerState.isScrollInProgress) {
             pagerState.animateScrollToPage(target)
         }
     }
-    LaunchedEffect(pagerState, immersiveAlbumCover, showLyrics) {
+    LaunchedEffect(pagerState, immersiveAlbumCover) {
         if (immersiveAlbumCover) return@LaunchedEffect
         snapshotFlow {
             pagerState.currentPage to pagerState.isScrollInProgress
-        }.collect { (currentPage, isScrollInProgress) ->
+        }.drop(1).collect { (currentPage, isScrollInProgress) ->
             if (!isScrollInProgress) {
                 val lyricPageVisible = currentPage == PLAYER_PAGE_LYRICS
-                if (showLyrics != lyricPageVisible) {
+                if (showLyricsState.value != lyricPageVisible) {
                     onShowLyricsChange(lyricPageVisible)
                 }
             }
@@ -94,7 +115,7 @@ internal fun PlayerScreenPageHost(
         // if this handler stayed enabled while the pager was parked on a side page (e.g. after
         // tapping an artist/album on the info page navigated away), it would swallow the first back
         // press on the destination screen, requiring a second press to actually go back.
-        BackHandler(enabled = playerVisible && pagerState.currentPage != PLAYER_PAGE_COVER) {
+        BackHandler(enabled = shouldInterceptPlayerPagerBack(playerVisible, pagerState.currentPage)) {
             onDismissPagedLyrics()
         }
         HorizontalPager(
@@ -140,3 +161,11 @@ internal fun isPlayerLyricsPageVisible(
     currentPage: Int,
     isScrollInProgress: Boolean
 ): Boolean = page == currentPage && !isScrollInProgress
+
+/**
+ * The details page is a real pager destination, not an immersive lyrics surface. Intercepting
+ * back there sends the user to the cover page and can make a settled left swipe appear to jump
+ * back automatically (#443).
+ */
+internal fun shouldInterceptPlayerPagerBack(playerVisible: Boolean, currentPage: Int): Boolean =
+    playerVisible && currentPage == PLAYER_PAGE_LYRICS

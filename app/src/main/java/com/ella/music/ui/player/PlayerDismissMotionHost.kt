@@ -61,8 +61,23 @@ internal fun PlayerDismissMotionHost(
     val dismissTargetPx = remember(view.height) {
         view.height.takeIf { it > 0 }?.toFloat() ?: with(density) { 760.dp.toPx() }
     }
+    // HyperOS exposes the exact physical screen corner in framework resources. Reusing it here
+    // keeps the player's largest dismiss state aligned with the device bezel instead of the old
+    // fixed 30.dp approximation (which is visibly too small on Xiaomi phones).
+    val screenCornerRadius = remember(view.resources, density) {
+        val resourceId = view.resources.getIdentifier(
+            "rounded_corner_radius_top",
+            "dimen",
+            "android"
+        )
+        val radiusPx = resourceId
+            .takeIf { it != 0 }
+            ?.let { id -> runCatching { view.resources.getDimensionPixelSize(id) }.getOrNull() }
+            ?.takeIf { it > 0 }
+        radiusPx?.let { with(density) { it.toDp() } } ?: 30.dp
+    }
     val dismissProgress = (dragDismissOffset.value / dismissThresholdPx).coerceIn(0f, 1f)
-    val dragCornerRadius = 30.dp * dismissProgress
+    val dragCornerRadius = screenCornerRadius * dismissProgress
 
     fun dismissWithMotion() {
         if (dismissingPlayer) return
