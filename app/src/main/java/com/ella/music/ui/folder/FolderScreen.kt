@@ -57,7 +57,6 @@ import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
-import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.listmodel.SortDirection
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
@@ -144,16 +143,11 @@ fun FolderScreen(
     }
 
     val pageBackground = ellaPageBackground()
-    val overlayColor = wallpaperContentOverlayColor()
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
     ) {
-        if (overlayColor.alpha > 0f) {
-            Box(modifier = Modifier.fillMaxSize().background(overlayColor))
-        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -340,22 +334,30 @@ fun FolderScreen(
         associateFolderPaths?.let { sourceFolders ->
             LinkToFolderPlaylistSheet(
                 show = true,
-                songs = emptyList(),
+                songs = songs,
+                selectedFolderCount = sourceFolders.size,
                 folderPlaylists = folderPlaylists,
                 onDismiss = { associateFolderPaths = null },
-                onLink = { target ->
+                onLink = { targets ->
                     scope.launch {
-                        mainViewModel.settingsManager.upsertFolderPlaylist(
-                            target.id,
-                            target.name,
-                            (target.folders + sourceFolders).distinctBy { it.lowercase() }
-                        )
+                        targets.forEach { target ->
+                            mainViewModel.settingsManager.upsertFolderPlaylist(
+                                target.id,
+                                target.name,
+                                (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                            )
+                        }
                         Toast.makeText(
                             context,
-                            context.getString(R.string.folder_playlist_associate_done, target.name),
+                            if (targets.size == 1) context.getString(R.string.folder_playlist_associate_done, targets.first().name)
+                            else context.getString(R.string.folder_playlist_associate_multi_done, targets.size),
                             Toast.LENGTH_SHORT
                         ).show()
                     }
+                    associateFolderPaths = null
+                },
+                onCreatePlaylist = { name ->
+                    scope.launch { mainViewModel.settingsManager.upsertFolderPlaylist(null, name, sourceFolders) }
                     associateFolderPaths = null
                 }
             )

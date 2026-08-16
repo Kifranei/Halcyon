@@ -91,6 +91,7 @@ internal fun LibrarySearchFilterBar(
             val itemCount = when (item) {
                 SearchFilter.All -> songResultsCount + albumResultsCount + artistResultsCount + playlistResultsCount + categoryResultsByType.values.sumOf { it.size }
                 SearchFilter.Songs -> if (filter in listOf(SearchFilter.All, SearchFilter.Songs) || duplicatesOnlyActive) songResultsCount else 0
+                SearchFilter.MusicVideos -> if (filter == SearchFilter.MusicVideos) songResultsCount else 0
                 SearchFilter.Lyrics -> if (filter == SearchFilter.Lyrics) songResultsCount else 0
                 SearchFilter.Albums -> albumResultsCount
                 SearchFilter.Artists -> artistResultsCount
@@ -114,6 +115,7 @@ internal fun LibrarySearchFilterBar(
 @Composable
 internal fun LibrarySearchContentFilterBar(
     visible: Boolean,
+    musicVideoTab: Boolean,
     duplicatesOnly: Boolean,
     onDuplicatesToggle: () -> Unit,
     filters: LibrarySearchContentFilters,
@@ -135,39 +137,45 @@ internal fun LibrarySearchContentFilterBar(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            SearchPill(
-                text = stringResource(R.string.library_search_duplicates),
-                selected = duplicatesOnly,
-                onClick = onDuplicatesToggle
-            )
-            SearchPill(
-                text = stringResource(R.string.library_search_filter_no_lyrics),
-                selected = filters.noLyrics,
-                onClick = { onNoLyricsChange(!filters.noLyrics) }
-            )
-            SearchPill(
-                text = stringResource(R.string.library_search_filter_ttml_lyrics),
-                selected = filters.ttmlLyrics,
-                onClick = { onTtmlLyricsChange(!filters.ttmlLyrics) }
-            )
+            if (!musicVideoTab) {
+                SearchPill(
+                    text = stringResource(R.string.library_search_duplicates),
+                    selected = duplicatesOnly,
+                    onClick = onDuplicatesToggle
+                )
+                SearchPill(
+                    text = stringResource(R.string.library_search_filter_no_lyrics),
+                    selected = filters.noLyrics,
+                    onClick = { onNoLyricsChange(!filters.noLyrics) }
+                )
+                SearchPill(
+                    text = stringResource(R.string.library_search_filter_ttml_lyrics),
+                    selected = filters.ttmlLyrics,
+                    onClick = { onTtmlLyricsChange(!filters.ttmlLyrics) }
+                )
+            }
             SearchPill(
                 text = stringResource(R.string.library_search_filter_mv),
-                selected = filters.musicVideo,
+                selected = musicVideoTab || filters.musicVideo,
                 onClick = {
-                    if (filters.musicVideo) {
+                    if (musicVideoTab) {
+                        onMvExpandedChange(!mvExpanded)
+                    } else if (mvExpanded) {
                         onMusicVideoChange(false)
                     } else {
                         onMusicVideoChange(true)
                     }
                 }
             )
-            SearchPill(
-                text = stringResource(R.string.library_search_filter_dynamic_cover),
-                selected = filters.dynamicCover,
-                onClick = { onDynamicCoverChange(!filters.dynamicCover) }
-            )
+            if (!musicVideoTab) {
+                SearchPill(
+                    text = stringResource(R.string.library_search_filter_dynamic_cover),
+                    selected = filters.dynamicCover,
+                    onClick = { onDynamicCoverChange(!filters.dynamicCover) }
+                )
+            }
         }
-        if (mvExpanded) {
+        if (mvExpanded || musicVideoTab) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -222,19 +230,15 @@ internal fun LibrarySearchSelectionToolbar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onPlayNext) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Forward,
+            com.ella.music.ui.components.PlayNextActionIcon(
                 contentDescription = stringResource(R.string.song_more_play_next),
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
+                tint = MiuixTheme.colorScheme.primary
             )
         }
         IconButton(onClick = onAddToPlaylist) {
-            Icon(
-                imageVector = MiuixIcons.Regular.AddFolder,
+            com.ella.music.ui.components.AddToPlaylistActionIcon(
                 contentDescription = stringResource(R.string.player_add_to_playlist),
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
+                tint = MiuixTheme.colorScheme.primary
             )
         }
         IconButton(onClick = onAddToQueue) {

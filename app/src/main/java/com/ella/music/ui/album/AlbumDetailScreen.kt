@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,6 +63,7 @@ import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
@@ -117,6 +119,7 @@ fun AlbumDetailScreen(
     val playlists by mainViewModel.playlists.collectAsState()
     val context = LocalContext.current
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
@@ -496,6 +499,18 @@ fun AlbumDetailScreen(
                 )
             }
 
+            item {
+                com.ella.music.ui.components.ContinuePlaybackRow(
+                    songs = sortedAlbumSongs,
+                    playbackStats = playbackStats,
+                    currentSong = currentSong,
+                    onContinue = { index ->
+                        playerViewModel.setPlaylist(sortedAlbumSongs, index)
+                        if (openPlayerOnPlay) onNavigateToPlayer()
+                    }
+                )
+            }
+
             if (useDiscSections) {
                 discGroups.forEach { group ->
                     item(key = "disc-${group.discNumber}") {
@@ -628,118 +643,91 @@ fun AlbumDetailScreen(
             )
         }
 
-        IconButton(
-            onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() },
-            modifier = Modifier
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(start = 8.dp, top = 8.dp)
-                .size(48.dp)
-                .align(Alignment.TopStart)
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Back,
-                contentDescription = stringResource(R.string.common_back),
-                tint = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.size(26.dp)
-            )
-        }
-
-        IconButton(
-            onClick = {
-                if (selection.selectionMode) {
-                    val selected = selectedSongs()
-                    if (selected.isNotEmpty()) playlistPickerSongs = selected
-                } else {
-                    selection.selectionMode = true
-                    selection.selectedIds = emptySet()
-                    selection.rangeAnchorId = null
-                    selection.rangeTargetId = null
+        EllaSmallTopAppBar(
+            title = if (selection.selectionMode) {
+                stringResource(R.string.library_selected_fraction, selection.selectedIds.size, sortedAlbumSongs.size)
+            } else {
+                ""
+            },
+            color = Color.Transparent,
+            titleStartPadding = 64.dp,
+            titleEndPadding = 160.dp,
+            modifier = Modifier.align(Alignment.TopCenter),
+            onDoubleTapTitle = { scrollToTopRequest++ },
+            navigationIcon = {
+                IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
             },
-            modifier = Modifier
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(end = 104.dp, top = 8.dp)
-                .size(48.dp)
-                .align(Alignment.TopEnd)
-        ) {
-            Icon(
-                imageVector = if (selection.selectionMode) MiuixIcons.Regular.AddFolder else MiuixIcons.Regular.SelectAll,
-                contentDescription = if (selection.selectionMode) stringResource(R.string.player_add_to_playlist) else stringResource(R.string.common_multi_select),
-                tint = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        if (selection.selectionMode) {
-            IconButton(
-                onClick = {
-                    val selected = selectedSongs()
-                    if (selected.isNotEmpty()) {
-                        playerViewModel.playNext(selected)
-                        selection.finishSelectionMode()
+            actions = {
+                if (selection.selectionMode) {
+                    IconButton(onClick = {
+                        val selected = selectedSongs()
+                        if (selected.isNotEmpty()) playlistPickerSongs = selected
+                    }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_playlist_add),
+                            contentDescription = stringResource(R.string.player_add_to_playlist),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(27.dp)
+                        )
                     }
-                },
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(end = 56.dp, top = 8.dp)
-                    .size(48.dp)
-                    .align(Alignment.TopEnd)
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Forward,
-                    contentDescription = stringResource(R.string.song_more_play_next),
-                    tint = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            IconButton(
-                onClick = {
-                    val selected = selectedSongs()
-                    if (selected.isNotEmpty()) pendingDeleteSongs = selected
-                },
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(end = 8.dp, top = 8.dp)
-                    .size(48.dp)
-                    .align(Alignment.TopEnd)
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Delete,
-                    contentDescription = stringResource(R.string.common_delete),
-                    tint = Color(0xFFE5484D),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        if (!selection.selectionMode) {
-            IconButton(
-                onClick = {
-                    searchExpanded = !searchExpanded
-                    if (!searchExpanded) searchQuery = ""
-                },
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(end = 56.dp, top = 8.dp)
-                    .size(48.dp)
-                    .align(Alignment.TopEnd)
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Basic.Search,
-                    contentDescription = stringResource(R.string.common_search),
-                    tint = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(end = 8.dp, top = 8.dp)
-                    .size(48.dp)
-                    .align(Alignment.TopEnd)
-            ) {
-                SortDropdownMenu(
+                    IconButton(onClick = {
+                        val selected = selectedSongs()
+                        if (selected.isNotEmpty()) {
+                            playerViewModel.playNext(selected)
+                            selection.finishSelectionMode()
+                        }
+                    }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_play_next_add),
+                            contentDescription = stringResource(R.string.song_more_play_next),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(27.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        val selected = selectedSongs()
+                        if (selected.isNotEmpty()) pendingDeleteSongs = selected
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Delete,
+                            contentDescription = stringResource(R.string.common_delete),
+                            tint = Color(0xFFE5484D),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                } else {
+                    IconButton(onClick = {
+                        selection.selectionMode = true
+                        selection.selectedIds = emptySet()
+                        selection.rangeAnchorId = null
+                        selection.rangeTargetId = null
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.SelectAll,
+                            contentDescription = stringResource(R.string.common_multi_select),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        searchExpanded = !searchExpanded
+                        if (!searchExpanded) searchQuery = ""
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = stringResource(R.string.common_search),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    SortDropdownMenu(
                     items = directionalSortModeDropdownItems(
                         fields = listOf(
                             DirectionalSortModeField(
@@ -780,9 +768,10 @@ fun AlbumDetailScreen(
                             scrollToTopRequest++
                         }
                     )
-                )
+                    )
+                }
             }
-        }
+        )
 
         AnimatedVisibility(
             visible = searchExpanded,
@@ -814,19 +803,6 @@ fun AlbumDetailScreen(
             startPadding = 64.dp,
             endPadding = 160.dp
         )
-
-        if (selection.selectionMode) {
-            Text(
-                text = stringResource(R.string.library_selected_fraction, selection.selectedIds.size, sortedAlbumSongs.size),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 22.dp)
-            )
-        }
 
         AnimatedVisibility(
             visible = sortExpanded,

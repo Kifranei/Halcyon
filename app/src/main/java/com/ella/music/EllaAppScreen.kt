@@ -135,6 +135,7 @@ fun EllaApp(
                 appWallpaperUri = settingsManager.appWallpaperUri.first(),
                 appWallpaperOpacity = settingsManager.appWallpaperOpacity.first(),
                 appWallpaperDim = settingsManager.appWallpaperDim.first(),
+                appWallpaperContentOverlay = settingsManager.appWallpaperContentOverlay.first(),
                 startupPosterEnabled = settingsManager.startupPosterEnabled.first(),
                 startupPosterUri = settingsManager.startupPosterUri.first(),
                 startupPosterDurationMs = settingsManager.startupPosterDurationMs.first(),
@@ -356,7 +357,6 @@ fun EllaApp(
     val showBottomBar = currentRoute.isBottomDockRoute()
     val canCompactBottomDock = showBottomBar
     var bottomDockMode by rememberSaveable { mutableStateOf(BottomDockMode.Expanded) }
-    var dismissedContinuePlaybackSongKey by rememberSaveable { mutableStateOf<String?>(null) }
 
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
@@ -454,6 +454,9 @@ fun EllaApp(
     val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = initialUiSettings.appWallpaperUri)
     val appWallpaperOpacity by settingsManager.appWallpaperOpacity.collectAsState(initial = initialUiSettings.appWallpaperOpacity)
     val appWallpaperDim by settingsManager.appWallpaperDim.collectAsState(initial = initialUiSettings.appWallpaperDim)
+    val appWallpaperContentOverlay by settingsManager.appWallpaperContentOverlay.collectAsState(
+        initial = initialUiSettings.appWallpaperContentOverlay
+    )
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = initialUiSettings.startupPosterEnabled)
     val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = initialUiSettings.startupPosterUri)
     val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
@@ -522,14 +525,6 @@ fun EllaApp(
         currentRoute != Screen.Player.route &&
         currentRoute != Screen.AiChat.route &&
         !showPlayerOverlay
-    val currentSongKey = currentSong?.let { "${it.id}:${it.path}" }
-    val showContinuePlayback = currentSong != null &&
-        !isPlaying &&
-        currentPosition > 0L &&
-        duration > currentPosition + 1_000L &&
-        currentRoute != Screen.Player.route &&
-        !showPlayerOverlay &&
-        currentSongKey != dismissedContinuePlaybackSongKey
     LaunchedEffect(showMiniPlayer, canCompactBottomDock) {
         if (!showMiniPlayer || !canCompactBottomDock) bottomDockMode = BottomDockMode.Expanded
     }
@@ -635,6 +630,17 @@ fun EllaApp(
                             )
                     )
                 }
+                val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
+                val contentOverlayColor = if (isDarkTheme) {
+                    ComposeColor.Black.copy(alpha = (contentOverlayAlpha * 0.82f).coerceAtMost(0.70f))
+                } else {
+                    ComposeColor.White.copy(alpha = (contentOverlayAlpha * 0.95f).coerceAtMost(0.78f))
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(contentOverlayColor)
+                )
             }
             Box(
                 modifier = Modifier
@@ -652,18 +658,6 @@ fun EllaApp(
                         showPlayerOverlay = true
                     }
                 )
-                if (showContinuePlayback) {
-                    currentSong?.let { song ->
-                        ContinuePlaybackBanner(
-                            song = song,
-                            onPlay = playerViewModel::togglePlayPause,
-                            onDismiss = { dismissedContinuePlaybackSongKey = currentSongKey },
-                            modifier = Modifier
-                                .align(androidx.compose.ui.Alignment.TopCenter)
-                                .windowInsetsPadding(WindowInsets.statusBars)
-                        )
-                    }
-                }
                 FloatingBottomControls(
                     showMiniPlayer = showMiniPlayer,
                     showBottomBar = showBottomBar,
@@ -864,51 +858,6 @@ fun EllaApp(
     }
 }
 
-@Composable
-private fun ContinuePlaybackBanner(
-    song: com.ella.music.data.model.Song,
-    onPlay: () -> Unit,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f))
-            .clickable(onClick = onPlay)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Icon(
-            imageVector = MiuixIcons.Regular.Play,
-            contentDescription = stringResource(R.string.continue_playback),
-            tint = MiuixTheme.colorScheme.primary,
-            modifier = Modifier.size(28.dp)
-        )
-        Text(
-            text = stringResource(
-                R.string.continue_playback,
-                song.title.ifBlank { song.fileName },
-                song.artist
-            ),
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-            maxLines = 1
-        )
-        IconButton(onClick = onDismiss) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Close,
-                contentDescription = stringResource(R.string.common_close),
-                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
 private data class EllaInitialUiSettings(
     val miniPlayerLyricSecondary: Int,
     val miniPlayerCoverRotation: Boolean,
@@ -921,6 +870,7 @@ private data class EllaInitialUiSettings(
     val appWallpaperUri: String,
     val appWallpaperOpacity: Int,
     val appWallpaperDim: Int,
+    val appWallpaperContentOverlay: Int,
     val startupPosterEnabled: Boolean,
     val startupPosterUri: String,
     val startupPosterDurationMs: Int,

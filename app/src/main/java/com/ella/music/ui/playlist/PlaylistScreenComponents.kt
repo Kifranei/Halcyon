@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.AddToPlaylistActionIcon
+import com.ella.music.ui.components.PlayNextActionIcon
 import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.ShuffleAllSummaryButton
@@ -110,11 +112,9 @@ internal fun PlaylistScreenTopBar(
                     )
                 }
                 IconButton(onClick = onPlayNextSelectedClick) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Forward,
+                    PlayNextActionIcon(
                         contentDescription = stringResource(R.string.song_more_play_next),
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+                        tint = MiuixTheme.colorScheme.primary
                     )
                 }
                 IconButton(onClick = onAddSelectedToQueueClick) {
@@ -126,11 +126,9 @@ internal fun PlaylistScreenTopBar(
                     )
                 }
                 IconButton(onClick = onAddSelectedToPlaylistClick) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.AddFolder,
+                    AddToPlaylistActionIcon(
                         contentDescription = stringResource(R.string.song_more_add_to_playlist),
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+                        tint = MiuixTheme.colorScheme.primary
                     )
                 }
                 IconButton(onClick = onDeleteSelectedClick) {

@@ -68,7 +68,6 @@ import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
-import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.folder.toFolderSettingList
 import com.ella.music.ui.listmodel.SortDirection
 import com.ella.music.ui.settings.findComponentActivity
@@ -223,15 +222,11 @@ fun MetadataCategoryScreen(
         LibrarySortUiState.updateMetadataCategorySortIndex(type, sortIndex)
     }
 
-    val overlayColor = wallpaperContentOverlayColor()
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
     ) {
-        if (overlayColor.alpha > 0f) {
-            Box(modifier = Modifier.fillMaxSize().background(overlayColor))
-        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -288,11 +283,9 @@ fun MetadataCategoryScreen(
                                 selection.finishSelectionMode()
                             }
                         }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.Forward,
+                            com.ella.music.ui.components.PlayNextActionIcon(
                                 contentDescription = stringResource(R.string.song_more_play_next),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MiuixTheme.colorScheme.primary
                             )
                         }
                         IconButton(onClick = {
@@ -303,11 +296,9 @@ fun MetadataCategoryScreen(
                                 playlistPickerSongs = selectedSongs
                             }
                         }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.AddFolder,
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
                                 contentDescription = stringResource(R.string.song_more_add_to_playlist),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MiuixTheme.colorScheme.primary
                             )
                         }
                         if (type != "folder") {

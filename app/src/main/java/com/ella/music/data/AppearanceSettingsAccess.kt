@@ -45,6 +45,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_DOCK_ITEMS
 import com.ella.music.data.SettingsManager.Companion.KEY_HI_RES_LOGO_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HI_RES_LOGO_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_AI_MIX_VISIBLE
+import com.ella.music.data.SettingsManager.Companion.KEY_CONTINUE_PLAYBACK_ROW_VISIBLE
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_CARD_COLOR
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_CARD_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_DAILY_MIX_VISIBLE
@@ -115,6 +116,7 @@ interface AppearanceSettingsAccess {
     val appShortcutOrder: Flow<List<String>>
     val homeDailyMixVisible: Flow<Boolean>
     val homeAiMixVisible: Flow<Boolean>
+    val continuePlaybackRowVisible: Flow<Boolean>
     val homeRecentSectionMode: Flow<Int>
     val homeSectionOrder: Flow<String>
     val homeHiddenSections: Flow<String>
@@ -155,6 +157,7 @@ interface AppearanceSettingsAccess {
     suspend fun setAppShortcutOrder(shortcutIds: List<String>)
     suspend fun setHomeDailyMixVisible(visible: Boolean)
     suspend fun setHomeAiMixVisible(visible: Boolean)
+    suspend fun setContinuePlaybackRowVisible(visible: Boolean)
     suspend fun setHomeRecentSectionMode(mode: Int)
     suspend fun setHomeSectionOrder(order: String)
     suspend fun setHomeHiddenSections(hidden: String)
@@ -264,6 +267,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         context.dataStore.data.map { it[KEY_HOME_DAILY_MIX_VISIBLE] ?: true }
     override val homeAiMixVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HOME_AI_MIX_VISIBLE] ?: true }
+    override val continuePlaybackRowVisible: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_CONTINUE_PLAYBACK_ROW_VISIBLE] ?: true }
     override val homeRecentSectionMode: Flow<Int> =
         context.dataStore.data.map {
             (it[KEY_HOME_RECENT_SECTION_MODE] ?: HOME_RECENT_SECTION_MODE_ADDED)
@@ -482,6 +487,10 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setHomeAiMixVisible(visible: Boolean) {
         context.dataStore.edit { it[KEY_HOME_AI_MIX_VISIBLE] = visible }
+    }
+
+    override suspend fun setContinuePlaybackRowVisible(visible: Boolean) {
+        context.dataStore.edit { it[KEY_CONTINUE_PLAYBACK_ROW_VISIBLE] = visible }
     }
 
     override suspend fun setHomeRecentSectionMode(mode: Int) {

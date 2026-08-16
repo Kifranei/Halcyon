@@ -462,6 +462,18 @@ fun PlaylistDetailScreen(
                     )
                 }
 
+                item {
+                    com.ella.music.ui.components.ContinuePlaybackRow(
+                        songs = displayedSongs,
+                        playbackStats = playbackStats,
+                        currentSong = currentSong,
+                        onContinue = { index ->
+                            playerViewModel.setPlaylist(displayedSongs, index)
+                            if (openPlayerOnPlay) onNavigateToPlayer()
+                        }
+                    )
+                }
+
             if (displayedSongs.isEmpty() && librarySongs.isEmpty() && !libraryCacheLoaded) {
                 item {
                     EllaCenteredLoadingIndicator(modifier = Modifier.fillParentMaxSize())

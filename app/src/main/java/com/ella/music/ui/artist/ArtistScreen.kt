@@ -72,7 +72,6 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.toFastIndexSection
-import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.components.openVideoWithMediaInfo
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -110,6 +109,7 @@ fun ArtistScreen(
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
@@ -479,10 +479,6 @@ fun ArtistScreen(
             .fillMaxSize()
             .background(ellaPageBackground())
     ) {
-        val overlayColor = wallpaperContentOverlayColor()
-        if (overlayColor.alpha > 0f) {
-            Box(modifier = Modifier.fillMaxSize().background(overlayColor))
-        }
         // While the library is still loading (remote source / cold start) the songs list can be
         // momentarily empty; show a spinner instead of flashing the empty/"not found" content.
         val showLibraryLoading = artistSongs.isEmpty() && !libraryCacheLoaded
@@ -556,6 +552,18 @@ fun ArtistScreen(
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )
+                            }
+                        )
+                    }
+
+                    item {
+                        com.ella.music.ui.components.ContinuePlaybackRow(
+                            songs = sortedArtistSongs,
+                            playbackStats = playbackStats,
+                            currentSong = currentSong,
+                            onContinue = { index ->
+                                playerViewModel.setPlaylist(sortedArtistSongs, index)
+                                if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         )
                     }
@@ -832,19 +840,19 @@ fun ArtistScreen(
                             }
                         }
                     ) {
-                        Icon(
-                            imageVector = if (selectedArtistTab == ArtistTab.MusicVideos) {
-                                MiuixIcons.Regular.Share
-                            } else {
-                                MiuixIcons.Regular.AddFolder
-                            },
-                            contentDescription = stringResource(
-                                if (selectedArtistTab == ArtistTab.MusicVideos) R.string.common_share
-                                else R.string.player_add_to_playlist
-                            ),
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        if (selectedArtistTab == ArtistTab.MusicVideos) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Share,
+                                contentDescription = stringResource(R.string.common_share),
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else {
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
+                                contentDescription = stringResource(R.string.player_add_to_playlist),
+                                tint = Color.White
+                            )
+                        }
                     }
                     if (selectedArtistTab != ArtistTab.MusicVideos) {
                         IconButton(
@@ -856,11 +864,9 @@ fun ArtistScreen(
                                 }
                             }
                         ) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.Forward,
+                            com.ella.music.ui.components.PlayNextActionIcon(
                                 contentDescription = stringResource(R.string.song_more_play_next),
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
+                                tint = Color.White
                             )
                         }
                     }

@@ -80,7 +80,6 @@ import com.ella.music.ui.components.rememberSongDeleteResultHandler
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.components.toFastIndexSection
-import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.settings.findComponentActivity
 import com.ella.music.viewmodel.MainViewModel
@@ -118,6 +117,7 @@ fun FolderDetailScreen(
     val playlists by mainViewModel.playlists.collectAsState()
     val folderPlaylists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
@@ -221,16 +221,11 @@ fun FolderDetailScreen(
     }
 
     val pageBackground = ellaPageBackground()
-    val overlayColor = wallpaperContentOverlayColor()
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
     ) {
-        if (overlayColor.alpha > 0f) {
-            Box(modifier = Modifier.fillMaxSize().background(overlayColor))
-        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -304,11 +299,9 @@ fun FolderDetailScreen(
                                 }
                         }
                     ) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Forward,
+                        com.ella.music.ui.components.PlayNextActionIcon(
                             contentDescription = stringResource(R.string.song_more_play_next),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            tint = MiuixTheme.colorScheme.primary
                         )
                     }
                     IconButton(
@@ -321,11 +314,9 @@ fun FolderDetailScreen(
                                 }
                         }
                     ) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.AddFolder,
+                        com.ella.music.ui.components.AddToPlaylistActionIcon(
                             contentDescription = stringResource(R.string.player_add_to_playlist),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            tint = MiuixTheme.colorScheme.primary
                         )
                     }
                     IconButton(
@@ -572,6 +563,15 @@ fun FolderDetailScreen(
                             )
                         }
                     )
+                    com.ella.music.ui.components.ContinuePlaybackRow(
+                        songs = sortedSongs,
+                        playbackStats = playbackStats,
+                        currentSong = currentSong,
+                        onContinue = { index ->
+                            playerViewModel.setPlaylist(sortedSongs, index)
+                            if (openPlayerOnPlay) onNavigateToPlayer()
+                        }
+                    )
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -736,22 +736,30 @@ fun FolderDetailScreen(
         associateFolderPaths?.let { sourceFolders ->
             LinkToFolderPlaylistSheet(
                 show = true,
-                songs = emptyList(),
+                songs = songs,
+                selectedFolderCount = sourceFolders.size,
                 folderPlaylists = folderPlaylists,
                 onDismiss = { associateFolderPaths = null },
-                onLink = { target ->
+                onLink = { targets ->
                     scope.launch {
-                        mainViewModel.settingsManager.upsertFolderPlaylist(
-                            target.id,
-                            target.name,
-                            (target.folders + sourceFolders).distinctBy { it.lowercase() }
-                        )
+                        targets.forEach { target ->
+                            mainViewModel.settingsManager.upsertFolderPlaylist(
+                                target.id,
+                                target.name,
+                                (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                            )
+                        }
                         Toast.makeText(
                             context,
-                            context.getString(R.string.folder_playlist_associate_done, target.name),
+                            if (targets.size == 1) context.getString(R.string.folder_playlist_associate_done, targets.first().name)
+                            else context.getString(R.string.folder_playlist_associate_multi_done, targets.size),
                             Toast.LENGTH_SHORT
                         ).show()
                     }
+                    associateFolderPaths = null
+                },
+                onCreatePlaylist = { name ->
+                    scope.launch { mainViewModel.settingsManager.upsertFolderPlaylist(null, name, sourceFolders) }
                     associateFolderPaths = null
                 }
             )

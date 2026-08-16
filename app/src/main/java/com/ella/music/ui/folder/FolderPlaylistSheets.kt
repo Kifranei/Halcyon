@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,10 +39,14 @@ import com.ella.music.data.model.FolderPlaylist
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixTextField
+import com.ella.music.ui.components.EllaMiuixAction
+import com.ella.music.ui.components.EllaMiuixActionRow
+import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.SortDropdownMenu
+import com.ella.music.ui.components.SortDropdownMenuContent
 import com.ella.music.ui.components.directionalSortModeDropdownItems
 
 import kotlinx.coroutines.Dispatchers
@@ -55,17 +60,158 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun LinkToFolderPlaylistSheet(
     show: Boolean,
     songs: List<Song>,
+    selectedFolderCount: Int,
     folderPlaylists: List<FolderPlaylist>,
     onDismiss: () -> Unit,
-    onLink: (FolderPlaylist) -> Unit
+    onLink: (List<FolderPlaylist>) -> Unit,
+    onCreatePlaylist: (String) -> Unit
 ) {
     if (!show) return
+    var query by remember { mutableStateOf("") }
+    var multiSelect by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(emptySet<String>()) }
+    var sortMode by remember { mutableStateOf(FolderPlaylistSortMode.Custom) }
+    var creating by remember { mutableStateOf(false) }
+    var draftName by remember { mutableStateOf("") }
+    val sortedPlaylists = remember(folderPlaylists, songs, sortMode) {
+        folderPlaylists.sortedForFolderPlaylists(
+            mode = sortMode,
+            songCountProvider = { playlist -> songs.songsForFolderPlaylist(playlist.folders).size },
+            durationProvider = { playlist -> songs.songsForFolderPlaylist(playlist.folders).sumOf(Song::duration) }
+        )
+    }
+    val visiblePlaylists = remember(sortedPlaylists, query) {
+        query.trim().takeIf(String::isNotBlank)?.let { target ->
+            sortedPlaylists.filter { it.name.contains(target, ignoreCase = true) }
+        } ?: sortedPlaylists
+    }
+    val covers = remember(folderPlaylists, songs) {
+        folderPlaylists.associate { playlist ->
+            playlist.id to songs.songsForFolderPlaylist(playlist.folders).firstOrNull().folderPlaylistCoverModel()
+        }
+    }
     EllaMiuixBottomSheet(
         show = true,
         enableNestedScroll = false,
         title = stringResource(R.string.folder_playlist_associate),
         onDismissRequest = onDismiss
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.folder_playlist_selected_count, selectedFolderCount),
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
+            )
+            EllaMiuixTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = stringResource(R.string.common_search),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    SortDropdownMenuContent(
+                        items = directionalSortModeDropdownItems(
+                            fields = listOf(
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_custom),
+                                    ascendingMode = FolderPlaylistSortMode.Custom,
+                                    descendingMode = FolderPlaylistSortMode.CustomDesc
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_updated_at),
+                                    ascendingMode = FolderPlaylistSortMode.DateUpdatedAsc,
+                                    descendingMode = FolderPlaylistSortMode.DateUpdated
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_created_at),
+                                    ascendingMode = FolderPlaylistSortMode.DateCreated,
+                                    descendingMode = FolderPlaylistSortMode.DateCreatedDesc
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_name),
+                                    ascendingMode = FolderPlaylistSortMode.Name,
+                                    descendingMode = FolderPlaylistSortMode.NameDesc
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.folder_playlist_sort_folder_count),
+                                    ascendingMode = FolderPlaylistSortMode.FolderCountAsc,
+                                    descendingMode = FolderPlaylistSortMode.FolderCount
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_song_count),
+                                    ascendingMode = FolderPlaylistSortMode.SongCountAsc,
+                                    descendingMode = FolderPlaylistSortMode.SongCount
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_duration),
+                                    ascendingMode = FolderPlaylistSortMode.DurationAsc,
+                                    descendingMode = FolderPlaylistSortMode.Duration
+                                )
+                            ),
+                            selectedMode = sortMode,
+                            onSelect = { sortMode = it }
+                        )
+                    ) {
+                        LinkFolderPlaylistChip(
+                            text = stringResource(R.string.common_sort) + ": " + stringResource(sortMode.labelRes),
+                            clickableEnabled = false,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+                LinkFolderPlaylistChip(
+                    text = stringResource(R.string.common_multi_select),
+                    selected = multiSelect,
+                    onClick = {
+                        multiSelect = !multiSelect
+                        if (!multiSelect) selectedIds = emptySet()
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                LinkFolderPlaylistChip(
+                    text = stringResource(R.string.folder_playlist_create),
+                    selected = creating,
+                    onClick = { creating = !creating },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (creating) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    EllaMiuixTextField(
+                        value = draftName,
+                        onValueChange = { draftName = it },
+                        label = stringResource(R.string.playlist_name_label),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            if (draftName.isNotBlank()) onCreatePlaylist(draftName.trim())
+                        }
+                    ) {
+                        Text(stringResource(R.string.common_create))
+                    }
+                }
+            }
+        }
         if (folderPlaylists.isEmpty()) {
             Text(
                 text = stringResource(R.string.folder_playlist_empty),
@@ -77,20 +223,43 @@ fun LinkToFolderPlaylistSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 400.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
             ) {
-                items(folderPlaylists, key = { it.id }) { playlist ->
+                items(visiblePlaylists, key = { it.id }) { playlist ->
+                    val selected = playlist.id in selectedIds
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onLink(playlist) }
+                            .clickable {
+                                if (multiSelect) {
+                                    selectedIds = if (selected) selectedIds - playlist.id else selectedIds + playlist.id
+                                } else {
+                                    onLink(listOf(playlist))
+                                }
+                            }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        FolderOutlineIcon(
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(MiuixTheme.colorScheme.surfaceContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val cover = covers[playlist.id]
+                            if (cover != null) {
+                                SafeCoverImage(
+                                    model = cover,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                    sizePx = 192
+                                )
+                            } else {
+                                DefaultAlbumCover(modifier = Modifier.fillMaxSize())
+                            }
+                        }
                         Column(modifier = Modifier.padding(start = 14.dp)) {
                             Text(
                                 text = playlist.name,
@@ -99,16 +268,72 @@ fun LinkToFolderPlaylistSheet(
                                 color = MiuixTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = stringResource(R.string.folder_playlist_card_summary, playlist.folders.size, 0),
+                                text = stringResource(
+                                    R.string.folder_playlist_card_summary,
+                                    playlist.folders.size,
+                                    songs.songsForFolderPlaylist(playlist.folders).size
+                                ),
                                 fontSize = 12.sp,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                        }
+                        if (multiSelect) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = selected,
+                                onCheckedChange = {
+                                    selectedIds = if (it) selectedIds + playlist.id else selectedIds - playlist.id
+                                }
                             )
                         }
                     }
                 }
             }
         }
+        EllaMiuixActionRow(
+            actions = buildList {
+                add(EllaMiuixAction(text = stringResource(R.string.common_cancel), onClick = onDismiss))
+                if (multiSelect) {
+                    add(
+                        EllaMiuixAction(
+                            text = stringResource(R.string.song_more_done_selected, selectedIds.size),
+                            onClick = {
+                                val targets = folderPlaylists.filter { it.id in selectedIds }
+                                if (targets.isNotEmpty()) onLink(targets)
+                            },
+                            primary = true
+                        )
+                    )
+                }
+            }
+        )
     }
+}
+
+@Composable
+private fun LinkFolderPlaylistChip(
+    text: String,
+    selected: Boolean = false,
+    onClick: () -> Unit = {},
+    clickableEnabled: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(
+                if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
+                else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
+            )
+            .then(if (clickableEnabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 10.dp, vertical = 10.dp)
+    )
 }
 @Composable
 internal fun FolderPlaylistEditorSheet(

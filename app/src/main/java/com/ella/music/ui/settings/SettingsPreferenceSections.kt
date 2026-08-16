@@ -46,6 +46,7 @@ internal fun SettingsHomeCustomizeSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val homeDailyMixVisible by settingsManager.homeDailyMixVisible.collectAsState(initial = true)
     val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = true)
+    val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
 
     SmallTitle(text = stringResource(R.string.settings_home_customize))
 
@@ -65,6 +66,14 @@ internal fun SettingsHomeCustomizeSection(
                 checked = homeAiMixVisible,
                 onCheckedChange = {
                     scope.launch { settingsManager.setHomeAiMixVisible(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_continue_playback_row),
+                summary = stringResource(R.string.settings_continue_playback_row_summary),
+                checked = continuePlaybackRowVisible,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setContinuePlaybackRowVisible(it) }
                 }
             )
             ArrowPreference(

@@ -39,6 +39,7 @@ internal fun LibrarySearchAuxiliarySurfaces(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     settingsManager: SettingsManager,
+    allSongs: List<Song>,
     playlists: List<UserPlaylist>,
     blockedFolders: List<String>,
     actionSong: Song?,
@@ -153,21 +154,34 @@ internal fun LibrarySearchAuxiliarySurfaces(
     associateFolderPath?.let { folderPath ->
         LinkToFolderPlaylistSheet(
             show = true,
-            songs = emptyList(),
+            songs = allSongs,
+            selectedFolderCount = 1,
             folderPlaylists = folderPlaylists,
             onDismiss = { associateFolderPath = null },
-            onLink = { target ->
+            onLink = { targets ->
                 scope.launch {
-                    mainViewModel.settingsManager.upsertFolderPlaylist(
-                        target.id,
-                        target.name,
-                        (target.folders + folderPath).distinctBy { it.lowercase() }
-                    )
+                    targets.forEach { target ->
+                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                            target.id,
+                            target.name,
+                            (target.folders + folderPath).distinctBy { it.lowercase() }
+                        )
+                    }
                     Toast.makeText(
                         context,
-                        context.getString(R.string.folder_playlist_associate_done, target.name),
+                        if (targets.size == 1) {
+                            context.getString(R.string.folder_playlist_associate_done, targets.first().name)
+                        } else {
+                            context.getString(R.string.folder_playlist_associate_multi_done, targets.size)
+                        },
                         Toast.LENGTH_SHORT
                     ).show()
+                }
+                associateFolderPath = null
+            },
+            onCreatePlaylist = { name ->
+                scope.launch {
+                    mainViewModel.settingsManager.upsertFolderPlaylist(null, name, listOf(folderPath))
                 }
                 associateFolderPath = null
             }

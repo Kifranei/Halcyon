@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
@@ -68,6 +70,7 @@ import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
 import com.ella.music.ui.playlist.PlaylistDragHandle
+import com.ella.music.ui.playlist.PlaylistToolbarChip
 import com.ella.music.ui.playlist.moveSelectedItemsAsBlock
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -129,7 +132,6 @@ fun FolderPlaylistsScreen(
             LibrarySortUiState.pendingFolderPlaylistListSortIndex = null
         }
     }
-    val pinnedPlaylistIds by mainViewModel.settingsManager.pinnedKeysFlow("folder_playlist").collectAsState(initial = emptyList())
     val availableFolders = remember(songs) { songs.availableFolderPlaylistFolders() }
     var editorTarget by remember { mutableStateOf<FolderPlaylist?>(null) }
     var showEditor by remember { mutableStateOf(false) }
@@ -183,22 +185,20 @@ fun FolderPlaylistsScreen(
             songs.songsForFolderPlaylist(playlist.folders).firstOrNull().folderPlaylistCoverModel()
         }
     }
-    val sortedPlaylists = remember(playlists, sortMode, pinnedPlaylistIds, songCountMap, durationMap, customOrderIds) {
+    val sortedPlaylists = remember(playlists, sortMode, songCountMap, durationMap, customOrderIds) {
         playlists.sortedForFolderPlaylists(
             mode = sortMode,
             songCountProvider = { songCountMap[it] ?: 0 },
             durationProvider = { durationMap[it] ?: 0L },
-            customOrderIds = customOrderIds,
-            pinnedIds = pinnedPlaylistIds
+            customOrderIds = customOrderIds
         )
     }
-    val customSortedPlaylists = remember(playlists, pinnedPlaylistIds, songCountMap, durationMap, customOrderIds) {
+    val customSortedPlaylists = remember(playlists, songCountMap, durationMap, customOrderIds) {
         playlists.sortedForFolderPlaylists(
             mode = FolderPlaylistSortMode.Custom,
             songCountProvider = { songCountMap[it] ?: 0 },
             durationProvider = { durationMap[it] ?: 0L },
-            customOrderIds = customOrderIds,
-            pinnedIds = pinnedPlaylistIds
+            customOrderIds = customOrderIds
         )
     }
     var manualCustomPlaylists by remember { mutableStateOf(customSortedPlaylists) }
@@ -376,8 +376,7 @@ fun FolderPlaylistsScreen(
                 stringResource(R.string.folder_playlist_title)
             },
             color = ellaPageBackground(),
-            // This screen has four action buttons; leave the title gesture area before them.
-            titleEndPadding = 240.dp,
+            titleEndPadding = 192.dp,
             onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } },
             navigationIcon = {
                 if (showBackButton || selection.selectionMode) {
@@ -397,7 +396,10 @@ fun FolderPlaylistsScreen(
                         val keys = selection.selectedIdsInSelectionOrder()
                         if (keys.isNotEmpty()) {
                             scope.launch {
-                                mainViewModel.settingsManager.pinKeysInOrder("folder_playlist", keys)
+                                val orderedIds = keys + customSortedPlaylists
+                                    .map(FolderPlaylist::id)
+                                    .filterNot { it in keys }
+                                mainViewModel.settingsManager.setFolderPlaylistCustomOrder(orderedIds)
                             }
                             selection.finishSelectionMode()
                         }
@@ -429,11 +431,9 @@ fun FolderPlaylistsScreen(
                             selection.finishSelectionMode()
                         }
                     }) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Forward,
+                        com.ella.music.ui.components.PlayNextActionIcon(
                             contentDescription = stringResource(R.string.song_more_play_next),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            tint = MiuixTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = {
@@ -454,25 +454,12 @@ fun FolderPlaylistsScreen(
                     IconButton(onClick = {
                         selectedActionSongs().takeIf { it.isNotEmpty() }?.let { playlistPickerSongs = it }
                     }) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.AddFolder,
+                        com.ella.music.ui.components.AddToPlaylistActionIcon(
                             contentDescription = stringResource(R.string.player_add_to_playlist),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            tint = MiuixTheme.colorScheme.primary
                         )
                     }
                 } else {
-                    IconButton(onClick = {
-                        selection.selectionMode = !selection.selectionMode
-                        selection.selectedIds = emptySet()
-                    }) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.SelectAll,
-                            contentDescription = stringResource(R.string.common_multi_select),
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
                     ScanRefreshIconButton(
                         enabled = true,
                         onScan = { scope.launch { mainViewModel.scanMusic() } },
@@ -598,25 +585,20 @@ fun FolderPlaylistsScreen(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = stringResource(R.string.common_create),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.clickable(onClick = ::openNewFolderPlaylistEditor)
-                )
                 if (!selection.selectionMode) {
-                    Text(
-                        text = stringResource(R.string.common_multi_select),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .padding(start = 14.dp)
-                            .clickable {
-                                selection.selectionMode = true
-                                selection.selectedIds = emptySet()
-                            }
+                    PlaylistToolbarChip(
+                        icon = MiuixIcons.Regular.Add,
+                        label = stringResource(R.string.common_create),
+                        onClick = ::openNewFolderPlaylistEditor
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    PlaylistToolbarChip(
+                        icon = MiuixIcons.Regular.SelectAll,
+                        label = stringResource(R.string.common_multi_select),
+                        onClick = {
+                            selection.selectionMode = true
+                            selection.selectedIds = emptySet()
+                        }
                     )
                 }
             }
@@ -651,7 +633,7 @@ fun FolderPlaylistsScreen(
                             songCount = songCount,
                             duration = duration,
                             coverModel = coverModelMap[playlist],
-                            isPinned = playlist.id in pinnedPlaylistIds,
+                            isPinned = false,
                             selectionMode = selection.selectionMode,
                             selected = playlist.id in selection.selectedIds,
                             draggedSelectionCount = draggedSelectionIds.size.takeIf {
@@ -700,7 +682,6 @@ fun FolderPlaylistsScreen(
     }
 
     moreMenuTarget?.let { playlist ->
-        val isPinned = playlist.id in pinnedPlaylistIds
         EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
@@ -709,13 +690,11 @@ fun FolderPlaylistsScreen(
         ) {
             Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
                 EllaMiuixMenuItem(
-                    text = stringResource(if (isPinned) R.string.common_unpin else R.string.common_pin_to_top),
+                    text = stringResource(R.string.common_pin_to_top),
                     onClick = {
                         scope.launch {
-                            mainViewModel.settingsManager.setPinned(
-                                "folder_playlist",
-                                playlist.id,
-                                !isPinned
+                            mainViewModel.settingsManager.setFolderPlaylistCustomOrder(
+                                (listOf(playlist.id) + customSortedPlaylists.map(FolderPlaylist::id)).distinct()
                             )
                         }
                         moreMenuTarget = null
@@ -839,24 +818,31 @@ fun FolderPlaylistsScreen(
     associateFolderPaths?.let { sourceFolders ->
         LinkToFolderPlaylistSheet(
             show = true,
-            songs = emptyList(),
+            songs = songs,
+            selectedFolderCount = sourceFolders.size,
             folderPlaylists = playlists,
             onDismiss = { associateFolderPaths = null },
-            onLink = { target ->
+            onLink = { targets ->
                 scope.launch {
-                    val mergedFolders = (target.folders + sourceFolders)
-                        .distinctBy { it.lowercase() }
-                    mainViewModel.settingsManager.upsertFolderPlaylist(
-                        playlistId = target.id,
-                        name = target.name,
-                        folders = mergedFolders
-                    )
+                    targets.forEach { target ->
+                        val mergedFolders = (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                            playlistId = target.id,
+                            name = target.name,
+                            folders = mergedFolders
+                        )
+                    }
                     Toast.makeText(
                         context,
-                        context.getString(R.string.folder_playlist_associate_done, target.name),
+                        if (targets.size == 1) context.getString(R.string.folder_playlist_associate_done, targets.first().name)
+                        else context.getString(R.string.folder_playlist_associate_multi_done, targets.size),
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+                associateFolderPaths = null
+            },
+            onCreatePlaylist = { name ->
+                scope.launch { mainViewModel.settingsManager.upsertFolderPlaylist(null, name, sourceFolders) }
                 associateFolderPaths = null
             }
         )

@@ -73,10 +73,10 @@ import com.ella.music.ui.components.TagEditorOptionKind
 import com.ella.music.ui.components.buildTagEditorOptions
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.isAppWallpaperVisible
 import com.ella.music.ui.components.launchTagEditorOption
 import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteRequester
-import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.listmodel.SortDirection
 import com.ella.music.viewmodel.MainViewModel
@@ -112,6 +112,7 @@ fun LibraryScreen(
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
@@ -123,9 +124,8 @@ fun LibraryScreen(
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val pageBackground = ellaPageBackground()
-    val contentOverlayColor = wallpaperContentOverlayColor()
-    val wallpaperVisible = contentOverlayColor.alpha > 0f
-    val libraryPageBackground = if (wallpaperVisible) contentOverlayColor else pageBackground
+    val wallpaperVisible = isAppWallpaperVisible()
+    val libraryPageBackground = pageBackground
     val searchBarColor = if (wallpaperVisible) {
         MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.74f)
     } else {
@@ -310,11 +310,9 @@ fun LibraryScreen(
                                 playlistPickerSongs = selectedSongs
                             }
                         }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.AddFolder,
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
                                 contentDescription = stringResource(R.string.category_playlist),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MiuixTheme.colorScheme.primary
                             )
                         }
                         IconButton(onClick = {
@@ -541,13 +539,6 @@ fun LibraryScreen(
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                if (wallpaperVisible) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(contentOverlayColor)
-                    )
-                }
                 val showScrollIndicator = sortedSongs.size > 30 && !showFastIndexBar
                 // Keep a small inset so the more button sits near, but not under, the side index bar.
                 val listEndInset = when {
@@ -590,6 +581,16 @@ fun LibraryScreen(
                             }
                         )
                     }
+
+                    com.ella.music.ui.components.ContinuePlaybackRow(
+                        songs = sortedSongs,
+                        playbackStats = playbackStats,
+                        currentSong = currentSong,
+                        onContinue = { index ->
+                            playerViewModel.setPlaylist(sortedSongs, index)
+                            if (openPlayerOnPlay) onNavigateToPlayer()
+                        }
+                    )
 
                     LazyColumn(
                         state = listState,

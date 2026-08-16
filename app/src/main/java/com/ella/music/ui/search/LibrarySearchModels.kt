@@ -19,6 +19,7 @@ import java.util.LinkedHashMap
 internal enum class SearchFilter {
     All,
     Songs,
+    MusicVideos,
     Artists,
     Albums,
     Playlists,
@@ -35,6 +36,7 @@ internal enum class SearchFilter {
             return when (type?.trim()?.lowercase()) {
                 null, "", "all" -> All
                 "song", "songs" -> Songs
+                "mv", "musicvideo", "musicvideos" -> MusicVideos
                 "artist", "artists" -> Artists
                 "album", "albums" -> Albums
                 "playlist", "playlists" -> Playlists
@@ -53,7 +55,7 @@ internal enum class SearchFilter {
 }
 
 internal val SearchFilter.acceptsSongResults: Boolean
-    get() = this in listOf(SearchFilter.All, SearchFilter.Songs, SearchFilter.Lyrics)
+    get() = this in listOf(SearchFilter.All, SearchFilter.Songs, SearchFilter.MusicVideos, SearchFilter.Lyrics)
 
 internal val SearchFilter.supportsDuplicateFilter: Boolean
     get() = this in listOf(SearchFilter.All, SearchFilter.Songs)

@@ -28,6 +28,8 @@ import com.ella.music.R
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.AddToPlaylistActionIcon
+import com.ella.music.ui.components.PlayNextActionIcon
 import com.ella.music.ui.components.ellaPageBackground
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
@@ -76,19 +78,15 @@ internal fun PlaylistDetailTopBar(
         actions = {
             if (selectionMode) {
                 IconButton(onClick = onPlayNextSelectedClick) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Forward,
+                    PlayNextActionIcon(
                         contentDescription = stringResource(R.string.song_more_play_next),
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+                        tint = MiuixTheme.colorScheme.primary
                     )
                 }
                 IconButton(onClick = onAddSelectedClick) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.AddFolder,
+                    AddToPlaylistActionIcon(
                         contentDescription = stringResource(R.string.player_add_to_playlist),
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+                        tint = MiuixTheme.colorScheme.primary
                     )
                 }
                 if (showRemoveSelected) {

@@ -51,7 +51,7 @@ internal enum class FolderPlaylistFolderSortMode(@param:StringRes val labelRes: 
 }
 
 internal fun FolderPlaylistSongSortMode.isDescending(): Boolean = when (this) {
-    FolderPlaylistSongSortMode.Custom,
+    FolderPlaylistSongSortMode.CustomDesc,
     FolderPlaylistSongSortMode.TitleDesc,
     FolderPlaylistSongSortMode.FileNameDesc,
     FolderPlaylistSongSortMode.Duration,
@@ -120,7 +120,7 @@ internal fun List<FolderPlaylistFolderEntry>.sortedForFolderPlaylistDetail(
     FolderPlaylistFolderSortMode.Custom -> applyFolderPlaylistFolderOrder(customOrderPaths)
         .ifEmpty { sortedBy { it.displayName.musicSortKey() } }
     FolderPlaylistFolderSortMode.Name -> sortedBy { it.displayName.musicSortKey() }
-    FolderPlaylistFolderSortMode.CustomDesc -> sortedByDescending { it.displayName.musicSortKey() }
+    FolderPlaylistFolderSortMode.CustomDesc -> applyFolderPlaylistFolderOrder(customOrderPaths).asReversed()
     FolderPlaylistFolderSortMode.NameDesc -> sortedByDescending { it.displayName.musicSortKey() }
     FolderPlaylistFolderSortMode.SongCount ->
         sortedWith(compareByDescending<FolderPlaylistFolderEntry> { it.songCount }.thenBy { it.displayName.musicSortKey() })

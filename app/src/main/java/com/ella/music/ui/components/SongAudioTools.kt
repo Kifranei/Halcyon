@@ -98,6 +98,7 @@ private data class CueTrack(
     val number: Int,
     val title: String,
     val performer: String,
+    val composer: String,
     val startMs: Long
 )
 
@@ -106,6 +107,8 @@ private data class CueAlbum(
     val sourceFile: File?,
     val title: String,
     val performer: String,
+    val genre: String,
+    val date: String,
     val tracks: List<CueTrack>
 )
 
@@ -503,6 +506,8 @@ private fun resolveCueAlbum(cueFile: File, preferredSource: File?): CueResolutio
         sourceFile = candidates.firstOrNull(),
         title = parsed.albumTitle,
         performer = parsed.albumPerformer,
+        genre = parsed.albumGenre,
+        date = parsed.albumDate,
         tracks = parsed.tracks
     )
     return if (candidates.size == 1) CueResolution.Resolved(skeleton)
@@ -513,6 +518,8 @@ private data class ParsedCue(
     val fileName: String,
     val albumTitle: String,
     val albumPerformer: String,
+    val albumGenre: String,
+    val albumDate: String,
     val tracks: List<CueTrack>
 )
 
@@ -523,6 +530,9 @@ private fun parseCue(file: File): ParsedCue {
     val indexPattern = Regex("(?im)^\\s*INDEX\\s+01\\s+(\\d+):(\\d+):(\\d+)\\s*$")
     val titlePattern = Regex("(?im)^\\s*TITLE\\s+(?:\\\"([^\\\"]*)\\\"|(.*?))\\s*$")
     val performerPattern = Regex("(?im)^\\s*PERFORMER\\s+(?:\\\"([^\\\"]*)\\\"|(.*?))\\s*$")
+    val genrePattern = Regex("(?im)^\\s*REM\\s+GENRE\\s+(?:\\\"([^\\\"]*)\\\"|(.*?))\\s*$")
+    val datePattern = Regex("(?im)^\\s*REM\\s+DATE\\s+(?:\\\"([^\\\"]*)\\\"|(.*?))\\s*$")
+    val composerPattern = Regex("(?im)^\\s*REM\\s+COMPOSER\\s+(?:\\\"([^\\\"]*)\\\"|(.*?))\\s*$")
     val fileName = filePattern.find(content)?.groupValues?.get(1)?.trim().orEmpty()
     require(fileName.isNotBlank()) { "The CUE file does not declare a FILE entry" }
     val blocks = trackPattern.findAll(content).toList()
@@ -530,6 +540,8 @@ private fun parseCue(file: File): ParsedCue {
     val albumPrefix = content.substring(0, blocks.first().range.first)
     val albumTitle = titlePattern.find(albumPrefix).titleValue()
     val albumPerformer = performerPattern.find(albumPrefix).titleValue()
+    val albumGenre = genrePattern.find(albumPrefix).titleValue()
+    val albumDate = datePattern.find(albumPrefix).titleValue()
     val tracks = blocks.mapIndexedNotNull { index, match ->
         val end = blocks.getOrNull(index + 1)?.range?.first ?: content.length
         val block = content.substring(match.range.first, end)
@@ -538,11 +550,12 @@ private fun parseCue(file: File): ParsedCue {
             number = match.groupValues[1].toIntOrNull() ?: index + 1,
             title = titlePattern.find(block).titleValue().ifBlank { "Track ${index + 1}" },
             performer = performerPattern.find(block).titleValue().ifBlank { albumPerformer },
+            composer = composerPattern.find(block).titleValue(),
             startMs = cueTimeToMs(position.groupValues[1], position.groupValues[2], position.groupValues[3])
         )
     }
     require(tracks.isNotEmpty()) { "No TRACK contains an INDEX 01 time" }
-    return ParsedCue(fileName, albumTitle, albumPerformer, tracks)
+    return ParsedCue(fileName, albumTitle, albumPerformer, albumGenre, albumDate, tracks)
 }
 
 private fun MatchResult?.titleValue(): String = this?.let { match ->
@@ -591,7 +604,7 @@ private fun ByteArray.startsWith(prefix: ByteArray): Boolean =
 private fun cueDecodingScore(text: String, charset: Charset): Int {
     // CUE command words are ASCII under every candidate encoding. Prefer the title decoding
     // that has the fewest malformed glyphs, so GB18030 and Shift-JIS stay readable.
-    val commands = Regex("(?im)^\\s*(FILE|TRACK|INDEX|TITLE|PERFORMER)\\b")
+    val commands = Regex("(?im)^\\s*(FILE|TRACK|INDEX|TITLE|PERFORMER|REM\\s+(GENRE|DATE|COMPOSER))\\b")
         .findAll(text)
         .count()
     val replacements = text.count { it == '\uFFFD' }
@@ -675,9 +688,15 @@ private fun splitCueAlbum(
                     "-metadata", "title=${track.title}",
                     "-metadata", "artist=${track.performer}",
                     "-metadata", "album=${album.title}",
-                    "-metadata", "track=${track.number}",
-                    output.absolutePath
+                    "-metadata", "genre=${album.genre}",
+                    "-metadata", "date=${album.date}",
+                    "-metadata", "album_artist=${album.performer}",
+                    "-metadata", "track=${track.number}"
                 ))
+                track.composer.takeIf { it.isNotBlank() }?.let {
+                    addAll(listOf("-metadata", "composer=$it"))
+                }
+                add(output.absolutePath)
             }
             executeFfmpeg(arguments)
             publishCueTrack(context, output, album, track)
@@ -711,7 +730,11 @@ private fun publishCueTrack(context: Context, output: File, album: CueAlbum, tra
             albumId = 0L,
             duration = 0L,
             path = output.absolutePath,
-            fileName = displayName
+            fileName = displayName,
+            albumArtist = album.performer,
+            genre = album.genre,
+            year = album.date,
+            composer = track.composer
         )
     )
 }
@@ -859,6 +882,10 @@ private fun publishAudioFile(
         song.title.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.Media.TITLE, it) }
         song.artist.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.Media.ARTIST, it) }
         song.album.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.Media.ALBUM, it) }
+        song.albumArtist.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.Media.ALBUM_ARTIST, it) }
+        song.genre.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.GENRE, it) }
+        song.year.toIntOrNull()?.let { put(MediaStore.Audio.Media.YEAR, it) }
+        song.composer.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.COMPOSER, it) }
     }
     val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
         ?: throw IllegalStateException("Cannot create output in MediaStore")

@@ -421,22 +421,18 @@ fun ArtistListScreen(
                                 selection.finishSelectionMode()
                             }
                         }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.Forward,
+                            com.ella.music.ui.components.PlayNextActionIcon(
                                 contentDescription = stringResource(R.string.song_more_play_next),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MiuixTheme.colorScheme.primary
                             )
                         }
                         IconButton(onClick = {
                             val selectedSongs = selectedArtistSongs()
                             if (selectedSongs.isNotEmpty()) playlistPickerSongs = selectedSongs
                         }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.AddFolder,
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
                                 contentDescription = stringResource(R.string.player_add_to_playlist),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MiuixTheme.colorScheme.primary
                             )
                         }
                         IconButton(onClick = {

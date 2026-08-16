@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
@@ -118,17 +119,27 @@ fun FolderPlaylistDetailScreen(
     val scope = rememberCoroutineScope()
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
-    val pinnedFolderPaths by mainViewModel.settingsManager.pinnedKeysFlow("folder").collectAsState(initial = emptyList())
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackStats by mainViewModel.playbackStats.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val playlist = remember(playlists, playlistId) {
         playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
     }
-    val playlistSongs = remember(playlist, songs) {
+    val allPlaylistSongs = remember(playlist, songs) {
         playlist?.let { songs.songsForFolderPlaylist(it.folders) }.orEmpty()
+    }
+    val playlistSongs = remember(allPlaylistSongs, playlist?.hiddenFolders) {
+        val hiddenFolders = playlist?.hiddenFolders.orEmpty().map { it.normalizeFolderPath() }
+        allPlaylistSongs.filterNot { song ->
+            val songFolder = song.folderPath().normalizeFolderPath()
+            hiddenFolders.any { hidden ->
+                songFolder.equals(hidden, ignoreCase = true) ||
+                    songFolder.startsWith("${hidden.trimEnd('/')}/", ignoreCase = true)
+            }
+        }
     }
     var selectedTab by rememberSaveable(playlistId) { mutableStateOf(FolderPlaylistTab.Songs) }
     var searchExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
@@ -157,7 +168,11 @@ fun FolderPlaylistDetailScreen(
     val folderEntries = remember(playlist, songs) {
         playlist?.folders.orEmpty().mapNotNull { folderPath ->
             val normalized = folderPath.normalizeFolderPath()
-            val folderSongs = songs.filter { it.folderPath().normalizeFolderPath().startsWith(normalized) }
+            val folderSongs = songs.filter {
+                val songFolder = it.folderPath().normalizeFolderPath()
+                songFolder.equals(normalized, ignoreCase = true) ||
+                    songFolder.startsWith("${normalized.trimEnd('/')}/", ignoreCase = true)
+            }
             if (folderSongs.isEmpty()) return@mapNotNull null
             FolderPlaylistFolderEntry(
                 path = folderPath,
@@ -228,9 +243,9 @@ fun FolderPlaylistDetailScreen(
             }
         }
     }
-    val randomFolderEntrySongs = remember(displayedFolderEntries, playlistSongs) {
+    val randomFolderEntrySongs = remember(displayedFolderEntries, allPlaylistSongs) {
         val normalizedFolders = displayedFolderEntries.map { it.path.normalizeFolderPath() }
-        playlistSongs
+        allPlaylistSongs
             .filter { song ->
                 val songFolder = song.folderPath().normalizeFolderPath()
                 normalizedFolders.any { folder -> songFolder.startsWith(folder) }
@@ -467,7 +482,7 @@ fun FolderPlaylistDetailScreen(
         FolderPlaylistTab.Songs -> displayedSongs.filter { it.playlistIdentityKey() in selectedSongKeys }
         FolderPlaylistTab.Folders -> {
             val normalizedSelected = selectedFolderPaths.map { it.normalizeFolderPath() }
-            playlistSongs.filter { song ->
+            allPlaylistSongs.filter { song ->
                 val songFolder = song.folderPath().normalizeFolderPath()
                 normalizedSelected.any { songFolder.startsWith(it) }
             }
@@ -540,22 +555,18 @@ fun FolderPlaylistDetailScreen(
                             exitSelection()
                         }
                     }) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Forward,
+                        com.ella.music.ui.components.PlayNextActionIcon(
                             contentDescription = stringResource(R.string.song_more_play_next),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            tint = MiuixTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = {
                         val selected = selectedActionSongs()
                         if (selected.isNotEmpty()) playlistPickerSongs = selected
                     }) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.AddFolder,
+                        com.ella.music.ui.components.AddToPlaylistActionIcon(
                             contentDescription = stringResource(R.string.player_add_to_playlist),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            tint = MiuixTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = {
@@ -776,6 +787,17 @@ fun FolderPlaylistDetailScreen(
                             )
                         }
                     }
+                    item {
+                        com.ella.music.ui.components.ContinuePlaybackRow(
+                            songs = displayedSongs,
+                            playbackStats = playbackStats,
+                            currentSong = currentSong,
+                            onContinue = { index ->
+                                playerViewModel.setPlaylist(displayedSongs, index)
+                                if (openPlayerOnPlay) onNavigateToPlayer()
+                            }
+                        )
+                    }
                     if (playlistSongs.isEmpty()) {
                         item {
                             Text(
@@ -962,7 +984,8 @@ fun FolderPlaylistDetailScreen(
                                             text = entry.displayName,
                                             fontWeight = FontWeight.Medium,
                                             fontSize = 15.sp,
-                                            color = if (isHidden) MiuixTheme.colorScheme.onSurfaceVariantSummary else MiuixTheme.colorScheme.onSurface,
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                            textDecoration = if (isHidden) TextDecoration.LineThrough else TextDecoration.None,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -1028,13 +1051,12 @@ fun FolderPlaylistDetailScreen(
     folderActionTarget?.let { entry ->
         val targetPlaylist = playlist
         if (targetPlaylist != null) {
-            val folderSongs = playlistSongs.filter { song ->
+            val folderSongs = allPlaylistSongs.filter { song ->
                 val songFolder = song.folderPath().normalizeFolderPath()
                 val targetFolder = entry.path.normalizeFolderPath()
                 songFolder.equals(targetFolder, ignoreCase = true) ||
                     songFolder.startsWith("${targetFolder.trimEnd('/')}/", ignoreCase = true)
             }
-            val isPinned = pinnedFolderPaths.any { it.equals(entry.path, ignoreCase = true) }
             EllaMiuixBottomSheet(
                 show = true,
                 enableNestedScroll = false,
@@ -1047,9 +1069,14 @@ fun FolderPlaylistDetailScreen(
                         .padding(horizontal = 18.dp, vertical = 8.dp)
                 ) {
                     EllaMiuixMenuItem(
-                        text = stringResource(if (isPinned) R.string.common_unpin else R.string.common_pin_to_top),
+                        text = stringResource(R.string.common_pin_to_top),
                         onClick = {
-                            scope.launch { mainViewModel.settingsManager.setPinned("folder", entry.path, !isPinned) }
+                            scope.launch {
+                                mainViewModel.settingsManager.setFolderPlaylistFolderOrder(
+                                    targetPlaylist.id,
+                                    (listOf(entry.path) + folderEntries.map(FolderPlaylistFolderEntry::path)).distinct()
+                                )
+                            }
                             folderActionTarget = null
                         }
                     )
@@ -1145,22 +1172,30 @@ fun FolderPlaylistDetailScreen(
     associateFolderPaths?.let { sourceFolders ->
         LinkToFolderPlaylistSheet(
             show = true,
-            songs = emptyList(),
+            songs = songs,
+            selectedFolderCount = sourceFolders.size,
             folderPlaylists = playlists,
             onDismiss = { associateFolderPaths = null },
-            onLink = { target ->
+            onLink = { targets ->
                 scope.launch {
-                    mainViewModel.settingsManager.upsertFolderPlaylist(
-                        target.id,
-                        target.name,
-                        (target.folders + sourceFolders).distinctBy { it.lowercase() }
-                    )
+                    targets.forEach { target ->
+                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                            target.id,
+                            target.name,
+                            (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                        )
+                    }
                     Toast.makeText(
                         context,
-                        context.getString(R.string.folder_playlist_associate_done, target.name),
+                        if (targets.size == 1) context.getString(R.string.folder_playlist_associate_done, targets.first().name)
+                        else context.getString(R.string.folder_playlist_associate_multi_done, targets.size),
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+                associateFolderPaths = null
+            },
+            onCreatePlaylist = { name ->
+                scope.launch { mainViewModel.settingsManager.upsertFolderPlaylist(null, name, sourceFolders) }
                 associateFolderPaths = null
             }
         )

@@ -113,6 +113,7 @@ fun MetadataCategoryDetailScreen(
     val libraryAlbums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
@@ -376,11 +377,9 @@ fun MetadataCategoryDetailScreen(
                                 selection.finishSelectionMode()
                             }
                         }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.Forward,
+                            com.ella.music.ui.components.PlayNextActionIcon(
                                 contentDescription = stringResource(R.string.song_more_play_next),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MiuixTheme.colorScheme.primary
                             )
                         }
                         IconButton(onClick = {
@@ -391,11 +390,9 @@ fun MetadataCategoryDetailScreen(
                                 playlistPickerSongs = selectedSongs
                             }
                         }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.AddFolder,
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
                                 contentDescription = stringResource(R.string.song_more_add_to_playlist),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MiuixTheme.colorScheme.primary
                             )
                         }
                         IconButton(onClick = {
@@ -697,6 +694,19 @@ fun MetadataCategoryDetailScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                    }
+                }
+                if (selectedTab == MetadataDetailTab.Songs) {
+                    item {
+                        com.ella.music.ui.components.ContinuePlaybackRow(
+                            songs = sortedSongs,
+                            playbackStats = playbackStats,
+                            currentSong = currentSong,
+                            onContinue = { index ->
+                                playerViewModel.setPlaylist(sortedSongs, index)
+                                if (openPlayerOnPlay) onNavigateToPlayer()
+                            }
+                        )
                     }
                 }
                 if (selectedTab == MetadataDetailTab.Albums) {

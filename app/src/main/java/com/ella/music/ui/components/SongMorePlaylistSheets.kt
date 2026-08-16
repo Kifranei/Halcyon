@@ -121,6 +121,11 @@ fun AddToPlaylistSheet(
                                 descendingMode = AddPlaylistSortMode.UpdatedAt
                             ),
                             DirectionalSortModeField(
+                                text = stringResource(R.string.playlist_sort_created_at),
+                                ascendingMode = AddPlaylistSortMode.CreatedAtAsc,
+                                descendingMode = AddPlaylistSortMode.CreatedAt
+                            ),
+                            DirectionalSortModeField(
                                 text = stringResource(R.string.playlist_sort_name),
                                 ascendingMode = AddPlaylistSortMode.Name,
                                 descendingMode = AddPlaylistSortMode.NameDesc
@@ -129,6 +134,11 @@ fun AddToPlaylistSheet(
                                 text = stringResource(R.string.playlist_sort_song_count),
                                 ascendingMode = AddPlaylistSortMode.SongCountAsc,
                                 descendingMode = AddPlaylistSortMode.SongCount
+                            ),
+                            DirectionalSortModeField(
+                                text = stringResource(R.string.playlist_sort_duration),
+                                ascendingMode = AddPlaylistSortMode.DurationAsc,
+                                descendingMode = AddPlaylistSortMode.Duration
                             )
                         ),
                         selectedMode = sortMode,

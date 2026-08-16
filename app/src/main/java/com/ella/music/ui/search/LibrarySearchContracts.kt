@@ -9,6 +9,7 @@ import com.ella.music.viewmodel.MetadataCategoryItem
 internal fun SearchFilter.labelRes(): Int = when (this) {
     SearchFilter.All -> R.string.library_search_all
     SearchFilter.Songs -> R.string.library_search_songs
+    SearchFilter.MusicVideos -> R.string.library_search_filter_mv
     SearchFilter.Artists -> R.string.library_search_artists
     SearchFilter.Albums -> R.string.library_search_albums
     SearchFilter.Playlists -> R.string.library_search_playlists

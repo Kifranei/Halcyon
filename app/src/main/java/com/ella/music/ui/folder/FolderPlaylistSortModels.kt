@@ -66,7 +66,7 @@ internal fun List<FolderPlaylist>.applyFolderPlaylistCustomOrder(orderIds: List<
 }
 
 internal fun FolderPlaylistSortMode.isDescending(): Boolean = when (this) {
-    FolderPlaylistSortMode.Custom,
+    FolderPlaylistSortMode.CustomDesc,
     FolderPlaylistSortMode.DateUpdated,
     FolderPlaylistSortMode.DateCreatedDesc,
     FolderPlaylistSortMode.FolderCount,
