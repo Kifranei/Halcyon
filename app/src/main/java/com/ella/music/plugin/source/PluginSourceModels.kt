@@ -2,6 +2,7 @@ package com.ella.music.plugin.source
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.io.File
 
 @Serializable
 data class PluginSearchSongsRequest(
@@ -15,6 +16,17 @@ data class PluginSearchSongsRequest(
 @Serializable
 data class PluginGetLyricsRequest(
     val song: PluginSongRequest,
+    val page: Int = 1,
+    val pageSize: Int = 20,
+    val config: Map<String, String> = emptyMap()
+)
+
+@Serializable
+data class PluginSearchCoversRequest(
+    val keyword: String,
+    val song: PluginSongRequest? = null,
+    val page: Int = 1,
+    val pageSize: Int = 5,
     val config: Map<String, String> = emptyMap()
 )
 
@@ -24,6 +36,7 @@ data class PluginSongRequest(
     val title: String,
     val artist: String,
     val album: String,
+    val date: String = "",
     val duration: Long,
     val sourceId: String,
     val pluginId: String,
@@ -73,6 +86,11 @@ data class PluginLyricsResult(
     val rawMultiPersonEnhancedLrc: String = ""
 )
 
+data class PluginLyricsCandidateResult(
+    val song: PluginSongSearchResult,
+    val lyrics: PluginLyricsResult
+)
+
 enum class PluginLyricsPayloadType {
     STRUCTURED,
     RAW_PLAIN_LRC,
@@ -85,7 +103,8 @@ enum class PluginLyricsPayloadType {
 data class LyricoPluginSource(
     val manifest: com.ella.music.plugin.model.PluginManifest,
     val assetDir: String,
-    val script: String
+    val script: String,
+    val cacheRootDir: File? = null
 )
 
 val pluginJson: Json = Json {

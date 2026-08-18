@@ -39,6 +39,7 @@ internal fun LibrarySearchResultsPane(
     trimmedQuery: String,
     duplicatesOnlyActive: Boolean,
     hasActiveContentFilter: Boolean,
+    contentFilterPending: Boolean = false,
     history: List<String>,
     selectionMode: Boolean,
     selectedSongKeys: Set<String>,
@@ -264,10 +265,14 @@ internal fun LibrarySearchResultsPane(
         }
         if (songResults.isEmpty() && visibleResultCount == 0) {
             item {
-                EmptySearchHint(
-                    if (duplicatesOnlyActive) stringResource(R.string.library_search_no_duplicates)
-                    else stringResource(R.string.library_search_no_results)
-                )
+                if (contentFilterPending) {
+                    com.ella.music.ui.components.EllaCenteredLoadingIndicator()
+                } else {
+                    EmptySearchHint(
+                        if (duplicatesOnlyActive) stringResource(R.string.library_search_no_duplicates)
+                        else stringResource(R.string.library_search_no_results)
+                    )
+                }
             }
         }
     }

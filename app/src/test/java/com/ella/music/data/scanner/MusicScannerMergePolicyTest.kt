@@ -29,6 +29,14 @@ class MusicScannerMergePolicyTest {
     }
 
     @Test
+    fun primaryDocumentIdMapsToEmulatedStoragePath() {
+        assertEquals("/storage/emulated/0", primaryDocumentIdToStoragePath("primary:"))
+        assertEquals("/storage/emulated/0/Music/Custom", primaryDocumentIdToStoragePath("primary:Music/Custom"))
+        assertEquals(null, primaryDocumentIdToStoragePath("12F0-21F1:Music"))
+        assertEquals("primary:Music/Custom", storagePathToPrimaryDocumentId("/storage/emulated/0/Music/Custom"))
+    }
+
+    @Test
     fun renamePolicyTreatsOldAndNewPathsAsDifferentItems() {
         val mediaStore = emptyList<MediaStoreAudioItem>()
         val fallback = listOf(item(path = "/music/new-name.flac"))

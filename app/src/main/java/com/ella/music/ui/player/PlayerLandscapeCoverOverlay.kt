@@ -124,7 +124,11 @@ internal fun LandscapeCoverPlaybackOverlay(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val importedMvOffsets by SettingsManager.getInstance(context).musicVideoOffsetsJson.collectAsState(initial = "")
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val importedMvOffsets by settingsManager.musicVideoOffsetsJson.collectAsState(initial = "")
+    val musicVideoStretchEnabled by settingsManager.musicVideoStretchEnabled.collectAsState(
+        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
+    )
     val mvOffsetMs = remember(dynamicCoverSource?.uri, importedMvOffsets) {
         dynamicCoverSource
             ?.takeIf { it.role == PlayerVideoRole.MusicVideo }
@@ -193,6 +197,7 @@ internal fun LandscapeCoverPlaybackOverlay(
             embeddedCover = embeddedCover,
             paletteBitmap = paletteBitmap,
             currentPosition = currentPosition,
+            duration = duration,
             isPlaying = isPlaying,
             flowEffectMode = flowEffectMode,
             // The MV landscape style keeps this focused layout even when no local MV exists.
@@ -212,6 +217,7 @@ internal fun LandscapeCoverPlaybackOverlay(
                 lyrics = lyrics,
                 position = lyricPosition,
                 videoAspectRatio = dynamicCoverSource?.aspectRatio,
+                fillVideoBounds = musicVideoStretchEnabled,
                 avoidBottomStartContent = hideNeighborCovers,
                 modifier = Modifier.fillMaxSize()
             )

@@ -84,6 +84,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
@@ -121,6 +122,10 @@ fun FolderPlaylistsScreen(
     val folderDetailSongSortIndex by mainViewModel.settingsManager.folderPlaylistDetailSongSortIndex.collectAsState(initial = 0)
     val folderDetailSongSortMode = FolderPlaylistSongSortMode.entries.getOrElse(folderDetailSongSortIndex) {
         FolderPlaylistSongSortMode.Custom
+    }
+    val folderEditorSortIndex by mainViewModel.settingsManager.folderPlaylistDetailFolderSortIndex.collectAsState(initial = 0)
+    val folderEditorSortMode = FolderPlaylistFolderSortMode.entries.getOrElse(folderEditorSortIndex) {
+        FolderPlaylistFolderSortMode.Name
     }
     val sortIndex = LibrarySortUiState.pendingFolderPlaylistListSortIndex ?: persistedSortIndex
     val sortMode = FolderPlaylistSortMode.entries.getOrElse(sortIndex) { FolderPlaylistSortMode.DateCreatedDesc }
@@ -459,6 +464,19 @@ fun FolderPlaylistsScreen(
                             tint = MiuixTheme.colorScheme.primary
                         )
                     }
+                    IconButton(onClick = {
+                        filteredPlaylists
+                            .filter { it.id in selection.selectedIds }
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { pendingBulkDelete = it }
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Delete,
+                            contentDescription = stringResource(R.string.common_delete),
+                            tint = androidx.compose.ui.graphics.Color(0xFFE5484D),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 } else {
                     ScanRefreshIconButton(
                         enabled = true,
@@ -794,6 +812,10 @@ fun FolderPlaylistsScreen(
         onSelectedFoldersChange = { editorDraftFolders = it },
         pinnedFolders = editorPinnedFolders,
         onPinnedFoldersChange = { editorPinnedFolders = it },
+        editorSort = folderEditorSortMode,
+        onEditorSortChange = { mode ->
+            scope.launch { mainViewModel.settingsManager.setFolderPlaylistDetailFolderSortIndex(mode.ordinal) }
+        },
         onDismiss = { showEditor = false },
         onSave = { target, name, folders ->
             scope.launch {

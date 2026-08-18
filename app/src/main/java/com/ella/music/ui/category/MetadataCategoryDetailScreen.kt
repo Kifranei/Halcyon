@@ -683,7 +683,11 @@ fun MetadataCategoryDetailScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && randomDetailSongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setPlaylist(randomDetailSongs.shuffled(), 0)
+                                    playerViewModel.setPlaylist(
+                                        randomDetailSongs.shuffled(),
+                                        0,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
+                                    )
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             )
@@ -700,10 +704,15 @@ fun MetadataCategoryDetailScreen(
                     item {
                         com.ella.music.ui.components.ContinuePlaybackRow(
                             songs = sortedSongs,
+                            categoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name),
                             playbackStats = playbackStats,
                             currentSong = currentSong,
                             onContinue = { index ->
-                                playerViewModel.setPlaylist(sortedSongs, index)
+                                playerViewModel.setPlaylist(
+                                    sortedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
+                                )
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         )
@@ -775,7 +784,11 @@ fun MetadataCategoryDetailScreen(
                                 if (selection.selectionMode) {
                                     selection.toggleSelection(song.id)
                                 } else {
-                                    playerViewModel.setPlaylist(sortedSongs, index)
+                                    playerViewModel.setPlaylist(
+                                        sortedSongs,
+                                        index,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
+                                    )
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             },

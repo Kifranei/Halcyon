@@ -27,6 +27,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CAPTURE_SUB
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_ORIENTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CUSTOM_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_OFFSETS_JSON
+import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_STRETCH_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_SYNC_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BACKGROUND_DIM
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BACKGROUND_ENABLED
@@ -93,6 +94,7 @@ interface PlayerUiSettingsAccess {
     val dynamicCoverEnabled: Flow<Boolean>
     val musicVideoSyncEnabled: Flow<Boolean>
     val musicVideoCaptureSubtitles: Flow<Boolean>
+    val musicVideoStretchEnabled: Flow<Boolean>
     val musicVideoOrientation: Flow<Int>
     val musicVideoOffsetsJson: Flow<String>
     val dynamicCoverCustomFoldersRaw: Flow<String>
@@ -127,6 +129,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setDynamicCoverEnabled(enabled: Boolean)
     suspend fun setMusicVideoSyncEnabled(enabled: Boolean)
     suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean)
+    suspend fun setMusicVideoStretchEnabled(enabled: Boolean)
     suspend fun setMusicVideoOrientation(orientation: Int)
     suspend fun setMusicVideoOffsetsJson(json: String)
     suspend fun setDynamicCoverCustomFolders(folders: String)
@@ -240,6 +243,11 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         }
     override val musicVideoCaptureSubtitles: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] ?: false }
+    override val musicVideoStretchEnabled: Flow<Boolean> =
+        context.dataStore.data.map {
+            it[KEY_MUSIC_VIDEO_STRETCH_ENABLED]
+                ?: SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
+        }
     override val musicVideoOrientation: Flow<Int> =
         context.dataStore.data.map {
             it[KEY_MUSIC_VIDEO_ORIENTATION]
@@ -365,6 +373,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES] = enabled }
+    }
+
+    override suspend fun setMusicVideoStretchEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MUSIC_VIDEO_STRETCH_ENABLED] = enabled }
     }
 
     override suspend fun setMusicVideoOrientation(orientation: Int) {

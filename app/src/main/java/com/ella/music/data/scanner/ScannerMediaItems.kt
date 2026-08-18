@@ -55,6 +55,26 @@ internal fun mergeMediaStoreAndFilesystemItems(
 internal fun String.normalizedAudioPathKey(): String =
     trim().replace('\\', '/').lowercase()
 
+internal fun primaryDocumentIdToStoragePath(documentId: String): String? {
+    val parts = documentId.split(':', limit = 2)
+    val volume = parts.firstOrNull().orEmpty()
+    val relative = parts.getOrNull(1).orEmpty().trim('/')
+    if (!volume.equals("primary", ignoreCase = true)) return null
+    return if (relative.isBlank()) "/storage/emulated/0" else "/storage/emulated/0/$relative"
+}
+
+internal fun storagePathToPrimaryDocumentId(path: String): String? {
+    val normalized = path.replace('\\', '/').trimEnd('/')
+    val prefix = "/storage/emulated/0"
+    if (!normalized.equals(prefix, ignoreCase = true) &&
+        !normalized.startsWith("$prefix/", ignoreCase = true)
+    ) {
+        return null
+    }
+    val relative = normalized.removePrefix(prefix).trimStart('/')
+    return if (relative.isBlank()) "primary:" else "primary:$relative"
+}
+
 internal fun MediaStoreAudioItem.toShallowSong(minDurationMs: Long = 0): Song? {
     val safeDuration = duration
     if (safeDuration <= 0L || safeDuration < minDurationMs) return null

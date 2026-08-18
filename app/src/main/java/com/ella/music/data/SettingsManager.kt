@@ -223,6 +223,7 @@ class SettingsManager(private val context: Context) :
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_MUSIC_VIDEO_SYNC_ENABLED = booleanPreferencesKey("music_video_sync_enabled")
         val KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES = booleanPreferencesKey("music_video_capture_subtitles")
+        val KEY_MUSIC_VIDEO_STRETCH_ENABLED = booleanPreferencesKey("music_video_stretch_enabled")
         val KEY_MUSIC_VIDEO_ORIENTATION = intPreferencesKey("music_video_orientation")
         val KEY_MUSIC_VIDEO_OFFSETS_JSON = stringPreferencesKey("music_video_offsets_json")
         val KEY_DYNAMIC_COVER_CUSTOM_FOLDERS = stringPreferencesKey("dynamic_cover_custom_folders")
@@ -542,6 +543,7 @@ class SettingsManager(private val context: Context) :
         const val DEFAULT_TRANSPORT_BUTTON_OUTLINES = true
         const val DEFAULT_PLAYER_SHOW_TOTAL_DURATION = true
         const val DEFAULT_MUSIC_VIDEO_SYNC_ENABLED = true
+        const val DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED = false
         const val MUSIC_VIDEO_ORIENTATION_SYSTEM = 0
         const val MUSIC_VIDEO_ORIENTATION_VIDEO = 1
         const val MUSIC_VIDEO_ORIENTATION_LANDSCAPE = 2
@@ -978,6 +980,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_SYNC_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES)
+            setBoolean(KEY_MUSIC_VIDEO_STRETCH_ENABLED)
             setBoolean(KEY_SHOW_LOCAL_MV_IN_LISTS)
             setBoolean(KEY_SHOW_ONLINE_MV_IN_LISTS)
             setBoolean(KEY_ARTIST_COVER_CAROUSEL)

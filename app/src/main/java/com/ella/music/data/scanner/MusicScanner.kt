@@ -3,7 +3,9 @@ package com.ella.music.data.scanner
 import android.content.ContentUris
 import android.content.Context
 import android.media.MediaMetadataRetriever
+import android.media.MediaScannerConnection
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import com.ella.music.data.SettingsManager
@@ -17,8 +19,10 @@ import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.looksLikeNeteaseKeyValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.coroutines.resume
 
 class MusicScanner(private val context: Context) {
     private val audioTagReader = LyricoAudioTagReaderWriter()
@@ -37,7 +41,8 @@ class MusicScanner(private val context: Context) {
 
     suspend fun enumerateAudioFiles(
         includeFolders: List<String> = emptyList(),
-        excludeFolders: List<String> = emptyList()
+        excludeFolders: List<String> = emptyList(),
+        filesystemFallbackFolders: List<String> = includeFolders
     ): List<MediaStoreAudioItem> = withContext(Dispatchers.IO) {
         val items = queryMediaStoreAudioItems(
             includeFolders = includeFolders,
@@ -45,11 +50,16 @@ class MusicScanner(private val context: Context) {
             verifyFileSnapshot = false
         )
         val fallbackItems = filesystemFallbackAudioItems(
-            includeFolders = includeFolders,
+            includeFolders = filesystemFallbackFolders,
             excludeFolders = excludeFolders,
             existingPaths = items.map { it.path }.toSet()
         )
-        val (merged, stats) = mergeMediaStoreAndFilesystemItems(items, fallbackItems)
+        val indexedItems = discoverUnindexedCustomFolderItems(
+            includeFolders = filesystemFallbackFolders,
+            excludeFolders = excludeFolders,
+            existingPaths = (items + fallbackItems).map { it.path }.toSet()
+        )
+        val (merged, stats) = mergeMediaStoreAndFilesystemItems(items, fallbackItems + indexedItems)
         Log.i(
             TAG,
             "enumerateAudioFiles mediaStore=${stats.mediaStoreItemCount} filesystemFallback=${stats.filesystemFallbackItemCount} merged=${stats.mergedItemCount}"
@@ -230,9 +240,15 @@ class MusicScanner(private val context: Context) {
             excludeFolders = excludeFolders,
             existingPaths = songs.map { it.path }.toSet()
         )
-        fallbackItems.forEach { item ->
+        val indexedItems = discoverUnindexedCustomFolderItems(
+            includeFolders = filesystemFallbackFolders,
+            excludeFolders = excludeFolders,
+            existingPaths = (songs.map { it.path } + fallbackItems.map { it.path }).toSet()
+        )
+        (fallbackItems + indexedItems).forEach { item ->
             runCatching {
-                scanAudioItem(item, minDurationMs = minDurationMs, deepMetadata = deepMetadata)
+                item.toShallowSong(minDurationMs)
+                    ?: scanAudioItem(item, minDurationMs = minDurationMs, deepMetadata = deepMetadata)
             }.onFailure { error ->
                 Log.w(TAG, "scanAllSongs fallback item failed for ${item.path}", error)
             }.getOrNull()?.let { song ->
@@ -299,7 +315,10 @@ class MusicScanner(private val context: Context) {
                 if (!path.isAllowedByFolderFilters(normalizedIncludeFolders, normalizedExcludeFolders)) continue
 
                 val file = if (verifyFileSnapshot) File(path) else null
-                if (file != null && !file.exists()) continue
+                // Scoped storage can hide files from File.exists() even when MediaStore
+                // still has a valid row. Only drop the row when the path is obviously gone
+                // from a location the process can actually observe.
+                if (file != null && file.parentFile?.canRead() == true && !file.exists()) continue
 
                 val rawTrackNumber = cursor.getInt(trackCol)
                 val mediaStoreSize = cursor.getLong(sizeCol).coerceAtLeast(0L)
@@ -366,6 +385,146 @@ class MusicScanner(private val context: Context) {
                 }
             }
         return fallback
+    }
+
+    /**
+     * Primary custom folders are stored as File paths, but Android 11+ often hides newly copied
+     * files from [File.walkTopDown]. Use the persisted SAF tree to list them, ask MediaStore to
+     * index the missing paths, then re-query.
+     */
+    private suspend fun discoverUnindexedCustomFolderItems(
+        includeFolders: List<String>,
+        excludeFolders: List<String>,
+        existingPaths: Set<String>
+    ): List<MediaStoreAudioItem> {
+        if (includeFolders.isEmpty() || includeFolders.all { it == "__ella_no_custom_folder__" }) {
+            return emptyList()
+        }
+        val existingKeys = existingPaths.mapTo(HashSet()) { it.normalizedAudioPathKey() }
+        val safPaths = listSafPrimaryAudioPaths(
+            includeFolders = includeFolders,
+            excludeFolders = excludeFolders
+        ).filter { it.normalizedAudioPathKey() !in existingKeys }
+        if (safPaths.isEmpty()) return emptyList()
+        requestMediaStoreScan(safPaths)
+        val afterScan = queryMediaStoreAudioItems(
+            includeFolders = includeFolders,
+            excludeFolders = excludeFolders,
+            verifyFileSnapshot = false
+        ).filter { it.path.normalizedAudioPathKey() !in existingKeys }
+        if (afterScan.isNotEmpty()) return afterScan
+        return safPaths.mapNotNull { path ->
+            File(path).takeIf { it.isFile && it.length() > 0L }?.toFallbackAudioItem()
+        }
+    }
+
+    private fun listSafPrimaryAudioPaths(
+        includeFolders: List<String>,
+        excludeFolders: List<String>
+    ): List<String> {
+        val normalizedInclude = includeFolders.mapNotNull { it.normalizedFolderPath() }
+        if (normalizedInclude.isEmpty()) return emptyList()
+        val normalizedExclude = (DEFAULT_EXCLUDE_FOLDERS + excludeFolders).mapNotNull { it.normalizedFolderPath() }
+        val trees = resolvePrimaryTreeUris(includeFolders)
+        if (trees.isEmpty()) return emptyList()
+        val paths = LinkedHashSet<String>()
+        trees.forEach { treeUri ->
+            val documentId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()
+                ?: return@forEach
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId)
+            collectSafPrimaryAudioPaths(
+                treeUri = treeUri,
+                childrenUri = childrenUri,
+                includeFolders = normalizedInclude,
+                excludeFolders = normalizedExclude,
+                into = paths
+            )
+        }
+        return paths.toList()
+    }
+
+    private fun resolvePrimaryTreeUris(includeFolders: List<String>): List<Uri> {
+        val persisted = context.contentResolver.persistedUriPermissions.map { it.uri }
+        val reconstructed = includeFolders.mapNotNull { folder ->
+            storagePathToPrimaryDocumentId(folder)?.let { documentId ->
+                DocumentsContract.buildTreeDocumentUri(
+                    "com.android.externalstorage.documents",
+                    documentId
+                )
+            }
+        }
+        return (persisted + reconstructed)
+            .distinctBy { it.toString() }
+            .filter { uri ->
+                val treePath = runCatching { DocumentsContract.getTreeDocumentId(uri) }
+                    .getOrNull()
+                    ?.let(::primaryDocumentIdToStoragePath)
+                    ?.normalizedFolderPath()
+                if (treePath == null) {
+                    persisted.any { it.toString() == uri.toString() }
+                } else {
+                    includeFolders.mapNotNull { it.normalizedFolderPath() }.any { folder ->
+                        folder == treePath || folder.startsWith("$treePath/") || treePath.startsWith("$folder/")
+                    }
+                }
+            }
+    }
+
+    private fun collectSafPrimaryAudioPaths(
+        treeUri: Uri,
+        childrenUri: Uri,
+        includeFolders: List<String>,
+        excludeFolders: List<String>,
+        into: MutableSet<String>
+    ) {
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        )
+        runCatching {
+            context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                val docIdCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                while (cursor.moveToNext()) {
+                    val docId = cursor.getString(docIdCol) ?: continue
+                    val name = cursor.getString(nameCol).orEmpty()
+                    val mimeType = cursor.getString(mimeCol).orEmpty()
+                    if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                        val subChildren = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+                        collectSafPrimaryAudioPaths(treeUri, subChildren, includeFolders, excludeFolders, into)
+                        continue
+                    }
+                    val ext = name.substringAfterLast('.', "").lowercase()
+                    if (ext !in AUDIO_EXTENSIONS) continue
+                    val path = primaryDocumentIdToStoragePath(docId) ?: continue
+                    if (!path.isAllowedByFolderFilters(includeFolders, excludeFolders)) continue
+                    into += path
+                }
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "SAF listing failed for $treeUri", error)
+        }
+    }
+
+    private suspend fun requestMediaStoreScan(paths: List<String>) {
+        if (paths.isEmpty()) return
+        paths.chunked(32).forEach { chunk ->
+            suspendCancellableCoroutine { continuation ->
+                var remaining = chunk.size
+                MediaScannerConnection.scanFile(
+                    context,
+                    chunk.toTypedArray(),
+                    null
+                ) { _, _ ->
+                    remaining -= 1
+                    if (remaining <= 0 && continuation.isActive) {
+                        continuation.resume(Unit)
+                    }
+                }
+            }
+        }
     }
 
     /**

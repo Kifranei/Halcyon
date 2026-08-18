@@ -31,6 +31,7 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.ScanRefreshIconButton
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.settings.rememberSettingsLazyListState
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
@@ -74,6 +75,7 @@ fun ScanSettingsScreen(
     val usbFolderUris = remember(usbFolderUrisRaw) {
         usbFolderUrisRaw.split('\n').map { it.trim() }.filter { it.isNotBlank() }
     }
+    val listState = rememberSettingsLazyListState("settings_scan")
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -147,6 +149,7 @@ fun ScanSettingsScreen(
         )
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 120.dp)
         ) {

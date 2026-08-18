@@ -28,6 +28,7 @@ import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.components.TagEditorOptionKind
 import com.ella.music.ui.components.SpectrumViewerLauncher
 import com.ella.music.ui.components.shareLocalSong
+import com.ella.music.viewmodel.AbRepeatState
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -151,6 +152,7 @@ internal fun CoverPageContent(
     modifier: Modifier = Modifier
 ) {
     var actionMenuInitialPage by remember { mutableStateOf(PlayerActionSheetPage.Main) }
+    val abRepeatState by playerViewModel.abRepeatState.collectAsState()
     fun openTagEditor(kind: TagEditorOptionKind) {
         val current = song
         when {
@@ -205,6 +207,7 @@ internal fun CoverPageContent(
         duration = duration,
         shuffleEnabled = shuffleEnabled,
         repeatMode = repeatMode,
+        abRepeatState = abRepeatState,
         audioInfo = audioInfo,
         palette = lyricPalette,
         flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
@@ -318,6 +321,7 @@ internal fun CoverPageContent(
         },
         onSeek = { fraction -> playerViewModel.seekToProgress(fraction, duration) },
         onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
+        onAbRepeat = { playerViewModel.toggleAbRepeat() },
         onPrevious = { playerViewModel.skipToPrevious() },
         onSwipePrevious = onSwipePrevious,
         onPlayPause = { playerViewModel.togglePlayPause() },

@@ -169,7 +169,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun scanMusic(fullRescan: Boolean = false, deepRescan: Boolean? = null) {
-        if (scanJob?.isActive == true || isScanning.value) return
+        if (scanJob?.isActive == true || isScanning.value) {
+            if (!fullRescan) return
+            // A long-press complete scan must replace an in-flight incremental pass; otherwise
+            // newly copied files in custom folders stay invisible until MediaStore catches up.
+            scanJob?.cancel()
+        }
         scanJob = viewModelScope.launch {
             awaitCachedLibraryRestoreBeforeScanning()
             val source = settingsManager.librarySource.first()
@@ -213,8 +218,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val summary = try {
             repository.loadRemoteLibrary(source, forceRefresh = forceRefresh)
         } finally {
-            repository.finishScanning()
-            if (scanJob === ownerJob) scanJob = null
+            if (scanJob === ownerJob) {
+                repository.finishScanning()
+                scanJob = null
+            }
         }
         openSubsonicCollectionsStore.refreshForLibrarySource(source)
         repository.emitScanSummary(summary)
@@ -265,8 +272,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     deepMetadata = true
                 )
             } finally {
-                repository.finishScanning()
-                if (scanJob === ownerJob) scanJob = null
+                if (scanJob === ownerJob) {
+                    repository.finishScanning()
+                    scanJob = null
+                }
             }
             repository.emitScanSummary(summary)
             preloadLibrarySearchSnapshot()
@@ -345,7 +354,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             val filesystemFallbackFolders = when {
                 preferExplicitFolders -> includeFolders
-                fullRescan && effectiveUseAndroidMediaLibrary -> includeFolders
+                includeFolders.isNotEmpty() -> includeFolders
                 else -> scanIncludeFolders
             }
             var summary = repository.scanMusic(
@@ -381,10 +390,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             summary
         } finally {
-            repository.finishScanning()
-            // Release the scan gate as soon as the repository scan is done. Search/cache
-            // prewarming below is intentionally best-effort and must not block a new scan.
-            if (scanJob === ownerJob) scanJob = null
+            if (scanJob === ownerJob) {
+                repository.finishScanning()
+                // Release the scan gate as soon as the repository scan is done. Search/cache
+                // prewarming below is intentionally best-effort and must not block a new scan.
+                scanJob = null
+            }
         }
         repository.emitScanSummary(completedSummary)
         preloadLibrarySearchSnapshot()
@@ -514,6 +525,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun getAlbumArtUri(albumId: Long) = repository.getAlbumArtUri(albumId)
 
     fun getCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 128, CoverUsage.ListThumbnail)
+
+    fun getMiniPlayerCoverArtBitmap(song: Song) =
+        repository.getCoverArtBitmap(song, 512, CoverUsage.Player)
 
     fun getCoverArtBitmap(song: Song, maxSize: Int) = repository.getCoverArtBitmap(song, maxSize, CoverUsage.ListThumbnail)
 

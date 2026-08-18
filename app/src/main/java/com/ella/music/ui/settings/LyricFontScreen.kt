@@ -105,6 +105,7 @@ fun LyricFontScreen(
     val originalCjkDisplayName = originalCjkFontName.ifBlank { legacyCjkFontName.ifBlank { "MiSans Bold" } }
     val translationWesternDisplayName = translationWesternFontName.ifBlank { legacyWesternFontName.ifBlank { "Inter" } }
     val translationCjkDisplayName = translationCjkFontName.ifBlank { legacyCjkFontName.ifBlank { "MiSans Bold" } }
+    val listState = rememberSettingsLazyListState("settings_lyric_font")
 
     suspend fun applyFont(font: FontChoice) {
         when (activeTarget) {
@@ -187,6 +188,7 @@ fun LyricFontScreen(
         )
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 12.dp),

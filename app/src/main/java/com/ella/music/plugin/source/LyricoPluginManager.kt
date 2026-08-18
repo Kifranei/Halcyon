@@ -58,6 +58,35 @@ class LyricoPluginManager(
         }
     }
 
+    suspend fun searchCovers(keyword: String, pageSizePerSource: Int = 5): List<PluginSearchHit> =
+        withContext(Dispatchers.IO) {
+            coroutineScope {
+                enabledSources().map { source ->
+                    async {
+                        ScriptSearchSource(source, configStore.loadConfig(source.manifest)).use { runtime ->
+                            runtime.searchCovers(keyword, pageSize = pageSizePerSource).map { result ->
+                                PluginSearchHit(source.manifest.id, source.manifest.name, result)
+                            }
+                        }
+                    }
+                }.awaitAll().flatten()
+            }
+        }
+
+    suspend fun searchCovers(
+        hit: PluginSearchHit,
+        page: Int = 1,
+        pageSize: Int = 5
+    ): List<PluginSearchHit> = withContext(Dispatchers.IO) {
+        val source = availableSources().firstOrNull { it.manifest.id == hit.sourceId }
+            ?: return@withContext emptyList()
+        ScriptSearchSource(source, configStore.loadConfig(source.manifest)).use { runtime ->
+            runtime.searchCovers(hit.song, page = page, pageSize = pageSize).map { result ->
+                PluginSearchHit(source.manifest.id, source.manifest.name, result)
+            }
+        }
+    }
+
     suspend fun getLyrics(hit: PluginSearchHit): PluginLyricsResult? = withContext(Dispatchers.IO) {
         val source = availableSources().firstOrNull { it.manifest.id == hit.sourceId } ?: return@withContext null
         ScriptSearchSource(source, configStore.loadConfig(source.manifest)).use { runtime -> runtime.getLyrics(hit.song) }

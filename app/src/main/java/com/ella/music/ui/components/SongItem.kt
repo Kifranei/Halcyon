@@ -50,7 +50,6 @@ import com.ella.music.data.neteaseMvUrl
 import com.ella.music.ui.player.DynamicCoverSource
 import com.ella.music.ui.player.musicVideoSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -143,9 +142,9 @@ fun SongItem(
             value = SongListVideoActions()
             return@produceState
         }
-        // Let the artwork request enter its own limiter first. Scanning SAF/file-system MV
-        // folders for every visible row used to starve embedded cover extraction (#453).
-        delay(180L)
+        // The folder index is single-flight and name lookups are map-backed. Do not add a fixed
+        // per-row delay here: it made MV badges appear one-by-one, especially after adding many
+        // videos, while the first scan was already protected by the limiter (#453).
         value = SongListVideoActionLimiter.withPermit {
             withContext(Dispatchers.IO) {
                 val localSource = if (showLocalMusicVideoInLists) {

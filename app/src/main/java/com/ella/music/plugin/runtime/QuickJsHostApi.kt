@@ -15,8 +15,10 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import java.util.zip.Inflater
@@ -49,12 +51,18 @@ class QuickJsHostApi(
     private val appInfo: HostAppInfo = HostAppInfo(),
     private val runtimeInfo: HostRuntimeInfo = HostRuntimeInfo(),
     private val okHttpClient: OkHttpClient = defaultPluginHttpClient(),
+    private val pluginId: String = "default",
+    private val cacheRootDir: File? = null,
     private val json: Json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
         explicitNulls = false
     }
 ) {
+    private companion object {
+        const val CACHE_LOG_TAG = "PlatformPluginCache"
+    }
+
     fun call(name: String, payloadJson: String): String {
         val payload = runCatching {
             json.parseToJsonElement(payloadJson).jsonObject
@@ -66,6 +74,27 @@ class QuickJsHostApi(
             "app.userAgent" -> text(buildDefaultUserAgent(appInfo))
 
             "runtime.info" -> value(runtimeInfo.toJsonObject())
+
+            "cache.get" -> text(cacheGet(payload.string("key")))
+
+            "cache.set" -> {
+                cacheSet(
+                    key = payload.string("key"),
+                    value = payload.string("value"),
+                    ttlMs = payload.longOrNull("ttlMs")
+                )
+                text("")
+            }
+
+            "cache.remove" -> {
+                cacheRemove(payload.string("key"))
+                text("")
+            }
+
+            "cache.clear" -> {
+                cacheClear()
+                text("")
+            }
 
             "crypto.md5" -> text(md5(payload.string("text")))
 
@@ -120,6 +149,35 @@ class QuickJsHostApi(
             "base64.encodeBytes" -> text(
                 Base64.encodeToString(payload.bytes("bytes"), Base64.NO_WRAP)
             )
+
+            "base64.encodeUrlText" -> text(
+                Base64.encodeToString(
+                    payload.string("text").toByteArray(Charsets.UTF_8),
+                    Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+                )
+            )
+
+            "base64.decodeUrlText" -> text(
+                String(
+                    Base64.decode(fromBase64Url(payload.string("base64Url")), Base64.DEFAULT),
+                    Charsets.UTF_8
+                )
+            )
+
+            "base64.encodeUrlBytes" -> text(
+                Base64.encodeToString(
+                    payload.bytes("bytes"),
+                    Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+                )
+            )
+
+            "base64.decodeUrlBytes" -> bytes(
+                Base64.decode(fromBase64Url(payload.string("base64Url")), Base64.DEFAULT)
+            )
+
+            "base64.toUrl" -> text(toBase64Url(payload.string("base64")))
+
+            "base64.fromUrl" -> text(fromBase64Url(payload.string("base64Url")))
 
             "bytes.xor" -> bytes(
                 xor(
@@ -351,6 +409,83 @@ class QuickJsHostApi(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
+    private fun cacheGet(key: String): String {
+        val normalizedKey = key.trim()
+        val file = cacheFile(normalizedKey) ?: return ""
+        if (!file.isFile) return ""
+        val entry = runCatching {
+            json.parseToJsonElement(file.readText()).jsonObject
+        }.getOrNull() ?: run {
+            file.delete()
+            return ""
+        }
+        val expiresAt = entry.longOrNull("expiresAt") ?: 0L
+        if (expiresAt > 0L && expiresAt <= System.currentTimeMillis()) {
+            file.delete()
+            return ""
+        }
+        return entry.string("value")
+    }
+
+    private fun cacheSet(key: String, value: String, ttlMs: Long?) {
+        val file = cacheFile(key.trim()) ?: return
+        val normalizedTtlMs = ttlMs ?: 0L
+        val expiresAt = if (normalizedTtlMs > 0L) {
+            System.currentTimeMillis() + normalizedTtlMs
+        } else {
+            0L
+        }
+        file.parentFile?.mkdirs()
+        file.writeText(
+            json.encodeToString(
+                JsonObject.serializer(),
+                buildJsonObject {
+                    put("value", value)
+                    put("expiresAt", expiresAt)
+                }
+            )
+        )
+        Log.d(CACHE_LOG_TAG, "set plugin=$pluginId key=${key.trim()} ttlMs=$normalizedTtlMs")
+    }
+
+    private fun cacheRemove(key: String) {
+        cacheFile(key.trim())?.delete()
+    }
+
+    private fun cacheClear() {
+        pluginCacheDir()?.deleteRecursively()
+    }
+
+    private fun cacheFile(key: String): File? {
+        if (key.isBlank()) return null
+        return File(pluginCacheDir() ?: return null, "${md5(key)}.json")
+    }
+
+    private fun pluginCacheDir(): File? {
+        val root = cacheRootDir ?: return null
+        return File(root, md5(pluginId.ifBlank { "default" }))
+    }
+
+    private fun toBase64Url(base64: String): String = base64
+        .trim()
+        .replace('+', '-')
+        .replace('/', '_')
+        .trimEnd('=')
+
+    private fun fromBase64Url(base64Url: String): String {
+        val normalized = base64Url
+            .trim()
+            .replace('-', '+')
+            .replace('_', '/')
+        val padding = when (normalized.length % 4) {
+            0 -> ""
+            2 -> "=="
+            3 -> "="
+            else -> ""
+        }
+        return normalized + padding
+    }
+
     private fun aesEcbPkcs5EncryptBase64(text: String, key: String): String {
         return Base64.encodeToString(
             aesEcbPkcs5Encrypt(text, key),
@@ -508,6 +643,10 @@ private fun JsonObject.string(key: String): String {
 
 private fun JsonObject.intOrNull(key: String): Int? {
     return this[key]?.jsonPrimitive?.int
+}
+
+private fun JsonObject.longOrNull(key: String): Long? {
+    return this[key]?.jsonPrimitive?.longOrNull
 }
 
 private fun JsonObject.booleanOrNull(key: String): Boolean? {

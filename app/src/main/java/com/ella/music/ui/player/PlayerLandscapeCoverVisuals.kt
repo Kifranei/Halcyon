@@ -1,7 +1,6 @@
 package com.ella.music.ui.player
 
 import android.graphics.Bitmap
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -11,6 +10,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,12 +20,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.media3.ui.AspectRatioFrameLayout
+import com.ella.music.data.SettingsManager
+import com.ella.music.data.repository.CoverUsage
+import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.rememberSongArtworkState
 import kotlin.math.abs
 
 @Composable
@@ -34,6 +42,7 @@ internal fun LandscapeCoverModeBackground(
     embeddedCover: Bitmap? = null,
     paletteBitmap: Bitmap? = null,
     currentPosition: Long,
+    duration: Long,
     isPlaying: Boolean,
     flowEffectMode: Int,
     dynamicFlowEnabled: Boolean,
@@ -45,15 +54,27 @@ internal fun LandscapeCoverModeBackground(
     beautifulLyricsBackground: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.background(palette.middle)) {
-        if (dynamicCoverSource?.preferLandscapeBackground == true) {
+    val musicVideoSource = dynamicCoverSource?.takeIf { it.preferLandscapeBackground }
+    Box(modifier = modifier.background(if (musicVideoSource != null) Color.Black else palette.middle)) {
+        if (musicVideoSource != null) {
+            val context = LocalContext.current
+            val stretchEnabled by SettingsManager.getInstance(context).musicVideoStretchEnabled
+                .collectAsState(initial = SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED)
             DynamicCoverVideo(
-                source = dynamicCoverSource,
+                source = musicVideoSource,
                 isPlaying = isPlaying,
+                syncPositionMs = currentPosition,
+                syncDurationMs = duration,
                 onPlaybackError = {},
                 modifier = Modifier.fillMaxSize(),
                 cornerRadiusDp = 0f,
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                // FIT keeps the authored frame. PlayerView resize modes are ignored by SurfaceView
+                // in Compose, so DynamicCoverVideo applies this as a real layout constraint.
+                resizeMode = if (stretchEnabled) {
+                    AspectRatioFrameLayout.RESIZE_MODE_FILL
+                } else {
+                    AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
             )
             Box(
                 modifier = Modifier
@@ -238,12 +259,21 @@ internal fun LandscapeStackCoverImage(
     embeddedCover: Bitmap?,
     modifier: Modifier = Modifier
 ) {
-    val uri = if (song.albumId > 0L) {
-        Uri.parse("content://media/external/audio/albumart/${song.albumId}")
-    } else {
-        null
+    val context = LocalContext.current
+    val repository = remember(context) { MusicRepository.getInstance(context) }
+    val albumArtUri = remember(song.albumId) {
+        repository.getAlbumArtUri(song.albumId)
     }
-    val coverModel = embeddedCover ?: song.coverUrl.takeIf { it.isNotBlank() } ?: uri
+    val artworkState = rememberSongArtworkState(
+        song = song,
+        albumArtUri = albumArtUri,
+        loadCoverArt = { target ->
+            repository.getCoverArtBitmap(target, 512, CoverUsage.Player)
+        },
+        usage = ArtworkUsage.MiniPlayer,
+        showDefaultWhenMissing = false
+    )
+    val coverModel = embeddedCover ?: artworkState.model
     if (coverModel != null) {
         SafeCoverImage(
             model = coverModel,

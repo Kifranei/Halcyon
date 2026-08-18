@@ -45,6 +45,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.folder.WebDavTextField
+import com.ella.music.ui.settings.rememberSettingsLazyListState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -99,6 +100,7 @@ fun RemoteServerSettingsScreen(
     } else {
         Color(0xFFFFFFFF)
     }
+    val listState = rememberSettingsLazyListState("settings_remote_${provider.name}")
 
     Column(
         modifier = Modifier
@@ -122,6 +124,7 @@ fun RemoteServerSettingsScreen(
         )
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)

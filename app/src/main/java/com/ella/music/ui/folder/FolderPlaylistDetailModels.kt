@@ -81,15 +81,6 @@ internal data class FolderPlaylistFolderEntry(
     val coverModel: Any?
 )
 
-internal enum class EditorFolderSort(@param:StringRes val labelRes: Int) {
-    ModifiedTime(R.string.playlist_song_sort_date_modified),
-    Name(R.string.playlist_sort_name),
-    SongCount(R.string.playlist_sort_song_count),
-    ModifiedTimeAsc(R.string.playlist_song_sort_date_modified),
-    NameDesc(R.string.playlist_sort_name),
-    SongCountAsc(R.string.playlist_sort_song_count)
-}
-
 internal fun List<Song>.sortedForFolderPlaylistDetail(
     mode: FolderPlaylistSongSortMode,
     customOrderKeys: List<String> = emptyList()

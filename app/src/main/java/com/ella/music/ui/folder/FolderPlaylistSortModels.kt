@@ -62,7 +62,10 @@ internal fun List<FolderPlaylist>.applyFolderPlaylistCustomOrder(orderIds: List<
     val orderedIds = ordered.mapTo(mutableSetOf(), FolderPlaylist::id)
     val newItems = filterNot { it.id in orderedIds }
         .sortedWith(compareByDescending<FolderPlaylist> { it.createdAt }.thenBy { it.name.musicSortKey() })
-    return ordered + newItems
+    // New playlists are always shown before the previously persisted manual order. Once a
+    // playlist has been dragged, the persisted list contains the full order and this remains a
+    // stable manual sort; newly created playlists still appear at the front (#462).
+    return newItems + ordered
 }
 
 internal fun FolderPlaylistSortMode.isDescending(): Boolean = when (this) {

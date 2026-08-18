@@ -2251,4 +2251,8 @@
     <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
+    <string name="player_ab_repeat_record_b">A-B 반복: B 설정 (A %1$s)</string>
+    <string name="player_ab_repeat_active">A-B 반복 취소 (%1$s-%2$s)</string>
+    <string name="settings_music_video_stretch">MV 늘이기 허용</string>
+    <string name="settings_music_video_stretch_summary">화면에 맞게 영상을 늘립니다. 끄면 원본 비율을 유지하여 영상과 내장 KTV 가사가 변형되지 않습니다</string>
 </resources>

@@ -59,6 +59,7 @@ class PlaybackService : MediaLibraryService() {
         internal const val LIBRARY_QUEUE_ID = "ella_music_current_queue"
         private const val PLAYBACK_PREFS = "ella_playback_state"
         private const val KEY_APP_SHUFFLE = "app_shuffle_enabled"
+        private const val KEY_APP_REPEAT = "app_repeat_mode"
         const val ACTION_TOGGLE_TRANSLATION =
             "io.github.andrealtb.lockscreenlyrics.action.TOGGLE_TRANSLATION"
         const val ACTION_TOGGLE_FAVORITE = "com.ella.music.action.TOGGLE_FAVORITE"
@@ -488,10 +489,12 @@ class PlaybackService : MediaLibraryService() {
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 updateMediaButtonPreferences()
+                notificationProvider.refresh()
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
                 updateMediaButtonPreferences()
+                notificationProvider.refresh()
                 publishExternalPlaybackSnapshot(player)
             }
         })
@@ -888,21 +891,22 @@ class PlaybackService : MediaLibraryService() {
     )
 
     private fun Player.notificationPlaybackModeAction(): MediaButtonPlaybackModeAction {
-        // The player page persists the app shuffle flag out-of-band; refresh from it so the
-        // notification icon reflects changes made on the player page.
+        // The player page persists shuffle/repeat out-of-band; Media3's player fields can lag
+        // one event behind a tap on the player page.
         appShuffleEnabled = loadAppShuffleEnabled()
+        val persistedRepeat = loadAppRepeatMode()
         return when {
             appShuffleEnabled -> MediaButtonPlaybackModeAction(
                 icon = R.drawable.ic_notification_shuffle,
                 title = getString(R.string.notification_action_shuffle)
             )
 
-            repeatMode == Player.REPEAT_MODE_ONE -> MediaButtonPlaybackModeAction(
+            persistedRepeat == Player.REPEAT_MODE_ONE -> MediaButtonPlaybackModeAction(
                 icon = R.drawable.ic_repeat_one,
                 title = getString(R.string.notification_action_repeat_one)
             )
 
-            repeatMode == Player.REPEAT_MODE_ALL -> MediaButtonPlaybackModeAction(
+            persistedRepeat == Player.REPEAT_MODE_ALL -> MediaButtonPlaybackModeAction(
                 icon = R.drawable.ic_repeat,
                 title = getString(R.string.notification_action_repeat_all)
             )
@@ -921,20 +925,23 @@ class PlaybackService : MediaLibraryService() {
             appShuffleEnabled -> {
                 appShuffleEnabled = false
                 persistAppShuffleEnabled(false)
+                persistAppRepeatMode(Player.REPEAT_MODE_OFF)
                 shuffleModeEnabled = false
                 repeatMode = Player.REPEAT_MODE_OFF
             }
 
-            repeatMode == Player.REPEAT_MODE_OFF -> {
+            loadAppRepeatMode() == Player.REPEAT_MODE_OFF -> {
                 appShuffleEnabled = false
                 persistAppShuffleEnabled(false)
+                persistAppRepeatMode(Player.REPEAT_MODE_ALL)
                 shuffleModeEnabled = false
                 repeatMode = Player.REPEAT_MODE_ALL
             }
 
-            repeatMode == Player.REPEAT_MODE_ALL -> {
+            loadAppRepeatMode() == Player.REPEAT_MODE_ALL -> {
                 appShuffleEnabled = false
                 persistAppShuffleEnabled(false)
+                persistAppRepeatMode(Player.REPEAT_MODE_ONE)
                 shuffleModeEnabled = false
                 repeatMode = Player.REPEAT_MODE_ONE
             }
@@ -942,6 +949,7 @@ class PlaybackService : MediaLibraryService() {
             else -> {
                 appShuffleEnabled = true
                 persistAppShuffleEnabled(true)
+                persistAppRepeatMode(Player.REPEAT_MODE_ALL)
                 repeatMode = Player.REPEAT_MODE_ALL
                 // Temporary bridge for notification/headset next actions. ExoPlayerManager owns
                 // the deferred Halcyon queue reorder; if it is disconnected, it will adopt this
@@ -959,9 +967,20 @@ class PlaybackService : MediaLibraryService() {
             .apply()
     }
 
+    private fun persistAppRepeatMode(repeatMode: Int) {
+        getSharedPreferences(PLAYBACK_PREFS, MODE_PRIVATE)
+            .edit()
+            .putInt(KEY_APP_REPEAT, repeatMode)
+            .apply()
+    }
+
     private fun loadAppShuffleEnabled(): Boolean =
         getSharedPreferences(PLAYBACK_PREFS, MODE_PRIVATE)
             .getBoolean(KEY_APP_SHUFFLE, appShuffleEnabled)
+
+    private fun loadAppRepeatMode(): Int =
+        getSharedPreferences(PLAYBACK_PREFS, MODE_PRIVATE)
+            .getInt(KEY_APP_REPEAT, Player.REPEAT_MODE_OFF)
 
     private fun currentWebDavConfig(settingsManager: SettingsManager): WebDavConfig {
         return runBlocking(Dispatchers.IO) {

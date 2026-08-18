@@ -8,7 +8,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -16,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.ui.folder.LinkToFolderPlaylistSheet
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
@@ -57,6 +63,9 @@ internal fun MetadataCategoryScreenSurfaces(
     loadDetailSongs: suspend (String, String) -> List<Song>
 ) {
     val scope = rememberCoroutineScope()
+    val folderPlaylists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
+    val librarySongs by mainViewModel.songs.collectAsState()
+    var associateFolderPaths by remember { mutableStateOf<List<String>?>(null) }
 
     categoryMenuItem?.let { item ->
         EllaMiuixBottomSheet(
@@ -92,6 +101,12 @@ internal fun MetadataCategoryScreenSurfaces(
                     val selectedSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
                     shareLocalSongs(context, selectedSongs)
                     onCategoryMenuItemChange(null)
+                }
+                if (type == "folder") {
+                    CategorySheetItem(stringResource(R.string.folder_playlist_associate)) {
+                        associateFolderPaths = listOf(item.name)
+                        onCategoryMenuItemChange(null)
+                    }
                 }
                 CategorySheetItem(stringResource(R.string.song_more_add_to_playlist)) {
                     scope.launch {
@@ -140,6 +155,41 @@ internal fun MetadataCategoryScreenSurfaces(
                 }
             }
         }
+    }
+
+    associateFolderPaths?.let { sourceFolders ->
+        LinkToFolderPlaylistSheet(
+            show = true,
+            songs = librarySongs,
+            selectedFolderCount = sourceFolders.size,
+            folderPlaylists = folderPlaylists,
+            onDismiss = { associateFolderPaths = null },
+            onLink = { targets ->
+                scope.launch {
+                    targets.forEach { target ->
+                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                            target.id,
+                            target.name,
+                            (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                        )
+                    }
+                    Toast.makeText(
+                        context,
+                        if (targets.size == 1) {
+                            context.getString(R.string.folder_playlist_associate_done, targets.first().name)
+                        } else {
+                            context.getString(R.string.folder_playlist_associate_multi_done, targets.size)
+                        },
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                associateFolderPaths = null
+            },
+            onCreatePlaylist = { name ->
+                scope.launch { mainViewModel.settingsManager.upsertFolderPlaylist(null, name, sourceFolders) }
+                associateFolderPaths = null
+            }
+        )
     }
 
     folderToBlock?.let { folderPath ->

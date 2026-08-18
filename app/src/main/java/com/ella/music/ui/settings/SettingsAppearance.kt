@@ -76,6 +76,9 @@ internal fun SettingsAppearanceSection(
         initial = SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED
     )
     val musicVideoCaptureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
+    val musicVideoStretchEnabled by settingsManager.musicVideoStretchEnabled.collectAsState(
+        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
+    )
     val musicVideoOrientation by settingsManager.musicVideoOrientation.collectAsState(
         initial = SettingsManager.DEFAULT_MUSIC_VIDEO_ORIENTATION
     )
@@ -755,6 +758,14 @@ internal fun SettingsAppearanceSection(
                 checked = musicVideoCaptureSubtitles,
                 onCheckedChange = {
                     scope.launch { settingsManager.setMusicVideoCaptureSubtitles(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_stretch),
+                summary = stringResource(R.string.settings_music_video_stretch_summary),
+                checked = musicVideoStretchEnabled,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setMusicVideoStretchEnabled(it) }
                 }
             )
             WindowSpinnerPreference(

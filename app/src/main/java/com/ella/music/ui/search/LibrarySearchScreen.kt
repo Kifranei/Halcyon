@@ -35,8 +35,9 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.folder.toFolderSettingList
 import com.ella.music.ui.navigation.Screen
-import com.ella.music.ui.player.dynamicCoverSource
-import com.ella.music.ui.player.musicVideoSource
+import com.ella.music.ui.player.buildDynamicCoverNameIndex
+import com.ella.music.ui.player.hasSearchableLocalMusicVideo
+import com.ella.music.ui.player.matchesDynamicCoverIndex
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -122,8 +123,8 @@ fun LibrarySearchScreen(
         onlineMusicVideo = onlineMusicVideoOnly,
         dynamicCover = dynamicCoverOnly
     )
-    val contentFilteredSongKeys by produceState(
-        initialValue = emptySet<String>(),
+    val contentFilteredSongKeys by produceState<Set<String>?>(
+        initialValue = if (contentFilters.hasActiveFilter) null else emptySet(),
         contentFilters,
         songSearchSource,
         dynamicCoverCustomFolders,
@@ -134,51 +135,74 @@ fun LibrarySearchScreen(
             value = emptySet()
             return@produceState
         }
-        value = withContext(Dispatchers.IO) {
-            songSearchSource.asSequence()
-                .filter { song ->
-                    val tagInfo = mainViewModel.getSongTagInfo(song)
-                    val hasLocalMv = if (contentFilters.musicVideo || contentFilters.localMusicVideo) {
-                        song.musicVideoSource(
-                            context = context,
-                            customRootPaths = dynamicCoverCustomFolders,
-                            musicVideoCustomFolders = musicVideoCustomFolders
-                        ) != null
-                    } else {
-                        false
-                    }
-                    val hasOnlineMv = if (contentFilters.musicVideo || contentFilters.onlineMusicVideo) {
-                        (decodeNeteaseKey(tagInfo.neteaseKey)?.mvId?.toLongOrNull() ?: 0L) > 0L
-                    } else {
-                        false
-                    }
-                    val mvMatches = when {
-                        !contentFilters.musicVideo &&
-                            !contentFilters.localMusicVideo &&
-                            !contentFilters.onlineMusicVideo -> true
-                        contentFilters.localMusicVideo && contentFilters.onlineMusicVideo ->
-                            hasLocalMv || hasOnlineMv
-                        contentFilters.localMusicVideo -> hasLocalMv
-                        contentFilters.onlineMusicVideo -> hasOnlineMv
-                        else -> hasLocalMv || hasOnlineMv
-                    }
-                    val hasDynamicCover = !contentFilters.dynamicCover || song.dynamicCoverSource(
+        value = null
+        val matched = linkedSetOf<String>()
+        withContext(Dispatchers.IO) {
+            val dynamicCoverTokens = if (contentFilters.dynamicCover) {
+                buildDynamicCoverNameIndex(context, dynamicCoverCustomFolders)
+            } else {
+                emptySet()
+            }
+            songSearchSource.forEach { song ->
+                val hasLocalMv = if (contentFilters.musicVideo || contentFilters.localMusicVideo) {
+                    song.hasSearchableLocalMusicVideo(
                         context = context,
-                        customRootPaths = dynamicCoverCustomFolders
-                    ) != null
-                    (!contentFilters.noLyrics ||
-                        (song.onlineLyrics.isBlank() && !tagInfo.hasLyricMetadata())) &&
-                        (!contentFilters.ttmlLyrics || tagInfo.hasTtmlLyricMetadata()) &&
-                        mvMatches && hasDynamicCover
+                        musicVideoCustomFolders = musicVideoCustomFolders
+                    )
+                } else {
+                    false
                 }
-                .mapTo(linkedSetOf()) { it.searchIdentityKey() }
+                val needOnlineMv = contentFilters.onlineMusicVideo ||
+                    (contentFilters.musicVideo && !hasLocalMv)
+                val tagInfo = if (needOnlineMv || contentFilters.noLyrics || contentFilters.ttmlLyrics) {
+                    mainViewModel.repository.getCachedSongTagInfo(song)
+                        ?: mainViewModel.getSongTagInfo(song)
+                } else {
+                    null
+                }
+                val hasOnlineMv = if (needOnlineMv) {
+                    (decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty())?.mvId?.toLongOrNull() ?: 0L) > 0L
+                } else {
+                    false
+                }
+                val mvMatches = when {
+                    !contentFilters.musicVideo &&
+                        !contentFilters.localMusicVideo &&
+                        !contentFilters.onlineMusicVideo -> true
+                    contentFilters.localMusicVideo && contentFilters.onlineMusicVideo ->
+                        hasLocalMv && hasOnlineMv
+                    contentFilters.localMusicVideo && !contentFilters.onlineMusicVideo -> hasLocalMv
+                    contentFilters.onlineMusicVideo && !contentFilters.localMusicVideo -> hasOnlineMv
+                    else -> hasLocalMv || hasOnlineMv
+                }
+                val hasDynamicCover = !contentFilters.dynamicCover ||
+                    song.matchesDynamicCoverIndex(dynamicCoverTokens)
+                val keep = (!contentFilters.noLyrics ||
+                    (song.onlineLyrics.isBlank() && tagInfo?.hasLyricMetadata() != true)) &&
+                    (!contentFilters.ttmlLyrics || tagInfo?.hasTtmlLyricMetadata() == true) &&
+                    mvMatches && hasDynamicCover
+                if (keep) {
+                    matched += song.searchIdentityKey()
+                    if (matched.size == 1 || matched.size % 24 == 0) {
+                        val snapshot = matched.toSet()
+                        withContext(Dispatchers.Main.immediate) {
+                            value = snapshot
+                        }
+                    }
+                }
+            }
         }
+        value = matched.toSet()
     }
+    val contentFilterPending = contentFilters.hasActiveFilter && contentFilteredSongKeys == null
     val effectiveSongSearchSource = remember(songSearchSource, contentFilters, contentFilteredSongKeys) {
-        if (contentFilters.hasActiveFilter) {
-            songSearchSource.filter { it.searchIdentityKey() in contentFilteredSongKeys }
-        } else {
+        val keys = contentFilteredSongKeys
+        if (!contentFilters.hasActiveFilter) {
             songSearchSource
+        } else if (keys == null) {
+            emptyList()
+        } else {
+            songSearchSource.filter { it.searchIdentityKey() in keys }
         }
     }
     val cachedSongResults = remember(
@@ -347,6 +371,7 @@ fun LibrarySearchScreen(
         trimmedQuery,
         filter,
         duplicatesOnlyActive,
+        contentFilters,
         showAlbumArtists,
         requestedCategoryTypes,
         songs,
@@ -435,10 +460,15 @@ fun LibrarySearchScreen(
         saveCachedLibrarySearchFacetResults(facetCacheKey, result)
         value = result
     }
-    val albumResults = facetResults.albums
-    val artistResults = facetResults.artists
-    val playlistResults = facetResults.playlists
-    val categoryResultsByType = facetResults.categoriesByType
+    val visibleFacetResults = if (duplicatesOnlyActive || contentFilters.hasActiveFilter) {
+        LibrarySearchFacetResults()
+    } else {
+        facetResults
+    }
+    val albumResults = visibleFacetResults.albums
+    val artistResults = visibleFacetResults.artists
+    val playlistResults = visibleFacetResults.playlists
+    val categoryResultsByType = visibleFacetResults.categoriesByType
     val categoryResultsCount = remember(categoryResultsByType) { categoryResultsByType.values.sumOf { it.size } }
     val visibleAlbumCount = if (filter in listOf(SearchFilter.All, SearchFilter.Albums)) albumResults.size else 0
     val visibleArtistCount = if (filter in listOf(SearchFilter.All, SearchFilter.Artists)) artistResults.size else 0
@@ -569,6 +599,7 @@ fun LibrarySearchScreen(
             filter = filter,
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,
+            songOnlyResults = duplicatesOnlyActive || contentFilters.hasActiveFilter,
             songResultsCount = displayedSongResults.size,
             albumResultsCount = albumResults.size,
             artistResultsCount = artistResults.size,
@@ -599,9 +630,11 @@ fun LibrarySearchScreen(
             mvExpanded = mvFiltersExpanded,
             onNoLyricsChange = { noLyricsOnly = it },
             onTtmlLyricsChange = { ttmlLyricsOnly = it },
-            onMvExpandedChange = { mvFiltersExpanded = it },
             onMusicVideoChange = { enabled ->
                 if (filter == SearchFilter.MusicVideos) {
+                    musicVideoOnly = false
+                    localMusicVideoOnly = false
+                    onlineMusicVideoOnly = false
                     mvFiltersExpanded = enabled
                 } else {
                     musicVideoOnly = enabled
@@ -613,16 +646,18 @@ fun LibrarySearchScreen(
             onLocalMusicVideoChange = { enabled ->
                 musicVideoOnly = false
                 localMusicVideoOnly = enabled
-                if (enabled) onlineMusicVideoOnly = false
                 mvFiltersExpanded = true
             },
             onOnlineMusicVideoChange = { enabled ->
                 musicVideoOnly = false
                 onlineMusicVideoOnly = enabled
-                if (enabled) localMusicVideoOnly = false
                 mvFiltersExpanded = true
             },
-            onDynamicCoverChange = { dynamicCoverOnly = it }
+            onDynamicCoverChange = { dynamicCoverOnly = it },
+            onContentFilterInteraction = {
+                keyboardController?.hide()
+                focusManager.clearFocus()
+            }
         )
         if (selection.selectionMode) {
             LibrarySearchSelectionToolbar(
@@ -680,6 +715,7 @@ fun LibrarySearchScreen(
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,
             hasActiveContentFilter = contentFilters.hasActiveFilter,
+            contentFilterPending = contentFilterPending,
             history = history,
             selectionMode = selection.selectionMode,
             selectedSongKeys = selection.selectedIds,

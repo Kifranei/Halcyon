@@ -74,6 +74,43 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
+    fun initialScrollTargetStartsAtTheCurrentLyricInsteadOfTheFirstRow() {
+        assertEquals(
+            18,
+            resolveAppleMusicLyricsScrollTargetIndex(
+                activeLyricIndex = 18,
+                activeInterlude = null,
+                interludes = emptyList()
+            )
+        )
+    }
+
+    @Test
+    fun scrollTargetAccountsForInsertedInterludeRows() {
+        val interludes = listOf(
+            AppleMusicInterlude(startMs = 0L, endMs = 8_000L, nextLineIndex = 0),
+            AppleMusicInterlude(startMs = 40_000L, endMs = 50_000L, nextLineIndex = 5)
+        )
+
+        assertEquals(
+            7,
+            resolveAppleMusicLyricsScrollTargetIndex(
+                activeLyricIndex = 5,
+                activeInterlude = null,
+                interludes = interludes
+            )
+        )
+        assertEquals(
+            6,
+            resolveAppleMusicLyricsScrollTargetIndex(
+                activeLyricIndex = 4,
+                activeInterlude = interludes[1],
+                interludes = interludes
+            )
+        )
+    }
+
+    @Test
     fun longCjkTimedPhraseIsSplitForSequentialWrappedRows() {
         assertTrue(
             LyricWord("星空下拥抱着快凋零的温存", 0L, 4_000L)

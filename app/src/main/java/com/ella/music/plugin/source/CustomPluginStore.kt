@@ -2,8 +2,8 @@ package com.ella.music.plugin.source
 
 import android.content.Context
 import android.net.Uri
-import com.ella.music.plugin.model.PluginCapability
 import com.ella.music.plugin.model.PluginManifest
+import com.ella.music.plugin.runtime.HostApiRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -53,15 +53,12 @@ class CustomPluginStore(
 
     private fun loadPlugin(dir: File): LyricoPluginSource {
         val manifest = json.decodeFromString<PluginManifest>(File(dir, "manifest.json").readText())
-        if (PluginCapability.SEARCH_SONGS !in manifest.capabilities ||
-            PluginCapability.GET_LYRICS !in manifest.capabilities
-        ) {
-            error("Unsupported plugin capabilities")
-        }
+        validateManifest(manifest, dir)
         return LyricoPluginSource(
             manifest = manifest,
             assetDir = dir.absolutePath,
-            script = buildScript(dir, manifest)
+            script = buildScript(dir, manifest),
+            cacheRootDir = File(context.cacheDir, "lyrico_plugin_cache")
         )
     }
 
@@ -139,12 +136,19 @@ class CustomPluginStore(
 
     private fun readAndValidateManifest(pluginDir: File): PluginManifest {
         val manifest = json.decodeFromString<PluginManifest>(File(pluginDir, "manifest.json").readText())
-        require(PluginCapability.SEARCH_SONGS in manifest.capabilities &&
-            PluginCapability.GET_LYRICS in manifest.capabilities
-        ) { "Unsupported plugin capabilities" }
+        validateManifest(manifest, pluginDir)
+        return manifest
+    }
+
+    private fun validateManifest(manifest: PluginManifest, pluginDir: File) {
+        require(HostApiRegistry.supportsPluginApiVersion(manifest.apiVersion)) {
+            "Unsupported plugin apiVersion: ${manifest.apiVersion}"
+        }
+        require(HostApiRegistry.supportsHostApiVersion(manifest.minHostApiVersion)) {
+            "Unsupported minHostApiVersion: ${manifest.minHostApiVersion}"
+        }
         require(manifest.entry.isNotBlank()) { "Missing plugin entry" }
         require(File(pluginDir, manifest.entry).isFile) { "Missing plugin entry file" }
-        return manifest
     }
 
     private fun copyDirectory(from: File, to: File) {

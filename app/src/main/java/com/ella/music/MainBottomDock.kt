@@ -129,6 +129,11 @@ internal fun FloatingBottomControls(
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val currentSongKey = currentSong?.playlistIdentityKey()
     val effectiveMode = if (showMiniPlayer && canCompact) bottomDockMode else BottomDockMode.Expanded
+    // Keep the floating glass containers over a custom wallpaper. Only the layered refraction
+    // path is disabled below, because that extra sampling layer is what can leak duplicated
+    // glyphs on affected devices.
+    val dockBackdrop = if (useGlass) backdrop else null
+    val dockLiquidGlass = useGlass
     AnimatedContent(
         targetState = effectiveMode,
         transitionSpec = {
@@ -154,8 +159,8 @@ internal fun FloatingBottomControls(
                 coverRotationEnabled = coverRotationEnabled,
                 swipeUpToOpenPlayer = miniPlayerSwipeToOpenPlayer,
                 albumArtUri = mainViewModel.getAlbumArtUri(currentSong.albumId),
-                loadCoverArt = mainViewModel::getCoverArtBitmap,
-                backdrop = if (useGlass) backdrop else null,
+                loadCoverArt = mainViewModel::getMiniPlayerCoverArtBitmap,
+                backdrop = dockBackdrop,
                 glassEffect = glassEffect,
                 disableRefraction = stabilizeOverWallpaper,
                 currentTab = tabs.firstOrNull { it.route == currentTabRoute },
@@ -184,9 +189,9 @@ internal fun FloatingBottomControls(
                                 lyricText = lyricText,
                                 lyricTranslation = lyricTranslation,
                                 albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
-                                loadCoverArt = mainViewModel::getCoverArtBitmap,
-                                backdrop = if (useGlass) backdrop else null,
-                                liquidGlass = useGlass,
+                                loadCoverArt = mainViewModel::getMiniPlayerCoverArtBitmap,
+                                backdrop = dockBackdrop,
+                                liquidGlass = dockLiquidGlass,
                                 glassEffect = glassEffect,
                                 disableRefraction = stabilizeOverWallpaper,
                                 showQueueButton = miniPlayerRightButton == SettingsManager.MINI_PLAYER_RIGHT_QUEUE,
@@ -224,14 +229,13 @@ internal fun FloatingBottomControls(
                                         val barMode = when (glassEffect) {
                                             BottomBarGlassEffect.LiquidGlass -> FloatingBottomBarMode.LiquidGlass
                                             BottomBarGlassEffect.Blur -> FloatingBottomBarMode.Blur
-                                            else -> FloatingBottomBarMode.None
                                         }
                                         FloatingBottomBar(
                                             selectedIndex = { selectedBottomTabIndex ?: 0 },
                                             onSelected = { index ->
                                                 tabs.getOrNull(index)?.let { onNavigate(it.route) }
                                             },
-                                            backdrop = backdrop ?: return@Box,
+                                            backdrop = dockBackdrop,
                                             tabsCount = tabs.size,
                                             mode = barMode,
                                             disableRefraction = stabilizeOverWallpaper

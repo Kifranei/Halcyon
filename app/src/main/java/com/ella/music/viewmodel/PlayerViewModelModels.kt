@@ -8,6 +8,19 @@ internal data class LazyOnlineQueue(
     val resolver: suspend (Song) -> Song
 )
 
+internal enum class AbRepeatPhase {
+    IDLE,
+    A_SET,
+    ACTIVE
+}
+
+internal data class AbRepeatState(
+    val phase: AbRepeatPhase = AbRepeatPhase.IDLE,
+    val songKey: String? = null,
+    val startMs: Long? = null,
+    val endMs: Long? = null
+)
+
 internal fun Song.lyricIdentityKey(): String {
     return when {
         onlineSource.isNotBlank() || onlineId.isNotBlank() -> "online:$onlineSource:$onlineId:$path"

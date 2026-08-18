@@ -211,7 +211,8 @@ class MusicRepository(private val context: Context) {
                 includeFolders = includeFolders,
                 excludeFolders = excludeFolders,
                 previousSummarySongs = previousSongs,
-                deepMetadataEnabled = deepMetadataEnabled
+                deepMetadataEnabled = deepMetadataEnabled,
+                filesystemFallbackFolders = filesystemFallbackFolders
             )
         }
         val scannedSongs = scanResult.songs
@@ -370,14 +371,16 @@ class MusicRepository(private val context: Context) {
         includeFolders: List<String>,
         excludeFolders: List<String>,
         previousSummarySongs: List<Song>,
-        deepMetadataEnabled: Boolean = true
+        deepMetadataEnabled: Boolean = true,
+        filesystemFallbackFolders: List<String> = includeFolders
     ): LibraryScanResult = withContext(Dispatchers.IO) {
         val cachedSongs = _songs.value.takeIf { it.isNotEmpty() } ?: libraryCacheStore.readCachedSongs()
         val cachedBySyncKey = cachedSongs.associateBy { it.librarySyncKey() }
         val cachedByPath = cachedSongs.associateBy { it.path }
         val currentItems = scanner.enumerateAudioFiles(
             includeFolders = includeFolders,
-            excludeFolders = excludeFolders
+            excludeFolders = excludeFolders,
+            filesystemFallbackFolders = filesystemFallbackFolders
         )
         val currentKeys = currentItems.map { it.librarySyncKey() }.toSet()
         val currentPaths = currentItems.map { it.path }.toSet()

@@ -2253,4 +2253,8 @@
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
     <string name="settings_xiaomi_super_island_dismiss_five">5 seconds</string>
     <string name="player_repeat_mode">Repeat mode</string>
+    <string name="player_ab_repeat_record_b">A-B repeat: set B (A %1$s)</string>
+    <string name="player_ab_repeat_active">Cancel A-B repeat (%1$s-%2$s)</string>
+    <string name="settings_music_video_stretch">Allow MV stretching</string>
+    <string name="settings_music_video_stretch_summary">Stretch the video to fill the screen; when disabled, keep the original aspect ratio to avoid distorting the video and built-in KTV lyrics</string>
 </resources>

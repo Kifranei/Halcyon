@@ -123,19 +123,6 @@ internal fun PlayerLandscapeOverlayHost(
             }
         }
     }
-    androidx.compose.runtime.LaunchedEffect(
-        landscapeDynamicCoverSource?.failureKey,
-        currentPosition,
-        duration,
-        isPlaying,
-        useMusicVideoBackground
-    ) {
-        if (useMusicVideoBackground) {
-            landscapeDynamicCoverSource?.let { source ->
-                MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
-            }
-        }
-    }
     LandscapeCoverPlaybackOverlay(
         song = song,
         embeddedCover = embeddedCover,

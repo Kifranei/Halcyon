@@ -505,7 +505,11 @@ fun ArtistScreen(
                     },
                     onPlayAll = {
                         if (playableArtistTabSongs.isNotEmpty()) {
-                            playerViewModel.setPlaylist(playableArtistTabSongs, 0)
+                            playerViewModel.setPlaylist(
+                                playableArtistTabSongs,
+                                0,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.artist(artistName)
+                            )
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     }
@@ -548,7 +552,11 @@ fun ArtistScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && sortedArtistSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(sortedArtistSongs.shuffled(), 0)
+                                        playerViewModel.setPlaylist(
+                                            sortedArtistSongs.shuffled(),
+                                            0,
+                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.artist(artistName)
+                                        )
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )
@@ -559,10 +567,15 @@ fun ArtistScreen(
                     item {
                         com.ella.music.ui.components.ContinuePlaybackRow(
                             songs = sortedArtistSongs,
+                            categoryKey = com.ella.music.data.CategoryResumeKeys.artist(artistName),
                             playbackStats = playbackStats,
                             currentSong = currentSong,
                             onContinue = { index ->
-                                playerViewModel.setPlaylist(sortedArtistSongs, index)
+                                playerViewModel.setPlaylist(
+                                    sortedArtistSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.artist(artistName)
+                                )
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         )
@@ -600,7 +613,11 @@ fun ArtistScreen(
                                 if (selection.selectionMode) {
                                     selection.toggleSelection(song.id)
                                 } else {
-                                    playerViewModel.setPlaylist(sortedArtistSongs, index)
+                                    playerViewModel.setPlaylist(
+                                        sortedArtistSongs,
+                                        index,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.artist(artistName)
+                                    )
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             },

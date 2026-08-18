@@ -43,6 +43,7 @@ import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.DefaultAlbumCover
@@ -337,7 +338,13 @@ internal fun AlbumSongRow(
                 return@AlbumTrackRow
             }
             val safeIndex = index.coerceAtLeast(0)
-            playerViewModel.setPlaylist(sortedAlbumSongs, safeIndex)
+            playerViewModel.setPlaylist(
+                sortedAlbumSongs,
+                safeIndex,
+                resumeCategoryKey = sortedAlbumSongs.firstOrNull()?.let {
+                    com.ella.music.data.CategoryResumeKeys.album(it.albumIdentityId())
+                }
+            )
             if (openPlayerOnPlay) onNavigateToPlayer()
         },
         showPlayNextInLists = showPlayNextInLists,

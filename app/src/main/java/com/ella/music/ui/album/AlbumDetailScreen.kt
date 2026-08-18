@@ -472,7 +472,11 @@ fun AlbumDetailScreen(
                     onCoverClick = { coverPreviewVisible = true },
                     onPlayAll = {
                         if (sortedAlbumSongs.isNotEmpty()) {
-                            playerViewModel.setPlaylist(sortedAlbumSongs, 0)
+                            playerViewModel.setPlaylist(
+                                sortedAlbumSongs,
+                                0,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.album(albumId)
+                            )
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     }
@@ -491,7 +495,11 @@ fun AlbumDetailScreen(
                         ShuffleAllSummaryButton(
                             visible = !selection.selectionMode && sortedAlbumSongs.isNotEmpty(),
                             onClick = {
-                                playerViewModel.setPlaylist(sortedAlbumSongs.shuffled(), 0)
+                                playerViewModel.setPlaylist(
+                                    sortedAlbumSongs.shuffled(),
+                                    0,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.album(albumId)
+                                )
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         )
@@ -502,10 +510,15 @@ fun AlbumDetailScreen(
             item {
                 com.ella.music.ui.components.ContinuePlaybackRow(
                     songs = sortedAlbumSongs,
+                    categoryKey = com.ella.music.data.CategoryResumeKeys.album(albumId),
                     playbackStats = playbackStats,
                     currentSong = currentSong,
                     onContinue = { index ->
-                        playerViewModel.setPlaylist(sortedAlbumSongs, index)
+                        playerViewModel.setPlaylist(
+                            sortedAlbumSongs,
+                            index,
+                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.album(albumId)
+                        )
                         if (openPlayerOnPlay) onNavigateToPlayer()
                     }
                 )

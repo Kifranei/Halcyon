@@ -13,22 +13,37 @@ import android.util.Log
 import android.view.View
 import android.view.ViewOutlineProvider
 import androidx.documentfile.provider.DocumentFile
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.ella.music.MusicVideoOffsetsParser
+import com.ella.music.musicVideoSyncPositionMs
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.splitArtistNames
@@ -88,10 +103,10 @@ internal fun DynamicCoverVideo(
             model = source.uri,
             contentDescription = null,
             modifier = modifier,
-            contentScale = if (resizeMode == androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
-                ContentScale.Crop
-            } else {
-                ContentScale.Fit
+            contentScale = when (resizeMode) {
+                AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> ContentScale.Crop
+                AspectRatioFrameLayout.RESIZE_MODE_FILL -> ContentScale.FillBounds
+                else -> ContentScale.Fit
             },
             sizePx = 1200,
             showDefaultPlaceholder = false
@@ -101,6 +116,20 @@ internal fun DynamicCoverVideo(
 
     val context = LocalContext.current
     val followsAudioClock = source.role == PlayerVideoRole.MusicVideo
+    val importedMvOffsets by SettingsManager.getInstance(context).musicVideoOffsetsJson
+        .collectAsState(initial = "")
+    val mvDelayMs = remember(source.uri, importedMvOffsets, followsAudioClock) {
+        if (followsAudioClock) {
+            MusicVideoOffsetsParser.loadForSource(context, source.uri, importedMvOffsets)
+                .forSource(source.uri)
+        } else {
+            0L
+        }
+    }
+    val effectiveSyncPositionMs = syncPositionMs?.let { musicVideoSyncPositionMs(it, mvDelayMs) }
+    val effectiveSyncDurationMs = syncDurationMs?.let {
+        musicVideoSyncPositionMs(it, mvDelayMs).coerceAtLeast(0L)
+    }
     val playbackMemoryKey = remember(source.failureKey, source.playbackOwnerKey) {
         DynamicCoverPlaybackMemory.activate(
             ownerKey = source.playbackOwnerKey.ifBlank { source.failureKey },
@@ -109,6 +138,10 @@ internal fun DynamicCoverVideo(
     }
     val initialPositionMs = remember(playbackMemoryKey) {
         DynamicCoverPlaybackMemory.restore(playbackMemoryKey)
+    }
+
+    var playbackAspectRatio by remember(source.failureKey) {
+        mutableStateOf(source.aspectRatio)
     }
 
     val exoPlayer = remember(playbackMemoryKey, playAudio) {
@@ -159,9 +192,14 @@ internal fun DynamicCoverVideo(
             ) {
                 MusicVideoPlaybackBridge.publish(source, exoPlayer)
             }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                videoSize.toPlaybackAspectRatio()?.let { playbackAspectRatio = it }
+            }
         }
 
         exoPlayer.addListener(listener)
+        exoPlayer.videoSize.toPlaybackAspectRatio()?.let { playbackAspectRatio = it }
         MusicVideoPlaybackBridge.attach(source, exoPlayer)
 
         onDispose {
@@ -180,13 +218,20 @@ internal fun DynamicCoverVideo(
         }
     }
 
-    val latestSyncPositionMs by rememberUpdatedState(syncPositionMs)
-    val latestSyncDurationMs by rememberUpdatedState(syncDurationMs)
-    LaunchedEffect(exoPlayer, followsAudioClock, syncPositionMs, syncDurationMs, isPlaying) {
+    val latestSyncPositionMs by rememberUpdatedState(effectiveSyncPositionMs)
+    val latestSyncDurationMs by rememberUpdatedState(effectiveSyncDurationMs)
+    LaunchedEffect(exoPlayer, followsAudioClock, effectiveSyncPositionMs, effectiveSyncDurationMs, isPlaying) {
         if (!followsAudioClock || latestSyncPositionMs == null) return@LaunchedEffect
+        MusicVideoPlaybackBridge.syncToAudio(
+            source = source,
+            positionMs = latestSyncPositionMs!!,
+            audioDurationMs = latestSyncDurationMs,
+            playing = isPlaying
+        )
         val audioLimit = latestSyncDurationMs?.coerceAtLeast(0L) ?: Long.MAX_VALUE
         val videoDuration = exoPlayer.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-        val unclampedTarget = latestSyncPositionMs!!.coerceAtLeast(0L)
+        val requestedTarget = latestSyncPositionMs!!
+        val unclampedTarget = requestedTarget.coerceAtLeast(0L)
         val target = if (unclampedTarget >= videoDuration) {
             // Seeking exactly to duration can clear the video surface on some decoders.
             // Keep the final decoded frame visible after a short MV has ended.
@@ -201,7 +246,8 @@ internal fun DynamicCoverVideo(
         ) {
             exoPlayer.seekTo(target)
         }
-        exoPlayer.playWhenReady = isPlaying && unclampedTarget < videoDuration && unclampedTarget < audioLimit
+        exoPlayer.playWhenReady = isPlaying && requestedTarget >= 0L &&
+            unclampedTarget < videoDuration && unclampedTarget < audioLimit
     }
 
     DisposableEffect(isPlaying, playAudio, followsAudioClock, exoPlayer) {
@@ -210,47 +256,134 @@ internal fun DynamicCoverVideo(
         onDispose { }
     }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { viewContext ->
-            PlayerView(viewContext).apply {
-                useController = false
-                controllerAutoShow = false
-                controllerHideOnTouch = false
-                this.resizeMode = resizeMode
-                setKeepContentOnPlayerReset(true)
-                setShutterBackgroundColor(Color.TRANSPARENT)
-                setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
-                player = exoPlayer
-                clipToOutline = true
-                outlineProvider = object : ViewOutlineProvider() {
-                    override fun getOutline(view: View, outline: Outline) {
-                        val radiusPx = view.resources.displayMetrics.density * cornerRadiusDp
-                        outline.setRoundRect(0, 0, view.width, view.height, radiusPx)
+    // PlayerView's AspectRatioFrameLayout is ignored by SurfaceView inside Compose
+    // AndroidView, so FIT/ZOOM still stretch. Size the view to the video first.
+    VideoAspectFrame(
+        aspectRatio = playbackAspectRatio,
+        resizeMode = resizeMode,
+        modifier = modifier
+    ) { frameModifier ->
+        AndroidView(
+            modifier = frameModifier,
+            factory = { viewContext ->
+                PlayerView(viewContext).apply {
+                    useController = false
+                    controllerAutoShow = false
+                    controllerHideOnTouch = false
+                    this.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    setKeepContentOnPlayerReset(true)
+                    setShutterBackgroundColor(Color.TRANSPARENT)
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
+                    player = exoPlayer
+                    clipToOutline = true
+                    outlineProvider = object : ViewOutlineProvider() {
+                        override fun getOutline(view: View, outline: Outline) {
+                            val radiusPx = view.resources.displayMetrics.density * cornerRadiusDp
+                            outline.setRoundRect(0, 0, view.width, view.height, radiusPx)
+                        }
                     }
+                    hideController()
                 }
-                hideController()
+            },
+            update = { view ->
+                view.useController = false
+                view.controllerAutoShow = false
+                view.controllerHideOnTouch = false
+                view.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
+                view.player = exoPlayer
+                view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                view.setKeepContentOnPlayerReset(true)
+                view.setShutterBackgroundColor(Color.TRANSPARENT)
+                view.clipToOutline = true
+                view.hideController()
+                exoPlayer.volume = if (playAudio) 1f else 0f
+                if (!followsAudioClock) exoPlayer.playWhenReady = isPlaying
             }
-        },
-        update = { view ->
-            view.useController = false
-            view.controllerAutoShow = false
-            view.controllerHideOnTouch = false
-            view.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
-            view.player = exoPlayer
-            view.resizeMode = resizeMode
-            view.setKeepContentOnPlayerReset(true)
-            view.setShutterBackgroundColor(Color.TRANSPARENT)
-            view.clipToOutline = true
-            view.hideController()
-            exoPlayer.volume = if (playAudio) 1f else 0f
-            if (!followsAudioClock) exoPlayer.playWhenReady = isPlaying
-        }
-    )
+        )
+    }
 }
 
 private const val MUSIC_VIDEO_RESYNC_TOLERANCE_MS = 750L
+
+/**
+ * Compose-owned video frame. SurfaceView inside [AndroidView] fills the view and ignores
+ * [PlayerView] resize modes, so FIT/ZOOM have to be applied as layout instead.
+ */
+@Composable
+internal fun VideoAspectFrame(
+    aspectRatio: Float?,
+    resizeMode: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable (frameModifier: Modifier) -> Unit
+) {
+    BoxWithConstraints(
+        modifier = modifier.clipToBounds(),
+        contentAlignment = Alignment.Center
+    ) {
+        content(
+            videoContentFrameModifier(
+                videoAspectRatio = aspectRatio,
+                containerWidth = maxWidth,
+                containerHeight = maxHeight,
+                resizeMode = resizeMode
+            )
+        )
+    }
+}
+
+internal fun videoContentFrameModifier(
+    videoAspectRatio: Float?,
+    containerWidth: Dp,
+    containerHeight: Dp,
+    resizeMode: Int
+): Modifier {
+    if (
+        resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL ||
+        videoAspectRatio == null ||
+        videoAspectRatio <= 0f ||
+        containerWidth <= 0.dp ||
+        containerHeight <= 0.dp
+    ) {
+        return Modifier.fillMaxSize()
+    }
+    val (width, height) = videoContentFrameDimensions(
+        videoAspectRatio = videoAspectRatio,
+        containerWidth = containerWidth.value,
+        containerHeight = containerHeight.value,
+        cover = resizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+    )
+    return Modifier.requiredSize(width.dp, height.dp)
+}
+
+internal fun videoContentShouldFillHeight(
+    videoAspectRatio: Float,
+    containerAspectRatio: Float,
+    cover: Boolean
+): Boolean = if (cover) {
+    videoAspectRatio >= containerAspectRatio
+} else {
+    videoAspectRatio < containerAspectRatio
+}
+
+internal fun videoContentFrameDimensions(
+    videoAspectRatio: Float,
+    containerWidth: Float,
+    containerHeight: Float,
+    cover: Boolean
+): Pair<Float, Float> {
+    val containerAspect = containerWidth / containerHeight.coerceAtLeast(0.001f)
+    return if (videoContentShouldFillHeight(videoAspectRatio, containerAspect, cover)) {
+        containerHeight * videoAspectRatio to containerHeight
+    } else {
+        containerWidth to containerWidth / videoAspectRatio
+    }
+}
+
+internal fun VideoSize.toPlaybackAspectRatio(): Float? {
+    if (width <= 0 || height <= 0) return null
+    return width.toFloat() / height.toFloat()
+}
 
 internal fun Song.dynamicCoverSource(
     context: Context,
@@ -684,7 +817,6 @@ private fun Song.dynamicCoverDocumentSource(
                     )
                 } ?: directory.listFiles().firstOrNull { file ->
                     file.isFile &&
-                        file.length() > 0L &&
                         file.name.orEmpty().substringAfterLast('.', "").equals("mp4", ignoreCase = true) &&
                         file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken().let { token ->
                             token in fuzzySongTokens || token in fuzzyAlbumTokens
@@ -738,7 +870,7 @@ private fun Song.musicVideoDocumentSource(
         listings.firstNotNullOfOrNull { (rawUri, files) ->
             exactFileNames.firstNotNullOfOrNull { name ->
                 files.firstOrNull { file ->
-                    file.isFile && file.length() > 0L && file.name.equals(name, ignoreCase = true)
+                    file.isFile && file.name.equals(name, ignoreCase = true)
                 }
             }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
         }?.let { return it }
@@ -747,7 +879,6 @@ private fun Song.musicVideoDocumentSource(
         listings.firstNotNullOfOrNull { (rawUri, files) ->
             files.firstOrNull { file ->
                 file.isFile &&
-                    file.length() > 0L &&
                     isSupportedMusicVideoExtension(
                         file.name.orEmpty().substringAfterLast('.', "")
                     ) &&
@@ -764,6 +895,78 @@ private fun Song.musicVideoDocumentSource(
  * suffixed names are still accepted) and the container list is relaxed to mp4/mkv/webm/mov.
  * Both SAF tree URIs (from the folder picker) and plain filesystem paths are supported.
  */
+internal fun Song.hasSearchableLocalMusicVideo(
+    context: Context,
+    musicVideoCustomFolders: List<String>
+): Boolean {
+    if (musicVideoCustomFolderSource(context, musicVideoCustomFolders) != null) return true
+    val songFile = path
+        .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
+        ?.let(::File)
+        ?: return false
+    val folder = songFile.parentFile?.takeIf { it.exists() && it.isDirectory } ?: return false
+    val names = musicVideoFileNameCandidates(
+        buildMusicVideoBaseNameTiers(
+            fileBaseName = songFile.nameWithoutExtension,
+            title = title,
+            artist = artist
+        ).flatMap(::buildLandscapeMusicVideoNameCandidates)
+    )
+    return names.any { name ->
+        val file = File(folder, name)
+        file.isFile && file.length() > 0L
+    }
+}
+
+internal fun Song.hasSearchableDynamicCover(): Boolean {
+    val songFile = path
+        .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
+        ?.let(::File)
+        ?: return false
+    val folder = songFile.parentFile?.takeIf { it.exists() && it.isDirectory } ?: return false
+    val names = buildList {
+        add("${songFile.nameWithoutExtension}.mp4")
+        add("cover.mp4")
+        if (title.isNotBlank()) add("${title.trim()}.mp4")
+    }.distinct()
+    return names.any { name ->
+        val file = File(folder, name)
+        file.isFile && file.length() > 0L
+    }
+}
+
+internal fun buildDynamicCoverNameIndex(
+    context: Context,
+    customRootPaths: List<String>
+): Set<String> {
+    val tokens = HashSet<String>()
+    dynamicCoverRootDirectories(
+        context = context,
+        customRootPaths = customRootPaths,
+        includeExternalFiles = true
+    ).forEach { root ->
+        if (!root.exists() || !root.isDirectory) return@forEach
+        root.walkTopDown().maxDepth(3).forEach { file ->
+            if (file.isFile && file.extension.equals("mp4", ignoreCase = true) && file.length() > 0L) {
+                tokens += file.nameWithoutExtension.toDynamicCoverMatchToken()
+            }
+        }
+    }
+    return tokens
+}
+
+internal fun Song.matchesDynamicCoverIndex(tokens: Set<String>): Boolean {
+    if (hasSearchableDynamicCover()) return true
+    if (tokens.isEmpty()) return false
+    val names = listOf(
+        File(path).nameWithoutExtension,
+        title,
+        listOf(artist, title).filter { it.isNotBlank() }.joinToString(" - "),
+        album
+    )
+    return names.any { it.toDynamicCoverMatchToken() in tokens }
+}
+
 internal fun Song.musicVideoCustomFolderSource(
     context: Context,
     musicVideoCustomFolders: List<String>
@@ -771,7 +974,7 @@ internal fun Song.musicVideoCustomFolderSource(
     val cleaned = musicVideoCustomFolders.map(String::trim).filter(String::isNotBlank)
     if (cleaned.isEmpty()) return null
     val folderIndex = MusicVideoCustomFolderIndexCache.get(context, cleaned)
-    if (folderIndex.files.isEmpty() && folderIndex.documents.isEmpty()) return null
+    if (folderIndex.filesByName.isEmpty() && folderIndex.documentsByName.isEmpty()) return null
 
     val songFile = path
         .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
@@ -785,40 +988,38 @@ internal fun Song.musicVideoCustomFolderSource(
         val names = musicVideoFolderFileNameCandidates(tier)
         val exactFileNames = musicVideoFileNameCandidates(names)
         exactFileNames.firstNotNullOfOrNull { name ->
-            folderIndex.files.firstOrNull { file -> file.name.equals(name, ignoreCase = true) }
+            folderIndex.filesByName[name.lowercase()]
         }?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
-        folderIndex.documents.firstNotNullOfOrNull { (rawUri, files) ->
-            exactFileNames.firstNotNullOfOrNull { name ->
-                files.firstOrNull { file ->
-                    file.name.equals(name, ignoreCase = true)
-                }
-            }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
-        }?.let { return it }
+        exactFileNames.firstNotNullOfOrNull { name ->
+            folderIndex.documentsByName[name.lowercase()]
+        }?.let { (rawUri, file) ->
+            return file.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
+        }
 
         val fuzzyTokens = names.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
-        folderIndex.files.firstOrNull { file ->
-            file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzyTokens
-        }?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
-        folderIndex.documents.firstNotNullOfOrNull { (rawUri, files) ->
-            files.firstOrNull { file ->
-                val name = file.name.orEmpty()
-                name.substringBeforeLast('.').toDynamicCoverMatchToken() in fuzzyTokens
-            }?.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
-        }?.let { return it }
+        fuzzyTokens.firstNotNullOfOrNull { token -> folderIndex.filesByToken[token] }
+            ?.let { return it.toDynamicCoverSource(context, role = PlayerVideoRole.MusicVideo) }
+        fuzzyTokens.firstNotNullOfOrNull { token -> folderIndex.documentsByToken[token] }
+            ?.let { (rawUri, file) ->
+                return file.toDynamicCoverSource(context, rawUri, PlayerVideoRole.MusicVideo)
+            }
     }
     return null
 }
 
 private data class MusicVideoCustomFolderIndex(
     val createdAt: Long,
-    val files: List<File>,
-    val documents: List<Pair<String, List<DocumentFile>>>
+    val filesByName: Map<String, File>,
+    val filesByToken: Map<String, File>,
+    val documentsByName: Map<String, Pair<String, DocumentFile>>,
+    val documentsByToken: Map<String, Pair<String, DocumentFile>>
 )
 
 private object MusicVideoCustomFolderIndexCache {
     private const val CACHE_TTL_MS = 15_000L
     private val entries = ConcurrentHashMap<String, MusicVideoCustomFolderIndex>()
 
+    @Synchronized
     fun get(context: Context, folders: List<String>): MusicVideoCustomFolderIndex {
         val key = folders.joinToString("\u0000")
         val now = android.os.SystemClock.elapsedRealtime()
@@ -843,8 +1044,32 @@ private object MusicVideoCustomFolderIndexCache {
                     ?.let { root -> rawUri to root.collectMusicVideoDocuments(maxDepth = 3) }
             }
             .toList()
-        return MusicVideoCustomFolderIndex(now, files, documents).also { index ->
-            entries.clear()
+        fun <T> firstBy(items: Iterable<T>, keyOf: (T) -> String): Map<String, T> {
+            val result = linkedMapOf<String, T>()
+            items.forEach { item ->
+                val itemKey = keyOf(item)
+                if (itemKey.isNotBlank() && !result.containsKey(itemKey)) {
+                    result[itemKey] = item
+                }
+            }
+            return result
+        }
+        val documentFiles = documents.flatMap { (rawUri, files) ->
+            files.map { file -> rawUri to file }
+        }
+        return MusicVideoCustomFolderIndex(
+            createdAt = now,
+            filesByName = firstBy(files) { it.name.lowercase() },
+            filesByToken = firstBy(files) { it.nameWithoutExtension.toDynamicCoverMatchToken() },
+            documentsByName = firstBy(documentFiles) { it.second.name.orEmpty().lowercase() },
+            documentsByToken = firstBy(documentFiles) {
+                it.second.name.orEmpty()
+                    .substringBeforeLast('.')
+                    .toDynamicCoverMatchToken()
+            }
+        ).also { index ->
+            // Keep indexes for different folder selections. Clearing the whole map here caused
+            // concurrent visible rows to invalidate one another and rescan the same large tree.
             entries[key] = index
         }
     }
@@ -856,7 +1081,7 @@ private fun DocumentFile.collectMusicVideoDocuments(maxDepth: Int): List<Documen
         folder.listFiles().forEach { child ->
             when {
                 child.isDirectory && depth < maxDepth -> visit(child, depth + 1)
-                child.isFile && child.length() > 0L &&
+                child.isFile &&
                     isSupportedMusicVideoExtension(child.name.orEmpty().substringAfterLast('.', "")) -> result += child
             }
         }
@@ -904,7 +1129,7 @@ private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFil
     listFiles().firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }
 
 private fun DocumentFile.findChildFileIgnoreCase(name: String): DocumentFile? =
-    listFiles().firstOrNull { it.isFile && it.length() > 0L && it.name.equals(name, ignoreCase = true) }
+    listFiles().firstOrNull { it.isFile && it.name.equals(name, ignoreCase = true) }
 
 private fun File.toDynamicCoverSource(
     context: Context,
@@ -1143,7 +1368,7 @@ private fun String.hasLandscapeMusicVideoSuffix(): Boolean =
 private fun String.removeLandscapeMusicVideoSuffix(): String =
     trim().replace(LANDSCAPE_MUSIC_VIDEO_SUFFIX_REGEX, "")
 
-private fun String.toDynamicCoverMatchToken(): String =
+internal fun String.toDynamicCoverMatchToken(): String =
     lowercase()
         .replace(Regex("""[\s_\-–—]+"""), "")
         .replace(Regex("""[\\/:*?"<>|.,，。'’`~!！()\[\]{}]+"""), "")

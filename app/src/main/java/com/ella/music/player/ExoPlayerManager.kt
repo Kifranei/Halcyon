@@ -88,6 +88,7 @@ class ExoPlayerManager(private val context: Context) {
     private var playWhenConnected = false
     private var pendingPlaylist: PendingPlaylist? = null
     private var reorderingPlaylistForShuffle = false
+    private var suppressSongIdentityUntilElapsedRealtime = 0L
     private var playlistBeforeShuffle: List<Song>? = null
     private var pendingShuffleReorder = false
     private var playNextAnchorKey: String? = null
@@ -1082,11 +1083,13 @@ class ExoPlayerManager(private val context: Context) {
         }
         _shuffleEnabled.value = shuffle
         persistAppShuffleEnabled(shuffle)
+        persistAppRepeatMode(repeatMode)
         controller.shuffleModeEnabled = keepNativeShuffleUntilReorder
+        // Media3 reports repeat changes asynchronously. Publish the requested mode immediately
+        // so the player page cannot render the previous icon for one frame after a tap.
+        _repeatMode.value = repeatMode
         if (controller.repeatMode != repeatMode) {
             controller.repeatMode = repeatMode
-        } else {
-            _repeatMode.value = repeatMode
         }
         savePlaybackQueue(force = true)
     }
@@ -1390,6 +1393,14 @@ class ExoPlayerManager(private val context: Context) {
             savePlaybackState(force = true)
             return
         }
+        if (
+            previousSong != null &&
+            !previousSong.isSamePlaybackIdentity(restoredSong) &&
+            SystemClock.elapsedRealtime() < suppressSongIdentityUntilElapsedRealtime
+        ) {
+            _duration.value = controller.duration.coerceAtLeast(0)
+            return
+        }
         _currentSong.value = restoredSong
         _duration.value = controller.duration.coerceAtLeast(0)
         if (!previousSong.isSamePlaybackIdentity(restoredSong)) {
@@ -1608,6 +1619,10 @@ class ExoPlayerManager(private val context: Context) {
         controller.setMediaItems(targetOrder.map(::songToMediaItem), safeIndex, positionMs)
         if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
         if (wasPlaying) controller.play()
+        // setMediaItems often reports index 0 for a frame. Hold the previous song identity
+        // so lyrics/cover do not jump to the first queue item (#461).
+        suppressSongIdentityUntilElapsedRealtime =
+            SystemClock.elapsedRealtime() + SHUFFLE_REORDER_IDENTITY_GUARD_MS
     }
 
     private fun refreshCurrentSessionMetadata(controller: MediaController, song: Song) {
@@ -1769,6 +1784,7 @@ class ExoPlayerManager(private val context: Context) {
         _shuffleEnabled.value = saved.shuffle
         _queueLocked.value = saved.queueLocked
         persistAppShuffleEnabled(saved.shuffle)
+        persistAppRepeatMode(saved.repeatMode)
         _playbackSpeed.value = saved.speed
         _playbackPitch.value = saved.pitch
         if (saved.songs.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) savePlaybackQueue(force = true)
@@ -1897,6 +1913,7 @@ class ExoPlayerManager(private val context: Context) {
             .remove(KEY_QUEUE)
             .remove(KEY_STATE)
             .remove(KEY_APP_SHUFFLE)
+            .remove(KEY_APP_REPEAT)
             .apply()
     }
 
@@ -1904,6 +1921,13 @@ class ExoPlayerManager(private val context: Context) {
         context.getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_APP_SHUFFLE, enabled)
+            .apply()
+    }
+
+    private fun persistAppRepeatMode(repeatMode: Int) {
+        context.getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(KEY_APP_REPEAT, repeatMode)
             .apply()
     }
 
@@ -1967,6 +1991,8 @@ class ExoPlayerManager(private val context: Context) {
         const val KEY_QUEUE = "queue"
         const val KEY_STATE = "state"
         const val KEY_APP_SHUFFLE = "app_shuffle_enabled"
+        const val KEY_APP_REPEAT = "app_repeat_mode"
+        const val SHUFFLE_REORDER_IDENTITY_GUARD_MS = 450L
         const val DECODER_MODE_FFMPEG_PREFER = 1
         const val DECODER_MODE_AUTO = 2
     }

@@ -557,7 +557,11 @@ fun FolderDetailScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
+                                    playerViewModel.setPlaylist(
+                                        sortedSongs.shuffled(),
+                                        0,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
+                                    )
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             )
@@ -565,10 +569,15 @@ fun FolderDetailScreen(
                     )
                     com.ella.music.ui.components.ContinuePlaybackRow(
                         songs = sortedSongs,
+                        categoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath),
                         playbackStats = playbackStats,
                         currentSong = currentSong,
                         onContinue = { index ->
-                            playerViewModel.setPlaylist(sortedSongs, index)
+                            playerViewModel.setPlaylist(
+                                sortedSongs,
+                                index,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
+                            )
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     )
@@ -619,7 +628,11 @@ fun FolderDetailScreen(
                                     if (selection.selectionMode) {
                                         selection.toggleSelection(song.id)
                                     } else {
-                                        playerViewModel.setPlaylist(sortedSongs, index)
+                                        playerViewModel.setPlaylist(
+                                            sortedSongs,
+                                            index,
+                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
+                                        )
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 },

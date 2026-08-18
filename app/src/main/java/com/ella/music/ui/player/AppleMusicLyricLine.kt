@@ -2,7 +2,6 @@ package com.ella.music.ui.player
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -155,7 +154,7 @@ internal fun AppleMusicLyricLine(
     val textAlign = line.duetTextAlign(defaultTextAlign)
     val scale by animateFloatAsState(
         targetValue = if (active) 1f else 0.91f,
-        animationSpec = spring(dampingRatio = 0.82f, stiffness = 340f),
+        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
         label = "appleLyricsScale"
     )
     val alpha by animateFloatAsState(
@@ -163,7 +162,7 @@ internal fun AppleMusicLyricLine(
             active || paused -> 1f
             else -> (0.24f - abs(distance) * 0.025f).coerceAtLeast(0.13f)
         },
-        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
         label = "appleLyricsAlpha"
     )
     val primaryStyle = TextStyle(

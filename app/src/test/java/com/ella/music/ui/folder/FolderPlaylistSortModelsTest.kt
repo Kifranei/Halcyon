@@ -24,29 +24,31 @@ class FolderPlaylistSortModelsTest {
     }
 
     @Test
-    fun customOrderCanMoveAnItemToTheFrontWithoutCreatingAPinnedSection() {
+    fun customOrderPutsNewPlaylistsBeforeThePersistedManualOrder() {
         val playlists = listOf(
             playlist("one", createdAt = 1L),
             playlist("two", createdAt = 2L),
-            playlist("three", createdAt = 3L)
+            playlist("three", createdAt = 3L),
+            playlist("four", createdAt = 4L),
+            playlist("five", createdAt = 5L)
         )
 
         assertEquals(
-            listOf("one", "three", "two"),
+            listOf("five", "four", "three", "two", "one"),
             playlists.sortedForFolderPlaylists(
                 mode = FolderPlaylistSortMode.Custom,
                 songCountProvider = { 0 },
                 durationProvider = { 0L },
-                customOrderIds = listOf("one")
+                customOrderIds = listOf("three", "two", "one")
             ).map { it.id }
         )
         assertEquals(
-            listOf("three", "two", "one"),
+            listOf("five", "four", "three", "two", "one"),
             playlists.sortedForFolderPlaylists(
                 mode = FolderPlaylistSortMode.DateCreatedDesc,
                 songCountProvider = { 0 },
                 durationProvider = { 0L },
-                customOrderIds = listOf("one")
+                customOrderIds = listOf("three", "two", "one")
             ).map { it.id }
         )
     }

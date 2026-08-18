@@ -391,7 +391,11 @@ fun PlaylistDetailScreen(
                         } else {
                             {
                                 if (displayedSongs.isNotEmpty()) {
-                                    playerViewModel.setPlaylist(displayedSongs.shuffled(), 0)
+                                    playerViewModel.setPlaylist(
+                                        displayedSongs.shuffled(),
+                                        0,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                                    )
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             }
@@ -405,7 +409,11 @@ fun PlaylistDetailScreen(
                         sortLabel = com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending()),
                         onPlayAll = {
                             if (displayedSongs.isNotEmpty()) {
-                                playerViewModel.setPlaylist(displayedSongs, 0)
+                                playerViewModel.setPlaylist(
+                                    displayedSongs,
+                                    0,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                                )
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         },
@@ -465,10 +473,15 @@ fun PlaylistDetailScreen(
                 item {
                     com.ella.music.ui.components.ContinuePlaybackRow(
                         songs = displayedSongs,
+                        categoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId),
                         playbackStats = playbackStats,
                         currentSong = currentSong,
                         onContinue = { index ->
-                            playerViewModel.setPlaylist(displayedSongs, index)
+                            playerViewModel.setPlaylist(
+                                displayedSongs,
+                                index,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                            )
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     )
@@ -535,7 +548,11 @@ fun PlaylistDetailScreen(
                                 if (selection.selectionMode) {
                                     selection.toggleSelection(songKey)
                                 } else {
-                                    playerViewModel.setPlaylist(displayedSongs, index)
+                                    playerViewModel.setPlaylist(
+                                        displayedSongs,
+                                        index,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                                    )
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             },

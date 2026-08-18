@@ -65,7 +65,9 @@ fun rememberSongArtworkState(
             // Artist/album detail headers need the song's embedded cover even when MediaStore
             // exposes an album-art URI.  Several providers return no artwork for mp3/ogg there.
             ArtworkUsage.ArtistImage -> true
-            ArtworkUsage.MiniPlayer -> albumArtUri == null || preferEmbedded
+            // The mini-player is song-specific. MediaStore's album URI is only a fallback;
+            // otherwise two tracks from one album with different embedded covers look identical.
+            ArtworkUsage.MiniPlayer -> true
         }
     val cachedModel = remember(cacheKey) {
         cacheKey?.let(ArtworkModelMemoryCache::get)
@@ -107,6 +109,9 @@ fun rememberSongArtworkState(
                 usage == ArtworkUsage.ListThumbnail -> embeddedCover
                 usage == ArtworkUsage.ArtistImage -> embeddedCover ?: albumArtUri
                 preferEmbedded -> embeddedCover ?: albumArtUri
+                // Prefer the individual track artwork for playback surfaces, then fall back to
+                // the album provider URI when the file has no readable embedded cover.
+                usage == ArtworkUsage.MiniPlayer -> embeddedCover ?: albumArtUri
                 else -> albumArtUri ?: embeddedCover
             }
             if (resolved != null && cacheKey != null) {

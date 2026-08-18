@@ -72,6 +72,7 @@ internal fun LibrarySearchFilterBar(
     filter: SearchFilter,
     trimmedQuery: String,
     duplicatesOnlyActive: Boolean,
+    songOnlyResults: Boolean,
     songResultsCount: Int,
     albumResultsCount: Int,
     artistResultsCount: Int,
@@ -86,7 +87,12 @@ internal fun LibrarySearchFilterBar(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        SearchFilter.entries.forEach { item ->
+        // Music Videos has its own content-filter row. Keeping it out of the main row avoids
+        // showing two MV tabs and keeps the local/online intersection controls together.
+        val visibleFilters = SearchFilter.entries.filter { item ->
+            item != SearchFilter.MusicVideos && (!songOnlyResults || item.acceptsSongResults)
+        }
+        visibleFilters.forEach { item ->
             val baseLabel = stringResource(item.labelRes())
             val itemCount = when (item) {
                 SearchFilter.All -> songResultsCount + albumResultsCount + artistResultsCount + playlistResultsCount + categoryResultsByType.values.sumOf { it.size }
@@ -122,11 +128,11 @@ internal fun LibrarySearchContentFilterBar(
     mvExpanded: Boolean,
     onNoLyricsChange: (Boolean) -> Unit,
     onTtmlLyricsChange: (Boolean) -> Unit,
-    onMvExpandedChange: (Boolean) -> Unit,
     onMusicVideoChange: (Boolean) -> Unit,
     onLocalMusicVideoChange: (Boolean) -> Unit,
     onOnlineMusicVideoChange: (Boolean) -> Unit,
-    onDynamicCoverChange: (Boolean) -> Unit
+    onDynamicCoverChange: (Boolean) -> Unit,
+    onContentFilterInteraction: () -> Unit = {}
 ) {
     if (!visible) return
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -141,25 +147,37 @@ internal fun LibrarySearchContentFilterBar(
                 SearchPill(
                     text = stringResource(R.string.library_search_duplicates),
                     selected = duplicatesOnly,
-                    onClick = onDuplicatesToggle
+                    onClick = {
+                        onContentFilterInteraction()
+                        onDuplicatesToggle()
+                    }
                 )
                 SearchPill(
                     text = stringResource(R.string.library_search_filter_no_lyrics),
                     selected = filters.noLyrics,
-                    onClick = { onNoLyricsChange(!filters.noLyrics) }
+                    onClick = {
+                        onContentFilterInteraction()
+                        onNoLyricsChange(!filters.noLyrics)
+                    }
                 )
                 SearchPill(
                     text = stringResource(R.string.library_search_filter_ttml_lyrics),
                     selected = filters.ttmlLyrics,
-                    onClick = { onTtmlLyricsChange(!filters.ttmlLyrics) }
+                    onClick = {
+                        onContentFilterInteraction()
+                        onTtmlLyricsChange(!filters.ttmlLyrics)
+                    }
                 )
             }
             SearchPill(
                 text = stringResource(R.string.library_search_filter_mv),
                 selected = musicVideoTab || filters.musicVideo,
                 onClick = {
+                    onContentFilterInteraction()
                     if (musicVideoTab) {
-                        onMvExpandedChange(!mvExpanded)
+                        // On the dedicated MV tab, tapping the parent filter is the reset
+                        // action: clear both child filters and collapse their row.
+                        onMusicVideoChange(false)
                     } else if (mvExpanded) {
                         onMusicVideoChange(false)
                     } else {
@@ -171,11 +189,14 @@ internal fun LibrarySearchContentFilterBar(
                 SearchPill(
                     text = stringResource(R.string.library_search_filter_dynamic_cover),
                     selected = filters.dynamicCover,
-                    onClick = { onDynamicCoverChange(!filters.dynamicCover) }
+                    onClick = {
+                        onContentFilterInteraction()
+                        onDynamicCoverChange(!filters.dynamicCover)
+                    }
                 )
             }
         }
-        if (mvExpanded || musicVideoTab) {
+        if (mvExpanded) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -186,12 +207,18 @@ internal fun LibrarySearchContentFilterBar(
                 SearchPill(
                     text = stringResource(R.string.library_search_filter_local_mv),
                     selected = filters.localMusicVideo,
-                    onClick = { onLocalMusicVideoChange(!filters.localMusicVideo) }
+                    onClick = {
+                        onContentFilterInteraction()
+                        onLocalMusicVideoChange(!filters.localMusicVideo)
+                    }
                 )
                 SearchPill(
                     text = stringResource(R.string.library_search_filter_online_mv),
                     selected = filters.onlineMusicVideo,
-                    onClick = { onOnlineMusicVideoChange(!filters.onlineMusicVideo) }
+                    onClick = {
+                        onContentFilterInteraction()
+                        onOnlineMusicVideoChange(!filters.onlineMusicVideo)
+                    }
                 )
             }
         }

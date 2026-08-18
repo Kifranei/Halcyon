@@ -2251,4 +2251,8 @@
     <string name="settings_show_online_mv_in_lists_summary">歌曲有網易雲 MV 資訊時，在歌曲列表顯示線上 MV 入口</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">超級島通知主歌詞</string>
+    <string name="player_ab_repeat_record_b">A-B 重複播放：設定 B（A %1$s）</string>
+    <string name="player_ab_repeat_active">取消 A-B 重複播放（%1$s-%2$s）</string>
+    <string name="settings_music_video_stretch">允許拉伸 MV</string>
+    <string name="settings_music_video_stretch_summary">將影片拉伸至填滿螢幕；關閉後保持影片原始比例，避免畫面和內建 KTV 歌詞變形</string>
 </resources>

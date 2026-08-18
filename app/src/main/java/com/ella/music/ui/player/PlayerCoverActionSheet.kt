@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.viewmodel.AbRepeatState
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 
 @Composable
@@ -46,6 +47,8 @@ internal fun PlayerCoverActionSheet(
     sleepTimerStopAfterCurrent: Boolean,
     remoteStreamMaxBitRate: Int?,
     onCyclePlaybackMode: () -> Unit,
+    abRepeatState: AbRepeatState,
+    onAbRepeat: () -> Unit,
     onDismiss: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
@@ -135,6 +138,8 @@ internal fun PlayerCoverActionSheet(
             sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
             remoteStreamMaxBitRate = remoteStreamMaxBitRate,
             onCyclePlaybackMode = onCyclePlaybackMode,
+            abRepeatState = abRepeatState,
+            onAbRepeat = onAbRepeat,
             onClose = onDismiss,
             onAlbum = onAlbum,
             onArtist = onArtist,

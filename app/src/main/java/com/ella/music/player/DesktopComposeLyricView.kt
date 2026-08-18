@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -284,8 +282,12 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
             emptyList()
         }
         var smoothPositionMs by remember { mutableLongStateOf(currentPositionMs) }
-        LaunchedEffect(currentPositionMs, playbackRunning) {
+        LaunchedEffect(currentPositionMs, playbackRunning, wordLiftEnabled) {
             val anchorPositionMs = currentPositionMs
+            if (!wordLiftEnabled) {
+                smoothPositionMs = anchorPositionMs
+                return@LaunchedEffect
+            }
             val anchorFrameNs = withFrameNanos { it }
             smoothPositionMs = anchorPositionMs
             while (playbackRunning) {
@@ -308,11 +310,10 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         } else {
             SettingsManager.PLAYER_LYRIC_ALIGN_CENTER
         }
-        val desktopMaxLineWidth = with(LocalDensity.current) {
-            (24f * fontScale).sp.toDp() * DESKTOP_LYRIC_MAX_GLYPHS
-        }
         val verticalAlignment = when {
-            !statusBarMode -> Alignment.Center
+            // Keep the first lyric baseline anchored at the top. Translation, pronunciation and
+            // wrapped rows then grow downward instead of moving the whole lyric block around.
+            !statusBarMode -> Alignment.TopCenter
             statusBarVerticalAlign == SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_CENTER -> Alignment.Center
             statusBarVerticalAlign == SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_BOTTOM -> Alignment.BottomCenter
             else -> Alignment.TopCenter
@@ -320,7 +321,10 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = if (statusBarMode) 2.dp else 6.dp),
+                .padding(
+                    horizontal = if (statusBarMode) 2.dp else 6.dp,
+                    vertical = if (statusBarMode) 0.dp else 8.dp
+                ),
             contentAlignment = verticalAlignment
         ) {
             AppleMusicSingleLyricLine(
@@ -348,9 +352,6 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 secondaryAlpha = if (statusBarMode) statusBarSecondaryOpacity / 100f else 0.74f,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (statusBarMode) Modifier else Modifier.widthIn(max = desktopMaxLineWidth)
-                    )
             )
         }
     }
@@ -453,5 +454,3 @@ internal fun mergeDesktopStatusBarLyric(
  */
 internal fun String.normalizeDesktopStatusBarSecondaryText(): String =
     trim().replace(Regex("\\s+"), " ")
-
-private const val DESKTOP_LYRIC_MAX_GLYPHS = 8f

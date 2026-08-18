@@ -109,7 +109,9 @@ internal object MusicVideoPlaybackBridge {
     ) {
         if (source.role != PlayerVideoRole.MusicVideo) return
         val entry = entries.getOrPut(keyFor(source)) { Entry() }
-        entry.syncPositionMs = positionMs.coerceAtLeast(0L)
+        // Keep a negative target: a positive LunaBeat delay means the MV must remain on its
+        // first frame until the audio clock reaches that delay.
+        entry.syncPositionMs = positionMs
         entry.syncDurationMs = audioDurationMs?.coerceAtLeast(0L)
         entry.playWhenReady = when (val pendingPlaying = entry.pendingPlayWhenReady) {
             false -> {
@@ -137,10 +139,11 @@ internal object MusicVideoPlaybackBridge {
         val requestedPosition = entry.syncPositionMs ?: return
         val audioDuration = entry.syncDurationMs ?: Long.MAX_VALUE
         val videoDuration = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-        val target = if (requestedPosition >= videoDuration) {
+        val nonNegativePosition = requestedPosition.coerceAtLeast(0L)
+        val target = if (nonNegativePosition >= videoDuration) {
             (videoDuration - 1L).coerceAtLeast(0L)
         } else {
-            requestedPosition.coerceAtMost(audioDuration)
+            nonNegativePosition.coerceAtMost(audioDuration)
         }
         // Normal playback advances on the video player's own clock. Seeking every UI position
         // update caused decoder flushes and made MV playback visibly stutter.
@@ -149,7 +152,8 @@ internal object MusicVideoPlaybackBridge {
         ) {
             player.seekTo(target)
         }
-        player.playWhenReady = entry.playWhenReady && requestedPosition < videoDuration && requestedPosition < audioDuration
+        player.playWhenReady = entry.playWhenReady && requestedPosition >= 0L &&
+            requestedPosition < videoDuration && requestedPosition < audioDuration
     }
 
     private const val MUSIC_VIDEO_RESYNC_TOLERANCE_MS = 750L

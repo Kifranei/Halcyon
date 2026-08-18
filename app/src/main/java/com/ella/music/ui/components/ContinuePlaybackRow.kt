@@ -14,8 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.model.Song
@@ -41,7 +43,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun ContinuePlaybackRow(
     songs: List<Song>,
-    playbackStats: List<SongPlaybackStats>,
+    categoryKey: String,
+    playbackStats: List<SongPlaybackStats> = emptyList(),
     currentSong: Song? = null,
     onContinue: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -51,15 +54,22 @@ fun ContinuePlaybackRow(
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val visible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
     if (!visible) return
-    var dismissed by remember { mutableStateOf(false) }
+    // This row is commonly hosted inside a LazyColumn. A plain remember would be lost when the
+    // item leaves the viewport, making a dismissed row reappear while scrolling. Key the state by
+    // the category contents so dismissal remains local to the current category screen.
+    val dismissalKey = remember(songs) {
+        songs.fold(17) { hash, song ->
+            31 * hash + song.playlistIdentityKey().hashCode()
+        }.toString() + ":" + songs.size
+    }
+    var dismissed by rememberSaveable(dismissalKey) { mutableStateOf(false) }
     if (dismissed) return
     if (currentSong?.let { current -> songs.any { it.playlistIdentityKey() == current.playlistIdentityKey() } } == true) return
 
-    val resumeIndex = remember(songs, playbackStats) {
-        val latestById = playbackStats.associateBy(SongPlaybackStats::songId)
-        songs.indices.maxByOrNull { index -> latestById[songs[index].id]?.lastPlayedAt ?: 0L }
-            ?.takeIf { index -> (latestById[songs[index].id]?.lastPlayedAt ?: 0L) > 0L }
-            ?: -1
+    val resumeIndex = remember(songs, categoryKey) {
+        val resumeKey = CategoryResumeStore.getInstance(context).lastSongKey(categoryKey)
+            ?: return@remember -1
+        songs.indexOfFirst { it.playlistIdentityKey() == resumeKey }
     }
     if (resumeIndex < 0) return
     val song = songs[resumeIndex]

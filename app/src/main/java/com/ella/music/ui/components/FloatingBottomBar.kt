@@ -228,7 +228,7 @@ fun FloatingBottomBar(
     modifier: Modifier = Modifier,
     selectedIndex: () -> Int,
     onSelected: (index: Int) -> Unit,
-    backdrop: Backdrop,
+    backdrop: Backdrop?,
     tabsCount: Int,
     mode: FloatingBottomBarMode = FloatingBottomBarMode.LiquidGlass,
     disableRefraction: Boolean = false,
@@ -240,6 +240,7 @@ fun FloatingBottomBar(
     val pillShape = remember { CircleShape }
     val isLiquidGlassMode = mode == FloatingBottomBarMode.LiquidGlass
     val isBlurMode = mode == FloatingBottomBarMode.Blur
+    val useLayeredSelection = isLiquidGlassMode && backdrop != null && !disableRefraction
     val containerColor =
         if (isLiquidGlassMode) colors.containerColor.copy(0.4f) else colors.containerColor
 
@@ -343,7 +344,7 @@ fun FloatingBottomBar(
     // If your InteractiveHighlight has already been made safe on older Android versions,
     // this can be simplified to KernelSU's unguarded version.
     val interactiveHighlight =
-        if (isLiquidGlassMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (useLayeredSelection && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             remember(animationScope, tabWidthPx) {
                 InteractiveHighlight(
                     animationScope = animationScope,
@@ -363,7 +364,11 @@ fun FloatingBottomBar(
     val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
     val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
-    val combinedBackdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop)
+    val combinedBackdrop = if (useLayeredSelection) {
+        rememberCombinedBackdrop(backdrop, tabsBackdrop)
+    } else {
+        null
+    }
 
     Box(
         modifier = modifier.fillMaxWidth(),
@@ -394,7 +399,7 @@ fun FloatingBottomBar(
                         onClick = {}
                     )
                     .then(
-                        if (isLiquidGlassMode) {
+                        if (isLiquidGlassMode && backdrop != null) {
                             Modifier.drawBackdrop(
                                 backdrop = backdrop,
                                 shape = { pillShape },
@@ -419,7 +424,7 @@ fun FloatingBottomBar(
                                 },
                                 onDrawSurface = { drawRect(containerColor) },
                             )
-                        } else if (isBlurMode) {
+                        } else if (isBlurMode && backdrop != null) {
                             Modifier.drawBackdrop(
                                 backdrop = backdrop,
                                 shape = { pillShape },
@@ -442,7 +447,7 @@ fun FloatingBottomBar(
             )
         }
 
-        if (isLiquidGlassMode) {
+        if (useLayeredSelection) {
             CompositionLocalProvider(
                 LocalFloatingBottomBarTabScale provides {
                     lerp(1f, 1.2f, dampedDragAnimation.pressProgress)
@@ -484,7 +489,7 @@ fun FloatingBottomBar(
 
         if (tabWidthPx > 0f) {
             val tabWidthDp = with(density) { tabWidthPx.toDp() }
-            if (isLiquidGlassMode) {
+            if (isLiquidGlassMode && combinedBackdrop != null) {
                 Box(
                     Modifier
                         .padding(horizontal = 4.dp)

@@ -1,5 +1,6 @@
 package com.ella.music.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,10 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +43,11 @@ enum class SettingsDetailMode {
     Integrations,
     Lyrics
 }
+
+internal fun shouldHandleHomeDisplayBackLocally(
+    showHomeDisplayPage: Boolean,
+    initialHomeDisplay: Boolean
+): Boolean = showHomeDisplayPage && !initialHomeDisplay
 
 @Composable
 fun SettingsDetailScreen(
@@ -110,12 +114,17 @@ fun SettingsDetailScreen(
         HomePreferenceItem("lx", "LX Music", stringResource(R.string.home_import_api_source)),
         HomePreferenceItem("webdav", "WebDAV", stringResource(R.string.home_connect_cloud_music))
     )
-    var showHomeDisplayPage by remember(initialHomeDisplay) { mutableStateOf(initialHomeDisplay) }
-    val contentScrollState = rememberScrollState()
-    LaunchedEffect(showHomeDisplayPage) {
-        contentScrollState.scrollTo(0)
-    }
     val effectiveMode = if (showOnlyLyrics) SettingsDetailMode.Lyrics else mode
+    var showHomeDisplayPage by remember(initialHomeDisplay) { mutableStateOf(initialHomeDisplay) }
+    val contentScrollState = rememberSettingsScrollState(
+        key = "settings_detail_${effectiveMode.name}_${showHomeDisplayPage}"
+    )
+
+    BackHandler(
+        enabled = shouldHandleHomeDisplayBackLocally(showHomeDisplayPage, initialHomeDisplay)
+    ) {
+        showHomeDisplayPage = false
+    }
 
     Column(
         modifier = Modifier
@@ -133,7 +142,15 @@ fun SettingsDetailScreen(
             },
             color = pageBackground,
             navigationIcon = {
-                IconButton(onClick = { if (showHomeDisplayPage && !initialHomeDisplay) showHomeDisplayPage = false else onBack() }) {
+                IconButton(
+                    onClick = {
+                        if (shouldHandleHomeDisplayBackLocally(showHomeDisplayPage, initialHomeDisplay)) {
+                            showHomeDisplayPage = false
+                        } else {
+                            onBack()
+                        }
+                    }
+                ) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
                         contentDescription = stringResource(R.string.common_back),

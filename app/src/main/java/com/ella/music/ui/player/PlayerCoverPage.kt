@@ -61,6 +61,7 @@ import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.viewmodel.MainViewModel
+import com.ella.music.viewmodel.AbRepeatState
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -96,6 +97,7 @@ internal fun CoverPlayerPage(
     duration: Long,
     shuffleEnabled: Boolean,
     repeatMode: Int,
+    abRepeatState: AbRepeatState,
     audioInfo: AudioInfo?,
     palette: PlayerPalette,
     flowEffectMode: Int,
@@ -180,6 +182,7 @@ internal fun CoverPlayerPage(
     onLyricSecondaryTextSize: (Float) -> Unit,
     onSeek: (Float) -> Unit,
     onCyclePlaybackMode: () -> Unit,
+    onAbRepeat: () -> Unit,
     onPrevious: () -> Unit,
     onSwipePrevious: () -> Unit,
     onPlayPause: () -> Unit,
@@ -397,24 +400,6 @@ internal fun CoverPlayerPage(
             ) {
                 val musicVideoSource = resolvedMusicVideo
                 val dynamicCoverSource = displayedDynamicCover
-                androidx.compose.runtime.LaunchedEffect(
-                    musicVideoSource?.failureKey,
-                    currentPosition,
-                    duration,
-                    isPlaying,
-                    videoPlaybackActive
-                ) {
-                    if (videoPlaybackActive && musicVideoVisible) {
-                        musicVideoSource?.let { source ->
-                            MusicVideoPlaybackBridge.syncToAudio(
-                                source,
-                                currentPosition,
-                                duration,
-                                isPlaying
-                            )
-                        }
-                    }
-                }
                 when {
                     videoPlaybackActive && musicVideoVisible && musicVideoSource != null -> {
                         DynamicCoverVideo(
@@ -909,17 +894,6 @@ internal fun CoverPlayerPage(
                             .then(coverSwipeModifier),
                         contentAlignment = Alignment.Center
                     ) {
-                        androidx.compose.runtime.LaunchedEffect(
-                            resolvedMusicVideo?.failureKey,
-                            currentPosition,
-                            duration,
-                            isPlaying,
-                            videoPlaybackActive
-                        ) {
-                            if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
-                                MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
-                            }
-                        }
                         // Keep MV silent and on the audio clock while its surface is hidden.
                         if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
                             DynamicCoverVideo(
@@ -1199,17 +1173,6 @@ internal fun CoverPlayerPage(
                                 .then(coverSwipeModifier),
                             contentAlignment = Alignment.Center
                         ) {
-                            androidx.compose.runtime.LaunchedEffect(
-                                resolvedMusicVideo?.failureKey,
-                                currentPosition,
-                                duration,
-                                isPlaying,
-                                videoPlaybackActive
-                            ) {
-                                if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
-                                    MusicVideoPlaybackBridge.syncToAudio(source, currentPosition, duration, isPlaying)
-                                }
-                            }
                             // Keep MV silent and synchronized behind the current cover.
                             if (videoPlaybackActive && musicVideoVisible) resolvedMusicVideo?.let { source ->
                                 DynamicCoverVideo(
@@ -1456,6 +1419,8 @@ internal fun CoverPlayerPage(
             sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
             remoteStreamMaxBitRate = remoteStreamMaxBitRate,
             onCyclePlaybackMode = onCyclePlaybackMode,
+            abRepeatState = abRepeatState,
+            onAbRepeat = onAbRepeat,
             onDismiss = onDismissMenu,
             onAlbum = onAlbum,
             onArtist = onArtist,

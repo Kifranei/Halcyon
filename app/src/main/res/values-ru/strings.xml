@@ -2238,4 +2238,8 @@
     <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
+    <string name="player_ab_repeat_record_b">Повтор A-B: установить B (A %1$s)</string>
+    <string name="player_ab_repeat_active">Отменить повтор A-B (%1$s-%2$s)</string>
+    <string name="settings_music_video_stretch">Разрешить растяжение MV</string>
+    <string name="settings_music_video_stretch_summary">Растянуть видео на весь экран; если выключено, сохранять исходное соотношение сторон, чтобы не искажать видео и встроенные KTV-тексты</string>
 </resources>

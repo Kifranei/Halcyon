@@ -1,10 +1,12 @@
 package com.ella.music.ui.settings
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
@@ -12,7 +14,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -22,11 +26,64 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.ui.components.EllaMiuixTextField
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * Settings pages are separate navigation destinations. Their Compose state can be recreated when
+ * a child page is opened, so retain the last viewport in-process as well as in the navigation
+ * saved-state registry. The key keeps, for example, the library and lyrics pages independent.
+ */
+private object SettingsScrollMemory {
+    private val scrollOffsets = mutableMapOf<String, Int>()
+    private val lazyPositions = mutableMapOf<String, Pair<Int, Int>>()
+
+    @Synchronized
+    fun scrollOffset(key: String): Int = scrollOffsets[key] ?: 0
+
+    @Synchronized
+    fun saveScrollOffset(key: String, value: Int) {
+        scrollOffsets[key] = value.coerceAtLeast(0)
+    }
+
+    @Synchronized
+    fun lazyPosition(key: String): Pair<Int, Int> = lazyPositions[key] ?: (0 to 0)
+
+    @Synchronized
+    fun saveLazyPosition(key: String, index: Int, offset: Int) {
+        lazyPositions[key] = index.coerceAtLeast(0) to offset.coerceAtLeast(0)
+    }
+}
+
+@Composable
+internal fun rememberSettingsScrollState(key: String): ScrollState {
+    val initialValue = remember(key) { SettingsScrollMemory.scrollOffset(key) }
+    val state = rememberSaveable(key, saver = ScrollState.Saver) { ScrollState(initialValue) }
+    LaunchedEffect(key, state) {
+        snapshotFlow { state.value }
+            .distinctUntilChanged()
+            .collect { SettingsScrollMemory.saveScrollOffset(key, it) }
+    }
+    return state
+}
+
+@Composable
+internal fun rememberSettingsLazyListState(key: String): LazyListState {
+    val initialPosition = remember(key) { SettingsScrollMemory.lazyPosition(key) }
+    val state = rememberSaveable(key, saver = LazyListState.Saver) {
+        LazyListState(initialPosition.first, initialPosition.second)
+    }
+    LaunchedEffect(key, state) {
+        snapshotFlow { state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) -> SettingsScrollMemory.saveLazyPosition(key, index, offset) }
+    }
+    return state
+}
 
 @Composable
 internal fun SettingsCardGroup(

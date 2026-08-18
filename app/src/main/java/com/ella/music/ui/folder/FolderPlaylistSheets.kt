@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.FolderPlaylist
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaMiuixAction
@@ -348,12 +349,13 @@ internal fun FolderPlaylistEditorSheet(
     onSelectedFoldersChange: (Set<String>) -> Unit,
     pinnedFolders: Set<String>,
     onPinnedFoldersChange: (Set<String>) -> Unit,
+    editorSort: FolderPlaylistFolderSortMode,
+    onEditorSortChange: (FolderPlaylistFolderSortMode) -> Unit,
     onDismiss: () -> Unit,
     onSave: (FolderPlaylist?, String, List<String>) -> Unit
 ) {
     if (!show) return
     var searchQuery by remember { mutableStateOf("") }
-    var editorSort by remember { mutableStateOf(EditorFolderSort.Name) }
 
     val filteredFolders = remember(availableFolders, searchQuery) {
         if (searchQuery.isBlank()) availableFolders
@@ -370,11 +372,12 @@ internal fun FolderPlaylistEditorSheet(
         songs
     ) {
         value = withContext(Dispatchers.Default) {
-            val songsByFolder = songs.groupBy { it.folderPath().normalizeFolderPath() }
             availableFolders.associateWith { folder ->
-                val folderSongs = songsByFolder[folder.normalizeFolderPath()].orEmpty()
+                val folderSongs = songs.songsForFolderPlaylist(listOf(folder))
                 EditorFolderStats(
                     songCount = folderSongs.size,
+                    albumCount = folderSongs.map { it.albumIdentityId() }.distinct().size,
+                    duration = folderSongs.sumOf { it.duration },
                     dateModified = folderSongs.maxOfOrNull(Song::dateModified) ?: 0L
                 )
             }
@@ -386,22 +389,40 @@ internal fun FolderPlaylistEditorSheet(
     // folder pinned even after an accidental mis-tap, until the editor target changes.
     val sortedFilteredFolders = remember(filteredFolders, editorSort, pinnedFolders, editorFolderStats) {
         val base = when (editorSort) {
-            EditorFolderSort.Name -> filteredFolders.sortedBy { it.substringAfterLast('/').lowercase() }
-            EditorFolderSort.NameDesc -> filteredFolders.sortedByDescending { it.substringAfterLast('/').lowercase() }
-            EditorFolderSort.ModifiedTime -> filteredFolders.sortedWith(
+            FolderPlaylistFolderSortMode.Custom,
+            FolderPlaylistFolderSortMode.Name -> filteredFolders.sortedBy { it.substringAfterLast('/').lowercase() }
+            FolderPlaylistFolderSortMode.CustomDesc,
+            FolderPlaylistFolderSortMode.NameDesc -> filteredFolders.sortedByDescending { it.substringAfterLast('/').lowercase() }
+            FolderPlaylistFolderSortMode.DateModified -> filteredFolders.sortedWith(
                 compareByDescending<String> { editorFolderStats[it]?.dateModified ?: 0L }
                     .thenBy { it.substringAfterLast('/').lowercase() }
             )
-            EditorFolderSort.ModifiedTimeAsc -> filteredFolders.sortedWith(
+            FolderPlaylistFolderSortMode.DateModifiedAsc -> filteredFolders.sortedWith(
                 compareBy<String> { editorFolderStats[it]?.dateModified ?: 0L }
                     .thenBy { it.substringAfterLast('/').lowercase() }
             )
-            EditorFolderSort.SongCount -> filteredFolders.sortedWith(
+            FolderPlaylistFolderSortMode.SongCount -> filteredFolders.sortedWith(
                 compareByDescending<String> { editorFolderStats[it]?.songCount ?: 0 }
                     .thenBy { it.substringAfterLast('/').lowercase() }
             )
-            EditorFolderSort.SongCountAsc -> filteredFolders.sortedWith(
+            FolderPlaylistFolderSortMode.SongCountAsc -> filteredFolders.sortedWith(
                 compareBy<String> { editorFolderStats[it]?.songCount ?: 0 }
+                    .thenBy { it.substringAfterLast('/').lowercase() }
+            )
+            FolderPlaylistFolderSortMode.AlbumCount -> filteredFolders.sortedWith(
+                compareByDescending<String> { editorFolderStats[it]?.albumCount ?: 0 }
+                    .thenBy { it.substringAfterLast('/').lowercase() }
+            )
+            FolderPlaylistFolderSortMode.AlbumCountAsc -> filteredFolders.sortedWith(
+                compareBy<String> { editorFolderStats[it]?.albumCount ?: 0 }
+                    .thenBy { it.substringAfterLast('/').lowercase() }
+            )
+            FolderPlaylistFolderSortMode.Duration -> filteredFolders.sortedWith(
+                compareByDescending<String> { editorFolderStats[it]?.duration ?: 0L }
+                    .thenBy { it.substringAfterLast('/').lowercase() }
+            )
+            FolderPlaylistFolderSortMode.DurationAsc -> filteredFolders.sortedWith(
+                compareBy<String> { editorFolderStats[it]?.duration ?: 0L }
                     .thenBy { it.substringAfterLast('/').lowercase() }
             )
         }
@@ -464,47 +485,72 @@ internal fun FolderPlaylistEditorSheet(
                 }
             }
             Spacer(modifier = Modifier.height(14.dp))
-            EllaMiuixTextField(
-                value = draftName,
-                onValueChange = onDraftNameChange,
-                label = stringResource(R.string.playlist_name_label),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (availableFolders.size > 6) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                EllaMiuixTextField(
+                    value = draftName,
+                    onValueChange = onDraftNameChange,
+                    label = stringResource(R.string.playlist_name_label),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = { onSave(target, draftName, selectedFolders.toList()) }
+                ) {
+                    Text(text = stringResource(R.string.common_save))
+                }
+            }
+            if (availableFolders.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    EllaMiuixTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = stringResource(R.string.common_search),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (availableFolders.size > 6) {
+                        EllaMiuixTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            label = stringResource(R.string.common_search),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                     SortDropdownMenu(
                         items = directionalSortModeDropdownItems(
                             fields = listOf(
                                 DirectionalSortModeField(
                                     text = stringResource(R.string.playlist_song_sort_date_modified),
-                                    ascendingMode = EditorFolderSort.ModifiedTimeAsc,
-                                    descendingMode = EditorFolderSort.ModifiedTime
+                                    ascendingMode = FolderPlaylistFolderSortMode.DateModifiedAsc,
+                                    descendingMode = FolderPlaylistFolderSortMode.DateModified
                                 ),
                                 DirectionalSortModeField(
                                     text = stringResource(R.string.playlist_sort_name),
-                                    ascendingMode = EditorFolderSort.Name,
-                                    descendingMode = EditorFolderSort.NameDesc
+                                    ascendingMode = FolderPlaylistFolderSortMode.Name,
+                                    descendingMode = FolderPlaylistFolderSortMode.NameDesc
                                 ),
                                 DirectionalSortModeField(
                                     text = stringResource(R.string.playlist_sort_song_count),
-                                    ascendingMode = EditorFolderSort.SongCountAsc,
-                                    descendingMode = EditorFolderSort.SongCount
+                                    ascendingMode = FolderPlaylistFolderSortMode.SongCountAsc,
+                                    descendingMode = FolderPlaylistFolderSortMode.SongCount
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.folder_sort_album_count),
+                                    ascendingMode = FolderPlaylistFolderSortMode.AlbumCountAsc,
+                                    descendingMode = FolderPlaylistFolderSortMode.AlbumCount
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_duration),
+                                    ascendingMode = FolderPlaylistFolderSortMode.DurationAsc,
+                                    descendingMode = FolderPlaylistFolderSortMode.Duration
                                 )
                             ),
                             selectedMode = editorSort,
-                            onSelect = { editorSort = it }
+                            onSelect = onEditorSortChange
                         )
                     )
                 }
@@ -593,20 +639,14 @@ internal fun FolderPlaylistEditorSheet(
                     }
                 }
             }
-            Button(
-                onClick = { onSave(target, draftName, selectedFolders.toList()) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp)
-            ) {
-                Text(text = stringResource(R.string.common_save))
-            }
         }
     }
 }
 
 private data class EditorFolderStats(
     val songCount: Int,
+    val albumCount: Int,
+    val duration: Long,
     val dateModified: Long
 )
 

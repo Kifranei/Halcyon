@@ -228,18 +228,20 @@ internal class NoArtworkMediaNotificationProvider(
     }
 
     private fun Player.playbackModeAction(): PlaybackModeAction {
+        val persistedRepeat = service.getSharedPreferences("ella_playback_state", android.content.Context.MODE_PRIVATE)
+            .getInt("app_repeat_mode", Player.REPEAT_MODE_OFF)
         return when {
             service.appShuffleEnabled -> PlaybackModeAction(
                 icon = R.drawable.ic_notification_shuffle,
                 title = service.getString(R.string.notification_action_shuffle)
             )
 
-            repeatMode == Player.REPEAT_MODE_ONE -> PlaybackModeAction(
+            persistedRepeat == Player.REPEAT_MODE_ONE -> PlaybackModeAction(
                 icon = R.drawable.ic_repeat_one,
                 title = service.getString(R.string.notification_action_repeat_one)
             )
 
-            repeatMode == Player.REPEAT_MODE_ALL -> PlaybackModeAction(
+            persistedRepeat == Player.REPEAT_MODE_ALL -> PlaybackModeAction(
                 icon = R.drawable.ic_repeat,
                 title = service.getString(R.string.notification_action_repeat_all)
             )

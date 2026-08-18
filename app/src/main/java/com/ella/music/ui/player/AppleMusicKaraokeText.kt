@@ -40,6 +40,20 @@ internal fun TimedLyricText(
     statusBarMarquee: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // Disabling word lift is also the opt-out for the expensive karaoke renderer. A plain text
+    // line avoids allocating one Compose text node per word and lets the player stay responsive
+    // on dense TTML timelines.
+    if (!wordLiftEnabled) {
+        BasicText(
+            text = text,
+            style = style,
+            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+            softWrap = !singleLine,
+            overflow = TextOverflow.Clip,
+            modifier = modifier.then(if (singleLine && statusBarMarquee) Modifier.basicMarquee() else Modifier)
+        )
+        return
+    }
     // TTML may encode the blank before a word as part of that word. Move it to the prior
     // karaoke unit before wrapping so every v1 line, including wrapped continuations, starts
     // at the same left edge. Right-aligned v2 rows are visually tolerant of this, but v1 is not.
@@ -182,8 +196,8 @@ private fun AppleMusicKaraokeWord(
     Box(
         modifier = Modifier.graphicsLayer {
             translationY = -liftPx
-            scaleX = 1f + 0.03f * sustainGlow
-            scaleY = 1f + 0.03f * sustainGlow
+            // Keep the glyph box stable during a held note. Pulsing scale changes are perceived
+            // as character jitter on the desktop overlay, especially with long TTML spans.
             transformOrigin = TransformOrigin(0.5f, 1f)
         }
     ) {

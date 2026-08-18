@@ -1546,7 +1546,9 @@
     <string name="player_playback_mode_repeat_one">单曲循环</string>
     <string name="player_playback_mode_repeat_all">列表循环</string>
     <string name="player_playback_mode_in_order">顺序播放</string>
-    <string name="player_repeat_mode">复读模式</string>
+    <string name="player_repeat_mode">A-B复读：记录 A</string>
+    <string name="player_ab_repeat_record_b">A-B复读：记录 B（A %1$s）</string>
+    <string name="player_ab_repeat_active">取消 A-B 复读（%1$s-%2$s）</string>
     <string name="player_locate_current_song">定位当前歌曲</string>
     <string name="player_clear_queue">清空播放列表</string>
     <string name="player_lock_queue">锁定播放列表</string>
@@ -1643,6 +1645,8 @@
     <string name="settings_music_video_folder_saved">已添加 MV 文件夹</string>
     <string name="settings_music_video_capture_subtitles">MV 截图包含字幕</string>
     <string name="settings_music_video_capture_subtitles_summary">在歌曲详情页有声 MV 的截图中叠加当前外挂字幕</string>
+    <string name="settings_music_video_stretch">允许拉伸 MV</string>
+    <string name="settings_music_video_stretch_summary">开启后视频会拉伸铺满屏幕；关闭后保持视频原始比例，避免画面和内置 KTV 字幕变形</string>
     <string name="settings_music_video_orientation">有声 MV 屏幕方向</string>
     <string name="settings_music_video_orientation_system">跟随系统</string>
     <string name="settings_music_video_orientation_video">跟随视频方向</string>

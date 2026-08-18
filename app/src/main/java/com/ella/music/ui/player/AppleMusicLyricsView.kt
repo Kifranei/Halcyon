@@ -139,7 +139,19 @@ internal fun AppleMusicLyricsView(
         return
     }
 
-    val listState = rememberLazyListState()
+    val interludes = remember(lyrics) { lyrics.interludes() }
+    val initialActiveIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+    val initialActiveInterlude = interludes.firstOrNull { it.isActiveAt(currentPositionMs) }
+    val initialScrollTargetIndex = resolveAppleMusicLyricsScrollTargetIndex(
+        activeLyricIndex = initialActiveIndex,
+        activeInterlude = initialActiveInterlude,
+        interludes = interludes
+    )
+    // Start at the currently playing row. Waiting for the first post-layout effect while the
+    // state still points at item 0 makes the lyric page flash the beginning of the song first.
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = initialScrollTargetIndex
+    )
     val userDragging by listState.interactionSource.collectIsDraggedAsState()
     var trailingLineHeightPx by remember(lyrics) { mutableIntStateOf(0) }
     var hasPositionedScroll by remember(lyrics) { mutableStateOf(false) }
@@ -174,9 +186,12 @@ internal fun AppleMusicLyricsView(
             }
         }
     }
-    val interludes = remember(lyrics) { lyrics.interludes() }
     var smoothPositionMs by remember { mutableLongStateOf(renderPositionMs) }
-    LaunchedEffect(renderPositionMs, renderIsPlaying) {
+    LaunchedEffect(renderPositionMs, renderIsPlaying, wordLiftEnabled) {
+        if (!wordLiftEnabled) {
+            smoothPositionMs = renderPositionMs
+            return@LaunchedEffect
+        }
         // The player position is sampled less often than this frame-driven renderer. When a new
         // sample arrives slightly behind the extrapolated display position, restarting from that
         // sample makes the karaoke sheen visibly travel over the same glyph a second time. Keep
@@ -201,11 +216,24 @@ internal fun AppleMusicLyricsView(
     }
     val activeInterlude = interludes.firstOrNull { it.isActiveAt(smoothPositionMs) }
     val activeIndex = renderCurrentIndex.coerceIn(0, lyrics.lastIndex)
-    val scrollTargetIndex = activeInterlude?.let { interlude ->
-        interlude.nextLineIndex + interludes.count { it.nextLineIndex < interlude.nextLineIndex }
-    } ?: activeIndex + interludes.count { it.nextLineIndex <= activeIndex }
+    val renderedScrollTargetIndex = resolveAppleMusicLyricsScrollTargetIndex(
+        activeLyricIndex = activeIndex,
+        activeInterlude = activeInterlude,
+        interludes = interludes
+    )
+    // Keep only the lightweight list position synchronized while this retained page is hidden.
+    // Karaoke rendering remains parked, but the page is ready on the correct row before it is
+    // brought on screen again.
+    val playbackActiveIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+    val playbackActiveInterlude = interludes.firstOrNull { it.isActiveAt(currentPositionMs) }
+    val playbackScrollTargetIndex = resolveAppleMusicLyricsScrollTargetIndex(
+        activeLyricIndex = playbackActiveIndex,
+        activeInterlude = playbackActiveInterlude,
+        interludes = interludes
+    )
+    val scrollTargetIndex = if (pageVisible) renderedScrollTargetIndex else playbackScrollTargetIndex
     LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, trailingLineHeightPx) {
-        if (!pageVisible || userDragging || deferAutoScroll) return@LaunchedEffect
+        if (userDragging || deferAutoScroll) return@LaunchedEffect
         // Do not issue the first scroll before LazyColumn has a viewport; that was making the
         // focus line land under the page header until the user manually scrolled.
         val viewportHeight = snapshotFlow {
@@ -221,10 +249,22 @@ internal fun AppleMusicLyricsView(
             return@LaunchedEffect
         }
 
+        if (!pageVisible) {
+            listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
+            return@LaunchedEffect
+        }
+
         // Measure the target row after it enters the viewport. Average-height prediction is
         // especially inaccurate for TTML x-bg and LRC pronunciation rows, which made the mini
         // lyric overshoot and then visibly correct itself backwards.
-        listState.animateScrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
+        // While playing, an animated scroll is repeatedly cancelled by fast lyric changes. That
+        // cancellation is the source of the visible stutter and duplicate-looking first word;
+        // place the next line immediately and let the line-level transition provide the motion.
+        if (renderIsPlaying) {
+            listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
+        } else {
+            listState.animateScrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
+        }
         val layoutInfo = listState.layoutInfo
         val targetItem = layoutInfo.visibleItemsInfo.firstOrNull { it.index == scrollTargetIndex }
         if (targetItem != null) {
@@ -346,6 +386,14 @@ internal fun resolveAppleMusicLyricsFocusOffset(
     val maximumOffset = (viewportHeightPx - itemHeightPx).coerceAtLeast(0)
     return preferredOffset.coerceIn(0, maximumOffset)
 }
+
+internal fun resolveAppleMusicLyricsScrollTargetIndex(
+    activeLyricIndex: Int,
+    activeInterlude: AppleMusicInterlude?,
+    interludes: List<AppleMusicInterlude>
+): Int = activeInterlude?.let { interlude ->
+    interlude.nextLineIndex + interludes.count { it.nextLineIndex < interlude.nextLineIndex }
+} ?: activeLyricIndex + interludes.count { it.nextLineIndex <= activeLyricIndex }
 
 private fun LyricLine.isDuetLine(): Boolean = agent.equals("v1", true) || agent.equals("v2", true)
 

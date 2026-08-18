@@ -566,11 +566,12 @@ class DesktopLyricService : Service() {
             params.y = statusBarLyricTopY()
             return
         }
-        val metrics = resources.displayMetrics
+        val displayWidth = displayWidthPixels()
+        val displayHeight = displayHeightPixels()
         val halfWidth = ((view.width.takeIf { it > 0 } ?: desktopLyricWidth()) / 2)
 
-        val maxX = (metrics.widthPixels / 2 - halfWidth).coerceAtLeast(0)
-        val maxY = (metrics.heightPixels - (view.height.takeIf { it > 0 } ?: desktopLyricHeight())).coerceAtLeast(0)
+        val maxX = (displayWidth / 2 - halfWidth).coerceAtLeast(0)
+        val maxY = (displayHeight - (view.height.takeIf { it > 0 } ?: desktopLyricHeight())).coerceAtLeast(0)
         params.x = params.x.coerceIn(-maxX, maxX)
         params.y = params.y.coerceIn(-statusBarHeight() - dp(12), maxY)
     }
@@ -597,7 +598,7 @@ class DesktopLyricService : Service() {
 
     private fun statusBarLyricWidth(): Int =
         (
-            resources.displayMetrics.widthPixels *
+            displayWidthPixels() *
                 statusBarWidthPercent.coerceIn(
                     DesktopLyricSettings.MIN_WIDTH_PERCENT,
                     DesktopLyricSettings.MAX_WIDTH_PERCENT,
@@ -605,7 +606,7 @@ class DesktopLyricService : Service() {
                 100f
             )
             .roundToInt()
-            .coerceIn(dp(160), resources.displayMetrics.widthPixels - dp(16))
+            .coerceIn(dp(160), displayWidthPixels() - dp(16))
 
     private fun statusBarLyricHeight(): Int =
         if (statusBarSecondaryMode == SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF || statusBarMergeSecondary) {
@@ -615,39 +616,36 @@ class DesktopLyricService : Service() {
         }
 
     private fun desktopLyricWidth(): Int {
-        val metrics = resources.displayMetrics
         val requestedWidth = (
-            metrics.widthPixels *
+            displayWidthPixels() *
                 desktopLyricWidthPercent.coerceIn(
                     DesktopLyricSettings.MIN_WIDTH_PERCENT,
                     DesktopLyricSettings.MAX_WIDTH_PERCENT,
                 ) /
                 100f
             ).roundToInt()
-        val maxWidth = if (isTabletDevice()) {
-            metrics.widthPixels - dp(16)
-        } else {
-            minOf(metrics.widthPixels - dp(72), (metrics.widthPixels * 0.86f).roundToInt())
-        }.coerceAtLeast(dp(180))
+        // Overlay windows must use the physical display, not the host app's current bounds. This
+        // keeps desktop lyrics centered and full-width-capable when Halcyon is in split-screen
+        // or a floating-window mode.
+        val maxWidth = (displayWidthPixels() - dp(16)).coerceAtLeast(dp(180))
         val minWidth = minOf(if (isTabletDevice()) dp(280) else dp(180), maxWidth)
         return requestedWidth.coerceIn(minWidth, maxWidth)
     }
 
     private fun desktopLyricHeight(): Int {
-        val metrics = resources.displayMetrics
         if (isTabletDevice()) {
-            return (metrics.heightPixels * 0.42f)
+            return (displayHeightPixels() * 0.42f)
                 .roundToInt()
                 .coerceIn(dp(220), dp(520))
         }
-        val maxHeight = minOf(dp(320), (metrics.heightPixels * 0.32f).roundToInt()).coerceAtLeast(dp(128))
-        return (metrics.heightPixels * 0.24f)
+        val maxHeight = minOf(dp(320), (displayHeightPixels() * 0.32f).roundToInt()).coerceAtLeast(dp(128))
+        return (displayHeightPixels() * 0.24f)
             .roundToInt()
             .coerceIn(dp(128), maxHeight)
     }
 
     private fun statusBarLyricX(lyricWidth: Int): Int {
-        val sideOffset = ((resources.displayMetrics.widthPixels - lyricWidth) / 2 - dp(12)).coerceAtLeast(0)
+        val sideOffset = ((displayWidthPixels() - lyricWidth) / 2 - dp(12)).coerceAtLeast(0)
         val anchoredX = when (statusBarPosition) {
             SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_LEFT -> -sideOffset
             SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_RIGHT -> sideOffset
@@ -904,6 +902,20 @@ class DesktopLyricService : Service() {
     private fun canDrawOverlay(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun displayWidthPixels(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        windowManager.maximumWindowMetrics.bounds.width()
+    } else {
+        @Suppress("DEPRECATION")
+        resources.displayMetrics.widthPixels
+    }
+
+    private fun displayHeightPixels(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        windowManager.maximumWindowMetrics.bounds.height()
+    } else {
+        @Suppress("DEPRECATION")
+        resources.displayMetrics.heightPixels
+    }
 
     private fun isTabletDevice(): Boolean = resources.configuration.smallestScreenWidthDp >= 600
 

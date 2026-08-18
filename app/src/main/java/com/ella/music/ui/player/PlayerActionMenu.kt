@@ -1,5 +1,6 @@
 package com.ella.music.ui.player
 
+import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.viewmodel.AbRepeatPhase
+import com.ella.music.viewmodel.AbRepeatState
 
 @Composable
 internal fun PlayerActionMenu(
@@ -54,6 +57,8 @@ internal fun PlayerActionMenu(
     sleepTimerStopAfterCurrent: Boolean,
     remoteStreamMaxBitRate: Int?,
     onCyclePlaybackMode: () -> Unit,
+    abRepeatState: AbRepeatState,
+    onAbRepeat: () -> Unit,
     onClose: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
@@ -101,6 +106,18 @@ internal fun PlayerActionMenu(
     modifier: Modifier = Modifier
 ) {
     var page by remember(initialPage) { mutableStateOf(initialPage) }
+    val abRepeatLabel = when (abRepeatState.phase) {
+        AbRepeatPhase.IDLE -> stringResource(R.string.player_repeat_mode)
+        AbRepeatPhase.A_SET -> stringResource(
+            R.string.player_ab_repeat_record_b,
+            DateUtils.formatElapsedTime((abRepeatState.startMs ?: 0L) / 1000L)
+        )
+        AbRepeatPhase.ACTIVE -> stringResource(
+            R.string.player_ab_repeat_active,
+            DateUtils.formatElapsedTime((abRepeatState.startMs ?: 0L) / 1000L),
+            DateUtils.formatElapsedTime((abRepeatState.endMs ?: 0L) / 1000L)
+        )
+    }
 
     Column(
         modifier = modifier
@@ -130,7 +147,7 @@ internal fun PlayerActionMenu(
                     PlayerActionMenuItem(stringResource(R.string.common_share), onShare)
                     PlayerActionMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
                     PlayerActionMenuItem(stringResource(R.string.player_song_info), onSongInfo)
-                    PlayerActionMenuItem(stringResource(R.string.player_repeat_mode), onCyclePlaybackMode)
+                    PlayerActionMenuItem(abRepeatLabel, onAbRepeat)
                     remoteStreamMaxBitRate?.let { bitRate ->
                         PlayerActionMenuItem(
                             stringResource(

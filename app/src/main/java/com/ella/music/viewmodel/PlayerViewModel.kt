@@ -6,6 +6,7 @@ import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ella.music.data.AppLogStore
+import com.ella.music.data.CategoryResumeStore
 import com.ella.music.data.lastfm.LastFmHistoryStore
 import com.ella.music.data.lastfm.ListeningHistorySource
 import com.ella.music.data.PlaylistStore
@@ -62,6 +63,8 @@ private const val LYRIC_POSITION_BACKWARD_DRIFT_TOLERANCE_MS = 600L
 private const val PLAYBACK_POSITION_UPDATE_INTERVAL_MS = 100L
 private const val SEEK_EXTERNAL_LYRIC_SYNC_DEBOUNCE_MS = 80L
 private const val LIVE_UPDATE_ARTWORK_SIZE = 256
+private const val AB_REPEAT_MIN_LENGTH_MS = 300L
+private const val AB_REPEAT_LOOP_GUARD_MS = 250L
 
 private const val DECODER_MODE_SYSTEM = 0
 private const val DECODER_MODE_AUTO = 2
@@ -145,6 +148,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val playbackSpeed: StateFlow<Float> = playerManager.playbackSpeed
     val playbackPitch: StateFlow<Float> = playerManager.playbackPitch
     val playlist: StateFlow<List<Song>> = playerManager.playlistFlow
+    private val _abRepeatState = MutableStateFlow(AbRepeatState())
+    internal val abRepeatState: StateFlow<AbRepeatState> = _abRepeatState.asStateFlow()
     val userPlaylists: StateFlow<List<UserPlaylist>> = playlistStore.playlists
     val favoriteSongKeys: StateFlow<Set<String>> = combine(
         playlistStore.playlists.map { playlists ->
@@ -286,6 +291,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lastLyricPositionSongKey: String? = null
     private var lastLyricPositionMs: Long = 0L
     private var suppressLeadingZeroLyric = false
+    private var lastAbRepeatLoopAtMs = 0L
+    private var activeResumeCategoryKey: String? = null
 
     init {
         playerManager.connect()
@@ -777,6 +784,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             while (isActive) {
                 runCatching {
                     playerManager.updatePosition()
+                    enforceAbRepeat()
                     updateCurrentLyricIndex()
                     PlaybackWidgetUpdater.updateLyrics(
                         context = getApplication<Application>(),
@@ -809,70 +817,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun observeCurrentSong() {
         viewModelScope.launch {
             playerManager.currentSong.collectLatest { song ->
-                if (song != null) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        val source = ListeningHistorySource.fromPreference(settingsManager.listeningHistorySource.first())
-                        if (source.usesLastFm) {
-                            lastFmHistoryStore.updateNowPlaying(song)
-                        }
-                    }
-                    val songKey = song.lyricIdentityKey()
-                    if (loadedLyricSongKey == songKey) {
-                        updateCurrentLyricIndex()
-                        return@collectLatest
-                    }
-                    suppressLeadingZeroLyric = true
-                    _lyricsLoading.value = true
-                    _rawLyrics.value = emptyList()
-                    _lyrics.value = emptyList()
-                    _currentLyricIndex.value = -1
-                    PlaybackWidgetUpdater.clearLyrics(getApplication<Application>())
-                    // Clear external bridge state before async fetch to prevent stale lyrics
-                    lastTickerPayload = null
-                    lastLiveUpdateLyricPayload = null
-                    liveUpdateArtwork = null
-                    lastBluetoothLyricPayload = null
-                    bluetoothLyricRetryJob?.cancel()
-                    lyricGetterBridge.clearLyric()
-                    tickerBridge.clearLyric()
-                    xiaomiSuperIslandLyricBridge.clear()
-                    if (activeDesktopLyricHideWhenPaused()) {
-                        desktopLyricBridge.clearLyric()
-                    }
-                    superLyricBridge.sendStop()
-                    // Send song metadata to bridges BEFORE setting lyrics,
-                    // so the 50ms update loop can't send new lyrics with old metadata
-                    if (lyriconBridge.isEnabled()) {
-                        lyriconBridge.sendSong(song, emptyList())
-                    }
-                    superLyricBridge.sendSong(song)
-                    val songLyrics = repository.getLyrics(song, lyricSourceMode)
-                    val notificationArtwork = withContext(Dispatchers.IO) {
-                        repository.getCoverArtBitmap(
-                            song = song,
-                            maxSize = LIVE_UPDATE_ARTWORK_SIZE,
-                            usage = CoverUsage.Notification
-                        )
-                    }
-                    // Verify song hasn't changed during async fetch
-                    if (playerManager.currentSong.value?.lyricIdentityKey() != songKey) {
-                        return@collectLatest
-                    }
-                    liveUpdateArtwork = notificationArtwork
-                    loadedLyricSongKey = songKey
-                    setLoadedLyrics(song, songLyrics, notifyExternal = false)
-                    _lyricsLoading.value = false
-                    val displayedLyrics = _lyrics.value
-
-                    if (lyriconBridge.isEnabled()) {
-                        lyriconBridge.sendSong(song, displayedLyrics)
-                    }
-                    if (displayedLyrics.isEmpty()) {
-                        clearExternalLyrics(clearLyricon = false, clearSuperLyricSong = false)
-                    } else {
-                        scheduleExternalLyricResend()
-                    }
-                } else {
+                val songKey = song?.lyricIdentityKey()
+                if (songKey == null || _abRepeatState.value.songKey != songKey) {
+                    _abRepeatState.value = AbRepeatState()
+                }
+                if (song == null) {
+                    // Queue reorder / repeat-mode changes can emit a transient null. Wait before
+                    // wiping lyrics so a flicker does not blank the player and lyric page.
+                    delay(280L)
+                    if (playerManager.currentSong.value != null) return@collectLatest
                     loadedLyricSongKey = null
                     liveUpdateArtwork = null
                     suppressLeadingZeroLyric = false
@@ -883,6 +836,49 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _currentLyricIndex.value = -1
                     PlaybackWidgetUpdater.clearLyrics(getApplication<Application>())
                     clearExternalLyrics(clearLyricon = true, clearSuperLyricSong = true)
+                    return@collectLatest
+                }
+                recordCategoryResume(song)
+                viewModelScope.launch(Dispatchers.IO) {
+                    val source = ListeningHistorySource.fromPreference(settingsManager.listeningHistorySource.first())
+                    if (source.usesLastFm) {
+                        lastFmHistoryStore.updateNowPlaying(song)
+                    }
+                }
+                val loadedKey = song.lyricIdentityKey()
+                if (loadedLyricSongKey == loadedKey && _lyrics.value.isNotEmpty()) {
+                    updateCurrentLyricIndex()
+                    return@collectLatest
+                }
+                suppressLeadingZeroLyric = true
+                _lyricsLoading.value = true
+                // Keep the previous lines visible until the replacement arrives. Clearing here
+                // made mini-lyrics and the lyric page go blank when playback-mode changes
+                // briefly emitted another song identity.
+                val songLyrics = repository.getLyrics(song, lyricSourceMode)
+                val notificationArtwork = withContext(Dispatchers.IO) {
+                    repository.getCoverArtBitmap(
+                        song = song,
+                        maxSize = LIVE_UPDATE_ARTWORK_SIZE,
+                        usage = CoverUsage.Notification
+                    )
+                }
+                if (playerManager.currentSong.value?.lyricIdentityKey() != loadedKey) {
+                    return@collectLatest
+                }
+                liveUpdateArtwork = notificationArtwork
+                loadedLyricSongKey = loadedKey
+                setLoadedLyrics(song, songLyrics, notifyExternal = false)
+                _lyricsLoading.value = false
+                val displayedLyrics = _lyrics.value
+
+                if (lyriconBridge.isEnabled()) {
+                    lyriconBridge.sendSong(song, displayedLyrics)
+                }
+                if (displayedLyrics.isEmpty()) {
+                    clearExternalLyrics(clearLyricon = false, clearSuperLyricSong = false)
+                } else {
+                    scheduleExternalLyricResend()
                 }
             }
         }
@@ -1285,9 +1281,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
+    fun setPlaylist(songs: List<Song>, startIndex: Int = 0, resumeCategoryKey: String? = null) {
         lazyOnlineQueueController.clear()
+        activeResumeCategoryKey = resumeCategoryKey
+        songs.getOrNull(startIndex)?.let(::recordCategoryResume)
         playerManager.setPlaylist(songs, startIndex)
+    }
+
+    private fun recordCategoryResume(song: Song) {
+        val categoryKey = activeResumeCategoryKey ?: return
+        CategoryResumeStore.getInstance(getApplication()).record(categoryKey, song)
     }
 
     fun setLazyOnlinePlaylist(
@@ -1512,6 +1515,37 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playerManager.cyclePlaybackMode()
     }
 
+    fun toggleAbRepeat() {
+        val song = currentSong.value ?: return
+        val songKey = song.lyricIdentityKey()
+        val positionMs = livePositionMs().coerceAtLeast(0L)
+        val current = _abRepeatState.value.takeIf { it.songKey == songKey } ?: AbRepeatState()
+        when (current.phase) {
+            AbRepeatPhase.IDLE -> {
+                _abRepeatState.value = AbRepeatState(
+                    phase = AbRepeatPhase.A_SET,
+                    songKey = songKey,
+                    startMs = positionMs
+                )
+            }
+            AbRepeatPhase.A_SET -> {
+                val startMs = current.startMs ?: positionMs
+                if (positionMs - startMs < AB_REPEAT_MIN_LENGTH_MS) return
+                _abRepeatState.value = AbRepeatState(
+                    phase = AbRepeatPhase.ACTIVE,
+                    songKey = songKey,
+                    startMs = startMs,
+                    endMs = positionMs
+                )
+                lastAbRepeatLoopAtMs = SystemClock.elapsedRealtime()
+                playerManager.seekTo(startMs)
+            }
+            AbRepeatPhase.ACTIVE -> {
+                _abRepeatState.value = AbRepeatState()
+            }
+        }
+    }
+
     fun getCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 1200, CoverUsage.Player)
 
     fun getOriginalCoverModel(song: Song): Any? = repository.getOriginalCoverModel(song)
@@ -1519,6 +1553,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun getAudioInfo(song: Song) = repository.getAudioInfo(song)
 
     fun getSongTagInfo(song: Song) = repository.getSongTagInfo(song)
+
+    private fun enforceAbRepeat() {
+        val state = _abRepeatState.value
+        if (state.phase != AbRepeatPhase.ACTIVE || !isPlaying.value) return
+
+        val songKey = currentSong.value?.lyricIdentityKey()
+        if (songKey == null || songKey != state.songKey) {
+            _abRepeatState.value = AbRepeatState()
+            return
+        }
+
+        val startMs = state.startMs ?: return
+        val endMs = state.endMs ?: return
+        if (endMs <= startMs || playerManager.currentPosition.value < endMs) return
+
+        val nowMs = SystemClock.elapsedRealtime()
+        if (nowMs - lastAbRepeatLoopAtMs < AB_REPEAT_LOOP_GUARD_MS) return
+        lastAbRepeatLoopAtMs = nowMs
+        playerManager.seekTo(startMs)
+    }
 
     fun toggleLyrics() {
         _showLyrics.value = !_showLyrics.value

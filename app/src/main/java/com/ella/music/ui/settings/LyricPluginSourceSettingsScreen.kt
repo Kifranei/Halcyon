@@ -81,6 +81,7 @@ fun LyricPluginSourceSettingsScreen(
     }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val contentScrollState = rememberSettingsScrollState("settings_lyric_plugin_sources")
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -139,7 +140,7 @@ fun LyricPluginSourceSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(contentScrollState)
                 .padding(horizontal = 12.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))

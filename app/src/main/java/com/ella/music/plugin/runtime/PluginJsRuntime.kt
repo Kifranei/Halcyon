@@ -126,6 +126,29 @@ class PluginJsRuntime(
                 app: globalThis.app,
                 runtime: globalThis.runtime,
 
+                cache: {
+                  get: function(key) {
+                    return hostCall("cache.get", {
+                      key: String(key || "")
+                    });
+                  },
+                  set: function(key, value, ttlMs) {
+                    return hostCall("cache.set", {
+                      key: String(key || ""),
+                      value: value == null ? "" : String(value),
+                      ttlMs: Number(ttlMs || 0)
+                    });
+                  },
+                  remove: function(key) {
+                    return hostCall("cache.remove", {
+                      key: String(key || "")
+                    });
+                  },
+                  clear: function() {
+                    return hostCall("cache.clear", {});
+                  }
+                },
+
                 crypto: {
                   md5: function(text) {
                     return hostCall("crypto.md5", {
@@ -177,6 +200,36 @@ class PluginJsRuntime(
                   encodeBytes: function(bytes) {
                     return hostCall("base64.encodeBytes", {
                       bytes: Array.from(bytes || [])
+                    });
+                  },
+                  encodeUrlText: function(text) {
+                    return hostCall("base64.encodeUrlText", {
+                      text: String(text || "")
+                    });
+                  },
+                  decodeUrlText: function(base64Url) {
+                    return hostCall("base64.decodeUrlText", {
+                      base64Url: String(base64Url || "")
+                    });
+                  },
+                  encodeUrlBytes: function(bytes) {
+                    return hostCall("base64.encodeUrlBytes", {
+                      bytes: Array.from(bytes || [])
+                    });
+                  },
+                  decodeUrlBytes: function(base64Url) {
+                    return hostCall("base64.decodeUrlBytes", {
+                      base64Url: String(base64Url || "")
+                    });
+                  },
+                  toUrl: function(base64) {
+                    return hostCall("base64.toUrl", {
+                      base64: String(base64 || "")
+                    });
+                  },
+                  fromUrl: function(base64Url) {
+                    return hostCall("base64.fromUrl", {
+                      base64Url: String(base64Url || "")
                     });
                   }
                 },

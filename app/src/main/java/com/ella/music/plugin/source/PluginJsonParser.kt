@@ -6,6 +6,7 @@ import com.ella.music.data.parser.LrcParser
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -15,27 +16,60 @@ import kotlinx.serialization.json.longOrNull
 class PluginJsonParser(
     private val json: Json
 ) {
-    fun parseSongResults(rawJson: String, pluginId: String, pluginName: String): List<PluginSongSearchResult> {
+    fun parseSongResults(rawJson: String, pluginId: String, pluginName: String): List<PluginSongSearchResult> =
+        parseSongResultItems(rawJson, pluginId, pluginName, requireId = true)
+
+    fun parseCoverResults(
+        rawJson: String,
+        pluginId: String,
+        pluginName: String,
+        enforceApi4Contract: Boolean = false
+    ): List<PluginSongSearchResult> = parseSongResultItems(
+        rawJson = rawJson,
+        pluginId = pluginId,
+        pluginName = pluginName,
+        requireId = false,
+        enforceCoverJudgmentMetadata = enforceApi4Contract
+    )
+
+    private fun parseSongResultItems(
+        rawJson: String,
+        pluginId: String,
+        pluginName: String,
+        requireId: Boolean,
+        enforceCoverJudgmentMetadata: Boolean = false
+    ): List<PluginSongSearchResult> {
         val root = json.parseToJsonElement(rawJson)
         val items = when (root) {
             is JsonArray -> root
             is JsonObject -> root.array("items", "results", "songs", "data") ?: JsonArray(emptyList())
             else -> JsonArray(emptyList())
         }
-        return items.mapNotNull { element ->
-            val obj = element as? JsonObject ?: return@mapNotNull null
-            val id = obj.string("id", "songId", "trackId") ?: return@mapNotNull null
+        return items.mapIndexedNotNull { index, element ->
+            val obj = element as? JsonObject ?: return@mapIndexedNotNull null
+            val coverUrl = obj.string("picUrl", "coverUrl", "cover_url", "artworkUrl").orEmpty()
+            val id = obj.string("id", "songId", "trackId")
+                ?: if (requireId) return@mapIndexedNotNull null else coverUrl.ifBlank {
+                    "$pluginId:cover:$index"
+                }
+            val title = obj.string("title", "name", "songName").orEmpty()
+            val artist = obj.string("artist", "artists", "singer").orEmpty()
+            val album = obj.string("album", "albumName").orEmpty()
+            val date = obj.string("year", "date", "releaseDate", "release_date").orEmpty()
+            if (enforceCoverJudgmentMetadata && listOf(title, artist, album, date, coverUrl).any(String::isBlank)) {
+                return@mapIndexedNotNull null
+            }
             PluginSongSearchResult(
                 id = id,
                 pluginId = pluginId,
                 pluginName = pluginName,
-                title = obj.string("title", "name", "songName").orEmpty(),
-                artist = obj.string("artist", "artists", "singer").orEmpty(),
-                album = obj.string("album", "albumName").orEmpty(),
+                title = title,
+                artist = artist,
+                album = album,
                 duration = obj.long("duration", "durationMs", "duration_ms") ?: 0L,
-                date = obj.string("date", "releaseDate", "release_date").orEmpty(),
+                date = date,
                 trackNumber = obj.string("trackNumber", "trackerNumber", "track_number").orEmpty(),
-                picUrl = obj.string("picUrl", "coverUrl", "cover_url", "artworkUrl").orEmpty(),
+                picUrl = coverUrl,
                 fields = obj.stringMap("fields", "metadata").orEmpty(),
                 internal = obj.stringMap("internal").orEmpty()
                     .filter { (key, value) -> key.isNotBlank() && key.length <= 64 && value.length <= 4096 }
@@ -44,8 +78,57 @@ class PluginJsonParser(
         }
     }
 
-    fun parseLyrics(rawJson: String): PluginLyricsResult? {
+    fun parseLyricsCandidates(
+        rawJson: String,
+        pluginId: String,
+        pluginName: String,
+        fallbackSong: PluginSongSearchResult,
+        enforceApi4Contract: Boolean = false
+    ): List<PluginLyricsCandidateResult> {
         val root = json.parseToJsonElement(rawJson)
+        if (root is JsonNull) return emptyList()
+        val candidateElements = when (root) {
+            is JsonArray -> root.toList()
+            is JsonObject -> root.array("items", "results", "candidates")?.toList() ?: listOf(root)
+            else -> listOf(root)
+        }
+        return candidateElements.mapIndexedNotNull { index, element ->
+            val obj = element as? JsonObject
+            val tags = obj?.stringMap("tags").orEmpty()
+            if (enforceApi4Contract && listOf(tags["ti"], tags["ar"], tags["al"], tags["date"])
+                    .any { it.isNullOrBlank() }
+            ) {
+                return@mapIndexedNotNull null
+            }
+            val lyrics = parseLyrics(element.toString()) ?: return@mapIndexedNotNull null
+            val candidateId = if (candidateElements.size == 1) {
+                fallbackSong.id
+            } else {
+                "${fallbackSong.id}:lyrics:$index"
+            }
+            PluginLyricsCandidateResult(
+                song = fallbackSong.copy(
+                    id = candidateId,
+                    title = tags["ti"] ?: fallbackSong.title,
+                    artist = tags["ar"] ?: fallbackSong.artist,
+                    album = tags["al"] ?: fallbackSong.album,
+                    date = tags["date"] ?: fallbackSong.date
+                ),
+                lyrics = lyrics
+            )
+        }
+    }
+
+    fun parseLyrics(rawJson: String): PluginLyricsResult? =
+        parseLyricsElement(json.parseToJsonElement(rawJson))
+
+    private fun parseLyricsElement(root: JsonElement): PluginLyricsResult? {
+        if (root is JsonArray) {
+            // API 4 permits getLyrics to return multiple candidate payloads. Halcyon's picker
+            // currently selects one result, so keep the first usable candidate instead of
+            // treating the whole array as an invalid lyric object.
+            return root.firstNotNullOfOrNull { parseLyricsElement(it) }
+        }
         if (root is JsonNull) return null
         if (root is JsonPrimitive) {
             val lrc = root.contentOrNull.orEmpty()
@@ -318,7 +401,18 @@ private fun StringBuilder.appendCompanions(line: LyricLine, options: PluginLyric
 }
 
 fun PluginSongSearchResult.toPluginSongRequest(): PluginSongRequest =
-    PluginSongRequest(id, title, artist, album, duration, pluginId, pluginId, fields, internal)
+    PluginSongRequest(
+        id = id,
+        title = title,
+        artist = artist,
+        album = album,
+        date = date,
+        duration = duration,
+        sourceId = pluginId,
+        pluginId = pluginId,
+        fields = fields,
+        internal = internal
+    )
 
 private fun List<PluginLyricsLine>?.nearestLine(start: Long): PluginLyricsLine? =
     this?.minByOrNull { kotlin.math.abs(it.start - start) }

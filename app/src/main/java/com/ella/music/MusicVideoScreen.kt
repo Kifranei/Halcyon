@@ -92,7 +92,9 @@ import com.ella.music.player.CenterChannelSuppressorAudioProcessor
 import com.ella.music.player.EllaRenderersFactory
 import com.ella.music.ui.player.GlowSeekBar
 import com.ella.music.ui.player.MusicVideoKtvLyrics
+import com.ella.music.ui.player.VideoAspectFrame
 import com.ella.music.ui.player.buildMusicVideoMediaItem
+import com.ella.music.ui.player.toPlaybackAspectRatio
 import com.ella.music.viewmodel.lyricIdentityKey
 import com.ella.music.viewmodel.LyricBlacklistRule
 import com.ella.music.viewmodel.filterBlacklistedLyricLines
@@ -172,12 +174,22 @@ internal fun DetailMusicVideoScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val captureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
+    val musicVideoStretchEnabled by settingsManager.musicVideoStretchEnabled.collectAsState(
+        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
+    )
     val lyricOffsets by settingsManager.lyricOffsetOverrides.collectAsState(initial = emptyMap())
     val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsState(initial = emptyList())
     val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
     val importedMvOffsets by settingsManager.musicVideoOffsetsJson.collectAsState(initial = "")
     val effectiveMvOffsetMs = remember(source, importedMvOffsets) {
         MusicVideoOffsetsParser.loadForSource(context, source, importedMvOffsets).forSource(source)
+    }
+    // FIT/ZOOM remain the per-player choices. The global switch is an explicit opt-in override
+    // for videos whose author expects the surface to be stretched edge-to-edge.
+    val playbackVideoResizeMode = if (musicVideoStretchEnabled) {
+        AspectRatioFrameLayout.RESIZE_MODE_FILL
+    } else {
+        videoResizeMode
     }
     val repository = remember(context) { MusicRepository.getInstance(context) }
     val lyricsNeeded = captionsEnabled || ktvLyricsEnabled || (showCaptureActions && captureSubtitles)
@@ -327,7 +339,8 @@ internal fun DetailMusicVideoScreen(
         if (inPictureInPictureMode) {
             VideoSurface(
                 player = player,
-                resizeMode = videoResizeMode,
+                resizeMode = playbackVideoResizeMode,
+                videoAspectRatio = videoAspectRatio,
                 modifier = Modifier.fillMaxSize()
             )
             if (captionsEnabled) {
@@ -335,7 +348,7 @@ internal fun DetailMusicVideoScreen(
                     lyrics = lyrics,
                     position = position,
                     videoAspectRatio = videoAspectRatio,
-                    fillVideoBounds = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                    fillVideoBounds = playbackVideoResizeMode != AspectRatioFrameLayout.RESIZE_MODE_FIT,
                     positionOffset = captionOffset,
                     style = captionStyle,
                     showTranslation = captionTranslationEnabled,
@@ -353,7 +366,7 @@ internal fun DetailMusicVideoScreen(
                 duration = duration,
                 lyrics = lyrics,
                 videoAspectRatio = videoAspectRatio,
-                videoResizeMode = videoResizeMode,
+                videoResizeMode = playbackVideoResizeMode,
                 captionsEnabled = captionsEnabled,
                 captionTranslationEnabled = captionTranslationEnabled,
                 captionsAvailable = captionsAvailable,
@@ -399,7 +412,8 @@ internal fun DetailMusicVideoScreen(
             PortraitMusicVideoLayout(
                 song = song,
                 player = player,
-                videoResizeMode = videoResizeMode,
+                videoResizeMode = playbackVideoResizeMode,
+                videoAspectRatio = videoAspectRatio,
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
@@ -507,6 +521,7 @@ private fun PortraitMusicVideoLayout(
     song: Song,
     player: ExoPlayer,
     videoResizeMode: Int,
+    videoAspectRatio: Float?,
     isPlaying: Boolean,
     position: Long,
     duration: Long,
@@ -522,6 +537,7 @@ private fun PortraitMusicVideoLayout(
         VideoSurface(
             player = player,
             resizeMode = videoResizeMode,
+            videoAspectRatio = videoAspectRatio,
             modifier = Modifier.fillMaxSize()
         )
         // Keep the gesture surface behind the controls but above the video. This makes a tap on
@@ -621,6 +637,7 @@ private fun LandscapeMusicVideoLayout(
         VideoSurface(
             player = player,
             resizeMode = videoResizeMode,
+            videoAspectRatio = videoAspectRatio,
             modifier = Modifier.fillMaxSize()
         )
         // Keep the whole view tappable; controls sit above this layer and retain their own actions.
@@ -647,7 +664,7 @@ private fun LandscapeMusicVideoLayout(
                 lyrics = lyrics,
                 position = position,
                 videoAspectRatio = videoAspectRatio,
-                fillVideoBounds = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                fillVideoBounds = videoResizeMode != AspectRatioFrameLayout.RESIZE_MODE_FIT,
                 outlined = true,
                 alternateCurrentAndNext = true,
                 modifier = Modifier.fillMaxSize()
@@ -657,7 +674,7 @@ private fun LandscapeMusicVideoLayout(
                 lyrics = lyrics,
                 position = position,
                 videoAspectRatio = videoAspectRatio,
-                fillVideoBounds = videoResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                fillVideoBounds = videoResizeMode != AspectRatioFrameLayout.RESIZE_MODE_FIT,
                 positionOffset = captionOffset,
                 style = captionStyle,
                 showTranslation = captionTranslationEnabled,
@@ -1345,25 +1362,47 @@ private fun CaptionColorChoices(
 private fun VideoSurface(
     player: ExoPlayer,
     resizeMode: Int,
+    videoAspectRatio: Float?,
     modifier: Modifier
 ) {
-    AndroidView(
-        factory = { viewContext ->
-            PlayerView(viewContext).apply {
-                useController = false
-                this.resizeMode = resizeMode
-                setShutterBackgroundColor(Color.BLACK)
-                configureEmbeddedSubtitles()
-                this.player = player
+    var playbackAspectRatio by remember(player) { mutableStateOf(videoAspectRatio) }
+    DisposableEffect(player) {
+        fun apply(size: androidx.media3.common.VideoSize) {
+            size.toPlaybackAspectRatio()?.let { playbackAspectRatio = it }
+        }
+        apply(player.videoSize)
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                apply(videoSize)
             }
-        },
-        update = {
-            it.resizeMode = resizeMode
-            it.configureEmbeddedSubtitles()
-            it.player = player
-        },
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+    // SurfaceView inside AndroidView fills the view and ignores PlayerView resize modes.
+    VideoAspectFrame(
+        aspectRatio = playbackAspectRatio,
+        resizeMode = resizeMode,
         modifier = modifier
-    )
+    ) { frameModifier ->
+        AndroidView(
+            factory = { viewContext ->
+                PlayerView(viewContext).apply {
+                    useController = false
+                    this.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    setShutterBackgroundColor(Color.BLACK)
+                    configureEmbeddedSubtitles()
+                    this.player = player
+                }
+            },
+            update = {
+                it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                it.configureEmbeddedSubtitles()
+                it.player = player
+            },
+            modifier = frameModifier
+        )
+    }
 }
 
 private fun PlayerView.configureEmbeddedSubtitles() {
