@@ -153,6 +153,24 @@ fun EllaApp(
     var showPlayerOverlay by remember { mutableStateOf(false) }
     var playerDismissProgress by remember { mutableFloatStateOf(0f) }
     var playerOverlayOpenToken by remember { mutableIntStateOf(0) }
+    LaunchedEffect(navController) {
+        com.ella.music.data.PlaybackSourceNavigation.requests.collect {
+            playbackSourceRoute(com.ella.music.data.PlaybackSourceNavigation.sourceKey.value)?.let { route ->
+                showPlayerOverlay = false
+                val activeRoute = navController.currentBackStackEntry?.destination?.route
+                if (!activeRoute.matchesRoute(route)) navController.navigate(route)
+            }
+        }
+    }
+    var returnToPlayerRoute by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentRoute) {
+        if (returnToPlayerRoute != null && currentRoute == returnToPlayerRoute) {
+            returnToPlayerRoute = null
+            playerDismissProgress = 0f
+            playerOverlayOpenToken++
+            showPlayerOverlay = true
+        }
+    }
     // Keep the player surface resident in the composition tree once it has been opened, and
     // drive open/close with a pure translationY slide instead of adding/removing the whole
     // (very heavy) PlayerScreen each time. This removes the first-composition cost that used
@@ -701,6 +719,11 @@ fun EllaApp(
                         playerOverlayOpenToken++
                         showPlayerOverlay = true
                     },
+                    onNavigatePlaybackSource = {
+                        playbackSourceRoute(playerViewModel.playbackSourceKey.value)?.let { route ->
+                            if (!currentRoute.matchesRoute(route)) navController.navigate(route)
+                        }
+                    },
                     onExpand = {
                         bottomDockMode = BottomDockMode.Expanded
                     },
@@ -725,25 +748,25 @@ fun EllaApp(
                         playerDismissProgress = 0f
                     },
                     onNavigateToAlbum = { albumId ->
-                        playerViewModel.setShowLyrics(false)
+                        returnToPlayerRoute = currentRoute
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.AlbumDetail.createRoute(albumId))
                     },
                     onNavigateToArtist = { artistName ->
-                        playerViewModel.setShowLyrics(false)
+                        returnToPlayerRoute = currentRoute
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.ArtistDetail.createRoute(artistName))
                     },
                     onNavigateToMetadataCategory = { type, name ->
-                        playerViewModel.setShowLyrics(false)
+                        returnToPlayerRoute = currentRoute
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.MetadataCategoryDetail.createRoute(type, name))
                     },
                     onNavigateToEqualizer = {
-                        playerViewModel.setShowLyrics(false)
+                        returnToPlayerRoute = currentRoute
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.Equalizer.createRoute())
@@ -855,6 +878,23 @@ fun EllaApp(
                 }
             )
         }
+    }
+}
+
+private fun playbackSourceRoute(key: String?): String? {
+    val source = key?.takeIf { it.isNotBlank() } ?: return null
+    return when {
+        source == com.ella.music.data.CategoryResumeKeys.HOME -> Screen.Home.route
+        source.startsWith("album:") -> source.substringAfter("album:").toLongOrNull()
+            ?.let(Screen.AlbumDetail::createRoute)
+        source.startsWith("playlist:") -> Screen.PlaylistDetail.createRoute(source.substringAfter("playlist:"))
+        source.startsWith("folderPlaylist:") ->
+            Screen.FolderPlaylistDetail.createRoute(source.substringAfter("folderPlaylist:"))
+        source.startsWith("folder:") -> Screen.FolderDetail.createRoute(source.substringAfter("folder:"))
+        source.startsWith("artist:") -> Screen.ArtistDetail.createRoute(source.substringAfter("artist:"))
+        source.startsWith("category:") -> source.split(':', limit = 3).takeIf { it.size == 3 }
+            ?.let { parts -> Screen.MetadataCategoryDetail.createRoute(parts[1], parts[2]) }
+        else -> null
     }
 }
 

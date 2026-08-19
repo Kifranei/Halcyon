@@ -266,10 +266,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.startScanning()
             val summary = try {
                 val minDuration = settingsManager.minDurationSec.first() * 1000L
+                val filterVideoFiles = settingsManager.filterVideoFiles.first()
                 repository.refreshFolders(
                     folders = normalizedFolders,
                     minDurationMs = minDuration,
-                    deepMetadata = true
+                    deepMetadata = true,
+                    filterVideoFiles = filterVideoFiles
                 )
             } finally {
                 if (scanJob === ownerJob) {
@@ -339,6 +341,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val excludeFolders = settingsManager.scanExcludeFolders.first().toFolderFilterList()
             val useAndroidMediaLibrary = settingsManager.useAndroidMediaLibrary.first()
             val fullTagSearchEnabled = settingsManager.fullTagSearchEnabled.first()
+            val filterVideoFiles = settingsManager.filterVideoFiles.first()
             // The media-store source and deep-tag indexing are independent preferences.  In
             // particular, disabling full tag search must not silently turn the media-store
             // source back on, otherwise the UI cannot honour an explicit "off" choice.
@@ -364,7 +367,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 fullRescan = fullRescan,
                 deepRescan = effectiveDeepRescan,
                 deepMetadataEnabled = fullRescan || fullTagSearchEnabled,
-                filesystemFallbackFolders = filesystemFallbackFolders
+                filesystemFallbackFolders = filesystemFallbackFolders,
+                filterVideoFiles = filterVideoFiles
             )
             if (!preferExplicitFolders && summary.total == 0 && includeFolders.isNotEmpty() && (fullRescan || useAndroidMediaLibrary)) {
                 summary = repository.scanMusic(
@@ -373,7 +377,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     excludeFolders,
                     fullRescan = fullRescan,
                     deepRescan = effectiveDeepRescan,
-                    deepMetadataEnabled = fullRescan || fullTagSearchEnabled
+                    deepMetadataEnabled = fullRescan || fullTagSearchEnabled,
+                    filterVideoFiles = filterVideoFiles
                 )
             }
             val usbFolderUris = settingsManager.usbFolderUris.first()

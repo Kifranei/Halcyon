@@ -134,6 +134,11 @@ internal fun SettingsAppShortcutsPreference(
             stringResource(R.string.settings_library_tile_analytics_summary)
         ),
         AppShortcutPreferenceItem(
+            SettingsManager.APP_SHORTCUT_LIBRARY_ANALYSIS,
+            stringResource(R.string.analytics_library_analysis),
+            stringResource(R.string.folder_library_analysis_summary)
+        ),
+        AppShortcutPreferenceItem(
             SettingsManager.APP_SHORTCUT_SCAN_SETTINGS,
             stringResource(R.string.folder_scan_settings),
             stringResource(R.string.settings_scan)

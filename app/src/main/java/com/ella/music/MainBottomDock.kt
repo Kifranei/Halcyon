@@ -111,6 +111,7 @@ internal fun FloatingBottomControls(
     onNavigate: (String) -> Unit,
     onNavigateSearch: () -> Unit,
     onNavigatePlayer: () -> Unit,
+    onNavigatePlaybackSource: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
     useGlass: Boolean = true,
@@ -127,6 +128,8 @@ internal fun FloatingBottomControls(
     val userPlaylists by mainViewModel.playlists.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
+    val miniPlayerLongPressSource by SettingsManager.getInstance(context)
+        .miniPlayerLongPressSource.collectAsState(initial = false)
     val currentSongKey = currentSong?.playlistIdentityKey()
     val effectiveMode = if (showMiniPlayer && canCompact) bottomDockMode else BottomDockMode.Expanded
     // Keep the floating glass containers over a custom wallpaper. Only the layered refraction
@@ -167,6 +170,7 @@ internal fun FloatingBottomControls(
                 currentTabRoute = currentTabRoute,
                 isSearchSelected = currentRoute.isSearchRoute(),
                 onOpenPlayer = onNavigatePlayer,
+                onOpenPlaybackSource = if (miniPlayerLongPressSource) onNavigatePlaybackSource else null,
                 onPlayPause = { playerViewModel.togglePlayPause() },
                 onSkipNext = { playerViewModel.skipToNext() },
                 onNavigateSearch = onNavigateSearch,
@@ -201,6 +205,7 @@ internal fun FloatingBottomControls(
                                 onSkipNext = { playerViewModel.skipToNext() },
                                 onSkipPrevious = { playerViewModel.skipToPrevious() },
                                 onShowQueue = { queueSheetExpanded = true },
+                                onLongClick = if (miniPlayerLongPressSource) onNavigatePlaybackSource else null,
                                 lyricProgress = lyricProgress,
                                 lyricPositionMs = lyricPositionMs,
                                 lyricTiming = lyricTiming,
@@ -318,6 +323,10 @@ internal fun FloatingBottomControls(
                     queueSheetExpanded = false
                     playerViewModel.clearPlaylist()
                 },
+                onNavigateToPlaybackSource = {
+                    queueSheetExpanded = false
+                    onNavigatePlaybackSource()
+                },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -394,6 +403,7 @@ private fun CompactBottomDock(
     currentTabRoute: String?,
     isSearchSelected: Boolean,
     onOpenPlayer: () -> Unit,
+    onOpenPlaybackSource: (() -> Unit)?,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onNavigateSearch: () -> Unit,
@@ -438,6 +448,7 @@ private fun CompactBottomDock(
             glassEffect = glassEffect,
             disableRefraction = disableRefraction,
             onClick = onOpenPlayer,
+            onLongClick = onOpenPlaybackSource,
             onPlayPause = onPlayPause,
             onSkipNext = onSkipNext,
             showSkipButton = false,

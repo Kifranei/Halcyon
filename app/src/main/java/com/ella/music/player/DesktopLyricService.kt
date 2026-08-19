@@ -39,6 +39,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -107,6 +108,13 @@ class DesktopLyricService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         loadSettingsFromStoreAsync(applyToExistingView = true)
+        serviceScope.launch {
+            settingsManager.appleMusicLyricsWordLift.distinctUntilChanged().collect { enabled ->
+                if (appleMusicWordLiftEnabled == enabled) return@collect
+                appleMusicWordLiftEnabled = enabled
+                withContext(Dispatchers.Main.immediate) { applyCurrentSettingsToViews() }
+            }
+        }
         controllerFuture = MediaController.Builder(
             this,
             SessionToken(this, ComponentName(this, PlaybackService::class.java))

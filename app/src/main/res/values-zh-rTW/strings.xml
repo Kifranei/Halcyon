@@ -2255,4 +2255,21 @@
     <string name="player_ab_repeat_active">取消 A-B 重複播放（%1$s-%2$s）</string>
     <string name="settings_music_video_stretch">允許拉伸 MV</string>
     <string name="settings_music_video_stretch_summary">將影片拉伸至填滿螢幕；關閉後保持影片原始比例，避免畫面和內建 KTV 歌詞變形</string>
+    <string name="settings_auto_scan_local_playlists_confirm_title">開啟自動掃描歌單？</string>
+    <string name="settings_auto_scan_local_playlists_confirm_summary">開啟後會在啟動和重新整理音樂庫時讀取本機 M3U / M3U8 檔案。</string>
+    <string name="settings_filter_video_files">過濾影片檔案</string>
+    <string name="settings_filter_video_files_summary">掃描音樂庫時排除含影片軌的檔案（預設開啟）</string>
+    <string name="settings_mini_player_long_press_source">長按迷你播放列前往播放來源</string>
+    <string name="settings_mini_player_long_press_source_summary">開啟目前歌曲所屬的歌單、專輯、資料夾或分類（預設關閉）</string>
+    <string name="player_queue_source">來源</string>
+    <string name="analytics_audio_format_detail">音訊格式</string>
+    <string name="analytics_audio_quality_detail">音訊音質</string>
+    <string name="analytics_detail_summary">%1$d 首 · %2$s · %3$s · %4$s</string>
+    <string name="analytics_sort_size">檔案大小</string>
+    <string name="analytics_sort_title">標題</string>
+    <string name="analytics_sort_file_name">檔名</string>
+    <string name="analytics_sort_added">加入時間</string>
+    <string name="analytics_sort_modified">修改時間</string>
+    <string name="analytics_sort_release">發行時間</string>
+    <string name="analytics_sort_duration">時長</string>
 </resources>

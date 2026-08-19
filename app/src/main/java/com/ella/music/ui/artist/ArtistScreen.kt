@@ -1149,6 +1149,7 @@ fun ArtistScreen(
                 ArtistMusicVideoInfoSheet(
                     item = item,
                     onOpenMediaInfo = {
+                        musicVideoInfoTarget = null
                         openVideoWithMediaInfo(
                             context = context,
                             uri = item.source.uri,

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -85,7 +86,8 @@ internal fun DonutChartCard(
     buckets: List<AnalysisBucket>?,
     total: Int,
     totalSizeBytes: Long,
-    palette: List<Color>
+    palette: List<Color>,
+    onBucketClick: ((AnalysisBucket) -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -126,7 +128,8 @@ internal fun DonutChartCard(
                         BucketLegendRow(
                             bucket = bucket,
                             total = total,
-                            color = palette[index % palette.size]
+                            color = palette[index % palette.size],
+                            onClick = onBucketClick?.let { callback -> { callback(bucket) } }
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -187,12 +190,14 @@ private fun DonutChart(
 private fun BucketLegendRow(
     bucket: AnalysisBucket,
     total: Int,
-    color: Color
+    color: Color,
+    onClick: (() -> Unit)? = null
 ) {
     val percent = if (total > 0) bucket.count * 100f / total.toFloat() else 0f
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -121,8 +122,12 @@ internal fun PlayerQueueMenu(
     onRandomizeQueue: () -> Unit,
     onAddQueueToPlaylist: () -> Unit,
     onClearQueue: () -> Unit,
+    onNavigateToPlaybackSource: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val playbackSourceKey by com.ella.music.data.PlaybackSourceNavigation.sourceKey.collectAsState()
+    val navigateToPlaybackSource = onNavigateToPlaybackSource
+        ?: playbackSourceKey?.let { { com.ella.music.data.PlaybackSourceNavigation.request() } }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var manualPlaylist by remember(playlist) { mutableStateOf(buildQueueEntries(playlist)) }
@@ -158,7 +163,7 @@ internal fun PlayerQueueMenu(
     Column(
         modifier = modifier
             .navigationBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Row(
             modifier = Modifier
@@ -387,6 +392,19 @@ internal fun PlayerQueueMenu(
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (isCurrentSong && navigateToPlaybackSource != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.player_queue_source),
+                                    fontSize = 11.sp,
+                                    color = MiuixTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                        .playerNoIndicationClick(navigateToPlaybackSource)
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
                                 )
                             }
                             if (!queueLocked) {

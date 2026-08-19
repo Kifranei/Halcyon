@@ -120,6 +120,7 @@ class SettingsManager(private val context: Context) :
         val KEY_SUPER_LYRIC_PRONUNCIATION = booleanPreferencesKey("super_lyric_pronunciation")
         val KEY_LYRIC_GETTER_ENABLED = booleanPreferencesKey("lyric_getter_enabled")
         val KEY_MIN_DURATION = intPreferencesKey("min_duration_sec")
+        val KEY_FILTER_VIDEO_FILES = booleanPreferencesKey("filter_video_files")
         val KEY_REPLAYGAIN_ENABLED = booleanPreferencesKey("replaygain_enabled")
         val KEY_REPLAYGAIN_MODE = intPreferencesKey("replaygain_mode")
         val KEY_RESUME_PLAYBACK_POSITION = booleanPreferencesKey("resume_playback_position")
@@ -142,13 +143,14 @@ class SettingsManager(private val context: Context) :
         const val DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 1_200
         const val MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 300
         const val MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 3_000
-        const val STEP_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 100
+        const val STEP_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 1
         val KEY_MINI_PLAYER_LYRIC_TRANSLATION = booleanPreferencesKey("mini_player_lyric_translation")
         val KEY_MINI_PLAYER_LYRIC_SECONDARY = intPreferencesKey("mini_player_lyric_secondary")
         val KEY_MINI_PLAYER_COVER_ROTATION = booleanPreferencesKey("mini_player_cover_rotation")
         val KEY_MINI_PLAYER_LYRICS_ENABLED = booleanPreferencesKey("mini_player_lyrics_enabled")
         val KEY_MINI_PLAYER_RIGHT_BUTTON = intPreferencesKey("mini_player_right_button")
         val KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER = booleanPreferencesKey("mini_player_swipe_to_open_player")
+        val KEY_MINI_PLAYER_LONG_PRESS_SOURCE = booleanPreferencesKey("mini_player_long_press_source")
         val KEY_PLAYER_PROGRESS_INFO_INDEX = intPreferencesKey("player_progress_info_index")
         val KEY_TRANSPORT_BUTTON_OUTLINES = booleanPreferencesKey("transport_button_outlines")
         val KEY_PLAYER_TAP_SEEK_ENABLED = booleanPreferencesKey("player_tap_seek_enabled")
@@ -612,6 +614,7 @@ class SettingsManager(private val context: Context) :
         const val BOTTOM_DOCK_ITEM_ARRANGER = "arranger"
         const val BOTTOM_DOCK_ITEM_LYRICIST = "lyricist"
         const val BOTTOM_DOCK_ITEM_ANALYTICS = "analytics"
+        const val BOTTOM_DOCK_ITEM_LIBRARY_ANALYSIS = "library_analysis"
         const val MAX_BOTTOM_DOCK_ITEMS = 4
         const val DEFAULT_BOTTOM_DOCK_ITEMS = "$BOTTOM_DOCK_ITEM_HOME,$BOTTOM_DOCK_ITEM_LIBRARY,$BOTTOM_DOCK_ITEM_SETTINGS,$BOTTOM_DOCK_ITEM_PLAYLISTS"
         const val DESKTOP_LYRIC_STATUS_POSITION_LEFT = 0
@@ -696,6 +699,7 @@ class SettingsManager(private val context: Context) :
         const val APP_SHORTCUT_ARRANGERS = "arrangers"
         const val APP_SHORTCUT_LYRICISTS = "lyricists"
         const val APP_SHORTCUT_ANALYTICS = "analytics"
+        const val APP_SHORTCUT_LIBRARY_ANALYSIS = "library_analysis"
         const val APP_SHORTCUT_SCAN_SETTINGS = "scan_settings"
         const val APP_SHORTCUT_SETTINGS = "settings"
         const val MAX_APP_SHORTCUTS = 5
@@ -716,6 +720,7 @@ class SettingsManager(private val context: Context) :
             APP_SHORTCUT_ARRANGERS,
             APP_SHORTCUT_LYRICISTS,
             APP_SHORTCUT_ANALYTICS,
+            APP_SHORTCUT_LIBRARY_ANALYSIS,
             APP_SHORTCUT_SCAN_SETTINGS,
             APP_SHORTCUT_SETTINGS
         )
@@ -770,7 +775,8 @@ class SettingsManager(private val context: Context) :
             BOTTOM_DOCK_ITEM_COMPOSER,
             BOTTOM_DOCK_ITEM_ARRANGER,
             BOTTOM_DOCK_ITEM_LYRICIST,
-            BOTTOM_DOCK_ITEM_ANALYTICS
+            BOTTOM_DOCK_ITEM_ANALYTICS,
+            BOTTOM_DOCK_ITEM_LIBRARY_ANALYSIS
         )
 
         fun normalizeLyricSourcePriority(value: String): String {
@@ -915,6 +921,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_LYRICON_PRONUNCIATION)
             setBoolean(KEY_AUTO_SCAN)
             setBoolean(KEY_AUTO_SCAN_LOCAL_PLAYLISTS)
+            setBoolean(KEY_FILTER_VIDEO_FILES)
             setBoolean(KEY_GAPLESS)
             setInt(KEY_CROSSFADE_DURATION_MS)
             setInt(KEY_CROSSFADE_CURVE)
@@ -961,6 +968,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_MINI_PLAYER_COVER_ROTATION)
             setBoolean(KEY_MINI_PLAYER_LYRICS_ENABLED)
             setBoolean(KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER)
+            setBoolean(KEY_MINI_PLAYER_LONG_PRESS_SOURCE)
             setInt(KEY_MINI_PLAYER_RIGHT_BUTTON)
             setBoolean(KEY_TRANSPORT_BUTTON_OUTLINES)
             setBoolean(KEY_PLAYER_TAP_SEEK_ENABLED)

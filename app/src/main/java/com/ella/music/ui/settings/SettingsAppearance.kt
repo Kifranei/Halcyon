@@ -114,6 +114,7 @@ internal fun SettingsAppearanceSection(
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = true)
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
+    val miniPlayerLongPressSource by settingsManager.miniPlayerLongPressSource.collectAsState(initial = false)
     val categoryGridColumns by settingsManager.categoryGridColumns.collectAsState(initial = 2)
     val playerBgTheme by settingsManager.playerBackgroundTheme.collectAsState(initial = SettingsManager.PLAYER_BG_THEME_DARK)
     val beautifulLyricsBackgroundLabels = listOf(
@@ -759,6 +760,12 @@ internal fun SettingsAppearanceSection(
                 onCheckedChange = {
                     scope.launch { settingsManager.setMusicVideoCaptureSubtitles(it) }
                 }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_mini_player_long_press_source),
+                summary = stringResource(R.string.settings_mini_player_long_press_source_summary),
+                checked = miniPlayerLongPressSource,
+                onCheckedChange = { scope.launch { settingsManager.setMiniPlayerLongPressSource(it) } }
             )
             SwitchPreference(
                 title = stringResource(R.string.settings_music_video_stretch),

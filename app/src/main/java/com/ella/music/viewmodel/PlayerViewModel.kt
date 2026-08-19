@@ -293,6 +293,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var suppressLeadingZeroLyric = false
     private var lastAbRepeatLoopAtMs = 0L
     private var activeResumeCategoryKey: String? = null
+    private val _playbackSourceKey = MutableStateFlow<String?>(null)
+    val playbackSourceKey: StateFlow<String?> = _playbackSourceKey.asStateFlow()
 
     init {
         playerManager.connect()
@@ -1284,6 +1286,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0, resumeCategoryKey: String? = null) {
         lazyOnlineQueueController.clear()
         activeResumeCategoryKey = resumeCategoryKey
+        _playbackSourceKey.value = resumeCategoryKey
+        com.ella.music.data.PlaybackSourceNavigation.updateSource(resumeCategoryKey)
         songs.getOrNull(startIndex)?.let(::recordCategoryResume)
         playerManager.setPlaylist(songs, startIndex)
     }
@@ -1299,6 +1303,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         resolvedStartSong: Song,
         resolver: suspend (Song) -> Song
     ) {
+        activeResumeCategoryKey = null
+        _playbackSourceKey.value = null
+        com.ella.music.data.PlaybackSourceNavigation.updateSource(null)
         playerManager.setQueueLocked(false)
         lazyOnlineQueueController.setQueue(
             songs = songs,

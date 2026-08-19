@@ -345,6 +345,9 @@
     <string name="settings_open_player_on_play_summary">本地、WebDAV 和在线歌曲点播放后自动打开播放界面</string>
     <string name="settings_mini_player_swipe_to_open_player">迷你播放条上滑打开播放页</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">关闭后滚动列表时不会误触打开播放页</string>
+    <string name="settings_mini_player_long_press_source">长按迷你播放条前往播放来源</string>
+    <string name="settings_mini_player_long_press_source_summary">长按时打开当前歌曲所属的歌单、专辑、文件夹或分类（默认关闭）</string>
+    <string name="player_queue_source">来源</string>
     <string name="settings_show_play_next_in_lists">列表中显示下一首播放</string>
     <string name="settings_show_play_next_in_lists_summary">在歌曲列表的时长左侧显示快捷按钮；关闭后仍可从歌曲菜单操作</string>
     <string name="settings_show_remove_from_playlist_button">显示“从歌单移除”按钮</string>
@@ -635,6 +638,16 @@
     <string name="webdav_cleartext_blocked">HTTP 明文连接被系统拦截，请重新安装后再试</string>
     <string name="webdav_network_failed">网络连接失败</string>
     <string name="analytics_audio_format_stats">音频格式统计</string>
+    <string name="analytics_audio_format_detail">音频格式</string>
+    <string name="analytics_audio_quality_detail">音频音质</string>
+    <string name="analytics_detail_summary">%1$d 首 · %2$s · %3$s · %4$s</string>
+    <string name="analytics_sort_size">文件大小</string>
+    <string name="analytics_sort_title">标题</string>
+    <string name="analytics_sort_file_name">文件名</string>
+    <string name="analytics_sort_added">添加时间</string>
+    <string name="analytics_sort_modified">修改时间</string>
+    <string name="analytics_sort_release">发行时间</string>
+    <string name="analytics_sort_duration">时长</string>
     <string name="analytics_audio_quality_stats">音频音质统计</string>
     <string name="analytics_loading_audio_formats">正在分析音频格式...</string>
     <string name="analytics_loading_audio_quality">正在分析音频参数...</string>
@@ -1339,6 +1352,10 @@
     <string name="settings_auto_scan_summary">启动时自动扫描音乐文件</string>
     <string name="settings_auto_scan_local_playlists">自动扫描本地歌单文件</string>
     <string name="settings_auto_scan_local_playlists_summary">启动后扫描设备中的 M3U / M3U8 文件，并合并到本地歌单</string>
+    <string name="settings_auto_scan_local_playlists_confirm_title">开启自动扫描歌单？</string>
+    <string name="settings_auto_scan_local_playlists_confirm_summary">开启后会在启动和曲库刷新时读取本地 M3U / M3U8 文件。确认开启？</string>
+    <string name="settings_filter_video_files">过滤视频文件</string>
+    <string name="settings_filter_video_files_summary">扫描曲库时排除带视频轨道的文件（默认开启）</string>
     <string name="settings_min_duration_filter">最短时长过滤</string>
     <string name="settings_min_duration_filter_summary">过滤短于 %1$d 秒的音频文件</string>
     <string name="settings_seconds_value">%1$d秒</string>
@@ -1753,7 +1770,7 @@
     <string name="song_more_add_position_end">加到末尾</string>
     <string name="song_more_play_next">下一首播放</string>
     <string name="song_more_view_spectrum">查看频谱</string>
-    <string name="song_more_view_song_info">查看歌曲信息</string>
+    <string name="song_more_view_song_info">歌曲信息</string>
     <string name="song_more_open_media_info">使用 MediaInfo 查看</string>
     <string name="song_more_artist_entry">艺术家：%1$s</string>
     <string name="song_more_album_entry">专辑：%1$s</string>

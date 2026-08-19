@@ -262,7 +262,7 @@ internal fun PlayerDetailPage(
         ) {
             item {
                 Text(
-                    text = stringResource(R.string.player_song_details),
+                    text = stringResource(R.string.player_song_info),
                     color = LocalPlayerContentColor.current,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold

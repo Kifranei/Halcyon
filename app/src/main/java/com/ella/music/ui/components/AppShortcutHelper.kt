@@ -156,6 +156,9 @@ private fun Context.appShortcutTarget(
     SettingsManager.APP_SHORTCUT_ANALYTICS -> appRouteShortcut(
         shortcutId, R.string.settings_library_tile_analytics, Screen.Analytics.route, R.drawable.ic_music_note
     )
+    SettingsManager.APP_SHORTCUT_LIBRARY_ANALYSIS -> appRouteShortcut(
+        shortcutId, R.string.analytics_library_analysis, Screen.LibraryAnalysis.route, R.drawable.ic_music_note
+    )
     SettingsManager.APP_SHORTCUT_SCAN_SETTINGS -> appRouteShortcut(
         shortcutId, R.string.folder_scan_settings, Screen.ScanSettings.createRoute(), R.drawable.ic_music_note
     )

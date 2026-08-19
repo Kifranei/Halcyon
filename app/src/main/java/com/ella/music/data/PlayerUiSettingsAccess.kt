@@ -23,6 +23,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LYRIC_TRANS
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LYRICS_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_RIGHT_BUTTON
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER
+import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LONG_PRESS_SOURCE
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_ORIENTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CUSTOM_FOLDERS
@@ -73,6 +74,7 @@ interface PlayerUiSettingsAccess {
     val miniPlayerLyricsEnabled: Flow<Boolean>
     val miniPlayerRightButton: Flow<Int>
     val miniPlayerSwipeToOpenPlayer: Flow<Boolean>
+    val miniPlayerLongPressSource: Flow<Boolean>
     val playerProgressInfoIndex: Flow<Int>
     val transportButtonOutlines: Flow<Boolean>
     val playerTapSeekEnabled: Flow<Boolean>
@@ -117,6 +119,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setMiniPlayerLyricsEnabled(enabled: Boolean)
     suspend fun setMiniPlayerRightButton(mode: Int)
     suspend fun setMiniPlayerSwipeToOpenPlayer(enabled: Boolean)
+    suspend fun setMiniPlayerLongPressSource(enabled: Boolean)
     suspend fun setPlayerProgressInfoIndex(index: Int)
     suspend fun setTransportButtonOutlines(enabled: Boolean)
     suspend fun setPlayerHdrGlow(enabled: Boolean)
@@ -176,6 +179,8 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_MINI_PLAYER_RIGHT_BUTTON] ?: MINI_PLAYER_RIGHT_NEXT }
     override val miniPlayerSwipeToOpenPlayer: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER] ?: true }
+    override val miniPlayerLongPressSource: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MINI_PLAYER_LONG_PRESS_SOURCE] ?: false }
     override val playerProgressInfoIndex: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_PROGRESS_INFO_INDEX] ?: 0).coerceAtLeast(0) }
     override val transportButtonOutlines: Flow<Boolean> =
@@ -319,6 +324,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setMiniPlayerSwipeToOpenPlayer(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER] = enabled }
+    }
+
+    override suspend fun setMiniPlayerLongPressSource(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MINI_PLAYER_LONG_PRESS_SOURCE] = enabled }
     }
 
     override suspend fun setPlayerProgressInfoIndex(index: Int) {

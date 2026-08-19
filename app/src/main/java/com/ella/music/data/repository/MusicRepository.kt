@@ -175,7 +175,8 @@ class MusicRepository(private val context: Context) {
         fullRescan: Boolean = false,
         deepRescan: Boolean = fullRescan,
         deepMetadataEnabled: Boolean = true,
-        filesystemFallbackFolders: List<String> = includeFolders
+        filesystemFallbackFolders: List<String> = includeFolders,
+        filterVideoFiles: Boolean = true
     ): MusicScanSummary {
         val mode = if (includeFolders.isEmpty()) "media_library" else "custom_folders"
         val previousSongs = libraryCacheStore.readLocalScanBaselineSongs().ifEmpty { _songs.value }
@@ -198,6 +199,7 @@ class MusicRepository(private val context: Context) {
                 includeFolders = includeFolders,
                 excludeFolders = excludeFolders,
                 deepMetadata = effectiveDeepRescan,
+                filterVideoFiles = filterVideoFiles,
                 onProgress = { count -> scanProgressState.update(count) },
                 filesystemFallbackFolders = filesystemFallbackFolders
             )
@@ -212,7 +214,8 @@ class MusicRepository(private val context: Context) {
                 excludeFolders = excludeFolders,
                 previousSummarySongs = previousSongs,
                 deepMetadataEnabled = deepMetadataEnabled,
-                filesystemFallbackFolders = filesystemFallbackFolders
+                filesystemFallbackFolders = filesystemFallbackFolders,
+                filterVideoFiles = filterVideoFiles
             )
         }
         val scannedSongs = scanResult.songs
@@ -307,7 +310,8 @@ class MusicRepository(private val context: Context) {
     suspend fun refreshFolders(
         folders: List<String>,
         minDurationMs: Long = 0,
-        deepMetadata: Boolean = true
+        deepMetadata: Boolean = true,
+        filterVideoFiles: Boolean = true
     ): MusicScanSummary = withContext(Dispatchers.IO) {
         val normalizedFolders = folders.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         if (normalizedFolders.isEmpty()) return@withContext MusicScanSummary(total = _songs.value.size)
@@ -322,7 +326,8 @@ class MusicRepository(private val context: Context) {
             minDurationMs = minDurationMs,
             includeFolders = normalizedFolders,
             excludeFolders = emptyList(),
-            deepMetadata = deepMetadata
+            deepMetadata = deepMetadata,
+            filterVideoFiles = filterVideoFiles
         ) { count -> scanProgressState.update(count) }
 
         val scannedByPath = scannedSongs.associateBy { it.path }
@@ -372,7 +377,8 @@ class MusicRepository(private val context: Context) {
         excludeFolders: List<String>,
         previousSummarySongs: List<Song>,
         deepMetadataEnabled: Boolean = true,
-        filesystemFallbackFolders: List<String> = includeFolders
+        filesystemFallbackFolders: List<String> = includeFolders,
+        filterVideoFiles: Boolean = true
     ): LibraryScanResult = withContext(Dispatchers.IO) {
         val cachedSongs = _songs.value.takeIf { it.isNotEmpty() } ?: libraryCacheStore.readCachedSongs()
         val cachedBySyncKey = cachedSongs.associateBy { it.librarySyncKey() }
@@ -380,7 +386,8 @@ class MusicRepository(private val context: Context) {
         val currentItems = scanner.enumerateAudioFiles(
             includeFolders = includeFolders,
             excludeFolders = excludeFolders,
-            filesystemFallbackFolders = filesystemFallbackFolders
+            filesystemFallbackFolders = filesystemFallbackFolders,
+            filterVideoFiles = filterVideoFiles
         )
         val currentKeys = currentItems.map { it.librarySyncKey() }.toSet()
         val currentPaths = currentItems.map { it.path }.toSet()
@@ -450,9 +457,10 @@ class MusicRepository(private val context: Context) {
         // discovered by a previous full scan merely because the provider has not indexed them
         // yet; retain those entries until their local file actually disappears.
         val retainedFromFilesystem = cachedSongs.filter { song ->
-            song.librarySyncKey() !in currentKeys &&
+                song.librarySyncKey() !in currentKeys &&
                 song.path !in currentPaths &&
-                song.hasExistingLocalFile()
+                song.hasExistingLocalFile() &&
+                (!filterVideoFiles || !scanner.isVideoFile(song.path, song.mimeType))
         }
         retainedFromFilesystem.forEach { retained ->
             if (mergedSongs.none { it.path == retained.path }) mergedSongs += retained

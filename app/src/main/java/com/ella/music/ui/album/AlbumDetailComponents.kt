@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.MusicVideoLauncher
 import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.AudioInfo
@@ -49,6 +50,9 @@ import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.ExplicitSongTitle
 import com.ella.music.ui.components.PlayNextQuickButton
+import com.ella.music.ui.components.MusicVideoListAction
+import com.ella.music.ui.components.openSongExternalUrl
+import com.ella.music.ui.components.rememberSongListVideoActions
 import com.ella.music.ui.components.RatingStarIcon
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
@@ -62,6 +66,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -326,6 +331,7 @@ internal fun AlbumSongRow(
         loadAudioInfo = mainViewModel::getAudioInfo,
         isFavorite = isFavorite,
         loadSongRating = mainViewModel::getSongRating,
+        loadSongTagInfo = mainViewModel::getSongTagInfo,
         ratingRevision = ratingRevision,
         leadingLabel = if (showTrackNumber) song.displayTrackNumber() else null,
         selectionMode = selectionMode,
@@ -362,6 +368,7 @@ private fun AlbumTrackRow(
     loadAudioInfo: (Song) -> AudioInfo,
     isFavorite: Boolean,
     loadSongRating: (Song) -> Int,
+    loadSongTagInfo: (Song) -> com.ella.music.data.model.SongTagInfo,
     ratingRevision: Int,
     leadingLabel: String?,
     selectionMode: Boolean,
@@ -383,6 +390,7 @@ private fun AlbumTrackRow(
     val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
     val context = LocalContext.current
     val sourceView = LocalView.current
+    val videoActions = rememberSongListVideoActions(song, loadSongTagInfo, enabled = !selectionMode)
 
     Row(
         modifier = Modifier
@@ -479,15 +487,41 @@ private fun AlbumTrackRow(
             Spacer(modifier = Modifier.width(8.dp))
             PlayNextQuickButton(onClick = onPlayNext)
         }
-        Text(
-            text = "⋮",
-            fontSize = 24.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .clickable(onClick = onMore)
-                .padding(horizontal = 10.dp, vertical = 2.dp)
-        )
+        if (!selectionMode) {
+            videoActions.localSource?.let { source ->
+                Spacer(modifier = Modifier.width(6.dp))
+                MusicVideoListAction(
+                    label = stringResource(R.string.library_search_filter_mv),
+                    contentDescription = stringResource(R.string.local_mv),
+                    color = MiuixTheme.colorScheme.primary,
+                    onClick = { MusicVideoLauncher.open(context, song, source) }
+                )
+            }
+            videoActions.onlineUrl?.takeUnless { videoActions.localSource != null }?.let { url ->
+                Spacer(modifier = Modifier.width(6.dp))
+                MusicVideoListAction(
+                    label = stringResource(R.string.online_mv),
+                    contentDescription = stringResource(R.string.online_mv),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    onClick = { openSongExternalUrl(context, url) }
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable(onClick = onMore),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.More,
+                    contentDescription = stringResource(R.string.player_quick_more),
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
     }
 }
 

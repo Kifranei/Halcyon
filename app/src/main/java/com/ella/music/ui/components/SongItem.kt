@@ -42,16 +42,10 @@ import com.ella.music.R
 import com.ella.music.data.DOLBY_MARK
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.audioQualitySummary
-import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
-import com.ella.music.data.neteaseMvUrl
-import com.ella.music.ui.player.DynamicCoverSource
-import com.ella.music.ui.player.musicVideoSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -59,14 +53,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-private data class SongListVideoActions(
-    val localSource: DynamicCoverSource? = null,
-    val onlineUrl: String? = null
-)
-
-/** MV folder and tag probing is intentionally kept behind cover loading and tightly bounded. */
-private val SongListVideoActionLimiter = Semaphore(2)
 
 @Composable
 fun SongItem(
@@ -107,10 +93,6 @@ fun SongItem(
     val context = androidx.compose.ui.platform.LocalContext.current
     val sourceView = LocalView.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val showLocalMusicVideoInLists by settingsManager.showLocalMusicVideoInLists.collectAsState(initial = true)
-    val showOnlineMusicVideoInLists by settingsManager.showOnlineMusicVideoInLists.collectAsState(initial = true)
-    val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFolders.collectAsState(initial = emptyList())
-    val musicVideoCustomFolders by settingsManager.musicVideoCustomFolders.collectAsState(initial = emptyList())
     val preferredRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
@@ -125,49 +107,7 @@ fun SongItem(
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
         value = withContext(Dispatchers.IO) { loadAudioInfo?.invoke(song) }
     }
-    val videoActions by produceState(
-        initialValue = SongListVideoActions(),
-        song.id,
-        song.path,
-        song.dateModified,
-        song.fileSize,
-        dynamicCoverCustomFolders,
-        musicVideoCustomFolders,
-        showLocalMusicVideoInLists,
-        showOnlineMusicVideoInLists,
-        loadSongTagInfo,
-        selectionMode
-    ) {
-        if (selectionMode || (!showLocalMusicVideoInLists && !showOnlineMusicVideoInLists)) {
-            value = SongListVideoActions()
-            return@produceState
-        }
-        // The folder index is single-flight and name lookups are map-backed. Do not add a fixed
-        // per-row delay here: it made MV badges appear one-by-one, especially after adding many
-        // videos, while the first scan was already protected by the limiter (#453).
-        value = SongListVideoActionLimiter.withPermit {
-            withContext(Dispatchers.IO) {
-                val localSource = if (showLocalMusicVideoInLists) {
-                    song.musicVideoSource(
-                        context = context,
-                        customRootPaths = dynamicCoverCustomFolders,
-                        musicVideoCustomFolders = musicVideoCustomFolders
-                    )
-                } else {
-                    null
-                }
-                val onlineUrl = if (localSource == null && showOnlineMusicVideoInLists) {
-                    decodeNeteaseKey(loadSongTagInfo?.invoke(song)?.neteaseKey.orEmpty())
-                        ?.mvId
-                        ?.takeIf { id -> id.toLongOrNull()?.let { it > 0L } == true }
-                        ?.let(::neteaseMvUrl)
-                } else {
-                    null
-                }
-                SongListVideoActions(localSource = localSource, onlineUrl = onlineUrl)
-            }
-        }
-    }
+    val videoActions = rememberSongListVideoActions(song, loadSongTagInfo, enabled = !selectionMode)
     val localMusicVideoSource = videoActions.localSource
     val onlineMusicVideoUrl = videoActions.onlineUrl
     val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
@@ -418,7 +358,7 @@ fun SongItem(
 }
 
 @Composable
-private fun MusicVideoListAction(
+internal fun MusicVideoListAction(
     label: String,
     contentDescription: String,
     color: Color,
@@ -440,7 +380,7 @@ private fun MusicVideoListAction(
     )
 }
 
-private fun openSongExternalUrl(context: android.content.Context, url: String) {
+internal fun openSongExternalUrl(context: android.content.Context, url: String) {
     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }
 

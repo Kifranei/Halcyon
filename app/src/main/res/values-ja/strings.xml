@@ -2255,4 +2255,21 @@
     <string name="player_ab_repeat_active">A-Bリピートを解除（%1$s-%2$s）</string>
     <string name="settings_music_video_stretch">MVの引き伸ばしを許可</string>
     <string name="settings_music_video_stretch_summary">動画を画面いっぱいに引き伸ばします。無効にすると元の比率を保ち、動画と内蔵KTV歌詞の変形を防ぎます</string>
+    <string name="settings_auto_scan_local_playlists_confirm_title">Enable automatic playlist scanning?</string>
+    <string name="settings_auto_scan_local_playlists_confirm_summary">Halcyon will read local M3U / M3U8 files at startup and when refreshing the library.</string>
+    <string name="settings_filter_video_files">Filter video files</string>
+    <string name="settings_filter_video_files_summary">Exclude files containing a video track from library scans (on by default)</string>
+    <string name="settings_mini_player_long_press_source">Long-press mini player for source</string>
+    <string name="settings_mini_player_long_press_source_summary">Open the current playlist, album, folder, or category (off by default)</string>
+    <string name="player_queue_source">Source</string>
+    <string name="analytics_audio_format_detail">Audio format</string>
+    <string name="analytics_audio_quality_detail">Audio quality</string>
+    <string name="analytics_detail_summary">%1$d songs · %2$s · %3$s · %4$s</string>
+    <string name="analytics_sort_size">File size</string>
+    <string name="analytics_sort_title">Title</string>
+    <string name="analytics_sort_file_name">File name</string>
+    <string name="analytics_sort_added">Date added</string>
+    <string name="analytics_sort_modified">Date modified</string>
+    <string name="analytics_sort_release">Release</string>
+    <string name="analytics_sort_duration">Duration</string>
 </resources>

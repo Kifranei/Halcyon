@@ -42,7 +42,8 @@ class MusicScanner(private val context: Context) {
     suspend fun enumerateAudioFiles(
         includeFolders: List<String> = emptyList(),
         excludeFolders: List<String> = emptyList(),
-        filesystemFallbackFolders: List<String> = includeFolders
+        filesystemFallbackFolders: List<String> = includeFolders,
+        filterVideoFiles: Boolean = true
     ): List<MediaStoreAudioItem> = withContext(Dispatchers.IO) {
         val items = queryMediaStoreAudioItems(
             includeFolders = includeFolders,
@@ -59,7 +60,10 @@ class MusicScanner(private val context: Context) {
             excludeFolders = excludeFolders,
             existingPaths = (items + fallbackItems).map { it.path }.toSet()
         )
-        val (merged, stats) = mergeMediaStoreAndFilesystemItems(items, fallbackItems + indexedItems)
+        val filteredItems = items.filterNot { filterVideoFiles && isVideoFile(it.path, it.mimeType) }
+        val filteredFallbackItems = (fallbackItems + indexedItems)
+            .filterNot { filterVideoFiles && isVideoFile(it.path, it.mimeType) }
+        val (merged, stats) = mergeMediaStoreAndFilesystemItems(filteredItems, filteredFallbackItems)
         Log.i(
             TAG,
             "enumerateAudioFiles mediaStore=${stats.mediaStoreItemCount} filesystemFallback=${stats.filesystemFallbackItemCount} merged=${stats.mergedItemCount}"
@@ -212,6 +216,7 @@ class MusicScanner(private val context: Context) {
         excludeFolders: List<String> = emptyList(),
         deepMetadata: Boolean = false,
         filesystemFallbackFolders: List<String> = includeFolders,
+        filterVideoFiles: Boolean = true,
         onProgress: ((Int) -> Unit)? = null
     ): List<Song> = withContext(Dispatchers.IO) {
         val songs = mutableListOf<Song>()
@@ -219,7 +224,7 @@ class MusicScanner(private val context: Context) {
             includeFolders = includeFolders,
             excludeFolders = excludeFolders,
             verifyFileSnapshot = deepMetadata
-        )
+        ).filterNot { filterVideoFiles && isVideoFile(it.path, it.mimeType) }
         mediaStoreItems.forEachIndexed { index, item ->
             val song = runCatching {
                 if (deepMetadata) {
@@ -245,7 +250,9 @@ class MusicScanner(private val context: Context) {
             excludeFolders = excludeFolders,
             existingPaths = (songs.map { it.path } + fallbackItems.map { it.path }).toSet()
         )
-        (fallbackItems + indexedItems).forEach { item ->
+        (fallbackItems + indexedItems)
+            .filterNot { filterVideoFiles && isVideoFile(it.path, it.mimeType) }
+            .forEach { item ->
             runCatching {
                 item.toShallowSong(minDurationMs)
                     ?: scanAudioItem(item, minDurationMs = minDurationMs, deepMetadata = deepMetadata)
@@ -261,6 +268,18 @@ class MusicScanner(private val context: Context) {
             "scanAllSongs mediaStore=$mediaStoreSongCount filesystemFallback=${songs.size - mediaStoreSongCount} total=${songs.size} deepMetadata=$deepMetadata fallbackFolders=${filesystemFallbackFolders.size}"
         )
         songs
+    }
+
+    fun isVideoFile(path: String, mimeType: String): Boolean {
+        if (mimeType.substringBefore(';').trim().startsWith("video/", ignoreCase = true)) return true
+        if (!path.substringAfterLast('.', "").equals("mp4", ignoreCase = true)) return false
+        return runCatching {
+            MediaMetadataRetriever().useCompat { retriever ->
+                retriever.setDataSource(path)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
+                    .equals("yes", ignoreCase = true)
+            }
+        }.getOrDefault(false)
     }
 
     private fun queryMediaStoreAudioItems(

@@ -137,13 +137,15 @@ internal fun DetailMusicVideoScreen(
     val inPictureInPictureMode = activity.pictureInPictureMode
     var landscape by remember { mutableStateOf(initialLandscape) }
     var orientationMode by remember { mutableStateOf(initialOrientationMode) }
-    var captionsEnabled by remember { mutableStateOf(false) }
-    var ktvLyricsEnabled by remember { mutableStateOf(false) }
-    var accompanimentEnabled by remember { mutableStateOf(false) }
-    var controlsLocked by remember { mutableStateOf(false) }
     val captionPreferences = remember(context) {
         context.getSharedPreferences(MUSIC_VIDEO_CAPTION_PREFERENCES, Context.MODE_PRIVATE)
     }
+    var captionsEnabled by remember {
+        mutableStateOf(captionPreferences.getBoolean(MUSIC_VIDEO_CAPTIONS_ENABLED, false))
+    }
+    var ktvLyricsEnabled by remember { mutableStateOf(false) }
+    var accompanimentEnabled by remember { mutableStateOf(false) }
+    var controlsLocked by remember { mutableStateOf(false) }
     var captionTranslationEnabled by remember {
         mutableStateOf(
             captionPreferences.getBoolean(
@@ -331,9 +333,7 @@ internal fun DetailMusicVideoScreen(
         }
     }
     val captionsAvailable = song.duration > 0L && duration > 0L && abs(song.duration - duration) <= 10_000L
-    LaunchedEffect(captionsAvailable) {
-        if (!captionsAvailable) captionsEnabled = false
-    }
+    val effectiveCaptionsEnabled = captionsEnabled && captionsAvailable
 
     Box(modifier = Modifier.fillMaxSize().background(ComposeColor.Black)) {
         if (inPictureInPictureMode) {
@@ -343,7 +343,7 @@ internal fun DetailMusicVideoScreen(
                 videoAspectRatio = videoAspectRatio,
                 modifier = Modifier.fillMaxSize()
             )
-            if (captionsEnabled) {
+            if (effectiveCaptionsEnabled) {
                 MusicVideoCaptions(
                     lyrics = lyrics,
                     position = position,
@@ -367,7 +367,7 @@ internal fun DetailMusicVideoScreen(
                 lyrics = lyrics,
                 videoAspectRatio = videoAspectRatio,
                 videoResizeMode = playbackVideoResizeMode,
-                captionsEnabled = captionsEnabled,
+                captionsEnabled = effectiveCaptionsEnabled,
                 captionTranslationEnabled = captionTranslationEnabled,
                 captionsAvailable = captionsAvailable,
                 ktvLyricsEnabled = ktvLyricsEnabled,
@@ -387,7 +387,10 @@ internal fun DetailMusicVideoScreen(
                 },
                 onToggleKtvLyrics = {
                     ktvLyricsEnabled = !ktvLyricsEnabled
-                    if (ktvLyricsEnabled) captionsEnabled = false
+                    if (ktvLyricsEnabled) {
+                        captionsEnabled = false
+                        captionPreferences.edit().putBoolean(MUSIC_VIDEO_CAPTIONS_ENABLED, false).apply()
+                    }
                 },
                 onToggleAccompaniment = { accompanimentEnabled = !accompanimentEnabled },
                 onToggleLock = { controlsLocked = !controlsLocked },
@@ -438,6 +441,7 @@ internal fun DetailMusicVideoScreen(
                 style = captionStyle,
                 onEnabledChange = { enabled ->
                     captionsEnabled = enabled
+                    captionPreferences.edit().putBoolean(MUSIC_VIDEO_CAPTIONS_ENABLED, enabled).apply()
                     if (enabled) ktvLyricsEnabled = false
                 },
                 onTranslationEnabledChange = { enabled ->
@@ -1744,6 +1748,7 @@ private fun Uri.captionSyncPreferenceKey(): String =
     "sync_${toString().hashCode().toUInt().toString(16)}"
 
 private const val MUSIC_VIDEO_CAPTION_PREFERENCES = "music_video_caption_preferences"
+private const val MUSIC_VIDEO_CAPTIONS_ENABLED = "captions_enabled"
 private const val MUSIC_VIDEO_CAPTION_TRANSLATION_ENABLED = "translation_enabled"
 private const val MUSIC_VIDEO_RESIZE_MODE = "video_resize_mode"
 

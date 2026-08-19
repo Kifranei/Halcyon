@@ -75,14 +75,17 @@ internal fun SongMoreInfoActionSheets(
         EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
-            title = stringResource(R.string.player_song_details),
+            title = stringResource(R.string.player_song_info),
             onDismissRequest = { onInfoSongChange(null) }
         ) {
             SongInfoSheet(
                 song = song,
                 audioInfoLoader = mainViewModel::getAudioInfo,
                 tagInfoLoader = mainViewModel::getSongTagInfo,
-                onOpenMediaInfo = { openSongWithMediaInfo(context, song) },
+                onOpenMediaInfo = {
+                    onInfoSongChange(null)
+                    openSongWithMediaInfo(context, song)
+                },
                 onDismiss = { onInfoSongChange(null) }
             )
         }

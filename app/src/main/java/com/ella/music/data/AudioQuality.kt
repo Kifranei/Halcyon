@@ -25,7 +25,9 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     val isDolby = normalizedFormat in setOf("AC3", "EC3", "EAC3", "AC4")
     val isSurround = isDolby || info.channels >= 6
     val isMq = bitDepth >= 24 && info.sampleRate >= 192_000
-    val isHiRes = bitDepth >= 24 && info.sampleRate >= 48_000
+    // Hi-Res means exceeding CD quality on either axis, not requiring both axes to exceed it.
+    // Thus 16-bit/48 kHz and 24-bit/44.1 kHz are both Hi-Res (#471).
+    val isHiRes = bitDepth > 16 || info.sampleRate > 44_100
     val isAppleLossless = normalizedFormat == "ALAC"
     val isLossless = isAppleLossless || normalizedFormat in setOf("FLAC", "WAV", "APE")
     val isSq = isLossless && info.sampleRate >= 44_100 && bitDepth >= 16

@@ -585,3 +585,13 @@ internal val qualityPalette = listOf(
     Color(0xFF8E8E8E),
     Color(0xFFB0A08F)
 )
+
+internal fun qualityBucketColor(label: String): Color = when (label.uppercase()) {
+    "LQ" -> Color(0xFF17B55E)
+    "HQ" -> Color(0xFF2E6BFF)
+    "LOSSLESS" -> Color(0xFF9A3AC7)
+    "HI-RES" -> Color(0xFFFFA21A)
+    else -> qualityPalette[
+        qualityOrder.indexOf(label).takeIf { it >= 0 }?.rem(qualityPalette.size) ?: 6
+    ]
+}

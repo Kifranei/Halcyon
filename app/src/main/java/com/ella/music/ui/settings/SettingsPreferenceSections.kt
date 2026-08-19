@@ -29,6 +29,8 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.ui.components.TagEditorOptionIds
 import com.ella.music.ui.components.SpectrumViewerLauncher
 import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -470,6 +472,8 @@ internal fun SettingsScanSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val autoScanLocalPlaylists by settingsManager.autoScanLocalPlaylists.collectAsState(initial = false)
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
+    val filterVideoFiles by settingsManager.filterVideoFiles.collectAsState(initial = true)
+    var confirmAutoPlaylistScan by remember { mutableStateOf(false) }
     val artistSeparators by settingsManager.artistSeparators.collectAsState(
         initial = SettingsManager.DEFAULT_ARTIST_SEPARATORS
     )
@@ -542,10 +546,11 @@ internal fun SettingsScanSection(
                     title = stringResource(R.string.settings_auto_scan_local_playlists),
                     summary = stringResource(R.string.settings_auto_scan_local_playlists_summary),
                     checked = autoScanLocalPlaylists,
-                    onCheckedChange = {
-                        scope.launch {
-                            settingsManager.setAutoScanLocalPlaylists(it)
-                            settingsManager.setLocalPlaylistScanPromptHandled(true)
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            confirmAutoPlaylistScan = true
+                        } else {
+                            scope.launch { settingsManager.setAutoScanLocalPlaylists(false) }
                         }
                     }
                 )
@@ -558,6 +563,14 @@ internal fun SettingsScanSection(
                     valueRange = 0..60,
                     valueText = stringResource(R.string.settings_seconds_value, minDurationSec.coerceIn(0, 60)),
                     onValueChange = { sec -> scope.launch { settingsManager.setMinDurationSec(sec) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "filter_video_files") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_filter_video_files),
+                    summary = stringResource(R.string.settings_filter_video_files_summary),
+                    checked = filterVideoFiles,
+                    onCheckedChange = { scope.launch { settingsManager.setFilterVideoFiles(it) } }
                 )
             }
             SettingsFocusAnchor(active = highlightKey == "tag_ignore_case") {
@@ -596,6 +609,26 @@ internal fun SettingsScanSection(
                 )
             }
         }
+    }
+
+    EllaMiuixDialog(
+        show = confirmAutoPlaylistScan,
+        title = stringResource(R.string.settings_auto_scan_local_playlists_confirm_title),
+        summary = stringResource(R.string.settings_auto_scan_local_playlists_confirm_summary),
+        onDismissRequest = { confirmAutoPlaylistScan = false }
+    ) {
+        EllaMiuixDialogActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.common_confirm),
+            onCancel = { confirmAutoPlaylistScan = false },
+            onConfirm = {
+                confirmAutoPlaylistScan = false
+                scope.launch {
+                    settingsManager.setAutoScanLocalPlaylists(true)
+                    settingsManager.setLocalPlaylistScanPromptHandled(true)
+                }
+            }
+        )
     }
 
     SettingsCardGroup(highlight = highlightKey == "scan") {

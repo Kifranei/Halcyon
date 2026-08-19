@@ -7,6 +7,18 @@ import org.junit.Test
 
 class AudioQualityTest {
     @Test
+    fun hiResExceedsCdQualityOnEitherAxis() {
+        assertEquals(
+            "Hi-Res",
+            audioQualitySummary(AudioInfo(format = "FLAC", bitDepth = 16, sampleRate = 48_000)).compactLabel
+        )
+        assertEquals(
+            "Hi-Res",
+            audioQualitySummary(AudioInfo(format = "FLAC", bitDepth = 24, sampleRate = 44_100)).compactLabel
+        )
+    }
+
+    @Test
     fun normalizedAudioFormatRecognizesAc4Variants() {
         assertEquals("AC4", normalizedAudioFormat("audio/ac4"))
         assertEquals("AC4", normalizedAudioFormat("AC4 A-JOC"))

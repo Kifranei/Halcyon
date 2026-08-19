@@ -26,6 +26,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_FOLDER_PLAYLISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_FOLDER_PLAYLIST_CUSTOM_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_FULL_TAG_SEARCH_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_FULL_TAG_SEARCH_PROMPT_HANDLED
+import com.ella.music.data.SettingsManager.Companion.KEY_FILTER_VIDEO_FILES
 import com.ella.music.data.SettingsManager.Companion.KEY_GENRE_PROTECTED_NAMES
 import com.ella.music.data.SettingsManager.Companion.KEY_GENRE_SEPARATORS
 import com.ella.music.data.SettingsManager.Companion.KEY_INITIAL_SCAN_PROMPT_HANDLED
@@ -73,6 +74,7 @@ interface LibrarySettingsAccess {
     val autoScan: Flow<Boolean>
     val autoScanLocalPlaylists: Flow<Boolean>
     val minDurationSec: Flow<Int>
+    val filterVideoFiles: Flow<Boolean>
     val playlistSpecialEntriesVisible: Flow<Boolean>
     val showPlayNextInLists: Flow<Boolean>
     val showLocalMusicVideoInLists: Flow<Boolean>
@@ -112,6 +114,7 @@ interface LibrarySettingsAccess {
     suspend fun setAutoScan(enabled: Boolean)
     suspend fun setAutoScanLocalPlaylists(enabled: Boolean)
     suspend fun setMinDurationSec(seconds: Int)
+    suspend fun setFilterVideoFiles(enabled: Boolean)
     suspend fun setPlaylistSpecialEntriesVisible(visible: Boolean)
     suspend fun setShowPlayNextInLists(enabled: Boolean)
     suspend fun setShowLocalMusicVideoInLists(enabled: Boolean)
@@ -170,6 +173,8 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_AUTO_SCAN_LOCAL_PLAYLISTS] ?: false }
 
     override val minDurationSec: Flow<Int> = context.dataStore.data.map { it[KEY_MIN_DURATION] ?: 15 }
+    override val filterVideoFiles: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_FILTER_VIDEO_FILES] ?: true }
 
     override val playlistSpecialEntriesVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE] ?: false }
@@ -281,6 +286,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setMinDurationSec(seconds: Int) {
         context.dataStore.edit { it[KEY_MIN_DURATION] = seconds }
+    }
+
+    override suspend fun setFilterVideoFiles(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_FILTER_VIDEO_FILES] = enabled }
     }
 
     override suspend fun setPlaylistSpecialEntriesVisible(visible: Boolean) {

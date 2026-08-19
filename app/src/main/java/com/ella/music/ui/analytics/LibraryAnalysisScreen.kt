@@ -17,6 +17,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,11 +42,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun LibraryAnalysisScreen(
     mainViewModel: MainViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    showBackButton: Boolean = true
 ) {
     val context = LocalContext.current
     val songs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
+    var selectedBucket by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     val analysis by produceState<LibraryAnalysis?>(
         initialValue = if (songs.isEmpty()) LibraryAnalysis(emptyList(), emptyList(), 0, 0L) else null,
         songs
@@ -64,6 +69,33 @@ fun LibraryAnalysisScreen(
         value = fresh
     }
 
+    selectedBucket?.let { (quality, label) ->
+        val matchingSongs by produceState(
+            initialValue = emptyList(),
+            songs,
+            quality,
+            label
+        ) {
+            value = withContext(Dispatchers.IO) {
+                songs.filter { song ->
+                    val info = mainViewModel.getAudioInfo(song)
+                    if (quality) qualityLabel(song, info) == label else formatLabel(song, info) == label
+                }
+            }
+        }
+        LibraryAnalysisBucketDetailScreen(
+            title = stringResource(
+                if (quality) R.string.analytics_audio_quality_detail else R.string.analytics_audio_format_detail
+            ),
+            bucketLabel = label,
+            songs = matchingSongs,
+            totalLibraryCount = songs.size,
+            mainViewModel = mainViewModel,
+            onBack = { selectedBucket = null }
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -76,13 +108,15 @@ fun LibraryAnalysisScreen(
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Back,
-                    contentDescription = stringResource(R.string.common_back),
-                    tint = MiuixTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(24.dp)
-                )
+            if (showBackButton) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
             Text(
                 text = stringResource(R.string.analytics_library_analysis),
@@ -117,7 +151,8 @@ fun LibraryAnalysisScreen(
                     buckets = analysis?.formatBuckets,
                     total = analysis?.totalCount ?: 0,
                     totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
-                    palette = formatPalette
+                    palette = formatPalette,
+                    onBucketClick = { selectedBucket = false to it.label }
                 )
             }
 
@@ -128,7 +163,8 @@ fun LibraryAnalysisScreen(
                     buckets = analysis?.qualityBuckets,
                     total = analysis?.totalCount ?: 0,
                     totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
-                    palette = qualityPalette
+                    palette = analysis?.qualityBuckets?.map { qualityBucketColor(it.label) } ?: qualityPalette,
+                    onBucketClick = { selectedBucket = true to it.label }
                 )
             }
         }

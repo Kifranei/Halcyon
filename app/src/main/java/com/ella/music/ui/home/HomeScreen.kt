@@ -827,7 +827,7 @@ fun LibraryScreen(
             EllaMiuixBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = stringResource(R.string.player_song_details),
+                title = stringResource(R.string.player_song_info),
                 onDismissRequest = { songInfoSheetSong = null }
             ) {
                 SongInfoMenu(

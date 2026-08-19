@@ -85,7 +85,7 @@ internal fun SongInfoMenu(
     ) {
         SheetHandle()
         Text(
-            text = stringResource(R.string.player_song_details),
+            text = stringResource(R.string.player_song_info),
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,

@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -43,6 +45,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun MiniPlayer(
     song: Song,
     isPlaying: Boolean,
@@ -66,6 +69,7 @@ fun MiniPlayer(
     onSkipPrevious: () -> Unit = {},
     onSkipNext: () -> Unit = {},
     onShowQueue: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val coverState = rememberMiniPlayerCoverModel(song, albumArtUri, loadCoverArt)
@@ -128,10 +132,21 @@ fun MiniPlayer(
                     onDragCancel = { verticalDragAmount = 0f }
                 )
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick,
+                        onLongClick = onLongClick
+                    )
+                } else {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    )
+                }
             )
             .then(
                 if (glassBackdrop != null) {
@@ -267,6 +282,7 @@ fun MiniPlayer(
     }
 }
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun CompactMiniPlayer(
     song: Song,
     isPlaying: Boolean,
@@ -287,6 +303,7 @@ fun CompactMiniPlayer(
     onSkipNext: () -> Unit = {},
     showSkipButton: Boolean = true,
     swipeUpToOpenPlayer: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val coverState = rememberMiniPlayerCoverModel(song, albumArtUri, loadCoverArt)
@@ -325,10 +342,16 @@ fun CompactMiniPlayer(
                             onDragCancel = { verticalDragAmount = 0f }
                         )
                     }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onClick
+                    .then(
+                        if (onLongClick != null) {
+                            Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                        } else {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onClick
+                            )
+                        }
                     ),
                 verticalAlignment = Alignment.CenterVertically
             ) {

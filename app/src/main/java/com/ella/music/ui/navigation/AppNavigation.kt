@@ -858,7 +858,8 @@ fun AppNavigation(
         composable(Screen.LibraryAnalysis.route) {
             LibraryAnalysisScreen(
                 mainViewModel = mainViewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                showBackButton = !isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY_ANALYSIS)
             )
         }
 

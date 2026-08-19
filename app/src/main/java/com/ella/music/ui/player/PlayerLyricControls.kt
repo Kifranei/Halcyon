@@ -162,9 +162,9 @@ internal fun LyricActionMenu(
             value = sustainThresholdPreview,
             valueRange = SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS.toFloat()..
                 SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS.toFloat(),
-            steps = (SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS -
-                SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS) /
-                SettingsManager.STEP_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
+            // A continuous slider rounds to a millisecond below. Rendering 2,700 tick marks
+            // would itself cause the settings surface to stutter (#470).
+            steps = 0,
             label = stringResource(R.string.player_lyrics_sustain_threshold_value, sustainThresholdPreview.toInt()),
             onValueChange = { sustainThresholdPreview = it },
             onValueChangeFinished = { value ->

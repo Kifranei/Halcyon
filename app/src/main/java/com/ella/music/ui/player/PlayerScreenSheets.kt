@@ -96,7 +96,10 @@ internal fun PlayerScreenSheetHost(
                 song = song,
                 audioInfoLoader = playerViewModel::getAudioInfo,
                 tagInfoLoader = playerViewModel::getSongTagInfo,
-                onOpenMediaInfo = { openSongWithMediaInfo(context, song) },
+                onOpenMediaInfo = {
+                    onSongInfoExpandedChange(false)
+                    openSongWithMediaInfo(context, song)
+                },
                 onDismiss = { onSongInfoExpandedChange(false) }
             )
         }
