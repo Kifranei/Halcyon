@@ -213,7 +213,7 @@ internal fun PlayerQueueMenu(
                         } else {
                             MiuixTheme.colorScheme.onSurfaceVariantSummary
                         },
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
                 if (!queueLocked && playlist.size > 1) {
@@ -242,7 +242,7 @@ internal fun PlayerQueueMenu(
                     com.ella.music.ui.components.AddToPlaylistActionIcon(
                         contentDescription = stringResource(R.string.player_add_to_playlist),
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
                 Box(
@@ -260,7 +260,7 @@ internal fun PlayerQueueMenu(
                         painter = painterResource(id = R.drawable.ic_my_location),
                         contentDescription = stringResource(R.string.player_locate_current_song),
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
                 if (!queueLocked) {
@@ -275,7 +275,7 @@ internal fun PlayerQueueMenu(
                             painter = painterResource(id = R.drawable.ic_delete),
                             contentDescription = stringResource(R.string.player_clear_queue),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }

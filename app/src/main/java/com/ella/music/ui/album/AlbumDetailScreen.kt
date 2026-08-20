@@ -122,6 +122,9 @@ fun AlbumDetailScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(
+        com.ella.music.data.CategoryResumeKeys.album(albumId)
+    )
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val sortIndex by mainViewModel.settingsManager.albumDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.albumDetailSongSortIndex)

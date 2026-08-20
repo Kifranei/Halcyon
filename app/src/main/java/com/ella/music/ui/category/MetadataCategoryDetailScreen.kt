@@ -116,6 +116,9 @@ fun MetadataCategoryDetailScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(
+        com.ella.music.data.CategoryResumeKeys.metadata(type, name)
+    )
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val songs by produceState(emptyList<Song>(), type, name, librarySongs) {

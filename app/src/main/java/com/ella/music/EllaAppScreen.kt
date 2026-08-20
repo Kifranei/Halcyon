@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -67,6 +68,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.MusicScanSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -153,13 +155,34 @@ fun EllaApp(
     var showPlayerOverlay by remember { mutableStateOf(false) }
     var playerDismissProgress by remember { mutableFloatStateOf(0f) }
     var playerOverlayOpenToken by remember { mutableIntStateOf(0) }
+    var snapPlayerOverlay by remember { mutableStateOf(false) }
+    suspend fun openPlaybackSource() {
+        val songKey = playerViewModel.currentSong.value?.playlistIdentityKey()
+        val source = com.ella.music.data.PlaybackSourceNavigation.resolvedSourceKey(songKey)
+            ?: playerViewModel.playbackSourceKey.value
+        val route = playbackSourceRoute(source) ?: return
+        snapPlayerOverlay = true
+        showPlayerOverlay = false
+        val entry = navController.currentBackStackEntry
+        val alreadyThere = isAtPlaybackSourceRoute(
+            destinationRoute = entry?.destination?.route,
+            argument = { name -> entry?.arguments?.get(name) },
+            target = route
+        )
+        if (!alreadyThere) navController.navigate(route)
+        snapshotFlow { navController.currentBackStackEntry }.first { current ->
+            isAtPlaybackSourceRoute(
+                destinationRoute = current?.destination?.route,
+                argument = { name -> current?.arguments?.get(name) },
+                target = route
+            )
+        }
+        delay(48L)
+        playerViewModel.requestLocateCurrentSong()
+    }
     LaunchedEffect(navController) {
         com.ella.music.data.PlaybackSourceNavigation.requests.collect {
-            playbackSourceRoute(com.ella.music.data.PlaybackSourceNavigation.sourceKey.value)?.let { route ->
-                showPlayerOverlay = false
-                val activeRoute = navController.currentBackStackEntry?.destination?.route
-                if (!activeRoute.matchesRoute(route)) navController.navigate(route)
-            }
+            openPlaybackSource()
         }
     }
     var returnToPlayerRoute by remember { mutableStateOf<String?>(null) }
@@ -167,7 +190,9 @@ fun EllaApp(
         if (returnToPlayerRoute != null && currentRoute == returnToPlayerRoute) {
             returnToPlayerRoute = null
             playerDismissProgress = 0f
-            playerOverlayOpenToken++
+            // Snap the resident overlay back instead of playing the open animation.
+            // Animating made returning from artist/album/lyrics feel like a close + reopen (#469).
+            snapPlayerOverlay = true
             showPlayerOverlay = true
         }
     }
@@ -181,13 +206,19 @@ fun EllaApp(
     val playerOpenAnim = remember { Animatable(1f) }
     LaunchedEffect(showPlayerOverlay) {
         if (showPlayerOverlay) playerEverShown = true
-        playerOpenAnim.animateTo(
-            targetValue = if (showPlayerOverlay) 0f else 1f,
-            animationSpec = tween(
-                durationMillis = if (showPlayerOverlay) 320 else 260,
-                easing = if (showPlayerOverlay) FastOutSlowInEasing else LinearOutSlowInEasing
+        val target = if (showPlayerOverlay) 0f else 1f
+        if (snapPlayerOverlay) {
+            playerOpenAnim.snapTo(target)
+            snapPlayerOverlay = false
+        } else {
+            playerOpenAnim.animateTo(
+                targetValue = target,
+                animationSpec = tween(
+                    durationMillis = if (showPlayerOverlay) 320 else 260,
+                    easing = if (showPlayerOverlay) FastOutSlowInEasing else LinearOutSlowInEasing
+                )
             )
-        )
+        }
     }
     val isPlayerVisible = showPlayerOverlay || currentRoute == Screen.Player.route
     val showLyrics by playerViewModel.showLyrics.collectAsState()
@@ -720,9 +751,7 @@ fun EllaApp(
                         showPlayerOverlay = true
                     },
                     onNavigatePlaybackSource = {
-                        playbackSourceRoute(playerViewModel.playbackSourceKey.value)?.let { route ->
-                            if (!currentRoute.matchesRoute(route)) navController.navigate(route)
-                        }
+                        scope.launch { openPlaybackSource() }
                     },
                     onExpand = {
                         bottomDockMode = BottomDockMode.Expanded
@@ -744,29 +773,36 @@ fun EllaApp(
                     playerVisible = showPlayerOverlay,
                     onBack = {
                         playerViewModel.setShowLyrics(false)
+                        // The dismiss host already slid the player off-screen. Don't run a second
+                        // overlay close animation or the mini-player waits twice as long (#469).
+                        snapPlayerOverlay = playerDismissProgress > 0.85f
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                     },
                     onNavigateToAlbum = { albumId ->
                         returnToPlayerRoute = currentRoute
+                        snapPlayerOverlay = true
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.AlbumDetail.createRoute(albumId))
                     },
                     onNavigateToArtist = { artistName ->
                         returnToPlayerRoute = currentRoute
+                        snapPlayerOverlay = true
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.ArtistDetail.createRoute(artistName))
                     },
                     onNavigateToMetadataCategory = { type, name ->
                         returnToPlayerRoute = currentRoute
+                        snapPlayerOverlay = true
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.MetadataCategoryDetail.createRoute(type, name))
                     },
                     onNavigateToEqualizer = {
                         returnToPlayerRoute = currentRoute
+                        snapPlayerOverlay = true
                         showPlayerOverlay = false
                         playerDismissProgress = 0f
                         navController.navigate(Screen.Equalizer.createRoute())
@@ -884,7 +920,8 @@ fun EllaApp(
 private fun playbackSourceRoute(key: String?): String? {
     val source = key?.takeIf { it.isNotBlank() } ?: return null
     return when {
-        source == com.ella.music.data.CategoryResumeKeys.HOME -> Screen.Home.route
+        source == com.ella.music.data.CategoryResumeKeys.DASHBOARD -> Screen.Home.route
+        source == com.ella.music.data.CategoryResumeKeys.HOME -> Screen.Library.route
         source.startsWith("album:") -> source.substringAfter("album:").toLongOrNull()
             ?.let(Screen.AlbumDetail::createRoute)
         source.startsWith("playlist:") -> Screen.PlaylistDetail.createRoute(source.substringAfter("playlist:"))

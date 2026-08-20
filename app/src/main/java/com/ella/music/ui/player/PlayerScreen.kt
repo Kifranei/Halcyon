@@ -377,7 +377,8 @@ fun PlayerScreen(
         immersiveAlbumCover = immersiveAlbumCover,
         showLyrics = showLyrics,
         pagerState = playerPagerState,
-        onShowLyricsChange = playerViewModel::setShowLyrics
+        onShowLyricsChange = playerViewModel::setShowLyrics,
+        playerVisible = playerVisible
     )
 
     PlayerDismissMotionHost(

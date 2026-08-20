@@ -41,12 +41,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.LibrarySortUiState
@@ -325,6 +327,22 @@ fun ArtistListScreen(
             names.any { it.tagIdentityKey() in selection.selectedIds }
         }.distinctBy { it.id }
     }
+    fun selectedArtistSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            filteredArtists
+                .filter { it.name.tagIdentityKey() in selection.selectedIds }
+                .map { artist ->
+                    val artistKey = artist.name.tagIdentityKey()
+                    CategoryResumeKeys.artist(artist.name) to songs.filter { song ->
+                        val names = if (showAlbumArtists) {
+                            splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
+                        } else {
+                            splitArtistNames(song.artist)
+                        }
+                        names.any { it.tagIdentityKey() == artistKey }
+                    }
+                }
+        )
     val filteredArtistKeys = remember(filteredArtists) {
         filteredArtists.map { it.name.tagIdentityKey() }
     }
@@ -417,7 +435,7 @@ fun ArtistListScreen(
                         IconButton(onClick = {
                             val selectedSongs = selectedArtistSongs()
                             if (selectedSongs.isNotEmpty()) {
-                                playerViewModel.playNext(selectedSongs)
+                                playerViewModel.playNext(selectedSongs, selectedArtistSongSources())
                                 selection.finishSelectionMode()
                             }
                         }) {
@@ -612,7 +630,25 @@ fun ArtistListScreen(
                             leadingContent = {
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomArtistSongs.isNotEmpty(),
-                                    onClick = { playerViewModel.setPlaylist(randomArtistSongs.shuffled(), 0) }
+                                    onClick = {
+                                        playerViewModel.setPlaylist(
+                                            randomArtistSongs.shuffled(),
+                                            0,
+                                            songSources = playbackSourcesForSongs(
+                                                filteredArtists.map { artist ->
+                                                    val artistKey = artist.name.tagIdentityKey()
+                                                    CategoryResumeKeys.artist(artist.name) to songs.filter { song ->
+                                                        val names = if (showAlbumArtists) {
+                                                            splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
+                                                        } else {
+                                                            splitArtistNames(song.artist)
+                                                        }
+                                                        names.any { it.tagIdentityKey() == artistKey }
+                                                    }
+                                                }
+                                            )
+                                        )
+                                    }
                                 )
                             }
                         )

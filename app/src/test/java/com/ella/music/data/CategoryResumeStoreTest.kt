@@ -18,6 +18,7 @@ class CategoryResumeStoreTest {
         assertEquals("album:11", albumKey)
         assertEquals("playlist:favorites", playlistKey)
         assertEquals("folder:/Music/A", folderKey)
+        assertNotEquals(CategoryResumeKeys.HOME, CategoryResumeKeys.DASHBOARD)
     }
 
     @Test

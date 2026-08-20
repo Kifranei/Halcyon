@@ -3,7 +3,6 @@ package com.ella.music.ui.settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,92 +30,130 @@ internal fun SettingsAppearanceSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
 
-    val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
-    val appLanguage by settingsManager.appLanguage.collectAsState(initial = SettingsManager.APP_LANGUAGE_SYSTEM)
-    val appFontScalePercent by settingsManager.appFontScalePercent.collectAsState(
-        initial = SettingsManager.DEFAULT_APP_FONT_SCALE_PERCENT
+    val themeMode by settingsManager.themeMode.collectCachedAsState("themeMode", 0)
+    val appLanguage by settingsManager.appLanguage.collectCachedAsState("appLanguage", SettingsManager.APP_LANGUAGE_SYSTEM)
+    val appFontScalePercent by settingsManager.appFontScalePercent.collectCachedAsState(
+        "appFontScalePercent",
+        SettingsManager.DEFAULT_APP_FONT_SCALE_PERCENT
     )
-    val appDisplayScalePercent by settingsManager.appDisplayScalePercent.collectAsState(
-        initial = SettingsManager.DEFAULT_APP_DISPLAY_SCALE_PERCENT
+    val appDisplayScalePercent by settingsManager.appDisplayScalePercent.collectCachedAsState(
+        "appDisplayScalePercent",
+        SettingsManager.DEFAULT_APP_DISPLAY_SCALE_PERCENT
     )
-    val appIconStyle by settingsManager.appIconStyle.collectAsState(initial = SettingsManager.APP_ICON_STYLE_DEFAULT)
-    val widgetSafeLayout by settingsManager.widgetSafeLayout.collectAsState(initial = false)
-    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
-    val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
-        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    val appIconStyle by settingsManager.appIconStyle.collectCachedAsState(
+        "appIconStyle",
+        SettingsManager.APP_ICON_STYLE_DEFAULT
     )
-    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
-        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    val widgetSafeLayout by settingsManager.widgetSafeLayout.collectCachedAsState("widgetSafeLayout", false)
+    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectCachedAsState(
+        "bottomBarGlassEffect",
+        BottomBarGlassEffect.LiquidGlass
     )
-    val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = false)
-    val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = "")
-    val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
-        initial = SettingsManager.DEFAULT_STARTUP_POSTER_DURATION_MS
+    val systemBarsMode by settingsManager.systemBarsMode.collectCachedAsState(
+        "systemBarsMode",
+        SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
     )
-    val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = false)
-    val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = "")
-    val appWallpaperOpacity by settingsManager.appWallpaperOpacity.collectAsState(initial = 100)
-    val appWallpaperDim by settingsManager.appWallpaperDim.collectAsState(initial = 30)
-    val appWallpaperContentOverlay by settingsManager.appWallpaperContentOverlay.collectAsState(initial = 24)
-    val playerBackgroundEnabled by settingsManager.playerBackgroundEnabled.collectAsState(initial = false)
-    val playerBackgroundUri by settingsManager.playerBackgroundUri.collectAsState(initial = "")
-    val playerBackgroundOpacity by settingsManager.playerBackgroundOpacity.collectAsState(initial = 100)
-    val playerBackgroundDim by settingsManager.playerBackgroundDim.collectAsState(initial = 26)
-    val beautifulLyricsBackground by settingsManager.playerBeautifulLyricsBackground.collectAsState(initial = false)
-    val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(
-        initial = SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectCachedAsState(
+        "systemBarsReserveSpace",
+        SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
     )
-    val beautifulLyricsSpeed by settingsManager.playerBeautifulLyricsSpeed.collectAsState(initial = 25)
-    val beautifulLyricsBlur by settingsManager.playerBeautifulLyricsBlur.collectAsState(initial = 32)
-    val beautifulLyricsBrightness by settingsManager.playerBeautifulLyricsBrightness.collectAsState(initial = 70)
-    val homeCardColor by settingsManager.homeCardColor.collectAsState(initial = "")
-    val homeCardOpacity by settingsManager.homeCardOpacity.collectAsState(initial = 58)
-    val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
-    val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectAsState(
-        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED
+    val startupPosterEnabled by settingsManager.startupPosterEnabled.collectCachedAsState("startupPosterEnabled", false)
+    val startupPosterUri by settingsManager.startupPosterUri.collectCachedAsState("startupPosterUri", "")
+    val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectCachedAsState(
+        "startupPosterDurationMs",
+        SettingsManager.DEFAULT_STARTUP_POSTER_DURATION_MS
     )
-    val musicVideoCaptureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
-    val musicVideoStretchEnabled by settingsManager.musicVideoStretchEnabled.collectAsState(
-        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
+    val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectCachedAsState("appWallpaperEnabled", false)
+    val appWallpaperUri by settingsManager.appWallpaperUri.collectCachedAsState("appWallpaperUri", "")
+    val appWallpaperOpacity by settingsManager.appWallpaperOpacity.collectCachedAsState("appWallpaperOpacity", 100)
+    val appWallpaperDim by settingsManager.appWallpaperDim.collectCachedAsState("appWallpaperDim", 30)
+    val appWallpaperContentOverlay by settingsManager.appWallpaperContentOverlay.collectCachedAsState(
+        "appWallpaperContentOverlay",
+        24
     )
-    val musicVideoOrientation by settingsManager.musicVideoOrientation.collectAsState(
-        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_ORIENTATION
+    val playerBackgroundEnabled by settingsManager.playerBackgroundEnabled.collectCachedAsState("playerBackgroundEnabled", false)
+    val playerBackgroundUri by settingsManager.playerBackgroundUri.collectCachedAsState("playerBackgroundUri", "")
+    val playerBackgroundOpacity by settingsManager.playerBackgroundOpacity.collectCachedAsState(
+        "playerBackgroundOpacity",
+        100
     )
-    val showLocalMusicVideoInLists by settingsManager.showLocalMusicVideoInLists.collectAsState(initial = true)
-    val showOnlineMusicVideoInLists by settingsManager.showOnlineMusicVideoInLists.collectAsState(initial = true)
-    val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectAsState(initial = "")
-    val musicVideoCustomFolders by settingsManager.musicVideoCustomFoldersRaw.collectAsState(initial = "")
-    val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
-    val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
-    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = false)
-    val playerCoverContentColor by settingsManager.playerCoverContentColor.collectAsState(initial = false)
-    val transportButtonOutlines by settingsManager.transportButtonOutlines.collectAsState(
-        initial = SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
+    val playerBackgroundDim by settingsManager.playerBackgroundDim.collectCachedAsState("playerBackgroundDim", 26)
+    val beautifulLyricsBackground by settingsManager.playerBeautifulLyricsBackground.collectCachedAsState("beautifulLyricsBackground", false)
+    val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectCachedAsState(
+        "playerDynamicFlowEnabled",
+        SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
     )
-    val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectAsState(initial = true)
-    val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectAsState(
-        initial = SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION
+    val beautifulLyricsSpeed by settingsManager.playerBeautifulLyricsSpeed.collectCachedAsState("beautifulLyricsSpeed", 25)
+    val beautifulLyricsBlur by settingsManager.playerBeautifulLyricsBlur.collectCachedAsState("beautifulLyricsBlur", 32)
+    val beautifulLyricsBrightness by settingsManager.playerBeautifulLyricsBrightness.collectCachedAsState(
+        "beautifulLyricsBrightness",
+        70
     )
-    val playerShowSongAnnotation by settingsManager.playerShowSongAnnotation.collectAsState(initial = true)
-    val playerCoverSwipeEnabled by settingsManager.playerCoverSwipeEnabled.collectAsState(initial = true)
-    val playerTitlePosition by settingsManager.playerTitlePosition.collectAsState(
-        initial = SettingsManager.PLAYER_TITLE_POSITION_BELOW_COVER
+    val homeCardColor by settingsManager.homeCardColor.collectCachedAsState("homeCardColor", "")
+    val homeCardOpacity by settingsManager.homeCardOpacity.collectCachedAsState("homeCardOpacity", 58)
+    val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectCachedAsState("dynamicCoverEnabled", false)
+    val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectCachedAsState(
+        "musicVideoSyncEnabled",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED
     )
-    val playerPageStyle by settingsManager.playerPageStyle.collectAsState(
-        initial = SettingsManager.DEFAULT_PLAYER_PAGE_STYLE
+    val musicVideoCaptureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectCachedAsState("musicVideoCaptureSubtitles", false)
+    val musicVideoStretchEnabled by settingsManager.musicVideoStretchEnabled.collectCachedAsState(
+        "musicVideoStretchEnabled",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
     )
-    val playerLandscapeStyle by settingsManager.playerLandscapeStyle.collectAsState(
-        initial = SettingsManager.DEFAULT_PLAYER_LANDSCAPE_STYLE
+    val musicVideoOrientation by settingsManager.musicVideoOrientation.collectCachedAsState(
+        "musicVideoOrientation",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_ORIENTATION
     )
-    val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectAsState(initial = false)
-    val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
-    val showRemoveFromPlaylistButton by settingsManager.showRemoveFromPlaylistButton.collectAsState(initial = true)
-    val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
-    val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = true)
-    val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
-    val miniPlayerLongPressSource by settingsManager.miniPlayerLongPressSource.collectAsState(initial = false)
-    val categoryGridColumns by settingsManager.categoryGridColumns.collectAsState(initial = 2)
-    val playerBgTheme by settingsManager.playerBackgroundTheme.collectAsState(initial = SettingsManager.PLAYER_BG_THEME_DARK)
+    val showLocalMusicVideoInLists by settingsManager.showLocalMusicVideoInLists.collectCachedAsState("showLocalMusicVideoInLists", true)
+    val showOnlineMusicVideoInLists by settingsManager.showOnlineMusicVideoInLists.collectCachedAsState("showOnlineMusicVideoInLists", true)
+    val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectCachedAsState(
+        "dynamicCoverCustomFolders",
+        ""
+    )
+    val musicVideoCustomFolders by settingsManager.musicVideoCustomFoldersRaw.collectCachedAsState(
+        "musicVideoCustomFolders",
+        ""
+    )
+    val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectCachedAsState("hiResLogoEnabled", false)
+    val hiResLogoUri by settingsManager.hiResLogoUri.collectCachedAsState("hiResLogoUri", "")
+    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectCachedAsState("playerImmersiveCover", false)
+    val playerCoverContentColor by settingsManager.playerCoverContentColor.collectCachedAsState("playerCoverContentColor", false)
+    val transportButtonOutlines by settingsManager.transportButtonOutlines.collectCachedAsState(
+        "transportButtonOutlines",
+        SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
+    )
+    val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectCachedAsState("playerTapSeekEnabled", true)
+    val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectCachedAsState(
+        "playerShowTotalDuration",
+        SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION
+    )
+    val playerShowSongAnnotation by settingsManager.playerShowSongAnnotation.collectCachedAsState("playerShowSongAnnotation", true)
+    val playerCoverSwipeEnabled by settingsManager.playerCoverSwipeEnabled.collectCachedAsState("playerCoverSwipeEnabled", true)
+    val playerTitlePosition by settingsManager.playerTitlePosition.collectCachedAsState(
+        "playerTitlePosition",
+        SettingsManager.PLAYER_TITLE_POSITION_BELOW_COVER
+    )
+    val playerPageStyle by settingsManager.playerPageStyle.collectCachedAsState(
+        "playerPageStyle",
+        SettingsManager.DEFAULT_PLAYER_PAGE_STYLE
+    )
+    val playerLandscapeStyle by settingsManager.playerLandscapeStyle.collectCachedAsState(
+        "playerLandscapeStyle",
+        SettingsManager.DEFAULT_PLAYER_LANDSCAPE_STYLE
+    )
+    val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectCachedAsState("playlistSpecialEntriesVisible", false)
+    val showPlayNextInLists by settingsManager.showPlayNextInLists.collectCachedAsState("showPlayNextInLists", false)
+    val showRemoveFromPlaylistButton by settingsManager.showRemoveFromPlaylistButton.collectCachedAsState("showRemoveFromPlaylistButton", true)
+    val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectCachedAsState("excludeSearchResultsFromPlaylist", false)
+    val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectCachedAsState("autoShowSearchKeyboard", true)
+    val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectCachedAsState("openPlayerOnPlay", false)
+    val miniPlayerLongPressSource by settingsManager.miniPlayerLongPressSource.collectCachedAsState("miniPlayerLongPressSource", false)
+    val categoryGridColumns by settingsManager.categoryGridColumns.collectCachedAsState("categoryGridColumns", 2)
+    val playerBgTheme by settingsManager.playerBackgroundTheme.collectCachedAsState(
+        "playerBgTheme",
+        SettingsManager.PLAYER_BG_THEME_DARK
+    )
     val beautifulLyricsBackgroundLabels = listOf(
         stringResource(R.string.settings_beautiful_lyrics_background_static),
         stringResource(R.string.settings_beautiful_lyrics_background_dynamic)
@@ -199,7 +236,7 @@ internal fun SettingsAppearanceSection(
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val themeEntries = remember(themeLabels) { themeLabels.map { DropdownItem(title = it) } }
 
-    val monetMode by settingsManager.monetColorMode.collectAsState(initial = 0)
+    val monetMode by settingsManager.monetColorMode.collectCachedAsState("monetMode", 0)
     val monetLabels = listOf(
         stringResource(R.string.settings_monet_off),
         stringResource(R.string.settings_monet_wallpaper),

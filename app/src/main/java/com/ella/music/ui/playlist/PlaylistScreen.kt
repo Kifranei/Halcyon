@@ -38,9 +38,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.model.FIVE_STAR_PLAYLIST_ID
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.data.PlaylistExportFormat
 import com.ella.music.data.PlaylistImportMode
 import com.ella.music.ui.LibrarySortUiState
@@ -357,6 +359,18 @@ fun PlaylistScreen(
         selectedPlaylists()
             .flatMap { mainViewModel.playlistSongs(it) }
             .distinctBy { it.id }
+    fun selectedPlaylistSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            selectedPlaylists().map { playlist ->
+                CategoryResumeKeys.playlist(playlist.id) to mainViewModel.playlistSongs(playlist)
+            }
+        )
+    fun visiblePlaylistSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            displayedCustomPlaylists.map { playlist ->
+                CategoryResumeKeys.playlist(playlist.id) to mainViewModel.playlistSongs(playlist)
+            }
+        )
     val playlistIndexById = remember(displayedCustomPlaylists) {
         buildMap {
             displayedCustomPlaylists.forEachIndexed { index, playlist -> put(playlist.id, index) }
@@ -510,7 +524,7 @@ fun PlaylistScreen(
                 if (selectedSongs.isEmpty()) {
                     Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
                 } else {
-                    playerViewModel.playNext(selectedSongs)
+                    playerViewModel.playNext(selectedSongs, selectedPlaylistSongSources())
                     Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
                     finishSelectionMode()
                 }
@@ -520,7 +534,7 @@ fun PlaylistScreen(
                 if (selectedSongs.isEmpty()) {
                     Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
                 } else {
-                    playerViewModel.addToPlaylist(selectedSongs)
+                    playerViewModel.addToPlaylist(selectedSongs, selectedPlaylistSongSources())
                     Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
                     finishSelectionMode()
                 }
@@ -630,7 +644,13 @@ fun PlaylistScreen(
                     sortMode = playlistSortMode,
                     selectionMode = selection.selectionMode,
                     randomSongsAvailable = randomPlaylistSongs.isNotEmpty(),
-                    onShuffleClick = { playerViewModel.setPlaylist(randomPlaylistSongs.shuffled(), 0) },
+                    onShuffleClick = {
+                        playerViewModel.setPlaylist(
+                            randomPlaylistSongs.shuffled(),
+                            0,
+                            songSources = visiblePlaylistSongSources()
+                        )
+                    },
                     onCreateClick = { showCreateDialog = true },
                     onSelectAllClick = {
                         selection.selectionMode = true

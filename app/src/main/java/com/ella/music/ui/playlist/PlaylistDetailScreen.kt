@@ -79,6 +79,9 @@ fun PlaylistDetailScreen(
     val currentSong by playerViewModel.currentSong.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(
+        com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+    )
     val librarySongs by mainViewModel.songs.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()

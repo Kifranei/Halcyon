@@ -40,9 +40,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.model.FolderPlaylist
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.EllaSearchBar
@@ -353,6 +355,16 @@ fun FolderPlaylistsScreen(
             .filter { it.id in selection.selectedIds }
             .flatMap { songs.songsForFolderPlaylist(it.folders).sortedForFolderPlaylistDetail(folderDetailSongSortMode) }
             .distinctBy { it.playlistIdentityKey() }
+    fun selectedActionSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            filteredPlaylists
+                .filter { it.id in selection.selectedIds }
+                .map { playlist ->
+                    CategoryResumeKeys.folderPlaylist(playlist.id) to
+                        songs.songsForFolderPlaylist(playlist.folders)
+                            .sortedForFolderPlaylistDetail(folderDetailSongSortMode)
+                }
+        )
 
     BackHandler(enabled = selection.selectionMode || searchExpanded || moreMenuTarget != null || pendingDelete != null || pendingBulkDelete != null || showEditor) {
         when {
@@ -418,7 +430,13 @@ fun FolderPlaylistsScreen(
                     }
                     IconButton(onClick = {
                         val selected = selectedActionSongs()
-                        if (selected.isNotEmpty()) playerViewModel.setPlaylist(selected, 0)
+                        if (selected.isNotEmpty()) {
+                            playerViewModel.setPlaylist(
+                                selected,
+                                0,
+                                songSources = selectedActionSongSources()
+                            )
+                        }
                         selection.finishSelectionMode()
                     }) {
                         Icon(
@@ -431,7 +449,7 @@ fun FolderPlaylistsScreen(
                     IconButton(onClick = {
                         val selected = selectedActionSongs()
                         if (selected.isNotEmpty()) {
-                            playerViewModel.playNext(selected)
+                            playerViewModel.playNext(selected, selectedActionSongSources())
                             Toast.makeText(context, R.string.song_more_added_to_play_next, Toast.LENGTH_SHORT).show()
                             selection.finishSelectionMode()
                         }
@@ -444,7 +462,7 @@ fun FolderPlaylistsScreen(
                     IconButton(onClick = {
                         val selected = selectedActionSongs()
                         if (selected.isNotEmpty()) {
-                            playerViewModel.addToPlaylist(selected)
+                            playerViewModel.addToPlaylist(selected, selectedActionSongSources())
                             Toast.makeText(context, R.string.song_more_added_to_queue, Toast.LENGTH_SHORT).show()
                             selection.finishSelectionMode()
                         }

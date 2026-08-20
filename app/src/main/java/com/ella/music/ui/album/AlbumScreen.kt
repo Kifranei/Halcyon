@@ -45,10 +45,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AlbumCard
 import com.ella.music.ui.components.AddToPlaylistSheet
@@ -95,7 +98,6 @@ import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.ella.music.data.LibraryAlbumAggregator
-import com.ella.music.data.model.albumIdentityId
 
 @Composable
 fun AlbumScreen(
@@ -191,6 +193,18 @@ fun AlbumScreen(
         if (selection.selectedIds.isEmpty()) return emptyList()
         return songs.filter { song -> song.albumIdentityId() in selection.selectedIds }.distinctBy { it.id }
     }
+    fun selectedAlbumSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            selection.selectedIds.map { albumId ->
+                CategoryResumeKeys.album(albumId) to songs.filter { it.albumIdentityId() == albumId }
+            }
+        )
+    fun visibleAlbumSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            sortedAlbums.map { album ->
+                CategoryResumeKeys.album(album.id) to songs.filter { it.albumIdentityId() == album.id }
+            }
+        )
     val sortedAlbumIds = remember(sortedAlbums) {
         sortedAlbums.map { it.id }
     }
@@ -276,7 +290,7 @@ fun AlbumScreen(
                         IconButton(onClick = {
                             val selectedSongs = selectedAlbumSongs()
                             if (selectedSongs.isNotEmpty()) {
-                                playerViewModel.playNext(selectedSongs)
+                                playerViewModel.playNext(selectedSongs, selectedAlbumSongSources())
                                 selection.finishSelectionMode()
                             }
                         }) {
@@ -510,7 +524,13 @@ fun AlbumScreen(
                         leadingContent = {
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && randomAlbumSongs.isNotEmpty(),
-                                onClick = { playerViewModel.setPlaylist(randomAlbumSongs.shuffled(), 0) }
+                                onClick = {
+                                    playerViewModel.setPlaylist(
+                                        randomAlbumSongs.shuffled(),
+                                        0,
+                                        songSources = visibleAlbumSongSources()
+                                    )
+                                }
                             )
                         }
                     )

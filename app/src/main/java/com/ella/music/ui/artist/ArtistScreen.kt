@@ -44,7 +44,9 @@ import android.widget.Toast
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.MusicVideoLauncher
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.LibraryAlbumAggregator
+import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
@@ -112,6 +114,9 @@ fun ArtistScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(
+        com.ella.music.data.CategoryResumeKeys.artist(artistName)
+    )
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
@@ -434,6 +439,30 @@ fun ArtistScreen(
     }
     fun selectedActionMusicVideos(): List<ArtistMusicVideo> =
         sortedArtistMusicVideos.filter { it.song.id in selection.selectedIds }
+    fun selectedActionSongSources(): Map<String, String>? = when (selectedArtistTab) {
+        ArtistTab.ParticipatedAlbums,
+        ArtistTab.ReleaseAlbums -> playbackSourcesForSongs(
+            (if (selectedArtistTab == ArtistTab.ReleaseAlbums) sortedReleaseAlbums else sortedParticipatedAlbums)
+                .filter { it.id in selection.selectedIds }
+                .map { album ->
+                    CategoryResumeKeys.album(album.id) to librarySongsByAlbumId[album.id].orEmpty()
+                }
+        )
+        else -> null
+    }
+    fun artistTabSongSources(): Map<String, String>? = when (selectedArtistTab) {
+        ArtistTab.ParticipatedAlbums -> playbackSourcesForSongs(
+            sortedParticipatedAlbums.map { album ->
+                CategoryResumeKeys.album(album.id) to librarySongsByAlbumId[album.id].orEmpty()
+            }
+        )
+        ArtistTab.ReleaseAlbums -> playbackSourcesForSongs(
+            sortedReleaseAlbums.map { album ->
+                CategoryResumeKeys.album(album.id) to librarySongsByAlbumId[album.id].orEmpty()
+            }
+        )
+        else -> null
+    }
     val selectedSongsForDrag = remember(selectedArtistTab, sortedArtistSongs, selection.selectedIds) {
         if (selectedArtistTab == ArtistTab.Songs) {
             sortedArtistSongs.filter { it.id in selection.selectedIds }
@@ -505,10 +534,16 @@ fun ArtistScreen(
                     },
                     onPlayAll = {
                         if (playableArtistTabSongs.isNotEmpty()) {
+                            val albumSources = artistTabSongSources()
                             playerViewModel.setPlaylist(
                                 playableArtistTabSongs,
                                 0,
-                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.artist(artistName)
+                                resumeCategoryKey = if (albumSources == null) {
+                                    CategoryResumeKeys.artist(artistName)
+                                } else {
+                                    null
+                                },
+                                songSources = albumSources
                             )
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
@@ -644,7 +679,11 @@ fun ArtistScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomParticipatedAlbumSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(randomParticipatedAlbumSongs.shuffled(), 0)
+                                        playerViewModel.setPlaylist(
+                                            randomParticipatedAlbumSongs.shuffled(),
+                                            0,
+                                            songSources = artistTabSongSources()
+                                        )
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )
@@ -697,7 +736,11 @@ fun ArtistScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomReleaseAlbumSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(randomReleaseAlbumSongs.shuffled(), 0)
+                                        playerViewModel.setPlaylist(
+                                            randomReleaseAlbumSongs.shuffled(),
+                                            0,
+                                            songSources = artistTabSongSources()
+                                        )
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )
@@ -876,7 +919,7 @@ fun ArtistScreen(
                             onClick = {
                                 val selected = selectedActionSongs()
                                 if (selected.isNotEmpty()) {
-                                    playerViewModel.playNext(selected)
+                                    playerViewModel.playNext(selected, selectedActionSongSources())
                                     selection.finishSelectionMode()
                                 }
                             }

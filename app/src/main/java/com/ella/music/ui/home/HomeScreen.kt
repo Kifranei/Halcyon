@@ -115,6 +115,9 @@ fun LibraryScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(
+        com.ella.music.data.CategoryResumeKeys.HOME
+    )
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
@@ -489,7 +492,7 @@ fun LibraryScreen(
                 listState = listState
             )
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
-            var handledLocateRequest by remember { mutableStateOf(locateCurrentSongRequest) }
+            var handledLocateRequest by remember { mutableStateOf(0) }
             val currentSongKey = remember(currentSong) { currentSong?.playlistIdentityKey() }
             val currentSongIndex = remember(sortedSongs, currentSongKey) {
                 currentSongKey ?: return@remember -1
@@ -504,10 +507,17 @@ fun LibraryScreen(
                 }
             }
 
-            LaunchedEffect(locateCurrentSongRequest) {
-                if (locateCurrentSongRequest <= 0 || locateCurrentSongRequest == handledLocateRequest) return@LaunchedEffect
+            LaunchedEffect(locateCurrentSongRequest, currentSongIndex) {
+                if (!com.ella.music.ui.components.shouldHonorLocateCurrentSongRequest(
+                        locateCurrentSongRequest,
+                        handledLocateRequest,
+                        currentSongIndex
+                    )
+                ) {
+                    return@LaunchedEffect
+                }
                 handledLocateRequest = locateCurrentSongRequest
-                if (currentSongIndex >= 0) listState.animateScrollToItem(currentSongIndex)
+                listState.animateScrollToItem(currentSongIndex)
             }
 
             LaunchedEffect(scrollToTopRequest) {

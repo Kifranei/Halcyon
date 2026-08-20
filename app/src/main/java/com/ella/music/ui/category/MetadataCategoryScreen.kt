@@ -46,8 +46,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.MetadataCategoryItem
@@ -178,6 +180,13 @@ fun MetadataCategoryScreen(
             .flatMap { categoryName -> mainViewModel.getSongsForMetadataCategory(type, categoryName).asSequence() }
             .distinctBy { it.playlistIdentityKey() }
             .toList()
+    fun selectedActionSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            selection.selectedIds.map { categoryName ->
+                CategoryResumeKeys.metadata(type, categoryName) to
+                    mainViewModel.getSongsForMetadataCategory(type, categoryName)
+            }
+        )
     fun toggleSelectAllVisibleItems() {
         if (currentSelectionKeys.isEmpty()) return
         val visible = currentSelectionKeys.toSet()
@@ -278,7 +287,7 @@ fun MetadataCategoryScreen(
                             if (selectedSongs.isEmpty()) {
                                 Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
                             } else {
-                                playerViewModel.playNext(selectedSongs)
+                                playerViewModel.playNext(selectedSongs, selectedActionSongSources())
                                 Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
                                 selection.finishSelectionMode()
                             }
@@ -464,7 +473,18 @@ fun MetadataCategoryScreen(
                             leadingContent = {
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomCategorySongs.isNotEmpty(),
-                                    onClick = { playerViewModel.setPlaylist(randomCategorySongs.shuffled(), 0) }
+                                    onClick = {
+                                        playerViewModel.setPlaylist(
+                                            randomCategorySongs.shuffled(),
+                                            0,
+                                            songSources = playbackSourcesForSongs(
+                                                displayedItems.map { item ->
+                                                    CategoryResumeKeys.metadata(type, item.name) to
+                                                        mainViewModel.getSongsForMetadataCategory(type, item.name)
+                                                }
+                                            )
+                                        )
+                                    }
                                 )
                             }
                         )

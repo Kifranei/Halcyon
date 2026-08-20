@@ -297,6 +297,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val playbackSourceKey: StateFlow<String?> = _playbackSourceKey.asStateFlow()
 
     init {
+        com.ella.music.data.PlaybackSourceNavigation.attach(getApplication())
+        _playbackSourceKey.value = com.ella.music.data.PlaybackSourceNavigation.resolvedSourceKey()
         playerManager.connect()
         startPositionUpdates()
         observeCurrentSong()
@@ -841,6 +843,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     return@collectLatest
                 }
                 recordCategoryResume(song)
+                val songSource = com.ella.music.data.PlaybackSourceNavigation.sourceForSong(song.playlistIdentityKey())
+                if (songSource != null) {
+                    _playbackSourceKey.value = songSource
+                    com.ella.music.data.PlaybackSourceNavigation.updateSource(songSource)
+                }
                 viewModelScope.launch(Dispatchers.IO) {
                     val source = ListeningHistorySource.fromPreference(settingsManager.listeningHistorySource.first())
                     if (source.usesLastFm) {
@@ -1283,11 +1290,33 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun setPlaylist(songs: List<Song>, startIndex: Int = 0, resumeCategoryKey: String? = null) {
+    fun setPlaylist(
+        songs: List<Song>,
+        startIndex: Int = 0,
+        resumeCategoryKey: String? = null,
+        songSources: Map<String, String>? = null
+    ) {
         lazyOnlineQueueController.clear()
-        activeResumeCategoryKey = resumeCategoryKey
-        _playbackSourceKey.value = resumeCategoryKey
-        com.ella.music.data.PlaybackSourceNavigation.updateSource(resumeCategoryKey)
+        if (!songSources.isNullOrEmpty()) {
+            com.ella.music.data.PlaybackSourceNavigation.recordSongSources(songSources)
+        }
+        val startSongKey = songs.getOrNull(startIndex)?.playlistIdentityKey()
+        val queueSource = resumeCategoryKey
+            ?: startSongKey?.let { songSources?.get(it) }
+            ?: com.ella.music.data.PlaybackSourceNavigation.activeScreen()
+        if (queueSource != null) {
+            activeResumeCategoryKey = queueSource
+            _playbackSourceKey.value = queueSource
+            com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
+            if (songSources.isNullOrEmpty()) {
+                songs.forEach { song ->
+                    com.ella.music.data.PlaybackSourceNavigation.recordSongSource(
+                        song.playlistIdentityKey(),
+                        queueSource
+                    )
+                }
+            }
+        }
         songs.getOrNull(startIndex)?.let(::recordCategoryResume)
         playerManager.setPlaylist(songs, startIndex)
     }
@@ -1453,26 +1482,34 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     fun addToPlaylist(song: Song) {
-        if (queueLocked.value) return
-        lazyOnlineQueueController.clear()
-        playerManager.addToPlaylist(song)
+        addToPlaylist(listOf(song))
     }
-    fun addToPlaylist(songs: List<Song>) {
+    fun addToPlaylist(songs: List<Song>, songSources: Map<String, String>? = null) {
         if (queueLocked.value) return
         lazyOnlineQueueController.clear()
+        recordIncomingSongSources(songs, songSources)
         playerManager.addToPlaylist(songs)
     }
 
     fun playNext(song: Song) {
-        if (queueLocked.value) return
-        lazyOnlineQueueController.clear()
-        playerManager.playNext(song)
+        playNext(listOf(song))
     }
 
-    fun playNext(songs: List<Song>) {
+    fun playNext(songs: List<Song>, songSources: Map<String, String>? = null) {
         if (queueLocked.value) return
         lazyOnlineQueueController.clear()
+        recordIncomingSongSources(songs, songSources)
         playerManager.playNext(songs)
+    }
+
+    private fun recordIncomingSongSources(songs: List<Song>, songSources: Map<String, String>?) {
+        if (!songSources.isNullOrEmpty()) {
+            com.ella.music.data.PlaybackSourceNavigation.recordSongSources(songSources)
+            return
+        }
+        songs.forEach { song ->
+            com.ella.music.data.PlaybackSourceNavigation.recordSongSource(song.playlistIdentityKey(), null)
+        }
     }
 
     /** Re-establish the media controller if the playback session was torn down in the background. */

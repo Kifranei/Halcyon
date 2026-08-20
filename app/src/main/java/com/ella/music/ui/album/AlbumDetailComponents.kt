@@ -477,6 +477,26 @@ private fun AlbumTrackRow(
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
+        if (!selectionMode) {
+            videoActions.localSource?.let { source ->
+                MusicVideoListAction(
+                    label = stringResource(R.string.library_search_filter_mv),
+                    contentDescription = stringResource(R.string.local_mv),
+                    color = MiuixTheme.colorScheme.primary,
+                    onClick = { MusicVideoLauncher.open(context, song, source) }
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            videoActions.onlineUrl?.takeUnless { videoActions.localSource != null }?.let { url ->
+                MusicVideoListAction(
+                    label = stringResource(R.string.online_mv),
+                    contentDescription = stringResource(R.string.online_mv),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    onClick = { openSongExternalUrl(context, url) }
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+        }
         Text(
             text = song.duration.formatPlaybackDuration(),
             fontSize = 13.sp,
@@ -488,24 +508,6 @@ private fun AlbumTrackRow(
             PlayNextQuickButton(onClick = onPlayNext)
         }
         if (!selectionMode) {
-            videoActions.localSource?.let { source ->
-                Spacer(modifier = Modifier.width(6.dp))
-                MusicVideoListAction(
-                    label = stringResource(R.string.library_search_filter_mv),
-                    contentDescription = stringResource(R.string.local_mv),
-                    color = MiuixTheme.colorScheme.primary,
-                    onClick = { MusicVideoLauncher.open(context, song, source) }
-                )
-            }
-            videoActions.onlineUrl?.takeUnless { videoActions.localSource != null }?.let { url ->
-                Spacer(modifier = Modifier.width(6.dp))
-                MusicVideoListAction(
-                    label = stringResource(R.string.online_mv),
-                    contentDescription = stringResource(R.string.online_mv),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    onClick = { openSongExternalUrl(context, url) }
-                )
-            }
             Spacer(modifier = Modifier.width(6.dp))
             Box(
                 modifier = Modifier

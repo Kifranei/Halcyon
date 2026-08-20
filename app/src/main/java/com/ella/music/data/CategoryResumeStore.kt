@@ -47,4 +47,5 @@ internal object CategoryResumeKeys {
     fun artist(name: String): String = "artist:${name.trim()}"
     fun metadata(type: String, name: String): String = "category:$type:${name.trim()}"
     const val HOME = "home:library"
+    const val DASHBOARD = "home:dashboard"
 }

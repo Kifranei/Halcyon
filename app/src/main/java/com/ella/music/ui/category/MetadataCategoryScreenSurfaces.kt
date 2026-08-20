@@ -19,8 +19,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.ui.folder.LinkToFolderPlaylistSheet
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
@@ -117,7 +119,12 @@ internal fun MetadataCategoryScreenSurfaces(
                 CategorySheetItem(stringResource(R.string.common_add_to_queue)) {
                     scope.launch {
                         val selectedSongs = loadDetailSongs(type, item.name)
-                        playerViewModel.addToPlaylist(selectedSongs)
+                        playerViewModel.addToPlaylist(
+                            selectedSongs,
+                            playbackSourcesForSongs(
+                                listOf(CategoryResumeKeys.metadata(type, item.name) to selectedSongs)
+                            )
+                        )
                         Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
                     }
                     onCategoryMenuItemChange(null)
@@ -125,7 +132,12 @@ internal fun MetadataCategoryScreenSurfaces(
                 CategorySheetItem(stringResource(R.string.song_more_play_next)) {
                     scope.launch {
                         val selectedSongs = loadDetailSongs(type, item.name)
-                        playerViewModel.playNext(selectedSongs)
+                        playerViewModel.playNext(
+                            selectedSongs,
+                            playbackSourcesForSongs(
+                                listOf(CategoryResumeKeys.metadata(type, item.name) to selectedSongs)
+                            )
+                        )
                         Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
                     }
                     onCategoryMenuItemChange(null)

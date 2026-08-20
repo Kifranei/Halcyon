@@ -30,7 +30,7 @@ fun LocateCurrentSongFloatingButton(
     enabled: Boolean = true
 ) {
     val scope = rememberCoroutineScope()
-    var handledLocateRequest by remember { mutableIntStateOf(locateRequest) }
+    var handledLocateRequest by remember { mutableIntStateOf(0) }
     val visible by remember(currentItemIndex, enabled) {
         derivedStateOf {
             if (!enabled || currentItemIndex < 0) return@derivedStateOf false
@@ -41,9 +41,11 @@ fun LocateCurrentSongFloatingButton(
     }
 
     LaunchedEffect(locateRequest, currentItemIndex) {
-        if (locateRequest <= 0 || locateRequest == handledLocateRequest) return@LaunchedEffect
+        if (!shouldHonorLocateCurrentSongRequest(locateRequest, handledLocateRequest, currentItemIndex)) {
+            return@LaunchedEffect
+        }
         handledLocateRequest = locateRequest
-        if (currentItemIndex >= 0) listState.animateScrollToItem(currentItemIndex)
+        listState.animateScrollToItem(currentItemIndex)
     }
 
     AnimatedVisibility(
@@ -69,3 +71,9 @@ fun LocateCurrentSongFloatingButton(
         }
     }
 }
+
+internal fun shouldHonorLocateCurrentSongRequest(
+    locateRequest: Int,
+    handledRequest: Int,
+    currentItemIndex: Int
+): Boolean = locateRequest > 0 && locateRequest != handledRequest && currentItemIndex >= 0

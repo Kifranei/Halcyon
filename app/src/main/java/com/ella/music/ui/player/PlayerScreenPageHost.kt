@@ -23,11 +23,13 @@ internal fun PlayerPagerSyncEffects(
     immersiveAlbumCover: Boolean,
     showLyrics: Boolean,
     pagerState: PagerState,
-    onShowLyricsChange: (Boolean) -> Unit
+    onShowLyricsChange: (Boolean) -> Unit,
+    playerVisible: Boolean = true
 ) {
     var previousShowLyrics by remember(immersiveAlbumCover) { mutableStateOf(showLyrics) }
     val showLyricsState = rememberUpdatedState(showLyrics)
-    LaunchedEffect(showLyrics, immersiveAlbumCover) {
+    LaunchedEffect(showLyrics, immersiveAlbumCover, playerVisible) {
+        if (!playerVisible) return@LaunchedEffect
         if (immersiveAlbumCover || previousShowLyrics == showLyrics) return@LaunchedEffect
         previousShowLyrics = showLyrics
         // The details page is a real pager destination. A lyrics preference update must not
@@ -51,8 +53,8 @@ internal fun PlayerPagerSyncEffects(
             pagerState.animateScrollToPage(target)
         }
     }
-    LaunchedEffect(pagerState, immersiveAlbumCover) {
-        if (immersiveAlbumCover) return@LaunchedEffect
+    LaunchedEffect(pagerState, immersiveAlbumCover, playerVisible) {
+        if (immersiveAlbumCover || !playerVisible) return@LaunchedEffect
         snapshotFlow {
             pagerState.currentPage to pagerState.isScrollInProgress
         }.drop(1).collect { (currentPage, isScrollInProgress) ->
@@ -167,5 +169,8 @@ internal fun isPlayerLyricsPageVisible(
  * back there sends the user to the cover page and can make a settled left swipe appear to jump
  * back automatically (#443).
  */
-internal fun shouldInterceptPlayerPagerBack(playerVisible: Boolean, currentPage: Int): Boolean =
-    playerVisible && currentPage == PLAYER_PAGE_LYRICS
+internal fun shouldInterceptPlayerPagerBack(playerVisible: Boolean, currentPage: Int): Boolean {
+    // Non-immersive lyrics is a pager page. Intercepting back used to send the user to the
+    // cover first. Back should close the lyrics/player overlay instead (#469).
+    return false
+}

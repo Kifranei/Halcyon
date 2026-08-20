@@ -124,6 +124,9 @@ fun FolderPlaylistDetailScreen(
     val currentSong by playerViewModel.currentSong.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(
+        com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
+    )
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val playlist = remember(playlists, playlistId) {
         playlists.firstOrNull { it.id == playlistId || it.name == playlistId }

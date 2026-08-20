@@ -28,9 +28,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.FolderPlaylist
+import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.shouldUseHomeSourceForRecentSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -73,6 +76,8 @@ fun HomeScreen(
     val playlists by mainViewModel.playlists.collectAsState()
     val playbackHistory by mainViewModel.playbackHistory.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackQueue by playerViewModel.playlist.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(CategoryResumeKeys.DASHBOARD)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
@@ -378,7 +383,18 @@ fun HomeScreen(
                                     mainViewModel = mainViewModel,
                                     cardText = cardText,
                                     onClick = {
-                                        playerViewModel.playSong(song)
+                                        val queueKeys = playbackQueue.map { it.playlistIdentityKey() }
+                                        val recentKeys = recentSongs.map { it.playlistIdentityKey() }
+                                        val songKey = song.playlistIdentityKey()
+                                        if (shouldUseHomeSourceForRecentSong(queueKeys, recentKeys, songKey)) {
+                                            playerViewModel.setPlaylist(
+                                                listOf(song),
+                                                0,
+                                                resumeCategoryKey = CategoryResumeKeys.DASHBOARD
+                                            )
+                                        } else {
+                                            playerViewModel.playSong(song)
+                                        }
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )

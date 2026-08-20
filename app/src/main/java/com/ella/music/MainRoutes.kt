@@ -135,6 +135,53 @@ internal fun String?.matchesRoute(route: String): Boolean {
     }
 }
 
+internal fun isAtPlaybackSourceRoute(
+    destinationRoute: String?,
+    argument: (String) -> Any?,
+    target: String
+): Boolean {
+    if (target.isBlank() || destinationRoute.isNullOrBlank()) return false
+    if (destinationRoute == target) return true
+    return when (destinationRoute) {
+        Screen.Home.route -> target == Screen.Home.route
+        Screen.Library.route -> target == Screen.Library.route
+        Screen.AlbumDetail.route -> {
+            val albumId = argument("albumId").toNavLong() ?: return false
+            target == Screen.AlbumDetail.createRoute(albumId)
+        }
+        Screen.ArtistDetail.route -> {
+            val name = argument("artistName")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            target == Screen.ArtistDetail.createRoute(name) || target == "artist/$name"
+        }
+        Screen.PlaylistDetail.route -> {
+            val playlistId = argument("playlistId")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            target == Screen.PlaylistDetail.createRoute(playlistId) || target == "playlist/$playlistId"
+        }
+        Screen.FolderDetail.route -> {
+            val folderPath = argument("folderPath")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            target == Screen.FolderDetail.createRoute(folderPath) || target == "folder/$folderPath"
+        }
+        Screen.FolderPlaylistDetail.route -> {
+            val playlistId = argument("playlistId")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            target == Screen.FolderPlaylistDetail.createRoute(playlistId) ||
+                target == "folder_playlist/$playlistId"
+        }
+        Screen.MetadataCategoryDetail.route -> {
+            val type = argument("type")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            val name = argument("name")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            target == Screen.MetadataCategoryDetail.createRoute(type, name)
+        }
+        else -> false
+    }
+}
+
+private fun Any?.toNavLong(): Long? = when (this) {
+    is Long -> this
+    is Int -> toLong()
+    is String -> toLongOrNull()
+    else -> null
+}
+
 internal fun NavHostController.navigateBottomDockRoute(
     route: String,
     currentRoute: String?

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -124,6 +125,9 @@ fun SettingsDetailScreen(
     val detailScrollState = rememberSettingsScrollState("settings_detail_${effectiveMode.name}")
     val homeDisplayScrollState = rememberSettingsScrollState("settings_home_display")
     val contentScrollState = if (showHomeDisplayPage) homeDisplayScrollState else detailScrollState
+    LaunchedEffect(showHomeDisplayPage) {
+        if (showHomeDisplayPage) homeDisplayScrollState.scrollTo(0)
+    }
 
     BackHandler(
         enabled = shouldHandleHomeDisplayBackLocally(showHomeDisplayPage, initialHomeDisplay)
@@ -200,7 +204,10 @@ fun SettingsDetailScreen(
                         }
                         SettingsHomeCustomizeSection(
                             highlightKey = highlightKey,
-                            onOpenHomeDisplay = { showHomeDisplayPage = true }
+                            onOpenHomeDisplay = {
+                                showHomeDisplayPage = true
+                                scope.launch { homeDisplayScrollState.scrollTo(0) }
+                            }
                         )
                     }
                 }

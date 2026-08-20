@@ -54,6 +54,10 @@ internal fun PlayerQueueSheet(
             onRandomizeQueue = onRandomizeQueue,
             onAddQueueToPlaylist = onAddQueueToPlaylist,
             onClearQueue = onClearQueue,
+            onNavigateToPlaybackSource = {
+                onDismiss()
+                com.ella.music.data.PlaybackSourceNavigation.request()
+            },
             modifier = Modifier.fillMaxWidth()
         )
     }

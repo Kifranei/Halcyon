@@ -858,8 +858,16 @@ fun AppNavigation(
         composable(Screen.LibraryAnalysis.route) {
             LibraryAnalysisScreen(
                 mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                showBackButton = !isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY_ANALYSIS)
+                showBackButton = !isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY_ANALYSIS),
+                onNavigateToPlayer = onNavigateToPlayer,
+                onNavigateToAlbum = { albumId ->
+                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                },
+                onNavigateToArtist = { artistName ->
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                }
             )
         }
 

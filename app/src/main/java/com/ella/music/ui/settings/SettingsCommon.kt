@@ -11,6 +11,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,27 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+internal object SettingsRememberedValues {
+    private val values = mutableMapOf<String, Any?>()
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T> read(key: String, fallback: T): T = (values[key] as? T) ?: fallback
+
+    fun <T> write(key: String, value: T) {
+        values[key] = value
+    }
+}
+
+@Composable
+internal fun <T> kotlinx.coroutines.flow.Flow<T>.collectCachedAsState(
+    key: String,
+    initial: T
+): androidx.compose.runtime.State<T> {
+    val state = collectAsState(initial = SettingsRememberedValues.read(key, initial))
+    SettingsRememberedValues.write(key, state.value)
+    return state
+}
 
 @Composable
 internal fun rememberSettingsScrollState(key: String): ScrollState {
