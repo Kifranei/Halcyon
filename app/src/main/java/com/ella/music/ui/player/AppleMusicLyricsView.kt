@@ -1,5 +1,7 @@
 package com.ella.music.ui.player
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -152,6 +154,7 @@ internal fun AppleMusicLyricsView(
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = initialScrollTargetIndex
     )
+    val scrollSpring = remember { Animatable(0f) }
     val userDragging by listState.interactionSource.collectIsDraggedAsState()
     var trailingLineHeightPx by remember(lyrics) { mutableIntStateOf(0) }
     var hasPositionedScroll by remember(lyrics) { mutableStateOf(false) }
@@ -245,37 +248,52 @@ internal fun AppleMusicLyricsView(
             // Initial positioning should not fly through the whole song when the player is
             // restored in the middle of a track.
             listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
+            scrollSpring.snapTo(0f)
             hasPositionedScroll = true
             return@LaunchedEffect
         }
 
         if (!pageVisible) {
             listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
+            scrollSpring.snapTo(0f)
             return@LaunchedEffect
         }
 
-        // Measure the target row after it enters the viewport. Average-height prediction is
-        // especially inaccurate for TTML x-bg and LRC pronunciation rows, which made the mini
-        // lyric overshoot and then visibly correct itself backwards.
-        // While playing, an animated scroll is repeatedly cancelled by fast lyric changes. That
-        // cancellation is the source of the visible stutter and duplicate-looking first word;
-        // place the next line immediately and let the line-level transition provide the motion.
-        if (renderIsPlaying) {
-            listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
-        } else {
-            listState.animateScrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
-        }
-        val layoutInfo = listState.layoutInfo
-        val targetItem = layoutInfo.visibleItemsInfo.firstOrNull { it.index == scrollTargetIndex }
-        if (targetItem != null) {
-            val exactItemOffset = resolveAppleMusicLyricsFocusOffset(
-                viewportHeightPx = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset,
-                focusOffsetRatio = focusOffsetRatio,
-                itemHeightPx = targetItem.size
-            )
-            val correction = targetItem.offset - exactItemOffset
-            if (abs(correction) > CONE_SCROLL_VISIBILITY_THRESHOLD_PX) {
-                listState.scroll { scrollBy(correction.toFloat()) }
+        // ConePlayer does not restart a fixed-duration list animation for each lyric. It changes
+        // every row's spring target (damping 1.25, stiffness 200) and lets the retained velocity
+        // carry the content into place. Drive the LazyColumn with the same overdamped spring and
+        // correct the distance after variable-height rows have entered the viewport.
+        // Jumping with scrollToItem on every line change was the post-1.2.4 stutter.
+        repeat(CONE_SCROLL_CORRECTION_PASSES) {
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) return@repeat
+            val targetItem = visibleItems.firstOrNull { it.index == scrollTargetIndex }
+            val distance = if (targetItem != null) {
+                targetItem.offset - desiredItemOffset
+            } else {
+                val firstItem = visibleItems.first()
+                val averageItemExtent = visibleItems.sumOf { it.size }.toFloat() / visibleItems.size +
+                    layoutInfo.mainAxisItemSpacing
+                firstItem.offset - desiredItemOffset +
+                    (scrollTargetIndex - firstItem.index) * averageItemExtent
+            }
+            if (abs(distance) <= CONE_SCROLL_VISIBILITY_THRESHOLD_PX) return@LaunchedEffect
+
+            val animationStart = scrollSpring.value
+            var appliedValue = animationStart
+            listState.scroll {
+                scrollSpring.animateTo(
+                    targetValue = animationStart + distance,
+                    animationSpec = spring(
+                        dampingRatio = CONE_SCROLL_DAMPING_RATIO,
+                        stiffness = CONE_SCROLL_STIFFNESS,
+                        visibilityThreshold = CONE_SCROLL_VISIBILITY_THRESHOLD_PX
+                    )
+                ) {
+                    val consumed = scrollBy(value - appliedValue)
+                    appliedValue += consumed
+                }
             }
         }
     }
@@ -404,4 +422,7 @@ private fun LyricLine.isActiveAt(positionMs: Long): Boolean {
 
 private const val MANUAL_SCROLL_BLUR_RESUME_DELAY_MS = 3_000L
 private const val MANUAL_SCROLL_RECENTER_DELAY_MS = 2_000L
+private const val CONE_SCROLL_DAMPING_RATIO = 1.25f
+private const val CONE_SCROLL_STIFFNESS = 200f
 private const val CONE_SCROLL_VISIBILITY_THRESHOLD_PX = 0.75f
+private const val CONE_SCROLL_CORRECTION_PASSES = 2

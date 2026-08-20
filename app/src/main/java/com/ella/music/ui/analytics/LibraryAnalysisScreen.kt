@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.search.searchIdentityKey
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -83,14 +84,22 @@ fun LibraryAnalysisScreen(
         value = fresh
     }
 
-    LaunchedEffect(selectedBucket, songs) {
+    LaunchedEffect(selectedBucket, songs, analysis) {
         val bucket = selectedBucket
         if (bucket == null) {
             matchingSongs = null
             return@LaunchedEffect
         }
-        matchingSongs = null
+        val currentAnalysis = analysis
         val (quality, label) = bucket
+        val cachedKeys = currentAnalysis
+            ?.let { if (quality) it.qualityBuckets else it.formatBuckets }
+            ?.firstOrNull { it.label == label }?.songKeys.orEmpty()
+        if (cachedKeys.isNotEmpty()) {
+            val keySet = cachedKeys.toSet()
+            matchingSongs = songs.filter { it.searchIdentityKey() in keySet }
+            return@LaunchedEffect
+        }
         matchingSongs = withContext(Dispatchers.IO) {
             songs.filter { song ->
                 val info = mainViewModel.getAudioInfo(song)
@@ -165,7 +174,6 @@ fun LibraryAnalysisScreen(
                     totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
                     palette = formatPalette,
                     onBucketClick = {
-                        matchingSongs = null
                         selectedBucket = false to it.label
                     }
                 )
@@ -180,7 +188,6 @@ fun LibraryAnalysisScreen(
                     totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
                     palette = analysis?.qualityBuckets?.map { qualityBucketColor(it.label) } ?: qualityPalette,
                     onBucketClick = {
-                        matchingSongs = null
                         selectedBucket = true to it.label
                     }
                 )

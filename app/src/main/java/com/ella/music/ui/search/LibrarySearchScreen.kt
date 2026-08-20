@@ -123,6 +123,7 @@ fun LibrarySearchScreen(
         onlineMusicVideo = onlineMusicVideoOnly,
         dynamicCover = dynamicCoverOnly
     )
+    var lastContentKeys by remember { mutableStateOf<Set<String>?>(null) }
     val contentFilteredSongKeys by produceState<Set<String>?>(
         initialValue = if (contentFilters.hasActiveFilter) null else emptySet(),
         contentFilters,
@@ -135,16 +136,23 @@ fun LibrarySearchScreen(
             value = emptySet()
             return@produceState
         }
-        value = null
+        val cachedIndex = cachedLibrarySearchContentIndex(
+            songSearchSource, musicVideoCustomFolders, dynamicCoverCustomFolders
+        )
+        cachedIndex?.keysFor(contentFilters)?.let {
+            value = it
+            return@produceState
+        }
         val matched = linkedSetOf<String>()
+        val noLyricsKeys = linkedSetOf<String>()
+        val ttmlLyricsKeys = linkedSetOf<String>()
+        val localMusicVideoKeys = linkedSetOf<String>()
+        val onlineMusicVideoKeys = linkedSetOf<String>()
+        val dynamicCoverKeys = linkedSetOf<String>()
         withContext(Dispatchers.IO) {
-            val dynamicCoverTokens = if (contentFilters.dynamicCover) {
-                buildDynamicCoverNameIndex(context, dynamicCoverCustomFolders)
-            } else {
-                emptySet()
-            }
+            val dynamicCoverTokens = buildDynamicCoverNameIndex(context, dynamicCoverCustomFolders)
             songSearchSource.forEach { song ->
-                val hasLocalMv = if (contentFilters.musicVideo || contentFilters.localMusicVideo) {
+                val hasLocalMv = if (true) {
                     song.hasSearchableLocalMusicVideo(
                         context = context,
                         musicVideoCustomFolders = musicVideoCustomFolders
@@ -152,8 +160,7 @@ fun LibrarySearchScreen(
                 } else {
                     false
                 }
-                val needOnlineMv = contentFilters.onlineMusicVideo ||
-                    (contentFilters.musicVideo && !hasLocalMv)
+                val needOnlineMv = true
                 val tagInfo = if (needOnlineMv || contentFilters.noLyrics || contentFilters.ttmlLyrics) {
                     mainViewModel.repository.getCachedSongTagInfo(song)
                         ?: mainViewModel.getSongTagInfo(song)
@@ -175,8 +182,13 @@ fun LibrarySearchScreen(
                     contentFilters.onlineMusicVideo && !contentFilters.localMusicVideo -> hasOnlineMv
                     else -> hasLocalMv || hasOnlineMv
                 }
-                val hasDynamicCover = !contentFilters.dynamicCover ||
-                    song.matchesDynamicCoverIndex(dynamicCoverTokens)
+                val hasDynamicCover = song.matchesDynamicCoverIndex(dynamicCoverTokens)
+                val key = song.searchIdentityKey()
+                if (song.onlineLyrics.isNotBlank() || tagInfo?.hasLyricMetadata() == true) noLyricsKeys.remove(key) else noLyricsKeys += key
+                if (tagInfo?.hasTtmlLyricMetadata() == true) ttmlLyricsKeys += key
+                if (hasLocalMv) localMusicVideoKeys += key
+                if (hasOnlineMv) onlineMusicVideoKeys += key
+                if (hasDynamicCover) dynamicCoverKeys += key
                 val keep = (!contentFilters.noLyrics ||
                     (song.onlineLyrics.isBlank() && tagInfo?.hasLyricMetadata() != true)) &&
                     (!contentFilters.ttmlLyrics || tagInfo?.hasTtmlLyricMetadata() == true) &&
@@ -192,11 +204,26 @@ fun LibrarySearchScreen(
                 }
             }
         }
-        value = matched.toSet()
+        val index = LibrarySearchContentIndex(
+            libraryFingerprint = libraryContentIndexFingerprint(songSearchSource),
+            musicVideoFoldersFingerprint = musicVideoCustomFolders.joinToString("\n"),
+            dynamicCoverFoldersFingerprint = dynamicCoverCustomFolders.joinToString("\n"),
+            noLyrics = noLyricsKeys,
+            ttmlLyrics = ttmlLyricsKeys,
+            localMusicVideo = localMusicVideoKeys,
+            onlineMusicVideo = onlineMusicVideoKeys,
+            dynamicCover = dynamicCoverKeys
+        )
+        saveCachedLibrarySearchContentIndex(index)
+        value = index.keysFor(contentFilters)
+    }
+    LaunchedEffect(contentFilteredSongKeys, contentFilters) {
+        if (contentFilteredSongKeys != null) lastContentKeys = contentFilteredSongKeys
+        if (!contentFilters.hasActiveFilter) lastContentKeys = null
     }
     val contentFilterPending = contentFilters.hasActiveFilter && contentFilteredSongKeys == null
-    val effectiveSongSearchSource = remember(songSearchSource, contentFilters, contentFilteredSongKeys) {
-        val keys = contentFilteredSongKeys
+    val effectiveSongSearchSource = remember(songSearchSource, contentFilters, contentFilteredSongKeys, lastContentKeys) {
+        val keys = contentFilteredSongKeys ?: lastContentKeys
         if (!contentFilters.hasActiveFilter) {
             songSearchSource
         } else if (keys == null) {

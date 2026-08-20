@@ -30,7 +30,7 @@ fun LocateCurrentSongFloatingButton(
     enabled: Boolean = true
 ) {
     val scope = rememberCoroutineScope()
-    var handledLocateRequest by remember { mutableIntStateOf(0) }
+    var handledLocateRequest by remember { mutableIntStateOf(locateRequest) }
     val visible by remember(currentItemIndex, enabled) {
         derivedStateOf {
             if (!enabled || currentItemIndex < 0) return@derivedStateOf false

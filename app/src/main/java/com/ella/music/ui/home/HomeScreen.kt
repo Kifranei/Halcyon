@@ -492,7 +492,7 @@ fun LibraryScreen(
                 listState = listState
             )
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
-            var handledLocateRequest by remember { mutableStateOf(0) }
+            var handledLocateRequest by remember { mutableStateOf(locateCurrentSongRequest) }
             val currentSongKey = remember(currentSong) { currentSong?.playlistIdentityKey() }
             val currentSongIndex = remember(sortedSongs, currentSongKey) {
                 currentSongKey ?: return@remember -1

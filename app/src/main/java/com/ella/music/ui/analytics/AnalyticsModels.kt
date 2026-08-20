@@ -12,6 +12,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.splitGenreNames
 import com.ella.music.viewmodel.MainViewModel
+import com.ella.music.ui.search.searchIdentityKey
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -29,7 +30,8 @@ internal data class LibraryAnalysis(
 internal data class AnalysisBucket(
     val label: String,
     val count: Int,
-    val sizeBytes: Long
+    val sizeBytes: Long,
+    val songKeys: List<String> = emptyList()
 )
 
 internal data class SongWithInfo(
@@ -335,6 +337,7 @@ internal fun readCachedLibraryAnalysis(
         val file = libraryAnalysisCacheFile(context)
         if (!file.exists()) return@runCatching null
         val root = JSONObject(file.readText())
+        if (root.optInt("version", 1) < 2) return@runCatching null
         if (root.optString("key") != songs.libraryAnalysisCacheKey()) return@runCatching null
         root.optJSONObject("analysis")?.toLibraryAnalysis()
     }.getOrNull()
@@ -348,7 +351,7 @@ internal fun writeCachedLibraryAnalysis(
     runCatching {
         val file = libraryAnalysisCacheFile(context)
         val root = JSONObject()
-            .put("version", 1)
+            .put("version", 2)
             .put("key", songs.libraryAnalysisCacheKey())
             .put("updatedAt", System.currentTimeMillis())
             .put("analysis", analysis.toJson())
@@ -397,6 +400,7 @@ private fun List<AnalysisBucket>.toJson(): JSONArray =
                     .put("label", bucket.label)
                     .put("count", bucket.count)
                     .put("sizeBytes", bucket.sizeBytes)
+                    .put("songKeys", JSONArray(bucket.songKeys))
             )
         }
     }
@@ -416,9 +420,26 @@ private fun JSONArray?.toAnalysisBuckets(): List<AnalysisBucket> {
         AnalysisBucket(
             label = obj.optString("label"),
             count = obj.optInt("count", 0),
-            sizeBytes = obj.optLong("sizeBytes", 0L)
+            sizeBytes = obj.optLong("sizeBytes", 0L),
+            songKeys = obj.optJSONArray("songKeys").toStringList()
         )
     }.filter { it.label.isNotBlank() }
+}
+
+private fun JSONArray?.toStringList(): List<String> {
+    if (this == null) return emptyList()
+    return List(length()) { index -> optString(index) }.filter { it.isNotBlank() }
+}
+
+internal fun LibraryAnalysis.songsForBucket(
+    songs: List<Song>,
+    quality: Boolean,
+    label: String
+): List<Song> {
+    val keys = (if (quality) qualityBuckets else formatBuckets)
+        .firstOrNull { it.label == label }?.songKeys?.toSet().orEmpty()
+    if (keys.isEmpty()) return emptyList()
+    return songs.filter { it.searchIdentityKey() in keys }
 }
 
 internal fun List<SongWithInfo>.toBuckets(labelOf: (SongWithInfo) -> String): List<AnalysisBucket> {
@@ -427,7 +448,8 @@ internal fun List<SongWithInfo>.toBuckets(labelOf: (SongWithInfo) -> String): Li
             AnalysisBucket(
                 label = label,
                 count = rows.size,
-                sizeBytes = rows.sumOf { it.song.fileSize }
+                sizeBytes = rows.sumOf { it.song.fileSize },
+                songKeys = rows.map { it.song.searchIdentityKey() }
             )
         }
         .sortedByDescending { it.count }
