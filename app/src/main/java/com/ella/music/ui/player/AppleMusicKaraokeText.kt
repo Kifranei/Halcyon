@@ -26,6 +26,16 @@ import kotlin.math.cos
 import kotlin.math.PI
 import kotlin.math.sin
 
+internal fun appleMusicKaraokeLiftPx(
+    wordLiftEnabled: Boolean,
+    textSizePx: Float,
+    progress: Float
+): Float = if (wordLiftEnabled) {
+    maxOf(textSizePx * 0.06f, 5f) * progress
+} else {
+    0f
+}
+
 @Composable
 internal fun TimedLyricText(
     text: String,
@@ -40,23 +50,10 @@ internal fun TimedLyricText(
     statusBarMarquee: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // Disabling word lift is also the opt-out for the expensive karaoke renderer. A plain text
-    // line avoids allocating one Compose text node per word and lets the player stay responsive
-    // on dense TTML timelines.
-    if (!wordLiftEnabled) {
-        BasicText(
-            text = text,
-            style = style,
-            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
-            softWrap = !singleLine,
-            overflow = TextOverflow.Clip,
-            modifier = modifier.then(if (singleLine && statusBarMarquee) Modifier.basicMarquee() else Modifier)
-        )
-        return
-    }
     // TTML may encode the blank before a word as part of that word. Move it to the prior
     // karaoke unit before wrapping so every v1 line, including wrapped continuations, starts
     // at the same left edge. Right-aligned v2 rows are visually tolerant of this, but v1 is not.
+    // wordLiftEnabled controls per-word vertical lift only; timed karaoke fill still renders.
     val timedWords = remember(text, words, sustainThresholdMs) {
         words.moveLeadingSpacesToPreviousWord().toAppleMusicRenderWords(text, sustainThresholdMs)
     }
@@ -192,7 +189,7 @@ private fun AppleMusicKaraokeWord(
     // The reference renderer moves each word independently by 6% of the text size (at least
     // 5 px), then adds only a 3% bottom-anchored scale during the held-note phase. Keeping the
     // transform on the word rather than the whole line is what creates the floating vocal feel.
-    val liftPx = if (wordLiftEnabled) maxOf(textSizePx * 0.06f, 5f) * progress else 0f
+    val liftPx = appleMusicKaraokeLiftPx(wordLiftEnabled, textSizePx, progress)
     Box(
         modifier = Modifier.graphicsLayer {
             translationY = -liftPx

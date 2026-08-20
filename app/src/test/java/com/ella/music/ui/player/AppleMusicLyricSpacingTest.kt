@@ -9,6 +9,17 @@ import org.junit.Test
 
 class AppleMusicLyricSpacingTest {
     @Test
+    fun disablingWordLiftZeroesLiftButDoesNotDisableKaraokeProgress() {
+        assertEquals(
+            0f,
+            appleMusicKaraokeLiftPx(wordLiftEnabled = false, textSizePx = 48f, progress = 1f)
+        )
+        assertTrue(
+            appleMusicKaraokeLiftPx(wordLiftEnabled = true, textSizePx = 48f, progress = 1f) > 0f
+        )
+    }
+
+    @Test
     fun leadingWordSpacesMoveToPreviousWordForFlushWrappedRows() {
         val words = listOf(
             LyricWord("It's", 0L, 400L),
