@@ -296,7 +296,7 @@ internal object AlbumNfoDocument {
         }
 }
 
-private inline fun atomicReplace(target: File, writeTemporary: (File) -> Unit) {
+internal inline fun atomicReplace(target: File, writeTemporary: (File) -> Unit) {
     val directory = target.parentFile ?: error("Missing parent directory for ${target.absolutePath}")
     if (!directory.exists() && !directory.mkdirs()) {
         error("Cannot create directory ${directory.absolutePath}")

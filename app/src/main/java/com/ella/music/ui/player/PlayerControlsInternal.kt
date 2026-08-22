@@ -31,6 +31,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
 import com.ella.music.R
 import com.ella.music.data.AudioQualitySummary
+import com.ella.music.data.DOLBY_MARK
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.oem.MiPlayAudioSupport
 import top.yukonga.miuix.kmp.basic.Icon
@@ -185,6 +186,7 @@ internal fun formatTime(ms: Long): String {
 
 internal fun AudioQualitySummary.playerCompactText(): String {
     return when {
+        compactLabel.startsWith(DOLBY_MARK) -> compactLabel
         compactLabel == "MQ" -> "∞ Master"
         showMobius -> "∞ $compactLabel"
         else -> compactLabel

@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -190,31 +191,30 @@ internal fun AppleMusicLyricsView(
         }
     }
     var smoothPositionMs by remember { mutableLongStateOf(renderPositionMs) }
-    LaunchedEffect(renderPositionMs, renderIsPlaying, wordLiftEnabled) {
-        if (!wordLiftEnabled) {
-            smoothPositionMs = renderPositionMs
-            return@LaunchedEffect
-        }
-        // The player position is sampled less often than this frame-driven renderer. When a new
-        // sample arrives slightly behind the extrapolated display position, restarting from that
-        // sample makes the karaoke sheen visibly travel over the same glyph a second time. Keep
-        // minor playback regressions on the current frame clock; large jumps are real seeks.
-        val anchorPositionMs = if (
-            shouldIgnoreMinorPlaybackRegression(
-                currentUiPositionMs = smoothPositionMs,
-                nextPositionMs = renderPositionMs,
-                isPlaying = renderIsPlaying
-            )
-        ) {
-            smoothPositionMs
-        } else {
-            renderPositionMs
-        }
-        val anchorFrameNs = withFrameNanos { it }
-        smoothPositionMs = anchorPositionMs
-        while (renderIsPlaying) {
+    val latestRenderPositionMs by rememberUpdatedState(renderPositionMs)
+    val latestPlaying by rememberUpdatedState(renderIsPlaying)
+    // Keep one frame-clock loop for the lifetime of this lyric list. Keying it on the 10 Hz
+    // player sample (or word-lift) cancelled interpolation every tick and made the karaoke
+    // fill jump like a slideshow.
+    LaunchedEffect(lyrics) {
+        var lastFrameNs = 0L
+        while (true) {
             val frameNs = withFrameNanos { it }
-            smoothPositionMs = anchorPositionMs + ((frameNs - anchorFrameNs) / 1_000_000L)
+            val sampled = latestRenderPositionMs
+            val playing = latestPlaying
+            if (lastFrameNs == 0L) {
+                lastFrameNs = frameNs
+                smoothPositionMs = sampled
+                continue
+            }
+            val dtMs = (frameNs - lastFrameNs) / 1_000_000L
+            lastFrameNs = frameNs
+            smoothPositionMs = nextSmoothLyricPositionMs(
+                displayMs = smoothPositionMs,
+                sampledMs = sampled,
+                frameDeltaMs = dtMs,
+                playing = playing
+            )
         }
     }
     val activeInterlude = interludes.firstOrNull { it.isActiveAt(smoothPositionMs) }
@@ -235,7 +235,7 @@ internal fun AppleMusicLyricsView(
         interludes = interludes
     )
     val scrollTargetIndex = if (pageVisible) renderedScrollTargetIndex else playbackScrollTargetIndex
-    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, trailingLineHeightPx) {
+    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll) {
         if (userDragging || deferAutoScroll) return@LaunchedEffect
         // Do not issue the first scroll before LazyColumn has a viewport; that was making the
         // focus line land under the page header until the user manually scrolled.
@@ -412,6 +412,26 @@ internal fun resolveAppleMusicLyricsScrollTargetIndex(
 ): Int = activeInterlude?.let { interlude ->
     interlude.nextLineIndex + interludes.count { it.nextLineIndex < interlude.nextLineIndex }
 } ?: activeLyricIndex + interludes.count { it.nextLineIndex <= activeLyricIndex }
+
+internal fun nextSmoothLyricPositionMs(
+    displayMs: Long,
+    sampledMs: Long,
+    frameDeltaMs: Long,
+    playing: Boolean,
+    seekThresholdMs: Long = 1_500L,
+    backwardToleranceMs: Long = PLAYER_POSITION_BACKWARD_DRIFT_TOLERANCE_MS
+): Long {
+    if (!playing) return sampledMs
+    if (frameDeltaMs > seekThresholdMs) return sampledMs
+    val predicted = displayMs + frameDeltaMs.coerceAtLeast(0L)
+    val delta = sampledMs - predicted
+    return when {
+        abs(delta) > seekThresholdMs -> sampledMs
+        delta < 0L && -delta <= backwardToleranceMs -> predicted
+        delta > 80L -> predicted + (delta / 4L)
+        else -> predicted
+    }
+}
 
 private fun LyricLine.isDuetLine(): Boolean = agent.equals("v1", true) || agent.equals("v2", true)
 

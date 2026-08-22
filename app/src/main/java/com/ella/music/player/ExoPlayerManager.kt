@@ -85,6 +85,7 @@ class ExoPlayerManager(private val context: Context) {
     private var shuffleMode = SettingsManager.SHUFFLE_MODE_PSEUDO
     private var playNextMode = SettingsManager.PLAY_NEXT_MODE_REVERSE_STACK
     private var virtualPlaylistCurrentIndex: Int? = null
+    private var pendingOptimisticSongKey: String? = null
     private var playWhenConnected = false
     private var pendingPlaylist: PendingPlaylist? = null
     private var reorderingPlaylistForShuffle = false
@@ -409,6 +410,7 @@ class ExoPlayerManager(private val context: Context) {
         suppressExternalSnapshotsUntilMs = 0L
         AppLogStore.debug(context, "PlayerQueue", "setPlaylist size=${songs.size} start=$startIndex")
         virtualPlaylistCurrentIndex = null
+        pendingOptimisticSongKey = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
         notificationArtworkJob?.cancel()
@@ -870,10 +872,10 @@ class ExoPlayerManager(private val context: Context) {
         val controller = mediaController ?: return
         cancelPendingSeekCommand()
         rememberCurrentSongResumePosition()
-        if (!performPendingShuffleReorder(trigger = "skipNext", seekToNextAfterReorder = true)) {
+        performPendingShuffleReorder(trigger = "skipNext", seekToNextAfterReorder = false)
+        if (!seekAdjacentPlaylistItem(controller, offset = 1, startPositionMs = { 0L })) {
             controller.seekToNextMediaItem()
         }
-        scheduleCurrentSongRefresh()
         savePlaybackQueue(force = true)
     }
 
@@ -881,14 +883,44 @@ class ExoPlayerManager(private val context: Context) {
         val controller = mediaController ?: return
         cancelPendingSeekCommand()
         rememberCurrentSongResumePosition()
-        val previousIndex = (controller.currentMediaItemIndex - 1).takeIf { it in playlist.indices }
-        if (previousIndex != null) {
-            controller.seekTo(previousIndex, resumePositionFor(playlist[previousIndex]))
-        } else {
+        if (!seekAdjacentPlaylistItem(controller, offset = -1, startPositionMs = { song -> resumePositionFor(song) })) {
             controller.seekToPreviousMediaItem()
+            scheduleCurrentSongRefresh()
         }
-        scheduleCurrentSongRefresh()
         savePlaybackQueue(force = true)
+    }
+
+    private fun seekAdjacentPlaylistItem(
+        controller: MediaController,
+        offset: Int,
+        startPositionMs: (Song) -> Long
+    ): Boolean {
+        if (virtualPlaylistCurrentIndex != null) return false
+        val wrap = controller.repeatMode != Player.REPEAT_MODE_OFF
+        val fromIndex = playlist.indexOfFirst { it.isSamePlaybackIdentity(_currentSong.value) }
+            .takeIf { it >= 0 }
+            ?: currentQueueIndex(controller).takeIf { it in playlist.indices }
+            ?: controller.currentMediaItemIndex
+        val targetIndex = adjacentPlaylistIndex(
+            currentIndex = fromIndex,
+            offset = offset,
+            queueSize = playlist.size,
+            wrap = wrap
+        ) ?: return false
+        val target = playlist[targetIndex]
+        val positionMs = startPositionMs(target)
+        applyOptimisticSong(target, positionMs)
+        controller.seekTo(targetIndex, positionMs)
+        controller.play()
+        return true
+    }
+
+    private fun applyOptimisticSong(song: Song, positionMs: Long) {
+        currentSongRefreshJob?.cancel()
+        pendingOptimisticSongKey = song.playbackStackKey()
+        _currentSong.value = song
+        _currentPosition.value = positionMs.coerceAtLeast(0L)
+        _duration.value = song.duration.coerceAtLeast(0L)
     }
 
     fun restartCurrent() {
@@ -1386,6 +1418,16 @@ class ExoPlayerManager(private val context: Context) {
             itemSong
         }
         val previousSong = _currentSong.value
+        val pendingKey = pendingOptimisticSongKey
+        if (pendingKey != null) {
+            if (restoredSong?.playbackStackKey() == pendingKey) {
+                pendingOptimisticSongKey = null
+            } else {
+                // seekToNext is Binder-async; keep the already-switched cover/title until the
+                // controller actually lands on the song the skip button targeted.
+                return
+            }
+        }
         if (currentItem?.isMetadataOnlyPatch() == true &&
             previousSong.isSamePlaybackIdentity(restoredSong)
         ) {

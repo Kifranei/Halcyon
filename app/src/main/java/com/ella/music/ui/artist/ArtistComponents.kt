@@ -14,17 +14,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,10 +45,19 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.ArtistCoverAsset
 import com.ella.music.data.ArtistCoverKind
+import com.ella.music.data.SettingsManager
+import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
+import com.ella.music.data.lastfm.LAST_FM_WIKI_REGIONS
+import com.ella.music.data.lastfm.LastFmArtistWiki
+import com.ella.music.data.lastfm.artistBioDownloadAllowed
+import com.ella.music.data.lastfm.fetchLastFmArtistWiki
+import com.ella.music.data.lastfm.isWifiConnected
+import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.AppleStylePlayButton
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SafeCoverImage
@@ -52,16 +65,19 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.player.DynamicCoverSource
 import com.ella.music.ui.player.DynamicCoverVideo
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class ArtistTab(@param:StringRes val labelRes: Int) {
     Songs(R.string.artist_tab_songs),
     ParticipatedAlbums(R.string.artist_tab_participated_albums),
     ReleaseAlbums(R.string.artist_tab_release_albums),
+    Biography(R.string.artist_tab_biography),
     MusicVideos(R.string.artist_tab_music_videos)
 }
 
@@ -118,6 +134,98 @@ internal fun openUrl(context: Context, url: String) {
 }
 
 @Composable
+internal fun ArtistBiographyPanel(
+    artistName: String,
+    downloadMode: Int,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val regionCode by settingsManager.artistBioLastFmLang.collectAsState(initial = DEFAULT_LAST_FM_WIKI_REGION)
+    val selectedRegion = normalizeLastFmWikiRegion(regionCode)
+    val selectedIndex = LAST_FM_WIKI_REGIONS.indexOfFirst { it.code == selectedRegion }
+        .takeIf { it >= 0 } ?: 0
+    val allowed = remember(downloadMode) {
+        artistBioDownloadAllowed(downloadMode, isWifiConnected(context))
+    }
+    var wiki by remember(artistName, selectedRegion) { mutableStateOf<LastFmArtistWiki?>(null) }
+    var loading by remember(artistName, selectedRegion) { mutableStateOf(allowed) }
+    var failed by remember(artistName, selectedRegion) { mutableStateOf(false) }
+    LaunchedEffect(artistName, allowed, selectedRegion) {
+        if (!allowed) {
+            loading = false
+            failed = false
+            wiki = null
+            return@LaunchedEffect
+        }
+        loading = true
+        failed = false
+        wiki = runCatching { fetchLastFmArtistWiki(artistName, selectedRegion) }
+            .onFailure { failed = true }
+            .getOrNull()
+        loading = false
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        OverlayDropdownPreference(
+            items = LAST_FM_WIKI_REGIONS.map { it.nativeName },
+            selectedIndex = selectedIndex,
+            title = stringResource(R.string.artist_biography_region),
+            insideMargin = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
+            enabled = true,
+            showValue = true,
+            renderInRootScaffold = true,
+            onSelectedIndexChange = { index ->
+                LAST_FM_WIKI_REGIONS.getOrNull(index)?.let { region ->
+                    scope.launch { settingsManager.setArtistBioLastFmLang(region.code) }
+                }
+            }
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        when {
+            !allowed -> Text(
+                text = stringResource(R.string.artist_biography_unavailable),
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            loading -> EllaCenteredLoadingIndicator()
+            failed -> Text(
+                text = stringResource(R.string.artist_biography_failed),
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            wiki?.text.isNullOrBlank() -> Text(
+                text = stringResource(R.string.artist_biography_empty),
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            else -> {
+                Text(
+                    text = wiki?.text.orEmpty(),
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.artist_biography_read_more),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        openUrl(context, wiki?.artistUrl.orEmpty())
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 internal fun ArtistTabRow(
     tabs: List<ArtistTab>,
     selectedTab: ArtistTab,
@@ -158,7 +266,9 @@ internal fun ArtistHeader(
     carousel: Boolean,
     songCount: Int,
     albumCount: Int,
-    onPlayAll: () -> Unit
+    onPlayAll: () -> Unit,
+    onIntroductionClick: () -> Unit,
+    showIntroductionEntry: Boolean = true
 ) {
     val headerTextColor = Color.White
     val headerSubTextColor = Color.White.copy(alpha = 0.78f)
@@ -259,6 +369,29 @@ internal fun ArtistHeader(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+
+            if (showIntroductionEntry) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable(onClick = onIntroductionClick)
+                        .padding(horizontal = 2.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.artist_introduction_entry),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = headerSubTextColor
+                    )
+                    Icon(
+                        imageVector = MiuixIcons.Basic.ArrowRight,
+                        contentDescription = null,
+                        tint = headerSubTextColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
 
             AppleStylePlayButton(
                 text = stringResource(R.string.play_all),

@@ -84,6 +84,7 @@
     <string name="common_remove">Entfernen</string>
     <string name="common_save">Speichern</string>
     <string name="common_search">Suchen</string>
+    <string name="bottom_dock_tabs">Tabs</string>
     <string name="common_open">Öffnen</string>
     <string name="common_test">Testen</string>
     <string name="common_sort">Sortieren</string>
@@ -290,6 +291,8 @@
     <string name="settings_category_grid_columns_option_summary_default">Passt für die meisten Bildschirme</string>
     <string name="settings_show_album_artists">Albumkünstler anzeigen</string>
     <string name="settings_show_album_artists_summary">Albumkünstler in die Künstlerliste aufnehmen und auf Künstlerseiten einen Tab für veröffentlichte Alben anzeigen</string>
+    <string name="settings_show_artist_introduction">Künstlereinführung anzeigen</string>
+    <string name="settings_show_artist_introduction_summary">Den Eintrag „Einführung“ auf Künstlerseiten anzeigen</string>
     <string name="settings_open_player_on_play">Player nach Wiedergabestart öffnen</string>
     <string name="settings_open_player_on_play_summary">Player automatisch öffnen, wenn lokale, WebDAV- oder Online-Titel gestartet werden</string>
     <string name="settings_mini_player_swipe_to_open_player">Mini-Player nach oben wischen, um den Player zu öffnen</string>
@@ -339,6 +342,7 @@
     <string name="player_more_actions">Weitere Aktionen</string>
     <string name="player_song_info">Titelinfo</string>
     <string name="player_lyrics_display">Liedtextanzeige</string>
+    <string name="player_accompaniment">Begleitung</string>
     <string name="player_landscape_lyrics">Liedtext im Querformat</string>
     <string name="player_edit_metadata">Metadaten bearbeiten</string>
     <string name="player_lyric_timing">Liedtext-Timing</string>
@@ -638,6 +642,8 @@
     <string name="settings_system_section">System</string>
     <string name="settings_gapless_playback">Lückenlose Wiedergabe</string>
     <string name="settings_gapless_playback_summary">Ohne Pausen zwischen Titeln wechseln</string>
+    <string name="settings_karaoke_accompaniment">Gesangsreduktion / Begleitung</string>
+    <string name="settings_karaoke_accompaniment_summary">Zentrierte Vocals in einem Stereo-Mix sofort abschwächen. Keine KI-Stemmtrennung</string>
     <string name="settings_startup_play">Autoplay beim Start</string>
     <string name="settings_bluetooth_auto_play">Bluetooth-Autoplay</string>
     <string name="settings_bluetooth_auto_play_summary">Wiedergabe automatisch starten, wenn ein Bluetooth-Audiogerät verbunden wird</string>
@@ -762,7 +768,7 @@
     <string name="song_more_metadata_album">Album</string>
     <string name="song_more_metadata_album_artist">Albumkünstler</string>
     <string name="song_more_metadata_genre">Genre</string>
-    <string name="song_more_metadata_year">Jahr</string>
+    <string name="song_more_metadata_year">Erscheinungsdatum</string>
     <string name="song_more_metadata_track_number">Titelnummer</string>
     <string name="song_more_metadata_composer">Komponist</string>
     <string name="song_more_metadata_lyricist">Texter</string>
@@ -786,6 +792,7 @@
     <string name="library_refresh">Mediathek aktualisieren</string>
     <string name="library_search_placeholder">Titel, Alben, Künstler, Tags oder Liedtexte suchen</string>
     <string name="library_search_page_placeholder">Titel, Alben, Künstler, Tags oder Liedtexte suchen</string>
+    <string name="library_search_dock_placeholder">Musik suchen</string>
     <string name="library_search_duplicates">Doppelte Titel</string>
     <string name="library_search_clear_history">Verlauf löschen</string>
     <string name="library_search_history">Suchverlauf</string>
@@ -1242,7 +1249,7 @@
     <string name="song_more_raw_netease_key">Roher 163-Schlüssel</string>
     <string name="song_more_detail_album_artist">Albumkünstler</string>
     <string name="song_more_detail_genre">Genre</string>
-    <string name="song_more_detail_year">Jahr</string>
+    <string name="song_more_detail_year">Erscheinungsdatum</string>
     <string name="song_more_netease_song_id">NetEase-Titel-ID: %1$s</string>
     <string name="song_more_view_netease_info">Tippen, um verknüpfte NetEase-Infos anzuzeigen</string>
     <string name="song_more_detail_format">Format</string>
@@ -1253,6 +1260,7 @@
     <string name="song_more_detail_added_time">Hinzugefügt am</string>
     <string name="song_more_detail_file_name">Dateiname</string>
     <string name="song_more_detail_path">Pfad</string>
+    <string name="song_more_detail_directory">Verzeichnis</string>
     <string name="song_more_loading_ai">Titelinfos und Liedtext werden geladen…</string>
     <string name="song_more_ai_failed">KI-Interpretation fehlgeschlagen</string>
     <string name="library_deleted_songs">%1$d Titel gelöscht</string>
@@ -1287,6 +1295,8 @@
     <string name="artist_tab_songs">Titel</string>
     <string name="artist_tab_participated_albums">Beteiligte Alben</string>
     <string name="artist_tab_release_albums">Veröffentlichte Alben</string>
+    <string name="artist_tab_biography">Biografie</string>
+    <string name="artist_biography_region">Region</string>
     <string name="artist_song_count_sorted">%1$d Titel · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d beteiligte Alben · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d veröffentlichte Alben · %2$s</string>
@@ -1792,6 +1802,11 @@
     <string name="settings_artist_cover_folder_cleared">Ordner für Interpreten-Cover gelöscht</string>
     <string name="settings_auto_show_search_keyboard">Tastatur beim Tippen auf Suche automatisch einblenden</string>
     <string name="settings_auto_show_search_keyboard_summary">Wenn aus, wird nur die Suchleiste ausgeklappt, ohne automatisch zu fokussieren oder die Tastatur einzublenden</string>
+    <string name="settings_search_reopen_behavior">Suche erneut öffnen</string>
+    <string name="settings_search_reopen_behavior_summary">Was mit der letzten Eingabe geschehen soll, wenn die Suche erneut geöffnet wird</string>
+    <string name="settings_search_reopen_select">Letzte Suche auswählen</string>
+    <string name="settings_search_reopen_clear">Letzte Suche löschen</string>
+    <string name="settings_search_reopen_keep">Letzte Suche behalten</string>
     <string name="lyric_video_share_generating">Video wird erstellt…</string>
     <string name="lyric_video_share_failed">Video konnte nicht erstellt werden</string>
     <string name="lyric_video_share_chooser_title">Songtext-Video teilen</string>
@@ -1834,6 +1849,8 @@
     <string name="settings_player_page_style_halcyon">Halcyon</string>
     <string name="settings_player_page_style_apple_music">Apple Music</string>
     <string name="settings_player_page_style_immersive_lyrics">Immersive Liedtexte</string>
+    <string name="settings_player_lyrics_corner_actions">Übersetzungs- / Begleitbuttons</string>
+    <string name="settings_player_lyrics_corner_actions_summary">Übersetzung und Begleitung auf Nicht-Apple-Music-Liedtextseiten anzeigen</string>
     <string name="settings_player_landscape_style">Standardstil für den Querformat-Player</string>
     <string name="settings_player_landscape_style_summary">Beim Öffnen der Querformat-Wiedergabe: %1$s</string>
     <string name="settings_player_landscape_style_wide">Adaptiver Player für Tablets/Großbildschirme</string>
@@ -2152,6 +2169,17 @@
     <string name="album_introduction_saved_local">Der Albumordner ist nicht beschreibbar; die Einführung wurde in der App gespeichert</string>
     <string name="album_introduction_cleared">Albumeinführung gelöscht</string>
     <string name="album_introduction_save_failed">Albumeinführung konnte nicht gespeichert werden</string>
+    <string name="artist_introduction_entry">Einführung</string>
+    <string name="artist_introduction_title">Künstlereinführung</string>
+    <string name="artist_introduction_edit">Künstlereinführung bearbeiten</string>
+    <string name="artist_introduction_edit_action">Bearbeiten</string>
+    <string name="artist_introduction_section">Über %1$s</string>
+    <string name="artist_introduction_empty">Noch keine Einführung. Tippe auf „Bearbeiten“, um eine einzufügen oder zu schreiben.</string>
+    <string name="artist_introduction_editor_hint">Künstlereinführung schreiben oder einfügen</string>
+    <string name="artist_introduction_saved_nfo">In artist.nfo gespeichert</string>
+    <string name="artist_introduction_saved_local">Der Künstlerordner ist nicht beschreibbar; die Einführung wurde in der App gespeichert</string>
+    <string name="artist_introduction_cleared">Künstlereinführung gelöscht</string>
+    <string name="artist_introduction_save_failed">Künstlereinführung konnte nicht gespeichert werden</string>
     <string name="player_local_music_video">Lokales MV</string>
     <string name="player_netease_music_video">NetEase-MV</string>
     <string name="spectrum_frequency_unknown">Adaptiv</string>

@@ -141,39 +141,90 @@ internal fun isAtPlaybackSourceRoute(
     target: String
 ): Boolean {
     if (target.isBlank() || destinationRoute.isNullOrBlank()) return false
-    if (destinationRoute == target) return true
+    if (playbackSourceRoutesMatch(destinationRoute, target)) return true
+    val folderHierarchy = target == Screen.Folder.createRoute() ||
+        target == Screen.Folder.baseRoute ||
+        target.startsWith("${Screen.Folder.baseRoute}?")
+    if (folderHierarchy && (
+            destinationRoute == Screen.Folder.route ||
+                destinationRoute == Screen.Folder.baseRoute ||
+                destinationRoute.startsWith("${Screen.Folder.baseRoute}?")
+            )
+    ) {
+        return true
+    }
     return when (destinationRoute) {
         Screen.Home.route -> target == Screen.Home.route
         Screen.Library.route -> target == Screen.Library.route
         Screen.AlbumDetail.route -> {
             val albumId = argument("albumId").toNavLong() ?: return false
-            target == Screen.AlbumDetail.createRoute(albumId)
+            playbackSourceRoutesMatch(target, Screen.AlbumDetail.createRoute(albumId))
         }
         Screen.ArtistDetail.route -> {
             val name = argument("artistName")?.toString()?.takeIf { it.isNotBlank() } ?: return false
-            target == Screen.ArtistDetail.createRoute(name) || target == "artist/$name"
+            playbackSourceRoutesMatch(target, Screen.ArtistDetail.createRoute(name)) ||
+                playbackSourceRoutesMatch(target, "artist/$name")
         }
         Screen.PlaylistDetail.route -> {
             val playlistId = argument("playlistId")?.toString()?.takeIf { it.isNotBlank() } ?: return false
-            target == Screen.PlaylistDetail.createRoute(playlistId) || target == "playlist/$playlistId"
+            playbackSourceRoutesMatch(target, Screen.PlaylistDetail.createRoute(playlistId)) ||
+                playbackSourceRoutesMatch(target, "playlist/$playlistId")
         }
         Screen.FolderDetail.route -> {
             val folderPath = argument("folderPath")?.toString()?.takeIf { it.isNotBlank() } ?: return false
-            target == Screen.FolderDetail.createRoute(folderPath) || target == "folder/$folderPath"
+            playbackSourceRoutesMatch(target, Screen.FolderDetail.createRoute(folderPath)) ||
+                playbackSourceRoutesMatch(target, "folder/$folderPath")
         }
         Screen.FolderPlaylistDetail.route -> {
             val playlistId = argument("playlistId")?.toString()?.takeIf { it.isNotBlank() } ?: return false
-            target == Screen.FolderPlaylistDetail.createRoute(playlistId) ||
-                target == "folder_playlist/$playlistId"
+            playbackSourceRoutesMatch(target, Screen.FolderPlaylistDetail.createRoute(playlistId)) ||
+                playbackSourceRoutesMatch(target, "folder_playlist/$playlistId")
         }
         Screen.MetadataCategoryDetail.route -> {
             val type = argument("type")?.toString()?.takeIf { it.isNotBlank() } ?: return false
             val name = argument("name")?.toString()?.takeIf { it.isNotBlank() } ?: return false
-            target == Screen.MetadataCategoryDetail.createRoute(type, name)
+            playbackSourceRoutesMatch(target, Screen.MetadataCategoryDetail.createRoute(type, name))
+        }
+        Screen.LibraryAnalysisBucket.route -> {
+            val kind = argument("kind")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            val label = argument("label")?.toString()?.takeIf { it.isNotBlank() } ?: return false
+            val decoded = decodeNavComponent(label)
+            playbackSourceRoutesMatch(target, Screen.LibraryAnalysis.createBucketRoute(kind == "quality", decoded)) ||
+                playbackSourceRoutesMatch(target, Screen.LibraryAnalysis.createBucketRoute(kind == "quality", label))
         }
         else -> false
     }
 }
+
+internal fun navRouteIdentity(
+    destinationRoute: String?,
+    argument: (String) -> Any?
+): String {
+    if (destinationRoute.isNullOrBlank()) return ""
+    val extras = when (destinationRoute) {
+        Screen.FolderDetail.route -> argument("folderPath")?.toString().orEmpty()
+        Screen.FolderPlaylistDetail.route -> argument("playlistId")?.toString().orEmpty()
+        Screen.AlbumDetail.route -> argument("albumId")?.toString().orEmpty()
+        Screen.ArtistDetail.route -> argument("artistName")?.toString().orEmpty()
+        Screen.PlaylistDetail.route -> argument("playlistId")?.toString().orEmpty()
+        Screen.MetadataCategoryDetail.route ->
+            listOf(argument("type"), argument("name")).joinToString("/") { it?.toString().orEmpty() }
+        Screen.LibraryAnalysisBucket.route ->
+            listOf(argument("kind"), argument("label")).joinToString("/") { it?.toString().orEmpty() }
+        else -> ""
+    }.trim().trim('/')
+    return if (extras.isBlank()) destinationRoute else "$destinationRoute|$extras"
+}
+
+internal fun playbackSourceRoutesMatch(left: String, right: String): Boolean {
+    if (left == right) return true
+    val decodedLeft = decodeNavComponent(decodeNavComponent(left))
+    val decodedRight = decodeNavComponent(decodeNavComponent(right))
+    return decodedLeft == decodedRight
+}
+
+private fun decodeNavComponent(value: String): String =
+    runCatching { java.net.URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
 
 private fun Any?.toNavLong(): Long? = when (this) {
     is Long -> this

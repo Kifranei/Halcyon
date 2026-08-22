@@ -84,6 +84,7 @@
     <string name="common_remove">제거</string>
     <string name="common_save">저장</string>
     <string name="common_search">검색</string>
+    <string name="bottom_dock_tabs">탭</string>
     <string name="common_open">열기</string>
     <string name="common_test">테스트</string>
     <string name="common_sort">정렬</string>
@@ -290,6 +291,8 @@
     <string name="settings_category_grid_columns_option_summary_default">대부분의 화면에 적합</string>
     <string name="settings_show_album_artists">앨범 아티스트 표시</string>
     <string name="settings_show_album_artists_summary">앨범 아티스트를 아티스트 목록에 병합하고 아티스트 페이지에 발매 앨범 탭을 표시합니다.</string>
+    <string name="settings_show_artist_introduction">아티스트 소개 표시</string>
+    <string name="settings_show_artist_introduction_summary">아티스트 페이지에 소개 항목을 표시합니다</string>
     <string name="settings_open_player_on_play">재생을 탭한 후 플레이어 열기</string>
     <string name="settings_open_player_on_play_summary">로컬, WebDAV 또는 온라인 곡을 시작한 후 자동으로 플레이어 열기</string>
     <string name="settings_mini_player_swipe_to_open_player">미니 플레이어를 위로 밀어 플레이어 열기</string>
@@ -339,6 +342,7 @@
     <string name="player_more_actions">추가 작업</string>
     <string name="player_song_info">곡 정보</string>
     <string name="player_lyrics_display">가사 표시</string>
+    <string name="player_accompaniment">반주</string>
     <string name="player_landscape_lyrics">가로 화면 가사</string>
     <string name="player_edit_metadata">메타데이터 편집</string>
     <string name="player_lyric_timing">가사 타이밍</string>
@@ -638,6 +642,8 @@
     <string name="settings_system_section">시스템</string>
     <string name="settings_gapless_playback">끊김 없는 재생</string>
     <string name="settings_gapless_playback_summary">공백 없이 곡 간 전환</string>
+    <string name="settings_karaoke_accompaniment">보컬 감소 / 반주</string>
+    <string name="settings_karaoke_accompaniment_summary">스테레오 중앙 보컬을 실시간으로 줄입니다. AI 스템 분리는 아닙니다</string>
     <string name="settings_startup_play">실행 시 자동 재생</string>
     <string name="settings_bluetooth_auto_play">블루투스 자동 재생</string>
     <string name="settings_bluetooth_auto_play_summary">Bluetooth 오디오 장치가 연결되면 자동으로 재생을 시작합니다.</string>
@@ -762,7 +768,7 @@
     <string name="song_more_metadata_album">앨범</string>
     <string name="song_more_metadata_album_artist">앨범 아티스트</string>
     <string name="song_more_metadata_genre">장르</string>
-    <string name="song_more_metadata_year">연도</string>
+    <string name="song_more_metadata_year">발매일</string>
     <string name="song_more_metadata_track_number">트랙 번호</string>
     <string name="song_more_metadata_composer">작곡가</string>
     <string name="song_more_metadata_lyricist">작사가</string>
@@ -786,6 +792,7 @@
     <string name="library_refresh">라이브러리 새로 고침</string>
     <string name="library_search_placeholder">곡, 앨범, 아티스트, 태그 또는 가사 검색</string>
     <string name="library_search_page_placeholder">곡, 앨범, 아티스트, 태그 또는 가사 검색</string>
+    <string name="library_search_dock_placeholder">음악 검색</string>
     <string name="library_search_duplicates">중복된 곡</string>
     <string name="library_search_clear_history">기록 지우기</string>
     <string name="library_search_history">검색 기록</string>
@@ -1242,7 +1249,7 @@
     <string name="song_more_raw_netease_key">원시 163 키</string>
     <string name="song_more_detail_album_artist">앨범 아티스트</string>
     <string name="song_more_detail_genre">장르</string>
-    <string name="song_more_detail_year">연도</string>
+    <string name="song_more_detail_year">발매일</string>
     <string name="song_more_netease_song_id">NetEase 곡 ID: %1$s</string>
     <string name="song_more_view_netease_info">연결된 NetEase 정보를 보려면 탭하세요</string>
     <string name="song_more_detail_format">형식</string>
@@ -1253,6 +1260,7 @@
     <string name="song_more_detail_added_time">추가된 시간</string>
     <string name="song_more_detail_file_name">파일 이름</string>
     <string name="song_more_detail_path">경로</string>
+    <string name="song_more_detail_directory">디렉터리</string>
     <string name="song_more_loading_ai">곡 정보 및 가사 로드 중...</string>
     <string name="song_more_ai_failed">AI 해석 실패</string>
     <string name="library_deleted_songs">%1$d 곡을 삭제했습니다</string>
@@ -1287,6 +1295,8 @@
     <string name="artist_tab_songs">곡</string>
     <string name="artist_tab_participated_albums">참여 앨범</string>
     <string name="artist_tab_release_albums">발매 앨범</string>
+    <string name="artist_tab_biography">전기</string>
+    <string name="artist_biography_region">지역</string>
     <string name="artist_song_count_sorted">%1$d 곡 · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d 참여 앨범 · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d 발매 앨범 · %2$s</string>
@@ -1792,6 +1802,11 @@
     <string name="settings_artist_cover_folder_cleared">아티스트 커버 폴더를 지웠습니다</string>
     <string name="settings_auto_show_search_keyboard">검색 버튼을 누르면 키보드 자동 표시</string>
     <string name="settings_auto_show_search_keyboard_summary">끄면 검색창만 펼쳐지고 자동으로 포커스하거나 키보드를 띄우지 않습니다</string>
+    <string name="settings_search_reopen_behavior">검색을 다시 열 때</string>
+    <string name="settings_search_reopen_behavior_summary">검색 페이지를 다시 열 때 이전 입력을 어떻게 처리할지</string>
+    <string name="settings_search_reopen_select">이전 검색어 선택</string>
+    <string name="settings_search_reopen_clear">이전 검색어 지우기</string>
+    <string name="settings_search_reopen_keep">이전 검색어 유지</string>
     <string name="lyric_video_share_generating">영상 생성 중…</string>
     <string name="lyric_video_share_failed">영상 생성 실패</string>
     <string name="lyric_video_share_chooser_title">가사 영상 공유</string>
@@ -1834,6 +1849,8 @@
     <string name="settings_player_page_style_halcyon">Halcyon</string>
     <string name="settings_player_page_style_apple_music">Apple Music</string>
     <string name="settings_player_page_style_immersive_lyrics">몰입형 가사</string>
+    <string name="settings_player_lyrics_corner_actions">가사 번역 / 반주 버튼</string>
+    <string name="settings_player_lyrics_corner_actions_summary">Apple Music이 아닌 재생 페이지의 가사 화면에 번역과 반주 바로가기를 표시합니다</string>
     <string name="settings_player_landscape_style">기본 가로 화면 재생 스타일</string>
     <string name="settings_player_landscape_style_summary">가로 화면 재생을 열 때 사용: %1$s</string>
     <string name="settings_player_landscape_style_wide">태블릿/대화면 적응형 플레이어</string>
@@ -2152,6 +2169,17 @@
     <string name="album_introduction_saved_local">앨범 폴더에 쓸 수 없어 앱 내부에 저장했습니다</string>
     <string name="album_introduction_cleared">앨범 소개를 지웠습니다</string>
     <string name="album_introduction_save_failed">앨범 소개를 저장하지 못했습니다</string>
+    <string name="artist_introduction_entry">소개</string>
+    <string name="artist_introduction_title">아티스트 소개</string>
+    <string name="artist_introduction_edit">아티스트 소개 편집</string>
+    <string name="artist_introduction_edit_action">편집</string>
+    <string name="artist_introduction_section">%1$s 소개</string>
+    <string name="artist_introduction_empty">아직 소개가 없습니다. 오른쪽 위의 편집을 눌러 붙여넣거나 작성하세요.</string>
+    <string name="artist_introduction_editor_hint">아티스트 소개 입력 또는 붙여넣기</string>
+    <string name="artist_introduction_saved_nfo">artist.nfo에 저장했습니다</string>
+    <string name="artist_introduction_saved_local">아티스트 폴더에 쓸 수 없어 앱 내부에 저장했습니다</string>
+    <string name="artist_introduction_cleared">아티스트 소개를 지웠습니다</string>
+    <string name="artist_introduction_save_failed">아티스트 소개를 저장하지 못했습니다</string>
     <string name="player_local_music_video">로컬 MV</string>
     <string name="player_netease_music_video">NetEase Cloud Music MV</string>
     <string name="spectrum_frequency_unknown">자동 조정</string>

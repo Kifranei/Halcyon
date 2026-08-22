@@ -113,6 +113,7 @@ class PlaybackService : MediaLibraryService() {
     private var openedAudioEffectSessionId = -1
     private val audioEffectController = AudioEffectController()
     private lateinit var equalizerAudioProcessor: EqualizerAudioProcessor
+    private lateinit var karaokeAccompanimentProcessor: CenterChannelSuppressorAudioProcessor
     private lateinit var usbAudioController: UsbAudioController
     private var honorHdAudioSupport: HonorHdAudioSupport? = null
     private lateinit var oplusLyricHandler: OPlusLyricHandler
@@ -291,7 +292,9 @@ class PlaybackService : MediaLibraryService() {
             )
         }
         equalizerAudioProcessor = EqualizerAudioProcessor()
+        karaokeAccompanimentProcessor = CenterChannelSuppressorAudioProcessor()
         renderersFactory.setEqualizerAudioProcessor(equalizerAudioProcessor)
+        renderersFactory.setExtraAudioProcessors(listOf(karaokeAccompanimentProcessor))
         renderersFactory.setPlaybackOutputSettings(playbackOutputSettings)
         AppLogStore.info(this, TAG, "Decoder mode=${decoderMode.decoderModeLabel()}")
         AppLogStore.info(
@@ -322,6 +325,8 @@ class PlaybackService : MediaLibraryService() {
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
         player.repeatMode = Player.REPEAT_MODE_ALL
+        // Pre-buffer the next queue item so skipToNext is decode-ready instead of a cold open.
+        player.setPreloadConfiguration(ExoPlayer.PreloadConfiguration(/* targetPreloadDurationUs= */ 5_000_000L))
         crossfadePlaybackCoordinator = CrossfadePlaybackCoordinator(
             context = this,
             primary = player,
@@ -336,11 +341,18 @@ class PlaybackService : MediaLibraryService() {
                             else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                         }
                     )
+                    setEqualizerAudioProcessor(equalizerAudioProcessor)
+                    setExtraAudioProcessors(listOf(karaokeAccompanimentProcessor))
                     setPlaybackOutputSettings(playbackOutputSettings)
                 }
             },
             scope = serviceScope
         )
+        serviceScope.launch {
+            settingsManager.karaokeAccompanimentEnabled.collect { enabled ->
+                karaokeAccompanimentProcessor.enabled = enabled
+            }
+        }
         serviceScope.launch {
             settingsManager.crossfadeDurationMs.collect { durationMs ->
                 crossfadePlaybackCoordinator?.setDuration(durationMs)

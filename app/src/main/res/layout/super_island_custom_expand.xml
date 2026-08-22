@@ -75,8 +75,7 @@
             android:background="@android:color/transparent"
             android:padding="10dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_skip_previous"
-            android:tint="@android:color/white" />
+            android:src="@drawable/ic_skip_previous" />
 
         <ImageButton
             android:id="@+id/super_island_expand_play_pause"
@@ -86,8 +85,7 @@
             android:background="@android:color/transparent"
             android:padding="12dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_player_pause"
-            android:tint="@android:color/white" />
+            android:src="@drawable/ic_player_pause" />
 
         <ImageButton
             android:id="@+id/super_island_expand_next"
@@ -96,7 +94,6 @@
             android:background="@android:color/transparent"
             android:padding="10dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_skip_next"
-            android:tint="@android:color/white" />
+            android:src="@drawable/ic_skip_next" />
     </LinearLayout>
 </LinearLayout>

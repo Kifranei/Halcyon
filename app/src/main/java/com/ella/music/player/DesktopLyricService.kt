@@ -243,6 +243,11 @@ class DesktopLyricService : Service() {
         }
         val lyric = DesktopComposeLyricView(this).apply {
             windowTouchHandler = ::onDrag
+            setBackgroundColor(Color.TRANSPARENT)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                isForceDarkAllowed = false
+            }
+            applyCompactLayout(desktopLyricUsesCompactWindow(locked, statusBarMode))
         }
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -272,11 +277,29 @@ class DesktopLyricService : Service() {
 
             // 纯文字悬浮窗：不要黑色背景、不要描边、不要阴影卡片
             setPadding(dp(if (statusBarMode) 4 else 8), dp(if (statusBarMode) 0 else 4), dp(if (statusBarMode) 4 else 8), dp(if (statusBarMode) 0 else 4))
-            setBackgroundColor(Color.TRANSPARENT)
+            background = null
             elevation = 0f
+            outlineProvider = null
+            clipToOutline = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                isForceDarkAllowed = false
+            }
 
-            // Keep the overlay inside the physical screen; fixed dp widths can overflow on high-density phones.
-            addView(lyric, LinearLayout.LayoutParams(lyricWidth, lyricHeight))
+            addView(
+                lyric,
+                LinearLayout.LayoutParams(
+                    if (desktopLyricUsesCompactWindow(locked, statusBarMode)) {
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    } else {
+                        lyricWidth
+                    },
+                    if (desktopLyricUsesCompactWindow(locked, statusBarMode)) {
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    } else {
+                        lyricHeight
+                    }
+                )
+            )
 
             // 控制按钮仍保留，双击歌词时显示
             addView(
@@ -310,7 +333,11 @@ class DesktopLyricService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            if (statusBarMode || locked) baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else baseFlags,
+            if (desktopLyricPassThroughTouches(statusBarMode)) {
+                baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                baseFlags
+            },
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -488,41 +515,100 @@ class DesktopLyricService : Service() {
             revealControls -> View.VISIBLE
             else -> controlsView?.visibility ?: View.GONE
         }
-        // Locking only disables touch and hides controls. Preserve the existing lyric surface;
-        // changing its background/padding here can make the lyric look dimmer on some overlays.
-        if (!lock) setPanelVisible(controlsView?.visibility == View.VISIBLE)
+        setPanelVisible(
+            desktopLyricControlPanelVisible(
+                locked = lock,
+                statusBarMode = statusBarMode,
+                controlsVisible = controlsView?.visibility == View.VISIBLE
+            )
+        )
         if (!lock && revealControls) scheduleControlsAutoHide()
         val params = layoutParams ?: return
-        // Some overlay implementations inherit a reduced alpha while their touchability/visible
-        // state changes. Locking is only a gesture lock; it must not dim the lyric itself.
         params.alpha = 1f
-        rootView?.alpha = 1f
-        lyricView?.alpha = 1f
-        params.flags = params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND.inv()
         params.dimAmount = 0f
-        params.flags = if (lock || statusBarMode) {
+        params.buttonBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        params.flags = params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND.inv()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
+            params.setBlurBehindRadius(0)
+        }
+        params.flags = if (desktopLyricPassThroughTouches(statusBarMode)) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
             params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         }
+        clearOverlayChrome()
+        updateLyricViewBounds()
         rootView?.let { windowManager.updateViewLayout(it, params) }
+        applyCurrentSettingsToViews()
+        restoreLockedLyricOpacity()
         if (lock && !statusBarMode) postUnlockNotification() else notificationManager.cancel(NOTIFICATION_ID)
+    }
+
+    private fun restoreLockedLyricOpacity() {
+        val view = rootView ?: return
+        val params = layoutParams ?: return
+        params.alpha = 1f
+        params.dimAmount = 0f
+        view.alpha = 1f
+        lyricView?.alpha = 1f
+        view.post {
+            params.alpha = 1f
+            params.dimAmount = 0f
+            view.alpha = 1f
+            lyricView?.alpha = 1f
+            clearOverlayChrome()
+            runCatching { windowManager.updateViewLayout(view, params) }
+            applyCurrentSettingsToViews()
+        }
+    }
+
+    private fun clearOverlayChrome() {
+        val root = rootView ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            root.isForceDarkAllowed = false
+            lyricView?.isForceDarkAllowed = false
+        }
+        root.elevation = 0f
+        root.outlineProvider = null
+        root.clipToOutline = false
+        root.foreground = null
+        lyricView?.elevation = 0f
+        lyricView?.outlineProvider = null
+        lyricView?.clipToOutline = false
+        lyricView?.foreground = null
+        lyricView?.setBackgroundColor(Color.TRANSPARENT)
+        if (!desktopLyricControlPanelVisible(
+                locked = locked,
+                statusBarMode = statusBarMode,
+                controlsVisible = controlsView?.visibility == View.VISIBLE
+            )
+        ) {
+            root.background = null
+        }
+        root.alpha = 1f
+        lyricView?.alpha = 1f
     }
 
     private fun setPanelVisible(visible: Boolean) {
         val root = rootView ?: return
-        if (statusBarMode) {
+        if (statusBarMode || !visible) {
             root.background = null
-            root.setPadding(dp(4), 0, dp(4), 0)
+            root.foreground = null
+            root.outlineProvider = null
+            root.clipToOutline = false
+            root.elevation = 0f
+            root.setPadding(
+                dp(if (statusBarMode) 4 else 8),
+                dp(if (statusBarMode) 0 else 4),
+                dp(if (statusBarMode) 4 else 8),
+                dp(if (statusBarMode) 0 else 4)
+            )
             return
         }
-        root.background = if (visible) panelBackground else null
-        root.setPadding(
-            dp(if (visible) 12 else 8),
-            dp(if (visible) 8 else 4),
-            dp(if (visible) 12 else 8),
-            dp(if (visible) 8 else 4)
-        )
+        root.background = panelBackground
+        root.setPadding(dp(12), dp(8), dp(12), dp(8))
     }
 
     private fun onDrag(view: View, event: MotionEvent): Boolean {
@@ -809,30 +895,33 @@ class DesktopLyricService : Service() {
         }
         applyCurrentSettingsToViews()
         setLocked(locked, revealControls = false)
-        if (statusBarMode) {
-            val view = rootView
-            val params = layoutParams
-            if (view != null && params != null) {
-                lyricView?.layoutParams = lyricView?.layoutParams?.apply {
-                    width = statusBarLyricWidth()
-                    height = statusBarLyricHeight()
-                }
-                clampToScreen(view, params)
-                windowManager.updateViewLayout(view, params)
-            }
-        } else {
-            val view = rootView
-            val params = layoutParams
-            if (view != null && params != null) {
-                lyricView?.layoutParams = lyricView?.layoutParams?.apply {
-                    width = desktopLyricWidth()
-                    height = desktopLyricHeight()
-                }
-                clampToScreen(view, params)
-                windowManager.updateViewLayout(view, params)
-            }
+        val view = rootView
+        val params = layoutParams
+        if (view != null && params != null) {
+            updateLyricViewBounds()
+            clampToScreen(view, params)
+            windowManager.updateViewLayout(view, params)
         }
         updateStatusBarModeVisibility()
+    }
+
+    private fun updateLyricViewBounds() {
+        val lyric = lyricView ?: return
+        val compact = desktopLyricUsesCompactWindow(locked, statusBarMode)
+        lyric.applyCompactLayout(compact)
+        lyric.layoutParams = LinearLayout.LayoutParams(
+            when {
+                statusBarMode -> statusBarLyricWidth()
+                compact -> LinearLayout.LayoutParams.WRAP_CONTENT
+                else -> desktopLyricWidth()
+            },
+            when {
+                statusBarMode -> statusBarLyricHeight()
+                compact -> LinearLayout.LayoutParams.WRAP_CONTENT
+                else -> desktopLyricHeight()
+            }
+        )
+        lyric.requestLayout()
     }
 
     private fun applyCurrentSettingsToViews() {

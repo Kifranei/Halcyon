@@ -55,6 +55,8 @@ fun EllaSearchBar(
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
     autoFocus: Boolean? = null,
+    autoSelectAll: Boolean = false,
+    onAutoSelectAllConsumed: () -> Unit = {},
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainerHigh
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -80,8 +82,18 @@ fun EllaSearchBar(
         onSearch()
     }
 
+    LaunchedEffect(autoSelectAll, query) {
+        if (autoSelectAll && query.isNotEmpty()) {
+            fieldValue = TextFieldValue(query, selection = TextRange(0, query.length))
+            delay(180L)
+            focusRequester.requestFocus()
+            if (shouldAutoFocus) keyboardController?.show()
+            onAutoSelectAllConsumed()
+        }
+    }
+
     LaunchedEffect(shouldAutoFocus) {
-        if (shouldAutoFocus) {
+        if (shouldAutoFocus && !autoSelectAll) {
             delay(180L)
             focusRequester.requestFocus()
             keyboardController?.show()

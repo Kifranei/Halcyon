@@ -175,7 +175,7 @@ fun MiniPlayer(
                                 Highlight.Default.copy(
                                     alpha = when (glassEffect) {
                                         BottomBarGlassEffect.Blur -> if (isLight) 0.26f else 0.16f
-                                        BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.10f
+                                        BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.42f else 0.32f
                                     }
                                 )
                             },
@@ -184,7 +184,7 @@ fun MiniPlayer(
                             }
                         )
                         .liquidGlassDepthOverlay(
-                            enabled = false,
+                            enabled = glassEffect == BottomBarGlassEffect.LiquidGlass,
                             isLight = isLight
                         )
                 } else if (useGlassLayout) {
@@ -192,7 +192,7 @@ fun MiniPlayer(
                         .clip(shape)
                         .background(glassSurface, shape)
                         .liquidGlassDepthOverlay(
-                            enabled = false,
+                            enabled = glassEffect == BottomBarGlassEffect.LiquidGlass,
                             isLight = isLight
                         )
                 } else {

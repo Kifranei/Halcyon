@@ -20,4 +20,10 @@ class LocateCurrentSongRequestTest {
         assertFalse(shouldHonorLocateCurrentSongRequest(3, 3, 4))
         assertTrue(shouldHonorLocateCurrentSongRequest(4, 3, 4))
     }
+
+    @Test
+    fun lateCompositionWithUnknownIndexStillHonorsThePendingRequest() {
+        assertFalse(shouldHonorLocateCurrentSongRequest(4, 0, -1))
+        assertTrue(shouldHonorLocateCurrentSongRequest(4, 0, 6))
+    }
 }

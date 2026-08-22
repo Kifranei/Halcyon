@@ -36,7 +36,7 @@ fun SafeCoverImage(
     }
 
     Box(modifier = modifier) {
-        if (showDefaultPlaceholder) {
+        if (showDefaultPlaceholder && model == null) {
             DefaultAlbumCover(modifier = Modifier.fillMaxSize())
         }
         if (model != null) {

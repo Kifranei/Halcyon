@@ -221,8 +221,10 @@ internal fun AppleMusicLyricLine(
         }
     ) {
         val pronunciation = line.pronunciation.orEmpty()
-        val showPronunciationAbove = showPronunciation && pronunciation.isNotBlank() && !pronunciationBelow
-        val showPronunciationBelow = showPronunciation && pronunciation.isNotBlank() && pronunciationBelow
+        val inlineRuby = showPronunciation && pronunciation.isNotBlank() &&
+            (line.pronunciationWords.isNotEmpty() || isInlineRubyPronunciation(pronunciation))
+        val showPronunciationAbove = showPronunciation && pronunciation.isNotBlank() && !pronunciationBelow && !inlineRuby
+        val showPronunciationBelow = showPronunciation && pronunciation.isNotBlank() && pronunciationBelow && !inlineRuby
         if (showPronunciationAbove) {
             BasicText(text = pronunciation, style = secondaryStyle, modifier = Modifier.fillMaxWidth())
         }
@@ -271,6 +273,9 @@ internal fun AppleMusicLyricLine(
                 sustainThresholdMs = sustainThresholdMs,
                 singleLine = singleLine,
                 statusBarMarquee = statusBarMarquee,
+                pronunciation = if (inlineRuby) pronunciation else "",
+                pronunciationWords = if (inlineRuby) line.pronunciationWords else emptyList(),
+                rubyStyle = if (inlineRuby) secondaryStyle else null,
                 modifier = Modifier.fillMaxWidth()
             )
         }

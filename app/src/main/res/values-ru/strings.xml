@@ -84,6 +84,7 @@
     <string name="common_remove">Удалить</string>
     <string name="common_save">Сохранить</string>
     <string name="common_search">Поиск</string>
+    <string name="bottom_dock_tabs">Вкладки</string>
     <string name="common_open">Открыть</string>
     <string name="common_test">Тест</string>
     <string name="common_sort">Сортировать</string>
@@ -290,6 +291,8 @@
     <string name="settings_category_grid_columns_option_summary_default">Подходит для большинства экранов</string>
     <string name="settings_show_album_artists">Показать исполнителей альбома</string>
     <string name="settings_show_album_artists_summary">Объединить исполнителей альбомов в список исполнителей и отобразить вкладку релизных альбомов на страницах исполнителей.</string>
+    <string name="settings_show_artist_introduction">Показать описание исполнителя</string>
+    <string name="settings_show_artist_introduction_summary">Показывать пункт «Описание» на страницах исполнителей</string>
     <string name="settings_open_player_on_play">Открыть плеер после нажатия кнопки воспроизведения</string>
     <string name="settings_open_player_on_play_summary">Автоматически открывать плеер после запуска локальных, WebDAV или онлайн-песен.</string>
     <string name="settings_mini_player_swipe_to_open_player">Открывать плеер свайпом мини-плеера вверх</string>
@@ -337,6 +340,7 @@
     <string name="player_more_actions">Дополнительные действия</string>
     <string name="player_song_info">Информация о песне</string>
     <string name="player_lyrics_display">Лирический дисплей</string>
+    <string name="player_accompaniment">Минус</string>
     <string name="player_landscape_lyrics">Пейзажная лирика</string>
     <string name="player_edit_metadata">Редактировать метаданные</string>
     <string name="player_lyric_timing">Лирический тайминг</string>
@@ -636,6 +640,8 @@
     <string name="settings_system_section">Система</string>
     <string name="settings_gapless_playback">Воспроизведение без пауз</string>
     <string name="settings_gapless_playback_summary">Переключение между песнями без пауз</string>
+    <string name="settings_karaoke_accompaniment">Ослабление вокала / минус</string>
+    <string name="settings_karaoke_accompaniment_summary">Мгновенно ослабляет центральный вокал в стереомиксе. Это не ИИ-разделение стемов</string>
     <string name="settings_startup_play">Автозапуск при запуске</string>
     <string name="settings_bluetooth_auto_play">Bluetooth автовоспроизведение</string>
     <string name="settings_bluetooth_auto_play_summary">Автоматически начинать воспроизведение при подключении аудиоустройства Bluetooth</string>
@@ -761,7 +767,7 @@
     <string name="song_more_metadata_album">Альбом</string>
     <string name="song_more_metadata_album_artist">Художник альбома</string>
     <string name="song_more_metadata_genre">Жанр</string>
-    <string name="song_more_metadata_year">Год</string>
+    <string name="song_more_metadata_year">Дата выпуска</string>
     <string name="song_more_metadata_track_number">Номер трека</string>
     <string name="song_more_metadata_composer">Композитор</string>
     <string name="song_more_metadata_lyricist">автор текста</string>
@@ -785,6 +791,7 @@
     <string name="library_refresh">Обновить библиотеку</string>
     <string name="library_search_placeholder">Поиск песен, альбомов, исполнителей, тегов или текстов песен</string>
     <string name="library_search_page_placeholder">Поиск песен, альбомов, исполнителей, тегов или текстов песен</string>
+    <string name="library_search_dock_placeholder">Поиск музыки</string>
     <string name="library_search_duplicates">Дублирующиеся песни</string>
     <string name="library_search_clear_history">Очистить историю</string>
     <string name="library_search_history">История поиска</string>
@@ -1240,7 +1247,7 @@
     <string name="song_more_raw_netease_key">Необработанный ключ 163</string>
     <string name="song_more_detail_album_artist">Художник альбома</string>
     <string name="song_more_detail_genre">Жанр</string>
-    <string name="song_more_detail_year">Год</string>
+    <string name="song_more_detail_year">Дата выпуска</string>
     <string name="song_more_netease_song_id">Идентификатор песни NetEase: %1$s</string>
     <string name="song_more_view_netease_info">Нажмите, чтобы просмотреть связанную информацию о NetEase</string>
     <string name="song_more_detail_format">Формат</string>
@@ -1251,6 +1258,7 @@
     <string name="song_more_detail_added_time">Добавлено время</string>
     <string name="song_more_detail_file_name">Имя файла</string>
     <string name="song_more_detail_path">Путь</string>
+    <string name="song_more_detail_directory">Каталог</string>
     <string name="song_more_loading_ai">Загрузка информации о песне и текста...</string>
     <string name="song_more_ai_failed">Интерпретация ИИ не удалась</string>
     <string name="library_deleted_songs">Удалены песни %1$d.</string>
@@ -1284,6 +1292,8 @@
     <string name="artist_tab_songs">Песни</string>
     <string name="artist_tab_participated_albums">Участвующие альбомы</string>
     <string name="artist_tab_release_albums">Выпуск альбомов</string>
+    <string name="artist_tab_biography">Биография</string>
+    <string name="artist_biography_region">Регион</string>
     <string name="artist_song_count_sorted">Песни %1$d · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d альбомы участников · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d выпускает альбомы · %2$s</string>
@@ -1779,6 +1789,11 @@
     <string name="settings_artist_cover_folder_cleared">Папка обложек исполнителей очищена</string>
     <string name="settings_auto_show_search_keyboard">Показывать клавиатуру при нажатии на поиск</string>
     <string name="settings_auto_show_search_keyboard_summary">Когда выключено, нажатие на поиск лишь раскрывает строку поиска, не фокусируя её и не показывая клавиатуру</string>
+    <string name="settings_search_reopen_behavior">Повторный вход в поиск</string>
+    <string name="settings_search_reopen_behavior_summary">Что делать с прошлым запросом при повторном открытии поиска</string>
+    <string name="settings_search_reopen_select">Выделить прошлый запрос</string>
+    <string name="settings_search_reopen_clear">Очистить прошлый запрос</string>
+    <string name="settings_search_reopen_keep">Сохранить прошлый запрос</string>
     <string name="lyric_video_share_generating">Создание видео…</string>
     <string name="lyric_video_share_failed">Не удалось создать видео</string>
     <string name="lyric_video_share_chooser_title">Поделиться видео с текстом</string>
@@ -1821,6 +1836,8 @@
     <string name="settings_player_page_style_halcyon">Halcyon</string>
     <string name="settings_player_page_style_apple_music">Apple Music</string>
     <string name="settings_player_page_style_immersive_lyrics">Иммерсивный текст песни</string>
+    <string name="settings_player_lyrics_corner_actions">Кнопки перевода / минусовки</string>
+    <string name="settings_player_lyrics_corner_actions_summary">Показывать перевод и минусовку на страницах текста не в стиле Apple Music</string>
     <string name="settings_player_landscape_style">Стиль плеера по умолчанию в альбомной ориентации</string>
     <string name="settings_player_landscape_style_summary">Используется при открытии альбомного плеера: %1$s</string>
     <string name="settings_player_landscape_style_wide">Адаптивный плеер для планшетов и больших экранов</string>
@@ -2139,6 +2156,17 @@
     <string name="album_introduction_saved_local">Папка альбома недоступна для записи, поэтому описание сохранено в приложении</string>
     <string name="album_introduction_cleared">Описание альбома удалено</string>
     <string name="album_introduction_save_failed">Не удалось сохранить описание альбома</string>
+    <string name="artist_introduction_entry">Описание</string>
+    <string name="artist_introduction_title">Описание исполнителя</string>
+    <string name="artist_introduction_edit">Редактировать описание исполнителя</string>
+    <string name="artist_introduction_edit_action">Изменить</string>
+    <string name="artist_introduction_section">О %1$s</string>
+    <string name="artist_introduction_empty">Описания пока нет. Нажмите «Изменить», чтобы вставить или написать его.</string>
+    <string name="artist_introduction_editor_hint">Введите или вставьте описание исполнителя</string>
+    <string name="artist_introduction_saved_nfo">Сохранено в artist.nfo</string>
+    <string name="artist_introduction_saved_local">Папка исполнителя недоступна для записи, поэтому описание сохранено в приложении</string>
+    <string name="artist_introduction_cleared">Описание исполнителя удалено</string>
+    <string name="artist_introduction_save_failed">Не удалось сохранить описание исполнителя</string>
     <string name="player_local_music_video">Локальный клип</string>
     <string name="player_netease_music_video">Клип NetEase</string>
     <string name="spectrum_frequency_unknown">Адаптивный</string>

@@ -1,4 +1,36 @@
+# 1.2.6
+
+From `1.2.5` to the current unreleased `1.2.6` tree.
+
+中文更新日志
+- 艺术家页在「发行专辑」和「MV」之间新增 Last.fm 传记 Tab（`#496`），可按官方站点切换 English / Deutsch / Español / Français / Italiano / 日本語 / Polski / Português / Русский / Svenska / Türkçe / 简体中文。
+- 文件夹层次详情页加入面包屑导航（`#497`）；非当前层改为灰色，点击父目录会进入该层但保留更深的路径，可再点回去（`#500`）。
+- 搜索栏移到底栏：左侧为进入搜索前的 Tab 图标，右侧为加长搜索框；新增「再次进入搜索」设置（清空 / 保留 / 全选上次内容）。
+- 歌曲信息条目可跳转到对应艺术家、专辑、目录、格式和音质页；从播放页跳转会收起播放覆盖层。在文件夹层次页打开「目录」不再把播放页留在上层（`#499`）。
+- 「继续播放」只在当前分类就是播放来源时隐藏，歌曲碰巧在列表里不再误藏（`#492`）。
+- 从当前播放列表或长按迷你条跳转播放来源时，会定位到正在播放的歌曲；覆盖音频格式/音质详情、文件夹层次、文件夹详情和文件夹歌单（`#494`、`#498`）。
+- 从播放页、歌曲详情页、歌词页跳转到其他页面时，不再闪一下播放页下面的页面（`#495`）。
+- Apple Music 歌词页的「文 A / 麦克风」仅在控制层可见时显示，全屏歌词两秒后随 chrome 隐藏；封面滑到歌词使用共享元素形变。
+- 逐字假名按 TTML 时间跨度对齐，避免挤在一起或吞字；切歌/跳过改为本地队列立刻换曲。
+- 液态玻璃底栏的发光描边补到迷你播放条和搜索圆块；小米超级岛控制图标和桌面歌词浮层边框更完整。
+- 杜比（AC-3 / E-AC-3 / AC-4）音源播放页只保留双 D 杜比标识，不再叠加 Hi-Res 的 ∞。
+
+English Changelog
+- Artist pages gain a Last.fm biography tab between release albums and music videos (`#496`), with the official Last.fm language switcher (English, Deutsch, Español, Français, Italiano, 日本語, Polski, Português, Русский, Svenska, Türkçe, 简体中文).
+- Folder-hierarchy details now show breadcrumbs (`#497`). Ancestors are gray; tapping a parent opens that folder while keeping the deeper trail so you can jump back (`#500`).
+- Search moves into the bottom dock: the previous tab icon on the left and a long search field on the right. A setting controls reopen behavior (clear / keep / select the last query).
+- Song-info rows jump to the matching artist, album, directory, format, or quality page and dismiss the player overlay. Opening Directory from a folder-hierarchy page no longer leaves the player stuck on top (`#499`).
+- The continue-playback row hides only when this category is the current playback source, not merely because the playing song happens to be in the list (`#492`).
+- Jumping to the playback source from the queue or a long-press on the mini player now locates the current song, including audio-format/quality buckets, folder hierarchy, folder details, and folder playlists (`#494`, `#498`).
+- Navigating away from the player, song-details, or lyrics pages no longer flashes the page underneath (`#495`).
+- Apple Music lyrics show 文A / mic only while chrome is visible; they hide with the 2-second fullscreen fade. Cover-to-lyrics uses a shared-element morph.
+- Timed furigana follows TTML spans instead of concatenated glyphs. Next/previous skip updates the local queue immediately.
+- Liquid-glass edge glow is applied to the mini player and search pill. Super Island control icons and desktop-lyric overlay chrome are completed.
+- Dolby (AC-3 / E-AC-3 / AC-4) player capsules keep the double-D mark only and no longer also prefix the Hi-Res ∞.
+
+
 # 1.2.5
+
 
 From `1.2.4` to the latest `main` commit on 2026-08-09.
 

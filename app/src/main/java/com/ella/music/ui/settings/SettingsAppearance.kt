@@ -147,6 +147,10 @@ internal fun SettingsAppearanceSection(
     val showRemoveFromPlaylistButton by settingsManager.showRemoveFromPlaylistButton.collectCachedAsState("showRemoveFromPlaylistButton", true)
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectCachedAsState("excludeSearchResultsFromPlaylist", false)
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectCachedAsState("autoShowSearchKeyboard", true)
+    val searchReopenBehavior by settingsManager.searchReopenBehavior.collectCachedAsState(
+        "searchReopenBehavior",
+        SettingsManager.DEFAULT_SEARCH_REOPEN_BEHAVIOR
+    )
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectCachedAsState("openPlayerOnPlay", false)
     val miniPlayerLongPressSource by settingsManager.miniPlayerLongPressSource.collectCachedAsState("miniPlayerLongPressSource", false)
     val categoryGridColumns by settingsManager.categoryGridColumns.collectCachedAsState("categoryGridColumns", 2)
@@ -170,6 +174,16 @@ internal fun SettingsAppearanceSection(
     val playerTitlePositionEntries = remember(playerTitlePositionLabels) {
         playerTitlePositionLabels.map { DropdownItem(title = it) }
     }
+    val searchReopenBehaviorLabels = listOf(
+        stringResource(R.string.settings_search_reopen_select),
+        stringResource(R.string.settings_search_reopen_clear),
+        stringResource(R.string.settings_search_reopen_keep)
+    )
+    val searchReopenBehaviorEntries = remember(searchReopenBehaviorLabels) {
+        searchReopenBehaviorLabels.map { DropdownItem(title = it) }
+    }
+    val selectedSearchReopenBehavior = SettingsManager.normalizeSearchReopenBehavior(searchReopenBehavior)
+        .coerceIn(searchReopenBehaviorLabels.indices)
     val playerPageStyleOptions = listOf(
         SettingsManager.PLAYER_PAGE_STYLE_HALCYON to
             stringResource(R.string.settings_player_page_style_halcyon),
@@ -703,6 +717,7 @@ internal fun SettingsAppearanceSection(
     SettingsCardGroup(
         highlight = isHighlighted(
             "auto_show_search_keyboard",
+            "search_reopen_behavior",
             "dynamic_cover",
             "player_show_total_duration",
             "player_tap_seek",
@@ -761,6 +776,20 @@ internal fun SettingsAppearanceSection(
                     checked = autoShowSearchKeyboard,
                     onCheckedChange = {
                         scope.launch { settingsManager.setAutoShowSearchKeyboard(it) }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "search_reopen_behavior") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_search_reopen_behavior),
+                    summary = stringResource(
+                        R.string.settings_current_value,
+                        searchReopenBehaviorLabels[selectedSearchReopenBehavior]
+                    ),
+                    items = searchReopenBehaviorEntries,
+                    selectedIndex = selectedSearchReopenBehavior,
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setSearchReopenBehavior(index) }
                     }
                 )
             }

@@ -43,6 +43,21 @@ class AudioQualityTest {
     }
 
     @Test
+    fun dolbyEc3DoesNotStackHiResMobiusMark() {
+        val summary = audioQualitySummary(
+            AudioInfo(
+                format = "EC3",
+                bitRate = 876_000,
+                sampleRate = 48_000,
+                channels = 6
+            )
+        )
+        assertEquals("$DOLBY_MARK Dolby Atmos", summary.compactLabel)
+        assertEquals(DOLBY_MARK, summary.listTag)
+        assertTrue(!summary.showMobius)
+    }
+
+    @Test
     fun ac4ImmersiveStereoDetailIsPreserved() {
         val detail = detailedAudioInfo(
             AudioInfo(

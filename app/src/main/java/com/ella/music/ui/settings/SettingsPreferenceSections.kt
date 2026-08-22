@@ -484,6 +484,10 @@ internal fun SettingsScanSection(
     val genreProtectedNames by settingsManager.genreProtectedNames.collectAsState(initial = "")
     val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = false)
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
+    val showArtistIntroduction by settingsManager.showArtistIntroduction.collectAsState(initial = true)
+    val artistBioDownload by settingsManager.artistBioDownload.collectAsState(
+        initial = SettingsManager.DEFAULT_ARTIST_BIO_DOWNLOAD
+    )
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val coverExportFolderUri by settingsManager.coverExportFolderUri.collectAsState(initial = "")
     val artistCoverCarousel by settingsManager.artistCoverCarousel.collectAsState(initial = true)
@@ -587,6 +591,35 @@ internal fun SettingsScanSection(
                     summary = stringResource(R.string.settings_show_album_artists_summary),
                     checked = showAlbumArtists,
                     onCheckedChange = { scope.launch { settingsManager.setShowAlbumArtists(it) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "show_artist_introduction") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_show_artist_introduction),
+                    summary = stringResource(R.string.settings_show_artist_introduction_summary),
+                    checked = showArtistIntroduction,
+                    onCheckedChange = { scope.launch { settingsManager.setShowArtistIntroduction(it) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "artist_bio_download") {
+                val bioLabels = listOf(
+                    stringResource(R.string.settings_artist_bio_download_always),
+                    stringResource(R.string.settings_artist_bio_download_wifi),
+                    stringResource(R.string.settings_artist_bio_download_never)
+                )
+                val selectedBio = SettingsManager.normalizeArtistBioDownload(artistBioDownload)
+                    .coerceIn(bioLabels.indices)
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_artist_bio_download),
+                    summary = stringResource(
+                        R.string.settings_current_value,
+                        bioLabels[selectedBio]
+                    ),
+                    items = bioLabels.map { DropdownItem(title = it) },
+                    selectedIndex = selectedBio,
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setArtistBioDownload(index) }
+                    }
                 )
             }
             SettingsFocusAnchor(active = highlightKey == "song_rating_display_stars") {

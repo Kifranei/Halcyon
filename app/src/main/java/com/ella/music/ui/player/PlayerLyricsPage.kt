@@ -184,7 +184,7 @@ internal fun LyricsPlayerPage(
                         lyricTextAlign = lyricTextAlign
                     )
             ) {
-        if (!lyricsLoading) {
+                if (!lyricsLoading) {
                     AppleMusicLyricsView(
                         lyrics = lyrics,
                         currentIndex = currentLyricIndex,
@@ -208,6 +208,7 @@ internal fun LyricsPlayerPage(
                         onLineDoubleClick = onLineDoubleClick,
                         onLineLongClick = onLineLongClick,
                         nonCurrentLineBlurEnabled = !useCustomPlayerBackground,
+                        bottomContentPadding = 72.dp,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

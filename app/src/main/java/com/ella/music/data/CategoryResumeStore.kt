@@ -46,6 +46,9 @@ internal object CategoryResumeKeys {
     fun folderPlaylist(playlistId: String): String = "folderPlaylist:$playlistId"
     fun artist(name: String): String = "artist:${name.trim()}"
     fun metadata(type: String, name: String): String = "category:$type:${name.trim()}"
+    fun analysis(quality: Boolean, label: String): String =
+        "analysis:${if (quality) "quality" else "format"}:${label.trim()}"
     const val HOME = "home:library"
     const val DASHBOARD = "home:dashboard"
+    const val FOLDER_HIERARCHY = "folder:hierarchy"
 }

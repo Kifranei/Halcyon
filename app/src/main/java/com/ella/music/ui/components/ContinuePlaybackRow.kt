@@ -64,7 +64,8 @@ fun ContinuePlaybackRow(
     }
     var dismissed by rememberSaveable(dismissalKey) { mutableStateOf(false) }
     if (dismissed) return
-    if (currentSong?.let { current -> songs.any { it.playlistIdentityKey() == current.playlistIdentityKey() } } == true) return
+    val playbackSourceKey by com.ella.music.data.PlaybackSourceNavigation.sourceKey.collectAsState()
+    if (isContinuePlaybackHiddenForCurrentSource(playbackSourceKey, categoryKey)) return
 
     val resumeIndex = remember(songs, categoryKey) {
         val resumeKey = CategoryResumeStore.getInstance(context).lastSongKey(categoryKey)
@@ -130,5 +131,21 @@ fun ContinuePlaybackRow(
                 .height(1.dp)
                 .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.12f))
         )
+    }
+}
+
+internal fun isContinuePlaybackHiddenForCurrentSource(
+    playbackSourceKey: String?,
+    categoryKey: String
+): Boolean = !playbackSourceKey.isNullOrBlank() && playbackSourceKey == categoryKey
+
+internal fun List<Song>.containsPlayingSong(currentSong: Song?): Boolean {
+    val current = currentSong ?: return false
+    val currentKey = current.playlistIdentityKey()
+    val currentPath = current.path.trim().lowercase()
+    return any { song ->
+        song.playlistIdentityKey() == currentKey ||
+            (current.id > 0L && song.id == current.id) ||
+            (currentPath.isNotBlank() && song.path.trim().lowercase() == currentPath)
     }
 }

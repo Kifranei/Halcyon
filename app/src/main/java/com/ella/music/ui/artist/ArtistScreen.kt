@@ -44,6 +44,7 @@ import android.widget.Toast
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.MusicVideoLauncher
+import com.ella.music.data.ArtistCoverKind
 import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.LibraryAlbumAggregator
 import com.ella.music.data.playbackSourcesForSongs
@@ -120,6 +121,7 @@ fun ArtistScreen(
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
+    val showArtistIntroduction by mainViewModel.settingsManager.showArtistIntroduction.collectAsState(initial = true)
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val dynamicCoverEnabled by mainViewModel.settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val dynamicCoverCustomFolders by mainViewModel.settingsManager.dynamicCoverCustomFolders.collectAsState(initial = emptyList())
@@ -148,6 +150,7 @@ fun ArtistScreen(
     var musicVideoRevision by remember { mutableStateOf(0) }
     var pendingDeleteMusicVideos by remember { mutableStateOf<List<ArtistMusicVideo>>(emptyList()) }
     var musicVideoMenuTarget by remember { mutableStateOf<ArtistMusicVideo?>(null) }
+    var showIntroduction by rememberSaveable(artistName) { mutableStateOf(false) }
     var musicVideoInfoTarget by remember { mutableStateOf<ArtistMusicVideo?>(null) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
 
@@ -275,11 +278,16 @@ fun ArtistScreen(
     val neteaseArtistUrl by produceState<String?>(initialValue = null, artistName, songs) {
         value = mainViewModel.getNeteaseArtistUrlForArtist(artistName)
     }
-    val tabs = remember(showReleaseAlbums, artistMusicVideos) {
+    val artistBioDownload by mainViewModel.settingsManager.artistBioDownload.collectAsState(
+        initial = com.ella.music.data.SettingsManager.DEFAULT_ARTIST_BIO_DOWNLOAD
+    )
+    val showBiographyTab = artistBioDownload != com.ella.music.data.SettingsManager.ARTIST_BIO_DOWNLOAD_NEVER
+    val tabs = remember(showReleaseAlbums, artistMusicVideos, showBiographyTab) {
         buildList {
             add(ArtistTab.Songs)
             add(ArtistTab.ParticipatedAlbums)
             if (showReleaseAlbums) add(ArtistTab.ReleaseAlbums)
+            if (showBiographyTab) add(ArtistTab.Biography)
             if (artistMusicVideos.isNotEmpty()) add(ArtistTab.MusicVideos)
         }
     }
@@ -296,6 +304,7 @@ fun ArtistScreen(
         ArtistTab.Songs -> sortedArtistSongs.size
         ArtistTab.ParticipatedAlbums -> sortedParticipatedAlbums.size
         ArtistTab.ReleaseAlbums -> sortedReleaseAlbums.size
+        ArtistTab.Biography -> 0
         ArtistTab.MusicVideos -> sortedArtistMusicVideos.size
     }
     val showSongSideIndex = !selection.selectionMode &&
@@ -399,6 +408,7 @@ fun ArtistScreen(
             ArtistTab.Songs -> sortedArtistSongs
             ArtistTab.ParticipatedAlbums -> randomParticipatedAlbumSongs
             ArtistTab.ReleaseAlbums -> randomReleaseAlbumSongs
+            ArtistTab.Biography -> emptyList()
             ArtistTab.MusicVideos -> randomArtistMusicVideoSongs
         }
     }
@@ -413,6 +423,7 @@ fun ArtistScreen(
             ArtistTab.Songs -> sortedArtistSongs.map { it.id }
             ArtistTab.ParticipatedAlbums -> sortedParticipatedAlbums.map { it.id }
             ArtistTab.ReleaseAlbums -> sortedReleaseAlbums.map { it.id }
+            ArtistTab.Biography -> emptyList()
             ArtistTab.MusicVideos -> sortedArtistMusicVideos.map { it.song.id }
         }
     }
@@ -426,6 +437,7 @@ fun ArtistScreen(
             ArtistTab.ParticipatedAlbums -> sortedParticipatedAlbums.filter { it.id in selection.selectedIds }
             ArtistTab.ReleaseAlbums -> sortedReleaseAlbums.filter { it.id in selection.selectedIds }
             ArtistTab.Songs,
+            ArtistTab.Biography,
             ArtistTab.MusicVideos -> emptyList()
         }
         return when (selectedArtistTab) {
@@ -434,6 +446,7 @@ fun ArtistScreen(
             ArtistTab.ReleaseAlbums -> selectedAlbums
                 .flatMap { librarySongsByAlbumId[it.id].orEmpty() }
                 .distinctBy { it.playlistIdentityKey() }
+            ArtistTab.Biography,
             ArtistTab.MusicVideos -> emptyList()
         }
     }
@@ -476,6 +489,19 @@ fun ArtistScreen(
     }
     val rangeSelectionAvailable = remember(selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId, currentSelectionIndexById) {
         selection.isRangeSelectionAvailable(currentSelectionIndexById)
+    }
+
+    if (showIntroduction) {
+        ArtistIntroductionScreen(
+            artistName = artistName,
+            songs = artistSongs,
+            coverModel = customArtistCoverAssets
+                .firstOrNull { it.kind == ArtistCoverKind.Image }
+                ?.uri
+                ?: artistOriginalCoverModel,
+            onBack = { showIntroduction = false }
+        )
+        return
     }
 
     BackHandler(enabled = selection.selectionMode || searchExpanded) {
@@ -532,6 +558,8 @@ fun ArtistScreen(
                     } else {
                         participatedAlbums.distinctBy { it.id }.size
                     },
+                    onIntroductionClick = { showIntroduction = true },
+                    showIntroductionEntry = showArtistIntroduction,
                     onPlayAll = {
                         if (playableArtistTabSongs.isNotEmpty()) {
                             val albumSources = artistTabSongSources()
@@ -828,6 +856,15 @@ fun ArtistScreen(
                         )
                     }
                 }
+
+                ArtistTab.Biography -> {
+                    item {
+                        ArtistBiographyPanel(
+                            artistName = artistName,
+                            downloadMode = artistBioDownload
+                        )
+                    }
+                }
             }
 
             if (selectedArtistTab != ArtistTab.Songs && (selectedArtistTab == ArtistTab.ParticipatedAlbums && participatedAlbums.isEmpty() || selectedArtistTab == ArtistTab.ReleaseAlbums && releaseAlbums.isEmpty())) {
@@ -1046,6 +1083,7 @@ fun ArtistScreen(
                             }
                         )
                     }
+                    ArtistTab.Biography -> emptyList()
                     ArtistTab.ParticipatedAlbums,
                     ArtistTab.ReleaseAlbums -> {
                     directionalSortModeDropdownItems(

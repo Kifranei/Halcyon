@@ -100,21 +100,12 @@ internal fun PlayerDetailPage(
     val neteaseArtists = remember(neteaseInfo) {
         neteaseInfo?.artists.orEmpty().filter { it.id.isNotBlank() }
     }
-    val aliasText = remember(neteaseInfo?.aliases) {
-        neteaseInfo
-            ?.aliases
-            .orEmpty()
-            .mapNotNull { it.trim().takeIf(String::isNotBlank) }
-            .distinct()
-            .joinToString(" · ")
+    val songTitle = song?.title.orEmpty()
+    val aliasText = remember(neteaseInfo?.aliases, songTitle) {
+        displayNamesDistinctFromTitle(neteaseInfo?.aliases.orEmpty(), songTitle)
     }
-    val translatedNameText = remember(neteaseInfo?.translatedNames) {
-        neteaseInfo
-            ?.translatedNames
-            .orEmpty()
-            .mapNotNull { it.trim().takeIf(String::isNotBlank) }
-            .distinct()
-            .joinToString(" · ")
+    val translatedNameText = remember(neteaseInfo?.translatedNames, songTitle) {
+        displayNamesDistinctFromTitle(neteaseInfo?.translatedNames.orEmpty(), songTitle)
     }
     val effectiveLibrarySongs = remember(librarySongs, song) {
         librarySongs.ifEmpty { song?.let(::listOf).orEmpty() }
@@ -262,7 +253,7 @@ internal fun PlayerDetailPage(
         ) {
             item {
                 Text(
-                    text = stringResource(R.string.player_song_info),
+                    text = stringResource(R.string.player_song_details),
                     color = LocalPlayerContentColor.current,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
@@ -543,3 +534,12 @@ private fun PlayerDetailStats.albumSummary(albumArtist: String): String =
             albumArtist
         )
     }
+
+internal fun displayNamesDistinctFromTitle(names: List<String>, title: String): String {
+    val trimmedTitle = title.trim()
+    return names
+        .map { it.trim() }
+        .filter { it.isNotBlank() && (trimmedTitle.isBlank() || !it.equals(trimmedTitle, ignoreCase = true)) }
+        .distinct()
+        .joinToString(" · ")
+}

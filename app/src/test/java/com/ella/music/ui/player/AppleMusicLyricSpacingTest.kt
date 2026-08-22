@@ -20,6 +20,111 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
+    fun kanaPronunciationSitsOnTheFirstKanjiWordNotTheLatinPrefix() {
+        val words = listOf(
+            LyricWord("OK! ", 0L, 400L),
+            LyricWord("風が ", 400L, 800L),
+            LyricWord("変わっても", 800L, 1_400L)
+        )
+        assertEquals(
+            listOf("", "かぜ", "か"),
+            rubiesForTimedWords(words, emptyList(), "かぜがかわっても")
+        )
+        assertTrue(isInlineRubyPronunciation("かぜが"))
+        assertFalse(isInlineRubyPronunciation("ka ku se i READY OK"))
+    }
+
+    @Test
+    fun kanaRubyMapsOntoMatchingKanjiNotTheFollowingKana() {
+        val words = listOf(
+            LyricWord("風", 0L, 300L),
+            LyricWord("が", 300L, 400L),
+            LyricWord("変", 400L, 700L),
+            LyricWord("わっても", 700L, 1_400L)
+        )
+        assertEquals(
+            listOf("かぜ", "", "か", ""),
+            attachRubyByCorrespondence(words, "かぜがかわっても")
+        )
+    }
+
+    @Test
+    fun consecutiveKanjiSplitReadingsInsteadOfPilingThem() {
+        val words = listOf(
+            LyricWord("見", 0L, 100L),
+            LyricWord("守", 100L, 500L),
+            LyricWord("ってくれてるよ", 500L, 1_000L)
+        )
+        assertEquals(
+            listOf("み", "まも", ""),
+            attachRubyByCorrespondence(words, "みまも")
+        )
+        assertEquals(
+            listOf("み", "まも", ""),
+            attachRubyByCorrespondence(words, "みまもってくれてるよ")
+        )
+    }
+
+    @Test
+    fun appleMusicTimedFuriganaStaysOnEachKanjiSpan() {
+        val words = listOf(
+            LyricWord("OK! ", 17_601L, 18_114L),
+            LyricWord("風", 18_718L, 19_254L),
+            LyricWord("が ", 19_254L, 19_459L),
+            LyricWord("変", 19_459L, 19_775L),
+            LyricWord("わっ", 19_775L, 20_179L),
+            LyricWord("て", 20_179L, 20_506L),
+            LyricWord("も", 20_506L, 20_913L)
+        )
+        val ruby = listOf(
+            LyricWord("かぜ", 18_718L, 19_254L),
+            LyricWord("か", 19_459L, 19_775L)
+        )
+        assertEquals(
+            listOf("", "かぜ", "", "か", "", "", ""),
+            rubiesForTimedWords(words, ruby, "かぜか")
+        )
+    }
+
+    @Test
+    fun appleMusicTimedFuriganaDoesNotSwallowTheSecondKanji() {
+        val words = listOf(
+            LyricWord("みん", 59_292L, 59_493L),
+            LyricWord("な", 59_493L, 59_595L),
+            LyricWord("を ", 59_595L, 59_806L),
+            LyricWord("見", 59_806L, 59_907L),
+            LyricWord("守", 59_907L, 60_444L),
+            LyricWord("っ", 60_444L, 60_457L),
+            LyricWord("てくれてるよ", 60_457L, 63_362L)
+        )
+        val ruby = listOf(
+            LyricWord("み", 59_806L, 59_907L),
+            LyricWord("まも", 59_907L, 60_444L)
+        )
+        assertEquals(
+            listOf("", "", "", "み", "まも", "", ""),
+            rubiesForTimedWords(words, ruby, "みまも")
+        )
+    }
+
+    @Test
+    fun timedPronunciationWordsStayOnMatchingMainWords() {
+        val words = listOf(
+            LyricWord("風", 0L, 400L),
+            LyricWord("が", 400L, 600L),
+            LyricWord("変わって", 600L, 1_000L)
+        )
+        val ruby = listOf(
+            LyricWord("かぜ", 0L, 400L),
+            LyricWord("かわ", 600L, 1_000L)
+        )
+        assertEquals(
+            listOf("かぜ", "", "かわ"),
+            rubiesForTimedWords(words, ruby, "かぜかわ")
+        )
+    }
+
+    @Test
     fun leadingWordSpacesMoveToPreviousWordForFlushWrappedRows() {
         val words = listOf(
             LyricWord("It's", 0L, 400L),

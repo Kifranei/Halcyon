@@ -87,6 +87,7 @@
     <string name="common_remove">Remove</string>
     <string name="common_save">Save</string>
     <string name="common_search">Search</string>
+    <string name="bottom_dock_tabs">Tabs</string>
     <string name="common_open">Open</string>
     <string name="common_test">Test</string>
     <string name="common_sort">Sort</string>
@@ -316,6 +317,18 @@
     <string name="settings_category_grid_columns_option_summary_default">Fits most screens</string>
     <string name="settings_show_album_artists">Show album artists</string>
     <string name="settings_show_album_artists_summary">Merge album artists into the artist list and show a release albums tab on artist pages</string>
+    <string name="settings_show_artist_introduction">Show artist introduction</string>
+    <string name="settings_show_artist_introduction_summary">Show the Introduction entry on artist pages</string>
+    <string name="artist_biography_region">Region</string>
+    <string name="artist_biography_read_more">Read more on Last.fm</string>
+    <string name="artist_biography_empty">No Last.fm biography for this artist</string>
+    <string name="artist_biography_unavailable">Current network settings don\'t allow downloading artist biographies</string>
+    <string name="artist_biography_failed">Couldn\'t load the artist biography</string>
+    <string name="settings_artist_bio_download">Auto-download artist biographies</string>
+    <string name="settings_artist_bio_download_summary">Load Last.fm biographies on artist pages</string>
+    <string name="settings_artist_bio_download_always">Always</string>
+    <string name="settings_artist_bio_download_wifi">Wi-Fi only</string>
+    <string name="settings_artist_bio_download_never">Never</string>
     <string name="settings_open_player_on_play">Open player after tapping play</string>
     <string name="settings_open_player_on_play_summary">Automatically open the player after starting local, WebDAV, or online songs</string>
     <string name="settings_mini_player_swipe_to_open_player">Swipe mini player up to open the player</string>
@@ -369,6 +382,7 @@
     <string name="player_more_actions">More actions</string>
     <string name="player_song_info">Song info</string>
     <string name="player_lyrics_display">Lyric display</string>
+    <string name="player_accompaniment">Vocals off</string>
     <string name="player_landscape_lyrics">Landscape lyrics</string>
     <string name="player_edit_metadata">Edit metadata</string>
     <string name="player_lyric_timing">Lyric timing</string>
@@ -722,6 +736,8 @@
     <string name="settings_system_section">System</string>
     <string name="settings_gapless_playback">Gapless playback</string>
     <string name="settings_gapless_playback_summary">Switch between songs without gaps</string>
+    <string name="settings_karaoke_accompaniment">Vocal reduction / accompaniment</string>
+    <string name="settings_karaoke_accompaniment_summary">Instantly reduce centered vocals in a stereo mix for karaoke. This is not AI stem separation</string>
     <string name="settings_crossfade">Crossfade</string>
     <string name="settings_crossfade_summary">Fade out the current track while fading in the next; 0 seconds turns it off</string>
     <string name="settings_crossfade_summary_with_value">Current: %1$s; 0 turns it off, adjustable to 0.01 seconds</string>
@@ -896,7 +912,7 @@
     <string name="song_more_metadata_album">Album</string>
     <string name="song_more_metadata_album_artist">Album artist</string>
     <string name="song_more_metadata_genre">Genre</string>
-    <string name="song_more_metadata_year">Year</string>
+    <string name="song_more_metadata_year">Release date</string>
     <string name="song_more_metadata_track_number">Track number</string>
     <string name="song_more_metadata_composer">Composer</string>
     <string name="song_more_metadata_lyricist">Lyricist</string>
@@ -921,6 +937,7 @@
     <string name="library_refresh">Refresh library</string>
     <string name="library_search_placeholder">Search songs, albums, artists, tags, or lyrics</string>
     <string name="library_search_page_placeholder">Search songs, albums, artists, tags, or lyrics</string>
+    <string name="library_search_dock_placeholder">Search music</string>
     <string name="library_search_duplicates">Duplicate songs</string>
     <string name="library_search_clear_history">Clear history</string>
     <string name="library_search_history">Search history</string>
@@ -1020,6 +1037,8 @@
     <string name="settings_player_page_style_halcyon">Halcyon</string>
     <string name="settings_player_page_style_apple_music">Apple Music</string>
     <string name="settings_player_page_style_immersive_lyrics">Immersive lyrics</string>
+    <string name="settings_player_lyrics_corner_actions">Lyric translation / accompaniment buttons</string>
+    <string name="settings_player_lyrics_corner_actions_summary">Show translation and accompaniment shortcuts on non-Apple Music lyric pages</string>
     <string name="settings_player_landscape_style">Default landscape player style</string>
     <string name="settings_player_landscape_style_summary">Used when opening landscape playback: %1$s</string>
     <string name="settings_player_landscape_style_wide">Adaptive tablet / large-screen player</string>
@@ -1437,7 +1456,7 @@
     <string name="song_more_raw_netease_key">Raw 163 key</string>
     <string name="song_more_detail_album_artist">Album artist</string>
     <string name="song_more_detail_genre">Genre</string>
-    <string name="song_more_detail_year">Year</string>
+    <string name="song_more_detail_year">Release date</string>
     <string name="song_more_netease_song_id">NetEase song ID: %1$s</string>
     <string name="song_more_view_netease_info">Tap to view linked NetEase info</string>
     <string name="song_more_detail_format">Format</string>
@@ -1448,6 +1467,7 @@
     <string name="song_more_detail_added_time">Added time</string>
     <string name="song_more_detail_file_name">File name</string>
     <string name="song_more_detail_path">Path</string>
+    <string name="song_more_detail_directory">Directory</string>
     <string name="song_more_loading_ai">Loading song info and lyrics...</string>
     <string name="song_more_ai_failed">AI interpretation failed</string>
     <string name="library_deleted_songs">Deleted %1$d songs</string>
@@ -1482,6 +1502,7 @@
     <string name="artist_tab_songs">Songs</string>
     <string name="artist_tab_participated_albums">Participated albums</string>
     <string name="artist_tab_release_albums">Release albums</string>
+    <string name="artist_tab_biography">Biography</string>
     <string name="artist_song_count_sorted">%1$d songs · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d participated albums · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d release albums · %2$s</string>
@@ -1906,6 +1927,11 @@
     <string name="settings_artist_cover_folder_cleared">Artist cover folder cleared</string>
     <string name="settings_auto_show_search_keyboard">Show keyboard automatically when tapping search</string>
     <string name="settings_auto_show_search_keyboard_summary">When off, tapping search only expands the search bar without focusing or showing the keyboard</string>
+    <string name="settings_search_reopen_behavior">Reopening search</string>
+    <string name="settings_search_reopen_behavior_summary">What to do with the last query when opening search again</string>
+    <string name="settings_search_reopen_select">Select the last search query</string>
+    <string name="settings_search_reopen_clear">Clear the last search query</string>
+    <string name="settings_search_reopen_keep">Keep the last search query</string>
     <string name="listening_calendar_remove_history_title">Remove listening record</string>
     <string name="listening_calendar_remove_history_message">Remove this listening record? Once removed it will no longer be shown, which helps rule out issues caused by incorrect song records.</string>
     <string name="settings_backup_type_personalization">Personalization</string>
@@ -2178,6 +2204,17 @@
     <string name="album_introduction_saved_local">The album folder is not writable, so the introduction was saved in the app</string>
     <string name="album_introduction_cleared">Album introduction cleared</string>
     <string name="album_introduction_save_failed">Couldn’t save the album introduction</string>
+    <string name="artist_introduction_entry">Introduction</string>
+    <string name="artist_introduction_title">Artist introduction</string>
+    <string name="artist_introduction_edit">Edit artist introduction</string>
+    <string name="artist_introduction_edit_action">Edit</string>
+    <string name="artist_introduction_section">About %1$s</string>
+    <string name="artist_introduction_empty">No introduction yet. Tap Edit to paste or write one.</string>
+    <string name="artist_introduction_editor_hint">Write or paste an artist introduction</string>
+    <string name="artist_introduction_saved_nfo">Saved to artist.nfo</string>
+    <string name="artist_introduction_saved_local">The artist folder is not writable, so the introduction was saved in the app</string>
+    <string name="artist_introduction_cleared">Artist introduction cleared</string>
+    <string name="artist_introduction_save_failed">Couldn’t save the artist introduction</string>
     <string name="player_local_music_video">Local MV</string>
     <string name="player_netease_music_video">NetEase Cloud Music MV</string>
     <string name="spectrum_frequency_unknown">Adaptive</string>

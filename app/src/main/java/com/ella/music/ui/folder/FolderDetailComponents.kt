@@ -3,6 +3,7 @@ package com.ella.music.ui.folder
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -218,5 +219,51 @@ internal fun ChildFolderRow(
             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.size(22.dp)
         )
+    }
+}
+
+@Composable
+internal fun FolderBreadcrumbRow(
+    crumbs: List<FolderBreadcrumb>,
+    currentPath: String,
+    onCrumbClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (crumbs.isEmpty()) return
+    val current = currentPath.normalizeFolderPath()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        crumbs.forEachIndexed { index, crumb ->
+            if (index > 0) {
+                Text(
+                    text = " > ",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+            }
+            val isCurrent = crumb.path.normalizeFolderPath().equals(current, ignoreCase = true)
+            Text(
+                text = crumb.label,
+                fontSize = 13.sp,
+                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (isCurrent) {
+                    MiuixTheme.colorScheme.onSurface
+                } else {
+                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = if (isCurrent) {
+                    Modifier
+                } else {
+                    Modifier.clickable { onCrumbClick(crumb.path) }
+                }
+            )
+        }
     }
 }

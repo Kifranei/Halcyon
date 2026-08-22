@@ -19,6 +19,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_SEPARATORS
 import com.ella.music.data.SettingsManager.Companion.KEY_AUTO_SCAN
 import com.ella.music.data.SettingsManager.Companion.KEY_AUTO_SCAN_LOCAL_PLAYLISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_AUTO_SHOW_SEARCH_KEYBOARD
+import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_REOPEN_BEHAVIOR
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_SEARCH_REOPEN_BEHAVIOR
 import com.ella.music.data.SettingsManager.Companion.KEY_CATEGORY_GRID_COLUMNS
 import com.ella.music.data.SettingsManager.Companion.KEY_COVER_EXPORT_FOLDER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST
@@ -45,6 +47,12 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SCAN_INCLUDE_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_ALL_CATEGORY_TYPES
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_ALL_SONG_MATCH_TYPES
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ALBUM_ARTISTS
+import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ARTIST_INTRODUCTION
+import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_BIO_DOWNLOAD
+import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_BIO_LASTFM_LANG
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_ARTIST_BIO_DOWNLOAD
+import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
+import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_LOCAL_MV_IN_LISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ONLINE_MV_IN_LISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_PLAY_NEXT_IN_LISTS
@@ -82,8 +90,12 @@ interface LibrarySettingsAccess {
     val showRemoveFromPlaylistButton: Flow<Boolean>
     val excludeSearchResultsFromPlaylist: Flow<Boolean>
     val autoShowSearchKeyboard: Flow<Boolean>
+    val searchReopenBehavior: Flow<Int>
     val playNextMode: Flow<Int>
     val showAlbumArtists: Flow<Boolean>
+    val showArtistIntroduction: Flow<Boolean>
+    val artistBioDownload: Flow<Int>
+    val artistBioLastFmLang: Flow<String>
     val metadataEditorId: Flow<String>
     val lyricTimingEditorId: Flow<String>
     val spectrumViewerId: Flow<String>
@@ -122,8 +134,12 @@ interface LibrarySettingsAccess {
     suspend fun setShowRemoveFromPlaylistButton(enabled: Boolean)
     suspend fun setExcludeSearchResultsFromPlaylist(enabled: Boolean)
     suspend fun setAutoShowSearchKeyboard(enabled: Boolean)
+    suspend fun setSearchReopenBehavior(behavior: Int)
     suspend fun setPlayNextMode(mode: Int)
     suspend fun setShowAlbumArtists(enabled: Boolean)
+    suspend fun setShowArtistIntroduction(enabled: Boolean)
+    suspend fun setArtistBioDownload(mode: Int)
+    suspend fun setArtistBioLastFmLang(lang: String)
     suspend fun setMetadataEditorId(id: String)
     suspend fun setLyricTimingEditorId(id: String)
     suspend fun setSpectrumViewerId(id: String)
@@ -190,6 +206,12 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST] ?: false }
     override val autoShowSearchKeyboard: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUTO_SHOW_SEARCH_KEYBOARD] ?: true }
+    override val searchReopenBehavior: Flow<Int> =
+        context.dataStore.data.map {
+            SettingsManager.normalizeSearchReopenBehavior(
+                it[KEY_SEARCH_REOPEN_BEHAVIOR] ?: DEFAULT_SEARCH_REOPEN_BEHAVIOR
+            )
+        }
     override val playNextMode: Flow<Int> =
         context.dataStore.data.map {
             it[KEY_PLAY_NEXT_MODE]?.coerceIn(PLAY_NEXT_MODE_REVERSE_STACK, PLAY_NEXT_MODE_FORWARD_STACK)
@@ -198,6 +220,18 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override val showAlbumArtists: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SHOW_ALBUM_ARTISTS] ?: true }
+    override val showArtistIntroduction: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SHOW_ARTIST_INTRODUCTION] ?: true }
+    override val artistBioDownload: Flow<Int> =
+        context.dataStore.data.map {
+            SettingsManager.normalizeArtistBioDownload(
+                it[KEY_ARTIST_BIO_DOWNLOAD] ?: DEFAULT_ARTIST_BIO_DOWNLOAD
+            )
+        }
+    override val artistBioLastFmLang: Flow<String> =
+        context.dataStore.data.map {
+            normalizeLastFmWikiRegion(it[KEY_ARTIST_BIO_LASTFM_LANG] ?: DEFAULT_LAST_FM_WIKI_REGION)
+        }
     override val metadataEditorId: Flow<String> =
         context.dataStore.data.map { it[KEY_METADATA_EDITOR_ID] ?: "" }
     override val lyricTimingEditorId: Flow<String> =
@@ -320,6 +354,12 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.edit { it[KEY_AUTO_SHOW_SEARCH_KEYBOARD] = enabled }
     }
 
+    override suspend fun setSearchReopenBehavior(behavior: Int) {
+        context.dataStore.edit {
+            it[KEY_SEARCH_REOPEN_BEHAVIOR] = SettingsManager.normalizeSearchReopenBehavior(behavior)
+        }
+    }
+
     override suspend fun setPlayNextMode(mode: Int) {
         context.dataStore.edit {
             it[KEY_PLAY_NEXT_MODE] = mode.coerceIn(PLAY_NEXT_MODE_REVERSE_STACK, PLAY_NEXT_MODE_FORWARD_STACK)
@@ -328,6 +368,22 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setShowAlbumArtists(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_ALBUM_ARTISTS] = enabled }
+    }
+
+    override suspend fun setShowArtistIntroduction(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SHOW_ARTIST_INTRODUCTION] = enabled }
+    }
+
+    override suspend fun setArtistBioDownload(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_ARTIST_BIO_DOWNLOAD] = SettingsManager.normalizeArtistBioDownload(mode)
+        }
+    }
+
+    override suspend fun setArtistBioLastFmLang(lang: String) {
+        context.dataStore.edit {
+            it[KEY_ARTIST_BIO_LASTFM_LANG] = normalizeLastFmWikiRegion(lang)
+        }
     }
 
     override suspend fun setMetadataEditorId(id: String) {

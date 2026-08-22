@@ -3,6 +3,7 @@ package com.ella.music.ui.player
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -26,6 +27,18 @@ import kotlin.math.cos
 import kotlin.math.PI
 import kotlin.math.sin
 
+internal fun isInlineRubyPronunciation(text: String): Boolean {
+    val compact = text.filterNot { it.isWhitespace() }
+    if (compact.isEmpty()) return false
+    if (compact.any { it.isAppleMusicLatinLetter() }) return false
+    return compact.any { it.isAppleMusicCjkIdeograph() || it.isAppleMusicKana() }
+}
+
+private fun Char.isAppleMusicKana(): Boolean {
+    val block = Character.UnicodeBlock.of(this)
+    return block == Character.UnicodeBlock.HIRAGANA || block == Character.UnicodeBlock.KATAKANA
+}
+
 internal fun appleMusicKaraokeLiftPx(
     wordLiftEnabled: Boolean,
     textSizePx: Float,
@@ -48,6 +61,9 @@ internal fun TimedLyricText(
     sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
     singleLine: Boolean = false,
     statusBarMarquee: Boolean = false,
+    pronunciation: String = "",
+    pronunciationWords: List<LyricWord> = emptyList(),
+    rubyStyle: TextStyle? = null,
     modifier: Modifier = Modifier
 ) {
     // TTML may encode the blank before a word as part of that word. Move it to the prior
@@ -56,6 +72,13 @@ internal fun TimedLyricText(
     // wordLiftEnabled controls per-word vertical lift only; timed karaoke fill still renders.
     val timedWords = remember(text, words, sustainThresholdMs) {
         words.moveLeadingSpacesToPreviousWord().toAppleMusicRenderWords(text, sustainThresholdMs)
+    }
+    val rubies = remember(timedWords, pronunciation, pronunciationWords) {
+        rubiesForTimedWords(
+            words = timedWords.map { it.word },
+            pronunciationWords = pronunciationWords,
+            pronunciation = pronunciation
+        )
     }
     if (timedWords.isEmpty()) {
         BasicText(
@@ -77,14 +100,16 @@ internal fun TimedLyricText(
         else -> Arrangement.Start
     }
     val content: @Composable () -> Unit = {
-        timedWords.forEach { renderWord ->
+        timedWords.forEachIndexed { index, renderWord ->
             AppleMusicKaraokeWord(
                 renderWord = renderWord,
                 positionMs = positionMs,
                 active = active,
                 baseStyle = style,
                 contentColor = contentColor,
-                wordLiftEnabled = wordLiftEnabled
+                wordLiftEnabled = wordLiftEnabled,
+                ruby = rubies.getOrNull(index).orEmpty(),
+                rubyStyle = rubyStyle
             )
         }
     }
@@ -92,7 +117,7 @@ internal fun TimedLyricText(
         Row(
             modifier = modifier.then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
             horizontalArrangement = horizontalArrangement,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Bottom
         ) {
             content()
         }
@@ -160,7 +185,8 @@ private fun AppleMusicTimedWordRows(
                     else -> 0
                 }
                 rows[rowIndex].forEach { placeable ->
-                    placeable.placeRelative(x, y)
+                    // Bottom-align so furigana grows upward instead of dropping the kanji.
+                    placeable.placeRelative(x, y + rowHeights[rowIndex] - placeable.height)
                     x += placeable.width
                 }
                 y += rowHeights[rowIndex]
@@ -176,7 +202,9 @@ private fun AppleMusicKaraokeWord(
     active: Boolean,
     baseStyle: TextStyle,
     contentColor: Color,
-    wordLiftEnabled: Boolean
+    wordLiftEnabled: Boolean,
+    ruby: String = "",
+    rubyStyle: TextStyle? = null
  ) {
     val word = renderWord.word
     val progress = if (active) ((positionMs - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1L))
@@ -190,7 +218,8 @@ private fun AppleMusicKaraokeWord(
     // 5 px), then adds only a 3% bottom-anchored scale during the held-note phase. Keeping the
     // transform on the word rather than the whole line is what creates the floating vocal feel.
     val liftPx = appleMusicKaraokeLiftPx(wordLiftEnabled, textSizePx, progress)
-    Box(
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.graphicsLayer {
             translationY = -liftPx
             // Keep the glyph box stable during a held note. Pulsing scale changes are perceived
@@ -198,6 +227,15 @@ private fun AppleMusicKaraokeWord(
             transformOrigin = TransformOrigin(0.5f, 1f)
         }
     ) {
+        if (ruby.isNotBlank() && rubyStyle != null) {
+            BasicText(
+                text = ruby,
+                style = rubyStyle,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
+        }
+    Box {
         val glowShadow = sustainGlow.takeIf { it > 0f }?.let { glowAlpha ->
             Shadow(
                 color = contentColor.copy(alpha = baseStyle.color.alpha * glowAlpha),
@@ -255,6 +293,200 @@ private fun AppleMusicKaraokeWord(
             }
         }
     }
+    }
+}
+
+internal fun rubiesForTimedWords(
+    words: List<LyricWord>,
+    pronunciationWords: List<LyricWord>,
+    pronunciation: String
+): List<String> {
+    if (words.isEmpty()) return emptyList()
+    val blanks = List(words.size) { "" }
+    val rubyWords = pronunciationWords
+        .map { it.copy(text = it.text.trim()) }
+        .filter { it.text.isNotBlank() && it.endMs > it.startMs }
+    val rubyText = pronunciation.trim()
+    if (rubyWords.isEmpty() && rubyText.isBlank()) return blanks
+
+    if (rubyWords.isNotEmpty()) {
+        val spansAllWords = rubyWords.size == 1 &&
+            words.size > 1 &&
+            words.all { word -> timedRangesOverlap(word, rubyWords.first()) }
+        if (spansAllWords) {
+            return attachRubyByCorrespondence(words, rubyWords.first().text)
+        }
+        val assigned = assignRubySpansToWords(words, rubyWords)
+        if (assigned.any { it.isNotBlank() }) return assigned
+        return attachRubyByCorrespondence(words, rubyWords.joinToString("") { it.text })
+    }
+    return attachRubyByCorrespondence(words, rubyText)
+}
+
+internal fun assignRubySpansToWords(
+    words: List<LyricWord>,
+    rubyWords: List<LyricWord>
+): List<String> {
+    if (rubyWords.size == words.size) return rubyWords.map { it.text }
+    val result = MutableList(words.size) { "" }
+    val usedWords = BooleanArray(words.size)
+    rubyWords.forEach { ruby ->
+        val match = words.indices
+            .filter { index -> !usedWords[index] }
+            .maxWithOrNull(
+                compareBy<Int> { overlapMs(words[it], ruby) }
+                    .thenBy { -kotlin.math.abs(words[it].startMs - ruby.startMs) }
+            )
+            ?.takeIf { index ->
+                overlapMs(words[index], ruby) > 0L ||
+                    kotlin.math.abs(words[index].startMs - ruby.startMs) <= 25L
+            }
+        if (match != null) {
+            usedWords[match] = true
+            result[match] = ruby.text
+        }
+    }
+    return result
+}
+
+internal fun attachRubyByCorrespondence(words: List<LyricWord>, reading: String): List<String> {
+    if (words.isEmpty()) return emptyList()
+    val readingChars = reading.filterNot { it.isWhitespace() }.toList()
+    if (readingChars.isEmpty()) return List(words.size) { "" }
+
+    val charToWord = mutableListOf<Int>()
+    val surface = buildString {
+        words.forEachIndexed { index, word ->
+            word.text.forEach { character ->
+                append(character)
+                charToWord += index
+            }
+        }
+    }
+    val rubyByWord = MutableList(words.size) { StringBuilder() }
+    var surfaceIndex = 0
+    var readingIndex = 0
+    while (surfaceIndex < surface.length) {
+        val character = surface[surfaceIndex]
+        when {
+            character.isWhitespace() -> surfaceIndex++
+            character.isAppleMusicCjkIdeograph() -> {
+                var runEnd = surfaceIndex + 1
+                while (runEnd < surface.length && surface[runEnd].isAppleMusicCjkIdeograph()) {
+                    runEnd++
+                }
+                val consumed = readingConsumedForKanjiRun(
+                    rest = surface.substring(runEnd),
+                    reading = readingChars,
+                    readingIndex = readingIndex
+                )
+                val rubyEnd = (readingIndex + consumed).coerceAtMost(readingChars.size)
+                val runLength = runEnd - surfaceIndex
+                val pieces = splitReadingAcrossKanji(
+                    reading = readingChars.subList(readingIndex, rubyEnd),
+                    kanjiCount = runLength
+                )
+                pieces.forEachIndexed { offset, piece ->
+                    if (piece.isNotEmpty()) {
+                        rubyByWord[charToWord[surfaceIndex + offset]].append(piece)
+                    }
+                }
+                readingIndex = rubyEnd
+                surfaceIndex = runEnd
+            }
+            character.isAppleMusicKana() || character.isAppleMusicLatinLetter() || character.isDigit() -> {
+                if (readingIndex < readingChars.size && kanaEquals(character, readingChars[readingIndex])) {
+                    readingIndex++
+                }
+                surfaceIndex++
+            }
+            else -> {
+                if (readingIndex < readingChars.size && character == readingChars[readingIndex]) {
+                    readingIndex++
+                }
+                surfaceIndex++
+            }
+        }
+    }
+    if (readingIndex < readingChars.size) {
+        val leftover = readingChars.subList(readingIndex, readingChars.size).joinToString("")
+        val target = rubyByWord.indices.lastOrNull { rubyByWord[it].isNotEmpty() }
+            ?: words.indexOfLast { word -> word.text.any { it.isAppleMusicCjkIdeograph() } }
+                .takeIf { it >= 0 }
+            ?: 0
+        rubyByWord[target].append(leftover)
+    }
+    return rubyByWord.map { it.toString() }
+}
+
+private fun readingConsumedForKanjiRun(
+    rest: String,
+    reading: List<Char>,
+    readingIndex: Int
+): Int {
+    val remaining = reading.size - readingIndex
+    if (remaining <= 0) return 0
+    val laterKanjiRuns = countIdeographRuns(rest)
+    val nextAnchor = rest.firstOrNull { character ->
+        character.isAppleMusicKana() || character.isAppleMusicLatinLetter() || character.isDigit()
+    }
+    if (nextAnchor == null) {
+        return if (laterKanjiRuns > 0) {
+            (remaining - laterKanjiRuns).coerceAtLeast(1).coerceAtMost(remaining)
+        } else {
+            remaining
+        }
+    }
+    val anchorAt = reading.subList(readingIndex, reading.size).indexOfFirst { kanaEquals(it, nextAnchor) }
+    if (anchorAt >= 0) return anchorAt
+    if (laterKanjiRuns <= 0) return remaining
+    val keep = laterKanjiRuns.coerceAtMost(remaining - 1)
+    return (remaining - keep).coerceAtLeast(1)
+}
+
+private fun countIdeographRuns(text: String): Int {
+    var count = 0
+    var inRun = false
+    text.forEach { character ->
+        val ideograph = character.isAppleMusicCjkIdeograph()
+        if (ideograph && !inRun) count++
+        inRun = ideograph
+    }
+    return count
+}
+
+private fun splitReadingAcrossKanji(reading: List<Char>, kanjiCount: Int): List<String> {
+    if (kanjiCount <= 0) return emptyList()
+    if (kanjiCount == 1) return listOf(reading.joinToString(""))
+    if (reading.isEmpty()) return List(kanjiCount) { "" }
+    val pieces = MutableList(kanjiCount) { StringBuilder() }
+    val guaranteed = minOf(kanjiCount, reading.size)
+    repeat(guaranteed) { index -> pieces[index].append(reading[index]) }
+    if (reading.size > guaranteed) {
+        pieces[kanjiCount - 1].append(reading.subList(guaranteed, reading.size).joinToString(""))
+    }
+    return pieces.map { it.toString() }
+}
+
+private fun kanaEquals(first: Char, second: Char): Boolean {
+    fun fold(character: Char): Char {
+        if (character in '\u30A1'..'\u30F6') return (character.code - 0x60).toChar()
+        return character
+    }
+    return fold(first) == fold(second)
+}
+
+private fun timedRangesOverlap(first: LyricWord, second: LyricWord): Boolean =
+    minOf(first.endMs, second.endMs) > maxOf(first.startMs, second.startMs)
+
+private fun overlapMs(first: LyricWord, second: LyricWord): Long =
+    (minOf(first.endMs, second.endMs) - maxOf(first.startMs, second.startMs)).coerceAtLeast(0L)
+
+private fun Char.isAppleMusicCjkIdeograph(): Boolean {
+    val block = Character.UnicodeBlock.of(this)
+    return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
+        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
+        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
 }
 
 private fun AppleMusicRenderWord.sustainGlowAlpha(positionMs: Long, active: Boolean): Float {

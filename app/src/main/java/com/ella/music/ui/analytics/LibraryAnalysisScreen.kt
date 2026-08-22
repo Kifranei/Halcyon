@@ -56,16 +56,31 @@ fun LibraryAnalysisScreen(
     showBackButton: Boolean = true,
     onNavigateToPlayer: () -> Unit = {},
     onNavigateToAlbum: (Long) -> Unit = {},
-    onNavigateToArtist: (String) -> Unit = {}
+    onNavigateToArtist: (String) -> Unit = {},
+    initialQualityBucket: Boolean? = null,
+    initialBucketLabel: String? = null
 ) {
     val context = LocalContext.current
     val songs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
-    var selectedBucket by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    var selectedBucket by remember {
+        mutableStateOf(
+            if (!initialBucketLabel.isNullOrBlank() && initialQualityBucket != null) {
+                initialQualityBucket to initialBucketLabel
+            } else {
+                null
+            }
+        )
+    }
     val analysisListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     var matchingSongs by remember { mutableStateOf<List<Song>?>(null) }
+    val analysisCacheKey = remember(songs) { songs.libraryAnalysisCacheKey() }
     val analysis by produceState<LibraryAnalysis?>(
-        initialValue = if (songs.isEmpty()) LibraryAnalysis(emptyList(), emptyList(), 0, 0L) else null,
+        initialValue = if (songs.isEmpty()) {
+            LibraryAnalysis(emptyList(), emptyList(), 0, 0L)
+        } else {
+            LibraryAnalysisSessionCache.get(analysisCacheKey)
+        },
         songs
     ) {
         if (songs.isEmpty()) {
@@ -195,15 +210,18 @@ fun LibraryAnalysisScreen(
         }
     }
 
-    selectedBucket?.let { (_, label) ->
+    selectedBucket?.let { (quality, label) ->
         LibraryAnalysisBucketDetailScreen(
             bucketLabel = label,
+            qualityBucket = quality,
             songs = matchingSongs.orEmpty(),
             songsLoading = matchingSongs == null,
             totalLibraryCount = songs.size,
             mainViewModel = mainViewModel,
             playerViewModel = playerViewModel,
-            onBack = { selectedBucket = null },
+            onBack = {
+                if (!initialBucketLabel.isNullOrBlank()) onBack() else selectedBucket = null
+            },
             onNavigateToPlayer = onNavigateToPlayer,
             onNavigateToAlbum = onNavigateToAlbum,
             onNavigateToArtist = onNavigateToArtist

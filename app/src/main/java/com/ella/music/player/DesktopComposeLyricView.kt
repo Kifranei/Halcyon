@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,12 +77,23 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
     private var lyricFontWeight by mutableIntStateOf(800)
     private var lyricFontItalic by mutableStateOf(false)
     private var wordLiftEnabled by mutableStateOf(true)
+    private var compactLayout by mutableStateOf(false)
 
     init {
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        clipToPadding = false
+        clipChildren = false
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            isForceDarkAllowed = false
+        }
         installLifecycleOwnerOn(this)
         composeLifecycleOwner.start()
         addView(
             ComposeView(context).apply {
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    isForceDarkAllowed = false
+                }
                 installLifecycleOwnerOn(this)
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 setContent {
@@ -123,6 +136,12 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
 
     fun setPlaybackActive(isPlaying: Boolean) {
         playbackRunning = isPlaying
+    }
+
+    fun applyCompactLayout(compact: Boolean) {
+        if (compactLayout == compact) return
+        compactLayout = compact
+        requestLayout()
     }
 
     fun setStyle(
@@ -320,7 +339,10 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         }
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .then(
+                    if (compactLayout && !statusBarMode) Modifier.wrapContentSize()
+                    else Modifier.fillMaxSize()
+                )
                 .padding(
                     horizontal = if (statusBarMode) 2.dp else 6.dp,
                     vertical = if (statusBarMode) 0.dp else 8.dp
@@ -342,7 +364,9 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 primaryTextSizeSp = if (statusBarMode) 12.5f else 24f,
                 secondaryTextSizeSp = if (statusBarMode) 9.5f else 14f,
                 lyricTextAlign = effectiveAlign,
-                contentColor = Color(textColor).copy(alpha = opacityPercent / 100f),
+                contentColor = Color(textColor).let { color ->
+                    if (opacityPercent >= 100) color else color.copy(alpha = opacityPercent / 100f)
+                },
                 wordLiftEnabled = wordLiftEnabled,
                 singleLine = statusBarMode,
                 inlineStaticSecondaryText = if (statusBarMode) statusBarSecondaryText else "",
@@ -350,8 +374,11 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 mergeInlineSecondary = statusBarMode && statusBarMergeSecondary,
                 statusBarMarquee = statusBarMode,
                 secondaryAlpha = if (statusBarMode) statusBarSecondaryOpacity / 100f else 0.74f,
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = if (compactLayout && !statusBarMode) {
+                    Modifier.wrapContentWidth()
+                } else {
+                    Modifier.fillMaxWidth()
+                }
             )
         }
     }

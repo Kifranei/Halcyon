@@ -40,6 +40,9 @@ import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.neteaseAlbumUrl
 import com.ella.music.data.neteaseArtistUrl
 import com.ella.music.data.neteaseSongUrl
+import com.ella.music.ui.components.SongInfoSheet
+import com.ella.music.ui.components.SongMenuItem
+import com.ella.music.ui.components.openSongWithMediaInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
@@ -54,72 +57,19 @@ internal fun SongInfoMenu(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var showNeteaseKeyInfo by remember(song.id) { mutableStateOf(false) }
-    val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
-        value = withContext(Dispatchers.IO) { audioInfoLoader(song) }
-    }
-    val tagInfo by produceState<SongTagInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
-        value = withContext(Dispatchers.IO) { tagInfoLoader(song) }
-    }
-    val neteaseInfo = remember(tagInfo?.neteaseKey) { decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty()) }
-
-    if (showNeteaseKeyInfo && neteaseInfo != null) {
-        NeteaseKeyInfoMenu(
-            info = neteaseInfo,
-            onOpenUrl = { url -> openNeteaseUrl(context, url) },
-            onBack = { showNeteaseKeyInfo = false },
-            onDismiss = onDismiss
-        )
-        return
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-            .background(MiuixTheme.colorScheme.background.copy(alpha = 0.98f))
-            .verticalScroll(rememberScrollState())
-            .navigationBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        SheetHandle()
-        Text(
-            text = stringResource(R.string.player_song_info),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
-        )
-        LibraryMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
-        SongInfoRow(stringResource(R.string.player_detail_song), tagInfo?.title?.ifBlank { song.title } ?: song.title)
-        SongInfoRow(stringResource(R.string.player_detail_artist), tagInfo?.artist?.ifBlank { song.artist } ?: song.artist)
-        SongInfoRow(stringResource(R.string.player_detail_album), tagInfo?.album?.ifBlank { song.album } ?: song.album)
-        SongInfoRow(stringResource(R.string.song_more_detail_album_artist), tagInfo?.albumArtist.orEmpty())
-        SongInfoRow(stringResource(R.string.song_more_detail_genre), tagInfo?.genre?.ifBlank { song.genre }.orEmpty())
-        SongInfoRow(stringResource(R.string.song_more_detail_year), tagInfo?.year?.ifBlank { song.year }.orEmpty())
-        SongInfoRow(stringResource(R.string.player_detail_composer), tagInfo?.composer?.ifBlank { song.composer }.orEmpty())
-        SongInfoRow(stringResource(R.string.player_detail_arranger), tagInfo?.arranger?.ifBlank { song.arranger }.orEmpty())
-        SongInfoRow(stringResource(R.string.player_detail_lyricist), tagInfo?.lyricist?.ifBlank { song.lyricist }.orEmpty())
-        SongInfoRow(stringResource(R.string.player_detail_comment), tagInfo?.displayComment.orEmpty())
-        if (!tagInfo?.neteaseKey.isNullOrBlank()) {
-            SongInfoActionRow(
-                label = stringResource(R.string.song_more_netease_key),
-                value = neteaseInfo?.musicName?.ifBlank { null }
-                    ?: neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let {
-                        stringResource(R.string.song_more_netease_song_id, it)
-                    }
-                    ?: stringResource(R.string.song_more_view_netease_info),
-                onClick = { showNeteaseKeyInfo = true }
-            )
+    SongInfoSheet(
+        song = song,
+        audioInfoLoader = audioInfoLoader,
+        tagInfoLoader = tagInfoLoader,
+        onOpenMediaInfo = {
+            onDismiss()
+            openSongWithMediaInfo(context, song)
+        },
+        onDismiss = onDismiss,
+        leadingContent = {
+            SongMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
         }
-        SongInfoRow(stringResource(R.string.song_more_detail_format), audioInfo?.let { detailedAudioInfo(it) }.orEmpty())
-        SongInfoRow(stringResource(R.string.song_more_detail_bitrate), audioInfo?.let { formatBitRate(it.bitRate) }.orEmpty())
-        SongInfoRow(stringResource(R.string.song_more_detail_duration), song.durationText)
-        SongInfoRow(stringResource(R.string.song_more_detail_size), formatLibraryFileSize(song.fileSize))
-        SongInfoRow(stringResource(R.string.song_more_detail_file_name), song.fileName.ifBlank { song.path.substringAfterLast('/') })
-        SongInfoRow(stringResource(R.string.song_more_detail_path), song.path)
-    }
+    )
 }
 
 @Composable

@@ -77,6 +77,7 @@ fun AudioSettingsScreen(
     }
 
     val gaplessPlayback by settingsManager.gaplessPlayback.collectAsState(initial = true)
+    val karaokeAccompanimentEnabled by settingsManager.karaokeAccompanimentEnabled.collectAsState(initial = false)
     val crossfadeDurationMs by settingsManager.crossfadeDurationMs.collectAsState(initial = 0)
     val crossfadeCurve by settingsManager.crossfadeCurve.collectAsState(
         initial = SettingsManager.CROSSFADE_CURVE_EQUAL_POWER
@@ -411,6 +412,14 @@ fun AudioSettingsScreen(
                             }
                         )
                     }
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_karaoke_accompaniment),
+                        summary = stringResource(R.string.settings_karaoke_accompaniment_summary),
+                        checked = karaokeAccompanimentEnabled,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setKaraokeAccompanimentEnabled(it) }
+                        }
+                    )
                     ArrowPreference(
                         title = stringResource(R.string.settings_crossfade),
                         summary = stringResource(

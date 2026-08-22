@@ -61,6 +61,7 @@ class SettingsManager(private val context: Context) :
         val KEY_AUTO_SCAN = booleanPreferencesKey("auto_scan")
         val KEY_AUTO_SCAN_LOCAL_PLAYLISTS = booleanPreferencesKey("auto_scan_local_playlists")
         val KEY_GAPLESS = booleanPreferencesKey("gapless_playback")
+        val KEY_KARAOKE_ACCOMPANIMENT = booleanPreferencesKey("karaoke_accompaniment")
         val KEY_CROSSFADE_DURATION_MS = intPreferencesKey("crossfade_duration_ms")
         val KEY_CROSSFADE_CURVE = intPreferencesKey("crossfade_curve")
         val KEY_THEME_MODE = intPreferencesKey("theme_mode")
@@ -160,6 +161,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LYRIC_PARSER_ENGINE = intPreferencesKey("lyric_parser_engine")
         val KEY_PLAYER_TITLE_POSITION = intPreferencesKey("player_title_position")
         val KEY_PLAYER_PAGE_STYLE = intPreferencesKey("player_page_style")
+        val KEY_PLAYER_LYRICS_CORNER_ACTIONS = booleanPreferencesKey("player_lyrics_corner_actions")
         val KEY_PLAYER_LANDSCAPE_STYLE = intPreferencesKey("player_landscape_style")
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
@@ -266,11 +268,15 @@ class SettingsManager(private val context: Context) :
         val KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON = booleanPreferencesKey("show_remove_from_playlist_button")
         val KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST = booleanPreferencesKey("exclude_search_results_from_playlist")
         val KEY_AUTO_SHOW_SEARCH_KEYBOARD = booleanPreferencesKey("auto_show_search_keyboard")
+        val KEY_SEARCH_REOPEN_BEHAVIOR = intPreferencesKey("search_reopen_behavior")
         val KEY_PLAY_NEXT_MODE = intPreferencesKey("play_next_mode")
         val KEY_ADD_TO_PLAYLIST_APPEND_TO_END = booleanPreferencesKey("add_to_playlist_append_to_end")
         val KEY_LYRIC_SHARE_CUSTOM_INFO = stringPreferencesKey("lyric_share_custom_info")
         val KEY_LYRIC_SHARE_USE_LYRIC_FONT = booleanPreferencesKey("lyric_share_use_lyric_font")
         val KEY_SHOW_ALBUM_ARTISTS = booleanPreferencesKey("show_album_artists")
+        val KEY_SHOW_ARTIST_INTRODUCTION = booleanPreferencesKey("show_artist_introduction")
+        val KEY_ARTIST_BIO_DOWNLOAD = intPreferencesKey("artist_bio_download")
+        val KEY_ARTIST_BIO_LASTFM_LANG = stringPreferencesKey("artist_bio_lastfm_lang")
         val KEY_METADATA_EDITOR_ID = stringPreferencesKey("metadata_editor_id")
         val KEY_LYRIC_TIMING_EDITOR_ID = stringPreferencesKey("lyric_timing_editor_id")
         val KEY_SPECTRUM_VIEWER_ID = stringPreferencesKey("spectrum_viewer_id")
@@ -458,6 +464,30 @@ class SettingsManager(private val context: Context) :
             PLAYER_PAGE_STYLE_APPLE_MUSIC,
             PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS -> style
             else -> DEFAULT_PLAYER_PAGE_STYLE
+        }
+
+        const val SEARCH_REOPEN_SELECT = 0
+        const val SEARCH_REOPEN_CLEAR = 1
+        const val SEARCH_REOPEN_KEEP = 2
+        const val DEFAULT_SEARCH_REOPEN_BEHAVIOR = SEARCH_REOPEN_CLEAR
+
+        fun normalizeSearchReopenBehavior(behavior: Int?): Int = when (behavior) {
+            SEARCH_REOPEN_SELECT,
+            SEARCH_REOPEN_CLEAR,
+            SEARCH_REOPEN_KEEP -> behavior
+            else -> DEFAULT_SEARCH_REOPEN_BEHAVIOR
+        }
+
+        const val ARTIST_BIO_DOWNLOAD_ALWAYS = 0
+        const val ARTIST_BIO_DOWNLOAD_WIFI = 1
+        const val ARTIST_BIO_DOWNLOAD_NEVER = 2
+        const val DEFAULT_ARTIST_BIO_DOWNLOAD = ARTIST_BIO_DOWNLOAD_WIFI
+
+        fun normalizeArtistBioDownload(mode: Int?): Int = when (mode) {
+            ARTIST_BIO_DOWNLOAD_ALWAYS,
+            ARTIST_BIO_DOWNLOAD_WIFI,
+            ARTIST_BIO_DOWNLOAD_NEVER -> mode
+            else -> DEFAULT_ARTIST_BIO_DOWNLOAD
         }
 
         const val SYSTEM_BARS_MODE_SHOW_BOTH = 0
@@ -975,6 +1005,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_PLAYER_SHOW_TOTAL_DURATION)
             setBoolean(KEY_PLAYER_SHOW_SONG_ANNOTATION)
             setBoolean(KEY_PLAYER_COVER_SWIPE_ENABLED)
+            setBoolean(KEY_PLAYER_LYRICS_CORNER_ACTIONS)
             setBoolean(KEY_PLAYER_KEEP_SCREEN_ON)
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
@@ -1002,8 +1033,12 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON)
             setBoolean(KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST)
             setBoolean(KEY_AUTO_SHOW_SEARCH_KEYBOARD)
+            setInt(KEY_SEARCH_REOPEN_BEHAVIOR)
             setBoolean(KEY_ADD_TO_PLAYLIST_APPEND_TO_END)
             setBoolean(KEY_SHOW_ALBUM_ARTISTS)
+            setBoolean(KEY_SHOW_ARTIST_INTRODUCTION)
+            setInt(KEY_ARTIST_BIO_DOWNLOAD)
+            setString(KEY_ARTIST_BIO_LASTFM_LANG)
             setBoolean(KEY_HOME_TILE_PIN_BUTTONS_VISIBLE)
             setBoolean(KEY_HOME_TILE_GRADIENT_ENABLED)
             setBoolean(KEY_USE_ANDROID_MEDIA_LIBRARY)

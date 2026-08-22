@@ -38,7 +38,8 @@ internal fun LyricsPlayerHeader(
     onToggleFavorite: () -> Unit,
     onShowMenu: () -> Unit,
     fontFamily: FontFamily? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -51,6 +52,7 @@ internal fun LyricsPlayerHeader(
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(56.dp)
+                .then(coverModifier)
                 .clickable(onClick = onDismissLyrics)
         )
         Spacer(modifier = Modifier.width(12.dp))

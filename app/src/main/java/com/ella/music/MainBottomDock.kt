@@ -25,20 +25,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -58,8 +62,13 @@ import com.ella.music.ui.components.GlassPill
 import com.ella.music.ui.components.FloatingBottomBar
 import com.ella.music.ui.components.FloatingBottomBarItem
 import com.ella.music.ui.components.FloatingBottomBarMode
+import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.MiniPlayer
 import com.ella.music.ui.components.MiniPlayerLyricTiming
+import com.ella.music.ui.search.LibrarySearchDockState
+import com.ella.music.ui.search.LocalLibrarySearchDockState
+import com.ella.music.ui.search.searchDockReturnTabRoute
+import com.ella.music.ui.search.usesSearchBottomDock
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.simpleLuminance
 import com.ella.music.ui.navigation.Screen
@@ -113,6 +122,7 @@ internal fun FloatingBottomControls(
     onNavigatePlayer: () -> Unit,
     onNavigatePlaybackSource: () -> Unit,
     onExpand: () -> Unit,
+    onExitSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
     useGlass: Boolean = true,
     stabilizeOverWallpaper: Boolean = false
@@ -132,13 +142,26 @@ internal fun FloatingBottomControls(
         .miniPlayerLongPressSource.collectAsState(initial = false)
     val currentSongKey = currentSong?.playlistIdentityKey()
     val effectiveMode = if (showMiniPlayer && canCompact) bottomDockMode else BottomDockMode.Expanded
-    // Keep the floating glass containers over a custom wallpaper. Only the layered refraction
-    // path is disabled below, because that extra sampling layer is what can leak duplicated
-    // glyphs on affected devices.
+    val searchDock = LocalLibrarySearchDockState.current
+    val inSearchDock = usesSearchBottomDock(currentRoute)
+    var lastTabRoute by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentTabRoute, currentRoute) {
+        if (!currentRoute.isSearchRoute() && !currentTabRoute.isNullOrBlank() && !currentTabRoute.isSearchRoute()) {
+            lastTabRoute = currentTabRoute
+        }
+    }
+    val searchReturnTab = tabs.firstOrNull { tab ->
+        tab.route == searchDockReturnTabRoute(currentRoute, currentTabRoute, lastTabRoute)
+    }
+    val visualMode = when {
+        inSearchDock -> "search"
+        effectiveMode == BottomDockMode.Compact && currentSong != null -> "compact"
+        else -> "expanded"
+    }
     val dockBackdrop = if (useGlass) backdrop else null
     val dockLiquidGlass = useGlass
     AnimatedContent(
-        targetState = effectiveMode,
+        targetState = visualMode,
         transitionSpec = {
             fadeIn() + slideInVertically(initialOffsetY = { it / 3 }) togetherWith
                 fadeOut() + slideOutVertically(targetOffsetY = { it / 3 })
@@ -147,9 +170,40 @@ internal fun FloatingBottomControls(
         modifier = modifier
             .fillMaxWidth()
             .then(if (useGlass) Modifier.navigationBarsPadding() else Modifier)
-            .consumeBottomDockPassthrough(showMiniPlayer, showBottomBar, effectiveMode)
+            .then(if (inSearchDock) Modifier.imePadding() else Modifier)
+            .consumeBottomDockPassthrough(showMiniPlayer, showBottomBar, visualMode)
     ) { mode ->
-        if (mode == BottomDockMode.Compact && currentSong != null) {
+        if (mode == "search") {
+            SearchBottomDock(
+                showMiniPlayer = showMiniPlayer,
+                currentSong = currentSong,
+                isPlaying = isPlaying,
+                progress = if (duration > 0L) currentPosition.toFloat() / duration.toFloat() else 0f,
+                coverRotationEnabled = coverRotationEnabled,
+                lyricText = lyricText,
+                lyricTranslation = lyricTranslation,
+                lyricProgress = lyricProgress,
+                lyricPositionMs = lyricPositionMs,
+                lyricTiming = lyricTiming,
+                miniPlayerRightButton = miniPlayerRightButton,
+                swipeUpToOpenPlayer = miniPlayerSwipeToOpenPlayer,
+                albumArtUri = currentSong?.let { mainViewModel.getAlbumArtUri(it.albumId) },
+                loadCoverArt = mainViewModel::getMiniPlayerCoverArtBitmap,
+                backdrop = dockBackdrop,
+                glassEffect = glassEffect,
+                disableRefraction = stabilizeOverWallpaper,
+                liquidGlass = dockLiquidGlass,
+                searchDock = searchDock,
+                onOpenPlayer = onNavigatePlayer,
+                onPlayPause = { playerViewModel.togglePlayPause() },
+                onSkipNext = { playerViewModel.skipToNext() },
+                onSkipPrevious = { playerViewModel.skipToPrevious() },
+                onShowQueue = { queueSheetExpanded = true },
+                onLongClick = if (miniPlayerLongPressSource) onNavigatePlaybackSource else null,
+                onExitSearch = onExitSearch,
+                returnTab = searchReturnTab
+            )
+        } else if (mode == "compact" && currentSong != null) {
             CompactBottomDock(
                 song = currentSong,
                 isPlaying = isPlaying,
@@ -384,6 +438,118 @@ internal fun FloatingBottomControls(
 }
 
 @Composable
+private fun SearchBottomDock(
+    showMiniPlayer: Boolean,
+    currentSong: Song?,
+    isPlaying: Boolean,
+    progress: Float,
+    coverRotationEnabled: Boolean,
+    lyricText: String?,
+    lyricTranslation: String?,
+    lyricProgress: Float,
+    lyricPositionMs: Long,
+    lyricTiming: MiniPlayerLyricTiming?,
+    miniPlayerRightButton: Int,
+    swipeUpToOpenPlayer: Boolean,
+    albumArtUri: Uri?,
+    loadCoverArt: ((Song) -> android.graphics.Bitmap?)?,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
+    glassEffect: BottomBarGlassEffect,
+    disableRefraction: Boolean,
+    liquidGlass: Boolean,
+    searchDock: LibrarySearchDockState?,
+    onOpenPlayer: () -> Unit,
+    onPlayPause: () -> Unit,
+    onSkipNext: () -> Unit,
+    onSkipPrevious: () -> Unit,
+    onShowQueue: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    onExitSearch: () -> Unit,
+    returnTab: BottomDockTab?
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AnimatedVisibility(
+            visible = showMiniPlayer && currentSong != null,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            currentSong?.let { song ->
+                MiniPlayer(
+                    song = song,
+                    isPlaying = isPlaying,
+                    progress = progress,
+                    coverRotationEnabled = coverRotationEnabled,
+                    lyricText = lyricText,
+                    lyricTranslation = lyricTranslation,
+                    albumArtUri = albumArtUri,
+                    loadCoverArt = loadCoverArt,
+                    backdrop = backdrop,
+                    liquidGlass = liquidGlass,
+                    glassEffect = glassEffect,
+                    disableRefraction = disableRefraction,
+                    showQueueButton = miniPlayerRightButton == SettingsManager.MINI_PLAYER_RIGHT_QUEUE,
+                    swipeUpToOpenPlayer = swipeUpToOpenPlayer,
+                    onClick = onOpenPlayer,
+                    onPlayPause = onPlayPause,
+                    onSkipNext = onSkipNext,
+                    onSkipPrevious = onSkipPrevious,
+                    onShowQueue = onShowQueue,
+                    onLongClick = onLongClick,
+                    lyricProgress = lyricProgress,
+                    lyricPositionMs = lyricPositionMs,
+                    lyricTiming = lyricTiming
+                )
+            }
+        }
+        if (showMiniPlayer && currentSong != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .height(64.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BottomDockActionPill(
+                icon = returnTab?.icon ?: MiuixIcons.Regular.Home,
+                label = returnTab?.label ?: stringResource(R.string.bottom_dock_tabs),
+                selected = false,
+                onClick = onExitSearch,
+                backdrop = backdrop,
+                glassEffect = glassEffect,
+                disableRefraction = disableRefraction,
+                modifier = Modifier.size(64.dp)
+            )
+            GlassPill(
+                backdrop = backdrop,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(64.dp),
+                shape = RoundedCornerShape(32.dp),
+                glassEffect = glassEffect,
+                disableRefraction = disableRefraction
+            ) {
+                EllaSearchBar(
+                    query = searchDock?.query.orEmpty(),
+                    onQueryChange = { value -> searchDock?.query = value },
+                    onSearch = { searchDock?.onSearch?.invoke() },
+                    placeholder = stringResource(R.string.library_search_dock_placeholder),
+                    autoFocus = searchDock?.autoFocus,
+                    autoSelectAll = searchDock?.selectAll == true,
+                    onAutoSelectAllConsumed = { searchDock?.selectAll = false },
+                    containerColor = ComposeColor.Transparent,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CompactBottomDock(
     song: Song,
     isPlaying: Boolean,
@@ -491,7 +657,8 @@ private fun Modifier.consumeBottomDockPassthrough(vararg keys: Any?): Modifier =
 
 @Composable
 private fun BottomDockActionPill(
-    icon: ImageVector,
+    icon: ImageVector? = null,
+    painter: Painter? = null,
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -549,12 +716,22 @@ private fun BottomDockActionPill(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.size(26.dp)
-            )
+            val iconTint = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+            if (painter != null) {
+                Icon(
+                    painter = painter,
+                    contentDescription = label,
+                    tint = iconTint,
+                    modifier = Modifier.size(26.dp)
+                )
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = iconTint,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
         }
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -148,6 +149,16 @@ fun FolderPlaylistDetailScreen(
     var searchExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
     var searchQuery by rememberSaveable(playlistId) { mutableStateOf("") }
     var selectionMode by rememberSaveable(playlistId) { mutableStateOf(false) }
+    var handledLocateTabRequest by remember { mutableIntStateOf(locateCurrentSongRequest) }
+    LaunchedEffect(locateCurrentSongRequest) {
+        if (locateCurrentSongRequest <= 0 || locateCurrentSongRequest == handledLocateTabRequest) {
+            return@LaunchedEffect
+        }
+        handledLocateTabRequest = locateCurrentSongRequest
+        selectedTab = FolderPlaylistTab.Songs
+        selectionMode = false
+        searchExpanded = false
+    }
     var selectedSongKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedFolderPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
     var actionSong by remember { mutableStateOf<Song?>(null) }
@@ -270,7 +281,7 @@ fun FolderPlaylistDetailScreen(
     val displayedSongIndexByKey = remember(displayedSongs) {
         buildMap {
             displayedSongs.forEachIndexed { index, song ->
-                put(song.playlistIdentityKey(), index + 1)
+                put(song.playlistIdentityKey(), folderPlaylistSongListIndex(index))
             }
         }
     }
@@ -347,9 +358,9 @@ fun FolderPlaylistDetailScreen(
         lazyListState = songsListState,
         onMove = { from, to ->
             if (!songReorderEnabled) return@rememberReorderableLazyListState
-            val fromSong = reorderableSongs.getOrNull(from.index - 1)
+            val fromSong = reorderableSongs.getOrNull(from.index - FolderPlaylistSongsHeaderCount)
                 ?: return@rememberReorderableLazyListState
-            val toSong = reorderableSongs.getOrNull(to.index - 1)
+            val toSong = reorderableSongs.getOrNull(to.index - FolderPlaylistSongsHeaderCount)
                 ?: return@rememberReorderableLazyListState
             val fromIndex = manualSongs.indexOfFirst { it.playlistIdentityKey() == fromSong.playlistIdentityKey() }
             val toIndex = manualSongs.indexOfFirst { it.playlistIdentityKey() == toSong.playlistIdentityKey() }
@@ -1268,3 +1279,10 @@ fun FolderPlaylistDetailScreen(
         )
     }
 }
+
+internal const val FolderPlaylistSongsHeaderCount = 2
+
+internal fun folderPlaylistSongListIndex(
+    songIndex: Int,
+    headerCount: Int = FolderPlaylistSongsHeaderCount
+): Int = if (songIndex < 0) -1 else songIndex + headerCount

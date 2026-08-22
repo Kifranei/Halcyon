@@ -84,6 +84,7 @@
     <string name="common_remove">取り除く</string>
     <string name="common_save">保存</string>
     <string name="common_search">検索</string>
+    <string name="bottom_dock_tabs">タブ</string>
     <string name="common_open">開く</string>
     <string name="common_test">テスト</string>
     <string name="common_sort">並べ替え</string>
@@ -290,6 +291,8 @@
     <string name="settings_category_grid_columns_option_summary_default">ほとんどの画面に適しています</string>
     <string name="settings_show_album_artists">アルバムアーティストを表示</string>
     <string name="settings_show_album_artists_summary">オンにすると、アルバムアーティストをアーティスト一覧に統合し、アーティストページにリリースアルバムタブを表示します</string>
+    <string name="settings_show_artist_introduction">アーティスト紹介を表示</string>
+    <string name="settings_show_artist_introduction_summary">アーティストページに「紹介」入口を表示します</string>
     <string name="settings_open_player_on_play">再生後にプレーヤー画面を開く</string>
     <string name="settings_open_player_on_play_summary">ローカル、WebDAV、オンライン曲の再生を開始すると、自動でプレーヤー画面を開きます</string>
     <string name="settings_mini_player_swipe_to_open_player">ミニプレーヤーを上にスワイプしてプレーヤーを開く</string>
@@ -339,6 +342,7 @@
     <string name="player_more_actions">その他のアクション</string>
     <string name="player_song_info">曲情報</string>
     <string name="player_lyrics_display">歌詞表示</string>
+    <string name="player_accompaniment">伴奏</string>
     <string name="player_landscape_lyrics">横画面歌詞</string>
     <string name="player_edit_metadata">メタデータを編集</string>
     <string name="player_lyric_timing">歌詞タイミング調整</string>
@@ -640,6 +644,8 @@
     <string name="settings_system_section">システム</string>
     <string name="settings_gapless_playback">ギャップレス再生</string>
     <string name="settings_gapless_playback_summary">曲間を空けずに切り替えます</string>
+    <string name="settings_karaoke_accompaniment">ボーカル抑制 / 伴奏</string>
+    <string name="settings_karaoke_accompaniment_summary">ステレオ中央のボーカルをリアルタイムで弱めます。AI によるステム分離ではありません</string>
     <string name="settings_startup_play">起動後に自動再生</string>
     <string name="settings_bluetooth_auto_play">Bluetooth 接続時に自動再生</string>
     <string name="settings_bluetooth_auto_play_summary">Bluetoothオーディオデバイス接続後に自動的に再生を開始</string>
@@ -762,7 +768,7 @@
     <string name="song_more_metadata_album">アルバム</string>
     <string name="song_more_metadata_album_artist">アルバムアーティスト</string>
     <string name="song_more_metadata_genre">ジャンル</string>
-    <string name="song_more_metadata_year">年</string>
+    <string name="song_more_metadata_year">発売日</string>
     <string name="song_more_metadata_track_number">トラック番号</string>
     <string name="song_more_metadata_composer">作曲家</string>
     <string name="song_more_metadata_lyricist">作詞家</string>
@@ -786,6 +792,7 @@
     <string name="library_refresh">ライブラリを更新</string>
     <string name="library_search_placeholder">曲、アルバム、アーティスト、タグ、歌詞を検索</string>
     <string name="library_search_page_placeholder">曲、アルバム、アーティスト、タグ、歌詞を検索</string>
+    <string name="library_search_dock_placeholder">音楽を検索</string>
     <string name="library_search_duplicates">重複曲</string>
     <string name="library_search_clear_history">履歴をクリア</string>
     <string name="library_search_history">検索履歴</string>
@@ -1242,7 +1249,7 @@
     <string name="song_more_raw_netease_key">元の 163 key</string>
     <string name="song_more_detail_album_artist">アルバムアーティスト</string>
     <string name="song_more_detail_genre">ジャンル</string>
-    <string name="song_more_detail_year">年</string>
+    <string name="song_more_detail_year">発売日</string>
     <string name="song_more_netease_song_id">NetEase 曲 ID：%1$s</string>
     <string name="song_more_view_netease_info">タップでネットイースの関連情報を表示</string>
     <string name="song_more_detail_format">フォーマット</string>
@@ -1253,6 +1260,7 @@
     <string name="song_more_detail_added_time">追加日</string>
     <string name="song_more_detail_file_name">ファイル名</string>
     <string name="song_more_detail_path">パス</string>
+    <string name="song_more_detail_directory">ディレクトリ</string>
     <string name="song_more_loading_ai">曲情報と歌詞を読み込み中…</string>
     <string name="song_more_ai_failed">AI 解説に失敗しました</string>
     <string name="library_deleted_songs">%1$d 曲を削除しました</string>
@@ -1287,6 +1295,8 @@
     <string name="artist_tab_songs">曲</string>
     <string name="artist_tab_participated_albums">参加アルバム</string>
     <string name="artist_tab_release_albums">リリースアルバム</string>
+    <string name="artist_tab_biography">伝記</string>
+    <string name="artist_biography_region">地域</string>
     <string name="artist_song_count_sorted">%1$d 曲 · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d 枚の参加アルバム · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d 枚のリリースアルバム · %2$s</string>
@@ -1792,6 +1802,11 @@
     <string name="settings_artist_cover_folder_cleared">アーティストカバーのフォルダをクリアしました</string>
     <string name="settings_auto_show_search_keyboard">検索ボタンをタップしたらキーボードを自動表示</string>
     <string name="settings_auto_show_search_keyboard_summary">オフにすると検索バーを展開するだけで、自動でフォーカスやキーボード表示は行いません</string>
+    <string name="settings_search_reopen_behavior">検索を再度開くとき</string>
+    <string name="settings_search_reopen_behavior_summary">検索ページを再度開いたときに前回の入力をどう扱うか</string>
+    <string name="settings_search_reopen_select">前回の検索内容を選択</string>
+    <string name="settings_search_reopen_clear">前回の検索内容をクリア</string>
+    <string name="settings_search_reopen_keep">前回の検索内容を保持</string>
     <string name="lyric_video_share_generating">動画を生成中…</string>
     <string name="lyric_video_share_failed">動画の生成に失敗しました</string>
     <string name="lyric_video_share_chooser_title">歌詞動画を共有</string>
@@ -1834,6 +1849,8 @@
     <string name="settings_player_page_style_halcyon">Halcyon</string>
     <string name="settings_player_page_style_apple_music">Apple Music</string>
     <string name="settings_player_page_style_immersive_lyrics">没入型歌詞</string>
+    <string name="settings_player_lyrics_corner_actions">歌詞ページの翻訳 / 伴奏ボタン</string>
+    <string name="settings_player_lyrics_corner_actions_summary">Apple Music 以外の再生ページの歌詞画面に翻訳と伴奏のショートカットを表示します</string>
     <string name="settings_player_landscape_style">デフォルトの横画面再生スタイル</string>
     <string name="settings_player_landscape_style_summary">横画面再生を開くときに使用：%1$s</string>
     <string name="settings_player_landscape_style_wide">タブレット・大画面向け自動調整プレーヤー</string>
@@ -2152,6 +2169,17 @@
     <string name="album_introduction_saved_local">アルバムフォルダーに書き込めないため、アプリ内に保存しました</string>
     <string name="album_introduction_cleared">アルバム紹介を削除しました</string>
     <string name="album_introduction_save_failed">アルバム紹介を保存できませんでした</string>
+    <string name="artist_introduction_entry">紹介</string>
+    <string name="artist_introduction_title">アーティスト紹介</string>
+    <string name="artist_introduction_edit">アーティスト紹介を編集</string>
+    <string name="artist_introduction_edit_action">編集</string>
+    <string name="artist_introduction_section">%1$sの紹介</string>
+    <string name="artist_introduction_empty">紹介はまだありません。右上の「編集」から貼り付けるか入力できます。</string>
+    <string name="artist_introduction_editor_hint">アーティスト紹介を入力または貼り付け</string>
+    <string name="artist_introduction_saved_nfo">artist.nfo に保存しました</string>
+    <string name="artist_introduction_saved_local">アーティストフォルダーに書き込めないため、アプリ内に保存しました</string>
+    <string name="artist_introduction_cleared">アーティスト紹介を削除しました</string>
+    <string name="artist_introduction_save_failed">アーティスト紹介を保存できませんでした</string>
     <string name="player_local_music_video">ローカル MV</string>
     <string name="player_netease_music_video">NetEase Cloud Music MV</string>
     <string name="spectrum_frequency_unknown">自動調整</string>

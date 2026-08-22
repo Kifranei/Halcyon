@@ -72,7 +72,9 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
         detailLabel = detailedAudioInfo(info, bitDepth, includeReplayGain = false),
         listTag = tag,
         analyticsLabel = analytics,
-        showMobius = isAppleLossless || isSq || isHiRes || isMq
+        // Surround / Dolby already has its own capsule mark. Prefixing ∞ made
+        // Atmos tracks show two logos (∞ plus the Dolby double-D).
+        showMobius = !isSurround && (isAppleLossless || isSq || isHiRes || isMq)
     )
 }
 

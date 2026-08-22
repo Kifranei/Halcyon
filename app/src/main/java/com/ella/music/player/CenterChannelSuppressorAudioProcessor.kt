@@ -21,8 +21,9 @@ class CenterChannelSuppressorAudioProcessor : AudioProcessor {
     private var reusableOutputBuffer: ByteBuffer? = null
 
     override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        inputFormat = if (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT &&
-            inputAudioFormat.channelCount in 1..2
+        inputFormat = if (inputAudioFormat.channelCount in 1..2 &&
+            (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT ||
+                inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT)
         ) {
             inputAudioFormat
         } else {
@@ -46,13 +47,27 @@ class CenterChannelSuppressorAudioProcessor : AudioProcessor {
             // A stereo mix can be represented as its center (mid) plus its side channel. Keeping
             // only a small amount of mid attenuates centered vocals while preserving the sides.
             inputBuffer.order(ByteOrder.nativeOrder())
-            for (offset in position until limit step 4) {
-                val left = inputBuffer.getShort(offset) / 32768f
-                val right = inputBuffer.getShort(offset + 2) / 32768f
-                val mid = (left + right) * 0.5f
-                val side = (left - right) * 0.5f
-                output.putShort(((side + mid * 0.15f).coerceIn(-1f, 1f) * 32767f).toInt().toShort())
-                output.putShort(((-side + mid * 0.15f).coerceIn(-1f, 1f) * 32767f).toInt().toShort())
+            when (inputFormat.encoding) {
+                C.ENCODING_PCM_FLOAT -> {
+                    for (offset in position until limit step 8) {
+                        val left = inputBuffer.getFloat(offset)
+                        val right = inputBuffer.getFloat(offset + 4)
+                        val mid = (left + right) * 0.5f
+                        val side = (left - right) * 0.5f
+                        output.putFloat((side + mid * MID_KEEP).coerceIn(-1f, 1f))
+                        output.putFloat((-side + mid * MID_KEEP).coerceIn(-1f, 1f))
+                    }
+                }
+                else -> {
+                    for (offset in position until limit step 4) {
+                        val left = inputBuffer.getShort(offset) / 32768f
+                        val right = inputBuffer.getShort(offset + 2) / 32768f
+                        val mid = (left + right) * 0.5f
+                        val side = (left - right) * 0.5f
+                        output.putShort(((side + mid * MID_KEEP).coerceIn(-1f, 1f) * 32767f).toInt().toShort())
+                        output.putShort(((-side + mid * MID_KEEP).coerceIn(-1f, 1f) * 32767f).toInt().toShort())
+                    }
+                }
             }
         }
         output.flip()
@@ -95,6 +110,7 @@ class CenterChannelSuppressorAudioProcessor : AudioProcessor {
     }
 
     private companion object {
+        const val MID_KEEP = 0.15f
         val EMPTY_BUFFER: ByteBuffer = ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder())
     }
 }

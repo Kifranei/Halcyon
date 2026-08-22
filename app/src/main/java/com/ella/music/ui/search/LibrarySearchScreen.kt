@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import com.ella.music.ui.player.matchesDynamicCoverIndex
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -85,7 +87,13 @@ fun LibrarySearchScreen(
     val musicVideoCustomFolders by settingsManager.musicVideoCustomFolders.collectAsState(initial = emptyList())
     val scanExcludeFolders by settingsManager.scanExcludeFolders.collectAsState(initial = "")
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
-    var query by rememberSaveable(initialQuery) { mutableStateOf(initialQuery.orEmpty()) }
+    val searchDock = LocalLibrarySearchDockState.current
+    val useDockSearchBar = searchDock != null
+    var localQuery by rememberSaveable(initialQuery) { mutableStateOf(initialQuery.orEmpty()) }
+    val query = if (searchDock != null) searchDock.query else localQuery
+    fun updateQuery(value: String) {
+        if (searchDock != null) searchDock.query = value else localQuery = value
+    }
     var filter by rememberSaveable(initialFilterType, stateSaver = SearchFilterSaver) {
         mutableStateOf(SearchFilter.fromRouteType(initialFilterType))
     }
@@ -123,107 +131,84 @@ fun LibrarySearchScreen(
         onlineMusicVideo = onlineMusicVideoOnly,
         dynamicCover = dynamicCoverOnly
     )
-    var lastContentKeys by remember { mutableStateOf<Set<String>?>(null) }
-    val contentFilteredSongKeys by produceState<Set<String>?>(
-        initialValue = if (contentFilters.hasActiveFilter) null else emptySet(),
-        contentFilters,
+    val contentIndexFingerprint = remember(
+        songSearchSource,
+        musicVideoCustomFolders,
+        dynamicCoverCustomFolders
+    ) {
+        librarySearchContentFingerprint(
+            songSearchSource,
+            musicVideoCustomFolders,
+            dynamicCoverCustomFolders
+        )
+    }
+    val needsContentIndex = contentFilters.hasActiveFilter
+    val contentIndex by produceState<Map<String, LibrarySearchContentFlags>?>(
+        initialValue = LibrarySearchContentIndexCache.get(contentIndexFingerprint),
+        contentIndexFingerprint,
+        needsContentIndex,
         songSearchSource,
         dynamicCoverCustomFolders,
         musicVideoCustomFolders,
         context
     ) {
-        if (!contentFilters.hasActiveFilter) {
-            value = emptySet()
+        val cached = LibrarySearchContentIndexCache.get(contentIndexFingerprint)
+        if (cached != null) {
+            value = cached
             return@produceState
         }
-        val cachedIndex = cachedLibrarySearchContentIndex(
-            songSearchSource, musicVideoCustomFolders, dynamicCoverCustomFolders
-        )
-        cachedIndex?.keysFor(contentFilters)?.let {
-            value = it
+        if (!needsContentIndex) {
+            value = null
             return@produceState
         }
-        val matched = linkedSetOf<String>()
-        val noLyricsKeys = linkedSetOf<String>()
-        val ttmlLyricsKeys = linkedSetOf<String>()
-        val localMusicVideoKeys = linkedSetOf<String>()
-        val onlineMusicVideoKeys = linkedSetOf<String>()
-        val dynamicCoverKeys = linkedSetOf<String>()
+        value = null
+        val flags = linkedMapOf<String, LibrarySearchContentFlags>()
         withContext(Dispatchers.IO) {
             val dynamicCoverTokens = buildDynamicCoverNameIndex(context, dynamicCoverCustomFolders)
             songSearchSource.forEach { song ->
-                val hasLocalMv = if (true) {
-                    song.hasSearchableLocalMusicVideo(
+                val tagInfo = mainViewModel.repository.getCachedSongTagInfo(song)
+                    ?: mainViewModel.getSongTagInfo(song)
+                val key = song.searchIdentityKey()
+                flags[key] = LibrarySearchContentFlags(
+                    hasLyrics = song.onlineLyrics.isNotBlank() || tagInfo.hasLyricMetadata(),
+                    hasTtmlLyrics = tagInfo.hasTtmlLyricMetadata(),
+                    hasLocalMusicVideo = song.hasSearchableLocalMusicVideo(
                         context = context,
                         musicVideoCustomFolders = musicVideoCustomFolders
-                    )
-                } else {
-                    false
-                }
-                val needOnlineMv = true
-                val tagInfo = if (needOnlineMv || contentFilters.noLyrics || contentFilters.ttmlLyrics) {
-                    mainViewModel.repository.getCachedSongTagInfo(song)
-                        ?: mainViewModel.getSongTagInfo(song)
-                } else {
-                    null
-                }
-                val hasOnlineMv = if (needOnlineMv) {
-                    (decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty())?.mvId?.toLongOrNull() ?: 0L) > 0L
-                } else {
-                    false
-                }
-                val mvMatches = when {
-                    !contentFilters.musicVideo &&
-                        !contentFilters.localMusicVideo &&
-                        !contentFilters.onlineMusicVideo -> true
-                    contentFilters.localMusicVideo && contentFilters.onlineMusicVideo ->
-                        hasLocalMv && hasOnlineMv
-                    contentFilters.localMusicVideo && !contentFilters.onlineMusicVideo -> hasLocalMv
-                    contentFilters.onlineMusicVideo && !contentFilters.localMusicVideo -> hasOnlineMv
-                    else -> hasLocalMv || hasOnlineMv
-                }
-                val hasDynamicCover = song.matchesDynamicCoverIndex(dynamicCoverTokens)
-                val key = song.searchIdentityKey()
-                if (song.onlineLyrics.isNotBlank() || tagInfo?.hasLyricMetadata() == true) noLyricsKeys.remove(key) else noLyricsKeys += key
-                if (tagInfo?.hasTtmlLyricMetadata() == true) ttmlLyricsKeys += key
-                if (hasLocalMv) localMusicVideoKeys += key
-                if (hasOnlineMv) onlineMusicVideoKeys += key
-                if (hasDynamicCover) dynamicCoverKeys += key
-                val keep = (!contentFilters.noLyrics ||
-                    (song.onlineLyrics.isBlank() && tagInfo?.hasLyricMetadata() != true)) &&
-                    (!contentFilters.ttmlLyrics || tagInfo?.hasTtmlLyricMetadata() == true) &&
-                    mvMatches && hasDynamicCover
-                if (keep) {
-                    matched += song.searchIdentityKey()
-                    if (matched.size == 1 || matched.size % 24 == 0) {
-                        val snapshot = matched.toSet()
-                        withContext(Dispatchers.Main.immediate) {
-                            value = snapshot
-                        }
+                    ),
+                    hasOnlineMusicVideo = (decodeNeteaseKey(tagInfo.neteaseKey)?.mvId?.toLongOrNull() ?: 0L) > 0L,
+                    hasDynamicCover = song.matchesDynamicCoverIndex(dynamicCoverTokens)
+                )
+                if (flags.size == 1 || flags.size % 24 == 0) {
+                    val snapshot = flags.toMap()
+                    LibrarySearchContentIndexCache.put(contentIndexFingerprint, snapshot)
+                    withContext(Dispatchers.Main.immediate) {
+                        value = snapshot
                     }
                 }
             }
         }
-        val index = LibrarySearchContentIndex(
-            libraryFingerprint = libraryContentIndexFingerprint(songSearchSource),
-            musicVideoFoldersFingerprint = musicVideoCustomFolders.joinToString("\n"),
-            dynamicCoverFoldersFingerprint = dynamicCoverCustomFolders.joinToString("\n"),
-            noLyrics = noLyricsKeys,
-            ttmlLyrics = ttmlLyricsKeys,
-            localMusicVideo = localMusicVideoKeys,
-            onlineMusicVideo = onlineMusicVideoKeys,
-            dynamicCover = dynamicCoverKeys
-        )
-        saveCachedLibrarySearchContentIndex(index)
-        value = index.keysFor(contentFilters)
+        LibrarySearchContentIndexCache.put(contentIndexFingerprint, flags)
+        value = flags
     }
-    LaunchedEffect(contentFilteredSongKeys, contentFilters) {
-        if (contentFilteredSongKeys != null) lastContentKeys = contentFilteredSongKeys
-        if (!contentFilters.hasActiveFilter) lastContentKeys = null
+    val contentFilteredSongKeys = remember(contentIndex, contentFilters, songSearchSource) {
+        if (!contentFilters.hasActiveFilter) {
+            emptySet()
+        } else {
+            contentIndex?.let { index ->
+                buildSet {
+                    songSearchSource.forEach { song ->
+                        val key = song.searchIdentityKey()
+                        val flags = index[key] ?: return@forEach
+                        if (flags.matches(contentFilters)) add(key)
+                    }
+                }
+            }
+        }
     }
-    val contentFilterPending = contentFilters.hasActiveFilter && contentFilteredSongKeys == null
-    val effectiveSongSearchSource = remember(songSearchSource, contentFilters, contentFilteredSongKeys, lastContentKeys) {
-        val keys = contentFilteredSongKeys ?: lastContentKeys
+    val contentFilterPending = contentFilters.hasActiveFilter && contentIndex == null
+    val effectiveSongSearchSource = remember(songSearchSource, contentFilters, contentFilteredSongKeys) {
+        val keys = contentFilteredSongKeys
         if (!contentFilters.hasActiveFilter) {
             songSearchSource
         } else if (keys == null) {
@@ -588,9 +573,30 @@ fun LibrarySearchScreen(
         is SearchActionTarget.CategoryTarget -> "category_${target.type}_${target.item.name.tagIdentityKey()}"
     }
 
+    val resolvedSearchAutoFocus = when {
+        autoFocusSearch -> true
+        !initialQuery.isNullOrBlank() -> false
+        else -> null
+    }
+
     LaunchedEffect(initialQuery) {
-        initialQuery?.trim()?.takeIf { it.isNotBlank() }?.let { value ->
-            history = saveSearchHistory(context, value)
+        val incoming = initialQuery?.trim()?.takeIf { it.isNotBlank() }
+        if (incoming != null) {
+            updateQuery(incoming)
+            history = saveSearchHistory(context, incoming)
+            searchDock?.selectAll = false
+            return@LaunchedEffect
+        }
+        val behavior = settingsManager.searchReopenBehavior.first()
+        val next = applySearchReopenQuery(behavior, query, null)
+        updateQuery(next)
+        searchDock?.selectAll = searchReopenSelectsQuery(behavior, next)
+    }
+
+    SideEffect {
+        searchDock?.let { dock ->
+            dock.onSearch = { commitSearch() }
+            dock.autoFocus = if (dock.selectAll) true else resolvedSearchAutoFocus
         }
     }
 
@@ -602,26 +608,22 @@ fun LibrarySearchScreen(
         }
     }
 
-    val resolvedSearchAutoFocus = when {
-        autoFocusSearch -> true
-        !initialQuery.isNullOrBlank() -> false
-        else -> null
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        LibrarySearchTopBar(
-            query = query,
-            autoFocus = resolvedSearchAutoFocus,
-            showBackButton = showBackButton,
-            onBack = onBack,
-            onQueryChange = { query = it },
-            onSearch = { commitSearch() }
-        )
+        if (!useDockSearchBar) {
+            LibrarySearchTopBar(
+                query = query,
+                autoFocus = resolvedSearchAutoFocus,
+                showBackButton = showBackButton,
+                onBack = onBack,
+                onQueryChange = { updateQuery(it) },
+                onSearch = { commitSearch() }
+            )
+        }
         LibrarySearchFilterBar(
             filter = filter,
             trimmedQuery = trimmedQuery,
@@ -756,7 +758,7 @@ fun LibrarySearchScreen(
             artistCoverFolderUri = artistCoverFolderUri,
             visibleResultCount = visibleResultCount,
             onSelectHistory = { item ->
-                query = item
+                updateQuery(item)
                 filter = SearchFilter.All
                 duplicatesOnly = false
                 commitSearch(item)

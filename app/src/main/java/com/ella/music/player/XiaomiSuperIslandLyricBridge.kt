@@ -67,6 +67,7 @@ internal class XiaomiSuperIslandLyricBridge(
     private val appIcon by lazy {
         Icon.createWithResource(appContext, R.mipmap.ic_launcher)
     }
+    private val controlIconCache = HashMap<String, Bitmap>()
     private val networkMutex = Mutex()
 
     @Volatile
@@ -428,7 +429,7 @@ internal class XiaomiSuperIslandLyricBridge(
                             )
                             actionIcon = createPicture(
                                 "miui.focus.pic_btn_prev",
-                                Icon.createWithResource(appContext, R.drawable.ic_skip_previous)
+                                controlActionIcon(R.drawable.ic_skip_previous)
                             )
                             clickWithCollapse = false
                         }
@@ -445,7 +446,7 @@ internal class XiaomiSuperIslandLyricBridge(
                         )
                         actionIcon = createPicture(
                             "miui.focus.pic_btn_play_pause",
-                            Icon.createWithResource(appContext, R.drawable.ic_player_pause)
+                            controlActionIcon(R.drawable.ic_player_pause)
                         )
                         clickWithCollapse = false
                     }
@@ -461,7 +462,7 @@ internal class XiaomiSuperIslandLyricBridge(
                         )
                         actionIcon = createPicture(
                             "miui.focus.pic_btn_next",
-                            Icon.createWithResource(appContext, R.drawable.ic_skip_next)
+                            controlActionIcon(R.drawable.ic_skip_next)
                         )
                         clickWithCollapse = false
                     }
@@ -723,7 +724,19 @@ internal class XiaomiSuperIslandLyricBridge(
                 if (showControls) android.view.View.VISIBLE else android.view.View.GONE
             )
             if (showControls) {
-                setImageViewResource(R.id.super_island_expand_play_pause, R.drawable.ic_player_pause)
+                val buttonColor = superIslandControlButtonColor(darkMode)
+                setImageViewBitmap(
+                    R.id.super_island_expand_previous,
+                    controlButtonBitmap(R.drawable.ic_skip_previous, buttonColor)
+                )
+                setImageViewBitmap(
+                    R.id.super_island_expand_play_pause,
+                    controlButtonBitmap(R.drawable.ic_player_pause, buttonColor)
+                )
+                setImageViewBitmap(
+                    R.id.super_island_expand_next,
+                    controlButtonBitmap(R.drawable.ic_skip_next, buttonColor)
+                )
                 setOnClickPendingIntent(
                     R.id.super_island_expand_previous,
                     createMediaCommandIntent(3610, PlaybackService.ACTION_SKIP_PREVIOUS)
@@ -736,9 +749,6 @@ internal class XiaomiSuperIslandLyricBridge(
                     R.id.super_island_expand_next,
                     createMediaCommandIntent(3612, PlaybackService.ACTION_SKIP_NEXT)
                 )
-                setInt(R.id.super_island_expand_previous, "setColorFilter", primaryColor)
-                setInt(R.id.super_island_expand_play_pause, "setColorFilter", primaryColor)
-                setInt(R.id.super_island_expand_next, "setColorFilter", primaryColor)
             }
             setOnClickPendingIntent(
                 R.id.super_island_expand_lyric,
@@ -848,6 +858,26 @@ internal class XiaomiSuperIslandLyricBridge(
         }
     }
 
+    private fun controlActionIcon(@androidx.annotation.DrawableRes resId: Int): Icon {
+        // Compact Focus cards do not invert resource vectors. Tint against the current system
+        // night mode so light control-center cards get dark buttons and dark cards get white.
+        val darkUi = superIslandSystemUiIsDark(appContext.resources.configuration.uiMode)
+        return Icon.createWithBitmap(
+            controlButtonBitmap(resId, superIslandControlButtonColor(darkBackground = darkUi))
+        )
+    }
+
+    private fun controlButtonBitmap(
+        @androidx.annotation.DrawableRes resId: Int,
+        color: Int
+    ): Bitmap {
+        val key = "$resId:$color"
+        return controlIconCache.getOrPut(key) {
+            val sizePx = (24f * appContext.resources.displayMetrics.density).toInt().coerceAtLeast(48)
+            renderTintedDrawableBitmap(appContext, resId, color, sizePx)
+        }
+    }
+
     private fun createMediaAction(
         actionBundle: Bundle,
         key: String,
@@ -858,7 +888,7 @@ internal class XiaomiSuperIslandLyricBridge(
     ): String {
         val pendingIntent = createMediaCommandIntent(requestCode, action)
         val notificationAction = Notification.Action.Builder(
-            Icon.createWithResource(appContext, iconResId),
+            controlActionIcon(iconResId),
             title,
             pendingIntent
         ).build()

@@ -448,7 +448,14 @@ fun PlayerScreen(
                 immersiveAlbumCover = immersiveAlbumCover,
                 showLyrics = showLyrics,
                 pagerState = playerPagerState,
-                userScrollEnabled = !dismissingPlayer,
+                userScrollEnabled = !dismissingPlayer &&
+                    !(
+                        (
+                            playerPageStyle == SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC ||
+                                playerPageStyle == SettingsManager.PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS
+                            ) &&
+                            playerPagerState.currentPage == PLAYER_PAGE_COVER
+                        ),
                 onShowImmersiveLyrics = { playerViewModel.setShowLyrics(true) },
                 onDismissImmersiveLyrics = { playerViewModel.setShowLyrics(false) },
                 onShowPagedLyrics = {

@@ -333,14 +333,16 @@ internal fun readCachedLibraryAnalysis(
     songs: List<Song>
 ): LibraryAnalysis? {
     if (songs.isEmpty()) return LibraryAnalysis(emptyList(), emptyList(), 0, 0L)
+    val cacheKey = songs.libraryAnalysisCacheKey()
+    LibraryAnalysisSessionCache.get(cacheKey)?.let { return it }
     return runCatching {
         val file = libraryAnalysisCacheFile(context)
         if (!file.exists()) return@runCatching null
         val root = JSONObject(file.readText())
         if (root.optInt("version", 1) < 2) return@runCatching null
-        if (root.optString("key") != songs.libraryAnalysisCacheKey()) return@runCatching null
+        if (root.optString("key") != cacheKey) return@runCatching null
         root.optJSONObject("analysis")?.toLibraryAnalysis()
-    }.getOrNull()
+    }.getOrNull()?.also { LibraryAnalysisSessionCache.put(cacheKey, it) }
 }
 
 internal fun writeCachedLibraryAnalysis(
@@ -357,6 +359,7 @@ internal fun writeCachedLibraryAnalysis(
             .put("analysis", analysis.toJson())
         file.parentFile?.mkdirs()
         file.writeText(root.toString())
+        LibraryAnalysisSessionCache.put(songs.libraryAnalysisCacheKey(), analysis)
     }
 }
 
@@ -373,7 +376,19 @@ internal fun prewarmLibraryAnalysisCache(
 private fun libraryAnalysisCacheFile(context: Context): File =
     File(context.applicationContext.filesDir, "library_analysis_cache.json")
 
-private fun List<Song>.libraryAnalysisCacheKey(): String {
+internal object LibraryAnalysisSessionCache {
+    @Volatile private var key: String? = null
+    @Volatile private var analysis: LibraryAnalysis? = null
+
+    fun get(cacheKey: String): LibraryAnalysis? = analysis.takeIf { key == cacheKey }
+
+    fun put(cacheKey: String, value: LibraryAnalysis) {
+        key = cacheKey
+        analysis = value
+    }
+}
+
+internal fun List<Song>.libraryAnalysisCacheKey(): String {
     var idHash = 1125899906842597L
     var modifiedHash = 1469598103934665603L
     var sizeSum = 0L

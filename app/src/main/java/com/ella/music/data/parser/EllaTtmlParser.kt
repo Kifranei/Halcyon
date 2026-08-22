@@ -74,7 +74,8 @@ internal fun parseTtml(content: String): LrcParser.LrcResult? {
                 ?.cleanLyricSecondaryText()
             val transliteration = transliterations[key]
             val pronunciationWords = when {
-                transliteration?.words?.isNotEmpty() == true -> transliteration.words.alignPronunciationWords(displayWords, text)
+                transliteration?.words?.isNotEmpty() == true ->
+                    transliteration.words.alignPronunciationWords(displayWords, text)
                 rubyPronunciationWords.isNotEmpty() -> rubyPronunciationWords
                 else -> emptyList()
             }
@@ -91,7 +92,11 @@ internal fun parseTtml(content: String): LrcParser.LrcResult? {
                 words = displayWords,
                 translation = inlineTranslation?.takeUsefulSecondaryText() ?: translations[key]?.splitAppleTranslation()?.first,
                 pronunciation = pronunciation?.takeUsefulSecondaryText(),
-                pronunciationWords = pronunciationWords.toDisplayWords(pronunciation.orEmpty()),
+                pronunciationWords = if (pronunciationWords.any { it.endMs > it.startMs }) {
+                    pronunciationWords
+                } else {
+                    pronunciationWords.toDisplayWords(pronunciation.orEmpty())
+                },
                 agent = agentIds.firstOrNull() ?: rawAgent.takeIf(String::isNotBlank),
                 agentName = displayAgentName,
                 backgroundText = bg?.text,
@@ -487,35 +492,29 @@ private fun List<LyricWord>.alignPronunciationWords(
     mainWords: List<LyricWord>,
     mainText: String
 ): List<LyricWord> {
-    if (isEmpty() || mainWords.isEmpty()) return emptyList()
+    if (isEmpty()) return emptyList()
+    if (mainWords.isEmpty()) return this
 
     if (size == mainWords.size) {
         return mainWords.mapIndexed { index, word -> word.copy(text = this[index].text) }
     }
 
-    val byOverlap = mainWords.mapNotNull { word ->
-        val match = maxByOrNull { ruby ->
-            val overlap = minOf(word.endMs, ruby.endMs) - maxOf(word.startMs, ruby.startMs)
-            overlap.coerceAtLeast(0L)
-        }?.takeIf { ruby ->
-            minOf(word.endMs, ruby.endMs) > maxOf(word.startMs, ruby.startMs)
-        }
-        match?.let { word.copy(text = it.text) }
-    }
-    if (byOverlap.size == mainWords.size) return byOverlap
+    // Apple Music TTML only annotates kanji, so there are fewer ruby spans than syllables.
+    // Keep the provider's begin/end so the player can sit each reading on the overlapping word
+    // instead of concatenating かぜ+か into one pile.
+    if (any { it.endMs > it.startMs }) return this
 
-    val cjkWordIndices = mainWords
-        .mapIndexedNotNull { index, word -> index.takeIf { word.text.hasCjk() } }
-    if (cjkWordIndices.size == size) {
-        val result = MutableList(mainWords.size) { index -> mainWords[index].copy(text = "") }
-        cjkWordIndices.forEachIndexed { rubyIndex, wordIndex ->
-            result[wordIndex] = mainWords[wordIndex].copy(text = this[rubyIndex].text)
+    val kanjiWordIndices = mainWords.mapIndexedNotNull { index, word ->
+        index.takeIf { word.text.any { character -> character.isKanjiChar() } }
+    }
+    if (kanjiWordIndices.size == size) {
+        return kanjiWordIndices.mapIndexed { rubyIndex, wordIndex ->
+            mainWords[wordIndex].copy(text = this[rubyIndex].text)
         }
-        return result.filter { it.text.isNotBlank() }
     }
 
-    val cjkCharCount = mainText.count { it.isCjkChar() }
-    if (cjkCharCount == size && mainWords.size == 1) {
+    val kanjiCharCount = mainText.count { it.isKanjiChar() }
+    if (kanjiCharCount == size && mainWords.size == 1) {
         val word = mainWords.first()
         val duration = (word.endMs - word.startMs).coerceAtLeast(size * 120L)
         return mapIndexed { index, ruby ->
@@ -525,7 +524,7 @@ private fun List<LyricWord>.alignPronunciationWords(
         }
     }
 
-    return emptyList()
+    return this
 }
 
 private fun String.parseTtmlTime(): Long? {

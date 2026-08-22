@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,9 +29,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -39,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
@@ -55,6 +59,7 @@ import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
+import com.ella.music.ui.components.RememberPlaybackSourceScreen
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
@@ -85,10 +90,12 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun LibraryAnalysisBucketDetailScreen(
     bucketLabel: String,
+    qualityBucket: Boolean,
     songs: List<Song>,
     songsLoading: Boolean = false,
     totalLibraryCount: Int,
@@ -100,6 +107,9 @@ internal fun LibraryAnalysisBucketDetailScreen(
     onNavigateToArtist: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sourceKey = CategoryResumeKeys.analysis(qualityBucket, bucketLabel)
+    RememberPlaybackSourceScreen(sourceKey)
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
@@ -115,6 +125,7 @@ internal fun LibraryAnalysisBucketDetailScreen(
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val deleteSelectedSongs = rememberSongDeleteResultHandler(mainViewModel) { selection.finishSelectionMode() }
+    val listState = remember(bucketLabel) { LazyListState() }
 
     val filteredSongs = remember(songs, searchQuery) {
         val query = searchQuery.trim()
@@ -150,9 +161,16 @@ internal fun LibraryAnalysisBucketDetailScreen(
     val selectedSongsForDrag = remember(selection.selectedIds, sortedSongs) {
         sortedSongs.filter { it.id in selection.selectedIds }
     }
-    val currentSongItemIndex = remember(sortedSongIndexByIdForSelection, currentSong?.id, selection.selectionMode) {
-        if (selection.selectionMode) -1
-        else currentSong?.id?.let { sortedSongIndexByIdForSelection[it] } ?: -1
+    val currentSongItemIndex = remember(sortedSongs, currentSong, selection.selectionMode) {
+        val playing = currentSong
+        if (selection.selectionMode || playing == null) {
+            -1
+        } else {
+            sortedSongs.indexOfFirst { song ->
+                song.playlistIdentityKey() == playing.playlistIdentityKey() ||
+                    (playing.id > 0L && song.id == playing.id)
+            }
+        }
     }
     val percent = if (totalLibraryCount > 0) songs.size * 100f / totalLibraryCount else 0f
     val totalSizeBytes = remember(songs) { songs.sumOf(Song::fileSize) }
@@ -210,7 +228,15 @@ internal fun LibraryAnalysisBucketDetailScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(4.dp))
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .pointerInput(listState) {
+                            detectTapGestures(onDoubleTap = {
+                                scope.launch { listState.animateScrollToItem(0) }
+                            })
+                        }
+                ) {
                     Text(
                         text = if (selection.selectionMode) {
                             stringResource(
@@ -359,7 +385,6 @@ internal fun LibraryAnalysisBucketDetailScreen(
                     )
                 }
             } else {
-                val listState = remember(bucketLabel) { LazyListState() }
                 RestoreListScrollAfterSearch(
                     searchExpanded = searchExpanded,
                     query = searchQuery,
@@ -381,7 +406,11 @@ internal fun LibraryAnalysisBucketDetailScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
+                                        playerViewModel.setPlaylist(
+                                            sortedSongs.shuffled(),
+                                            0,
+                                            resumeCategoryKey = sourceKey
+                                        )
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )
@@ -424,7 +453,11 @@ internal fun LibraryAnalysisBucketDetailScreen(
                                         if (selection.selectionMode) {
                                             selection.toggleSelection(song.id)
                                         } else {
-                                            playerViewModel.setPlaylist(sortedSongs, index)
+                                            playerViewModel.setPlaylist(
+                                                sortedSongs,
+                                                index,
+                                                resumeCategoryKey = sourceKey
+                                            )
                                             if (openPlayerOnPlay) onNavigateToPlayer()
                                         }
                                     },

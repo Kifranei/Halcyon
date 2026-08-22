@@ -74,32 +74,38 @@ internal data class LibrarySearchContentFilters(
         get() = noLyrics || ttmlLyrics || musicVideo || localMusicVideo || onlineMusicVideo || dynamicCover
 }
 
-internal data class LibrarySearchContentIndex(
-    val libraryFingerprint: String,
-    val musicVideoFoldersFingerprint: String,
-    val dynamicCoverFoldersFingerprint: String,
-    val noLyrics: Set<String>,
-    val ttmlLyrics: Set<String>,
-    val localMusicVideo: Set<String>,
-    val onlineMusicVideo: Set<String>,
-    val dynamicCover: Set<String>
-) {
-    fun keysFor(filters: LibrarySearchContentFilters): Set<String>? {
-        if (!filters.hasActiveFilter) return emptySet()
-        var result: Set<String>? = null
-        fun intersectWith(next: Set<String>) { result = result?.intersect(next) ?: next }
-        if (filters.noLyrics) intersectWith(noLyrics)
-        if (filters.ttmlLyrics) intersectWith(ttmlLyrics)
-        if (filters.localMusicVideo && filters.onlineMusicVideo) intersectWith(localMusicVideo.intersect(onlineMusicVideo))
-        else if (filters.localMusicVideo) intersectWith(localMusicVideo)
-        else if (filters.onlineMusicVideo) intersectWith(onlineMusicVideo)
-        else if (filters.musicVideo) intersectWith(localMusicVideo.union(onlineMusicVideo))
-        if (filters.dynamicCover) intersectWith(dynamicCover)
-        return result
+internal data class LibrarySearchContentFlags(
+    val hasLyrics: Boolean,
+    val hasTtmlLyrics: Boolean,
+    val hasLocalMusicVideo: Boolean,
+    val hasOnlineMusicVideo: Boolean,
+    val hasDynamicCover: Boolean
+)
+
+internal fun LibrarySearchContentFlags.matches(filters: LibrarySearchContentFilters): Boolean {
+    if (!filters.hasActiveFilter) return true
+    if (filters.noLyrics && hasLyrics) return false
+    if (filters.ttmlLyrics && !hasTtmlLyrics) return false
+    val wantsMv = filters.musicVideo || filters.localMusicVideo || filters.onlineMusicVideo
+    if (wantsMv) {
+        val mvMatches = when {
+            filters.localMusicVideo && filters.onlineMusicVideo ->
+                hasLocalMusicVideo && hasOnlineMusicVideo
+            filters.localMusicVideo -> hasLocalMusicVideo
+            filters.onlineMusicVideo -> hasOnlineMusicVideo
+            else -> hasLocalMusicVideo || hasOnlineMusicVideo
+        }
+        if (!mvMatches) return false
     }
+    if (filters.dynamicCover && !hasDynamicCover) return false
+    return true
 }
 
-internal fun libraryContentIndexFingerprint(songs: List<Song>): String {
+internal fun librarySearchContentFingerprint(
+    songs: List<Song>,
+    musicVideoCustomFolders: List<String>,
+    dynamicCoverCustomFolders: List<String>
+): String {
     var idHash = 1125899906842597L
     var modifiedHash = 1469598103934665603L
     var sizeSum = 0L
@@ -108,40 +114,22 @@ internal fun libraryContentIndexFingerprint(songs: List<Song>): String {
         modifiedHash = 1099511628211L * (modifiedHash xor song.dateModified)
         sizeSum += song.fileSize
     }
-    return "${songs.size}-$idHash-$modifiedHash-$sizeSum"
+    return "${songs.size}-$idHash-$modifiedHash-$sizeSum|${musicVideoCustomFolders.joinToString("\n")}|${dynamicCoverCustomFolders.joinToString("\n")}"
 }
 
-private object SearchContentIndexCache { @Volatile var index: LibrarySearchContentIndex? = null }
+internal object LibrarySearchContentIndexCache {
+    @Volatile private var fingerprint: String? = null
+    @Volatile private var flags: Map<String, LibrarySearchContentFlags> = emptyMap()
 
-internal fun cachedLibrarySearchContentIndex(
-    songs: List<Song>, musicVideoCustomFolders: List<String>, dynamicCoverCustomFolders: List<String>
-): LibrarySearchContentIndex? {
-    val cached = SearchContentIndexCache.index ?: return null
-    val mvFp = musicVideoCustomFolders.joinToString("\n")
-    val coverFp = dynamicCoverCustomFolders.joinToString("\n")
-    return cached.takeIf { it.libraryFingerprint == libraryContentIndexFingerprint(songs) &&
-        it.musicVideoFoldersFingerprint == mvFp && it.dynamicCoverFoldersFingerprint == coverFp }
-}
-
-internal fun saveCachedLibrarySearchContentIndex(index: LibrarySearchContentIndex) { SearchContentIndexCache.index = index }
-
-internal data class LibrarySearchContentFlags(
-    val hasLyrics: Boolean, val hasTtmlLyrics: Boolean, val hasLocalMusicVideo: Boolean,
-    val hasOnlineMusicVideo: Boolean, val hasDynamicCover: Boolean
-)
-
-internal fun LibrarySearchContentFlags.matches(filters: LibrarySearchContentFilters): Boolean {
-    if (filters.noLyrics && hasLyrics) return false
-    if (filters.ttmlLyrics && !hasTtmlLyrics) return false
-    val mvMatches = when {
-        !filters.musicVideo && !filters.localMusicVideo && !filters.onlineMusicVideo -> true
-        filters.localMusicVideo && filters.onlineMusicVideo -> hasLocalMusicVideo && hasOnlineMusicVideo
-        filters.localMusicVideo -> hasLocalMusicVideo
-        filters.onlineMusicVideo -> hasOnlineMusicVideo
-        else -> hasLocalMusicVideo || hasOnlineMusicVideo
+    fun get(key: String): Map<String, LibrarySearchContentFlags>? {
+        val snapshot = flags
+        return snapshot.takeIf { fingerprint == key && snapshot.isNotEmpty() }
     }
-    if (!mvMatches || filters.dynamicCover && !hasDynamicCover) return false
-    return true
+
+    fun put(key: String, value: Map<String, LibrarySearchContentFlags>) {
+        fingerprint = key
+        flags = value
+    }
 }
 
 /**

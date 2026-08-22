@@ -25,10 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
-import com.ella.music.data.detailedAudioInfo
-import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
-import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.ExplicitSongTitle
@@ -37,8 +34,11 @@ import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixSheetColumn
 import com.ella.music.ui.components.EllaMiuixSheetHandle
 import com.ella.music.ui.components.EllaMiuixTextField
+import com.ella.music.ui.components.SongInfoSheet
+import com.ella.music.ui.components.SongMenuItem
 import com.ella.music.ui.components.TagEditorOptionKind
 import com.ella.music.ui.components.buildTagEditorOptions
+import com.ella.music.ui.components.openSongWithMediaInfo
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -214,30 +214,20 @@ internal fun ArtistSongInfoMenu(
     onAiInterpret: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
-        value = withContext(Dispatchers.IO) { mainViewModel.getAudioInfo(song) }
-    }
-    val tagInfo by produceState<SongTagInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
-        value = withContext(Dispatchers.IO) { mainViewModel.getSongTagInfo(song) }
-    }
-    ArtistSheetColumn {
-        ArtistSheetHandle()
-        Text(
-            text = stringResource(R.string.player_song_info),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
-        )
-        ArtistMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
-        ArtistInfoRow(stringResource(R.string.song_more_metadata_title), tagInfo?.title?.ifBlank { song.title } ?: song.title)
-        ArtistInfoRow(stringResource(R.string.song_more_metadata_artist), tagInfo?.artist?.ifBlank { song.artist } ?: song.artist)
-        ArtistInfoRow(stringResource(R.string.song_more_metadata_album), tagInfo?.album?.ifBlank { song.album } ?: song.album)
-        ArtistInfoRow(stringResource(R.string.song_more_metadata_album_artist), tagInfo?.albumArtist?.ifBlank { song.albumArtist }.orEmpty())
-        ArtistInfoRow(stringResource(R.string.song_more_metadata_comment), tagInfo?.displayComment.orEmpty())
-        ArtistInfoRow(stringResource(R.string.artist_info_audio), audioInfo?.let { detailedAudioInfo(it) }.orEmpty())
-        ArtistInfoRow(stringResource(R.string.song_more_detail_path), song.path)
-    }
+    val context = LocalContext.current
+    SongInfoSheet(
+        song = song,
+        audioInfoLoader = mainViewModel::getAudioInfo,
+        tagInfoLoader = mainViewModel::getSongTagInfo,
+        onOpenMediaInfo = {
+            onDismiss()
+            openSongWithMediaInfo(context, song)
+        },
+        onDismiss = onDismiss,
+        leadingContent = {
+            SongMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
+        }
+    )
 }
 
 @Composable

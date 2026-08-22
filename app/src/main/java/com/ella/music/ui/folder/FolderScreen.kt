@@ -50,6 +50,9 @@ import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.LazyListScrollIndicator
+import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
+import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
+import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
@@ -90,6 +93,11 @@ fun FolderScreen(
     val context = LocalContext.current
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val songs by mainViewModel.songs.collectAsState()
+    val currentSong by playerViewModel.currentSong.collectAsState()
+    val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    com.ella.music.ui.components.RememberPlaybackSourceScreen(
+        com.ella.music.data.CategoryResumeKeys.FOLDER_HIERARCHY
+    )
     val playlists by mainViewModel.playlists.collectAsState()
     val folderPlaylists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
@@ -509,6 +517,30 @@ fun FolderScreen(
                             .fillMaxHeight()
                     )
                 }
+                val currentFolderIndex = remember(folders, currentSong?.path) {
+                    val songPath = currentSong?.path.orEmpty()
+                    if (songPath.isBlank()) {
+                        -1
+                    } else {
+                        folders.indices
+                            .filter { index ->
+                                songPath.startsWith(folders[index].path, ignoreCase = true)
+                            }
+                            .maxByOrNull { folders[it].path.length }
+                            ?: -1
+                    }
+                }
+                LocateCurrentSongFloatingButton(
+                    listState = listState,
+                    currentItemIndex = currentFolderIndex,
+                    locateRequest = locateCurrentSongRequest,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(
+                            end = LibraryFloatingControlsEndPadding,
+                            bottom = LibraryFloatingControlsBottomPadding
+                        )
+                )
             }
         }
         }

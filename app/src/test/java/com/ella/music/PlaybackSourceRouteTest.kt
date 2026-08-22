@@ -25,6 +25,36 @@ class PlaybackSourceRouteTest {
     }
 
     @Test
+    fun analysisBucketMatchesQualityAndFormatRoutes() {
+        assertTrue(
+            isAtPlaybackSourceRoute(
+                destinationRoute = Screen.LibraryAnalysisBucket.route,
+                argument = { name ->
+                    when (name) {
+                        "kind" -> "quality"
+                        "label" -> "LOSSLESS"
+                        else -> null
+                    }
+                },
+                target = Screen.LibraryAnalysis.createBucketRoute(true, "LOSSLESS")
+            )
+        )
+        assertFalse(
+            isAtPlaybackSourceRoute(
+                destinationRoute = Screen.LibraryAnalysisBucket.route,
+                argument = { name ->
+                    when (name) {
+                        "kind" -> "format"
+                        "label" -> "FLAC"
+                        else -> null
+                    }
+                },
+                target = Screen.LibraryAnalysis.createBucketRoute(true, "LOSSLESS")
+            )
+        )
+    }
+
+    @Test
     fun alreadyOnLibraryDoesNotNeedAnotherLibraryJump() {
         assertTrue(
             isAtPlaybackSourceRoute(
@@ -50,6 +80,41 @@ class PlaybackSourceRouteTest {
                 argument = { if (it == "playlistId") "favorites" else null },
                 target = Screen.PlaylistDetail.createRoute("favorites")
             )
+        )
+    }
+
+    @Test
+    fun folderDetailMatchesDecodedNavArgumentAgainstEncodedTarget() {
+        val path = "/storage/emulated/0/Music/A B"
+        assertTrue(
+            isAtPlaybackSourceRoute(
+                destinationRoute = Screen.FolderDetail.route,
+                argument = { if (it == "folderPath") path else null },
+                target = Screen.FolderDetail.createRoute(path)
+            )
+        )
+    }
+
+    @Test
+    fun folderHierarchyMatchesDockRoute() {
+        assertTrue(
+            isAtPlaybackSourceRoute(
+                destinationRoute = Screen.Folder.route,
+                argument = { null },
+                target = Screen.Folder.createRoute()
+            )
+        )
+    }
+
+    @Test
+    fun folderDetailIdentitiesStayDistinctForDirectoryJumps() {
+        val first = navRouteIdentity(Screen.FolderDetail.route) { if (it == "folderPath") "/Music/A" else null }
+        val second = navRouteIdentity(Screen.FolderDetail.route) { if (it == "folderPath") "/Music/B" else null }
+        val same = navRouteIdentity(Screen.FolderDetail.route) { if (it == "folderPath") "/Music/A" else null }
+        assertTrue(first != second)
+        assertTrue(first == same)
+        assertTrue(
+            navRouteIdentity(Screen.Folder.route) { null } != first
         )
     }
 }

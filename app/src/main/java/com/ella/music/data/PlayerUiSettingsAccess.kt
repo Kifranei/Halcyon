@@ -47,6 +47,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_COVER
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_KEEP_SCREEN_ON
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LANDSCAPE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PAGE_STYLE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRICS_CORNER_ACTIONS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_INDEX
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_TOTAL_DURATION
@@ -83,6 +84,7 @@ interface PlayerUiSettingsAccess {
     val playerCoverSwipeEnabled: Flow<Boolean>
     val playerTitlePosition: Flow<Int>
     val playerPageStyle: Flow<Int>
+    val playerLyricsCornerActionsEnabled: Flow<Boolean>
     val playerLandscapeStyle: Flow<Int>
     val playerKeepScreenOn: Flow<Boolean>
     val playerHdrGlow: Flow<Boolean>
@@ -151,6 +153,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerCoverSwipeEnabled(enabled: Boolean)
     suspend fun setPlayerTitlePosition(position: Int)
     suspend fun setPlayerPageStyle(style: Int)
+    suspend fun setPlayerLyricsCornerActionsEnabled(enabled: Boolean)
     suspend fun setPlayerLandscapeStyle(style: Int)
     suspend fun setPlayerKeepScreenOn(enabled: Boolean)
 }
@@ -207,6 +210,8 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         }
     override val playerPageStyle: Flow<Int> =
         context.dataStore.data.map { SettingsManager.normalizePlayerPageStyle(it[KEY_PLAYER_PAGE_STYLE]) }
+    override val playerLyricsCornerActionsEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_LYRICS_CORNER_ACTIONS] ?: true }
     override val playerLandscapeStyle: Flow<Int> =
         context.dataStore.data.map { SettingsManager.normalizePlayerLandscapeStyle(it[KEY_PLAYER_LANDSCAPE_STYLE]) }
     override val playerKeepScreenOn: Flow<Boolean> =
@@ -490,6 +495,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit {
             it[KEY_PLAYER_PAGE_STYLE] = SettingsManager.normalizePlayerPageStyle(style)
         }
+    }
+
+    override suspend fun setPlayerLyricsCornerActionsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_LYRICS_CORNER_ACTIONS] = enabled }
     }
 
     override suspend fun setPlayerLandscapeStyle(style: Int) {

@@ -62,6 +62,7 @@ import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import com.ella.music.oem.XiaomiHandoffBridge
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class MainActivity : ComponentActivity() {
@@ -312,7 +313,13 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                     ) {
-                        EllaApp(mainVm, playerVm, isDark)
+                        Scaffold(
+                            modifier = Modifier.fillMaxSize(),
+                            containerColor = ComposeColor.Transparent,
+                            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+                        ) {
+                            EllaApp(mainVm, playerVm, isDark)
+                        }
                     }
                 }
             }

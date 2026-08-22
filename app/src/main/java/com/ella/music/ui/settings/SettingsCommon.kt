@@ -2,7 +2,6 @@ package com.ella.music.ui.settings
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -118,7 +117,7 @@ internal fun SettingsFocusAnchor(
     LaunchedEffect(active) {
         if (active) bringIntoViewRequester.bringIntoView()
     }
-    Box(
+    Column(
         modifier = modifier.bringIntoViewRequester(bringIntoViewRequester)
     ) {
         content()

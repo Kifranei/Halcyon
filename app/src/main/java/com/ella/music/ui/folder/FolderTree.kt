@@ -113,6 +113,59 @@ internal fun String.parentFolderPath(): String {
     return parent.ifBlank { "/" }
 }
 
+internal data class FolderBreadcrumb(
+    val label: String,
+    val path: String
+)
+
+internal fun String.isSameOrAncestorOfFolder(childPath: String): Boolean {
+    val parent = normalizeFolderPath()
+    val child = childPath.normalizeFolderPath()
+    if (parent.equals(child, ignoreCase = true)) return true
+    if (parent == "/") return child.startsWith("/") && child != "/"
+    val prefix = "${parent.trimEnd('/')}/"
+    return child.startsWith(prefix, ignoreCase = true)
+}
+
+internal fun folderBreadcrumbDisplayPath(currentPath: String, deepestPath: String): String {
+    val current = currentPath.normalizeFolderPath()
+    val deepest = deepestPath.normalizeFolderPath()
+    return when {
+        deepest.isBlank() || deepest == "/" && current == "/" -> current
+        current.isSameOrAncestorOfFolder(deepest) -> deepest
+        else -> current
+    }
+}
+
+internal object FolderHierarchyTrail {
+    var deepestPath: String = ""
+        private set
+
+    fun visit(currentPath: String): String {
+        val display = folderBreadcrumbDisplayPath(currentPath, deepestPath)
+        deepestPath = display
+        return display
+    }
+
+    fun reset() {
+        deepestPath = ""
+    }
+}
+
+internal fun String.folderBreadcrumbs(rootName: String): List<FolderBreadcrumb> {
+    val normalized = normalizeFolderPath()
+    if (normalized == "/" || normalized.isBlank()) {
+        return listOf(FolderBreadcrumb(rootName, "/"))
+    }
+    val crumbs = mutableListOf<FolderBreadcrumb>()
+    var accumulated = ""
+    pathSegments().forEach { segment ->
+        accumulated = if (accumulated.isEmpty()) "/$segment" else "$accumulated/$segment"
+        crumbs += FolderBreadcrumb(label = segment, path = accumulated)
+    }
+    return crumbs.ifEmpty { listOf(FolderBreadcrumb(rootName, "/")) }
+}
+
 private fun String.immediateChildOf(parentPath: String): String? {
     val folder = normalizeFolderPath()
     val parent = parentPath.normalizeFolderPath()
@@ -132,5 +185,5 @@ private fun String.immediateChildOf(parentPath: String): String? {
 private fun List<String>.toFolderPath(): String =
     if (isEmpty()) "/" else joinToString(prefix = "/", separator = "/")
 
-private fun String.pathSegments(): List<String> =
+internal fun String.pathSegments(): List<String> =
     trim('/').split('/').filter(String::isNotBlank)

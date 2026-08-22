@@ -352,8 +352,9 @@ internal object EllaLyricsParser {
                 if (group.shouldKeepIndependentDuetLines()) {
                     return@flatMap group.sortedBy { it.agentSortOrder() }
                 }
-                val hasRomanizedCompanion = group.size >= 3 && group.any { it.text.isPronunciationLine() }
-                val primary = if (hasRomanizedCompanion) {
+                val hasPronunciationCompanion = group.any { it.text.isKanaPronunciationLine() } ||
+                    (group.size >= 3 && group.any { it.text.isLatinPronunciationLine() })
+                val primary = if (hasPronunciationCompanion) {
                     group.firstOrNull { it.text.cleanLyricText().hasCjk() && it.text.isUsefulMainText() }
                 } else {
                     val cjkCandidates = group.filter { it.text.cleanLyricText().hasCjk() && it.text.isUsefulMainText() }
@@ -366,8 +367,11 @@ internal object EllaLyricsParser {
                 } ?: group.firstOrNull { it.text.isUsefulMainText() } ?: group.first()
                 val primaryText = primary.text.cleanLyricText()
                 val pronunciation = group
-                    .takeIf { it.size >= 3 && primaryText.hasCjk() }
-                    ?.firstOrNull { it !== primary && it.text.isPronunciationLine() }
+                    .takeIf { primaryText.hasCjk() }
+                    ?.firstOrNull { it !== primary && it.text.isKanaPronunciationLine() }
+                    ?: group
+                        .takeIf { it.size >= 3 && primaryText.hasCjk() }
+                        ?.firstOrNull { it !== primary && it.text.isLatinPronunciationLine() }
                 val translationCandidates = group
                     .asSequence()
                     .filter { it !== primary && it !== pronunciation }
@@ -517,7 +521,23 @@ internal object EllaLyricsParser {
             lrcTimePattern.replace(line.trim(), "").trim()
         )
 
-    private fun String.isPronunciationLine(): Boolean {
+    private fun String.isPronunciationLine(): Boolean =
+        isKanaPronunciationLine() || isLatinPronunciationLine()
+
+    private fun String.isKanaPronunciationLine(): Boolean {
+        val text = cleanLyricText()
+        if (text.isBlank() || text.isMusicSymbolOnly() || text.any { it.isCjkIdeograph() }) return false
+        if (!text.any { it.isJapaneseKanaChar() }) return false
+        val kanaMarks = setOf('・', '·', 'ー', 'ﾞ', 'ﾟ')
+        return text.all {
+            it.isJapaneseKanaChar() ||
+                it.isWhitespace() ||
+                it in "-'`.:,;!?/()[]{}" ||
+                it in kanaMarks
+        }
+    }
+
+    private fun String.isLatinPronunciationLine(): Boolean {
         val text = cleanLyricText()
         if (text.isBlank() || text.hasCjk() || text.isMusicSymbolOnly()) return false
         val letters = text.count { it.isLetter() }
@@ -527,5 +547,19 @@ internal object EllaLyricsParser {
                 it in "-'`.:,;!?/()[]{}" ||
                 it in setOf('‘', '’', '“', '”', 'ʼ', '・', '·')
         }
+    }
+
+    private fun Char.isCjkIdeograph(): Boolean {
+        val block = Character.UnicodeBlock.of(this)
+        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
+            block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
+            block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B ||
+            block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+    }
+
+    private fun Char.isJapaneseKanaChar(): Boolean {
+        val block = Character.UnicodeBlock.of(this)
+        return block == Character.UnicodeBlock.HIRAGANA ||
+            block == Character.UnicodeBlock.KATAKANA
     }
 }

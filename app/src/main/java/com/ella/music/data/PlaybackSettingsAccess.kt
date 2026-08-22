@@ -32,6 +32,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_DURATION_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_CURVE
 import com.ella.music.data.SettingsManager.Companion.KEY_DECODER_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_GAPLESS
+import com.ella.music.data.SettingsManager.Companion.KEY_KARAOKE_ACCOMPANIMENT
 import com.ella.music.data.SettingsManager.Companion.KEY_OPEN_PLAYER_ON_PLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_PREVIOUS_BUTTON_ACTION
 import com.ella.music.data.SettingsManager.Companion.KEY_REPLAYGAIN_ENABLED
@@ -60,6 +61,7 @@ import kotlinx.coroutines.flow.map
  */
 interface PlaybackSettingsAccess {
     val gaplessPlayback: Flow<Boolean>
+    val karaokeAccompanimentEnabled: Flow<Boolean>
     val crossfadeDurationMs: Flow<Int>
     val crossfadeCurve: Flow<Int>
     val replayGainEnabled: Flow<Boolean>
@@ -81,6 +83,7 @@ interface PlaybackSettingsAccess {
     val startupPlayMode: Flow<Int>
     val decoderMode: Flow<Int>
     suspend fun setGaplessPlayback(enabled: Boolean)
+    suspend fun setKaraokeAccompanimentEnabled(enabled: Boolean)
     suspend fun setCrossfadeDurationMs(durationMs: Int)
     suspend fun setCrossfadeCurve(curve: Int)
     suspend fun setReplayGainEnabled(enabled: Boolean)
@@ -105,6 +108,8 @@ interface PlaybackSettingsAccess {
 internal class PlaybackSettingsAccessImpl(private val context: Context) : PlaybackSettingsAccess {
 
     override val gaplessPlayback: Flow<Boolean> = context.dataStore.data.map { it[KEY_GAPLESS] ?: true }
+    override val karaokeAccompanimentEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_KARAOKE_ACCOMPANIMENT] ?: false }
     override val crossfadeDurationMs: Flow<Int> = context.dataStore.data
         .map { (it[KEY_CROSSFADE_DURATION_MS] ?: 0).coerceIn(0, 12_000) }
     override val crossfadeCurve: Flow<Int> = context.dataStore.data.map {
@@ -166,6 +171,10 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
 
     override suspend fun setGaplessPlayback(enabled: Boolean) {
         context.dataStore.edit { it[KEY_GAPLESS] = enabled }
+    }
+
+    override suspend fun setKaraokeAccompanimentEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_KARAOKE_ACCOMPANIMENT] = enabled }
     }
 
     override suspend fun setCrossfadeDurationMs(durationMs: Int) {

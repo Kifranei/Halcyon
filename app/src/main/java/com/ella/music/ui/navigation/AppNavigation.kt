@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -55,6 +56,8 @@ import com.ella.music.ui.settings.SettingsDetailMode
 import com.ella.music.ui.settings.SettingsScreen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
+
+val LocalAppNavigator = staticCompositionLocalOf<(String) -> Unit> { {} }
 
 private const val AlbumListRestoreScrollRequestKey = "album_list_restore_scroll_request"
 private const val AlbumListRestoreAnchorIdKey = "album_list_restore_anchor_id"
@@ -129,7 +132,13 @@ sealed class Screen(val route: String) {
     data object FolderPlaylistDetail : Screen("folder_playlist/{playlistId}") {
         fun createRoute(playlistId: String) = "folder_playlist/${java.net.URLEncoder.encode(playlistId, "UTF-8")}"
     }
-    data object LibraryAnalysis : Screen("library_analysis")
+    data object LibraryAnalysis : Screen("library_analysis") {
+        fun createBucketRoute(quality: Boolean, label: String): String {
+            val encoded = java.net.URLEncoder.encode(label, "UTF-8").replace("+", "%20")
+            return "library_analysis_bucket/${if (quality) "quality" else "format"}/$encoded"
+        }
+    }
+    data object LibraryAnalysisBucket : Screen("library_analysis_bucket/{kind}/{label}")
     data object Settings : Screen("settings?fromDock={fromDock}") {
         const val baseRoute = "settings"
         fun createRoute(fromDock: Boolean = false) = "$baseRoute?fromDock=$fromDock"
@@ -868,6 +877,35 @@ fun AppNavigation(
                 onNavigateToArtist = { artistName ->
                     navController.navigate(Screen.ArtistDetail.createRoute(artistName))
                 }
+            )
+        }
+
+        composable(
+            route = Screen.LibraryAnalysisBucket.route,
+            arguments = listOf(
+                navArgument("kind") { type = NavType.StringType },
+                navArgument("label") { type = NavType.StringType }
+            )
+        ) { entry ->
+            val kind = entry.arguments?.getString("kind").orEmpty()
+            val label = java.net.URLDecoder.decode(
+                entry.arguments?.getString("label").orEmpty(),
+                "UTF-8"
+            )
+            LibraryAnalysisScreen(
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onBack = { navController.popBackStack() },
+                showBackButton = true,
+                onNavigateToPlayer = onNavigateToPlayer,
+                onNavigateToAlbum = { albumId ->
+                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                },
+                onNavigateToArtist = { artistName ->
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                },
+                initialQualityBucket = kind == "quality",
+                initialBucketLabel = label
             )
         }
 

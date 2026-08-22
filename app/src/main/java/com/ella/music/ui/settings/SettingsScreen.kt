@@ -321,6 +321,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 功能块 宫格 顺序 隐藏 二级页") { onNavigateToHomeDisplaySettings("home_sections") },
         entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 功能块 颜色 卡片 透明度") { onNavigateToHomeDisplaySettings("home_tile_colors") },
         entry(stringResource(R.string.settings_auto_show_search_keyboard), stringResource(R.string.settings_auto_show_search_keyboard_summary), "搜索 输入法 键盘 自动弹出") { onNavigateToHighlightedAppearanceSettings("auto_show_search_keyboard") },
+        entry(stringResource(R.string.settings_search_reopen_behavior), stringResource(R.string.settings_search_reopen_behavior_summary), "搜索 搜索框 清空 保留 选择 上次") { onNavigateToHighlightedAppearanceSettings("search_reopen_behavior") },
         entry(stringResource(R.string.settings_font_settings), stringResource(R.string.settings_lyric_font), "字体 歌词字体 三级页") { onNavigateToHighlightedAppearanceSettings("lyric_font") },
         entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "视频封面 动态封面 mp4 MV 文件夹 相册权限") { onNavigateToHighlightedAppearanceSettings("dynamic_cover") },
         entry(stringResource(R.string.settings_player_show_total_duration), stringResource(R.string.settings_player_show_total_duration_summary), "进度条 总时长 剩余时间 播放时间 拖动预览") { onNavigateToHighlightedAppearanceSettings("player_show_total_duration") },
@@ -336,6 +337,8 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_scan_folders), stringResource(R.string.settings_scan_folders_summary), "文件夹 USB 隐藏目录 三级页") { onNavigateToHighlightedScanFolders("scan_folders") },
         entry(stringResource(R.string.settings_full_tag_search), stringResource(R.string.settings_full_tag_search_summary_on), "全字段 全字段搜索 全标签 标签 元数据 作曲 作词 注释 别名 自定义标签 扫描 速度") { onNavigateToHighlightedScanFolders("scan_media_source") },
         entry(stringResource(R.string.settings_show_album_artists), stringResource(R.string.settings_show_album_artists_summary), "艺术家 歌手 歌者 artist singer performer 专辑艺术家 发行专辑") { onNavigateToHighlightedLibrarySettings("show_album_artists") },
+        entry(stringResource(R.string.settings_show_artist_introduction), stringResource(R.string.settings_show_artist_introduction_summary), "艺术家 歌手 介绍 简介 artist introduction biography") { onNavigateToHighlightedLibrarySettings("show_artist_introduction") },
+        entry(stringResource(R.string.settings_artist_bio_download), stringResource(R.string.settings_artist_bio_download_summary), "艺术家 传记 Last.fm wiki 自动下载 Wi-Fi") { onNavigateToHighlightedLibrarySettings("artist_bio_download") },
         entry(stringResource(R.string.settings_artist_cover_folder), stringResource(R.string.settings_artist_cover_folder_summary), "艺术家 歌手 artist 封面 动态封面 视频封面 mp4 轮播 图片目录") { onNavigateToHighlightedLibrarySettings("artist_cover_folder") },
         entry(stringResource(R.string.settings_artist_cover_carousel), stringResource(R.string.settings_artist_cover_carousel_summary), "艺术家 歌手 artist 封面 动态封面 轮播") { onNavigateToHighlightedLibrarySettings("artist_cover_carousel") },
         entry(stringResource(R.string.settings_artist_separators), stringResource(R.string.settings_artist_separators_summary), "艺术家 歌手 artist 分隔符 feat 合作 作曲 作词") { onNavigateToHighlightedLibrarySettings("artist_separators") },
@@ -351,7 +354,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_enable_super_lyric), stringResource(R.string.settings_enable_super_lyric_summary), "超级歌词 状态栏 通知 横幅 蓝牙 ColorOS") { onNavigateToHighlightedLyricSettings("lyric_output") },
         entry(stringResource(R.string.settings_enable_coloros_lock_screen_lyric), stringResource(R.string.settings_enable_coloros_lock_screen_lyric_summary), "ColorOS 锁屏岛 歌词 lyricInfo MediaMetadata OPPO 一加") { onNavigateToHighlightedLyricSettings("coloros_lock_screen_lyric") },
         entry(stringResource(R.string.settings_lyric_plugin_sources), stringResource(R.string.settings_lyric_plugin_sources_summary), "在线歌词 匹配 插件 三级页") { onNavigateToHighlightedLyricSettings("lyric_plugin_sources") },
-        entry(stringResource(R.string.settings_audio), stringResource(R.string.settings_audio_summary), "播放 无缝 gapless 淡入淡出 crossfade ReplayGain 回放增益 随机 下一首 解码 焦点 蓝牙") { onNavigateToHighlightedAudioSettings("audio_playback") },
+        entry(stringResource(R.string.settings_audio), stringResource(R.string.settings_audio_summary), "播放 无缝 gapless 淡入淡出 crossfade ReplayGain 回放增益 随机 下一首 解码 焦点 蓝牙 伴奏 人声") { onNavigateToHighlightedAudioSettings("audio_playback") },
         entry(stringResource(R.string.settings_usb_dac_mode), stringResource(R.string.settings_usb_dac_mode_summary), "USB DAC 独占 高解析 输出 位深 采样率") { onNavigateToHighlightedAudioSettings("audio_output") },
         entry(stringResource(R.string.settings_decoder), stringResource(R.string.settings_audio_decoder_auto_summary), "解码 FFmpeg 系统 音频焦点") { onNavigateToHighlightedAudioSettings("audio_system") },
         entry(stringResource(R.string.equalizer_screen_title), stringResource(R.string.settings_audio_equalizer_summary), "均衡器 EQ 低音 高音 压缩器 立体声 360 环绕音 混响") { onNavigateToHighlightedEqualizer("equalizer") },
@@ -424,6 +427,7 @@ private fun settingsSearchFallbackEntries(
                     name.contains("coloros") || name.contains("flyme") -> { { onLyrics("lyric_basic") } }
                 name.contains("audio") || name.contains("decoder") || name.contains("usb") ||
                     name.contains("crossfade") || name.contains("replay") || name.contains("gapless") ||
+                    name.contains("karaoke") || name.contains("accompaniment") ||
                     name.contains("shuffle") || name.contains("playback") || name.contains("previous_button") ||
                     name.contains("resume_") || name.contains("startup_play") -> { { onAudio("audio_playback") } }
                 name.contains("scan") || name.contains("library") || name.contains("metadata") ||
@@ -461,6 +465,8 @@ private fun settingsSearchAliases(
     entry(stringResource(R.string.settings_app_icon), stringResource(R.string.settings_app_icon_summary), "图标 启动器 图标包 anime loli") { onAppearance("app_icon") },
     entry(stringResource(R.string.settings_player_immersive_cover), stringResource(R.string.settings_player_immersive_cover_summary), "沉浸播放页 封面取色 文字 图标 背景 动态背景") { onAppearance("player_immersive") },
     entry(stringResource(R.string.settings_player_page_style), stringResource(R.string.settings_player_page_style_summary), "播放页 Apple Music 封面 歌词 样式") { onAppearance("player_page") },
+    entry(stringResource(R.string.settings_search_reopen_behavior), stringResource(R.string.settings_search_reopen_behavior_summary), "搜索 搜索框 清空 保留 选择 上次") { onAppearance("search_reopen_behavior") },
+    entry(stringResource(R.string.settings_karaoke_accompaniment), stringResource(R.string.settings_karaoke_accompaniment_summary), "伴奏 人声 原曲 karaoke 跟唱") { onAudio("audio_playback") },
     entry(stringResource(R.string.settings_system_bars_mode), stringResource(R.string.settings_system_bars_mode_summary, ""), "沉浸模式 全屏 状态栏 导航栏 隐藏 显示 车机") { onAppearance("system_bars") },
     entry(stringResource(R.string.settings_player_landscape_style), stringResource(R.string.settings_player_landscape_style_summary, ""), "横屏播放 宽屏 歌词 CoverFlow MV 流光") { onAppearance("player_immersive") },
     entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "动态封面 视频封面 MV mp4") { onAppearance("dynamic_cover") },

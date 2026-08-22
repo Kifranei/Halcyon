@@ -541,6 +541,22 @@ fun FolderDetailScreen(
             val listEndInset = if (showFastIndex || showScrollIndicator) SideIndexListEndPadding else 0.dp
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
+                    if (!selection.selectionMode) {
+                        val folderLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                        val folderLifecycleState by folderLifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+                        val trailPath = if (folderLifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                            FolderHierarchyTrail.visit(normalizedFolderPath)
+                        } else {
+                            folderBreadcrumbDisplayPath(normalizedFolderPath, FolderHierarchyTrail.deepestPath)
+                        }
+                        FolderBreadcrumbRow(
+                            crumbs = remember(trailPath, folderRootName) {
+                                trailPath.folderBreadcrumbs(folderRootName)
+                            },
+                            currentPath = normalizedFolderPath,
+                            onCrumbClick = onFolderClick
+                        )
+                    }
                     com.ella.music.ui.components.SortSummaryHeader(
                         text = if (searchQuery.isBlank()) {
                             stringResource(

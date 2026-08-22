@@ -109,9 +109,9 @@ internal fun QuickActionIcon(
         val cy = size.height / 2f
         when (kind) {
             PlayerQuickActionKind.Info -> {
-                drawCircle(color = color, radius = size.minDimension * 0.42f, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = StrokeCap.Round))
+                drawCircle(color = color, radius = size.minDimension * 0.36f, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = StrokeCap.Round))
                 drawLine(color, Offset(cx, size.height * 0.46f), Offset(cx, size.height * 0.70f), stroke, cap = StrokeCap.Round)
-                drawCircle(color = color, radius = stroke * 0.68f, center = Offset(cx, size.height * 0.30f))
+                drawCircle(color = color, radius = stroke * 0.62f, center = Offset(cx, size.height * 0.32f))
             }
             PlayerQuickActionKind.Share -> {
                 val a = Offset(size.width * 0.26f, size.height * 0.58f)

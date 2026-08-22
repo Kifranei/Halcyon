@@ -125,6 +125,77 @@ class EllaLyricsParserTest {
     }
 
     @Test
+    fun appleMusicTtmlKeepsPerKanjiFuriganaTimings() {
+        val result = EllaLyricsParser.parse(
+            """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word">
+              <head>
+                <metadata>
+                  <iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">
+                    <transliterations>
+                      <transliteration xml:lang="en-Latn">
+                        <text for="L8">
+                          <span begin="0:18.718" end="0:19.254">かぜ</span>
+                          <span begin="0:19.459" end="0:19.775">か</span>
+                        </text>
+                        <text for="L17">
+                          <span begin="0:59.806" end="0:59.907">み</span>
+                          <span begin="0:59.907" end="1:00.444">まも</span>
+                        </text>
+                      </transliteration>
+                    </transliterations>
+                  </iTunesMetadata>
+                </metadata>
+              </head>
+              <body>
+                <div>
+                  <p begin="0:17.601" end="0:20.913" itunes:key="L8">
+                    <span begin="0:17.601" end="0:18.114">OK!</span>
+                    <span begin="0:18.718" end="0:19.254">風</span>
+                    <span begin="0:19.254" end="0:19.459">が</span>
+                    <span begin="0:19.459" end="0:19.775">変</span>
+                    <span begin="0:19.775" end="0:20.179">わっ</span>
+                    <span begin="0:20.179" end="0:20.506">て</span>
+                    <span begin="0:20.506" end="0:20.913">も</span>
+                  </p>
+                  <p begin="0:59.292" end="1:03.362" itunes:key="L17">
+                    <span begin="0:59.292" end="0:59.493">みん</span>
+                    <span begin="0:59.493" end="0:59.595">な</span>
+                    <span begin="0:59.595" end="0:59.806">を</span>
+                    <span begin="0:59.806" end="0:59.907">見</span>
+                    <span begin="0:59.907" end="1:00.444">守</span>
+                    <span begin="0:59.907" end="1:00.457">っ</span>
+                    <span begin="1:00.457" end="1:03.362">てくれてるよ</span>
+                  </p>
+                </div>
+              </body>
+            </tt>
+            """.trimIndent()
+        )
+
+        val wind = result.lyrics.first { it.text.contains("風") }
+        assertEquals(listOf("かぜ", "か"), wind.pronunciationWords.map { it.text })
+        val watch = result.lyrics.first { it.text.contains("見守") }
+        assertEquals(listOf("み", "まも"), watch.pronunciationWords.map { it.text })
+    }
+
+    @Test
+    fun sameTimestampKanaCompanionIsPronunciationNotTranslation() {
+        val result = LrcParser.parse(
+            """
+            [00:12.00]OK! 風が 変わっても
+            [00:12.00]かぜか
+            [00:12.00]OK! 就算风向改变
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("OK! 風が 変わっても", result.lyrics.single().text)
+        assertEquals("かぜか", result.lyrics.single().pronunciation)
+        assertEquals("OK! 就算风向改变", result.lyrics.single().translation)
+    }
+
+    @Test
     fun sameTimestampWordLineRomanizationAndTranslationAreMerged() {
         val result = LrcParser.parse(
             """

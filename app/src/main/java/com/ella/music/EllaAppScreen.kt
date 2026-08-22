@@ -12,8 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,9 +28,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -75,18 +74,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import com.ella.music.ui.components.MiniPlayerLyricTiming
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.TagEditorEditTracker
 import com.ella.music.ui.components.updateEllaDynamicShortcuts
 import com.ella.music.ui.navigation.AppNavigation
 import com.ella.music.ui.navigation.EXTRA_SHORTCUT_ROUTE
+import com.ella.music.ui.navigation.LocalAppNavigator
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.navigation.EXTRA_SHORTCUT_ACTION
 import com.ella.music.ui.navigation.SHORTCUT_ACTION_PLAY
 import com.ella.music.ui.navigation.SHORTCUT_ACTION_SHUFFLE_ALL
 import com.ella.music.player.DesktopLyricService
 import com.ella.music.ui.player.PlayerScreen
+import com.ella.music.ui.search.LocalLibrarySearchDockState
+import com.ella.music.ui.search.rememberLibrarySearchDockState
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.blur.layerBackdrop as layerMiuixBackdrop
@@ -161,8 +164,6 @@ fun EllaApp(
         val source = com.ella.music.data.PlaybackSourceNavigation.resolvedSourceKey(songKey)
             ?: playerViewModel.playbackSourceKey.value
         val route = playbackSourceRoute(source) ?: return
-        snapPlayerOverlay = true
-        showPlayerOverlay = false
         val entry = navController.currentBackStackEntry
         val alreadyThere = isAtPlaybackSourceRoute(
             destinationRoute = entry?.destination?.route,
@@ -170,14 +171,21 @@ fun EllaApp(
             target = route
         )
         if (!alreadyThere) navController.navigate(route)
-        snapshotFlow { navController.currentBackStackEntry }.first { current ->
-            isAtPlaybackSourceRoute(
-                destinationRoute = current?.destination?.route,
-                argument = { name -> current?.arguments?.get(name) },
-                target = route
-            )
+        withTimeoutOrNull(1_200L) {
+            snapshotFlow { navController.currentBackStackEntry }.first { current ->
+                isAtPlaybackSourceRoute(
+                    destinationRoute = current?.destination?.route,
+                    argument = { name -> current?.arguments?.get(name) },
+                    target = route
+                )
+            }
         }
+        snapPlayerOverlay = true
+        showPlayerOverlay = false
+        playerDismissProgress = 0f
         delay(48L)
+        playerViewModel.requestLocateCurrentSong()
+        delay(360L)
         playerViewModel.requestLocateCurrentSong()
     }
     LaunchedEffect(navController) {
@@ -185,15 +193,26 @@ fun EllaApp(
             openPlaybackSource()
         }
     }
+    val currentRouteIdentity = navRouteIdentity(
+        destinationRoute = navBackStackEntry?.destination?.route,
+        argument = { name -> navBackStackEntry?.arguments?.get(name) }
+    )
     var returnToPlayerRoute by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(currentRoute) {
-        if (returnToPlayerRoute != null && currentRoute == returnToPlayerRoute) {
+    LaunchedEffect(currentRouteIdentity) {
+        val saved = returnToPlayerRoute ?: return@LaunchedEffect
+        if (currentRouteIdentity == saved) {
             returnToPlayerRoute = null
             playerDismissProgress = 0f
             // Snap the resident overlay back instead of playing the open animation.
             // Animating made returning from artist/album/lyrics feel like a close + reopen (#469).
             snapPlayerOverlay = true
             showPlayerOverlay = true
+        } else if (showPlayerOverlay) {
+            // Keep the player covering the previous page until the destination is on-screen,
+            // then drop it. Hiding first flashes Home under the overlay (#495).
+            snapPlayerOverlay = true
+            showPlayerOverlay = false
+            playerDismissProgress = 0f
         }
     }
     // Keep the player surface resident in the composition tree once it has been opened, and
@@ -214,8 +233,12 @@ fun EllaApp(
             playerOpenAnim.animateTo(
                 targetValue = target,
                 animationSpec = tween(
-                    durationMillis = if (showPlayerOverlay) 320 else 260,
-                    easing = if (showPlayerOverlay) FastOutSlowInEasing else LinearOutSlowInEasing
+                    durationMillis = if (showPlayerOverlay) 240 else 200,
+                    easing = if (showPlayerOverlay) {
+                        CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                    } else {
+                        CubicBezierEasing(0.4f, 0f, 1f, 1f)
+                    }
                 )
             )
         }
@@ -578,10 +601,11 @@ fun EllaApp(
         if (!showMiniPlayer || !canCompactBottomDock) bottomDockMode = BottomDockMode.Expanded
     }
 
-    val dockScrollConnection = remember(showMiniPlayer, canCompactBottomDock) {
+    val inSearchDock = currentRoute.isSearchRoute()
+    val dockScrollConnection = remember(showMiniPlayer, canCompactBottomDock, inSearchDock) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (!showMiniPlayer || !canCompactBottomDock || source != NestedScrollSource.UserInput) return Offset.Zero
+                if (inSearchDock || !showMiniPlayer || !canCompactBottomDock || source != NestedScrollSource.UserInput) return Offset.Zero
                 when {
                     available.y < -12f -> bottomDockMode = BottomDockMode.Compact
                     available.y > 16f -> bottomDockMode = BottomDockMode.Expanded
@@ -622,7 +646,6 @@ fun EllaApp(
     val contentModifier = Modifier
         .fillMaxSize()
         .then(if (wallpaperVisible) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
-        .layerMiuixBackdrop(miuixBackdrop)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -649,6 +672,24 @@ fun EllaApp(
                 )
             }
         } else {
+            val librarySearchDockState = rememberLibrarySearchDockState()
+            CompositionLocalProvider(
+                LocalAppNavigator provides { route ->
+                    if (showPlayerOverlay) {
+                        returnToPlayerRoute = currentRouteIdentity
+                        snapPlayerOverlay = true
+                        showPlayerOverlay = false
+                        playerDismissProgress = 0f
+                    }
+                    navController.navigate(route)
+                },
+                LocalLibrarySearchDockState provides librarySearchDockState
+            ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerMiuixBackdrop(miuixBackdrop)
+            ) {
             if (wallpaperVisible) {
                 val wallpaperDimAlpha = appWallpaperDim.coerceIn(0, 80) / 100f
                 val wallpaperWash = if (isDarkTheme) ComposeColor.Black else ComposeColor.White
@@ -691,10 +732,6 @@ fun EllaApp(
                         .background(contentOverlayColor)
                 )
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
                 AppNavigation(
                     navController = navController,
                     mainViewModel = mainViewModel,
@@ -707,6 +744,7 @@ fun EllaApp(
                         showPlayerOverlay = true
                     }
                 )
+            }
                 FloatingBottomControls(
                     showMiniPlayer = showMiniPlayer,
                     showBottomBar = showBottomBar,
@@ -729,7 +767,7 @@ fun EllaApp(
                     canCompact = canCompactBottomDock,
                     backdrop = miuixBackdrop,
                     glassEffect = bottomBarGlassEffect,
-                    stabilizeOverWallpaper = wallpaperVisible,
+                    stabilizeOverWallpaper = false,
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,
                     onNavigate = { route ->
@@ -756,15 +794,24 @@ fun EllaApp(
                     onExpand = {
                         bottomDockMode = BottomDockMode.Expanded
                     },
+                    onExitSearch = {
+                        if (!navController.popBackStack()) {
+                            navController.navigateBottomDockRoute(Screen.Home.route, currentRoute)
+                        }
+                    },
                     modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter)
                 )
-            }
             if (playerResident) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            translationY = playerOpenAnim.value * size.height
+                            val t = playerOpenAnim.value
+                            translationY = t * size.height
+                            val scale = 1f - 0.06f * t
+                            scaleX = scale
+                            scaleY = scale
+                            transformOrigin = TransformOrigin(0.5f, 1f)
                         }
                 ) {
                 PlayerScreen(
@@ -780,31 +827,19 @@ fun EllaApp(
                         playerDismissProgress = 0f
                     },
                     onNavigateToAlbum = { albumId ->
-                        returnToPlayerRoute = currentRoute
-                        snapPlayerOverlay = true
-                        showPlayerOverlay = false
-                        playerDismissProgress = 0f
+                        returnToPlayerRoute = currentRouteIdentity
                         navController.navigate(Screen.AlbumDetail.createRoute(albumId))
                     },
                     onNavigateToArtist = { artistName ->
-                        returnToPlayerRoute = currentRoute
-                        snapPlayerOverlay = true
-                        showPlayerOverlay = false
-                        playerDismissProgress = 0f
+                        returnToPlayerRoute = currentRouteIdentity
                         navController.navigate(Screen.ArtistDetail.createRoute(artistName))
                     },
                     onNavigateToMetadataCategory = { type, name ->
-                        returnToPlayerRoute = currentRoute
-                        snapPlayerOverlay = true
-                        showPlayerOverlay = false
-                        playerDismissProgress = 0f
+                        returnToPlayerRoute = currentRouteIdentity
                         navController.navigate(Screen.MetadataCategoryDetail.createRoute(type, name))
                     },
                     onNavigateToEqualizer = {
-                        returnToPlayerRoute = currentRoute
-                        snapPlayerOverlay = true
-                        showPlayerOverlay = false
-                        playerDismissProgress = 0f
+                        returnToPlayerRoute = currentRouteIdentity
                         navController.navigate(Screen.Equalizer.createRoute())
                     },
                     onDismissProgressChange = { progress ->
@@ -913,6 +948,7 @@ fun EllaApp(
                     }
                 }
             )
+            }
         }
     }
 }
@@ -927,10 +963,13 @@ private fun playbackSourceRoute(key: String?): String? {
         source.startsWith("playlist:") -> Screen.PlaylistDetail.createRoute(source.substringAfter("playlist:"))
         source.startsWith("folderPlaylist:") ->
             Screen.FolderPlaylistDetail.createRoute(source.substringAfter("folderPlaylist:"))
+        source == com.ella.music.data.CategoryResumeKeys.FOLDER_HIERARCHY -> Screen.Folder.createRoute()
         source.startsWith("folder:") -> Screen.FolderDetail.createRoute(source.substringAfter("folder:"))
         source.startsWith("artist:") -> Screen.ArtistDetail.createRoute(source.substringAfter("artist:"))
         source.startsWith("category:") -> source.split(':', limit = 3).takeIf { it.size == 3 }
             ?.let { parts -> Screen.MetadataCategoryDetail.createRoute(parts[1], parts[2]) }
+        source.startsWith("analysis:") -> source.split(':', limit = 3).takeIf { it.size == 3 }
+            ?.let { parts -> Screen.LibraryAnalysis.createBucketRoute(parts[1] == "quality", parts[2]) }
         else -> null
     }
 }

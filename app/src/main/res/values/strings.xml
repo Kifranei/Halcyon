@@ -88,6 +88,7 @@
     <string name="common_remove">移除</string>
     <string name="common_save">保存</string>
     <string name="common_search">搜索</string>
+    <string name="bottom_dock_tabs">标签</string>
     <string name="common_open">打开</string>
     <string name="common_test">测试</string>
     <string name="common_sort">排序</string>
@@ -325,6 +326,8 @@
     <string name="settings_category_grid_columns_option_summary_default">适合多数屏幕</string>
     <string name="settings_show_album_artists">显示专辑艺术家</string>
     <string name="settings_show_album_artists_summary">开启后将专辑艺术家并入艺术家列表，并在艺术家页显示发行专辑标签页</string>
+    <string name="settings_show_artist_introduction">显示艺术家介绍</string>
+    <string name="settings_show_artist_introduction_summary">在艺术家详情页显示“介绍”入口</string>
     <string name="settings_artist_cover_folder">艺术家封面目录</string>
     <string name="settings_artist_cover_folder_summary">选择一个文件夹后，将递归检索其中的图片文件，并用“艺术家名称.jpg/png/webp”等文件名匹配对应艺术家封面；同时支持 mp4 等动态视频封面，以及“艺术家名_01、_02”形式的多张封面</string>
     <string name="settings_artist_cover_folder_selected">已选择艺术家封面目录</string>
@@ -356,6 +359,11 @@
     <string name="settings_exclude_search_results_from_playlist_summary">开启后，从搜索结果点歌时只播放当前歌曲，不再把本次结果集写入当前播放列表</string>
     <string name="settings_auto_show_search_keyboard">点击搜索按钮自动弹出输入法</string>
     <string name="settings_auto_show_search_keyboard_summary">关闭后仅展开搜索栏，不再自动聚焦并弹出键盘</string>
+    <string name="settings_search_reopen_behavior">再次进入搜索</string>
+    <string name="settings_search_reopen_behavior_summary">再次打开搜索页时如何处理上次输入的内容</string>
+    <string name="settings_search_reopen_select">选择上次的搜索内容</string>
+    <string name="settings_search_reopen_clear">清空上次的搜索内容</string>
+    <string name="settings_search_reopen_keep">保留上次的搜索内容</string>
 
     <string name="share_song">分享歌曲</string>
     <string name="share_no_available_app">没有可用的分享应用</string>
@@ -400,6 +408,7 @@
     <string name="player_more_actions">更多操作</string>
     <string name="player_song_info">歌曲信息</string>
     <string name="player_lyrics_display">歌词显示</string>
+    <string name="player_accompaniment">伴奏</string>
     <string name="player_landscape_lyrics">横屏播放</string>
     <string name="player_edit_metadata">编辑元数据</string>
     <string name="player_lyric_timing">歌词打轴</string>
@@ -886,6 +895,8 @@
     <string name="settings_system_section">系统</string>
     <string name="settings_gapless_playback">无缝播放</string>
     <string name="settings_gapless_playback_summary">歌曲之间无间隙切换</string>
+    <string name="settings_karaoke_accompaniment">人声减弱 / 伴奏</string>
+    <string name="settings_karaoke_accompaniment_summary">实时减弱立体声里居中的人声，方便跟唱。不是 AI 分轨，切换立即生效</string>
     <string name="settings_crossfade">交叉淡入淡出</string>
     <string name="settings_crossfade_summary">在当前歌曲结束前淡出，同时淡入下一首；0 秒为关闭</string>
     <string name="settings_crossfade_summary_with_value">当前：%1$s；0 秒为关闭，可精确到 0.01 秒</string>
@@ -1096,7 +1107,7 @@
     <string name="song_more_metadata_album">专辑</string>
     <string name="song_more_metadata_album_artist">专辑艺术家</string>
     <string name="song_more_metadata_genre">流派</string>
-    <string name="song_more_metadata_year">年份</string>
+    <string name="song_more_metadata_year">发行时间</string>
     <string name="song_more_metadata_track_number">音轨号</string>
     <string name="song_more_metadata_composer">作曲家</string>
     <string name="song_more_metadata_arranger">编曲家</string>
@@ -1123,6 +1134,7 @@
     <string name="library_refresh">刷新音乐库</string>
     <string name="library_search_placeholder">搜索歌曲、专辑、歌手、标签或歌词</string>
     <string name="library_search_page_placeholder">搜索歌曲、专辑、歌手、标签或歌词</string>
+    <string name="library_search_dock_placeholder">搜索音乐</string>
     <string name="library_search_duplicates">重复歌曲</string>
     <string name="library_search_clear_history">清空历史</string>
     <string name="library_search_history">搜索历史</string>
@@ -1254,6 +1266,8 @@
     <string name="settings_player_page_style_halcyon">Halcyon</string>
     <string name="settings_player_page_style_apple_music">Apple Music</string>
     <string name="settings_player_page_style_immersive_lyrics">沉浸歌词</string>
+    <string name="settings_player_lyrics_corner_actions">歌词页翻译 / 伴奏按钮</string>
+    <string name="settings_player_lyrics_corner_actions_summary">在非 Apple Music 播放页的歌词界面显示翻译和伴奏快捷按钮</string>
     <string name="settings_player_landscape_style">默认横屏播放样式</string>
     <string name="settings_player_landscape_style_summary">点击“横屏播放”时使用：%1$s</string>
     <string name="settings_player_landscape_style_wide">平板/大屏自适应播放页</string>
@@ -1784,7 +1798,8 @@
     <string name="song_more_raw_netease_key">原始 163 key</string>
     <string name="song_more_detail_album_artist">专辑艺术家</string>
     <string name="song_more_detail_genre">流派</string>
-    <string name="song_more_detail_year">年份</string>
+    <string name="song_more_detail_year">发行时间</string>
+    <string name="song_more_detail_directory">目录</string>
     <string name="song_more_netease_song_id">网易云歌曲 ID：%1$s</string>
     <string name="song_more_view_netease_info">点击查看网易云关联信息</string>
     <string name="song_more_detail_format">格式</string>
@@ -1829,6 +1844,17 @@
     <string name="artist_tab_songs">歌曲</string>
     <string name="artist_tab_participated_albums">参与专辑</string>
     <string name="artist_tab_release_albums">发行专辑</string>
+    <string name="artist_tab_biography">传记</string>
+    <string name="artist_biography_region">地区</string>
+    <string name="artist_biography_read_more">在 Last.fm 上阅读更多</string>
+    <string name="artist_biography_empty">暂无该艺术家的 Last.fm 传记</string>
+    <string name="artist_biography_unavailable">当前网络设置不允许下载艺术家传记</string>
+    <string name="artist_biography_failed">无法加载艺术家传记</string>
+    <string name="settings_artist_bio_download">自动下载艺术家传记</string>
+    <string name="settings_artist_bio_download_summary">从 Last.fm 读取传记并显示在艺术家页</string>
+    <string name="settings_artist_bio_download_always">总是</string>
+    <string name="settings_artist_bio_download_wifi">仅通过 Wi-Fi</string>
+    <string name="settings_artist_bio_download_never">从不</string>
     <string name="artist_song_count_sorted">%1$d 首歌曲 · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d 个参与专辑 · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d 个发行专辑 · %2$s</string>
@@ -2225,6 +2251,17 @@
     <string name="album_introduction_saved_local">当前专辑目录不可写，已保存到应用内</string>
     <string name="album_introduction_cleared">专辑介绍已清除</string>
     <string name="album_introduction_save_failed">保存专辑介绍失败</string>
+    <string name="artist_introduction_entry">介绍</string>
+    <string name="artist_introduction_title">歌手介绍</string>
+    <string name="artist_introduction_edit">编辑歌手介绍</string>
+    <string name="artist_introduction_edit_action">编辑</string>
+    <string name="artist_introduction_section">%1$s简介</string>
+    <string name="artist_introduction_empty">暂无介绍。点击右上角“编辑”即可粘贴或输入歌手介绍。</string>
+    <string name="artist_introduction_editor_hint">输入或粘贴歌手介绍</string>
+    <string name="artist_introduction_saved_nfo">已保存到 artist.nfo</string>
+    <string name="artist_introduction_saved_local">当前歌手目录不可写，已保存到应用内</string>
+    <string name="artist_introduction_cleared">歌手介绍已清除</string>
+    <string name="artist_introduction_save_failed">保存歌手介绍失败</string>
     <string name="player_local_music_video">本地 MV</string>
     <string name="player_netease_music_video">网易云 MV</string>
     <string name="settings_xiaomi_super_island_custom">超级岛自定义设置</string>

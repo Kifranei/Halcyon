@@ -2,6 +2,7 @@ package com.ella.music.ui.analytics
 
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.AudioInfo
+import com.ella.music.ui.search.searchIdentityKey
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

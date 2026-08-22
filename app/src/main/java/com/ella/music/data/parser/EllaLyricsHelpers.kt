@@ -147,3 +147,11 @@ internal fun Char.isCjkChar(): Boolean =
         Character.UnicodeBlock.KATAKANA,
         Character.UnicodeBlock.HANGUL_SYLLABLES
     )
+
+internal fun Char.isKanjiChar(): Boolean =
+    Character.UnicodeBlock.of(this) in setOf(
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
+        Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+    )
