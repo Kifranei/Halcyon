@@ -81,11 +81,12 @@ internal fun SettingsCardGroup(
     LaunchedEffect(highlight) {
         if (!highlight) return@LaunchedEffect
         bringIntoViewRequester.bringIntoView()
-        repeat(4) {
-            lit = !lit
+        repeat(2) {
+            lit = true
+            delay(280)
+            lit = false
             delay(180)
         }
-        lit = false
     }
     Card(
         modifier = Modifier

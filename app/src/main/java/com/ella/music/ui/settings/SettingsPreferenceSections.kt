@@ -365,20 +365,6 @@ internal fun SettingsTagScrapingSection(
     val spectrumViewerEntries = remember(spectrumViewerOptions) {
         spectrumViewerOptions.map { DropdownItem(title = it.second) }
     }
-    val offsetPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val json = runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
-                .getOrNull()
-            if (json.isNullOrBlank()) {
-                Toast.makeText(context, R.string.music_video_offsets_import_failed, Toast.LENGTH_SHORT).show()
-            } else {
-                runCatching { com.ella.music.MusicVideoOffsetsParser.parse(json) }
-                    .onSuccess { settingsManager.setMusicVideoOffsetsJson(json) }
-                    .onFailure { Toast.makeText(context, R.string.music_video_offsets_import_failed, Toast.LENGTH_SHORT).show() }
-            }
-        }
-    }
 
     SmallTitle(text = stringResource(R.string.settings_tag_scraping))
 
@@ -423,11 +409,6 @@ internal fun SettingsTagScrapingSection(
                     }
                 }
             )
-            ArrowPreference(
-                title = stringResource(R.string.settings_music_video_offsets),
-                summary = stringResource(R.string.settings_music_video_offsets_summary),
-                onClick = { offsetPicker.launch(arrayOf("application/json", "text/plain")) }
-            )
         }
     }
 }
@@ -459,8 +440,7 @@ internal fun SettingsDesktopShortcutSection(
 
 private enum class ScanAdvancedSheet {
     SplitRules,
-    SearchScope,
-    CoverStorage
+    SearchScope
 }
 
 @Composable
@@ -488,9 +468,6 @@ internal fun SettingsScanSection(
     val artistBioDownload by settingsManager.artistBioDownload.collectAsState(
         initial = SettingsManager.DEFAULT_ARTIST_BIO_DOWNLOAD
     )
-    val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectAsState(initial = "")
-    val coverExportFolderUri by settingsManager.coverExportFolderUri.collectAsState(initial = "")
-    val artistCoverCarousel by settingsManager.artistCoverCarousel.collectAsState(initial = true)
     val searchAllCategoryTypes by settingsManager.searchAllCategoryTypes.collectAsState(
         initial = SettingsManager.SEARCH_ALL_CATEGORY_TYPES
     )
@@ -501,40 +478,12 @@ internal fun SettingsScanSection(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
 
-    val artistCoverFolderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
-        val readWrite = readOnly or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(uri, readWrite)
-        }.recoverCatching {
-            context.contentResolver.takePersistableUriPermission(uri, readOnly)
-        }
-        scope.launch {
-            settingsManager.setArtistCoverFolderUri(uri.toString())
-        }
-        Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_saved), Toast.LENGTH_SHORT).show()
-    }
-    val coverExportFolderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val readWrite = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        runCatching { context.contentResolver.takePersistableUriPermission(uri, readWrite) }
-        scope.launch { settingsManager.setCoverExportFolderUri(uri.toString()) }
-        Toast.makeText(context, context.getString(R.string.settings_cover_export_folder_saved), Toast.LENGTH_SHORT).show()
-    }
-
     var activeSheet by remember { mutableStateOf<ScanAdvancedSheet?>(null) }
     LaunchedEffect(highlightKey) {
         activeSheet = when (highlightKey) {
             "artist_separators", "artist_protected_names", "genre_separators", "genre_protected_names" ->
                 ScanAdvancedSheet.SplitRules
             "search_all_categories", "search_all_song_match_types" -> ScanAdvancedSheet.SearchScope
-            "artist_cover_folder", "artist_cover_carousel", "cover_export_folder" ->
-                ScanAdvancedSheet.CoverStorage
             else -> null
         }
     }
@@ -680,17 +629,6 @@ internal fun SettingsScanSection(
                     onClick = { activeSheet = ScanAdvancedSheet.SearchScope }
                 )
             }
-            SettingsFocusAnchor(active = highlightKey == "artist_cover_folder" || highlightKey == "artist_cover_carousel") {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_artist_cover_folder),
-                    summary = if (artistCoverFolderUri.isBlank()) {
-                        stringResource(R.string.settings_artist_cover_folder_summary)
-                    } else {
-                        stringResource(R.string.settings_artist_cover_folder_selected)
-                    },
-                    onClick = { activeSheet = ScanAdvancedSheet.CoverStorage }
-                )
-            }
         }
     }
 
@@ -764,70 +702,6 @@ internal fun SettingsScanSection(
                     enabledTypes = searchAllSongMatchTypes,
                     onEnabledChange = { type, enabled ->
                         scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
-                    }
-                )
-            }
-        }
-    }
-
-    EllaMiuixBottomSheet(
-        show = activeSheet == ScanAdvancedSheet.CoverStorage,
-        title = stringResource(R.string.settings_artist_cover_folder),
-        onDismissRequest = { activeSheet = null }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 560.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            SettingsFocusAnchor(active = highlightKey == "artist_cover_folder" || highlightKey == "artist_cover_carousel") {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_artist_cover_folder),
-                    summary = if (artistCoverFolderUri.isBlank()) {
-                        stringResource(R.string.settings_artist_cover_folder_summary)
-                    } else {
-                        stringResource(R.string.settings_artist_cover_folder_selected)
-                    },
-                    onClick = { artistCoverFolderPicker.launch(null) }
-                )
-            }
-            if (artistCoverFolderUri.isNotBlank()) {
-                SettingsFocusAnchor(active = highlightKey == "artist_cover_carousel") {
-                    SwitchPreference(
-                        title = stringResource(R.string.settings_artist_cover_carousel),
-                        summary = stringResource(R.string.settings_artist_cover_carousel_summary),
-                        checked = artistCoverCarousel,
-                        onCheckedChange = { scope.launch { settingsManager.setArtistCoverCarousel(it) } }
-                    )
-                }
-                ArrowPreference(
-                    title = stringResource(R.string.settings_artist_cover_folder_remove),
-                    summary = stringResource(R.string.settings_artist_cover_folder_remove_summary),
-                    onClick = {
-                        scope.launch { settingsManager.setArtistCoverFolderUri("") }
-                        Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_cleared), Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-            SettingsFocusAnchor(active = highlightKey == "cover_export_folder") {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_cover_export_folder),
-                    summary = if (coverExportFolderUri.isBlank()) {
-                        stringResource(R.string.settings_cover_export_folder_summary)
-                    } else {
-                        stringResource(R.string.settings_cover_export_folder_selected)
-                    },
-                    onClick = { coverExportFolderPicker.launch(null) }
-                )
-            }
-            if (coverExportFolderUri.isNotBlank()) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_cover_export_folder_remove),
-                    summary = stringResource(R.string.settings_cover_export_folder_remove_summary),
-                    onClick = {
-                        scope.launch { settingsManager.setCoverExportFolderUri("") }
-                        Toast.makeText(context, context.getString(R.string.settings_cover_export_folder_cleared), Toast.LENGTH_SHORT).show()
                     }
                 )
             }

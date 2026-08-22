@@ -107,15 +107,16 @@ fun MetadataCategoryScreen(
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val songs by mainViewModel.songs.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    val items by produceState(emptyList<MetadataCategoryItem>(), type, songs) {
+    val items by produceState<List<MetadataCategoryItem>?>(null, type, songs) {
         value = withContext(Dispatchers.Default) { mainViewModel.getMetadataCategoryItems(type) }
     }
+    val resolvedItems = items.orEmpty()
     var sortExpanded by remember { mutableStateOf(false) }
     val sortIndexFlow = remember(type) { mainViewModel.settingsManager.metadataCategorySortIndex(type) }
     val sortIndex by sortIndexFlow.collectAsState(initial = LibrarySortUiState.metadataCategorySortIndex(type))
     val availableSortModes = remember(type) { MetadataCategorySortMode.entries.filter { it.availableFor(type) } }
     val sortMode = availableSortModes.getOrElse(sortIndex) { MetadataCategorySortMode.Name }
-    val sortedItems = remember(items, type, sortMode) { items.sortedForCategory(type, sortMode) }
+    val sortedItems = remember(resolvedItems, type, sortMode) { resolvedItems.sortedForCategory(type, sortMode) }
     val playlists by mainViewModel.playlists.collectAsState()
     val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
@@ -433,7 +434,12 @@ fun MetadataCategoryScreen(
             }
         }
 
-        if (songs.isEmpty() && !libraryCacheLoaded) {
+        if (com.ella.music.ui.components.showLibraryLoadingPlaceholder(
+                libraryCacheLoaded = libraryCacheLoaded,
+                contentResolved = items != null,
+                isEmpty = displayedItems.isEmpty()
+            )
+        ) {
             EllaCenteredLoadingIndicator()
         } else if (displayedItems.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

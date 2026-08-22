@@ -261,6 +261,7 @@ fun EllaApp(
     }
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val initialScanPromptHandled by settingsManager.initialScanPromptHandled.collectAsState(initial = true)
+    val setupWizardCompleted by settingsManager.setupWizardCompleted.collectAsState(initial = true)
     val fullTagSearchPromptHandled by settingsManager.fullTagSearchPromptHandled.collectAsState(initial = true)
     val localPlaylistScanPromptHandled by settingsManager.localPlaylistScanPromptHandled.collectAsState(initial = true)
     val autoScanLocalPlaylists by settingsManager.autoScanLocalPlaylists.collectAsState(initial = false)
@@ -436,6 +437,18 @@ fun EllaApp(
 
     LaunchedEffect(currentRoute, canCompactBottomDock) {
         bottomDockMode = BottomDockMode.Expanded
+    }
+
+    LaunchedEffect(
+        libraryCacheLoaded,
+        setupWizardCompleted,
+        initialScanPromptHandled,
+        currentRoute
+    ) {
+        if (!libraryCacheLoaded || setupWizardCompleted || initialScanPromptHandled) return@LaunchedEffect
+        if (currentRoute != Screen.SettingsWizard.route) {
+            navController.navigate(Screen.SettingsWizard.route)
+        }
     }
 
     LaunchedEffect(

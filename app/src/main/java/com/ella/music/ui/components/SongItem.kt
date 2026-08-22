@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -237,7 +238,7 @@ fun SongItem(
             Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (qualityTag != null) {
-                    AudioQualityBadge(qualityTag)
+                    AudioQualityListBadge(qualityTag)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(
@@ -406,23 +407,39 @@ fun PlayNextQuickButton(
 }
 
 @Composable
-private fun AudioQualityBadge(tag: String) {
+internal fun AudioQualityListBadge(tag: String) {
+    val color = audioQualityTagColor(tag)
+    val isDolby = tag == DOLBY_MARK
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(3.dp))
-            .background(audioQualityColor(tag).copy(alpha = 0.18f))
-            .padding(horizontal = 4.dp, vertical = 1.dp),
+            .background(color.copy(alpha = 0.18f))
+            .padding(
+                horizontal = if (isDolby) 3.dp else 4.dp,
+                vertical = if (isDolby) 2.dp else 1.dp
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = tag,
-            fontSize = 9.sp,
-            color = audioQualityColor(tag)
-        )
+        if (isDolby) {
+            Icon(
+                painter = painterResource(R.drawable.ic_dolby),
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier
+                    .height(8.dp)
+                    .aspectRatio(85f / 52f)
+            )
+        } else {
+            Text(
+                text = tag,
+                fontSize = 9.sp,
+                color = color
+            )
+        }
     }
 }
 
-private fun audioQualityColor(tag: String): Color {
+internal fun audioQualityTagColor(tag: String): Color {
     return when (tag) {
         "AC3", "EC3", "EAC3", "SUR", DOLBY_MARK -> Color(0xFF6EE7FF)
         "MQ" -> Color(0xFFFF8F3D)

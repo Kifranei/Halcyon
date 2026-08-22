@@ -285,6 +285,7 @@ internal fun PlayerActionMenu(
                     onPrimaryTextSize = onLyricPrimaryTextSize,
                     onSecondaryTextSize = onLyricSecondaryTextSize,
                     onBack = { page = PlayerActionSheetPage.LyricDisplay },
+                    applyScrollableContainer = false,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

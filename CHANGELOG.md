@@ -3,7 +3,19 @@
 From `1.2.5` to the current unreleased `1.2.6` tree.
 
 中文更新日志
-- 按最新 ColorOS Live Lyrics Bridge 协议补回锁屏岛歌词：首曲首次发布前预埋 `lyricInfo`、800ms 兼容补交真正重发、开启锁屏歌词时 TITLE/ARTIST 保持歌曲身份；并新增应用内 v4 Provider 广播（`lyricprovider/halcyon`）作为 ColorOS 16.9 收紧后的第二通道（`#444`）。
+- 伴奏不再打包人声分离模型，改回实时中央声道衰减。平板 Apple Music 收起歌词时封面按剩余高度约束，不再盖住歌名。无损胶囊改用 Apple Music 波形标，Hi-Res 封面角标默认用内置金标。歌曲列表杜比角标改用 Apple Music 的双 D 标志。
+- 动态封面不再先清空再扫盘：静态封面一直垫底，视频出第一帧再淡入；查找改为索引缓存，避免 SAF/大目录 listFiles 卡到十几秒并闪一下。
+- 首次打开会进入全屏流光设置向导（miuix-blur 背景，风格对齐系统开机引导）。播放页杜比胶囊改用 Apple Music 的 Dolby Atmos 标志。
+- 播放页背景选项改为短名「Apple Music / Beautiful Lyrics」；选中 Apple Music 后才出现「动态效果」开关。外观与主页拆成主题、系统栏、壁纸、播放页、列表等三级页。「封面与影像」改名为「封面与 MV」。传记地区改为国家名。播放列表「来源」增加链接图标。日志页背景与其他设置页对齐。
+- 设置向导底部「下一步」避开迷你播放条。CoverFlow / MV 横屏作为默认样式时不再叠一层返回到自适应播放页。Apple Music 平板横屏改为收起时封面居中、展开时左封面右歌词。播放页时间/音质胶囊跟随西文字体，底部「词 / 播放模式 / 队列」图标加大。
+- 播放页音质胶囊改为 Apple Music / Flamingo 风格：波形图标 +「无损 / Hi-Res」，不再用 ∞ Apple Lossless。
+- 播放页专辑封面任意位置下拉即可最小化，不再只认顶部一小条。
+- 艺术家封面、动态封面、MV 归到同一级「封面与影像」设置；扫描菜单不再夹艺术家封面目录。
+- 专辑/艺术家/文件夹等列表在内容算完前显示加载，不再先闪「未找到」或点进去像卡住。
+- 开启 Apple Music 播放页后，平板横屏使用封面居中的 AM 布局，不再沿用左封面右歌词。
+- 设置增加向导；搜索命中后跳到整块开关卡片并闪两下（例如「播放页显示歌曲注释」）。
+- 按最新 ColorOS Live Lyrics Bridge 协议补回锁屏岛歌词：首曲首次发布前预埋 `lyricInfo`、800ms 兼容补交真正重发、开启锁屏歌词时 TITLE/ARTIST 保持歌曲身份；并新增应用内 v4 Provider 广播（`lyricprovider/halcyon`）作为 ColorOS 16.9 收紧后的第二通道（`#444`）。模块 rawLyric 在逐字原文后附加同时间戳翻译行。
+- 隐藏状态栏/导航栏时 BottomSheet 不再把系统栏顶回来挡住滑块；横屏歌词样式表可滚动。歌词页右上角更多菜单始终提供歌词显示/样式设置，不再仅限平板沉浸横屏。
 - 修复约 392–393dp 宽屏上艺术家页 Tab 被挤扁（`#503`）；传记 Tab 隐藏多选/搜索/排序，地区列表将 English / 简体中文 / 日本語 置顶，并改用 Last.fm API + Wikipedia 以便国内无 VPN 加载（`#504`）。
 - Apple Music 播放页底部中间按钮由歌曲信息改为播放模式。
 - 艺术家页在「发行专辑」和「MV」之间新增 Last.fm 传记 Tab（`#496`），可按官方站点切换 English / Deutsch / Español / Français / Italiano / 日本語 / Polski / Português / Русский / Svenska / Türkçe / 简体中文。
@@ -19,6 +31,15 @@ From `1.2.5` to the current unreleased `1.2.6` tree.
 - 杜比（AC-3 / E-AC-3 / AC-4）音源播放页只保留双 D 杜比标识，不再叠加 Hi-Res 的 ∞。
 
 English Changelog
+- Karaoke accompaniment no longer ships a stem-separation model and uses realtime center-channel reduction again. Collapsed tablet Apple Music cover is sized to remaining height so it no longer covers the title. The lossless capsule uses Apple Music's waveform mark, the Hi-Res cover badge defaults to the bundled gold badge, and song-list Dolby tags use Apple Music's double-D mark.
+- Dynamic covers keep the static artwork visible until the first video frame; lookup uses a folder index so SAF/large-folder scans no longer stall for ~20s or flash.
+- First launch opens a full-screen flowing-light setup wizard. The player quality capsule uses Apple Music's Dolby Atmos mark.
+- Player quality capsule now uses an Apple Music / Flamingo waveform + Lossless/Hi-Res mark instead of ∞ Apple Lossless.
+- Pull down from anywhere on the album cover to minimize the player, not just the top edge.
+- Artist covers, dynamic covers, and music videos share one Cover and video settings page instead of living under Scan vs Appearance.
+- Album, artist, and folder screens show a spinner until their lists resolve instead of flashing “not found” or hanging on tap.
+- Apple Music player style now has a matching centered landscape tablet layout.
+- Settings gain a setup wizard, and search jumps to the whole switch card and flashes it twice.
 - Restored ColorOS Live Lyrics Bridge alignment: pre-seed `lyricInfo` before the first MediaItem publish, make the 800ms compat republish actually emit, and keep TITLE/ARTIST as song identity while lock-screen lyrics are on. Also send in-app v4 Provider broadcasts (`lyricprovider/halcyon`) as a second channel after ColorOS 16.9 tightened lyricInfo (`#444`).
 - Stop artist tabs from being crushed on ~392–393dp widths (`#503`). Hide multi-select/search/sort on the biography tab, pin English / 简体中文 / 日本語 in the region list, and load bios via the Last.fm API plus Wikipedia without a VPN (`#504`).
 - Apple Music player footer center button is now playback mode instead of song info.

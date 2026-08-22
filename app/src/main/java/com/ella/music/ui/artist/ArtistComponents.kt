@@ -183,7 +183,7 @@ internal fun ArtistBiographyPanel(
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         OverlayDropdownPreference(
-            items = LAST_FM_WIKI_REGIONS.map { it.nativeName },
+            items = LAST_FM_WIKI_REGIONS.map { stringResource(it.countryNameRes) },
             selectedIndex = selectedIndex,
             title = stringResource(R.string.artist_biography_region),
             insideMargin = PaddingValues(horizontal = 0.dp, vertical = 4.dp),

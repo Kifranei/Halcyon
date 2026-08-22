@@ -8,7 +8,9 @@ data class AudioQualitySummary(
     val detailLabel: String,
     val listTag: String?,
     val analyticsLabel: String,
-    val showMobius: Boolean
+    val showMobius: Boolean,
+    val showWaveform: Boolean,
+    val showDolbyLogo: Boolean = false
 )
 
 /**
@@ -41,9 +43,8 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     val compact = when {
         isSurround -> surroundLabel
         isMq -> "MQ"
-        isAppleLossless -> "Apple Lossless"
         isHiRes -> "Hi-Res"
-        isSq -> "Lossless"
+        isAppleLossless || isSq -> "Lossless"
         info.bitRate >= 319_000 -> "HQ"
         info.bitRate > 0 || isKnownLossy -> "LQ"
         else -> normalizedFormat.ifBlank { "Audio" }
@@ -74,7 +75,9 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
         analyticsLabel = analytics,
         // Surround / Dolby already has its own capsule mark. Prefixing ∞ made
         // Atmos tracks show two logos (∞ plus the Dolby double-D).
-        showMobius = !isSurround && (isAppleLossless || isSq || isHiRes || isMq)
+        showMobius = false,
+        showWaveform = !isSurround && (isAppleLossless || isSq || isHiRes || isMq),
+        showDolbyLogo = isDolby
     )
 }
 

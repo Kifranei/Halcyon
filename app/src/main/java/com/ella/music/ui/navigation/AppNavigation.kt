@@ -47,7 +47,11 @@ import com.ella.music.ui.settings.AudioSettingsScreen
 import com.ella.music.ui.settings.EqualizerScreen
 import com.ella.music.ui.settings.BackupSettingsScreen
 import com.ella.music.ui.settings.BottomNavigationSettingsScreen
+import com.ella.music.ui.settings.AppearanceSubpageScreen
+import com.ella.music.ui.settings.CoverMediaSettingsScreen
 import com.ella.music.ui.settings.LyricFontScreen
+import com.ella.music.ui.settings.SettingsWizardScreen
+import com.ella.music.ui.settings.appearanceSubpageForHighlight
 import com.ella.music.ui.settings.LyricPluginSourceSettingsScreen
 import com.ella.music.ui.settings.LogScreen
 import com.ella.music.ui.settings.LastFmSettingsScreen
@@ -172,6 +176,17 @@ sealed class Screen(val route: String) {
     }
     data object BackupSettings : Screen("backup_settings?highlight={highlight}") {
         fun createRoute(highlight: String = "") = "backup_settings?highlight=${java.net.URLEncoder.encode(highlight, "UTF-8")}"
+    }
+    data object CoverMediaSettings : Screen("cover_media_settings?highlight={highlight}") {
+        fun createRoute(highlight: String = "") = "cover_media_settings?highlight=${java.net.URLEncoder.encode(highlight, "UTF-8")}"
+    }
+    data object SettingsWizard : Screen("settings_wizard")
+    data object AppearanceSubpage : Screen("appearance_subpage/{page}?highlight={highlight}") {
+        fun createRoute(page: String, highlight: String = ""): String {
+            val encodedPage = java.net.URLEncoder.encode(page, "UTF-8")
+            val encodedHighlight = java.net.URLEncoder.encode(highlight, "UTF-8")
+            return "appearance_subpage/$encodedPage?highlight=$encodedHighlight"
+        }
     }
     data object LyricFont : Screen("lyric_font")
     data object Logs : Screen("logs")
@@ -629,7 +644,16 @@ fun AppNavigation(
                     navController.navigate(Screen.LyricSettings.createRoute(highlight))
                 },
                 onNavigateToHighlightedAppearanceSettings = { highlight ->
-                    navController.navigate(Screen.SettingsDetail.createRoute(highlight))
+                    if (highlight.isBlank() || highlight == "appearance" || highlight == "lyric_font") {
+                        navController.navigate(Screen.SettingsDetail.createRoute(highlight))
+                    } else {
+                        navController.navigate(
+                            Screen.AppearanceSubpage.createRoute(
+                                appearanceSubpageForHighlight(highlight),
+                                highlight
+                            )
+                        )
+                    }
                 },
                 onNavigateToHighlightedLibrarySettings = { highlight ->
                     navController.navigate(Screen.LibrarySettings.createRoute(highlight))
@@ -647,6 +671,11 @@ fun AppNavigation(
                 onNavigateToHighlightedEqualizer = { highlight ->
                     navController.navigate(Screen.Equalizer.createRoute(highlight))
                 },
+                onNavigateToCoverMediaSettings = { navController.navigate(Screen.CoverMediaSettings.createRoute()) },
+                onNavigateToHighlightedCoverMediaSettings = { highlight ->
+                    navController.navigate(Screen.CoverMediaSettings.createRoute(highlight))
+                },
+                onNavigateToSetupWizard = { navController.navigate(Screen.SettingsWizard.route) },
                 onBack = { navController.popBackStack() },
                 showBackButton = !(fromDock && isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS)),
                 mainViewModel = mainViewModel,
@@ -688,6 +717,25 @@ fun AppNavigation(
         }
 
         composable(
+            route = Screen.CoverMediaSettings.route,
+            arguments = listOf(navArgument("highlight") { defaultValue = "" })
+        ) { backStackEntry ->
+            CoverMediaSettingsScreen(
+                onBack = { navController.popBackStack() },
+                highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty()
+            )
+        }
+
+        composable(Screen.SettingsWizard.route) {
+            SettingsWizardScreen(
+                onBack = { navController.popBackStack() },
+                onOpenScanFolders = { navController.navigate(Screen.ScanSettings.createRoute()) },
+                onOpenCoverMedia = { navController.navigate(Screen.CoverMediaSettings.createRoute()) },
+                onFinish = { navController.popBackStack() }
+            )
+        }
+
+        composable(
             route = Screen.SettingsDetail.route,
             arguments = listOf(navArgument("highlight") { defaultValue = "" })
         ) { backStackEntry ->
@@ -698,7 +746,31 @@ fun AppNavigation(
                 onNavigateToBottomNavigationSettings = {
                     navController.navigate(Screen.BottomNavigationSettings.route)
                 },
+                onNavigateToAppearancePage = { page ->
+                    navController.navigate(Screen.AppearanceSubpage.createRoute(page))
+                },
                 highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty()
+            )
+        }
+
+        composable(
+            route = Screen.AppearanceSubpage.route,
+            arguments = listOf(
+                navArgument("page") { defaultValue = "theme" },
+                navArgument("highlight") { defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val page = java.net.URLDecoder.decode(
+                backStackEntry.arguments?.getString("page").orEmpty().ifBlank { "theme" },
+                "UTF-8"
+            )
+            AppearanceSubpageScreen(
+                page = page,
+                onBack = { navController.popBackStack() },
+                highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty(),
+                onNavigateToBottomNavigationSettings = {
+                    navController.navigate(Screen.BottomNavigationSettings.route)
+                }
             )
         }
 

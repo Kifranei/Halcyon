@@ -8,7 +8,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 
 @Composable
-internal fun ForceLandscapePlayerBars(onDismiss: () -> Unit) {
+internal fun ForceLandscapePlayerBars(
+    onDismiss: () -> Unit,
+    interceptBack: Boolean = true
+) {
     val activity = LocalContext.current.findActivity()
     val view = LocalView.current
     DisposableEffect(activity) {
@@ -23,5 +26,5 @@ internal fun ForceLandscapePlayerBars(onDismiss: () -> Unit) {
             view.post { setPlayerSystemBars(activity, view) }
         }
     }
-    BackHandler(onBack = onDismiss)
+    BackHandler(enabled = interceptBack, onBack = onDismiss)
 }

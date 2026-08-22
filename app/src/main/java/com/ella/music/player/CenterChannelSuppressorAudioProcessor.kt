@@ -44,8 +44,6 @@ class CenterChannelSuppressorAudioProcessor : AudioProcessor {
         if (!enabled || inputFormat.channelCount != 2) {
             output.put(inputBuffer.duplicate())
         } else {
-            // A stereo mix can be represented as its center (mid) plus its side channel. Keeping
-            // only a small amount of mid attenuates centered vocals while preserving the sides.
             inputBuffer.order(ByteOrder.nativeOrder())
             when (inputFormat.encoding) {
                 C.ENCODING_PCM_FLOAT -> {

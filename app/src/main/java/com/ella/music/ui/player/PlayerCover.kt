@@ -2,6 +2,7 @@ package com.ella.music.ui.player
 
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import com.ella.music.R
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -226,33 +229,16 @@ internal fun HiResLogoBadge(
         AsyncImage(
             model = Uri.parse(logoUri),
             contentDescription = null,
-            modifier = modifier
-                .size(34.dp),
+            modifier = modifier.size(34.dp),
             contentScale = ContentScale.Fit,
         )
         return
     }
 
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color.Black.copy(alpha = 0.58f))
-            .padding(horizontal = 5.dp, vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "Hi-Res",
-            color = Color(0xFFFFD45A),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Black,
-            maxLines = 1
-        )
-        Text(
-            text = "AUDIO",
-            color = LocalPlayerContentColor.current.copy(alpha = 0.92f),
-            fontSize = 5.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-    }
+    Image(
+        painter = painterResource(R.drawable.ic_hi_res_audio),
+        contentDescription = null,
+        modifier = modifier.size(34.dp),
+        contentScale = ContentScale.Fit
+    )
 }

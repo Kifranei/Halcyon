@@ -187,6 +187,7 @@ fun PlayerScreen(
     val uiState = rememberPlayerScreenUiState()
     val musicVideoPermissionLauncher = rememberMusicVideoSyncPermissionLauncher(settingsManager)
     val landscapeState = rememberPlayerLandscapeUiState()
+    var landscapeOverlayFromNaturalLandscape by remember { mutableStateOf(false) }
     val musicVideoLandscapePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -203,6 +204,7 @@ fun PlayerScreen(
             // A permanently-landscape device (for example an in-car display) never performs the
             // portrait-to-landscape rotation that used to open this host. Apply the user's chosen
             // landscape presentation as soon as the player page itself opens instead.
+            landscapeOverlayFromNaturalLandscape = true
             landscapeState.expanded =
                 playerLandscapeStyle != SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE
         }
@@ -600,6 +602,8 @@ fun PlayerScreen(
                         onPlaylistPickerSongsChange = { uiState.playlistPickerSongs = it },
                         onLandscapeExpandedChange = {
                             if (it) {
+                                landscapeOverlayFromNaturalLandscape =
+                                    configuration.screenWidthDp > configuration.screenHeightDp
                                 val useMusicVideo =
                                     playerLandscapeStyle ==
                                         SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO
@@ -809,6 +813,9 @@ fun PlayerScreen(
                 onArtist = {
                     navigateToArtistOrChoose(song?.artist.orEmpty())
                 },
+                interceptBack = playerLandscapeStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE ||
+                    !landscapeOverlayFromNaturalLandscape,
+                showBackButton = playerLandscapeStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE,
                 onDismiss = {
                     landscapeState.expanded = false
                 }

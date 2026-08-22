@@ -263,8 +263,8 @@ fun ArtistListScreen(
         listCoversEnabled = true
     }
 
-    val aggregate by produceState(
-        ArtistListAggregate(),
+    val aggregate by produceState<ArtistListAggregate?>(
+        null,
         songs,
         albums,
         showAlbumArtists,
@@ -278,11 +278,11 @@ fun ArtistListScreen(
             )
         }
     }
-    val artists = aggregate.artists
-    val representativeSongsByArtist = aggregate.representativeSongsByArtist
-    val artistDurations = aggregate.artistDurations
-    val participatedAlbumCounts = aggregate.participatedAlbumCounts
-    val releaseAlbumCounts = aggregate.releaseAlbumCounts
+    val artists = aggregate?.artists.orEmpty()
+    val representativeSongsByArtist = aggregate?.representativeSongsByArtist.orEmpty()
+    val artistDurations = aggregate?.artistDurations.orEmpty()
+    val participatedAlbumCounts = aggregate?.participatedAlbumCounts.orEmpty()
+    val releaseAlbumCounts = aggregate?.releaseAlbumCounts.orEmpty()
     val filteredArtists = remember(artists, searchQuery, sortMode, artistDurations, participatedAlbumCounts, releaseAlbumCounts, pinnedArtistKeys) {
         val filtered = if (searchQuery.isBlank()) {
             artists
@@ -585,7 +585,12 @@ fun ArtistListScreen(
             )
         }
 
-        if (songs.isEmpty() && !libraryCacheLoaded) {
+        if (com.ella.music.ui.components.showLibraryLoadingPlaceholder(
+                libraryCacheLoaded = libraryCacheLoaded,
+                contentResolved = aggregate != null,
+                isEmpty = filteredArtists.isEmpty()
+            )
+        ) {
             EllaCenteredLoadingIndicator()
         } else if (filteredArtists.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

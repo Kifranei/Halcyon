@@ -38,6 +38,7 @@ class AudioQualityTest {
 
         assertEquals("$DOLBY_MARK Dolby Atmos", summary.compactLabel)
         assertEquals(DOLBY_MARK, summary.listTag)
+        assertTrue(summary.showDolbyLogo)
         assertEquals("AC4", summary.analyticsLabel)
         assertEquals("ac4 / Dolby Atmos (A-JOC) / 48kHz / 2ch", summary.detailLabel)
     }
@@ -55,6 +56,26 @@ class AudioQualityTest {
         assertEquals("$DOLBY_MARK Dolby Atmos", summary.compactLabel)
         assertEquals(DOLBY_MARK, summary.listTag)
         assertTrue(!summary.showMobius)
+        assertTrue(!summary.showWaveform)
+    }
+
+    @Test
+    fun losslessFlacUsesWaveformBadgeInsteadOfMobius() {
+        val summary = audioQualitySummary(
+            AudioInfo(format = "FLAC", bitDepth = 16, sampleRate = 44_100)
+        )
+        assertEquals("Lossless", summary.compactLabel)
+        assertTrue(summary.showWaveform)
+        assertTrue(!summary.showMobius)
+    }
+
+    @Test
+    fun appleLosslessCdQualityUsesLosslessLabel() {
+        val summary = audioQualitySummary(
+            AudioInfo(format = "ALAC", bitDepth = 16, sampleRate = 44_100)
+        )
+        assertEquals("Lossless", summary.compactLabel)
+        assertTrue(summary.showWaveform)
     }
 
     @Test

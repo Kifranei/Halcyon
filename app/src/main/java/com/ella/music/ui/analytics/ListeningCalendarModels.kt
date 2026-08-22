@@ -1,6 +1,7 @@
 package com.ella.music.ui.analytics
 
 import androidx.compose.ui.graphics.Color
+import com.ella.music.data.DOLBY_MARK
 import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.formatPlaybackDuration
@@ -159,7 +160,7 @@ internal fun qualityTagColor(tag: String): Color {
         "LQ" -> Color(0xFF45D06B)
         "SQ" -> Color(0xFFD16CFF)
         "MQ" -> Color(0xFFFF6E40)
-        "AC3", "EC3", "EAC3", "AC4", "Surround" -> Color(0xFF2FD8FF)
+        "AC3", "EC3", "EAC3", "AC4", "Surround", DOLBY_MARK -> Color(0xFF2FD8FF)
         else -> Color.White.copy(alpha = 0.72f)
     }
 }

@@ -41,6 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +70,7 @@ data class EllaMiuixAction(
     val weight: Float = 1f
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EllaMiuixBottomSheet(
     show: Boolean,
@@ -88,7 +93,12 @@ fun EllaMiuixBottomSheet(
         insideMargin = DpSize(20.dp, 18.dp),
         backgroundColor = MiuixTheme.colorScheme.background.copy(alpha = 0.98f),
         modifier = modifier,
-        content = content
+        content = {
+            ApplyHalcyonSystemBarsToCurrentWindow()
+            Box(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)) {
+                content()
+            }
+        }
     )
 }
 

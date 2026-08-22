@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,7 @@ import com.ella.music.ui.listmodel.SortDirection
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -129,7 +131,12 @@ fun FolderScreen(
 
     val rootFolderPath = remember(songs) { songs.commonFolderRoot() }
     val rootSongs = songs
-    val rootChildFolders = remember(songs, rootFolderPath) { songs.childFoldersOf(context, rootFolderPath) }
+    val rootChildFoldersState by produceState<List<FolderTreeEntry>?>(null, songs, rootFolderPath) {
+        value = withContext(kotlinx.coroutines.Dispatchers.Default) {
+            songs.childFoldersOf(context, rootFolderPath)
+        }
+    }
+    val rootChildFolders = rootChildFoldersState.orEmpty()
     fun songsForFolder(folder: FolderTreeEntry): List<com.ella.music.data.model.Song> =
         songs.recursiveSongsInFolder(folder.path).sortedForFolderDetail(
             FolderSongSortMode.entries.getOrElse(
@@ -427,7 +434,12 @@ fun FolderScreen(
             )
         }
 
-        if (songs.isEmpty() && !libraryCacheLoaded) {
+        if (com.ella.music.ui.components.showLibraryLoadingPlaceholder(
+                libraryCacheLoaded = libraryCacheLoaded,
+                contentResolved = rootChildFoldersState != null,
+                isEmpty = songs.isEmpty()
+            )
+        ) {
             EllaCenteredLoadingIndicator()
         } else if (songs.isEmpty()) {
             Box(

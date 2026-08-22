@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlin.math.min
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
@@ -96,6 +98,7 @@ internal fun PlayerCoverActionSheet(
 ) {
     if (!show) return
 
+    val maxSheetHeight = min(560, (LocalConfiguration.current.screenHeightDp * 0.88f).toInt()).dp
     EllaMiuixBottomSheet(
         show = true,
         enableNestedScroll = false,
@@ -105,7 +108,7 @@ internal fun PlayerCoverActionSheet(
         PlayerActionMenu(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 560.dp),
+                .heightIn(max = maxSheetHeight),
             song = song,
             showLyricsDisplayEntry = showLyricsDisplayEntry,
             speed = playbackSpeed,

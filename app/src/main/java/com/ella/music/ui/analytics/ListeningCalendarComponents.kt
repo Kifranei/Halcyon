@@ -29,12 +29,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.DOLBY_MARK
 import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.PlaybackHistorySource
 import com.ella.music.data.audioQualitySummary
@@ -430,12 +432,23 @@ private fun ListeningTimelineRow(
                                             .background(qualityTagColor(tag))
                                             .padding(horizontal = 5.dp, vertical = 2.dp)
                                     ) {
-                                        Text(
-                                            text = tag,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
+                                        if (tag == DOLBY_MARK) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_dolby),
+                                                contentDescription = null,
+                                                tint = Color.Black,
+                                                modifier = Modifier
+                                                    .height(10.dp)
+                                                    .aspectRatio(85f / 52f)
+                                            )
+                                        } else {
+                                            Text(
+                                                text = tag,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                        }
                                     }
                                 }
                             }

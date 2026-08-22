@@ -121,6 +121,7 @@ internal fun LandscapeCoverPlaybackOverlay(
     onClearQueue: () -> Unit,
     onArtist: () -> Unit,
     onDismiss: () -> Unit,
+    showBackButton: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -425,12 +426,14 @@ internal fun LandscapeCoverPlaybackOverlay(
                     .padding(top = 12.dp, start = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                LandscapeOverlayIconButton(
-                    icon = MiuixIcons.Regular.Back,
-                    description = stringResource(R.string.common_back),
-                    selected = false,
-                    onClick = onDismiss
-                )
+                if (showBackButton) {
+                    LandscapeOverlayIconButton(
+                        icon = MiuixIcons.Regular.Back,
+                        description = stringResource(R.string.common_back),
+                        selected = false,
+                        onClick = onDismiss
+                    )
+                }
                 if (lyrics.isNotEmpty()) {
                     LandscapeOverlayIconButton(
                         icon = MiuixIcons.Regular.Mic,
@@ -444,7 +447,7 @@ internal fun LandscapeCoverPlaybackOverlay(
                 }
             }
         }
-        if (dynamicCoverSource?.preferLandscapeBackground != true) {
+        if (showBackButton && dynamicCoverSource?.preferLandscapeBackground != true) {
             Box(
                 modifier = Modifier
                 .align(Alignment.TopStart)

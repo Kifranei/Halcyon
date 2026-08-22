@@ -157,7 +157,15 @@ internal object OPlusLyricPayload {
     }
 
     private fun List<LyricLine>.toOplusRawLyric(): String {
-        return mapNotNull { line -> line.toOplusRawMainLine() }
+        return mapNotNull { line ->
+            val main = line.toOplusRawMainLine() ?: return@mapNotNull null
+            val translation = line.translation.toOplusLrcTextOrNull()
+                ?.takeIf { it != line.primaryOplusTextOrNull() }
+                ?: return@mapNotNull main
+            val translationLine =
+                "${line.rawLyricStartMs().toOplusLrcTimestamp(precision = TimestampPrecision.Milli)}$translation"
+            "$main\n$translationLine"
+        }
             .joinToString("\n")
     }
 

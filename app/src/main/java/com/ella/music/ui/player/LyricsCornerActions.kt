@@ -35,7 +35,8 @@ internal fun LyricsCornerActions(
     showTranslation: Boolean,
     onToggleTranslation: () -> Unit,
     contentColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    packedEnd: Boolean = false
 ) {
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
@@ -45,8 +46,12 @@ internal fun LyricsCornerActions(
     val iconTint = contentColor.copy(alpha = 0.92f)
 
     Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = if (packedEnd) modifier else modifier.fillMaxWidth(),
+        horizontalArrangement = if (packedEnd) {
+            Arrangement.spacedBy(10.dp)
+        } else {
+            Arrangement.SpaceBetween
+        },
         verticalAlignment = Alignment.Bottom
     ) {
         LyricsRoundChip(

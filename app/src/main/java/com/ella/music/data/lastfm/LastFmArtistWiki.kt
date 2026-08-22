@@ -21,22 +21,22 @@ internal data class LastFmArtistWiki(
 /** Wiki language switcher. English, Simplified Chinese and Japanese stay first. */
 internal data class LastFmWikiRegion(
     val code: String,
-    val nativeName: String
+    val countryNameRes: Int
 )
 
 internal val LAST_FM_WIKI_REGIONS: List<LastFmWikiRegion> = listOf(
-    LastFmWikiRegion("en", "English"),
-    LastFmWikiRegion("zh", "简体中文"),
-    LastFmWikiRegion("ja", "日本語"),
-    LastFmWikiRegion("de", "Deutsch"),
-    LastFmWikiRegion("es", "Español"),
-    LastFmWikiRegion("fr", "Français"),
-    LastFmWikiRegion("it", "Italiano"),
-    LastFmWikiRegion("pl", "Polski"),
-    LastFmWikiRegion("pt", "Português"),
-    LastFmWikiRegion("ru", "Русский"),
-    LastFmWikiRegion("sv", "Svenska"),
-    LastFmWikiRegion("tr", "Türkçe")
+    LastFmWikiRegion("en", com.ella.music.R.string.artist_biography_country_us),
+    LastFmWikiRegion("zh", com.ella.music.R.string.artist_biography_country_cn),
+    LastFmWikiRegion("ja", com.ella.music.R.string.artist_biography_country_jp),
+    LastFmWikiRegion("de", com.ella.music.R.string.artist_biography_country_de),
+    LastFmWikiRegion("es", com.ella.music.R.string.artist_biography_country_es),
+    LastFmWikiRegion("fr", com.ella.music.R.string.artist_biography_country_fr),
+    LastFmWikiRegion("it", com.ella.music.R.string.artist_biography_country_it),
+    LastFmWikiRegion("pl", com.ella.music.R.string.artist_biography_country_pl),
+    LastFmWikiRegion("pt", com.ella.music.R.string.artist_biography_country_pt),
+    LastFmWikiRegion("ru", com.ella.music.R.string.artist_biography_country_ru),
+    LastFmWikiRegion("sv", com.ella.music.R.string.artist_biography_country_se),
+    LastFmWikiRegion("tr", com.ella.music.R.string.artist_biography_country_tr)
 )
 
 internal const val DEFAULT_LAST_FM_WIKI_REGION = "en"

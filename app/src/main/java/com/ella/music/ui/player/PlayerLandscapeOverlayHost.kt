@@ -77,11 +77,13 @@ internal fun PlayerLandscapeOverlayHost(
     onAddQueueToPlaylist: () -> Unit,
     onClearQueue: () -> Unit,
     onArtist: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    interceptBack: Boolean = true,
+    showBackButton: Boolean = true
 ) {
     if (!expanded) return
 
-    ForceLandscapePlayerBars(onDismiss = onDismiss)
+    ForceLandscapePlayerBars(onDismiss = onDismiss, interceptBack = interceptBack)
     if (layoutStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE) return
 
     val dynamicCoverSongKey = song?.dynamicCoverResolutionKey().orEmpty()
@@ -105,7 +107,6 @@ internal fun PlayerLandscapeOverlayHost(
         if (current == null) {
             value = null
         } else {
-            value = null
             value = withContext(Dispatchers.IO) {
                 if (useMusicVideoBackground) {
                     current.musicVideoSource(
@@ -128,7 +129,7 @@ internal fun PlayerLandscapeOverlayHost(
         embeddedCover = embeddedCover,
         paletteBitmap = paletteBitmap,
         annotation = annotation,
-        dynamicCoverSource = landscapeDynamicCoverSource,
+        dynamicCoverSource = landscapeDynamicCoverSource?.takeIf { it.playbackOwnerKey == dynamicCoverSongKey },
         isPlaying = isPlaying,
         currentPosition = currentPosition,
         duration = duration,
@@ -187,6 +188,7 @@ internal fun PlayerLandscapeOverlayHost(
         onClearQueue = onClearQueue,
         onArtist = onArtist,
         onDismiss = onDismiss,
+        showBackButton = showBackButton,
         modifier = Modifier.fillMaxSize()
     )
 }

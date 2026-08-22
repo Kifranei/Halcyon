@@ -396,16 +396,27 @@ internal fun PlayerQueueMenu(
                             }
                             if (isCurrentSong && navigateToPlaybackSource != null) {
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = stringResource(R.string.player_queue_source),
-                                    fontSize = 11.sp,
-                                    color = MiuixTheme.colorScheme.primary,
+                                Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
                                         .playerNoIndicationClick(navigateToPlaybackSource)
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                )
+                                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_link_chain),
+                                        contentDescription = null,
+                                        tint = MiuixTheme.colorScheme.primary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = stringResource(R.string.player_queue_source),
+                                        fontSize = 11.sp,
+                                        color = MiuixTheme.colorScheme.primary
+                                    )
+                                }
                             }
                             if (!queueLocked) {
                                 Spacer(modifier = Modifier.width(8.dp))

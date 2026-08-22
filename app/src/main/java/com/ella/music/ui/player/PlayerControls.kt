@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -163,7 +165,8 @@ internal fun PlayerProgressBlock(
     palette: PlayerPalette,
     allowTapSeek: Boolean,
     showTotalDuration: Boolean,
-    onSeek: (Float) -> Unit
+    onSeek: (Float) -> Unit,
+    fontFamily: FontFamily? = null
 ) {
     val context = LocalContext.current
     val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
@@ -172,14 +175,20 @@ internal fun PlayerProgressBlock(
     val savedInfoMode by settingsManager.playerProgressInfoIndex.collectAsState(initial = 0)
     var infoMode by remember { mutableIntStateOf(0) }
     var previewProgress by remember { mutableStateOf<Float?>(null) }
-    val infoLabels = remember(audioInfo, bluetoothDeviceName, playbackModeLabel) {
+    val qualitySummary = remember(audioInfo) { audioInfo?.let(::audioQualitySummary) }
+    val qualityLabel = qualitySummary?.let { summary ->
+        when (summary.compactLabel) {
+            "Lossless" -> stringResource(R.string.player_quality_lossless)
+            "Hi-Res" -> stringResource(R.string.player_quality_hi_res)
+            "MQ" -> stringResource(R.string.player_quality_master)
+            else -> summary.playerCompactText()
+        }
+    }
+    val infoLabels = remember(qualityLabel, qualitySummary, bluetoothDeviceName, playbackModeLabel) {
         buildList {
             playbackModeLabel?.takeIf { it.isNotBlank() }?.let(::add) ?: run {
-                audioInfo?.let {
-                    val quality = audioQualitySummary(it)
-                    add(quality.playerCompactText())
-                    quality.detailLabel.takeIf { text -> text.isNotBlank() }?.let(::add)
-                }
+                qualityLabel?.let(::add)
+                qualitySummary?.detailLabel?.takeIf { text -> text.isNotBlank() }?.let(::add)
                 bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let(::add)
             }
         }.distinct()
@@ -210,6 +219,7 @@ internal fun PlayerProgressBlock(
                 Text(
                     text = formatTime(currentPosition),
                     fontSize = 14.sp,
+                    fontFamily = fontFamily,
                     // Do not replace the current time: the adjacent label is the seek preview.
                     color = palette.onBackground.copy(alpha = if (previewProgress == null) 0.72f else 0.48f)
                 )
@@ -217,6 +227,7 @@ internal fun PlayerProgressBlock(
                     Text(
                         text = formatTime((duration * progress).toLong()),
                         fontSize = 14.sp,
+                        fontFamily = fontFamily,
                         color = palette.onBackground.copy(alpha = 0.82f),
                         modifier = Modifier.padding(start = 4.dp)
                     )
@@ -229,61 +240,46 @@ internal fun PlayerProgressBlock(
             ) {
                 if (isTablet && (infoLabels.isNotEmpty() || replayGainLabel != null)) {
                     val infoText = infoLabels.getOrNull(infoMode % infoLabels.size.coerceAtLeast(1))
-                    Text(
-                        text = listOfNotNull(
-                            infoText,
-                            replayGainLabel
-                        ).joinToString(" / "),
-                        fontSize = 12.sp,
-                        color = palette.onBackground.copy(alpha = 0.62f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(palette.onBackground.copy(alpha = 0.10f))
-                            .pointerInput(infoLabels, bluetoothDeviceName) {
-                                detectTapGestures(
-                                    onTap = {
-                                        if (infoLabels.size > 1) {
-                                            val nextMode = (infoMode + 1) % infoLabels.size
-                                            infoMode = nextMode
-                                            scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
-                                        }
-                                    },
-                                    onLongPress = {
-                                        if (!bluetoothDeviceName.isNullOrBlank()) {
-                                            openSystemOutputSwitcher(context)
-                                        }
-                                    }
-                                )
+                    PlayerQualityInfoChip(
+                        text = listOfNotNull(infoText, replayGainLabel).joinToString(" / "),
+                        showWaveform = infoText == qualityLabel && qualitySummary?.showWaveform == true,
+                        showDolbyLogo = infoText == qualityLabel && qualitySummary?.showDolbyLogo == true,
+                        palette = palette,
+                        fontFamily = fontFamily,
+                        onTap = {
+                            if (infoLabels.size > 1) {
+                                val nextMode = (infoMode + 1) % infoLabels.size
+                                infoMode = nextMode
+                                scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
                             }
-                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                        },
+                        onLongPress = {
+                            if (!bluetoothDeviceName.isNullOrBlank()) {
+                                openSystemOutputSwitcher(context)
+                            }
+                        }
                     )
                 } else {
                     if (infoLabels.isNotEmpty()) {
                         val infoText = infoLabels[infoMode % infoLabels.size]
-                        Text(
+                        PlayerQualityInfoChip(
                             text = infoText,
-                            fontSize = 12.sp,
-                            color = palette.onBackground.copy(alpha = 0.62f),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(palette.onBackground.copy(alpha = 0.10f))
-                                .pointerInput(infoLabels, bluetoothDeviceName) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            if (infoLabels.size > 1) {
-                                                val nextMode = (infoMode + 1) % infoLabels.size
-                                                infoMode = nextMode
-                                                scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
-                                            }
-                                        },
-                                        onLongPress = {
-                                            if (!bluetoothDeviceName.isNullOrBlank()) {
-                                                openSystemOutputSwitcher(context)
-                                            }
-                                        }
-                                    )
+                            showWaveform = infoText == qualityLabel && qualitySummary?.showWaveform == true,
+                            showDolbyLogo = infoText == qualityLabel && qualitySummary?.showDolbyLogo == true,
+                            palette = palette,
+                            fontFamily = fontFamily,
+                            onTap = {
+                                if (infoLabels.size > 1) {
+                                    val nextMode = (infoMode + 1) % infoLabels.size
+                                    infoMode = nextMode
+                                    scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
                                 }
-                                .padding(horizontal = 10.dp, vertical = 3.dp)
+                            },
+                            onLongPress = {
+                                if (!bluetoothDeviceName.isNullOrBlank()) {
+                                    openSystemOutputSwitcher(context)
+                                }
+                            }
                         )
                     }
                     replayGainLabel?.let { label ->
@@ -306,8 +302,61 @@ internal fun PlayerProgressBlock(
                     "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"
                 },
                 fontSize = 14.sp,
+                fontFamily = fontFamily,
                 color = palette.onBackground.copy(alpha = 0.72f),
                 modifier = Modifier.align(Alignment.CenterEnd)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerQualityInfoChip(
+    text: String,
+    showWaveform: Boolean,
+    showDolbyLogo: Boolean = false,
+    palette: PlayerPalette,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    fontFamily: FontFamily? = null
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(palette.onBackground.copy(alpha = 0.10f))
+            .pointerInput(onTap, onLongPress) {
+                detectTapGestures(
+                    onTap = { onTap() },
+                    onLongPress = { onLongPress() }
+                )
+            }
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (showDolbyLogo) {
+            Icon(
+                painter = painterResource(R.drawable.ic_dolby_atmos),
+                contentDescription = text,
+                tint = palette.onBackground.copy(alpha = 0.82f),
+                modifier = Modifier
+                    .height(12.dp)
+                    .aspectRatio(83f / 15f)
+            )
+        } else {
+            if (showWaveform) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_audio_lossless),
+                    contentDescription = null,
+                    tint = palette.onBackground.copy(alpha = 0.72f),
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontFamily = fontFamily,
+                color = palette.onBackground.copy(alpha = 0.62f)
             )
         }
     }

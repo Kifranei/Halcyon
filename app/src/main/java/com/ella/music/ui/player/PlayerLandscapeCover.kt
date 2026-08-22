@@ -162,9 +162,6 @@ internal fun LandscapeCoverPlayerPage(
     )
     val compactPhoneLandscape = configuration.smallestScreenWidthDp < 600 && !ultraWideLandscape
     val showHiResLogo = hiResLogoEnabled && audioInfo?.isHiResLogoTrack() == true
-    val swipeThresholdPx = with(LocalDensity.current) { 84.dp.toPx() }
-    val swipeScope = rememberCoroutineScope()
-    val dragOffset = remember { androidx.compose.animation.core.Animatable(0f) }
     val leftPaneWeight = if (showLyricsPane && ultraWideLandscape) 0.34f else 0.38f
     val rightPaneWeight = if (ultraWideLandscape) 0.66f else 0.62f
     val headerTitleFontSize = if (showLyricsPane) {
@@ -376,35 +373,13 @@ internal fun LandscapeCoverPlayerPage(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(14.dp))
                             .then(
-                                if (coverSwipeEnabled) {
-                                    Modifier.pointerInput(song?.id, onSwipePrevious, onNext) {
-                                        detectHorizontalDragGestures(
-                                            onDragCancel = {
-                                                swipeScope.launch { dragOffset.animateTo(0f) }
-                                            },
-                                            onDragEnd = {
-                                                val travel = dragOffset.value
-                                                swipeScope.launch { dragOffset.animateTo(0f) }
-                                                when {
-                                                    travel > swipeThresholdPx -> onSwipePrevious()
-                                                    travel < -swipeThresholdPx -> onNext()
-                                                }
-                                            },
-                                            onHorizontalDrag = { change, dragAmount ->
-                                                change.consume()
-                                                swipeScope.launch {
-                                                    dragOffset.snapTo(dragOffset.value + dragAmount)
-                                                }
-                                            }
-                                        )
-                                    }
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .graphicsLayer {
-                                translationX = dragOffset.value * 0.35f
-                            },
+                                Modifier.playerCoverGestures(
+                                    swipeEnabled = coverSwipeEnabled,
+                                    onSwipePrevious = onSwipePrevious,
+                                    onSwipeNext = onNext,
+                                    dismissHandle = LocalPlayerCoverDismiss.current
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         if (foregroundDynamicCoverSource != null) {
@@ -598,39 +573,14 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     drawBackground: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val swipeThresholdPx = with(LocalDensity.current) { 84.dp.toPx() }
-    val swipeScope = rememberCoroutineScope()
-    val dragOffset = remember { androidx.compose.animation.core.Animatable(0f) }
     var previewProgress by remember(song?.id, song?.path) { mutableStateOf<Float?>(null) }
     val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
-
-    fun Modifier.coverSwipeModifier(): Modifier {
-        return if (coverSwipeEnabled) {
-            pointerInput(song?.id, onSwipePrevious, onNext) {
-                detectHorizontalDragGestures(
-                    onDragCancel = {
-                        swipeScope.launch { dragOffset.animateTo(0f) }
-                    },
-                    onDragEnd = {
-                        val travel = dragOffset.value
-                        swipeScope.launch { dragOffset.animateTo(0f) }
-                        when {
-                            travel > swipeThresholdPx -> onSwipePrevious()
-                            travel < -swipeThresholdPx -> onNext()
-                        }
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        swipeScope.launch {
-                            dragOffset.snapTo(dragOffset.value + dragAmount)
-                        }
-                    }
-                )
-            }
-        } else {
-            this
-        }
-    }
+    val coverGestureModifier = Modifier.playerCoverGestures(
+        swipeEnabled = coverSwipeEnabled,
+        onSwipePrevious = onSwipePrevious,
+        onSwipeNext = onNext,
+        dismissHandle = LocalPlayerCoverDismiss.current
+    )
 
     Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
         if (drawBackground) {
@@ -678,8 +628,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                         .weight(0.82f, fill = false)
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(22.dp))
-                        .graphicsLayer { translationX = dragOffset.value * 0.32f }
-                        .coverSwipeModifier(),
+                        .then(coverGestureModifier),
                     contentAlignment = Alignment.Center
                 ) {
                     if (foregroundDynamicCoverSource != null) {

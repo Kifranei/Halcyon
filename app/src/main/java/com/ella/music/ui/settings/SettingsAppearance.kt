@@ -21,10 +21,33 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
+internal const val APPEARANCE_PAGE_HUB = "hub"
+internal const val APPEARANCE_PAGE_THEME = "theme"
+internal const val APPEARANCE_PAGE_SYSTEM_BARS = "system_bars"
+internal const val APPEARANCE_PAGE_WALLPAPER = "wallpaper"
+internal const val APPEARANCE_PAGE_PLAYER = "player"
+internal const val APPEARANCE_PAGE_LIST = "list"
+
+internal fun appearanceSubpageForHighlight(highlight: String?): String = when (highlight) {
+    "system_bars" -> APPEARANCE_PAGE_SYSTEM_BARS
+    "wallpaper", "beautiful_lyrics" -> APPEARANCE_PAGE_WALLPAPER
+    "player_immersive", "player_page", "player_landscape",
+    "transport_button_outlines", "player_tap_seek",
+    "player_show_total_duration", "player_show_song_annotation",
+    "player_cover_swipe", "player_title_position",
+    "player_cover_content_color" -> APPEARANCE_PAGE_PLAYER
+    "auto_show_search_keyboard", "search_reopen_behavior" -> APPEARANCE_PAGE_LIST
+    else -> APPEARANCE_PAGE_THEME
+}
+
 @Composable
 internal fun SettingsAppearanceSection(
     highlightKey: String? = null,
-    onNavigateToBottomNavigationSettings: () -> Unit = {}
+    page: String = APPEARANCE_PAGE_HUB,
+    onNavigateToBottomNavigationSettings: () -> Unit = {},
+    onNavigateToAppearancePage: (String) -> Unit = {},
+    onNavigateToLyricFont: () -> Unit = {},
+    onNavigateToHomeDisplay: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -362,12 +385,64 @@ internal fun SettingsAppearanceSection(
         settingsManager = settingsManager
     )
 
-    SmallTitle(text = stringResource(R.string.settings_appearance))
-
     fun isHighlighted(vararg keys: String): Boolean =
         highlightKey == "appearance" || keys.any { it == highlightKey }
 
-    SettingsCardGroup(highlight = isHighlighted("app_icon")) {
+    if (page == APPEARANCE_PAGE_HUB) {
+        SmallTitle(text = stringResource(R.string.settings_appearance))
+        SettingsCardGroup {
+            Column {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_appearance_theme_page),
+                    summary = stringResource(R.string.settings_appearance_theme_page_summary),
+                    onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_THEME) }
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_appearance_system_bars_page),
+                    summary = stringResource(R.string.settings_appearance_system_bars_page_summary),
+                    onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_SYSTEM_BARS) }
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_appearance_wallpaper_page),
+                    summary = stringResource(R.string.settings_appearance_wallpaper_page_summary),
+                    onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_WALLPAPER) }
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_appearance_player_page),
+                    summary = stringResource(R.string.settings_appearance_player_page_summary),
+                    onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_PLAYER) }
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_appearance_list_page),
+                    summary = stringResource(R.string.settings_appearance_list_page_summary),
+                    onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_LIST) }
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_bottom_dock_items),
+                    summary = stringResource(R.string.settings_bottom_dock_items_summary),
+                    onClick = onNavigateToBottomNavigationSettings
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_font_settings),
+                    summary = stringResource(R.string.settings_lyric_font),
+                    onClick = onNavigateToLyricFont
+                )
+            }
+        }
+        SettingsHomeCustomizeSection(
+            highlightKey = highlightKey,
+            onOpenHomeDisplay = onNavigateToHomeDisplay
+        )
+        return
+    }
+
+    if (page == APPEARANCE_PAGE_THEME) SmallTitle(text = stringResource(R.string.settings_appearance_theme_page))
+    if (page == APPEARANCE_PAGE_SYSTEM_BARS) SmallTitle(text = stringResource(R.string.settings_appearance_system_bars_page))
+    if (page == APPEARANCE_PAGE_WALLPAPER) SmallTitle(text = stringResource(R.string.settings_appearance_wallpaper_page))
+    if (page == APPEARANCE_PAGE_PLAYER) SmallTitle(text = stringResource(R.string.settings_appearance_player_page))
+    if (page == APPEARANCE_PAGE_LIST) SmallTitle(text = stringResource(R.string.settings_appearance_list_page))
+
+    if (page == APPEARANCE_PAGE_THEME) SettingsCardGroup(highlight = isHighlighted("app_icon")) {
         Column {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_theme_mode),
@@ -479,13 +554,8 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    SettingsCardGroup(highlight = isHighlighted("system_bars")) {
+    if (page == APPEARANCE_PAGE_SYSTEM_BARS) SettingsCardGroup(highlight = isHighlighted("system_bars")) {
         Column {
-            ArrowPreference(
-                title = stringResource(R.string.settings_bottom_dock_items),
-                summary = stringResource(R.string.settings_bottom_dock_items_summary),
-                onClick = onNavigateToBottomNavigationSettings
-            )
             SettingsFocusAnchor(active = highlightKey == "system_bars") {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_system_bars_mode),
@@ -557,7 +627,7 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    SettingsCardGroup(highlight = isHighlighted("wallpaper", "beautiful_lyrics")) {
+    if (page == APPEARANCE_PAGE_WALLPAPER) SettingsCardGroup(highlight = isHighlighted("wallpaper", "beautiful_lyrics")) {
         Column {
             SettingsFocusAnchor(active = highlightKey == "wallpaper") {
                 SwitchPreference(
@@ -664,15 +734,6 @@ internal fun SettingsAppearanceSection(
                 enabled = playerBackgroundEnabled,
                 onValueChange = { scope.launch { settingsManager.setPlayerBackgroundDim(it) } }
             )
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_dynamic_flow),
-                summary = stringResource(R.string.settings_player_dynamic_flow_summary),
-                checked = playerDynamicFlowEnabled,
-                enabled = !beautifulLyricsBackground,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
-                }
-            )
             SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics") {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_beautiful_lyrics_background),
@@ -681,6 +742,16 @@ internal fun SettingsAppearanceSection(
                     selectedIndex = selectedBeautifulLyricsBackground,
                     onSelectedIndexChange = { index ->
                         scope.launch { settingsManager.setPlayerBeautifulLyricsBackground(index == 1) }
+                    }
+                )
+            }
+            if (!beautifulLyricsBackground) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_dynamic_flow),
+                    summary = stringResource(R.string.settings_player_dynamic_flow_summary),
+                    checked = playerDynamicFlowEnabled,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
                     }
                 )
             }
@@ -714,14 +785,10 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    SettingsCardGroup(
+    if (page == APPEARANCE_PAGE_LIST) SettingsCardGroup(
         highlight = isHighlighted(
             "auto_show_search_keyboard",
-            "search_reopen_behavior",
-            "dynamic_cover",
-            "player_show_total_duration",
-            "player_tap_seek",
-            "transport_button_outlines"
+            "search_reopen_behavior"
         )
     ) {
         Column {
@@ -801,122 +868,16 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setPlaylistSpecialEntriesVisible(it) }
                 }
             )
-            SettingsFocusAnchor(active = highlightKey == "dynamic_cover") {
-                SwitchPreference(
-                    title = stringResource(R.string.settings_dynamic_cover),
-                    summary = stringResource(R.string.settings_dynamic_cover_summary),
-                    checked = dynamicCoverEnabled,
-                    onCheckedChange = {
-                        setDynamicCoverEnabled(context, scope, settingsManager, dynamicCoverPermissionLauncher, it)
-                    }
-                )
-            }
-            SwitchPreference(
-                title = stringResource(R.string.settings_music_video_sync),
-                summary = stringResource(R.string.settings_music_video_sync_summary),
-                checked = musicVideoSyncEnabled,
-                onCheckedChange = {
-                    setMusicVideoSyncEnabled(context, scope, settingsManager, musicVideoSyncPermissionLauncher, it)
-                }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_music_video_capture_subtitles),
-                summary = stringResource(R.string.settings_music_video_capture_subtitles_summary),
-                checked = musicVideoCaptureSubtitles,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setMusicVideoCaptureSubtitles(it) }
-                }
-            )
             SwitchPreference(
                 title = stringResource(R.string.settings_mini_player_long_press_source),
                 summary = stringResource(R.string.settings_mini_player_long_press_source_summary),
                 checked = miniPlayerLongPressSource,
                 onCheckedChange = { scope.launch { settingsManager.setMiniPlayerLongPressSource(it) } }
             )
-            SwitchPreference(
-                title = stringResource(R.string.settings_music_video_stretch),
-                summary = stringResource(R.string.settings_music_video_stretch_summary),
-                checked = musicVideoStretchEnabled,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setMusicVideoStretchEnabled(it) }
-                }
-            )
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_music_video_orientation),
-                summary = stringResource(
-                    R.string.settings_current_value,
-                    musicVideoOrientationOptions[selectedMusicVideoOrientation].second
-                ),
-                items = musicVideoOrientationEntries,
-                selectedIndex = selectedMusicVideoOrientation,
-                onSelectedIndexChange = { index ->
-                    musicVideoOrientationOptions.getOrNull(index)?.first?.let { orientation ->
-                        scope.launch { settingsManager.setMusicVideoOrientation(orientation) }
-                    }
-                }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_show_local_mv_in_lists),
-                summary = stringResource(R.string.settings_show_local_mv_in_lists_summary),
-                checked = showLocalMusicVideoInLists,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setShowLocalMusicVideoInLists(it) }
-                }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_show_online_mv_in_lists),
-                summary = stringResource(R.string.settings_show_online_mv_in_lists_summary),
-                checked = showOnlineMusicVideoInLists,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setShowOnlineMusicVideoInLists(it) }
-                }
-            )
-            ArrowPreference(
-                title = stringResource(R.string.settings_music_video_custom_folders),
-                summary = if (musicVideoCustomFolders.isBlank()) {
-                    stringResource(R.string.settings_music_video_custom_folders_summary)
-                } else {
-                    stringResource(
-                        R.string.settings_music_video_custom_folders_selected,
-                        musicVideoCustomFolders.lineSequence().filter { it.isNotBlank() }.count()
-                    )
-                },
-                onClick = { musicVideoFolderPicker.launch(null) }
-            )
-            if (musicVideoCustomFolders.isNotBlank()) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_music_video_custom_folders_remove),
-                    summary = stringResource(R.string.settings_music_video_custom_folders_remove_summary),
-                    onClick = {
-                        scope.launch { settingsManager.setMusicVideoCustomFolders("") }
-                    }
-                )
-            }
-            ArrowPreference(
-                title = stringResource(R.string.settings_dynamic_cover_custom_folders),
-                summary = if (dynamicCoverCustomFolders.isBlank()) {
-                    stringResource(R.string.settings_dynamic_cover_custom_folders_summary)
-                } else {
-                    stringResource(
-                        R.string.settings_dynamic_cover_custom_folders_selected,
-                        dynamicCoverCustomFolders.lineSequence().filter { it.isNotBlank() }.count()
-                    )
-                },
-                onClick = { dynamicCoverFolderPicker.launch(null) }
-            )
-            if (dynamicCoverCustomFolders.isNotBlank()) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_dynamic_cover_custom_folders_remove),
-                    summary = stringResource(R.string.settings_dynamic_cover_custom_folders_remove_summary),
-                    onClick = {
-                        scope.launch { settingsManager.setDynamicCoverCustomFolders("") }
-                    }
-                )
-            }
         }
     }
 
-    SettingsCardGroup(highlight = highlightKey == "appearance") {
+    if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup(highlight = highlightKey == "appearance") {
         Column {
             SettingsFocusAnchor(active = highlightKey == "appearance") {
                 SwitchPreference(
@@ -952,7 +913,20 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    SettingsCardGroup(highlight = isHighlighted("player_immersive", "player_page", "player_landscape")) {
+    if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup(
+        highlight = isHighlighted(
+            "player_immersive",
+            "player_page",
+            "player_landscape",
+            "transport_button_outlines",
+            "player_tap_seek",
+            "player_show_total_duration",
+            "player_show_song_annotation",
+            "player_cover_swipe",
+            "player_title_position",
+            "player_cover_content_color"
+        )
+    ) {
         Column {
             SettingsFocusAnchor(active = highlightKey == "player_immersive") {
                 SwitchPreference(

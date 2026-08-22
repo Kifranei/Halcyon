@@ -32,6 +32,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_FILTER_VIDEO_FILES
 import com.ella.music.data.SettingsManager.Companion.KEY_GENRE_PROTECTED_NAMES
 import com.ella.music.data.SettingsManager.Companion.KEY_GENRE_SEPARATORS
 import com.ella.music.data.SettingsManager.Companion.KEY_INITIAL_SCAN_PROMPT_HANDLED
+import com.ella.music.data.SettingsManager.Companion.KEY_SETUP_WIZARD_COMPLETED
 import com.ella.music.data.SettingsManager.Companion.KEY_LISTENING_HISTORY_SOURCE
 import com.ella.music.data.SettingsManager.Companion.KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_TIMING_EDITOR_ID
@@ -111,6 +112,7 @@ interface LibrarySettingsAccess {
     val songRatingDisplayMode: Flow<Int>
     val listeningHistorySource: Flow<Int>
     val initialScanPromptHandled: Flow<Boolean>
+    val setupWizardCompleted: Flow<Boolean>
     val localPlaylistScanPromptHandled: Flow<Boolean>
     val notificationPermissionPromptHandled: Flow<Boolean>
     val artistSeparators: Flow<String>
@@ -169,6 +171,7 @@ interface LibrarySettingsAccess {
     suspend fun setSongRatingDisplayMode(mode: Int)
     suspend fun setListeningHistorySource(source: Int)
     suspend fun setInitialScanPromptHandled(handled: Boolean)
+    suspend fun setSetupWizardCompleted(completed: Boolean)
     suspend fun setLocalPlaylistScanPromptHandled(handled: Boolean)
     suspend fun setNotificationPermissionPromptHandled(handled: Boolean)
     suspend fun setArtistSeparators(separators: String)
@@ -266,6 +269,8 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     }
     override val initialScanPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_INITIAL_SCAN_PROMPT_HANDLED] ?: false }
+    override val setupWizardCompleted: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SETUP_WIZARD_COMPLETED] ?: false }
     override val localPlaylistScanPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED] ?: false }
     override val notificationPermissionPromptHandled: Flow<Boolean> =
@@ -644,6 +649,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setInitialScanPromptHandled(handled: Boolean) {
         context.dataStore.edit { it[KEY_INITIAL_SCAN_PROMPT_HANDLED] = handled }
+    }
+
+    override suspend fun setSetupWizardCompleted(completed: Boolean) {
+        context.dataStore.edit { it[KEY_SETUP_WIZARD_COMPLETED] = completed }
     }
 
     override suspend fun setLocalPlaylistScanPromptHandled(handled: Boolean) {

@@ -145,7 +145,13 @@ fun AlbumDetailScreen(
     var showIntroduction by rememberSaveable(albumId) { mutableStateOf(false) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val album = albums.find { it.id == albumId }
-    val albumSongs = mainViewModel.getSongsForAlbum(albumId)
+    val albumSongsState by produceState<List<Song>?>(null, albumId, librarySongs) {
+        value = withContext(kotlinx.coroutines.Dispatchers.Default) {
+            mainViewModel.getSongsForAlbum(albumId)
+        }
+    }
+    val albumSongs = albumSongsState.orEmpty()
+    val albumSongsResolved = albumSongsState != null
     val filteredAlbumSongs = remember(albumSongs, searchQuery) {
         val query = searchQuery.trim()
         if (query.isBlank()) {
@@ -437,7 +443,12 @@ fun AlbumDetailScreen(
             .fillMaxSize()
             .background(ellaPageBackground())
     ) {
-        if (album == null && albumSongs.isEmpty() && !libraryCacheLoaded) {
+        if (com.ella.music.ui.components.showLibraryLoadingPlaceholder(
+                libraryCacheLoaded = libraryCacheLoaded,
+                contentResolved = albumSongsResolved,
+                isEmpty = album == null && albumSongs.isEmpty()
+            )
+        ) {
             // Do not render AlbumHeader's "unknown album" fallback while a cold-start cache is
             // still restoring. Besides being misleading, it made a recoverable service crash
             // look like it had erased the album the user navigated to.

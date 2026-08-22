@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -104,6 +105,61 @@ internal fun PlayerDismissMotionHost(
     DisposableEffect(Unit) {
         onDispose { onDismissProgressChange(0f) }
     }
+    val latestDismissTargetPx by rememberUpdatedState(dismissTargetPx)
+    val latestDismissThresholdPx by rememberUpdatedState(dismissThresholdPx)
+    val latestDismissVelocityPx by rememberUpdatedState(dismissVelocityThresholdPx)
+    val coverDismissHandle = remember {
+        PlayerCoverDismissHandle(
+            begin = {
+                if (dismissingPlayer) return@PlayerCoverDismissHandle false
+                scope.launch { dragDismissOffset.stop() }
+                true
+            },
+            onVerticalDrag = { dy ->
+                if (dismissingPlayer) return@PlayerCoverDismissHandle
+                scope.launch {
+                    val next = (dragDismissOffset.value + if (dy > 0f) dy else dy * 0.36f)
+                        .coerceIn(0f, latestDismissTargetPx)
+                    dragDismissOffset.snapTo(next)
+                }
+            },
+            onDragEnd = { velocityY ->
+                val gestureOffset = dragDismissOffset.value
+                scope.launch {
+                    if (gestureOffset >= latestDismissThresholdPx || velocityY >= latestDismissVelocityPx) {
+                        if (!dismissingPlayer) {
+                            dismissingPlayer = true
+                            dragDismissOffset.animateTo(
+                                targetValue = latestDismissTargetPx,
+                                animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing)
+                            )
+                            latestOnDismiss()
+                        }
+                    } else {
+                        dragDismissOffset.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
+                    }
+                }
+            },
+            onDragCancel = {
+                scope.launch {
+                    dragDismissOffset.animateTo(
+                        targetValue = 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    )
+                }
+            }
+        )
+    }
+
     PredictiveBackHandler(enabled = backEnabled) { progress ->
         val gestureGeneration = ++predictiveGestureGeneration
         try {
@@ -227,7 +283,9 @@ internal fun PlayerDismissMotionHost(
                     )
                 )
         ) {
-            content(dismissingPlayer)
+            CompositionLocalProvider(LocalPlayerCoverDismiss provides coverDismissHandle) {
+                content(dismissingPlayer)
+            }
         }
 
         overlayContent()

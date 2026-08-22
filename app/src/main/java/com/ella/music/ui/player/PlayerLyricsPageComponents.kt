@@ -179,6 +179,7 @@ internal fun LyricsPlayerMenuSheet(
                     onPrimaryTextSize = onPrimaryTextSize,
                     onSecondaryTextSize = onSecondaryTextSize,
                     onBack = { page = LyricsPlayerMenuPage.Main },
+                    applyScrollableContainer = true,
                     modifier = modifier
                 )
             }

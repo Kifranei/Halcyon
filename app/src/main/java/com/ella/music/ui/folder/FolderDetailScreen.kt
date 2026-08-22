@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -86,6 +87,7 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -162,13 +164,21 @@ fun FolderDetailScreen(
     val normalizedFolderPath = remember(folderPath) { folderPath.normalizeFolderPath() }
     var scrollToTopRequest by remember { mutableStateOf(0) }
 
-    val childFolders = remember(songs, normalizedFolderPath, pinnedFolderPaths) {
-        songs.childFoldersOf(context, normalizedFolderPath)
-            .sortedForFolderList(FolderListSortMode.Name, pinnedFolderPaths)
+    val folderContents by produceState<Pair<List<FolderTreeEntry>, List<Song>>?>(
+        null,
+        songs,
+        normalizedFolderPath,
+        pinnedFolderPaths
+    ) {
+        value = withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val children = songs.childFoldersOf(context, normalizedFolderPath)
+                .sortedForFolderList(FolderListSortMode.Name, pinnedFolderPaths)
+            val direct = songs.directSongsInFolder(normalizedFolderPath)
+            children to direct
+        }
     }
-    val directSongs = remember(songs, normalizedFolderPath) {
-        songs.directSongsInFolder(normalizedFolderPath)
-    }
+    val childFolders = folderContents?.first.orEmpty()
+    val directSongs = folderContents?.second.orEmpty()
     val recursiveSongs = remember(songs, normalizedFolderPath, searchQuery) {
         if (searchQuery.isBlank()) emptyList() else songs.recursiveSongsInFolder(normalizedFolderPath)
     }
@@ -447,7 +457,12 @@ fun FolderDetailScreen(
             )
         }
 
-        if (songs.isEmpty() && !libraryCacheLoaded) {
+        if (com.ella.music.ui.components.showLibraryLoadingPlaceholder(
+                libraryCacheLoaded = libraryCacheLoaded,
+                contentResolved = folderContents != null,
+                isEmpty = childFolders.isEmpty() && sortedSongs.isEmpty()
+            )
+        ) {
             EllaCenteredLoadingIndicator()
         } else if (childFolders.isEmpty() && sortedSongs.isEmpty()) {
             Box(

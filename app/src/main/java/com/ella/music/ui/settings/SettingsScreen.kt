@@ -64,6 +64,9 @@ fun SettingsScreen(
     onNavigateToHighlightedBackupSettings: (String) -> Unit = { onNavigateToBackupSettings() },
     onNavigateToEqualizer: () -> Unit = onNavigateToAudioSettings,
     onNavigateToHighlightedEqualizer: (String) -> Unit = { onNavigateToEqualizer() },
+    onNavigateToCoverMediaSettings: () -> Unit = onNavigateToAppearanceSettings,
+    onNavigateToHighlightedCoverMediaSettings: (String) -> Unit = { onNavigateToCoverMediaSettings() },
+    onNavigateToSetupWizard: () -> Unit = {},
     onBack: () -> Unit = {},
     showBackButton: Boolean = true,
     mainViewModel: MainViewModel? = null,
@@ -94,6 +97,9 @@ fun SettingsScreen(
         onNavigateToAudioSettings = onNavigateToAudioSettings,
         onNavigateToEqualizer = onNavigateToEqualizer,
         onNavigateToHighlightedEqualizer = onNavigateToHighlightedEqualizer,
+        onNavigateToCoverMediaSettings = onNavigateToCoverMediaSettings,
+        onNavigateToHighlightedCoverMediaSettings = onNavigateToHighlightedCoverMediaSettings,
+        onNavigateToSetupWizard = onNavigateToSetupWizard,
         onNavigateToBackupSettings = onNavigateToBackupSettings,
         onNavigateToLogs = onNavigateToLogs,
         onNavigateToAbout = onNavigateToAbout
@@ -180,6 +186,11 @@ fun SettingsScreen(
                 SettingsCardGroup {
                     Column {
                         ArrowPreference(
+                            title = stringResource(R.string.settings_setup_wizard),
+                            summary = stringResource(R.string.settings_setup_wizard_summary),
+                            onClick = onNavigateToSetupWizard
+                        )
+                        ArrowPreference(
                             title = stringResource(R.string.settings_appearance_home),
                             summary = stringResource(R.string.settings_appearance_home_summary),
                             onClick = onNavigateToAppearanceSettings
@@ -205,6 +216,11 @@ fun SettingsScreen(
                             title = stringResource(R.string.settings_library_scan),
                             summary = stringResource(R.string.settings_library_scan_summary),
                             onClick = onNavigateToLibrarySettings
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_cover_media),
+                            summary = stringResource(R.string.settings_cover_media_summary),
+                            onClick = onNavigateToCoverMediaSettings
                         )
                     }
                 }
@@ -308,6 +324,9 @@ private fun settingsSearchEntries(
     onNavigateToAudioSettings: () -> Unit,
     onNavigateToEqualizer: () -> Unit,
     onNavigateToHighlightedEqualizer: (String) -> Unit,
+    onNavigateToCoverMediaSettings: () -> Unit,
+    onNavigateToHighlightedCoverMediaSettings: (String) -> Unit,
+    onNavigateToSetupWizard: () -> Unit,
     onNavigateToBackupSettings: () -> Unit,
     onNavigateToLogs: () -> Unit,
     onNavigateToAbout: () -> Unit
@@ -316,6 +335,7 @@ private fun settingsSearchEntries(
         SettingsSearchEntry(title, summary, keywords, onClick)
 
     return listOf(
+        entry(stringResource(R.string.settings_setup_wizard), stringResource(R.string.settings_setup_wizard_summary), "向导 引导 初始设置 新手") { onNavigateToSetupWizard() },
         entry(stringResource(R.string.settings_appearance_home), stringResource(R.string.settings_appearance_home_summary), "主题 深色 浅色 跟随系统 语言 图标 壁纸 启动画面 底栏 沉浸 播放页 背景") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_bottom_dock_items), stringResource(R.string.settings_bottom_dock_items_summary), "底栏 底部导航 导航栏 入口 顺序 预览 搜索") { onNavigateToBottomNavigationSettings() },
         entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 功能块 宫格 顺序 隐藏 二级页") { onNavigateToHomeDisplaySettings("home_sections") },
@@ -323,8 +343,11 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_auto_show_search_keyboard), stringResource(R.string.settings_auto_show_search_keyboard_summary), "搜索 输入法 键盘 自动弹出") { onNavigateToHighlightedAppearanceSettings("auto_show_search_keyboard") },
         entry(stringResource(R.string.settings_search_reopen_behavior), stringResource(R.string.settings_search_reopen_behavior_summary), "搜索 搜索框 清空 保留 选择 上次") { onNavigateToHighlightedAppearanceSettings("search_reopen_behavior") },
         entry(stringResource(R.string.settings_font_settings), stringResource(R.string.settings_lyric_font), "字体 歌词字体 三级页") { onNavigateToHighlightedAppearanceSettings("lyric_font") },
-        entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "视频封面 动态封面 mp4 MV 文件夹 相册权限") { onNavigateToHighlightedAppearanceSettings("dynamic_cover") },
+        entry(stringResource(R.string.settings_cover_media), stringResource(R.string.settings_cover_media_summary), "封面 动态封面 MV 艺术家封面 影像") { onNavigateToHighlightedCoverMediaSettings("cover_media") },
+        entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "视频封面 动态封面 mp4 MV 文件夹 相册权限") { onNavigateToHighlightedCoverMediaSettings("dynamic_cover") },
+        entry(stringResource(R.string.settings_music_video_sync), stringResource(R.string.settings_music_video_sync_summary), "MV 音乐视频 同步 静音") { onNavigateToHighlightedCoverMediaSettings("music_video") },
         entry(stringResource(R.string.settings_player_show_total_duration), stringResource(R.string.settings_player_show_total_duration_summary), "进度条 总时长 剩余时间 播放时间 拖动预览") { onNavigateToHighlightedAppearanceSettings("player_show_total_duration") },
+        entry(stringResource(R.string.settings_player_show_song_annotation), stringResource(R.string.settings_player_show_song_annotation_summary), "播放页 歌曲注释 注释 annotation") { onNavigateToHighlightedAppearanceSettings("player_show_song_annotation") },
         entry(stringResource(R.string.settings_player_tap_seek), stringResource(R.string.settings_player_tap_seek_summary), "进度条 点击 跳转 拖动") { onNavigateToHighlightedAppearanceSettings("player_tap_seek") },
         entry(stringResource(R.string.settings_transport_button_outlines), stringResource(R.string.settings_transport_button_outlines_summary), "播放页 控制 按钮 轮廓 外框 描边") { onNavigateToHighlightedAppearanceSettings("transport_button_outlines") },
         entry(stringResource(R.string.settings_player_immersive_cover), stringResource(R.string.settings_player_immersive_cover_summary), "沉浸 播放页 封面 全屏") { onNavigateToHighlightedAppearanceSettings("player_immersive") },
@@ -339,8 +362,8 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_show_album_artists), stringResource(R.string.settings_show_album_artists_summary), "艺术家 歌手 歌者 artist singer performer 专辑艺术家 发行专辑") { onNavigateToHighlightedLibrarySettings("show_album_artists") },
         entry(stringResource(R.string.settings_show_artist_introduction), stringResource(R.string.settings_show_artist_introduction_summary), "艺术家 歌手 介绍 简介 artist introduction biography") { onNavigateToHighlightedLibrarySettings("show_artist_introduction") },
         entry(stringResource(R.string.settings_artist_bio_download), stringResource(R.string.settings_artist_bio_download_summary), "艺术家 传记 Last.fm wiki 自动下载 Wi-Fi") { onNavigateToHighlightedLibrarySettings("artist_bio_download") },
-        entry(stringResource(R.string.settings_artist_cover_folder), stringResource(R.string.settings_artist_cover_folder_summary), "艺术家 歌手 artist 封面 动态封面 视频封面 mp4 轮播 图片目录") { onNavigateToHighlightedLibrarySettings("artist_cover_folder") },
-        entry(stringResource(R.string.settings_artist_cover_carousel), stringResource(R.string.settings_artist_cover_carousel_summary), "艺术家 歌手 artist 封面 动态封面 轮播") { onNavigateToHighlightedLibrarySettings("artist_cover_carousel") },
+        entry(stringResource(R.string.settings_artist_cover_folder), stringResource(R.string.settings_artist_cover_folder_summary), "艺术家 歌手 artist 封面 动态封面 视频封面 mp4 轮播 图片目录") { onNavigateToHighlightedCoverMediaSettings("artist_cover_folder") },
+        entry(stringResource(R.string.settings_artist_cover_carousel), stringResource(R.string.settings_artist_cover_carousel_summary), "艺术家 歌手 artist 封面 动态封面 轮播") { onNavigateToHighlightedCoverMediaSettings("artist_cover_carousel") },
         entry(stringResource(R.string.settings_artist_separators), stringResource(R.string.settings_artist_separators_summary), "艺术家 歌手 artist 分隔符 feat 合作 作曲 作词") { onNavigateToHighlightedLibrarySettings("artist_separators") },
         entry(stringResource(R.string.settings_artist_protected_names), stringResource(R.string.settings_artist_protected_names_summary), "艺术家 歌手 artist 不拆分 分隔符 保护名称") { onNavigateToHighlightedLibrarySettings("artist_protected_names") },
         entry(stringResource(R.string.settings_search_all_song_match_types), stringResource(R.string.settings_search_all_song_match_types_summary), "搜索 所有 歌曲 艺术家 歌手 专辑 专辑艺术家 元数据 歌词") { onNavigateToHighlightedLibrarySettings("search_all_song_match_types") },
@@ -378,7 +401,8 @@ private fun settingsSearchEntries(
         onLyricFont = onNavigateToLyricFont,
         onLyricPlugins = onNavigateToLyricPluginSources,
         onLogs = onNavigateToLogs,
-        onAbout = onNavigateToAbout
+        onAbout = onNavigateToAbout,
+        onCoverMedia = onNavigateToHighlightedCoverMediaSettings
     ) + settingsSearchFallbackEntries(
         entry = ::entry,
         onAppearance = onNavigateToHighlightedAppearanceSettings,
@@ -387,7 +411,8 @@ private fun settingsSearchEntries(
         onLyrics = onNavigateToHighlightedLyricSettings,
         onAudio = onNavigateToHighlightedAudioSettings,
         onBackup = onNavigateToHighlightedBackupSettings,
-        onIntegration = onNavigateToHighlightedIntegrationSettings
+        onIntegration = onNavigateToHighlightedIntegrationSettings,
+        onCoverMedia = onNavigateToHighlightedCoverMediaSettings
     )
 }
 
@@ -404,7 +429,8 @@ private fun settingsSearchFallbackEntries(
     onLyrics: (String) -> Unit,
     onAudio: (String) -> Unit,
     onBackup: (String) -> Unit,
-    onIntegration: (String) -> Unit
+    onIntegration: (String) -> Unit,
+    onCoverMedia: (String) -> Unit
 ): List<SettingsSearchEntry> {
     val resources = LocalContext.current.resources
     return R.string::class.java.fields
@@ -430,9 +456,13 @@ private fun settingsSearchFallbackEntries(
                     name.contains("karaoke") || name.contains("accompaniment") ||
                     name.contains("shuffle") || name.contains("playback") || name.contains("previous_button") ||
                     name.contains("resume_") || name.contains("startup_play") -> { { onAudio("audio_playback") } }
+                name.contains("dynamic_cover") || name.contains("music_video") ||
+                    name.contains("artist_cover") || name.contains("cover_export") ||
+                    name.contains("cover_media") -> { { onCoverMedia("cover_media") } }
                 name.contains("scan") || name.contains("library") || name.contains("metadata") ||
                     name.contains("tag_") || name.contains("artist_") || name.contains("genre_") ||
                     name.contains("full_tag") -> { { onLibrary("scan") } }
+                name.contains("player_show_song_annotation") -> { { onAppearance("player_show_song_annotation") } }
                 name.contains("home_") || name.contains("bottom_dock") || name.contains("category_grid") -> {
                     { onHome("home_sections") }
                 }
@@ -459,7 +489,8 @@ private fun settingsSearchAliases(
     onLyricFont: () -> Unit,
     onLyricPlugins: () -> Unit,
     onLogs: () -> Unit,
-    onAbout: () -> Unit
+    onAbout: () -> Unit,
+    onCoverMedia: (String) -> Unit
 ): List<SettingsSearchEntry> = listOf(
     entry(stringResource(R.string.settings_app_wallpaper), stringResource(R.string.settings_app_wallpaper_summary), "壁纸 图片 背景 模糊 毛玻璃 透明") { onAppearance("wallpaper") },
     entry(stringResource(R.string.settings_app_icon), stringResource(R.string.settings_app_icon_summary), "图标 启动器 图标包 anime loli") { onAppearance("app_icon") },
@@ -469,7 +500,7 @@ private fun settingsSearchAliases(
     entry(stringResource(R.string.settings_karaoke_accompaniment), stringResource(R.string.settings_karaoke_accompaniment_summary), "伴奏 人声 原曲 karaoke 跟唱") { onAudio("audio_playback") },
     entry(stringResource(R.string.settings_system_bars_mode), stringResource(R.string.settings_system_bars_mode_summary, ""), "沉浸模式 全屏 状态栏 导航栏 隐藏 显示 车机") { onAppearance("system_bars") },
     entry(stringResource(R.string.settings_player_landscape_style), stringResource(R.string.settings_player_landscape_style_summary, ""), "横屏播放 宽屏 歌词 CoverFlow MV 流光") { onAppearance("player_immersive") },
-    entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "动态封面 视频封面 MV mp4") { onAppearance("dynamic_cover") },
+    entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "动态封面 视频封面 MV mp4") { onCoverMedia("dynamic_cover") },
     entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 显示 项目 排序 隐藏 宫格") { onHome("home_sections") },
     entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 卡片 颜色 渐变 置顶") { onHome("home_tile_colors") },
     entry(stringResource(R.string.settings_scan_folders), stringResource(R.string.settings_scan_folders_summary), "扫描 文件夹 排除 隐藏目录 存储权限") { onLibrary("scan") },

@@ -154,9 +154,12 @@ fun ArtistScreen(
     var musicVideoInfoTarget by remember { mutableStateOf<ArtistMusicVideo?>(null) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
 
-    val artistSongs = remember(songs, artistName) {
-        mainViewModel.getSongsForArtist(artistName)
+    val artistSongsState by produceState<List<Song>?>(null, songs, artistName) {
+        value = withContext(Dispatchers.Default) {
+            mainViewModel.getSongsForArtist(artistName)
+        }
     }
+    val artistSongs = artistSongsState.orEmpty()
     val artistMusicVideoState by produceState(
         initialValue = emptyList<ArtistMusicVideo>() to true,
         artistSongs,
@@ -540,7 +543,11 @@ fun ArtistScreen(
     ) {
         // While the library is still loading (remote source / cold start) the songs list can be
         // momentarily empty; show a spinner instead of flashing the empty/"not found" content.
-        val showLibraryLoading = artistSongs.isEmpty() && !libraryCacheLoaded
+        val showLibraryLoading = com.ella.music.ui.components.showLibraryLoadingPlaceholder(
+            libraryCacheLoaded = libraryCacheLoaded,
+            contentResolved = artistSongsState != null,
+            isEmpty = artistSongs.isEmpty()
+        )
         if (showLibraryLoading) {
             EllaCenteredLoadingIndicator()
         } else {

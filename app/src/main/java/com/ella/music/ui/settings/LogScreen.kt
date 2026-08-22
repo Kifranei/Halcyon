@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +42,7 @@ import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.ellaPageBackground
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -146,10 +148,13 @@ fun LogScreen(
         showDetailSheet = false
     }
 
+    val pageBackground = ellaPageBackground()
     Scaffold(
+        modifier = Modifier.background(pageBackground),
         topBar = {
             EllaSmallTopAppBar(
                 title = stringResource(R.string.logs_title),
+                color = pageBackground,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -185,6 +190,7 @@ fun LogScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .background(pageBackground)
                 .scrollEndHaptic()
                 .overScrollVertical(),
             contentPadding = PaddingValues(

@@ -70,6 +70,7 @@ fun SettingsDetailScreen(
     onNavigateToLyricPluginSources: () -> Unit = {},
     onNavigateToLastFmSettings: () -> Unit = {},
     onNavigateToBottomNavigationSettings: () -> Unit = {},
+    onNavigateToAppearancePage: (String) -> Unit = {},
     mainViewModel: com.ella.music.viewmodel.MainViewModel? = null
 ) {
     val context = LocalContext.current
@@ -190,21 +191,11 @@ fun SettingsDetailScreen(
                     Column {
                         SettingsAppearanceSection(
                             highlightKey = highlightKey,
-                            onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings
-                        )
-                        SettingsCardGroup(highlight = highlightKey == "lyric_font") {
-                            ArrowPreference(
-                                title = stringResource(R.string.settings_font_settings),
-                                summary = listOf(
-                                    lyricWesternFontName.ifBlank { stringResource(R.string.settings_lyric_font_western_default) },
-                                    lyricCjkFontName.ifBlank { stringResource(R.string.settings_lyric_font_cjk_default) }
-                                ).joinToString(" / "),
-                                onClick = onNavigateToLyricFont
-                            )
-                        }
-                        SettingsHomeCustomizeSection(
-                            highlightKey = highlightKey,
-                            onOpenHomeDisplay = {
+                            page = APPEARANCE_PAGE_HUB,
+                            onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings,
+                            onNavigateToAppearancePage = onNavigateToAppearancePage,
+                            onNavigateToLyricFont = onNavigateToLyricFont,
+                            onNavigateToHomeDisplay = {
                                 showHomeDisplayPage = true
                                 scope.launch { homeDisplayScrollState.scrollTo(0) }
                             }

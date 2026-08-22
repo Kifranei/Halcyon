@@ -187,8 +187,7 @@ internal fun formatTime(ms: Long): String {
 internal fun AudioQualitySummary.playerCompactText(): String {
     return when {
         compactLabel.startsWith(DOLBY_MARK) -> compactLabel
-        compactLabel == "MQ" -> "∞ Master"
-        showMobius -> "∞ $compactLabel"
+        compactLabel == "MQ" -> "Master"
         else -> compactLabel
     }
 }

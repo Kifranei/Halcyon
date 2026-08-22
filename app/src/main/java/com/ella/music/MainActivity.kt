@@ -39,8 +39,6 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.viewModels
 import com.ella.music.data.SettingsManager
@@ -56,6 +54,7 @@ import com.ella.music.ui.player.PlayerPalette
 import com.ella.music.ui.player.loadPaletteCoverBitmap
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.components.ScriptFontPaths
+import com.ella.music.ui.components.applyHalcyonSystemBars
 import com.ella.music.ui.theme.MONET_COVER
 import com.ella.music.ui.theme.THEME_DARK
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
@@ -76,6 +75,7 @@ class MainActivity : ComponentActivity() {
 
     private var mainViewModel: MainViewModel? = null
     private var appliedLanguageTag: String? = null
+    private var appliedSystemBarsMode = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
     private var currentSystemNightMode by mutableIntStateOf(Configuration.UI_MODE_NIGHT_UNDEFINED)
     var latestIntent: Intent? = null
         private set
@@ -143,6 +143,8 @@ class MainActivity : ComponentActivity() {
                 systemBarsReserveSpace = settingsManager.systemBarsReserveSpace.first()
             )
         }
+        appliedSystemBarsMode = startupAppearance.systemBarsMode
+        window.applyHalcyonSystemBars(appliedSystemBarsMode)
         val mainVm = startupMainViewModel
         val playerVm = startupPlayerViewModel
         runBlocking { mainVm.awaitInitialLibraryRestore() }
@@ -232,22 +234,8 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(systemBarsMode, isDark) {
-                val window = (view.context as ComponentActivity).window
-                val controller = WindowCompat.getInsetsController(window, view)
-                WindowCompat.setDecorFitsSystemWindows(window, false)
-                controller.show(WindowInsetsCompat.Type.systemBars())
-                if (systemBarsMode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH) {
-                    controller.systemBarsBehavior =
-                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
-                when (systemBarsMode) {
-                    SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS ->
-                        controller.hide(WindowInsetsCompat.Type.statusBars())
-                    SettingsManager.SYSTEM_BARS_MODE_HIDE_NAVIGATION ->
-                        controller.hide(WindowInsetsCompat.Type.navigationBars())
-                    SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH ->
-                        controller.hide(WindowInsetsCompat.Type.systemBars())
-                }
+                appliedSystemBarsMode = systemBarsMode
+                (view.context as ComponentActivity).window.applyHalcyonSystemBars(systemBarsMode)
             }
 
             LaunchedEffect(Unit) {
@@ -326,9 +314,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) window.applyHalcyonSystemBars(appliedSystemBarsMode)
+    }
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         currentSystemNightMode = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        window.applyHalcyonSystemBars(appliedSystemBarsMode)
     }
 
     private fun checkAndRequestPermissions(): Boolean {

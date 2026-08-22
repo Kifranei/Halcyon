@@ -47,6 +47,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.AppleStylePlayButton
+import com.ella.music.ui.components.AudioQualityListBadge
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.ExplicitSongTitle
 import com.ella.music.ui.components.PlayNextQuickButton
@@ -452,19 +453,7 @@ private fun AlbumTrackRow(
             Spacer(modifier = Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!qualityTag.isNullOrBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(albumDetailQualityColor(qualityTag).copy(alpha = 0.18f))
-                            .padding(horizontal = 4.dp, vertical = 1.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = qualityTag,
-                            fontSize = 9.sp,
-                            color = albumDetailQualityColor(qualityTag)
-                        )
-                    }
+                    AudioQualityListBadge(qualityTag)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(

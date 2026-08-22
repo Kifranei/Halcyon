@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -290,6 +291,7 @@ internal fun LyricStyleSettingsContent(
     onSecondaryTextSize: (Float) -> Unit,
     onBack: () -> Unit,
     showSheetHeader: Boolean = true,
+    applyScrollableContainer: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
@@ -319,8 +321,17 @@ internal fun LyricStyleSettingsContent(
     var previewPrimaryTextSize by remember(primaryTextSizeRange) { mutableStateOf(safePrimaryTextSize) }
     var previewSecondaryFontScale by remember(secondaryFontScaleRange) { mutableStateOf(safeSecondaryFontScale) }
     var previewSecondaryTextSize by remember(secondaryTextSizeRange) { mutableStateOf(safeSecondaryTextSize) }
+    val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.88f).dp
+    val containerModifier = if (applyScrollableContainer) {
+        modifier
+            .heightIn(max = maxSheetHeight)
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+    } else {
+        modifier
+    }
 
-    Column(modifier = modifier) {
+    Column(modifier = containerModifier) {
         if (showSheetHeader) {
             HalfSheetTitle(
                 title = stringResource(R.string.player_lyric_style_settings),
