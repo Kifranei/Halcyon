@@ -6,8 +6,10 @@ import android.net.NetworkCapabilities
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 internal data class LastFmArtistWiki(
@@ -16,7 +18,7 @@ internal data class LastFmArtistWiki(
     val wikiUrl: String
 )
 
-/** Official Last.fm site language switcher, in the order shown on last.fm. */
+/** Wiki language switcher. English, Simplified Chinese and Japanese stay first. */
 internal data class LastFmWikiRegion(
     val code: String,
     val nativeName: String
@@ -24,17 +26,17 @@ internal data class LastFmWikiRegion(
 
 internal val LAST_FM_WIKI_REGIONS: List<LastFmWikiRegion> = listOf(
     LastFmWikiRegion("en", "English"),
+    LastFmWikiRegion("zh", "简体中文"),
+    LastFmWikiRegion("ja", "日本語"),
     LastFmWikiRegion("de", "Deutsch"),
     LastFmWikiRegion("es", "Español"),
     LastFmWikiRegion("fr", "Français"),
     LastFmWikiRegion("it", "Italiano"),
-    LastFmWikiRegion("ja", "日本語"),
     LastFmWikiRegion("pl", "Polski"),
     LastFmWikiRegion("pt", "Português"),
     LastFmWikiRegion("ru", "Русский"),
     LastFmWikiRegion("sv", "Svenska"),
-    LastFmWikiRegion("tr", "Türkçe"),
-    LastFmWikiRegion("zh", "简体中文")
+    LastFmWikiRegion("tr", "Türkçe")
 )
 
 internal const val DEFAULT_LAST_FM_WIKI_REGION = "en"
@@ -92,7 +94,11 @@ internal fun lastFmArtistWikiUrl(artistName: String, regionCode: String): String
 internal fun parseLastFmWikiHtml(html: String): String {
     if (html.isBlank()) return ""
     val wikiBlock = wikiHtmlBlock(html) ?: return ""
-    val text = wikiBlock
+    return htmlToPlainWikiText(wikiBlock)
+}
+
+internal fun htmlToPlainWikiText(html: String): String {
+    val text = html
         .replace(Regex("(?i)<br\\s*/?>"), "\n")
         .replace(Regex("(?i)</p>"), "\n\n")
         .replace(Regex("(?i)<p[^>]*>"), "")
@@ -110,6 +116,53 @@ internal fun parseLastFmWikiHtml(html: String): String {
         .replace(Regex("\\n{3,}"), "\n\n")
         .trim()
     return stripLastFmLicenseFooter(text)
+}
+
+internal fun parseLastFmArtistGetInfoJson(
+    raw: String,
+    regionCode: String = DEFAULT_LAST_FM_WIKI_REGION
+): LastFmArtistWiki? {
+    val root = runCatching { JSONObject(raw) }.getOrNull() ?: return null
+    if (root.has("error")) return null
+    val artist = root.optJSONObject("artist") ?: return null
+    val bio = artist.optJSONObject("bio") ?: return null
+    val content = bio.optString("content").ifBlank { bio.optString("summary") }
+    val text = htmlToPlainWikiText(content)
+    if (text.isBlank()) return null
+    val name = artist.optString("name").ifBlank { "unknown" }
+    val artistUrl = artist.optString("url").ifBlank { lastFmArtistPageUrl(name, regionCode) }
+    return LastFmArtistWiki(
+        text = text,
+        artistUrl = artistUrl,
+        wikiUrl = lastFmArtistWikiUrl(name, regionCode)
+    )
+}
+
+internal fun wikipediaLanguage(regionCode: String): String =
+    normalizeLastFmWikiRegion(regionCode)
+
+internal fun parseWikipediaSearchTitle(raw: String): String? {
+    val search = runCatching { JSONObject(raw) }.getOrNull()
+        ?.optJSONObject("query")
+        ?.optJSONArray("search")
+        ?: return null
+    if (search.length() == 0) return null
+    return search.optJSONObject(0)?.optString("title")?.takeIf { it.isNotBlank() }
+}
+
+internal fun parseWikipediaExtract(raw: String): Pair<String, String>? {
+    val pages = runCatching { JSONObject(raw) }.getOrNull()
+        ?.optJSONObject("query")
+        ?.optJSONObject("pages")
+        ?: return null
+    val keys = pages.keys()
+    if (!keys.hasNext()) return null
+    val page = pages.optJSONObject(keys.next()) ?: return null
+    if (page.has("missing")) return null
+    val extract = page.optString("extract").trim()
+    if (extract.isBlank()) return null
+    val title = page.optString("title").takeIf { it.isNotBlank() } ?: return extract to ""
+    return extract to title
 }
 
 internal fun stripLastFmLicenseFooter(text: String): String {
@@ -148,34 +201,153 @@ internal fun isWifiConnected(context: Context): Boolean {
 
 internal suspend fun fetchLastFmArtistWiki(
     artistName: String,
-    locale: Locale
-): LastFmArtistWiki = fetchLastFmArtistWiki(artistName, lastFmLanguagePrefix(locale).ifBlank { "en" })
+    locale: Locale,
+    apiKey: String? = null
+): LastFmArtistWiki = fetchLastFmArtistWiki(
+    artistName,
+    lastFmLanguagePrefix(locale).ifBlank { "en" },
+    apiKey
+)
 
 internal suspend fun fetchLastFmArtistWiki(
     artistName: String,
-    regionCode: String
+    regionCode: String,
+    apiKey: String? = null
 ): LastFmArtistWiki = withContext(Dispatchers.IO) {
     val region = normalizeLastFmWikiRegion(regionCode)
-    val wikiUrl = lastFmArtistWikiUrl(artistName, region)
-    val artistUrl = lastFmArtistPageUrl(artistName, region)
-    val client = OkHttpClient.Builder()
-        .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .build()
-    val request = Request.Builder()
-        .url(wikiUrl)
-        .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) Halcyon/1.2")
-        .header("Accept-Language", lastFmAcceptLanguage(region))
-        .build()
-    val html = client.newCall(request).execute().use { response ->
-        response.body?.string().orEmpty()
+    val client = wikiHttpClient()
+    val errors = mutableListOf<Throwable>()
+
+    // Pano Scrobbler-style: Last.fm 2.0 API on ws.audioscrobbler.com, which is reachable in
+    // mainland China when www.last.fm HTML is not.
+    if (!apiKey.isNullOrBlank()) {
+        runCatching { fetchLastFmArtistWikiFromApi(artistName, region, apiKey, client) }
+            .onSuccess { if (it.text.isNotBlank()) return@withContext it }
+            .onFailure(errors::add)
     }
+
+    runCatching { fetchLastFmArtistWikiFromHtml(artistName, region, client) }
+        .onSuccess { if (it.text.isNotBlank()) return@withContext it }
+        .onFailure(errors::add)
+
+    runCatching { fetchWikipediaArtistWiki(artistName, region, client) }
+        .onSuccess { wiki -> if (wiki != null && wiki.text.isNotBlank()) return@withContext wiki }
+        .onFailure(errors::add)
+
+    if (region != DEFAULT_LAST_FM_WIKI_REGION) {
+        runCatching { fetchWikipediaArtistWiki(artistName, DEFAULT_LAST_FM_WIKI_REGION, client) }
+            .onSuccess { wiki -> if (wiki != null && wiki.text.isNotBlank()) return@withContext wiki }
+            .onFailure(errors::add)
+    }
+
+    if (errors.isNotEmpty()) throw errors.first()
     LastFmArtistWiki(
+        text = "",
+        artistUrl = lastFmArtistPageUrl(artistName, region),
+        wikiUrl = lastFmArtistWikiUrl(artistName, region)
+    )
+}
+
+private fun wikiHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    .connectTimeout(12, TimeUnit.SECONDS)
+    .readTimeout(20, TimeUnit.SECONDS)
+    .followRedirects(true)
+    .build()
+
+private fun fetchLastFmArtistWikiFromApi(
+    artistName: String,
+    region: String,
+    apiKey: String,
+    client: OkHttpClient
+): LastFmArtistWiki {
+    val url = LAST_FM_API_ROOT.toHttpUrl().newBuilder()
+        .addQueryParameter("method", "artist.getinfo")
+        .addQueryParameter("artist", artistName)
+        .addQueryParameter("api_key", apiKey)
+        .addQueryParameter("lang", region)
+        .addQueryParameter("autocorrect", "1")
+        .addQueryParameter("format", "json")
+        .build()
+    val raw = client.executeText(url.toString())
+    return parseLastFmArtistGetInfoJson(raw, region)
+        ?: error("Last.fm artist.getInfo returned no biography")
+}
+
+private fun fetchLastFmArtistWikiFromHtml(
+    artistName: String,
+    region: String,
+    client: OkHttpClient
+): LastFmArtistWiki {
+    // www.last.fm is often blocked in mainland China; fail fast so Wikipedia can take over.
+    val htmlClient = client.newBuilder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .build()
+    val wikiUrl = lastFmArtistWikiUrl(artistName, region)
+    val html = htmlClient.executeText(
+        url = wikiUrl,
+        acceptLanguage = lastFmAcceptLanguage(region)
+    )
+    return LastFmArtistWiki(
         text = parseLastFmWikiHtml(html),
-        artistUrl = artistUrl,
+        artistUrl = lastFmArtistPageUrl(artistName, region),
         wikiUrl = wikiUrl
     )
+}
+
+private fun fetchWikipediaArtistWiki(
+    artistName: String,
+    regionCode: String,
+    client: OkHttpClient
+): LastFmArtistWiki? {
+    val language = wikipediaLanguage(regionCode)
+    val apiRoot = "https://$language.wikipedia.org/w/api.php"
+    val searchUrl = apiRoot.toHttpUrl().newBuilder()
+        .addQueryParameter("action", "query")
+        .addQueryParameter("list", "search")
+        .addQueryParameter("srsearch", artistName)
+        .addQueryParameter("srlimit", "1")
+        .addQueryParameter("format", "json")
+        .addQueryParameter("utf8", "1")
+        .build()
+        .toString()
+    val title = parseWikipediaSearchTitle(client.executeText(searchUrl)) ?: artistName
+    val extractUrl = apiRoot.toHttpUrl().newBuilder()
+        .addQueryParameter("action", "query")
+        .addQueryParameter("prop", "extracts")
+        .addQueryParameter("exlimit", "1")
+        .addQueryParameter("explaintext", "1")
+        .addQueryParameter("redirects", "1")
+        .addQueryParameter("titles", title)
+        .addQueryParameter("format", "json")
+        .addQueryParameter("utf8", "1")
+        .build()
+        .toString()
+    val (extract, pageTitle) = parseWikipediaExtract(client.executeText(extractUrl)) ?: return null
+    val page = pageTitle.ifBlank { title }
+    val pageUrl = "https://$language.wikipedia.org/wiki/${page.replace(" ", "_")}"
+    return LastFmArtistWiki(
+        text = extract,
+        artistUrl = pageUrl,
+        wikiUrl = pageUrl
+    )
+}
+
+private fun OkHttpClient.executeText(
+    url: String,
+    acceptLanguage: String? = null
+): String {
+    val request = Request.Builder()
+        .url(url)
+        .header("User-Agent", HALCYON_WIKI_USER_AGENT)
+        .apply {
+            if (!acceptLanguage.isNullOrBlank()) header("Accept-Language", acceptLanguage)
+        }
+        .build()
+    return newCall(request).execute().use { response ->
+        if (!response.isSuccessful) error("HTTP ${response.code} for $url")
+        response.body?.string().orEmpty()
+    }
 }
 
 internal fun lastFmAcceptLanguage(regionCode: String): String = when (normalizeLastFmWikiRegion(regionCode)) {
@@ -193,6 +365,10 @@ internal fun lastFmAcceptLanguage(regionCode: String): String = when (normalizeL
     "zh" -> "zh-CN,zh;q=0.9"
     else -> "en-US,en;q=0.9"
 }
+
+private const val LAST_FM_API_ROOT = "https://ws.audioscrobbler.com/2.0/"
+private const val HALCYON_WIKI_USER_AGENT =
+    "Halcyon/1.2 (https://github.com/Kifranei/Halcyon; artist biographies)"
 
 private fun wikiHtmlBlock(html: String): String? {
     val patterns = listOf(

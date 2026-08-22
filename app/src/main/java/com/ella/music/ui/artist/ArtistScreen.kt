@@ -516,6 +516,10 @@ fun ArtistScreen(
 
     LaunchedEffect(selectedArtistTab) {
         if (selection.selectionMode) selection.finishSelectionMode()
+        if (selectedArtistTab == ArtistTab.Biography) {
+            searchExpanded = false
+            searchQuery = ""
+        }
     }
     LaunchedEffect(selection.selectionMode, currentSelectionIds) {
         if (!selection.selectionMode) return@LaunchedEffect
@@ -984,7 +988,7 @@ fun ArtistScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                } else {
+                } else if (selectedArtistTab != ArtistTab.Biography) {
                     IconButton(onClick = {
                         selection.selectionMode = true
                         selection.selectedIds = emptySet()

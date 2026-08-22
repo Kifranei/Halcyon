@@ -530,9 +530,13 @@ internal fun CoverPlayerPage(
                         modifier = Modifier.size(26.dp)
                     )
                 }
-                PlayerTransportIconButton(onClick = onSongInfo) {
-                    QuickActionIcon(
-                        kind = PlayerQuickActionKind.Info,
+                PlayerTransportIconButton(onClick = {
+                    revealAppleMusicChrome()
+                    onCyclePlaybackMode()
+                }) {
+                    PlaybackModeIcon(
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
                         color = pagePalette.onBackground.copy(alpha = 0.90f),
                         modifier = Modifier.size(26.dp)
                     )

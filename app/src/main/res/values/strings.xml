@@ -1466,7 +1466,7 @@
     <string name="settings_status_bar_phonetic_secondary_summary">开启后将注音或翻译副行作为状态栏歌词的第二行传递。</string>
     <string name="settings_heads_up_lyric_secondary">浮动通知歌词副行内容</string>
     <string name="settings_enable_coloros_lock_screen_lyric">ColorOS 锁屏岛歌词</string>
-    <string name="settings_enable_coloros_lock_screen_lyric_summary">通过 MediaMetadata[&quot;lyricInfo&quot;] 向 ColorOS 锁屏岛传递整首 LRC 歌词；选择“模块 rawLyric”后会额外传递逐字时间轴和翻译按钮，部分系统版本可能仍受白名单限制。</string>
+    <string name="settings_enable_coloros_lock_screen_lyric_summary">同时走 MediaMetadata[&quot;lyricInfo&quot;] 和 ColorOS Live Lyrics Bridge 的 v4 Provider 广播（lyricprovider/halcyon）向锁屏岛传整首 LRC；模块模式额外传逐字时间轴和翻译按钮。ColorOS 16.9 起系统会收紧 lyricInfo，需安装已放行 Halcyon 的 Bridge。</string>
     <string name="settings_coloros_lock_screen_lyric_mode">歌词传递模式</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">系统 lyricInfo</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">模块 rawLyric</string>

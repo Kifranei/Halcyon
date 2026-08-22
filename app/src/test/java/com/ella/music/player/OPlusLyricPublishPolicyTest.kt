@@ -68,4 +68,65 @@ class OPlusLyricPublishPolicyTest {
             )
         )
     }
+
+    @Test
+    fun forceWritesWhenLyricInfoAlreadyMatches() {
+        val json = """{"lyric":"[00:01.00]Hi"}"""
+        val raw = "[00:01.000]Hi"
+        assertEquals(
+            OPlusLyricPublishAction.Write,
+            OPlusLyricPublishPolicy.actionFor(
+                currentLyricInfo = json,
+                currentRawLyric = raw,
+                targetLyricInfo = json,
+                targetRawLyric = raw,
+                force = true
+            )
+        )
+    }
+
+    @Test
+    fun firstPublishUsesCachedJsonWhenOverlayBelongsToPreviousSong() {
+        assertEquals(
+            "cached",
+            OPlusLyricPublishPolicy.presentationJson(
+                songKey = "song-b",
+                overlaySongKey = "song-a",
+                overlayJson = "previous",
+                cachedJson = "cached"
+            )
+        )
+    }
+
+    @Test
+    fun firstPublishPrefersMatchingOverlayOverCache() {
+        assertEquals(
+            "overlay",
+            OPlusLyricPublishPolicy.presentationJson(
+                songKey = "song-a",
+                overlaySongKey = "song-a",
+                overlayJson = "overlay",
+                cachedJson = "cached"
+            )
+        )
+    }
+
+    @Test
+    fun firstPublishSkipsBlankCacheAndMismatchedOverlay() {
+        assertEquals(
+            null,
+            OPlusLyricPublishPolicy.presentationJson(
+                songKey = "song-b",
+                overlaySongKey = "song-a",
+                overlayJson = "previous",
+                cachedJson = "  "
+            )
+        )
+    }
+
+    @Test
+    fun keepsSongIdentityMetadataWhileColorOsLyricsAreEnabled() {
+        assertEquals(true, OPlusLyricPublishPolicy.shouldKeepSongIdentityMetadata(true))
+        assertEquals(false, OPlusLyricPublishPolicy.shouldKeepSongIdentityMetadata(false))
+    }
 }

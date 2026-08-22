@@ -36,7 +36,10 @@ import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import com.ella.music.dsp.TenBandEqualizer
 import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import com.ella.music.oem.HonorHdAudioSupport
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,6 +51,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import android.os.Bundle
 
 @OptIn(UnstableApi::class)
@@ -163,10 +167,17 @@ class PlaybackService : MediaLibraryService() {
             musicRepository,
             serviceScope,
             playerProvider = { mediaSession?.player },
-            onLyricInfoChanged = { song, lyricInfoJson ->
-                sessionPresentationPlayer?.setOplusLyric(song?.playbackStackKey(), lyricInfoJson)
-                updateMediaButtonPreferences()
-            }
+            onLyricInfoChanged = { song, lyricInfoJson, forceRepublish ->
+                sessionPresentationPlayer?.setOplusLyric(
+                    songKey = song?.playbackStackKey(),
+                    lyricInfoJson = lyricInfoJson,
+                    forceRepublish = forceRepublish
+                )
+                if (!forceRepublish) {
+                    updateMediaButtonPreferences()
+                }
+            },
+            externalLyricSender = OPlusExternalLyricSender(this)
         )
         var webDavConfig = currentWebDavConfig(settingsManager)
         appShuffleEnabled = loadAppShuffleEnabled()
@@ -231,6 +242,9 @@ class PlaybackService : MediaLibraryService() {
             settingsManager.colorOsLockScreenLyricEnabled.collect { enabled ->
                 colorOsLockScreenLyricEnabled = enabled
                 oplusLyricHandler.colorOsLockScreenLyricEnabled = enabled
+                sessionPresentationPlayer?.setKeepSongIdentityMetadata(
+                    OPlusLyricPublishPolicy.shouldKeepSongIdentityMetadata(enabled)
+                )
                 if (enabled) {
                     oplusLyricHandler.refreshCurrentOplusLyricInfo()
                 } else {
@@ -518,11 +532,15 @@ class PlaybackService : MediaLibraryService() {
         )
 
         val presentationPlayer = SessionPresentationPlayer(
-            RepeatOneLockingPlayer(
+            player = RepeatOneLockingPlayer(
                 player = player,
                 previousButtonActionProvider = { previousButtonAction },
                 onExternalPlaybackChanged = ::scheduleExternalPlaybackRefresh
-            )
+            ),
+            cachedOplusLyricProvider = { songKey -> oplusLyricHandler.peekLyricInfoJson(songKey) }
+        )
+        presentationPlayer.setKeepSongIdentityMetadata(
+            OPlusLyricPublishPolicy.shouldKeepSongIdentityMetadata(colorOsLockScreenLyricEnabled)
         )
         sessionPresentationPlayer = presentationPlayer
         mediaSession = MediaLibrarySession.Builder(
@@ -772,6 +790,43 @@ class PlaybackService : MediaLibraryService() {
 
             else -> false
         }
+    }
+
+    internal fun prepareOplusLyricForSetMediaItems(
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+        startPositionMs: Long
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+        val job = serviceScope.launch {
+            try {
+                withTimeoutOrNull(OPlusLyricPublishPolicy.INITIAL_PREPARE_TIMEOUT_MS) {
+                    oplusLyricHandler.prepareInitialOplusLyricInfo(mediaItems, startIndex)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                Log.w(TAG, "Failed to attach OPlus lyricInfo before initial publish", error)
+            }
+            if (!result.isDone) {
+                result.set(
+                    MediaSession.MediaItemsWithStartPosition(
+                        mediaItems,
+                        startIndex,
+                        startPositionMs
+                    )
+                )
+            }
+        }
+        job.invokeOnCompletion { cause ->
+            if (cause == null || result.isDone) return@invokeOnCompletion
+            if (cause is CancellationException) {
+                result.cancel(false)
+            } else {
+                result.setException(cause)
+            }
+        }
+        return result
     }
 
     internal fun updateNotificationLyricPresentation(args: Bundle): Boolean {

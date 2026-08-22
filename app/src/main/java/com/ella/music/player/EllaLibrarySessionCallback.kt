@@ -54,6 +54,16 @@ internal class EllaLibrarySessionCallback(
         return Futures.immediateFuture(result)
     }
 
+    override fun onSetMediaItems(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+        startPositionMs: Long
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        return service.prepareOplusLyricForSetMediaItems(mediaItems, startIndex, startPositionMs)
+    }
+
     override fun onGetLibraryRoot(
         session: MediaLibrarySession,
         browser: MediaSession.ControllerInfo,

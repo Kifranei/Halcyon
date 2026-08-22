@@ -3,6 +3,9 @@
 From `1.2.5` to the current unreleased `1.2.6` tree.
 
 中文更新日志
+- 按最新 ColorOS Live Lyrics Bridge 协议补回锁屏岛歌词：首曲首次发布前预埋 `lyricInfo`、800ms 兼容补交真正重发、开启锁屏歌词时 TITLE/ARTIST 保持歌曲身份；并新增应用内 v4 Provider 广播（`lyricprovider/halcyon`）作为 ColorOS 16.9 收紧后的第二通道（`#444`）。
+- 修复约 392–393dp 宽屏上艺术家页 Tab 被挤扁（`#503`）；传记 Tab 隐藏多选/搜索/排序，地区列表将 English / 简体中文 / 日本語 置顶，并改用 Last.fm API + Wikipedia 以便国内无 VPN 加载（`#504`）。
+- Apple Music 播放页底部中间按钮由歌曲信息改为播放模式。
 - 艺术家页在「发行专辑」和「MV」之间新增 Last.fm 传记 Tab（`#496`），可按官方站点切换 English / Deutsch / Español / Français / Italiano / 日本語 / Polski / Português / Русский / Svenska / Türkçe / 简体中文。
 - 文件夹层次详情页加入面包屑导航（`#497`）；非当前层改为灰色，点击父目录会进入该层但保留更深的路径，可再点回去（`#500`）。
 - 搜索栏移到底栏：左侧为进入搜索前的 Tab 图标，右侧为加长搜索框；新增「再次进入搜索」设置（清空 / 保留 / 全选上次内容）。
@@ -16,6 +19,9 @@ From `1.2.5` to the current unreleased `1.2.6` tree.
 - 杜比（AC-3 / E-AC-3 / AC-4）音源播放页只保留双 D 杜比标识，不再叠加 Hi-Res 的 ∞。
 
 English Changelog
+- Restored ColorOS Live Lyrics Bridge alignment: pre-seed `lyricInfo` before the first MediaItem publish, make the 800ms compat republish actually emit, and keep TITLE/ARTIST as song identity while lock-screen lyrics are on. Also send in-app v4 Provider broadcasts (`lyricprovider/halcyon`) as a second channel after ColorOS 16.9 tightened lyricInfo (`#444`).
+- Stop artist tabs from being crushed on ~392–393dp widths (`#503`). Hide multi-select/search/sort on the biography tab, pin English / 简体中文 / 日本語 in the region list, and load bios via the Last.fm API plus Wikipedia without a VPN (`#504`).
+- Apple Music player footer center button is now playback mode instead of song info.
 - Artist pages gain a Last.fm biography tab between release albums and music videos (`#496`), with the official Last.fm language switcher (English, Deutsch, Español, Français, Italiano, 日本語, Polski, Português, Русский, Svenska, Türkçe, 简体中文).
 - Folder-hierarchy details now show breadcrumbs (`#497`). Ancestors are gray; tapping a parent opens that folder while keeping the deeper trail so you can jump back (`#500`).
 - Search moves into the bottom dock: the previous tab icon on the left and a long search field on the right. A setting controls reopen behavior (clear / keep / select the last query).

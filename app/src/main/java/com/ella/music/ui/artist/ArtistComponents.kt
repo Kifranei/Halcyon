@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +52,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
 import com.ella.music.data.lastfm.LAST_FM_WIKI_REGIONS
 import com.ella.music.data.lastfm.LastFmArtistWiki
+import com.ella.music.data.lastfm.LastFmSecureStore
 import com.ella.music.data.lastfm.artistBioDownloadAllowed
 import com.ella.music.data.lastfm.fetchLastFmArtistWiki
 import com.ella.music.data.lastfm.isWifiConnected
@@ -142,6 +146,7 @@ internal fun ArtistBiographyPanel(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val lastFmApiKey by LastFmSecureStore.getInstance(context).credentials.collectAsState()
     val regionCode by settingsManager.artistBioLastFmLang.collectAsState(initial = DEFAULT_LAST_FM_WIKI_REGION)
     val selectedRegion = normalizeLastFmWikiRegion(regionCode)
     val selectedIndex = LAST_FM_WIKI_REGIONS.indexOfFirst { it.code == selectedRegion }
@@ -152,7 +157,7 @@ internal fun ArtistBiographyPanel(
     var wiki by remember(artistName, selectedRegion) { mutableStateOf<LastFmArtistWiki?>(null) }
     var loading by remember(artistName, selectedRegion) { mutableStateOf(allowed) }
     var failed by remember(artistName, selectedRegion) { mutableStateOf(false) }
-    LaunchedEffect(artistName, allowed, selectedRegion) {
+    LaunchedEffect(artistName, allowed, selectedRegion, lastFmApiKey.apiKey) {
         if (!allowed) {
             loading = false
             failed = false
@@ -161,7 +166,13 @@ internal fun ArtistBiographyPanel(
         }
         loading = true
         failed = false
-        wiki = runCatching { fetchLastFmArtistWiki(artistName, selectedRegion) }
+        wiki = runCatching {
+            fetchLastFmArtistWiki(
+                artistName = artistName,
+                regionCode = selectedRegion,
+                apiKey = lastFmApiKey.apiKey
+            )
+        }
             .onFailure { failed = true }
             .getOrNull()
         loading = false
@@ -234,8 +245,10 @@ internal fun ArtistTabRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEach { tab ->
             val selected = tab == selectedTab
@@ -244,14 +257,17 @@ internal fun ArtistTabRow(
                 fontSize = 14.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
                 modifier = Modifier
+                    .wrapContentWidth()
                     .clip(RoundedCornerShape(999.dp))
                     .background(
                         if (selected) MiuixTheme.colorScheme.primary
                         else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
                     )
                     .clickable { onTabSelected(tab) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
             )
         }
     }

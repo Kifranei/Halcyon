@@ -1194,7 +1194,7 @@
     <string name="settings_status_bar_phonetic_secondary_summary">Send the pronunciation or translation secondary line as the second line of the status bar lyric.</string>
     <string name="settings_heads_up_lyric_secondary">Heads-up lyric secondary line</string>
     <string name="settings_enable_coloros_lock_screen_lyric">ColorOS Lock Screen Island lyrics</string>
-    <string name="settings_enable_coloros_lock_screen_lyric_summary">Send full LRC lyrics to ColorOS Lock Screen Island through MediaMetadata[&quot;lyricInfo&quot;]; module rawLyric mode additionally sends word timing and exposes a translation button. Some system builds may still restrict supported apps.</string>
+    <string name="settings_enable_coloros_lock_screen_lyric_summary">Sends full LRC both as MediaMetadata[&quot;lyricInfo&quot;] and as a ColorOS Live Lyrics Bridge v4 Provider broadcast (lyricprovider/halcyon). Module mode also sends word timing and a translation button. ColorOS 16.9+ may drop lyricInfo, so a Bridge build that admits Halcyon is required.</string>
     <string name="settings_coloros_lock_screen_lyric_mode">Lyric delivery mode</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">System lyricInfo</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">Module rawLyric</string>

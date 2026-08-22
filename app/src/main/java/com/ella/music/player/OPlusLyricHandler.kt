@@ -3,18 +3,22 @@ package com.ella.music.player
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.shiftedBy
 import com.ella.music.data.repository.MusicRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Loads OPlus lyric payloads and publishes them through the session presentation layer. */
 internal class OPlusLyricHandler(
@@ -22,10 +26,12 @@ internal class OPlusLyricHandler(
     private val musicRepository: MusicRepository,
     private val serviceScope: CoroutineScope,
     private val playerProvider: () -> Player?,
-    private val onLyricInfoChanged: (Song?, String?) -> Unit
+    private val onLyricInfoChanged: (Song?, String?, Boolean) -> Unit,
+    private val externalLyricSender: OPlusExternalLyricSender? = null
 ) {
     companion object {
         private const val TAG = "PlaybackService"
+        private const val TIMING_TAG = "EllaPlaybackTiming"
         const val OPLUS_LYRIC_INFO_KEY = "lyricInfo"
         const val OPLUS_RAW_LYRIC_KEY = OPlusLyricPayload.RAW_LYRIC_INFO_KEY
     }
@@ -46,6 +52,49 @@ internal class OPlusLyricHandler(
     @Volatile
     var colorOsLockScreenLyricMode = SettingsManager.OPLUS_LYRIC_MODE_SYSTEM
 
+    /**
+     * Seeds the presentation overlay (and cache) for the first MediaItem before MediaSession
+     * publishes it. Does not mutate the playback-queue items.
+     */
+    suspend fun prepareInitialOplusLyricInfo(
+        mediaItems: List<MediaItem>,
+        startIndex: Int
+    ) {
+        if (!colorOsLockScreenLyricEnabled || startIndex !in mediaItems.indices) return
+        val item = mediaItems[startIndex]
+        val song = item.toSongFromMediaItemExtras() ?: return
+        val deliveryMode = colorOsLockScreenLyricMode
+        val songKey = song.oplusLyricCacheKey(deliveryMode)
+        val lyricInfoJson = if (lyricInfoCache.containsKey(songKey)) {
+            lyricInfoCache[songKey]
+        } else {
+            try {
+                withContext(Dispatchers.IO) {
+                    loadOplusLyricInfoJson(song, deliveryMode)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                Log.w(TAG, "Failed to prepare initial OPlus lyricInfo for ${song.title}", error)
+                null
+            }.also { lyricInfoCache[songKey] = it }
+        }
+
+        currentSongKey = songKey
+        currentLyricInfoJson = lyricInfoJson
+        publishLyricInfo(song, lyricInfoJson)
+        if (!lyricInfoJson.isNullOrBlank()) {
+            Log.d(TIMING_TAG, "OPlus lyricInfo attached before initial publish mediaId=${song.id}")
+            scheduleOplusLyricInfoReapply(songKey)
+        }
+    }
+
+    fun peekLyricInfoJson(playbackSongKey: String): String? {
+        if (!colorOsLockScreenLyricEnabled || playbackSongKey.isBlank()) return null
+        return lyricInfoCache["${colorOsLockScreenLyricMode}:$playbackSongKey"]
+            ?.takeIf { it.isNotBlank() }
+    }
+
     fun refreshCurrentOplusLyricInfo(player: Player? = playerProvider()) {
         val currentPlayer = player
         val song = currentPlayer?.currentMediaItem?.toSongFromMediaItemExtras()
@@ -56,7 +105,7 @@ internal class OPlusLyricHandler(
         }
         if (currentPlayer == null || song == null) {
             clearLyricInfoState()
-            onLyricInfoChanged(null, null)
+            publishLyricInfo(null, null)
             return
         }
 
@@ -66,11 +115,12 @@ internal class OPlusLyricHandler(
             prefetchAdjacentOplusLyricInfo(currentPlayer)
             return
         }
+        externalLyricSender?.notifyTrackChanged(song)
 
         if (lyricInfoCache.containsKey(songKey)) {
             currentSongKey = songKey
             currentLyricInfoJson = lyricInfoCache[songKey]
-            onLyricInfoChanged(song, currentLyricInfoJson)
+            publishLyricInfo(song, currentLyricInfoJson)
             scheduleOplusLyricInfoReapply(songKey)
             prefetchAdjacentOplusLyricInfo(currentPlayer)
             return
@@ -96,7 +146,7 @@ internal class OPlusLyricHandler(
                 currentSongKey = songKey
                 currentLyricInfoJson = lyricInfoJson
                 lyricInfoCache[songKey] = lyricInfoJson
-                onLyricInfoChanged(latestSong, lyricInfoJson)
+                publishLyricInfo(latestSong, lyricInfoJson)
                 scheduleOplusLyricInfoReapply(songKey)
                 prefetchAdjacentOplusLyricInfo(latestPlayer)
             } finally {
@@ -108,7 +158,18 @@ internal class OPlusLyricHandler(
     fun clearCurrentOplusLyricInfo(player: Player? = playerProvider()) {
         val song = player?.currentMediaItem?.toSongFromMediaItemExtras()
         clearLyricInfoState()
-        onLyricInfoChanged(song, null)
+        publishLyricInfo(song, null)
+    }
+
+    private fun publishLyricInfo(
+        song: Song?,
+        lyricInfoJson: String?,
+        forceRepublish: Boolean = false
+    ) {
+        onLyricInfoChanged(song, lyricInfoJson, forceRepublish)
+        if (song != null && !lyricInfoJson.isNullOrBlank()) {
+            externalLyricSender?.publishLyric(song, lyricInfoJson, forceRepublish)
+        }
     }
 
     private fun scheduleOplusLyricInfoReapply(songKey: String) {
@@ -122,7 +183,7 @@ internal class OPlusLyricHandler(
                 val player = playerProvider() ?: return@launch
                 val song = player.currentMediaItem?.toSongFromMediaItemExtras() ?: return@launch
                 if (song.oplusLyricCacheKey(colorOsLockScreenLyricMode) != songKey) return@launch
-                onLyricInfoChanged(song, currentLyricInfoJson)
+                publishLyricInfo(song, currentLyricInfoJson, forceRepublish = true)
             }
         }
     }
@@ -134,6 +195,7 @@ internal class OPlusLyricHandler(
         pendingSongKey = null
         currentSongKey = null
         currentLyricInfoJson = null
+        externalLyricSender?.clear()
     }
 
     private fun cancelPrefetchJobs() {

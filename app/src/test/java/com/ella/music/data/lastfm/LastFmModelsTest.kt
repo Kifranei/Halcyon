@@ -62,7 +62,7 @@ class LastFmModelsTest {
     @Test
     fun officialWikiRegionsMatchLastFmLanguageSwitcher() {
         assertEquals(
-            listOf("en", "de", "es", "fr", "it", "ja", "pl", "pt", "ru", "sv", "tr", "zh"),
+            listOf("en", "zh", "ja", "de", "es", "fr", "it", "pl", "pt", "ru", "sv", "tr"),
             LAST_FM_WIKI_REGIONS.map { it.code }
         )
         assertEquals("", lastFmWikiHostPrefix("en"))
@@ -78,5 +78,22 @@ class LastFmModelsTest {
             "https://www.last.fm/music/Taylor+Swift/+wiki",
             lastFmArtistWikiUrl("Taylor Swift", "en")
         )
+    }
+
+    @Test
+    fun htmlToPlainWikiTextStripsLicenseFooter() {
+        assertEquals(
+            "A Japanese duo.",
+            htmlToPlainWikiText(
+                "<p>A Japanese duo.</p>User-contributed text is available under the Creative Commons By-SA License; additional terms may apply."
+            )
+        )
+    }
+
+    @Test
+    fun wikipediaLanguageFollowsTheSelectedWikiRegion() {
+        assertEquals("zh", wikipediaLanguage("zh"))
+        assertEquals("ja", wikipediaLanguage("ja"))
+        assertEquals("en", wikipediaLanguage("en"))
     }
 }

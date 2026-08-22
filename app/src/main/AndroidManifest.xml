@@ -40,6 +40,7 @@
         <package android:name="com.miui.audioeffect" />
         <package android:name="com.xiaomi.misound" />
         <package android:name="com.android.settings" />
+        <package android:name="com.android.systemui" />
         <package android:name="com.coloros.audioeffect" />
         <package android:name="com.oppo.audioeffect" />
         <package android:name="com.vivo.audiofx" />
