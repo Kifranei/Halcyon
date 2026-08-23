@@ -29,7 +29,8 @@ fun AppearanceSubpageScreen(
     page: String,
     onBack: () -> Unit,
     highlightKey: String? = null,
-    onNavigateToBottomNavigationSettings: () -> Unit = {}
+    onNavigateToBottomNavigationSettings: () -> Unit = {},
+    onNavigateToAppearancePage: (String) -> Unit = {}
 ) {
     val pageBackground = ellaPageBackground()
     val title = when (page) {
@@ -37,6 +38,8 @@ fun AppearanceSubpageScreen(
         APPEARANCE_PAGE_WALLPAPER -> stringResource(R.string.settings_appearance_wallpaper_page)
         APPEARANCE_PAGE_PLAYER -> stringResource(R.string.settings_appearance_player_page)
         APPEARANCE_PAGE_LIST -> stringResource(R.string.settings_appearance_list_page)
+        APPEARANCE_PAGE_PLAYER_ACTION_MENU -> stringResource(R.string.settings_player_action_menu)
+        APPEARANCE_PAGE_LIST_ACTION_MENU -> stringResource(R.string.settings_list_action_menu)
         else -> stringResource(R.string.settings_appearance_theme_page)
     }
     Column(
@@ -69,7 +72,9 @@ fun AppearanceSubpageScreen(
             SettingsAppearanceSection(
                 highlightKey = highlightKey,
                 page = page,
-                onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings
+                onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings,
+                onNavigateToAppearancePage = onNavigateToAppearancePage,
+                onNavigateBack = onBack
             )
             Spacer(modifier = Modifier.height(160.dp))
         }

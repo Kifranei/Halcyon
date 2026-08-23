@@ -25,7 +25,7 @@ import java.io.File
 import kotlin.coroutines.resume
 
 class MusicScanner(private val context: Context) {
-    private val audioTagReader = LyricoAudioTagReaderWriter()
+    private val audioTagReader = LyricoAudioTagReaderWriter(context)
 
     companion object {
         private const val TAG = "MusicScanner"

@@ -51,10 +51,12 @@ import com.ella.music.data.ArtistCoverKind
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
 import com.ella.music.data.lastfm.LAST_FM_WIKI_REGIONS
+import com.ella.music.data.lastfm.ArtistWikiSource
 import com.ella.music.data.lastfm.LastFmArtistWiki
 import com.ella.music.data.lastfm.LastFmSecureStore
 import com.ella.music.data.lastfm.artistBioDownloadAllowed
 import com.ella.music.data.lastfm.fetchLastFmArtistWiki
+import com.ella.music.data.lastfm.isVpnActive
 import com.ella.music.data.lastfm.isWifiConnected
 import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.data.model.Album
@@ -170,7 +172,8 @@ internal fun ArtistBiographyPanel(
             fetchLastFmArtistWiki(
                 artistName = artistName,
                 regionCode = selectedRegion,
-                apiKey = lastFmApiKey.apiKey
+                apiKey = lastFmApiKey.apiKey,
+                vpnActive = isVpnActive(context)
             )
         }
             .onFailure { failed = true }
@@ -223,7 +226,14 @@ internal fun ArtistBiographyPanel(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = stringResource(R.string.artist_biography_read_more),
+                    text = stringResource(
+                        when (wiki?.source) {
+                            ArtistWikiSource.Netease -> R.string.artist_biography_read_more_netease
+                            ArtistWikiSource.WikipediaSelected,
+                            ArtistWikiSource.WikipediaEnglish -> R.string.artist_biography_read_more_wikipedia
+                            else -> R.string.artist_biography_read_more
+                        }
+                    ),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = MiuixTheme.colorScheme.primary,

@@ -2,6 +2,7 @@ package com.ella.music.ui.player
 
 import android.os.SystemClock
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -46,6 +47,7 @@ internal fun PlayerDismissMotionHost(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     backEnabled: Boolean = true,
+    predictiveBackEnabled: Boolean = false,
     overlayContent: @Composable () -> Unit = {},
     content: @Composable (dismissingPlayer: Boolean) -> Unit
 ) {
@@ -160,7 +162,9 @@ internal fun PlayerDismissMotionHost(
         )
     }
 
-    PredictiveBackHandler(enabled = backEnabled) { progress ->
+    if (!predictiveBackEnabled) {
+        BackHandler(enabled = backEnabled) { dismissWithMotion() }
+    } else PredictiveBackHandler(enabled = backEnabled) { progress ->
         val gestureGeneration = ++predictiveGestureGeneration
         try {
             dragDismissOffset.stop()

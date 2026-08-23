@@ -525,8 +525,8 @@ fun AlbumScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && randomAlbumSongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setPlaylist(
-                                        randomAlbumSongs.shuffled(),
+                                    playerViewModel.setShuffledPlaylist(
+                                        randomAlbumSongs,
                                         0,
                                         songSources = visibleAlbumSongSources()
                                     )
@@ -680,7 +680,7 @@ fun AlbumScreen(
         EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
-            title = album.name,
+            title = stringResource(R.string.player_more_actions),
             onDismissRequest = { albumMenuTarget = null }
         ) {
             Column(

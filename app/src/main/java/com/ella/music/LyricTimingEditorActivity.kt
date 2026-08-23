@@ -9,8 +9,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.core.view.WindowCompat
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.model.Song
 import com.ella.music.ui.components.LyricTimingEditorLauncher
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.theme.MONET_COVER
@@ -26,7 +28,9 @@ class LyricTimingEditorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val song = LyricTimingEditorLauncher.songFrom(intent)
+        val sourceIntent = intent
+        val preferEmbeddedLyrics = LyricTimingEditorLauncher.isExternalLaunch(intent)
+        val song = LyricTimingEditorLauncher.songFrom(this, intent)
         if (song == null) {
             finish()
             return
@@ -46,8 +50,23 @@ class LyricTimingEditorActivity : ComponentActivity() {
                 monetMode = if (monetMode == MONET_COVER) 0 else monetMode,
                 systemDarkOverride = systemDark
             ) {
+                val lyricsReadSong by produceState<Song?>(
+                    initialValue = if (preferEmbeddedLyrics) null else song,
+                    song.path,
+                    preferEmbeddedLyrics
+                ) {
+                    value = runCatching {
+                        LyricTimingEditorLauncher.lyricsReadSongFromExternal(
+                            this@LyricTimingEditorActivity,
+                            sourceIntent,
+                            song
+                        )
+                    }.getOrDefault(song)
+                }
                 LyricTimingEditorScreen(
                     song = song,
+                    lyricsReadSong = lyricsReadSong,
+                    preferEmbeddedLyrics = preferEmbeddedLyrics,
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,
                     onBack = ::finish

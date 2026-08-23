@@ -30,6 +30,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_OUTPUT_SAMPLE_RAT
 import com.ella.music.data.SettingsManager.Companion.KEY_BLUETOOTH_AUTO_PLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_DURATION_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_CURVE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAY_COUNT_THRESHOLD_DURATION_MS
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAY_COUNT_THRESHOLD_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_DECODER_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_GAPLESS
 import com.ella.music.data.SettingsManager.Companion.KEY_KARAOKE_ACCOMPANIMENT
@@ -64,6 +66,8 @@ interface PlaybackSettingsAccess {
     val karaokeAccompanimentEnabled: Flow<Boolean>
     val crossfadeDurationMs: Flow<Int>
     val crossfadeCurve: Flow<Int>
+    val playCountThresholdPercent: Flow<Int>
+    val playCountThresholdDurationMs: Flow<Int>
     val replayGainEnabled: Flow<Boolean>
     val replayGainMode: Flow<Int>
     val resumePlaybackPosition: Flow<Boolean>
@@ -86,6 +90,8 @@ interface PlaybackSettingsAccess {
     suspend fun setKaraokeAccompanimentEnabled(enabled: Boolean)
     suspend fun setCrossfadeDurationMs(durationMs: Int)
     suspend fun setCrossfadeCurve(curve: Int)
+    suspend fun setPlayCountThresholdPercent(percent: Int)
+    suspend fun setPlayCountThresholdDurationMs(durationMs: Int)
     suspend fun setReplayGainEnabled(enabled: Boolean)
     suspend fun setReplayGainMode(mode: Int)
     suspend fun setResumePlaybackPosition(enabled: Boolean)
@@ -117,6 +123,20 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
             SettingsManager.CROSSFADE_CURVE_EQUAL_POWER,
             SettingsManager.CROSSFADE_CURVE_FLAT
         )
+    }
+    override val playCountThresholdPercent: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_PLAY_COUNT_THRESHOLD_PERCENT] ?: SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_PERCENT)
+            .coerceIn(
+                SettingsManager.MIN_PLAY_COUNT_THRESHOLD_PERCENT,
+                SettingsManager.MAX_PLAY_COUNT_THRESHOLD_PERCENT
+            )
+    }
+    override val playCountThresholdDurationMs: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_PLAY_COUNT_THRESHOLD_DURATION_MS] ?: SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_DURATION_MS)
+            .coerceIn(
+                SettingsManager.MIN_PLAY_COUNT_THRESHOLD_DURATION_MS,
+                SettingsManager.MAX_PLAY_COUNT_THRESHOLD_DURATION_MS
+            )
     }
 
     override val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_REPLAYGAIN_ENABLED] ?: false }
@@ -186,6 +206,24 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
             it[KEY_CROSSFADE_CURVE] = curve.coerceIn(
                 SettingsManager.CROSSFADE_CURVE_EQUAL_POWER,
                 SettingsManager.CROSSFADE_CURVE_FLAT
+            )
+        }
+    }
+
+    override suspend fun setPlayCountThresholdPercent(percent: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAY_COUNT_THRESHOLD_PERCENT] = percent.coerceIn(
+                SettingsManager.MIN_PLAY_COUNT_THRESHOLD_PERCENT,
+                SettingsManager.MAX_PLAY_COUNT_THRESHOLD_PERCENT
+            )
+        }
+    }
+
+    override suspend fun setPlayCountThresholdDurationMs(durationMs: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAY_COUNT_THRESHOLD_DURATION_MS] = durationMs.coerceIn(
+                SettingsManager.MIN_PLAY_COUNT_THRESHOLD_DURATION_MS,
+                SettingsManager.MAX_PLAY_COUNT_THRESHOLD_DURATION_MS
             )
         }
     }

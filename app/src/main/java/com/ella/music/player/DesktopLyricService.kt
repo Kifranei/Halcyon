@@ -333,7 +333,7 @@ class DesktopLyricService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            if (desktopLyricPassThroughTouches(statusBarMode)) {
+            if (desktopLyricPassThroughTouches(locked, statusBarMode)) {
                 baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             } else {
                 baseFlags
@@ -533,7 +533,7 @@ class DesktopLyricService : Service() {
             params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
             params.setBlurBehindRadius(0)
         }
-        params.flags = if (desktopLyricPassThroughTouches(statusBarMode)) {
+        params.flags = if (desktopLyricPassThroughTouches(lock, statusBarMode)) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
             params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
@@ -970,7 +970,7 @@ class DesktopLyricService : Service() {
             Intent(this, DesktopLyricService::class.java).setAction(ACTION_UNLOCK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
+        val builder = Notification.Builder(this, CHANNEL_ID)
         notificationManager.notify(
             NOTIFICATION_ID,
             builder
@@ -1004,14 +1004,14 @@ class DesktopLyricService : Service() {
         windowManager.maximumWindowMetrics.bounds.width()
     } else {
         @Suppress("DEPRECATION")
-        resources.displayMetrics.widthPixels
+        android.util.DisplayMetrics().also(windowManager.defaultDisplay::getRealMetrics).widthPixels
     }
 
     private fun displayHeightPixels(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         windowManager.maximumWindowMetrics.bounds.height()
     } else {
         @Suppress("DEPRECATION")
-        resources.displayMetrics.heightPixels
+        android.util.DisplayMetrics().also(windowManager.defaultDisplay::getRealMetrics).heightPixels
     }
 
     private fun isTabletDevice(): Boolean = resources.configuration.smallestScreenWidthDp >= 600

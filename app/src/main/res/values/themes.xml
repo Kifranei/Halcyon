@@ -9,6 +9,32 @@
         <item name="android:enforceNavigationBarContrast">false</item>
     </style>
 
+    <style name="Theme.Ella.Casting" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#FF6750A4</item>
+        <item name="colorPrimaryDark">#FF6750A4</item>
+        <item name="colorAccent">#FF6750A4</item>
+        <item name="mediaRouteTheme">@style/Theme.Ella.MediaRouterDialog</item>
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
+
+    <!-- AndroidX MediaRouter requires opaque AppCompat color attributes. -->
+    <style name="Theme.Ella.MediaRouterBridge" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#FF6750A4</item>
+        <item name="colorPrimaryDark">#FF6750A4</item>
+        <item name="colorAccent">#FF6750A4</item>
+        <item name="android:colorBackground">#FFFFFFFF</item>
+    </style>
+
+    <style name="Theme.Ella.MediaRouterDialog" parent="Theme.MediaRouter.Light">
+        <item name="colorPrimary">#FF6750A4</item>
+        <item name="colorAccent">#FF6750A4</item>
+        <item name="android:colorBackground">#FFFFFFFF</item>
+    </style>
+
     <style name="Theme.Ella.ExternalPlayback" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowNoDisplay">false</item>
         <item name="android:windowIsTranslucent">true</item>

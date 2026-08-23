@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -327,7 +328,11 @@ internal fun DottedValueSlider(
     }
 
     BoxWithConstraints(modifier = modifier) {
-        val knobOffset = (maxWidth - 46.dp) * fraction
+        // Reserve enough room for the widest value (for example "100%") and move the
+        // whole label slot. This keeps the bubble centred over the thumb without letting
+        // the text wrap when the thumb reaches either edge.
+        val labelWidth = 96.dp
+        val labelOffset = (maxWidth - labelWidth) * fraction
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -372,19 +377,26 @@ internal fun DottedValueSlider(
             )
         }
         label?.let {
-            Text(
-                text = it,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MiuixTheme.colorScheme.onPrimary,
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = knobOffset)
-                    .padding(top = 2.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(MiuixTheme.colorScheme.primary)
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            )
+                    .offset(x = labelOffset)
+                    .width(labelWidth)
+                    .padding(top = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = it,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MiuixTheme.colorScheme.onPrimary,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MiuixTheme.colorScheme.primary)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
         }
     }
 }

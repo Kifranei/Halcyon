@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -88,7 +89,8 @@ internal fun DonutChartCard(
     total: Int,
     totalSizeBytes: Long,
     palette: List<Color>,
-    onBucketClick: ((AnalysisBucket) -> Unit)? = null
+    onBucketClick: ((AnalysisBucket) -> Unit)? = null,
+    onBucketLongClick: ((AnalysisBucket) -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -130,7 +132,8 @@ internal fun DonutChartCard(
                             bucket = bucket,
                             total = total,
                             color = palette[index % palette.size],
-                            onClick = onBucketClick?.let { callback -> { callback(bucket) } }
+                            onClick = onBucketClick?.let { callback -> { callback(bucket) } },
+                            onLongClick = onBucketLongClick?.let { callback -> { callback(bucket) } }
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -192,14 +195,22 @@ private fun BucketLegendRow(
     bucket: AnalysisBucket,
     total: Int,
     color: Color,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null
 ) {
     val percent = if (total > 0) bucket.count * 100f / total.toFloat() else 0f
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 44.dp)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                if (onClick != null || onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = { onClick?.invoke() },
+                        onLongClick = onLongClick
+                    )
+                } else Modifier
+            )
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

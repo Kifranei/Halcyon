@@ -12,6 +12,7 @@ import android.media.AudioDeviceInfo
 import android.os.Build
 import android.util.Log
 
+@Suppress("DEPRECATION")
 class BluetoothAutoPlayReceiver(
     private val isAutoPlayEnabled: () -> Boolean,
     private val onDeviceConnected: () -> Unit

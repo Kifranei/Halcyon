@@ -137,9 +137,7 @@ private fun ListeningCalendarDayCell(
 internal fun ListeningDayDetailSection(
     day: ListeningDayAggregate?,
     mainViewModel: MainViewModel,
-    playerViewModel: PlayerViewModel,
-    onSongMore: (Song) -> Unit,
-    onRemoveHistoryEntry: (PlaybackHistoryEntry) -> Unit
+    playerViewModel: PlayerViewModel
 ) {
     if (day == null || day.entries.isEmpty()) {
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -196,7 +194,7 @@ internal fun ListeningDayDetailSection(
                             active = false,
                             onClick = {
                                 if (playableSongs.isNotEmpty()) {
-                                    playerViewModel.setPlaylist(playableSongs.shuffled(), 0)
+                                    playerViewModel.setShuffledPlaylist(playableSongs, 0)
                                 }
                             }
                         )
@@ -220,7 +218,7 @@ internal fun ListeningDayDetailSection(
                 text = stringResource(
                     R.string.listening_calendar_total,
                     day.playCount,
-                    formatCalendarTotalDuration(day.totalDurationMs)
+                    formatCalendarTotalListenDuration(day.totalListenedMs)
                 ),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
@@ -232,19 +230,6 @@ internal fun ListeningDayDetailSection(
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(top = 4.dp)
             )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            day.entries.forEachIndexed { index, entry ->
-                ListeningTimelineRow(
-                    entry = entry,
-                    isLast = index == day.entries.lastIndex,
-                    mainViewModel = mainViewModel,
-                    playerViewModel = playerViewModel,
-                    onSongMore = onSongMore,
-                    onRemoveHistoryEntry = onRemoveHistoryEntry
-                )
-            }
         }
     }
 }
@@ -310,13 +295,14 @@ private fun ListeningActionIconButton(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ListeningTimelineRow(
+internal fun ListeningTimelineRow(
     entry: ListeningTimelineEntry,
     isLast: Boolean,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     onSongMore: (Song) -> Unit,
-    onRemoveHistoryEntry: (PlaybackHistoryEntry) -> Unit
+    onRemoveHistoryEntry: (PlaybackHistoryEntry) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val song = entry.song
     val canPlaySong = remember(song) { song?.isPlayableCalendarSong() == true }
@@ -340,7 +326,7 @@ private fun ListeningTimelineRow(
     val axisLineColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.32f)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = if (isLast) 0.dp else 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -467,7 +453,7 @@ private fun ListeningTimelineRow(
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                        text = formatTrackDuration(song?.duration ?: entry.entry.durationMs),
+                            text = formatHistoryListenDuration(entry.entry.listenedMs),
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )

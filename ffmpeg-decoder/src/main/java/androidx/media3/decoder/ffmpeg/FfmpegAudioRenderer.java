@@ -38,6 +38,7 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink;
 
 /** Decodes and renders audio using FFmpeg. */
 @UnstableApi
+@SuppressWarnings("deprecation")
 public final class FfmpegAudioRenderer extends DecoderAudioRenderer<FfmpegAudioDecoder> {
 
   private static final String TAG = "FfmpegAudioRenderer";

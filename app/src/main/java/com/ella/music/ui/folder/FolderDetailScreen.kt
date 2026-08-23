@@ -591,8 +591,8 @@ fun FolderDetailScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setPlaylist(
-                                        sortedSongs.shuffled(),
+                                    playerViewModel.setShuffledPlaylist(
+                                        sortedSongs,
                                         0,
                                         resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
                                     )
@@ -729,7 +729,7 @@ fun FolderDetailScreen(
             }
             val isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) }
             FolderActionSheet(
-                title = folder.name,
+                title = stringResource(R.string.player_more_actions),
                 isPinned = isPinned,
                 onDismiss = { folderMenuTarget = null },
                 onTogglePin = {

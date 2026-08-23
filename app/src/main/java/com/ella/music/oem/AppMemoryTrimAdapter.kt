@@ -11,6 +11,7 @@ import com.ella.music.ui.components.clearArtworkModelMemoryCache
 import com.ella.music.ui.player.clearPlayerPaletteMemoryCache
 
 /** Releases recreatable artwork and metadata caches under Android memory pressure. */
+@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 internal object AppMemoryTrimAdapter : ComponentCallbacks2 {
     private const val TAG = "AppMemoryTrim"
 

@@ -151,11 +151,7 @@ class TickerBridge(private val context: Context) {
             hardCancelStandalonePending = false
             runCatching {
                 ensureNotificationChannel(CHANNEL_ID)
-                val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    Notification.Builder(context, CHANNEL_ID)
-                } else {
-                    Notification.Builder(context)
-                }
+                val builder = Notification.Builder(context, CHANNEL_ID)
                 val disposable = builder
                     .setSmallIcon(R.drawable.ic_flyme_ticker)
                     .setContentTitle("")
@@ -165,7 +161,6 @@ class TickerBridge(private val context: Context) {
                     .setLocalOnly(true)
                     .setOngoing(false)
                     .setAutoCancel(true)
-                    .setPriority(Notification.PRIORITY_MIN)
                     .build()
                 notificationManager.notify(NOTIFICATION_ID, disposable)
                 notificationManager.cancel(NOTIFICATION_ID)

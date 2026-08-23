@@ -242,6 +242,7 @@ val FIXED_EQ_PRESET_BAND_LEVELS_MB: List<List<Int>> =
  * lifetime (independent of any UI). The settings UI communicates only through persisted
  * [AudioEffectSettings] and reads [AudioEffectState] for rendering.
  */
+@Suppress("DEPRECATION")
 class AudioEffectController {
 
     private var bassBoost: BassBoost? = null

@@ -80,6 +80,7 @@ internal fun LyricActionMenu(
     secondaryTextSizeSp: Float,
     perspectiveEffect: Boolean,
     perspectiveYAngle: Int,
+    showPerspectiveToggle: Boolean = true,
     onTogglePronunciation: () -> Unit,
     onToggleTranslation: () -> Unit,
     onToggleKeepScreenOn: () -> Unit,
@@ -179,10 +180,12 @@ internal fun LyricActionMenu(
             text = stringResource(if (keepScreenOn) R.string.player_disable_keep_screen_on else R.string.player_enable_keep_screen_on),
             onClick = onToggleKeepScreenOn
         )
-        PlayerActionMenuItem(
-            text = stringResource(if (perspectiveEffect) R.string.player_disable_perspective_effect else R.string.player_enable_perspective_effect),
-            onClick = onTogglePerspectiveEffect
-        )
+        if (showPerspectiveToggle) {
+            PlayerActionMenuItem(
+                text = stringResource(if (perspectiveEffect) R.string.player_disable_perspective_effect else R.string.player_enable_perspective_effect),
+                onClick = onTogglePerspectiveEffect
+            )
+        }
         onStyleSettings?.let { openStyleSettings ->
             PlayerActionMenuItem(
                 text = stringResource(R.string.player_lyric_style_settings),
@@ -294,6 +297,10 @@ internal fun LyricStyleSettingsContent(
     applyScrollableContainer: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val nonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = 40)
     val configuration = LocalConfiguration.current
     val ultraWideLandscape = isUltraWideLandscapePlayerLayout(
         screenWidthDp = configuration.screenWidthDp,
@@ -321,6 +328,9 @@ internal fun LyricStyleSettingsContent(
     var previewPrimaryTextSize by remember(primaryTextSizeRange) { mutableStateOf(safePrimaryTextSize) }
     var previewSecondaryFontScale by remember(secondaryFontScaleRange) { mutableStateOf(safeSecondaryFontScale) }
     var previewSecondaryTextSize by remember(secondaryTextSizeRange) { mutableStateOf(safeSecondaryTextSize) }
+    var previewNonCurrentBlur by remember(nonCurrentBlurPercent) {
+        mutableStateOf(nonCurrentBlurPercent.toFloat())
+    }
     val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.88f).dp
     val containerModifier = if (applyScrollableContainer) {
         modifier
@@ -361,6 +371,26 @@ internal fun LyricStyleSettingsContent(
                     .height(82.dp)
             )
         }
+        Text(
+            text = stringResource(R.string.settings_lyric_non_current_blur),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+        )
+        DottedValueSlider(
+            value = previewNonCurrentBlur.coerceIn(0f, 100f),
+            valueRange = 0f..100f,
+            steps = 100,
+            label = "${previewNonCurrentBlur.roundToInt()}%",
+            onValueChange = {
+                previewNonCurrentBlur = it
+                scope.launch { settingsManager.setLyricNonCurrentBlurPercent(it.roundToInt()) }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(82.dp)
+        )
         Text(
             text = stringResource(R.string.player_lyric_font_scale),
             fontSize = 14.sp,

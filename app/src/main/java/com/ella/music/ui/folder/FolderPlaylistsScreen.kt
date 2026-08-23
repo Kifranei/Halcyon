@@ -605,7 +605,7 @@ fun FolderPlaylistsScreen(
             ) {
                 ShuffleAllSummaryButton(
                     visible = !selection.selectionMode && randomFolderPlaylistSongs.isNotEmpty(),
-                    onClick = { playerViewModel.setPlaylist(randomFolderPlaylistSongs.shuffled(), 0) }
+                    onClick = { playerViewModel.setShuffledPlaylist(randomFolderPlaylistSongs, 0) }
                 )
                 Text(
                     text = if (selection.selectionMode) {
@@ -721,7 +721,7 @@ fun FolderPlaylistsScreen(
         EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
-            title = playlist.name,
+            title = stringResource(R.string.player_more_actions),
             onDismissRequest = { moreMenuTarget = null }
         ) {
             Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {

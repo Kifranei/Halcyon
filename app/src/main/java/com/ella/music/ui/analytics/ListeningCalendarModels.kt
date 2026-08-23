@@ -20,7 +20,7 @@ internal data class ListeningDayAggregate(
     val dayOfMonth: Int,
     val entries: List<ListeningTimelineEntry>,
     val playCount: Int,
-    val totalDurationMs: Long,
+    val totalListenedMs: Long,
     val uniqueSongsCount: Int,
     val representativeSong: Song?,
     val heatValue: Long,
@@ -50,12 +50,13 @@ internal fun buildListeningDayAggregates(
 
     val rawAggregates = allDateKeys.associateWith { dateKey ->
         val entries = groupedHistory[dateKey].orEmpty().map { entry ->
-            ListeningTimelineEntry(entry, libraryById[entry.songId] ?: libraryByStatsKey[entry.calendarStatsKey()])
+            // MediaStore ids can be reused after a rescan. Match stable metadata first so an old
+            // history row cannot borrow the cover (or file) of an unrelated new song with that id.
+            ListeningTimelineEntry(entry, libraryByStatsKey[entry.calendarStatsKey()] ?: libraryById[entry.songId])
         }
-        val totalDuration = entries.sumOf { it.entry.listenedMs }
-            .takeIf { it > 0L }
-            ?: dailyListenMs[dateKey]
-            ?: entries.sumOf { it.song?.duration ?: it.entry.durationMs }
+        // The calendar is a listening-history surface. Its total must use the same actual
+        // session duration shown on every history row and must never fall back to track length.
+        val totalListenedMs = entries.sumOf { it.entry.listenedMs.coerceAtLeast(0L) }
         val dayOfMonth = dateKey.substringAfterLast('-').toIntOrNull() ?: 1
         val representativeSong = entries
             .groupBy { it.song?.id ?: -1L }
@@ -69,10 +70,13 @@ internal fun buildListeningDayAggregates(
             dayOfMonth = dayOfMonth,
             entries = entries,
             playCount = entries.size,
-            totalDurationMs = totalDuration,
+            totalListenedMs = totalListenedMs,
             uniqueSongsCount = entries.map { it.entry.songId }.distinct().size,
             representativeSong = representativeSong,
-            heatValue = if (totalDuration > 0L) totalDuration else entries.size.toLong()
+            heatValue = totalListenedMs
+                .takeIf { it > 0L }
+                ?: dailyListenMs[dateKey]?.coerceAtLeast(0L)
+                ?: entries.size.toLong()
         )
     }
     val maxHeatValue = rawAggregates.values.maxOfOrNull { it.heatValue }?.coerceAtLeast(1L) ?: 1L
@@ -98,7 +102,7 @@ internal fun buildListeningMonths(dayAggregates: Map<String, ListeningDayAggrega
                     dayOfMonth = day,
                     entries = emptyList(),
                     playCount = 0,
-                    totalDurationMs = 0L,
+                    totalListenedMs = 0L,
                     uniqueSongsCount = 0,
                     representativeSong = null,
                     heatValue = 0L,
@@ -170,12 +174,12 @@ internal fun formatCalendarDetailDate(dateKey: String): String {
     return SimpleDateFormat("yyyy/M/d", Locale.getDefault()).format(date)
 }
 
-internal fun formatCalendarTotalDuration(durationMs: Long): String {
-    return durationMs.formatPlaybackDuration()
+internal fun formatCalendarTotalListenDuration(listenedMs: Long): String {
+    return listenedMs.coerceAtLeast(0L).formatPlaybackDuration()
 }
 
-internal fun formatTrackDuration(durationMs: Long): String {
-    return durationMs.formatPlaybackDuration()
+internal fun formatHistoryListenDuration(listenedMs: Long): String {
+    return if (listenedMs > 0L) listenedMs.formatPlaybackDuration() else "--:--"
 }
 
 internal fun formatCalendarHistoryClock(timestampMs: Long): String {

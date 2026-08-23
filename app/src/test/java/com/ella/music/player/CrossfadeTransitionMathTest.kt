@@ -78,4 +78,39 @@ class CrossfadeTransitionMathTest {
         assertTrue(CrossfadeTransitionMath.shouldResyncHandoff(121L))
         assertTrue(CrossfadeTransitionMath.shouldResyncHandoff(-121L))
     }
+
+    @Test
+    fun `adaptive fade keeps outgoing track full during incoming silence`() {
+        assertEquals(
+            0f,
+            CrossfadeTransitionMath.adaptiveProgress(
+                timelineProgress = 0.6f,
+                outgoingLevel = 0.2f,
+                incomingLevel = 0.0001f
+            ),
+            0.0001f
+        )
+    }
+
+    @Test
+    fun `adaptive fade advances past an outgoing silent tail`() {
+        assertEquals(
+            0.72f,
+            CrossfadeTransitionMath.adaptiveProgress(
+                timelineProgress = 0.3f,
+                outgoingLevel = 0.0001f,
+                incomingLevel = 0.2f
+            ),
+            0.0001f
+        )
+        assertEquals(
+            0.9f,
+            CrossfadeTransitionMath.adaptiveProgress(
+                timelineProgress = 0.9f,
+                outgoingLevel = 0.0001f,
+                incomingLevel = 0.2f
+            ),
+            0.0001f
+        )
+    }
 }

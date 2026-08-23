@@ -69,6 +69,7 @@ internal object XiaomiSuperIslandLyricLayout {
     private fun Char.weight(): Int {
         if (isWhitespace()) return 0
         return when (Character.UnicodeBlock.of(this)) {
+            null -> 1
             Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
             Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
             Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,

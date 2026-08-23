@@ -383,6 +383,12 @@
     <string name="settings_show_remove_from_playlist_button_summary">在歌单内歌曲列表显示快捷移除按钮</string>
     <string name="settings_exclude_search_results_from_playlist">不将搜索结果作为播放列表</string>
     <string name="settings_exclude_search_results_from_playlist_summary">开启后，从搜索结果点歌时只播放当前歌曲，不再把本次结果集写入当前播放列表</string>
+    <string name="settings_search_click_playback_mode">点击搜索结果时</string>
+    <string name="settings_search_click_insert_next">插到当前歌曲后并播放</string>
+    <string name="settings_search_click_append">追加到队尾并播放</string>
+    <string name="settings_search_click_replace">替换播放队列并播放</string>
+    <string name="settings_playlist_show_rating_filter">歌单页显示星级筛选</string>
+    <string name="settings_playlist_show_favorite_filter">歌单页显示红心筛选</string>
     <string name="settings_auto_show_search_keyboard">点击搜索按钮自动弹出输入法</string>
     <string name="settings_auto_show_search_keyboard_summary">关闭后仅展开搜索栏，不再自动聚焦并弹出键盘</string>
     <string name="settings_search_reopen_behavior">再次进入搜索</string>
@@ -524,7 +530,7 @@
     <string name="category_playlist">歌单</string>
     <string name="category_analytics">听歌统计</string>
     <string name="listening_calendar_title">听歌日历</string>
-    <string name="listening_calendar_total">累计播放 %1$d 首，累计时长 %2$s</string>
+    <string name="listening_calendar_total">累计播放 %1$d 首，实际播放时长 %2$s</string>
     <string name="listening_calendar_play_all">播放全部</string>
     <string name="listening_calendar_shuffle">随机播放</string>
     <string name="listening_calendar_empty_day">今日无播放记录</string>
@@ -938,6 +944,10 @@
     <string name="settings_crossfade_curve_smooth">平滑</string>
     <string name="settings_crossfade_curve_flat">保持原音量</string>
     <string name="settings_crossfade_curve_flat_summary">两首歌重叠时都保持原音量，整体听感可能更响</string>
+    <string name="settings_play_count_percent">听歌统计播放比例</string>
+    <string name="settings_play_count_percent_summary">播放达到 %1$d%% 或指定时长时计入一次，满足任一即可</string>
+    <string name="settings_play_count_duration">听歌统计播放时长</string>
+    <string name="settings_play_count_duration_summary">播放达到指定比例或 %1$s 时计入一次，满足任一即可</string>
     <string name="settings_startup_play">启动后自动播放</string>
     <string name="settings_bluetooth_auto_play">蓝牙连接自动播放</string>
     <string name="settings_bluetooth_auto_play_summary">蓝牙音频设备连接后自动开始播放</string>
@@ -1301,6 +1311,13 @@
     <string name="settings_player_landscape_style_music_video">MV 沉浸歌词</string>
     <string name="settings_player_tap_seek">点击进度条跳转播放进度</string>
     <string name="settings_player_tap_seek_summary">关闭后仅支持拖动进度条跳转；开启后可直接点击播放页进度条任意位置跳转</string>
+    <string name="settings_player_progress_show_quality">进度条下显示音质</string>
+    <string name="settings_player_progress_show_audio_info">进度条下显示音频信息</string>
+    <string name="settings_player_progress_show_output_device">进度条下显示输出设备</string>
+    <string name="settings_player_predictive_back">预测性返回动画</string>
+    <string name="settings_player_predictive_back_summary">若系统侧滑返回导致播放页无法退出，可关闭并改用普通返回手势</string>
+    <string name="settings_lyric_non_current_blur">非当前歌词模糊程度</string>
+    <string name="settings_lyric_non_current_blur_summary">调节当前句附近歌词的景深模糊；设为 0 可完全关闭</string>
     <string name="settings_player_cover_swipe">封面左右滑动切歌</string>
     <string name="settings_player_cover_swipe_summary">关闭后播放页封面不再响应左右滑动切歌，避免误触</string>
     <string name="settings_player_show_total_duration">进度条显示歌曲播放的总时长</string>
@@ -1351,6 +1368,12 @@
     <string name="settings_home_customize">首页自定义</string>
     <string name="settings_daily_mix">每日精选</string>
     <string name="settings_daily_mix_summary">控制首页顶部每日精选大卡片显示</string>
+    <string name="settings_home_feature_wallpaper">首页展示图片</string>
+    <string name="settings_home_feature_wallpaper_summary_empty">选择一张图片显示在首页顶部；未设置时不显示任何卡片</string>
+    <string name="settings_home_feature_wallpaper_summary_set">已设置，点击可更换图片</string>
+    <string name="settings_home_feature_wallpaper_remove">移除首页展示图片</string>
+    <string name="settings_home_feature_wallpaper_remove_summary">移除后首页顶部不再显示图片卡片</string>
+    <string name="home_feature_wallpaper">首页自定义展示图片</string>
     <string name="settings_ai_mix">AI 推荐歌单</string>
     <string name="settings_ai_mix_summary">控制首页 AI 推荐歌单卡片显示</string>
     <string name="settings_ai_interpretation">AI 解读</string>
@@ -1729,7 +1752,7 @@
     <string name="music_video_video_ratio_fit">完整显示</string>
     <string name="music_video_video_ratio_zoom">铺满裁切</string>
     <string name="music_video_caption_sync">同步</string>
-    <string name="music_video_caption_sync_hint">输入毫秒数；正数后移，负数前移</string>
+    <string name="music_video_caption_sync_hint">输入偏移量（ms）；正数后移，负数前移</string>
     <string name="music_video_caption_custom">自定义</string>
     <string name="music_video_caption_vertical_position">上下位置</string>
     <string name="music_video_caption_scale">字幕比例</string>
@@ -1785,7 +1808,7 @@
     <string name="playlist_play_all">播放全部</string>
     <string name="playlist_song_count_duration">%1$d 首歌曲 · %2$s</string>
     <string name="playlist_drag_selection_count">项目：%1$d</string>
-    <string name="song_more_actions_title">歌曲操作</string>
+    <string name="song_more_actions_title">更多操作</string>
     <string name="song_more_add_to_playlist_failed">添加到歌单失败</string>
     <string name="song_more_add_to_queue_failed">添加到播放队列失败</string>
     <string name="song_more_play_next_failed">添加到下一首播放失败</string>
@@ -1885,6 +1908,8 @@
     <string name="artist_biography_country_se">瑞典</string>
     <string name="artist_biography_country_tr">土耳其</string>
     <string name="artist_biography_read_more">在 Last.fm 上阅读更多</string>
+    <string name="artist_biography_read_more_netease">前往 网易云音乐 查看</string>
+    <string name="artist_biography_read_more_wikipedia">前往 Wikipedia 查看</string>
     <string name="artist_biography_empty">暂无该艺术家的 Last.fm 传记</string>
     <string name="artist_biography_unavailable">当前网络设置不允许下载艺术家传记</string>
     <string name="artist_biography_failed">无法加载艺术家传记</string>
@@ -2162,6 +2187,7 @@
     <string name="settings_mcp_server_summary">允许 AI 助手（如 Claude）通过 MCP 协议控制音乐播放</string>
     <string name="settings_mcp_server_running">正在监听端口 %1$d</string>
     <string name="web_music_beta_title">局域网 Web 音乐服务（Beta）</string>
+    <string name="web_music_beta_start_failed">局域网音乐服务启动失败，已自动关闭</string>
     <string name="web_music_beta_summary">在可信局域网内浏览、播放和上传音乐。Beta 版暂无访问密码，请勿在公共网络开启</string>
     <string name="web_music_beta_address">访问地址</string>
     <string name="web_music_beta_address_unavailable">暂未找到可用的局域网地址</string>
@@ -2234,7 +2260,7 @@
     <string name="player_enable_lyrics_word_lift">开启歌词逐词上浮</string>
     <string name="player_disable_lyrics_word_lift">关闭歌词逐词上浮</string>
     <string name="player_lyrics_sustain_threshold">拉长音触发阈值</string>
-    <string name="player_lyrics_sustain_threshold_value">%1$d 毫秒</string>
+    <string name="player_lyrics_sustain_threshold_value">%1$d ms</string>
 
     <!-- Last.fm listening history -->
     <string name="settings_lastfm">Last.fm 听歌历史</string>
@@ -2351,4 +2377,41 @@
     <string name="settings_xiaomi_super_island_dismiss_one">1 秒</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 秒</string>
     <string name="settings_xiaomi_super_island_dismiss_five">5 秒</string>
+    <string name="settings_lyric_opening_template">开头空白显示歌词</string>
+    <string name="settings_lyric_opening_template_summary">关闭；填写模板后，在第一句歌词前显示歌曲信息</string>
+    <string name="settings_lyric_opening_template_tokens">可用：&lt;歌曲名&gt; &lt;艺术家&gt; &lt;专辑&gt; &lt;流派&gt; &lt;年份&gt; &lt;文件夹&gt; &lt;作曲家&gt; &lt;作词家&gt; &lt;编曲家&gt;</string>
+    <string name="settings_lyric_opening_template_hint">例如：&lt;艺术家&gt; - &lt;歌曲名&gt;</string>
+    <string name="player_audio_output_info">实时音频输出</string>
+    <string name="player_audio_output_source">音源</string>
+    <string name="player_audio_output_path">实际播放链</string>
+    <string name="player_audio_output_device">输出设备</string>
+    <string name="player_audio_output_resampling">重采样</string>
+    <string name="player_audio_output_resampling_active">正在重采样</string>
+    <string name="player_audio_output_resampling_none">未重采样</string>
+    <string name="settings_backup_webdav_restore_defaults_title">默认恢复内容</string>
+    <string name="settings_backup_webdav_restore_defaults_summary">选择 WebDAV 手动与自动恢复时默认导入的内容；设置后恢复将不再询问</string>
+    <string name="settings_backup_webdav_newer_title">发现较新的云端备份</string>
+    <string name="settings_backup_webdav_newer_message">WebDAV 上的自动备份比本机备份更新，是否现在恢复？恢复前将暂停自动上传。</string>
+    <string name="settings_backup_webdav_restore_now">立即恢复</string>
+    <string name="settings_player_action_menu">播放页操作菜单</string>
+    <string name="settings_list_action_menu">列表操作菜单</string>
+    <string name="settings_action_menu_summary">单独调整操作顺序和显示项目</string>
+    <string name="settings_action_menu_position">顺序：%1$d</string>
+    <string name="settings_action_menu_remote_quality">远程播放音质</string>
+    <string name="settings_action_menu_keep_screen_on">保持屏幕常亮</string>
+    <string name="casting_devices_title">投放设备</string>
+    <string name="casting_chromecast">Chromecast</string>
+    <string name="casting_chromecast_summary">选择 Google Cast 设备；队列和进度会自动切换</string>
+    <string name="casting_system_output">系统音频输出</string>
+    <string name="casting_system_output_summary">蓝牙、米播与系统支持的其他输出设备</string>
+    <string name="casting_dlna">DLNA</string>
+    <string name="casting_scan">重新扫描</string>
+    <string name="casting_scanning">正在扫描…</string>
+    <string name="casting_local_network_permission">需要允许“本地网络”权限才能发现 DLNA 设备</string>
+    <string name="casting_no_dlna_devices">未发现 DLNA MediaRenderer，请确认设备与手机在同一局域网</string>
+    <string name="casting_dlna_active">正在此设备上播放</string>
+    <string name="casting_dlna_tap">点按以投放当前歌曲</string>
+    <string name="casting_no_current_song">当前没有可投放的歌曲</string>
+    <string name="casting_dlna_started">已发送到 DLNA 设备</string>
+    <string name="casting_dlna_failed">DLNA 投放失败：%1$s</string>
 </resources>

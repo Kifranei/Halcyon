@@ -213,6 +213,7 @@ private fun AppleMusicKaraokeWord(
     val bright = contentColor.copy(alpha = baseStyle.color.alpha)
     val dim = contentColor.copy(alpha = baseStyle.color.alpha * 0.36f)
     val sustainGlow = renderWord.sustainGlowAlpha(positionMs, active)
+    val sustainDurationMs = renderWord.sustainDurationMs
     val textSizePx = with(LocalDensity.current) { baseStyle.fontSize.toPx() }
     // The reference renderer moves each word independently by 6% of the text size (at least
     // 5 px), then adds only a 3% bottom-anchored scale during the held-note phase. Keeping the
@@ -236,6 +237,22 @@ private fun AppleMusicKaraokeWord(
             )
         }
     Box {
+        if (sustainGlow > 0f) {
+            val durationScale = ((sustainDurationMs - 600L).coerceAtLeast(0L) / 2_400f)
+                .coerceIn(0f, 1f)
+            val haloAlpha = (0.12f + durationScale * 0.16f) * sustainGlow * baseStyle.color.alpha
+            BasicText(
+                text = word.text,
+                style = baseStyle.copy(
+                    color = contentColor.copy(alpha = haloAlpha),
+                    shadow = Shadow(
+                        color = contentColor.copy(alpha = (0.72f + durationScale * 0.20f) * sustainGlow),
+                        offset = Offset.Zero,
+                        blurRadius = (14f + durationScale * 12f) * sustainGlow
+                    )
+                )
+            )
+        }
         val glowShadow = sustainGlow.takeIf { it > 0f }?.let { glowAlpha ->
             Shadow(
                 color = contentColor.copy(alpha = baseStyle.color.alpha * glowAlpha),
@@ -272,24 +289,29 @@ private fun AppleMusicKaraokeWord(
                 // A narrow material sheen follows the karaoke edge. Long-held words strengthen
                 // that band and add a restrained halo; ordinary words keep the feathered fill
                 // without inheriting a permanent outline around the entire active line.
-                val sheenStart = (progress - 0.20f).coerceAtLeast(0f)
-                val sheenPeak = (progress - 0.055f).coerceIn(sheenStart, progress)
-                val sheenEnd = (progress + 0.045f).coerceAtMost(1f)
-                val sheenAlpha = (0.20f + sustainGlow * 0.42f) * baseStyle.color.alpha
-                BasicText(
-                    text = word.text,
-                    style = baseStyle.copy(
-                        brush = Brush.horizontalGradient(
-                            colorStops = arrayOf(
-                                0f to Color.Transparent,
-                                sheenStart to Color.Transparent,
-                                sheenPeak to contentColor.copy(alpha = sheenAlpha),
-                                sheenEnd to Color.Transparent,
-                                1f to Color.Transparent
+                // A second moving highlight on every short syllable can be perceived as two
+                // independent karaoke progress bars. Reserve the material sheen for an actual
+                // held note; ordinary syllables now have one unambiguous feathered edge.
+                if (sustainGlow > 0.05f) {
+                    val sheenStart = (progress - 0.20f).coerceAtLeast(0f)
+                    val sheenPeak = (progress - 0.055f).coerceIn(sheenStart, progress)
+                    val sheenEnd = (progress + 0.045f).coerceAtMost(1f)
+                    val sheenAlpha = (0.20f + sustainGlow * 0.42f) * baseStyle.color.alpha
+                    BasicText(
+                        text = word.text,
+                        style = baseStyle.copy(
+                            brush = Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0f to Color.Transparent,
+                                    sheenStart to Color.Transparent,
+                                    sheenPeak to contentColor.copy(alpha = sheenAlpha),
+                                    sheenEnd to Color.Transparent,
+                                    1f to Color.Transparent
+                                )
                             )
                         )
                     )
-                )
+                }
             }
         }
     }
@@ -509,7 +531,9 @@ private fun AppleMusicRenderWord.sustainGlowAlpha(positionMs: Long, active: Bool
 private data class AppleMusicRenderWord(
     val word: LyricWord,
     val sustainEndMs: Long? = null
-)
+) {
+    val sustainDurationMs: Long get() = (sustainEndMs ?: word.endMs) - word.startMs
+}
 
 private fun List<LyricWord>.toAppleMusicRenderWords(
     lineText: String,
@@ -553,7 +577,10 @@ private fun List<LyricWord>.toAppleMusicRenderWords(
         } else {
             // TTML providers sometimes put a short English phrase in a single timed span.
             // Split it at word boundaries so each word gets its own progressive feather.
-            result += AppleMusicRenderWord(word.copy(text = word.text + suffix))
+            result += AppleMusicRenderWord(
+                word = word.copy(text = word.text + suffix),
+                sustainEndMs = word.endMs.takeIf { duration >= sustainThresholdMs.coerceAtLeast(0) }
+            )
                 .splitEnglishPhraseForAppleMusic()
         }
         cursor = end + suffix.length

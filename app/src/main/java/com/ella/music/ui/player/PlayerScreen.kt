@@ -74,6 +74,7 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val playerSettings = rememberPlayerScreenSettings(settingsManager)
+    val predictiveBackEnabled by settingsManager.playerPredictiveBackEnabled.collectAsState(initial = false)
     val playerTapSeekEnabled = playerSettings.playerTapSeekEnabled
     val playerShowTotalDuration = playerSettings.playerShowTotalDuration
     val coverSwipeEnabled = playerSettings.coverSwipeEnabled
@@ -389,6 +390,7 @@ fun PlayerScreen(
         // Always retain an in-app back handler while the player overlay is visible. Disabling
         // it made Android fall through to MainActivity's default back action and finish the app.
         backEnabled = playerVisible,
+        predictiveBackEnabled = predictiveBackEnabled,
         onDismiss = {
             playerViewModel.setShowLyrics(false)
             onBack()

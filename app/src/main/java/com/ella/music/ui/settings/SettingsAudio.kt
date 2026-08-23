@@ -82,6 +82,12 @@ fun AudioSettingsScreen(
     val crossfadeCurve by settingsManager.crossfadeCurve.collectAsState(
         initial = SettingsManager.CROSSFADE_CURVE_EQUAL_POWER
     )
+    val playCountThresholdPercent by settingsManager.playCountThresholdPercent.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_PERCENT
+    )
+    val playCountThresholdDurationMs by settingsManager.playCountThresholdDurationMs.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_DURATION_MS
+    )
     var showCrossfadeDurationDialog by remember { mutableStateOf(false) }
     var crossfadeDurationInput by remember { mutableStateOf("") }
     val replayGainMode by settingsManager.replayGainMode.collectAsState(initial = SettingsManager.REPLAY_GAIN_OFF)
@@ -189,6 +195,18 @@ fun AudioSettingsScreen(
             summary = stringResource(R.string.settings_crossfade_curve_flat_summary)
         )
     )
+    val playCountPercentValues = (SettingsManager.MIN_PLAY_COUNT_THRESHOLD_PERCENT..
+        SettingsManager.MAX_PLAY_COUNT_THRESHOLD_PERCENT step 5).toList()
+    val selectedPlayCountPercentIndex = playCountPercentValues.indexOf(playCountThresholdPercent)
+        .takeIf { it >= 0 } ?: playCountPercentValues.indexOf(SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_PERCENT)
+    val playCountDurationValues = (SettingsManager.MIN_PLAY_COUNT_THRESHOLD_DURATION_MS..
+        SettingsManager.MAX_PLAY_COUNT_THRESHOLD_DURATION_MS step 30_000).toList()
+    val playCountDurationLabels = playCountDurationValues.map { durationMs ->
+        val totalSeconds = durationMs / 1_000
+        "%d:%02d".format(java.util.Locale.ROOT, totalSeconds / 60, totalSeconds % 60)
+    }
+    val selectedPlayCountDurationIndex = playCountDurationValues.indexOf(playCountThresholdDurationMs)
+        .takeIf { it >= 0 } ?: playCountDurationValues.indexOf(SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_DURATION_MS)
     val startupPlayLabels = listOf(
         stringResource(R.string.settings_startup_play_off),
         stringResource(R.string.settings_startup_play_random),
@@ -449,6 +467,34 @@ fun AudioSettingsScreen(
                         enabled = crossfadeDurationMs > 0,
                         onSelectedIndexChange = { curve ->
                             scope.launch { settingsManager.setCrossfadeCurve(curve) }
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_play_count_percent),
+                        summary = stringResource(
+                            R.string.settings_play_count_percent_summary,
+                            playCountPercentValues[selectedPlayCountPercentIndex]
+                        ),
+                        items = playCountPercentValues.map { DropdownItem(title = "$it%") },
+                        selectedIndex = selectedPlayCountPercentIndex,
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setPlayCountThresholdPercent(playCountPercentValues[index])
+                            }
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_play_count_duration),
+                        summary = stringResource(
+                            R.string.settings_play_count_duration_summary,
+                            playCountDurationLabels[selectedPlayCountDurationIndex]
+                        ),
+                        items = playCountDurationLabels.map { DropdownItem(title = it) },
+                        selectedIndex = selectedPlayCountDurationIndex,
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setPlayCountThresholdDurationMs(playCountDurationValues[index])
+                            }
                         }
                     )
                     WindowSpinnerPreference(

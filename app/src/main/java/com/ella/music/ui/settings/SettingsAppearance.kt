@@ -6,12 +6,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.BottomBarGlassEffect
+import com.ella.music.data.ActionMenuIds
 import com.ella.music.data.SettingsManager
 import com.ella.music.player.PlaybackWidgetUpdater
 import kotlinx.coroutines.launch
@@ -27,6 +27,8 @@ internal const val APPEARANCE_PAGE_SYSTEM_BARS = "system_bars"
 internal const val APPEARANCE_PAGE_WALLPAPER = "wallpaper"
 internal const val APPEARANCE_PAGE_PLAYER = "player"
 internal const val APPEARANCE_PAGE_LIST = "list"
+internal const val APPEARANCE_PAGE_PLAYER_ACTION_MENU = "player_action_menu"
+internal const val APPEARANCE_PAGE_LIST_ACTION_MENU = "list_action_menu"
 
 internal fun appearanceSubpageForHighlight(highlight: String?): String = when (highlight) {
     "system_bars" -> APPEARANCE_PAGE_SYSTEM_BARS
@@ -46,12 +48,46 @@ internal fun SettingsAppearanceSection(
     page: String = APPEARANCE_PAGE_HUB,
     onNavigateToBottomNavigationSettings: () -> Unit = {},
     onNavigateToAppearancePage: (String) -> Unit = {},
+    onNavigateBack: () -> Unit = {},
     onNavigateToLyricFont: () -> Unit = {},
     onNavigateToHomeDisplay: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    val playerActionMenuLayout by settingsManager.playerActionMenuLayout.collectCachedAsState("playerActionMenuLayout", "")
+    val listActionMenuLayout by settingsManager.listActionMenuLayout.collectCachedAsState("listActionMenuLayout", "")
+
+    if (page == APPEARANCE_PAGE_PLAYER_ACTION_MENU) {
+        SmallTitle(text = stringResource(R.string.settings_player_action_menu))
+        ActionMenuLayoutPage(
+            savedLayout = playerActionMenuLayout,
+            defaultOrder = ActionMenuIds.playerDefaults,
+            onCancel = onNavigateBack,
+            onSave = { value ->
+                scope.launch {
+                    settingsManager.setPlayerActionMenuLayout(value)
+                    onNavigateBack()
+                }
+            }
+        )
+        return
+    }
+    if (page == APPEARANCE_PAGE_LIST_ACTION_MENU) {
+        SmallTitle(text = stringResource(R.string.settings_list_action_menu))
+        ActionMenuLayoutPage(
+            savedLayout = listActionMenuLayout,
+            defaultOrder = ActionMenuIds.listDefaults,
+            onCancel = onNavigateBack,
+            onSave = { value ->
+                scope.launch {
+                    settingsManager.setListActionMenuLayout(value)
+                    onNavigateBack()
+                }
+            }
+        )
+        return
+    }
 
     val themeMode by settingsManager.themeMode.collectCachedAsState("themeMode", 0)
     val appLanguage by settingsManager.appLanguage.collectCachedAsState("appLanguage", SettingsManager.APP_LANGUAGE_SYSTEM)
@@ -147,12 +183,19 @@ internal fun SettingsAppearanceSection(
         SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
     )
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectCachedAsState("playerTapSeekEnabled", true)
+    val playerProgressShowQuality by settingsManager.playerProgressShowQuality.collectCachedAsState("playerProgressShowQuality", true)
+    val playerProgressShowAudioInfo by settingsManager.playerProgressShowAudioInfo.collectCachedAsState("playerProgressShowAudioInfo", true)
+    val playerProgressShowOutputDevice by settingsManager.playerProgressShowOutputDevice.collectCachedAsState("playerProgressShowOutputDevice", true)
     val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectCachedAsState(
         "playerShowTotalDuration",
         SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION
     )
     val playerShowSongAnnotation by settingsManager.playerShowSongAnnotation.collectCachedAsState("playerShowSongAnnotation", true)
     val playerCoverSwipeEnabled by settingsManager.playerCoverSwipeEnabled.collectCachedAsState("playerCoverSwipeEnabled", true)
+    val playerPredictiveBackEnabled by settingsManager.playerPredictiveBackEnabled.collectCachedAsState(
+        "playerPredictiveBackEnabled",
+        false
+    )
     val playerTitlePosition by settingsManager.playerTitlePosition.collectCachedAsState(
         "playerTitlePosition",
         SettingsManager.PLAYER_TITLE_POSITION_BELOW_COVER
@@ -169,6 +212,12 @@ internal fun SettingsAppearanceSection(
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectCachedAsState("showPlayNextInLists", false)
     val showRemoveFromPlaylistButton by settingsManager.showRemoveFromPlaylistButton.collectCachedAsState("showRemoveFromPlaylistButton", true)
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectCachedAsState("excludeSearchResultsFromPlaylist", false)
+    val searchClickPlaybackMode by settingsManager.searchClickPlaybackMode.collectCachedAsState(
+        "searchClickPlaybackMode",
+        SettingsManager.DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
+    )
+    val playlistShowRatingFilter by settingsManager.playlistShowRatingFilter.collectCachedAsState("playlistShowRatingFilter", true)
+    val playlistShowFavoriteFilter by settingsManager.playlistShowFavoriteFilter.collectCachedAsState("playlistShowFavoriteFilter", true)
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectCachedAsState("autoShowSearchKeyboard", true)
     val searchReopenBehavior by settingsManager.searchReopenBehavior.collectCachedAsState(
         "searchReopenBehavior",
@@ -207,6 +256,17 @@ internal fun SettingsAppearanceSection(
     }
     val selectedSearchReopenBehavior = SettingsManager.normalizeSearchReopenBehavior(searchReopenBehavior)
         .coerceIn(searchReopenBehaviorLabels.indices)
+    val searchClickPlaybackLabels = listOf(
+        stringResource(R.string.settings_search_click_insert_next),
+        stringResource(R.string.settings_search_click_append),
+        stringResource(R.string.settings_search_click_replace)
+    )
+    val searchClickPlaybackEntries = remember(searchClickPlaybackLabels) {
+        searchClickPlaybackLabels.map { DropdownItem(title = it) }
+    }
+    val selectedSearchClickPlaybackMode = SettingsManager
+        .normalizeSearchClickPlaybackMode(searchClickPlaybackMode)
+        .coerceIn(searchClickPlaybackLabels.indices)
     val playerPageStyleOptions = listOf(
         SettingsManager.PLAYER_PAGE_STYLE_HALCYON to
             stringResource(R.string.settings_player_page_style_halcyon),
@@ -828,12 +888,29 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setShowRemoveFromPlaylistButton(it) }
                 }
             )
+            ArrowPreference(
+                title = stringResource(R.string.settings_list_action_menu),
+                summary = stringResource(R.string.settings_action_menu_summary),
+                onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_LIST_ACTION_MENU) }
+            )
             SwitchPreference(
                 title = stringResource(R.string.settings_exclude_search_results_from_playlist),
                 summary = stringResource(R.string.settings_exclude_search_results_from_playlist_summary),
                 checked = excludeSearchResultsFromPlaylist,
                 onCheckedChange = {
                     scope.launch { settingsManager.setExcludeSearchResultsFromPlaylist(it) }
+                }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_search_click_playback_mode),
+                summary = stringResource(
+                    R.string.settings_current_value,
+                    searchClickPlaybackLabels[selectedSearchClickPlaybackMode]
+                ),
+                items = searchClickPlaybackEntries,
+                selectedIndex = selectedSearchClickPlaybackMode,
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setSearchClickPlaybackMode(index) }
                 }
             )
             SettingsFocusAnchor(active = highlightKey == "auto_show_search_keyboard") {
@@ -867,6 +944,16 @@ internal fun SettingsAppearanceSection(
                 onCheckedChange = {
                     scope.launch { settingsManager.setPlaylistSpecialEntriesVisible(it) }
                 }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_playlist_show_rating_filter),
+                checked = playlistShowRatingFilter,
+                onCheckedChange = { scope.launch { settingsManager.setPlaylistShowRatingFilter(it) } }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_playlist_show_favorite_filter),
+                checked = playlistShowFavoriteFilter,
+                onCheckedChange = { scope.launch { settingsManager.setPlaylistShowFavoriteFilter(it) } }
             )
             SwitchPreference(
                 title = stringResource(R.string.settings_mini_player_long_press_source),
@@ -1011,6 +1098,21 @@ internal fun SettingsAppearanceSection(
                 )
             }
             SwitchPreference(
+                title = stringResource(R.string.settings_player_progress_show_quality),
+                checked = playerProgressShowQuality,
+                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressShowQuality(it) } }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_player_progress_show_audio_info),
+                checked = playerProgressShowAudioInfo,
+                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressShowAudioInfo(it) } }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_player_progress_show_output_device),
+                checked = playerProgressShowOutputDevice,
+                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressShowOutputDevice(it) } }
+            )
+            SwitchPreference(
                 title = stringResource(R.string.settings_player_cover_swipe),
                 summary = stringResource(R.string.settings_player_cover_swipe_summary),
                 checked = playerCoverSwipeEnabled,
@@ -1035,6 +1137,19 @@ internal fun SettingsAppearanceSection(
                 onCheckedChange = {
                     scope.launch { settingsManager.setPlayerShowSongAnnotation(it) }
                 }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_player_predictive_back),
+                summary = stringResource(R.string.settings_player_predictive_back_summary),
+                checked = playerPredictiveBackEnabled,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setPlayerPredictiveBackEnabled(it) }
+                }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.settings_player_action_menu),
+                summary = stringResource(R.string.settings_action_menu_summary),
+                onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_PLAYER_ACTION_MENU) }
             )
         }
     }

@@ -79,7 +79,7 @@ class SpectrumViewerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val song = SpectrumViewerLauncher.songFrom(intent) ?: run {
+        val song = SpectrumViewerLauncher.songFrom(this, intent) ?: run {
             finish()
             return
         }

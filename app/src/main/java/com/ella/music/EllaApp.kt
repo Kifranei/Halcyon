@@ -62,7 +62,9 @@ class EllaApp : Application() {
         }
         appScope.launch {
             if (settingsManager.webMusicServerEnabled.first()) {
-                WebMusicService.start(this@EllaApp)
+                if (!WebMusicService.start(this@EllaApp)) {
+                    settingsManager.setWebMusicServerEnabled(false)
+                }
             }
         }
         appScope.launch {

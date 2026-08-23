@@ -92,6 +92,7 @@ fun BackupSettingsScreen(
     }
     var showExportTypeSheet by remember { mutableStateOf(false) }
     var showImportTypeSheet by remember { mutableStateOf(false) }
+    var showWebDavDefaultTypeSheet by remember { mutableStateOf(false) }
     var pendingExportTypes by remember { mutableStateOf<Set<BackupType>?>(null) }
     var pendingImportRoot by remember { mutableStateOf<JSONObject?>(null) }
     var pendingImportSource by remember { mutableStateOf(BackupImportSource.LocalFile) }
@@ -175,23 +176,7 @@ fun BackupSettingsScreen(
     ) {
         backupScope.launch {
             runCatching {
-                val filteredSettings = (root.optJSONObject("settings") ?: root).filterBackupSettings(selectedTypes)
-                if (filteredSettings.length() > 0) {
-                    settingsManager.restoreSettingsJson(filteredSettings)
-                }
-                if (BackupType.Playlists in selectedTypes) {
-                    val playlistPayload = root.optJSONObject("playlists")
-                        ?: root.takeIf { it.has("playlists") }
-                    if (playlistPayload != null) {
-                        playlistStore.restoreJson(playlistPayload)
-                    }
-                }
-                if (BackupType.PlaybackStats in selectedTypes) {
-                    root.optJSONObject("playback")?.let { playbackStatsStore.restoreJson(it) }
-                }
-                if (BackupType.AiConfigAndChat in selectedTypes) {
-                    root.optJSONObject("aiChat")?.let { restoreAiChatBackupJson(context, it) }
-                }
+                restoreApplicationBackup(context, root, selectedTypes)
             }.onSuccess {
                 val successMessage = when (source) {
                     BackupImportSource.LocalFile -> R.string.settings_backup_restore_success
@@ -248,6 +233,7 @@ fun BackupSettingsScreen(
     val savedWebDavBackupPassword by settingsManager.webDavBackupPassword.collectAsState(initial = "")
     val webDavAutoBackupEnabled by settingsManager.webDavAutoBackupEnabled.collectAsState(initial = false)
     val webDavAutoBackupInterval by settingsManager.webDavAutoBackupIntervalHours.collectAsState(initial = 24)
+    val savedWebDavRestoreDefaultTypes by settingsManager.webDavRestoreDefaultTypes.collectAsState(initial = "")
     var webDavBackupUrl by remember { mutableStateOf(savedWebDavBackupUrl) }
     var webDavBackupPath by remember { mutableStateOf(savedWebDavBackupPath) }
     var webDavBackupUser by remember { mutableStateOf(savedWebDavBackupUser.ifBlank { savedWebDavUser }) }
@@ -414,6 +400,11 @@ fun BackupSettingsScreen(
                             backupScope.launch { settingsManager.setWebDavAutoBackupIntervalHours(hours) }
                         }
                     )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_backup_webdav_restore_defaults_title),
+                        summary = stringResource(R.string.settings_backup_webdav_restore_defaults_summary),
+                        onClick = { showWebDavDefaultTypeSheet = true }
+                    )
                     EllaMiuixListItem(
                         title = stringResource(R.string.settings_backup_webdav_upload),
                         summary = stringResource(R.string.settings_backup_webdav_upload_summary),
@@ -536,10 +527,20 @@ fun BackupSettingsScreen(
                             }
                             val root = JSONObject(text)
                             withContext(Dispatchers.IO) { tempFile.delete() }
-                            pendingImportSource = BackupImportSource.WebDav
-                            pendingImportRoot = root
-                            importTypeSelection = root.availableBackupTypes()
-                            showImportTypeSheet = true
+                            val availableTypes = root.availableBackupTypes()
+                            val defaults = savedWebDavRestoreDefaultTypes
+                                .toWebDavRestoreTypes()
+                                .intersect(availableTypes)
+                            if (defaults.isNotEmpty()) {
+                                restoreSelectedTypes(root, defaults, BackupImportSource.WebDav) {
+                                    webDavDownloading = false
+                                }
+                            } else {
+                                pendingImportSource = BackupImportSource.WebDav
+                                pendingImportRoot = root
+                                importTypeSelection = availableTypes
+                                showImportTypeSheet = true
+                            }
                         }.onSuccess {
                         }.onFailure {
                             Toast.makeText(context, context.getString(R.string.settings_backup_webdav_download_failed) + ": " + (it.message ?: ""), Toast.LENGTH_LONG).show()
@@ -590,6 +591,20 @@ fun BackupSettingsScreen(
                         webDavDownloading = false
                     }
                 }
+            }
+        }
+    )
+
+    BackupTypeSelectionSheet(
+        show = showWebDavDefaultTypeSheet,
+        title = stringResource(R.string.settings_backup_webdav_restore_defaults_title),
+        confirmText = stringResource(R.string.common_save),
+        onDismiss = { showWebDavDefaultTypeSheet = false },
+        initialSelected = savedWebDavRestoreDefaultTypes.toWebDavRestoreTypes()
+            .ifEmpty { BackupType.entries.toSet() },
+        onConfirm = { selectedTypes ->
+            backupScope.launch {
+                settingsManager.setWebDavRestoreDefaultTypes(selectedTypes.toWebDavRestoreSetting())
             }
         }
     )

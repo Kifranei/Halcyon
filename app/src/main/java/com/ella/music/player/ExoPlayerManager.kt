@@ -367,6 +367,8 @@ class ExoPlayerManager(private val context: Context) {
             }
         }
         mediaController?.addListener(playerListener!!)
+        // A recreated MediaController does not retain app-owned ReplayGain state.
+        mediaController?.volume = replayGainVolume
 
         val pending = pendingPlaylist
         if (pending != null) {
@@ -389,6 +391,20 @@ class ExoPlayerManager(private val context: Context) {
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
         setPlaylist(songs, startIndex, honorShuffle = true, resetQueueLock = true)
+    }
+
+    fun setPlaylistForShuffleAll(songs: List<Song>, startIndex: Int = 0) {
+        if (songs.isEmpty()) return
+        _shuffleEnabled.value = true
+        _repeatMode.value = Player.REPEAT_MODE_ALL
+        persistAppShuffleEnabled(true)
+        persistAppRepeatMode(Player.REPEAT_MODE_ALL)
+        setPlaylist(songs, startIndex, honorShuffle = true, resetQueueLock = true)
+        mediaController?.let { controller ->
+            controller.shuffleModeEnabled = false
+            controller.repeatMode = Player.REPEAT_MODE_ALL
+        }
+        savePlaybackQueue(force = true)
     }
 
     /** Replaces media URLs while preserving the user's current queue lock. */

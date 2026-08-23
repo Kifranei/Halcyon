@@ -5,7 +5,6 @@ import com.ella.music.data.model.Song
 
 internal class PlayerPlaybackStatsTracker(
     private val playbackStatsStore: PlaybackStatsStore,
-    private val minPlaybackStatsListenMs: Long = 20_000L,
     private val onPlayCounted: (Song) -> Unit = {},
     private val onLastFmScrobbleEligible: (Song, Long) -> Unit = { _, _ -> }
 ) {
@@ -24,7 +23,9 @@ internal class PlayerPlaybackStatsTracker(
     suspend fun update(
         nowMs: Long,
         song: Song?,
-        isPlaying: Boolean
+        isPlaying: Boolean,
+        countThresholdPercent: Int,
+        countThresholdDurationMs: Long
     ) {
         val songId = song?.id
 
@@ -58,7 +59,12 @@ internal class PlayerPlaybackStatsTracker(
                 sessionListenMs += elapsedMs
                 lastFmListenMs += elapsedMs
             }
-            if (playCountedSongId != song.id && sessionListenMs >= minPlaybackStatsListenMs) {
+            val countThresholdMs = playbackCountThresholdMs(
+                songDurationMs = song.duration,
+                percent = countThresholdPercent,
+                durationMs = countThresholdDurationMs
+            )
+            if (playCountedSongId != song.id && sessionListenMs >= countThresholdMs) {
                 val counted = playbackStatsStore.recordPlay(song, recentRecordedEntryId)
                 if (counted) onPlayCounted(song)
                 playCountedSongId = song.id
@@ -98,6 +104,18 @@ internal class PlayerPlaybackStatsTracker(
         }
         pendingListenMs = 0L
     }
+}
+
+/** Counts a play after either configured condition is met, matching issue #419. */
+internal fun playbackCountThresholdMs(songDurationMs: Long, percent: Int, durationMs: Long): Long {
+    val safePercent = percent.coerceIn(30, 95)
+    val safeDurationMs = durationMs.coerceIn(30_000L, 360_000L)
+    val percentageThresholdMs = if (songDurationMs > 0L) {
+        (songDurationMs * safePercent / 100L).coerceAtLeast(1L)
+    } else {
+        Long.MAX_VALUE
+    }
+    return minOf(percentageThresholdMs, safeDurationMs)
 }
 
 /** Last.fm accepts a track after 50% or four minutes, whichever comes first; sub-30s tracks skip it. */

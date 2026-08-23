@@ -686,8 +686,8 @@ fun MetadataCategoryDetailScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && randomDetailSongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setPlaylist(
-                                        randomDetailSongs.shuffled(),
+                                    playerViewModel.setShuffledPlaylist(
+                                        randomDetailSongs,
                                         0,
                                         resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
                                     )

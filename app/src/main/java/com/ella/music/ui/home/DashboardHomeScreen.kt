@@ -74,8 +74,7 @@ fun HomeScreen(
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
-    val playbackHistory by mainViewModel.playbackHistory.collectAsState()
-    val currentSong by playerViewModel.currentSong.collectAsState()
+    val playbackHistory by mainViewModel.recentPlaybackHistory.collectAsState()
     val playbackQueue by playerViewModel.playlist.collectAsState()
     com.ella.music.ui.components.RememberPlaybackSourceScreen(CategoryResumeKeys.DASHBOARD)
     val context = LocalContext.current
@@ -88,7 +87,7 @@ fun HomeScreen(
                 openPlayerOnPlay = settingsManager.openPlayerOnPlay.first(),
                 showAlbumArtists = settingsManager.showAlbumArtists.first(),
                 tagIgnoreCase = settingsManager.tagIgnoreCase.first(),
-                homeDailyMixVisible = settingsManager.homeDailyMixVisible.first(),
+                homeFeatureWallpaperUri = settingsManager.homeFeatureWallpaperUri.first(),
                 homeAiMixVisible = settingsManager.homeAiMixVisible.first(),
                 homeRecentSectionMode = settingsManager.homeRecentSectionMode.first(),
                 homeSectionOrder = settingsManager.homeSectionOrder.first(),
@@ -112,7 +111,9 @@ fun HomeScreen(
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = initialSettings.openPlayerOnPlay)
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = initialSettings.showAlbumArtists)
     val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = initialSettings.tagIgnoreCase)
-    val homeDailyMixVisible by settingsManager.homeDailyMixVisible.collectAsState(initial = initialSettings.homeDailyMixVisible)
+    val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(
+        initial = initialSettings.homeFeatureWallpaperUri
+    )
     val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = initialSettings.homeAiMixVisible)
     val homeRecentSectionMode by settingsManager.homeRecentSectionMode.collectAsState(initial = initialSettings.homeRecentSectionMode)
     val homeSectionOrder by settingsManager.homeSectionOrder.collectAsState(initial = initialSettings.homeSectionOrder)
@@ -140,12 +141,6 @@ fun HomeScreen(
     val homeTileGradientStartColor = homeTileGradientStartColorRaw.parseHomeCardColorOrNull()
     val customTileColors = remember(homeTileColorsRaw) { homeTileColorsRaw.parseHomeTileColors() }
     fun tileColor(id: String, fallback: Color): Color = customTileColors[id] ?: fallback
-    val featuredSongs = remember(songs) {
-        when {
-            songs.size <= 3 -> songs
-            else -> listOf(songs.first(), songs[songs.size / 2], songs.last())
-        }
-    }
     val artistCount = remember(songs, showAlbumArtists, tagIgnoreCase) {
         songs
             .flatMap {
@@ -224,19 +219,9 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
-            if (homeDailyMixVisible) {
-                DailyMixCard(
-                    songs = songs,
-                    featuredSongs = featuredSongs,
-                    currentSongTitle = currentSong?.title,
-                    mainViewModel = mainViewModel,
-                    onPlay = {
-                        val randomSong = songs.randomOrNull()
-                        if (randomSong != null) {
-                            playerViewModel.setPlaylist(songs, songs.indexOf(randomSong))
-                            if (openPlayerOnPlay) onNavigateToPlayer()
-                        }
-                    },
+            if (homeFeatureWallpaperUri.isNotBlank()) {
+                HomeFeatureWallpaperCard(
+                    uri = homeFeatureWallpaperUri,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp)
@@ -414,7 +399,7 @@ private data class HomeInitialSettings(
     val openPlayerOnPlay: Boolean,
     val showAlbumArtists: Boolean,
     val tagIgnoreCase: Boolean,
-    val homeDailyMixVisible: Boolean,
+    val homeFeatureWallpaperUri: String,
     val homeAiMixVisible: Boolean,
     val homeRecentSectionMode: Int,
     val homeSectionOrder: String,

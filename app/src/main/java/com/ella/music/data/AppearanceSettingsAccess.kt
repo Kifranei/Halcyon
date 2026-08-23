@@ -49,6 +49,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_CONTINUE_PLAYBACK_ROW_V
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_CARD_COLOR
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_CARD_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_DAILY_MIX_VISIBLE
+import com.ella.music.data.SettingsManager.Companion.KEY_HOME_FEATURE_WALLPAPER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_HIDDEN_LIBRARY_TILES
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_HIDDEN_ONLINE_TILES
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_HIDDEN_SECTIONS
@@ -115,6 +116,7 @@ interface AppearanceSettingsAccess {
     val shortcutFolderLabel: Flow<String>
     val appShortcutOrder: Flow<List<String>>
     val homeDailyMixVisible: Flow<Boolean>
+    val homeFeatureWallpaperUri: Flow<String>
     val homeAiMixVisible: Flow<Boolean>
     val continuePlaybackRowVisible: Flow<Boolean>
     val homeRecentSectionMode: Flow<Int>
@@ -156,6 +158,7 @@ interface AppearanceSettingsAccess {
     suspend fun setShortcutFolderLabel(label: String)
     suspend fun setAppShortcutOrder(shortcutIds: List<String>)
     suspend fun setHomeDailyMixVisible(visible: Boolean)
+    suspend fun setHomeFeatureWallpaperUri(uri: String)
     suspend fun setHomeAiMixVisible(visible: Boolean)
     suspend fun setContinuePlaybackRowVisible(visible: Boolean)
     suspend fun setHomeRecentSectionMode(mode: Int)
@@ -265,6 +268,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override val homeDailyMixVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HOME_DAILY_MIX_VISIBLE] ?: true }
+    override val homeFeatureWallpaperUri: Flow<String> =
+        context.dataStore.data.map { it[KEY_HOME_FEATURE_WALLPAPER_URI] ?: "" }
     override val homeAiMixVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HOME_AI_MIX_VISIBLE] ?: true }
     override val continuePlaybackRowVisible: Flow<Boolean> =
@@ -483,6 +488,13 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setHomeDailyMixVisible(visible: Boolean) {
         context.dataStore.edit { it[KEY_HOME_DAILY_MIX_VISIBLE] = visible }
+    }
+
+    override suspend fun setHomeFeatureWallpaperUri(uri: String) {
+        context.dataStore.edit { preferences ->
+            if (uri.isBlank()) preferences.remove(KEY_HOME_FEATURE_WALLPAPER_URI)
+            else preferences[KEY_HOME_FEATURE_WALLPAPER_URI] = uri.trim()
+        }
     }
 
     override suspend fun setHomeAiMixVisible(visible: Boolean) {

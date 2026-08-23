@@ -509,8 +509,8 @@ fun AlbumDetailScreen(
                         ShuffleAllSummaryButton(
                             visible = !selection.selectionMode && sortedAlbumSongs.isNotEmpty(),
                             onClick = {
-                                playerViewModel.setPlaylist(
-                                    sortedAlbumSongs.shuffled(),
+                                playerViewModel.setShuffledPlaylist(
+                                    sortedAlbumSongs,
                                     0,
                                     resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.album(albumId)
                                 )

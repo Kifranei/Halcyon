@@ -70,3 +70,25 @@ internal fun FullTagSearchPromptDialog(
         )
     }
 }
+
+@Composable
+internal fun WebDavCloudRestorePromptDialog(
+    show: Boolean,
+    restoring: Boolean,
+    onDismiss: () -> Unit,
+    onRestore: () -> Unit
+) {
+    EllaMiuixDialog(
+        show = show,
+        title = stringResource(R.string.settings_backup_webdav_newer_title),
+        summary = stringResource(R.string.settings_backup_webdav_newer_message),
+        onDismissRequest = { if (!restoring) onDismiss() }
+    ) {
+        EllaMiuixDialogActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.settings_backup_webdav_restore_now),
+            onCancel = { if (!restoring) onDismiss() },
+            onConfirm = { if (!restoring) onRestore() }
+        )
+    }
+}

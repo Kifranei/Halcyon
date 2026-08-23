@@ -16,7 +16,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-val appVersionName = "1.2.6"
+val appVersionName = "1.2.7"
 
 fun variantChannelMarker(variantName: String): String =
     when (variantName.lowercase(Locale.US)) {
@@ -115,7 +115,7 @@ android {
         applicationId = "com.ella.music"
         minSdk = 29
         targetSdk = 37
-        versionCode = 34
+        versionCode = 35
         versionName = appVersionName
         externalNativeBuild {
             cmake {
@@ -262,6 +262,7 @@ dependencies {
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.cast)
     // Optional on-device enhancement: enables HONOR's 96-192 kHz playback path when the
     // device exposes HNAUDIO_SERVICE_HIGHSAMPLERATEPLAY. Unsupported devices simply no-op.
     implementation("com.hihonor.mcs:media-audio:1.2.0.300")

@@ -148,6 +148,7 @@ internal fun LyricsPlayerMenuSheet(
                     secondaryTextSizeSp = secondaryTextSizeSp,
                     perspectiveEffect = perspectiveEffect,
                     perspectiveYAngle = perspectiveYAngle,
+                    showPerspectiveToggle = false,
                     onTogglePronunciation = onTogglePronunciation,
                     onToggleTranslation = onToggleTranslation,
                     onToggleKeepScreenOn = onToggleKeepScreenOn,

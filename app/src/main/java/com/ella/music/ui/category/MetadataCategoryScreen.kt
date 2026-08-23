@@ -480,8 +480,8 @@ fun MetadataCategoryScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomCategorySongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(
-                                            randomCategorySongs.shuffled(),
+                                        playerViewModel.setShuffledPlaylist(
+                                            randomCategorySongs,
                                             0,
                                             songSources = playbackSourcesForSongs(
                                                 displayedItems.map { item ->

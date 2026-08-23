@@ -3,6 +3,7 @@ package com.ella.music.ui.search
 import android.content.Context
 import androidx.compose.runtime.saveable.Saver
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
@@ -59,6 +60,47 @@ internal val SearchFilter.acceptsSongResults: Boolean
 
 internal val SearchFilter.supportsDuplicateFilter: Boolean
     get() = this in listOf(SearchFilter.All, SearchFilter.Songs)
+
+internal data class SearchPlaybackSelection(
+    val songs: List<Song>,
+    val startIndex: Int
+)
+
+internal fun searchPlaybackSelection(
+    resultSongs: List<Song>,
+    selectedIndex: Int,
+    excludeResultsFromPlaylist: Boolean,
+    playbackMode: Int = SettingsManager.SEARCH_CLICK_REPLACE,
+    currentQueue: List<Song> = emptyList(),
+    currentSong: Song? = null
+): SearchPlaybackSelection {
+    if (resultSongs.isEmpty()) return SearchPlaybackSelection(emptyList(), 0)
+    val safeIndex = selectedIndex.coerceIn(resultSongs.indices)
+    val selectedResult = resultSongs[safeIndex]
+    val incoming = if (excludeResultsFromPlaylist) {
+        listOf(selectedResult)
+    } else {
+        resultSongs
+    }
+    val incomingIndex = incoming.indexOfFirst {
+        it.id == selectedResult.id && it.path == selectedResult.path
+    }.coerceAtLeast(0)
+    return when (SettingsManager.normalizeSearchClickPlaybackMode(playbackMode)) {
+        SettingsManager.SEARCH_CLICK_INSERT_NEXT -> {
+            val currentIndex = currentSong?.let { playing ->
+                currentQueue.indexOfFirst { it.id == playing.id && it.path == playing.path }
+            } ?: -1
+            val insertIndex = if (currentIndex >= 0) currentIndex + 1 else currentQueue.size
+            val combined = currentQueue.toMutableList().apply { addAll(insertIndex, incoming) }
+            SearchPlaybackSelection(combined, insertIndex + incomingIndex)
+        }
+        SettingsManager.SEARCH_CLICK_APPEND -> SearchPlaybackSelection(
+            songs = currentQueue + incoming,
+            startIndex = currentQueue.size + incomingIndex
+        )
+        else -> SearchPlaybackSelection(incoming, incomingIndex)
+    }
+}
 
 /** Extra song-property filters available alongside duplicate search in All and Songs. */
 internal data class LibrarySearchContentFilters(

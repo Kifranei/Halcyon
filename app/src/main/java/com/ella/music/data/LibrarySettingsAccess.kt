@@ -24,6 +24,9 @@ import com.ella.music.data.SettingsManager.Companion.DEFAULT_SEARCH_REOPEN_BEHAV
 import com.ella.music.data.SettingsManager.Companion.KEY_CATEGORY_GRID_COLUMNS
 import com.ella.music.data.SettingsManager.Companion.KEY_COVER_EXPORT_FOLDER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST
+import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_CLICK_PLAYBACK_MODE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYLIST_SHOW_RATING_FILTER
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYLIST_SHOW_FAVORITE_FILTER
 import com.ella.music.data.SettingsManager.Companion.KEY_FOLDER_PLAYLISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_FOLDER_PLAYLIST_CUSTOM_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_FULL_TAG_SEARCH_ENABLED
@@ -90,6 +93,9 @@ interface LibrarySettingsAccess {
     val showOnlineMusicVideoInLists: Flow<Boolean>
     val showRemoveFromPlaylistButton: Flow<Boolean>
     val excludeSearchResultsFromPlaylist: Flow<Boolean>
+    val searchClickPlaybackMode: Flow<Int>
+    val playlistShowRatingFilter: Flow<Boolean>
+    val playlistShowFavoriteFilter: Flow<Boolean>
     val autoShowSearchKeyboard: Flow<Boolean>
     val searchReopenBehavior: Flow<Int>
     val playNextMode: Flow<Int>
@@ -135,6 +141,9 @@ interface LibrarySettingsAccess {
     suspend fun setShowOnlineMusicVideoInLists(enabled: Boolean)
     suspend fun setShowRemoveFromPlaylistButton(enabled: Boolean)
     suspend fun setExcludeSearchResultsFromPlaylist(enabled: Boolean)
+    suspend fun setSearchClickPlaybackMode(mode: Int)
+    suspend fun setPlaylistShowRatingFilter(enabled: Boolean)
+    suspend fun setPlaylistShowFavoriteFilter(enabled: Boolean)
     suspend fun setAutoShowSearchKeyboard(enabled: Boolean)
     suspend fun setSearchReopenBehavior(behavior: Int)
     suspend fun setPlayNextMode(mode: Int)
@@ -207,6 +216,14 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON] ?: true }
     override val excludeSearchResultsFromPlaylist: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST] ?: false }
+    override val searchClickPlaybackMode: Flow<Int> =
+        context.dataStore.data.map {
+            SettingsManager.normalizeSearchClickPlaybackMode(it[KEY_SEARCH_CLICK_PLAYBACK_MODE])
+        }
+    override val playlistShowRatingFilter: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYLIST_SHOW_RATING_FILTER] ?: true }
+    override val playlistShowFavoriteFilter: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYLIST_SHOW_FAVORITE_FILTER] ?: true }
     override val autoShowSearchKeyboard: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUTO_SHOW_SEARCH_KEYBOARD] ?: true }
     override val searchReopenBehavior: Flow<Int> =
@@ -353,6 +370,20 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setExcludeSearchResultsFromPlaylist(enabled: Boolean) {
         context.dataStore.edit { it[KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST] = enabled }
+    }
+
+    override suspend fun setSearchClickPlaybackMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_SEARCH_CLICK_PLAYBACK_MODE] = SettingsManager.normalizeSearchClickPlaybackMode(mode)
+        }
+    }
+
+    override suspend fun setPlaylistShowRatingFilter(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYLIST_SHOW_RATING_FILTER] = enabled }
+    }
+
+    override suspend fun setPlaylistShowFavoriteFilter(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYLIST_SHOW_FAVORITE_FILTER] = enabled }
     }
 
     override suspend fun setAutoShowSearchKeyboard(enabled: Boolean) {

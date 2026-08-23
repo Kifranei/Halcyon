@@ -65,6 +65,8 @@ class SettingsManager(private val context: Context) :
         val KEY_SETUP_WIZARD_COMPLETED = booleanPreferencesKey("setup_wizard_completed")
         val KEY_CROSSFADE_DURATION_MS = intPreferencesKey("crossfade_duration_ms")
         val KEY_CROSSFADE_CURVE = intPreferencesKey("crossfade_curve")
+        val KEY_PLAY_COUNT_THRESHOLD_PERCENT = intPreferencesKey("play_count_threshold_percent")
+        val KEY_PLAY_COUNT_THRESHOLD_DURATION_MS = intPreferencesKey("play_count_threshold_duration_ms")
         val KEY_THEME_MODE = intPreferencesKey("theme_mode")
         val KEY_MONET_COLOR_MODE = intPreferencesKey("monet_color_mode")
         val KEY_PLAYER_BACKGROUND_THEME = intPreferencesKey("player_background_theme")
@@ -142,6 +144,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LYRIC_PAGE_KEEP_SCREEN_ON = booleanPreferencesKey("lyric_page_keep_screen_on")
         val KEY_APPLE_MUSIC_LYRICS_WORD_LIFT = booleanPreferencesKey("apple_music_lyrics_word_lift")
         val KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = intPreferencesKey("apple_music_lyrics_sustain_threshold_ms")
+        val KEY_LYRIC_OPENING_TEMPLATE = stringPreferencesKey("lyric_opening_template")
         const val DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 1_200
         const val MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 300
         const val MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS = 3_000
@@ -154,15 +157,22 @@ class SettingsManager(private val context: Context) :
         val KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER = booleanPreferencesKey("mini_player_swipe_to_open_player")
         val KEY_MINI_PLAYER_LONG_PRESS_SOURCE = booleanPreferencesKey("mini_player_long_press_source")
         val KEY_PLAYER_PROGRESS_INFO_INDEX = intPreferencesKey("player_progress_info_index")
+        val KEY_PLAYER_PROGRESS_SHOW_QUALITY = booleanPreferencesKey("player_progress_show_quality")
+        val KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO = booleanPreferencesKey("player_progress_show_audio_info")
+        val KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE = booleanPreferencesKey("player_progress_show_output_device")
         val KEY_TRANSPORT_BUTTON_OUTLINES = booleanPreferencesKey("transport_button_outlines")
         val KEY_PLAYER_TAP_SEEK_ENABLED = booleanPreferencesKey("player_tap_seek_enabled")
         val KEY_PLAYER_SHOW_TOTAL_DURATION = booleanPreferencesKey("player_show_total_duration")
         val KEY_PLAYER_SHOW_SONG_ANNOTATION = booleanPreferencesKey("player_show_song_annotation")
         val KEY_PLAYER_COVER_SWIPE_ENABLED = booleanPreferencesKey("player_cover_swipe_enabled")
+        val KEY_PLAYER_PREDICTIVE_BACK_ENABLED = booleanPreferencesKey("player_predictive_back_enabled")
+        val KEY_LYRIC_NON_CURRENT_BLUR_PERCENT = intPreferencesKey("lyric_non_current_blur_percent")
         val KEY_LYRIC_PARSER_ENGINE = intPreferencesKey("lyric_parser_engine")
         val KEY_PLAYER_TITLE_POSITION = intPreferencesKey("player_title_position")
         val KEY_PLAYER_PAGE_STYLE = intPreferencesKey("player_page_style")
         val KEY_PLAYER_LYRICS_CORNER_ACTIONS = booleanPreferencesKey("player_lyrics_corner_actions")
+        val KEY_PLAYER_ACTION_MENU_LAYOUT = stringPreferencesKey("player_action_menu_layout")
+        val KEY_LIST_ACTION_MENU_LAYOUT = stringPreferencesKey("list_action_menu_layout")
         val KEY_PLAYER_LANDSCAPE_STYLE = intPreferencesKey("player_landscape_style")
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
@@ -268,6 +278,9 @@ class SettingsManager(private val context: Context) :
         val KEY_SHOW_PLAY_NEXT_IN_LISTS = booleanPreferencesKey("show_play_next_in_lists")
         val KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON = booleanPreferencesKey("show_remove_from_playlist_button")
         val KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST = booleanPreferencesKey("exclude_search_results_from_playlist")
+        val KEY_PLAYLIST_SHOW_RATING_FILTER = booleanPreferencesKey("playlist_show_rating_filter")
+        val KEY_PLAYLIST_SHOW_FAVORITE_FILTER = booleanPreferencesKey("playlist_show_favorite_filter")
+        val KEY_SEARCH_CLICK_PLAYBACK_MODE = intPreferencesKey("search_click_playback_mode")
         val KEY_AUTO_SHOW_SEARCH_KEYBOARD = booleanPreferencesKey("auto_show_search_keyboard")
         val KEY_SEARCH_REOPEN_BEHAVIOR = intPreferencesKey("search_reopen_behavior")
         val KEY_PLAY_NEXT_MODE = intPreferencesKey("play_next_mode")
@@ -298,6 +311,8 @@ class SettingsManager(private val context: Context) :
         val KEY_WEBDAV_AUTO_BACKUP_ENABLED = booleanPreferencesKey("webdav_auto_backup_enabled")
         val KEY_WEBDAV_AUTO_BACKUP_INTERVAL_HOURS = intPreferencesKey("webdav_auto_backup_interval_hours")
         val KEY_WEBDAV_AUTO_BACKUP_LAST_AT = stringPreferencesKey("webdav_auto_backup_last_at")
+        val KEY_WEBDAV_RESTORE_DEFAULT_TYPES = stringPreferencesKey("webdav_restore_default_types")
+        val KEY_WEBDAV_RESTORE_LAST_SEEN_AT = stringPreferencesKey("webdav_restore_last_seen_at")
         val KEY_LX_SOURCE_URL = stringPreferencesKey("lx_source_url")
         val KEY_LX_SOURCE_NAME = stringPreferencesKey("lx_source_name")
         val KEY_LX_SOURCE_SCRIPT = stringPreferencesKey("lx_source_script")
@@ -395,6 +410,7 @@ class SettingsManager(private val context: Context) :
         // 0 = only the on-device log, 1 = only Last.fm, 2 = merge both timelines.
         val KEY_LISTENING_HISTORY_SOURCE = intPreferencesKey("listening_history_source")
         val KEY_HOME_DAILY_MIX_VISIBLE = booleanPreferencesKey("home_daily_mix_visible")
+        val KEY_HOME_FEATURE_WALLPAPER_URI = stringPreferencesKey("home_feature_wallpaper_uri")
         val KEY_HOME_AI_MIX_VISIBLE = booleanPreferencesKey("home_ai_mix_visible")
         val KEY_CONTINUE_PLAYBACK_ROW_VISIBLE = booleanPreferencesKey("continue_playback_row_visible")
         val KEY_HOME_RECENT_SECTION_MODE = intPreferencesKey("home_recent_section_mode")
@@ -479,6 +495,18 @@ class SettingsManager(private val context: Context) :
             else -> DEFAULT_SEARCH_REOPEN_BEHAVIOR
         }
 
+        const val SEARCH_CLICK_INSERT_NEXT = 0
+        const val SEARCH_CLICK_APPEND = 1
+        const val SEARCH_CLICK_REPLACE = 2
+        const val DEFAULT_SEARCH_CLICK_PLAYBACK_MODE = SEARCH_CLICK_INSERT_NEXT
+
+        fun normalizeSearchClickPlaybackMode(mode: Int?): Int = when (mode) {
+            SEARCH_CLICK_INSERT_NEXT,
+            SEARCH_CLICK_APPEND,
+            SEARCH_CLICK_REPLACE -> mode
+            else -> DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
+        }
+
         const val ARTIST_BIO_DOWNLOAD_ALWAYS = 0
         const val ARTIST_BIO_DOWNLOAD_WIFI = 1
         const val ARTIST_BIO_DOWNLOAD_NEVER = 2
@@ -518,6 +546,12 @@ class SettingsManager(private val context: Context) :
         const val CROSSFADE_CURVE_LINEAR = 1
         const val CROSSFADE_CURVE_SMOOTH = 2
         const val CROSSFADE_CURVE_FLAT = 3
+        const val DEFAULT_PLAY_COUNT_THRESHOLD_PERCENT = 50
+        const val MIN_PLAY_COUNT_THRESHOLD_PERCENT = 30
+        const val MAX_PLAY_COUNT_THRESHOLD_PERCENT = 95
+        const val DEFAULT_PLAY_COUNT_THRESHOLD_DURATION_MS = 180_000
+        const val MIN_PLAY_COUNT_THRESHOLD_DURATION_MS = 30_000
+        const val MAX_PLAY_COUNT_THRESHOLD_DURATION_MS = 360_000
         const val PREVIOUS_REPLAY_THRESHOLD_MS = 20_000L
 
         const val PLAY_NEXT_MODE_REVERSE_STACK = 0
@@ -958,6 +992,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_SETUP_WIZARD_COMPLETED)
             setInt(KEY_CROSSFADE_DURATION_MS)
             setInt(KEY_CROSSFADE_CURVE)
+            setInt(KEY_PLAY_COUNT_THRESHOLD_PERCENT)
+            setInt(KEY_PLAY_COUNT_THRESHOLD_DURATION_MS)
             setBoolean(KEY_TICKER_ENABLED)
             setBoolean(KEY_TICKER_HIDE_NOTIFICATION)
             setBoolean(KEY_TICKER_HEADS_UP_LYRICS)
@@ -989,7 +1025,14 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_LYRIC_PAGE_TRANSLATION)
             setBoolean(KEY_LYRIC_PAGE_KEEP_SCREEN_ON)
             setBoolean(KEY_APPLE_MUSIC_LYRICS_WORD_LIFT)
+            setBoolean(KEY_PLAYER_PREDICTIVE_BACK_ENABLED)
+            setBoolean(KEY_PLAYER_PROGRESS_SHOW_QUALITY)
+            setBoolean(KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO)
+            setBoolean(KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE)
+            setBoolean(KEY_PLAYLIST_SHOW_RATING_FILTER)
+            setBoolean(KEY_PLAYLIST_SHOW_FAVORITE_FILTER)
             setInt(KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
+            setString(KEY_LYRIC_OPENING_TEMPLATE)
             setBoolean(KEY_LYRIC_PRONUNCIATION_BELOW)
             setBoolean(KEY_LYRIC_FONT_ITALIC)
             setBoolean(KEY_LYRIC_FONT_APPLY_TO_PAGE)
@@ -1169,6 +1212,8 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_CATEGORY_GRID_COLUMNS)
             setInt(KEY_MINI_PLAYER_LYRIC_SECONDARY)
             setInt(KEY_PLAYER_PROGRESS_INFO_INDEX)
+            setInt(KEY_LYRIC_NON_CURRENT_BLUR_PERCENT)
+            setInt(KEY_SEARCH_CLICK_PLAYBACK_MODE)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_POSITION)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_WIDTH)
@@ -1226,7 +1271,10 @@ class SettingsManager(private val context: Context) :
             setString(KEY_WEBDAV_BACKUP_USERNAME)
             setString(KEY_WEBDAV_BACKUP_PASSWORD)
             setString(KEY_WEBDAV_AUTO_BACKUP_LAST_AT)
+            setString(KEY_WEBDAV_RESTORE_DEFAULT_TYPES)
             setString(KEY_MEDIA_NOTIFICATION_BUTTONS)
+            setString(KEY_PLAYER_ACTION_MENU_LAYOUT)
+            setString(KEY_LIST_ACTION_MENU_LAYOUT)
             setString(KEY_LX_SOURCE_URL)
             setString(KEY_LX_SOURCE_NAME)
             setString(KEY_LX_SOURCE_SCRIPT)
@@ -1275,6 +1323,7 @@ class SettingsManager(private val context: Context) :
             setString(KEY_APP_WALLPAPER_URI)
             setString(KEY_PLAYER_BACKGROUND_URI)
             setString(KEY_HOME_CARD_COLOR)
+            setString(KEY_HOME_FEATURE_WALLPAPER_URI)
             setString(KEY_HI_RES_LOGO_URI)
             setString(KEY_METADATA_EDITOR_ID)
             setString(KEY_LYRIC_TIMING_EDITOR_ID)

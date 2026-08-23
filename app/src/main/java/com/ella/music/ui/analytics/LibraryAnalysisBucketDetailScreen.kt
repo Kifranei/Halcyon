@@ -118,7 +118,9 @@ internal fun LibraryAnalysisBucketDetailScreen(
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf(HomeSortMode.FileSize) }
+    var sortMode by remember(sourceKey) {
+        mutableStateOf(LibraryAnalysisBucketSortState.get(sourceKey))
+    }
     var actionSong by remember { mutableStateOf<Song?>(null) }
     val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
@@ -350,7 +352,9 @@ internal fun LibraryAnalysisBucketDetailScreen(
                             ascendingSummary = stringResource(R.string.common_sort_ascending),
                             descendingSummary = stringResource(R.string.common_sort_descending)
                         ) { field, direction ->
-                            sortMode = field.toMode(direction == SortDirection.Descending)
+                            sortMode = field.toMode(direction == SortDirection.Descending).also {
+                                LibraryAnalysisBucketSortState.put(sourceKey, it)
+                            }
                         }
                     )
                 }
@@ -406,8 +410,8 @@ internal fun LibraryAnalysisBucketDetailScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(
-                                            sortedSongs.shuffled(),
+                                        playerViewModel.setShuffledPlaylist(
+                                            sortedSongs,
                                             0,
                                             resumeCategoryKey = sourceKey
                                         )
@@ -574,5 +578,15 @@ internal fun LibraryAnalysisBucketDetailScreen(
                 deleteSelectedSongs(songsToDelete)
             }
         )
+    }
+}
+
+internal object LibraryAnalysisBucketSortState {
+    private val modes = java.util.concurrent.ConcurrentHashMap<String, HomeSortMode>()
+
+    fun get(sourceKey: String): HomeSortMode = modes[sourceKey] ?: HomeSortMode.FileSize
+
+    fun put(sourceKey: String, mode: HomeSortMode) {
+        modes[sourceKey] = mode
     }
 }

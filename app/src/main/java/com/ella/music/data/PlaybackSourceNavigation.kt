@@ -10,6 +10,7 @@ import org.json.JSONObject
 
 /** Bridges queue surfaces that live inside the resident player to the app navigation host. */
 internal object PlaybackSourceNavigation {
+    private const val MAX_SONG_SOURCES = 400
     private const val PREFS = "ella_playback_source"
     private const val KEY_QUEUE_SOURCE = "queue_source"
     private const val KEY_SONG_SOURCES = "song_sources"
@@ -67,7 +68,9 @@ internal object PlaybackSourceNavigation {
     fun recordSongSource(songKey: String, sourceKey: String?) {
         val resolved = sourceKey?.takeIf { it.isNotBlank() } ?: activeScreenKey ?: return
         if (songKey.isBlank()) return
+        songSources.remove(songKey)
         songSources[songKey] = resolved
+        trimSongSources()
         persist()
     }
 
@@ -75,8 +78,10 @@ internal object PlaybackSourceNavigation {
         if (sources.isEmpty()) return
         sources.forEach { (songKey, sourceKey) ->
             if (songKey.isBlank() || sourceKey.isBlank()) return@forEach
+            songSources.remove(songKey)
             songSources[songKey] = sourceKey
         }
+        trimSongSources()
         persist()
     }
 
@@ -97,7 +102,7 @@ internal object PlaybackSourceNavigation {
     private fun persist() {
         val context = appContext ?: return
         val json = JSONObject()
-        songSources.entries.toList().takeLast(400).forEach { (key, value) ->
+        songSources.forEach { (key, value) ->
             json.put(key, value)
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -106,6 +111,13 @@ internal object PlaybackSourceNavigation {
             .putString(KEY_ACTIVE_SCREEN, activeScreenKey)
             .putString(KEY_SONG_SOURCES, json.toString())
             .apply()
+    }
+
+    private fun trimSongSources() {
+        while (songSources.size > MAX_SONG_SOURCES) {
+            val oldestKey = songSources.keys.firstOrNull() ?: break
+            songSources.remove(oldestKey)
+        }
     }
 }
 

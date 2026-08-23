@@ -73,6 +73,9 @@ fun LibrarySearchScreen(
     val lyricSourceMode by settingsManager.lyricSourceMode.collectAsState(initial = SettingsManager.LYRIC_SOURCE_AUTO)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
+    val searchClickPlaybackMode by settingsManager.searchClickPlaybackMode.collectAsState(
+        initial = SettingsManager.DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
+    )
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val fullTagSearchEnabled by settingsManager.fullTagSearchEnabled.collectAsState(initial = true)
@@ -740,6 +743,7 @@ fun LibrarySearchScreen(
             showPlayNextInLists = showPlayNextInLists,
             songRatingDisplayMode = songRatingDisplayMode,
             excludeSearchResultsFromPlaylist = excludeSearchResultsFromPlaylist,
+            searchClickPlaybackMode = searchClickPlaybackMode,
             filter = filter,
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,

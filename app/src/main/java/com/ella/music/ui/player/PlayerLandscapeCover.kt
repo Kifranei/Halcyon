@@ -413,6 +413,7 @@ internal fun LandscapeCoverPlayerPage(
                 PlayerProgressBlock(
                     currentPosition = currentPosition,
                     duration = duration,
+                    song = song,
                     audioInfo = audioInfo,
                     bluetoothDeviceName = bluetoothDeviceName,
                     palette = palette,

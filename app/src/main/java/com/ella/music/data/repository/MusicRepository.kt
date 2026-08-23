@@ -105,7 +105,7 @@ class MusicRepository(private val context: Context) {
 
     private val scanner = MusicScanner(context)
     private val audioTagRepository = AudioTagRepository(
-        primary = LyricoAudioTagReaderWriter()
+        primary = LyricoAudioTagReaderWriter(context)
     )
     private val settingsManager = SettingsManager.getInstance(context)
     private val httpClient = OkHttpClient.Builder()
@@ -761,6 +761,9 @@ class MusicRepository(private val context: Context) {
     fun getReplayGain(song: Song, mode: Int = SettingsManager.REPLAY_GAIN_AUTO): Float? =
         audioInfoProvider.getReplayGain(song, mode)
 
+    fun getCachedReplayGain(song: Song, mode: Int = SettingsManager.REPLAY_GAIN_AUTO): Float? =
+        audioInfoProvider.getCachedReplayGain(song, mode)
+
     fun getAudioInfo(song: Song): AudioInfo = audioInfoProvider.getAudioInfo(song)
 
     fun getSongTagInfo(song: Song): SongTagInfo {
@@ -1040,7 +1043,6 @@ class MusicRepository(private val context: Context) {
     suspend fun removeSongsFromLibrary(songs: Collection<Song>): Unit = withContext(Dispatchers.IO) {
         if (songs.isEmpty()) return@withContext
         removeDeletedSongsFromState(songs)
-        Unit
     }
 
     /** Rebuilds album identities after a grouping rule changes without scanning media again. */

@@ -30,7 +30,7 @@ internal class EllaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC, Bundle.EMPTY))
             .build()
-        return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+        return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
             .setAvailableSessionCommands(sessionCommands)
             .build()
     }

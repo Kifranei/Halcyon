@@ -26,6 +26,7 @@ import java.nio.ByteOrder
  * [audioApi]: 1 = AAudio, 2 = OpenSL ES. [exclusive]: request exclusive sharing mode (USB / bit-perfect).
  */
 @UnstableApi
+@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 class OboeAudioSink(
     private val audioApi: Int,
     private val exclusive: Boolean,

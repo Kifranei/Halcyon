@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,6 +54,10 @@ internal fun PlaylistDetailTopBar(
     selectionMode: Boolean,
     showRemoveSelected: Boolean,
     showExport: Boolean,
+    showRatingFilter: Boolean,
+    showFavoriteFilter: Boolean,
+    ratingFilterActive: Boolean,
+    favoriteFilterActive: Boolean,
     onNavigationClick: () -> Unit,
     onPlayNextSelectedClick: () -> Unit,
     onAddSelectedClick: () -> Unit,
@@ -60,11 +65,24 @@ internal fun PlaylistDetailTopBar(
     onSearchClick: () -> Unit,
     onExportClick: () -> Unit,
     onSelectionModeClick: () -> Unit,
+    onRatingFilterClick: () -> Unit,
+    onFavoriteFilterClick: () -> Unit,
     onDoubleTapTitle: (() -> Unit)? = null
 ) {
     EllaSmallTopAppBar(
         title = title,
         color = ellaPageBackground(),
+        // Keep the double-tap title hit target clear of every action. The rating and favorite
+        // buttons are the left-most actions, so the old two-button inset covered them (#267).
+        titleEndPadding = if (selectionMode) {
+            168.dp
+        } else {
+            (24 + 48 * (
+                2 + (if (showExport) 1 else 0) +
+                    (if (showRatingFilter) 1 else 0) +
+                    (if (showFavoriteFilter) 1 else 0)
+                )).dp
+        },
         onDoubleTapTitle = onDoubleTapTitle,
         navigationIcon = {
             IconButton(onClick = onNavigationClick) {
@@ -100,21 +118,22 @@ internal fun PlaylistDetailTopBar(
                     }
                 }
             } else {
-                if (showExport) {
-                    IconButton(onClick = onExportClick) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Share,
-                            contentDescription = stringResource(R.string.playlist_export_title),
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                IconButton(onClick = onSearchClick) {
+                if (showRatingFilter) IconButton(onClick = onRatingFilterClick) {
                     Icon(
-                        imageVector = MiuixIcons.Basic.Search,
-                        contentDescription = stringResource(R.string.common_search),
-                        tint = MiuixTheme.colorScheme.onSurface,
+                        painter = painterResource(R.drawable.ic_rating_star_half),
+                        contentDescription = stringResource(R.string.song_more_set_rating),
+                        tint = if (ratingFilterActive) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                if (showFavoriteFilter) IconButton(onClick = onFavoriteFilterClick) {
+                    Icon(
+                        painter = painterResource(
+                            if (favoriteFilterActive) R.drawable.ic_notification_favorite_filled
+                            else R.drawable.ic_notification_favorite
+                        ),
+                        contentDescription = stringResource(R.string.favorite_filter),
+                        tint = if (favoriteFilterActive) Color(0xFFFF4D6D) else MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -125,6 +144,24 @@ internal fun PlaylistDetailTopBar(
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
+                }
+                IconButton(onClick = onSearchClick) {
+                    Icon(
+                        imageVector = MiuixIcons.Basic.Search,
+                        contentDescription = stringResource(R.string.common_search),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                if (showExport) {
+                    IconButton(onClick = onExportClick) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Share,
+                            contentDescription = stringResource(R.string.playlist_export_title),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }

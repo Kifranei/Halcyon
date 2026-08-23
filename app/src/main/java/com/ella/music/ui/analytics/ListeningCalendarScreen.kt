@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -66,6 +67,7 @@ fun ListeningCalendarHistoryScreen(
     val selectedDay = remember(selectedDateKey, dayAggregates) {
         selectedDateKey?.let(dayAggregates::get)
     }
+    val selectedEntries = selectedDay?.entries.orEmpty()
     var actionSong by remember { mutableStateOf<Song?>(null) }
     var pendingRemoveEntry by remember { mutableStateOf<PlaybackHistoryEntry?>(null) }
     val scope = rememberCoroutineScope()
@@ -127,13 +129,25 @@ fun ListeningCalendarHistoryScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                item("selected-day") {
+                item("selected-day:${selectedDay?.dateKey.orEmpty()}") {
                     ListeningDayDetailSection(
                         day = selectedDay,
                         mainViewModel = mainViewModel,
+                        playerViewModel = playerViewModel
+                    )
+                }
+                itemsIndexed(
+                    items = selectedEntries,
+                    key = { _, timelineEntry -> "history:${timelineEntry.entry.entryId}" }
+                ) { index, timelineEntry ->
+                    ListeningTimelineRow(
+                        entry = timelineEntry,
+                        isLast = index == selectedEntries.lastIndex,
+                        mainViewModel = mainViewModel,
                         playerViewModel = playerViewModel,
                         onSongMore = { song -> actionSong = song },
-                        onRemoveHistoryEntry = { entry -> pendingRemoveEntry = entry }
+                        onRemoveHistoryEntry = { entry -> pendingRemoveEntry = entry },
+                        modifier = Modifier.padding(horizontal = 14.dp)
                     )
                 }
                 items(monthSections, key = { it.label }) { month ->

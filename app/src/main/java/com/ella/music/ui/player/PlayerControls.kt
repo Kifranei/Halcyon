@@ -39,6 +39,7 @@ import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.PlayerQueueListIcon
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import kotlinx.coroutines.launch
 import java.util.Locale
 import top.yukonga.miuix.kmp.basic.Icon
@@ -159,6 +160,7 @@ internal fun LandscapeTransportControls(
 internal fun PlayerProgressBlock(
     currentPosition: Long,
     duration: Long,
+    song: Song?,
     audioInfo: AudioInfo?,
     bluetoothDeviceName: String?,
     playbackModeLabel: String? = null,
@@ -173,7 +175,11 @@ internal fun PlayerProgressBlock(
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val savedInfoMode by settingsManager.playerProgressInfoIndex.collectAsState(initial = 0)
+    val showQuality by settingsManager.playerProgressShowQuality.collectAsState(initial = true)
+    val showAudioInfo by settingsManager.playerProgressShowAudioInfo.collectAsState(initial = true)
+    val showOutputDevice by settingsManager.playerProgressShowOutputDevice.collectAsState(initial = true)
     var infoMode by remember { mutableIntStateOf(0) }
+    var showAudioOutputSheet by remember { mutableStateOf(false) }
     var previewProgress by remember { mutableStateOf<Float?>(null) }
     val qualitySummary = remember(audioInfo) { audioInfo?.let(::audioQualitySummary) }
     val qualityLabel = qualitySummary?.let { summary ->
@@ -184,14 +190,30 @@ internal fun PlayerProgressBlock(
             else -> summary.playerCompactText()
         }
     }
-    val infoLabels = remember(qualityLabel, qualitySummary, bluetoothDeviceName, playbackModeLabel) {
+    val infoLabels = remember(
+        qualityLabel,
+        qualitySummary,
+        bluetoothDeviceName,
+        playbackModeLabel,
+        showQuality,
+        showAudioInfo,
+        showOutputDevice
+    ) {
         buildList {
-            playbackModeLabel?.takeIf { it.isNotBlank() }?.let(::add) ?: run {
-                qualityLabel?.let(::add)
-                qualitySummary?.detailLabel?.takeIf { text -> text.isNotBlank() }?.let(::add)
-                bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let(::add)
+            playbackModeLabel?.takeIf { it.isNotBlank() }
+                ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.PlaybackMode)) }
+                ?: run {
+                if (showQuality) qualityLabel?.let {
+                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.Quality))
+                }
+                if (showAudioInfo) qualitySummary?.detailLabel
+                    ?.takeIf { text -> text.isNotBlank() }
+                    ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
+                if (showOutputDevice) bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
+                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
+                }
             }
-        }.distinct()
+        }.distinctBy { it.text }
     }
     val replayGainLabel = audioInfo?.replayGainDb?.let { gain ->
         stringResource(
@@ -239,7 +261,8 @@ internal fun PlayerProgressBlock(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isTablet && (infoLabels.isNotEmpty() || replayGainLabel != null)) {
-                    val infoText = infoLabels.getOrNull(infoMode % infoLabels.size.coerceAtLeast(1))
+                    val infoItem = infoLabels.getOrNull(infoMode % infoLabels.size.coerceAtLeast(1))
+                    val infoText = infoItem?.text
                     PlayerQualityInfoChip(
                         text = listOfNotNull(infoText, replayGainLabel).joinToString(" / "),
                         showWaveform = infoText == qualityLabel && qualitySummary?.showWaveform == true,
@@ -254,18 +277,22 @@ internal fun PlayerProgressBlock(
                             }
                         },
                         onLongPress = {
-                            if (!bluetoothDeviceName.isNullOrBlank()) {
-                                openSystemOutputSwitcher(context)
+                            when (infoItem?.kind) {
+                                PlayerProgressInfoKind.Quality,
+                                PlayerProgressInfoKind.AudioInfo -> showAudioOutputSheet = true
+                                PlayerProgressInfoKind.OutputDevice -> openSystemOutputSwitcher(context)
+                                else -> Unit
                             }
                         }
                     )
                 } else {
                     if (infoLabels.isNotEmpty()) {
-                        val infoText = infoLabels[infoMode % infoLabels.size]
+                        val infoItem = infoLabels[infoMode % infoLabels.size]
+                        val infoText = infoItem.text
                         PlayerQualityInfoChip(
                             text = infoText,
-                            showWaveform = infoText == qualityLabel && qualitySummary?.showWaveform == true,
-                            showDolbyLogo = infoText == qualityLabel && qualitySummary?.showDolbyLogo == true,
+                            showWaveform = infoText == qualityLabel && qualitySummary.showWaveform,
+                            showDolbyLogo = infoText == qualityLabel && qualitySummary.showDolbyLogo,
                             palette = palette,
                             fontFamily = fontFamily,
                             onTap = {
@@ -276,8 +303,11 @@ internal fun PlayerProgressBlock(
                                 }
                             },
                             onLongPress = {
-                                if (!bluetoothDeviceName.isNullOrBlank()) {
-                                    openSystemOutputSwitcher(context)
+                                when (infoItem.kind) {
+                                    PlayerProgressInfoKind.Quality,
+                                    PlayerProgressInfoKind.AudioInfo -> showAudioOutputSheet = true
+                                    PlayerProgressInfoKind.OutputDevice -> openSystemOutputSwitcher(context)
+                                    else -> Unit
                                 }
                             }
                         )
@@ -308,6 +338,31 @@ internal fun PlayerProgressBlock(
             )
         }
     }
+    EllaMiuixBottomSheet(
+        show = showAudioOutputSheet,
+        title = stringResource(R.string.player_audio_output_info),
+        enableNestedScroll = false,
+        onDismissRequest = { showAudioOutputSheet = false }
+    ) {
+        AudioOutputInfoSheetContent(
+            onBack = { showAudioOutputSheet = false },
+            song = song,
+            audioInfo = audioInfo,
+            showHeader = false
+        )
+    }
+}
+
+private data class PlayerProgressInfoItem(
+    val text: String,
+    val kind: PlayerProgressInfoKind
+)
+
+private enum class PlayerProgressInfoKind {
+    Quality,
+    AudioInfo,
+    OutputDevice,
+    PlaybackMode
 }
 
 @Composable

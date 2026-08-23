@@ -231,6 +231,7 @@ internal tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+@Suppress("DEPRECATION")
 internal fun setPlayerSystemBars(activity: Activity?, view: View) {
     val window = activity?.window ?: return
     window.statusBarColor = android.graphics.Color.TRANSPARENT

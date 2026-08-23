@@ -199,8 +199,9 @@ private fun JSONObject.optId(vararg names: String): String {
         if (!has(name) || isNull(name)) continue
         val value = opt(name)
         val text = when (value) {
+            null -> ""
             is Number -> value.toLong().toString()
-            else -> value?.toString().orEmpty()
+            else -> value.toString()
         }.trim()
         if (text.isNotBlank() && text != "0") return text
     }
@@ -221,6 +222,7 @@ private fun JSONObject.optStringList(vararg names: String): List<String> {
         val value = opt(name)
         val result = runCatching {
             when (value) {
+                null -> emptyList()
                 is JSONArray -> buildList {
                     for (index in 0 until value.length()) {
                         value.optString(index).trim()
@@ -228,11 +230,10 @@ private fun JSONObject.optStringList(vararg names: String): List<String> {
                             ?.let(::add)
                     }
                 }
-                else -> value?.toString()
-                    ?.split('/', ',', ';', '；')
-                    ?.map { it.trim() }
-                    ?.filter { it.isNotBlank() && it != "null" }
-                    .orEmpty()
+                else -> value.toString()
+                    .split('/', ',', ';', '；')
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() && it != "null" }
             }
         }.getOrDefault(emptyList())
         if (result.isNotEmpty()) return result
@@ -286,16 +287,16 @@ private fun JSONObject.optArtistIds(): List<String> {
         if (!has(key) || isNull(key)) continue
         val value = opt(key)
         val ids = when (value) {
+            null -> emptyList()
             is JSONArray -> buildList {
                 for (index in 0 until value.length()) {
                     value.opt(index)?.toString()?.trim()?.takeIf { it.isNotBlank() && it != "0" }?.let(::add)
                 }
             }
-            else -> value?.toString()
-                ?.split(Regex("""\s*(?:[/,;；|]|&)\s*"""))
-                ?.map { it.trim().trim('(', ')') }
-                ?.filter { it.isNotBlank() && it != "0" && it != "null" }
-                .orEmpty()
+            else -> value.toString()
+                .split(Regex("""\s*(?:[/,;；|]|&)\s*"""))
+                .map { it.trim().trim('(', ')') }
+                .filter { it.isNotBlank() && it != "0" && it != "null" }
         }
         if (ids.isNotEmpty()) return ids
     }
@@ -343,6 +344,7 @@ private fun JSONObject.optAlbumId(): String {
     optId("albumId", "alId").takeIf { it.isNotBlank() }?.let { return it }
     val album = opt("album")
     return when (album) {
+        null -> ""
         is JSONArray -> album.opt(1)?.toString().orEmpty().trim().takeUnless { it == "0" }.orEmpty()
         is JSONObject -> album.optId("id", "albumId")
         else -> ""
@@ -353,9 +355,10 @@ private fun JSONObject.optAlbumName(): String {
     optStringCompat("albumName").takeIf { it.isNotBlank() }?.let { return it }
     val album = opt("album")
     return when (album) {
+        null -> ""
         is JSONArray -> album.optString(0).trim()
         is JSONObject -> album.optStringCompat("name", "albumName")
-        else -> album?.toString().orEmpty().trim().takeUnless { it == "null" }.orEmpty()
+        else -> album.toString().trim().takeUnless { it == "null" }.orEmpty()
     }
 }
 

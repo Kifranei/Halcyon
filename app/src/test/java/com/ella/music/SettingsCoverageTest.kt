@@ -41,8 +41,8 @@ class SettingsCoverageTest {
             .map { it.value }
             .toHashSet()
 
-        // Keys deliberately excluded from backup/restore (none today). Document additions here.
-        val intentionallyExcluded = emptySet<String>()
+        // Device-local acknowledgement watermarks must never move between devices with a backup.
+        val intentionallyExcluded = setOf("KEY_WEBDAV_RESTORE_LAST_SEEN_AT")
 
         val missing = declared - referenced - intentionallyExcluded
         assertTrue(

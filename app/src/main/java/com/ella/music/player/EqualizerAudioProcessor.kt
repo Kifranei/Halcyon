@@ -323,6 +323,7 @@ class EqualizerAudioProcessor : AudioProcessor {
         return inputEnded && outputBuffer === EMPTY_BUFFER
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun flush() {
         outputBuffer = EMPTY_BUFFER
         inputEnded = false

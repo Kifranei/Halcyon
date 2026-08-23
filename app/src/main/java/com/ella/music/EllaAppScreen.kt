@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -88,6 +89,10 @@ import com.ella.music.ui.navigation.SHORTCUT_ACTION_PLAY
 import com.ella.music.ui.navigation.SHORTCUT_ACTION_SHUFFLE_ALL
 import com.ella.music.player.DesktopLyricService
 import com.ella.music.ui.player.PlayerScreen
+import com.ella.music.ui.settings.BackupType
+import com.ella.music.ui.settings.WebDavCloudRestoreCoordinator
+import com.ella.music.ui.settings.availableBackupTypes
+import com.ella.music.ui.settings.toWebDavRestoreTypes
 import com.ella.music.ui.search.LocalLibrarySearchDockState
 import com.ella.music.ui.search.rememberLibrarySearchDockState
 import com.ella.music.viewmodel.MainViewModel
@@ -149,6 +154,9 @@ fun EllaApp(
         }
     }
     val scope = rememberCoroutineScope()
+    val pendingWebDavRestore by WebDavCloudRestoreCoordinator.pending.collectAsState()
+    val webDavRestoreDefaults by settingsManager.webDavRestoreDefaultTypes.collectAsState(initial = "")
+    var webDavRestoreBusy by remember { mutableStateOf(false) }
     val mainActivity = context as? MainActivity
     val currentProcessingIntent = remember { mutableStateOf(activity?.intent) }
     DisposableEffect(mainActivity) {
@@ -167,7 +175,7 @@ fun EllaApp(
         val entry = navController.currentBackStackEntry
         val alreadyThere = isAtPlaybackSourceRoute(
             destinationRoute = entry?.destination?.route,
-            argument = { name -> entry?.arguments?.get(name) },
+            argument = { name -> entry?.arguments.navArgument(name) },
             target = route
         )
         if (!alreadyThere) navController.navigate(route)
@@ -175,7 +183,7 @@ fun EllaApp(
             snapshotFlow { navController.currentBackStackEntry }.first { current ->
                 isAtPlaybackSourceRoute(
                     destinationRoute = current?.destination?.route,
-                    argument = { name -> current?.arguments?.get(name) },
+                    argument = { name -> current?.arguments.navArgument(name) },
                     target = route
                 )
             }
@@ -195,7 +203,7 @@ fun EllaApp(
     }
     val currentRouteIdentity = navRouteIdentity(
         destinationRoute = navBackStackEntry?.destination?.route,
-        argument = { name -> navBackStackEntry?.arguments?.get(name) }
+        argument = { name -> navBackStackEntry?.arguments.navArgument(name) }
     )
     var returnToPlayerRoute by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(currentRouteIdentity) {
@@ -245,19 +253,32 @@ fun EllaApp(
     }
     val isPlayerVisible = showPlayerOverlay || currentRoute == Screen.Player.route
     val showLyrics by playerViewModel.showLyrics.collectAsState()
-    LaunchedEffect(isPlayerVisible, showLyrics) {
+    var appInForeground by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> appInForeground = true
+                Lifecycle.Event.ON_STOP -> appInForeground = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            playerViewModel.desktopLyricBridge.setHostPage(DesktopLyricService.HOST_PAGE_NONE)
+        }
+    }
+    LaunchedEffect(isPlayerVisible, showLyrics, appInForeground) {
         playerViewModel.desktopLyricBridge.setHostPage(
             when {
+                !appInForeground -> DesktopLyricService.HOST_PAGE_NONE
                 isPlayerVisible && showLyrics -> DesktopLyricService.HOST_PAGE_LYRICS
                 isPlayerVisible -> DesktopLyricService.HOST_PAGE_PLAYER
                 else -> DesktopLyricService.HOST_PAGE_NONE
             }
         )
-    }
-    DisposableEffect(playerViewModel) {
-        onDispose {
-            playerViewModel.desktopLyricBridge.setHostPage(DesktopLyricService.HOST_PAGE_NONE)
-        }
     }
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val initialScanPromptHandled by settingsManager.initialScanPromptHandled.collectAsState(initial = true)
@@ -336,7 +357,7 @@ fun EllaApp(
             }
             SHORTCUT_ACTION_SHUFFLE_ALL -> {
                 val songs = mainViewModel.songs.first { it.isNotEmpty() }
-                playerViewModel.setPlaylist(songs.shuffled(), 0)
+                playerViewModel.setShuffledPlaylist(songs, 0)
                 runCatching {
                     navController.navigate(Screen.Player.route) {
                         launchSingleTop = true
@@ -414,6 +435,7 @@ fun EllaApp(
         }
     }
 
+    @Suppress("DEPRECATION")
     LaunchedEffect(isPlayerVisible, isDarkTheme) {
         val window = (view.context as ComponentActivity).window
         window.statusBarColor = Color.TRANSPARENT
@@ -961,8 +983,47 @@ fun EllaApp(
                     }
                 }
             )
+
+            val cloudCandidate = pendingWebDavRestore
+            WebDavCloudRestorePromptDialog(
+                show = cloudCandidate != null,
+                restoring = webDavRestoreBusy,
+                onDismiss = {
+                    cloudCandidate ?: return@WebDavCloudRestorePromptDialog
+                    scope.launch { WebDavCloudRestoreCoordinator.dismiss(context, cloudCandidate) }
+                },
+                onRestore = {
+                    cloudCandidate ?: return@WebDavCloudRestorePromptDialog
+                    val availableTypes = cloudCandidate.root.availableBackupTypes()
+                    val configuredTypes = webDavRestoreDefaults.toWebDavRestoreTypes().intersect(availableTypes)
+                    val selectedTypes = configuredTypes.ifEmpty {
+                        availableTypes.ifEmpty { BackupType.entries.toSet() }
+                    }
+                    webDavRestoreBusy = true
+                    scope.launch {
+                        runCatching {
+                            WebDavCloudRestoreCoordinator.restore(context, cloudCandidate, selectedTypes)
+                        }.onSuccess {
+                            mainViewModel.scanMusic()
+                            Toast.makeText(context, R.string.settings_backup_restore_success, Toast.LENGTH_SHORT).show()
+                        }.onFailure {
+                            Toast.makeText(context, R.string.settings_backup_restore_failed, Toast.LENGTH_LONG).show()
+                        }
+                        webDavRestoreBusy = false
+                    }
+                }
+            )
             }
         }
+    }
+}
+
+private fun Bundle?.navArgument(name: String): Any? {
+    val arguments = this ?: return null
+    if (!arguments.containsKey(name)) return null
+    return when (name) {
+        "albumId" -> arguments.getLong(name)
+        else -> arguments.getString(name)
     }
 }
 

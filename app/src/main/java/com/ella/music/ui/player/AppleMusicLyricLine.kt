@@ -124,6 +124,7 @@ internal fun AppleMusicLyricLine(
     distance: Int,
     userScrolling: Boolean,
     nonCurrentLineBlurEnabled: Boolean,
+    nonCurrentLineBlurPercent: Int = 100,
     currentPositionMs: Long,
     showTranslation: Boolean,
     showPronunciation: Boolean,
@@ -200,8 +201,13 @@ internal fun AppleMusicLyricLine(
                 )
             }
             .then(
-                if (nonCurrentLineBlurEnabled && !userScrolling && !active && abs(distance) >= 2) {
-                    Modifier.blur((2 + abs(distance)).dp)
+                if (
+                    nonCurrentLineBlurEnabled && nonCurrentLineBlurPercent > 0 &&
+                    !userScrolling && !active && abs(distance) >= 2
+                ) {
+                    Modifier.blur(
+                        ((2 + abs(distance)) * nonCurrentLineBlurPercent.coerceIn(0, 100) / 100f).dp
+                    )
                 } else {
                     Modifier
                 }

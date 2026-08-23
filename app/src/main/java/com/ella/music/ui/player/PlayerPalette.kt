@@ -281,9 +281,9 @@ internal fun Color.boosted(): Color {
     )
 }
 
-/** Accent-colored player content with a luminance floor so text and icons remain legible. */
+/** Cover-tinted content that stays close to neutral white/black instead of the saturated backdrop. */
 internal fun PlayerPalette.coverContentColor(): Color = accent.boosted().let { accentColor ->
-    if (isLight) accentColor.darken(0.28f) else accentColor.lighten(0.16f)
+    if (isLight) accentColor.darken(0.58f) else accentColor.lighten(0.78f)
 }
 
 internal fun PlayerPalette.withCoverContentColor(): PlayerPalette =

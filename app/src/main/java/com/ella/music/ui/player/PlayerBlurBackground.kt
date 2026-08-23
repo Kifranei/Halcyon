@@ -156,7 +156,6 @@ internal fun BeautifulLyricsDynamicBackground(
     ) {
         val w = size.width
         val h = size.height
-        val t = activeDrift * kotlin.math.PI.toFloat() * 2f
 
         drawRect(
             brush = Brush.linearGradient(
@@ -170,25 +169,26 @@ internal fun BeautifulLyricsDynamicBackground(
             )
         )
 
+        val centers = beautifulLyricsBlobCenters(activeDrift)
         val blobs = listOf(
             Triple(
                 sampledColors[3].copy(alpha = (0.70f + pulse * 0.18f) * brightnessAlpha),
-                Offset((0.12f + 0.42f * kotlin.math.sin(t)) * w, (0.18f + 0.34f * kotlin.math.cos(t)) * h),
+                Offset(centers[0].x * w, centers[0].y * h),
                 0.70f
             ),
             Triple(
                 sampledColors[4].copy(alpha = 0.66f * brightnessAlpha),
-                Offset((0.86f + 0.36f * kotlin.math.cos(t * 0.7f)) * w, (0.26f + 0.36f * kotlin.math.sin(t * 0.8f)) * h),
+                Offset(centers[1].x * w, centers[1].y * h),
                 0.62f
             ),
             Triple(
                 sampledColors[5].copy(alpha = 0.58f * brightnessAlpha),
-                Offset((0.44f + 0.46f * kotlin.math.sin(t * 0.55f)) * w, (0.58f + 0.32f * kotlin.math.cos(t * 0.9f)) * h),
+                Offset(centers[2].x * w, centers[2].y * h),
                 0.58f
             ),
             Triple(
                 sampledColors[6].copy(alpha = 0.72f * brightnessAlpha),
-                Offset((0.72f + 0.42f * kotlin.math.cos(t * 0.95f)) * w, (0.84f + 0.28f * kotlin.math.sin(t)) * h),
+                Offset(centers[3].x * w, centers[3].y * h),
                 0.72f
             )
         )
@@ -214,6 +214,17 @@ internal fun BeautifulLyricsDynamicBackground(
             )
         )
     }
+}
+
+/** Closed paths keep the last frame of a drift cycle continuous with the first one. */
+internal fun beautifulLyricsBlobCenters(progress: Float): List<Offset> {
+    val t = progress.coerceIn(0f, 1f) * kotlin.math.PI.toFloat() * 2f
+    return listOf(
+        Offset(0.12f + 0.42f * kotlin.math.sin(t), 0.18f + 0.34f * kotlin.math.cos(t)),
+        Offset(0.86f + 0.36f * kotlin.math.cos(t * 2f + 0.35f), 0.26f + 0.36f * kotlin.math.sin(t + 0.8f)),
+        Offset(0.44f + 0.46f * kotlin.math.sin(t * 2f + 1.4f), 0.58f + 0.32f * kotlin.math.cos(t * 3f + 0.25f)),
+        Offset(0.72f + 0.42f * kotlin.math.cos(t + 2.1f), 0.84f + 0.28f * kotlin.math.sin(t * 2f + 1.1f))
+    )
 }
 
 private fun Color.beautifulLyricsVibrant(): Color {

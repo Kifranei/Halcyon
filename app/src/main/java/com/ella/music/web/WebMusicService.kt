@@ -59,7 +59,13 @@ class WebMusicService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (error: RuntimeException) {
+            Log.e(TAG, "Unable to enter foreground mode", error)
+            stopSelf()
+            return
+        }
         scope.launch { startServer() }
     }
 
@@ -292,9 +298,12 @@ class WebMusicService : Service() {
         private const val MAX_RESULTS = 1_000
         const val PORT = 8199
 
-        fun start(context: Context) {
+        fun start(context: Context): Boolean = runCatching {
             context.startForegroundService(Intent(context, WebMusicService::class.java))
-        }
+            true
+        }.onFailure { error ->
+            Log.e(TAG, "Unable to start web music service", error)
+        }.getOrDefault(false)
 
         fun stop(context: Context) {
             context.stopService(Intent(context, WebMusicService::class.java))

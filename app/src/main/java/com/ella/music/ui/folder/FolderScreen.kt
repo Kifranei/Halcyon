@@ -296,7 +296,7 @@ fun FolderScreen(
 
         folderMenuTarget?.let { folder ->
             FolderActionSheet(
-                title = folder.name,
+                title = stringResource(R.string.player_more_actions),
                 isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) },
                 onDismiss = { folderMenuTarget = null },
                 onTogglePin = {

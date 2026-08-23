@@ -41,6 +41,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BEAUTIFUL_LYRICS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BEAUTIFUL_LYRICS_SPEED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_CONTENT_COLOR
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_SWIPE_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PREDICTIVE_BACK_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_NON_CURRENT_BLUR_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_DYNAMIC_FLOW_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_HDR_GLOW
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_COVER
@@ -48,7 +50,12 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_KEEP_SCREEN_ON
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LANDSCAPE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PAGE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRICS_CORNER_ACTIONS
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_ACTION_MENU_LAYOUT
+import com.ella.music.data.SettingsManager.Companion.KEY_LIST_ACTION_MENU_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_INDEX
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_QUALITY
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_TOTAL_DURATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_TAP_SEEK_ENABLED
@@ -77,14 +84,21 @@ interface PlayerUiSettingsAccess {
     val miniPlayerSwipeToOpenPlayer: Flow<Boolean>
     val miniPlayerLongPressSource: Flow<Boolean>
     val playerProgressInfoIndex: Flow<Int>
+    val playerProgressShowQuality: Flow<Boolean>
+    val playerProgressShowAudioInfo: Flow<Boolean>
+    val playerProgressShowOutputDevice: Flow<Boolean>
     val transportButtonOutlines: Flow<Boolean>
     val playerTapSeekEnabled: Flow<Boolean>
     val playerShowTotalDuration: Flow<Boolean>
     val playerShowSongAnnotation: Flow<Boolean>
     val playerCoverSwipeEnabled: Flow<Boolean>
+    val playerPredictiveBackEnabled: Flow<Boolean>
+    val lyricNonCurrentBlurPercent: Flow<Int>
     val playerTitlePosition: Flow<Int>
     val playerPageStyle: Flow<Int>
     val playerLyricsCornerActionsEnabled: Flow<Boolean>
+    val playerActionMenuLayout: Flow<String>
+    val listActionMenuLayout: Flow<String>
     val playerLandscapeStyle: Flow<Int>
     val playerKeepScreenOn: Flow<Boolean>
     val playerHdrGlow: Flow<Boolean>
@@ -123,6 +137,9 @@ interface PlayerUiSettingsAccess {
     suspend fun setMiniPlayerSwipeToOpenPlayer(enabled: Boolean)
     suspend fun setMiniPlayerLongPressSource(enabled: Boolean)
     suspend fun setPlayerProgressInfoIndex(index: Int)
+    suspend fun setPlayerProgressShowQuality(enabled: Boolean)
+    suspend fun setPlayerProgressShowAudioInfo(enabled: Boolean)
+    suspend fun setPlayerProgressShowOutputDevice(enabled: Boolean)
     suspend fun setTransportButtonOutlines(enabled: Boolean)
     suspend fun setPlayerHdrGlow(enabled: Boolean)
     suspend fun setPlayerImmersiveCover(enabled: Boolean)
@@ -151,9 +168,13 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerShowTotalDuration(enabled: Boolean)
     suspend fun setPlayerShowSongAnnotation(enabled: Boolean)
     suspend fun setPlayerCoverSwipeEnabled(enabled: Boolean)
+    suspend fun setPlayerPredictiveBackEnabled(enabled: Boolean)
+    suspend fun setLyricNonCurrentBlurPercent(percent: Int)
     suspend fun setPlayerTitlePosition(position: Int)
     suspend fun setPlayerPageStyle(style: Int)
     suspend fun setPlayerLyricsCornerActionsEnabled(enabled: Boolean)
+    suspend fun setPlayerActionMenuLayout(layout: String)
+    suspend fun setListActionMenuLayout(layout: String)
     suspend fun setPlayerLandscapeStyle(style: Int)
     suspend fun setPlayerKeepScreenOn(enabled: Boolean)
 }
@@ -186,6 +207,12 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_MINI_PLAYER_LONG_PRESS_SOURCE] ?: false }
     override val playerProgressInfoIndex: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_PROGRESS_INFO_INDEX] ?: 0).coerceAtLeast(0) }
+    override val playerProgressShowQuality: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_SHOW_QUALITY] ?: true }
+    override val playerProgressShowAudioInfo: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO] ?: true }
+    override val playerProgressShowOutputDevice: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE] ?: true }
     override val transportButtonOutlines: Flow<Boolean> =
         context.dataStore.data.map {
             it[KEY_TRANSPORT_BUTTON_OUTLINES]
@@ -202,6 +229,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_PLAYER_SHOW_SONG_ANNOTATION] ?: true }
     override val playerCoverSwipeEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_COVER_SWIPE_ENABLED] ?: false }
+    override val playerPredictiveBackEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_PREDICTIVE_BACK_ENABLED] ?: false }
+    override val lyricNonCurrentBlurPercent: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_LYRIC_NON_CURRENT_BLUR_PERCENT] ?: 40).coerceIn(0, 100) }
 
     override val playerTitlePosition: Flow<Int> =
         context.dataStore.data.map {
@@ -212,6 +243,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { SettingsManager.normalizePlayerPageStyle(it[KEY_PLAYER_PAGE_STYLE]) }
     override val playerLyricsCornerActionsEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_LYRICS_CORNER_ACTIONS] ?: true }
+    override val playerActionMenuLayout: Flow<String> =
+        context.dataStore.data.map { it[KEY_PLAYER_ACTION_MENU_LAYOUT].orEmpty() }
+    override val listActionMenuLayout: Flow<String> =
+        context.dataStore.data.map { it[KEY_LIST_ACTION_MENU_LAYOUT].orEmpty() }
     override val playerLandscapeStyle: Flow<Int> =
         context.dataStore.data.map { SettingsManager.normalizePlayerLandscapeStyle(it[KEY_PLAYER_LANDSCAPE_STYLE]) }
     override val playerKeepScreenOn: Flow<Boolean> =
@@ -337,6 +372,18 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setPlayerProgressInfoIndex(index: Int) {
         context.dataStore.edit { it[KEY_PLAYER_PROGRESS_INFO_INDEX] = index.coerceAtLeast(0) }
+    }
+
+    override suspend fun setPlayerProgressShowQuality(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_PROGRESS_SHOW_QUALITY] = enabled }
+    }
+
+    override suspend fun setPlayerProgressShowAudioInfo(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO] = enabled }
+    }
+
+    override suspend fun setPlayerProgressShowOutputDevice(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE] = enabled }
     }
 
     override suspend fun setTransportButtonOutlines(enabled: Boolean) {
@@ -482,6 +529,14 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_COVER_SWIPE_ENABLED] = enabled }
     }
 
+    override suspend fun setPlayerPredictiveBackEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_PREDICTIVE_BACK_ENABLED] = enabled }
+    }
+
+    override suspend fun setLyricNonCurrentBlurPercent(percent: Int) {
+        context.dataStore.edit { it[KEY_LYRIC_NON_CURRENT_BLUR_PERCENT] = percent.coerceIn(0, 100) }
+    }
+
     override suspend fun setPlayerTitlePosition(position: Int) {
         context.dataStore.edit {
             it[KEY_PLAYER_TITLE_POSITION] = position.coerceIn(
@@ -499,6 +554,14 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setPlayerLyricsCornerActionsEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_LYRICS_CORNER_ACTIONS] = enabled }
+    }
+
+    override suspend fun setPlayerActionMenuLayout(layout: String) {
+        context.dataStore.edit { it[KEY_PLAYER_ACTION_MENU_LAYOUT] = layout }
+    }
+
+    override suspend fun setListActionMenuLayout(layout: String) {
+        context.dataStore.edit { it[KEY_LIST_ACTION_MENU_LAYOUT] = layout }
     }
 
     override suspend fun setPlayerLandscapeStyle(style: Int) {

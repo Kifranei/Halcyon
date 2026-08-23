@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ella.music.data.exception.WritePermissionRequiredException
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
@@ -89,6 +90,8 @@ private enum class TimingMode { Line, Word }
 @Composable
 internal fun LyricTimingEditorScreen(
     song: Song,
+    lyricsReadSong: Song? = song,
+    preferEmbeddedLyrics: Boolean = false,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     onBack: () -> Unit
@@ -98,8 +101,27 @@ internal fun LyricTimingEditorScreen(
     val currentSong by playerViewModel.currentSong.collectAsStateWithLifecycle()
     val currentPosition by playerViewModel.currentPosition.collectAsStateWithLifecycle()
     val playerLyrics by playerViewModel.lyrics.collectAsStateWithLifecycle()
-    val loadedLyrics by produceState<List<LyricLine>>(emptyList(), song.path, song.dateModified) {
-        value = withContext(Dispatchers.IO) { mainViewModel.repository.getLyrics(song) }
+    val loadedLyrics by produceState<List<LyricLine>>(
+        emptyList(),
+        song.path,
+        song.dateModified,
+        lyricsReadSong?.path,
+        preferEmbeddedLyrics
+    ) {
+        val readSong = lyricsReadSong
+        if (readSong == null) {
+            value = emptyList()
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            if (preferEmbeddedLyrics) {
+                mainViewModel.repository
+                    .getLyrics(readSong, SettingsManager.LYRIC_SOURCE_EMBEDDED)
+                    .ifEmpty { mainViewModel.repository.getLyrics(readSong) }
+            } else {
+                mainViewModel.repository.getLyrics(readSong)
+            }
+        }
     }
     val sourceLyrics = if (currentSong?.let { it.id == song.id && it.path == song.path } == true && playerLyrics.isNotEmpty()) {
         playerLyrics

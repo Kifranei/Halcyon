@@ -10,6 +10,9 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -67,6 +70,9 @@
         android:theme="@style/Theme.Ella">
 
         <meta-data android:name="lyricon_module" android:value="true" />
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="androidx.media3.cast.DefaultCastOptionsProvider" />
         <meta-data android:name="lyricon_module_author" android:value="Kifranei" />
         <meta-data android:name="lyricon_module_description" android:value="愿所有的心声都在旋律里靠岸。" />
         <meta-data android:name="lyricon_module_tags" android:resource="@array/lyricon_module_tags" />
@@ -124,16 +130,52 @@
 
         <activity
             android:name=".LyricTimingEditorActivity"
-            android:exported="false"
+            android:label="@string/song_more_lyric_timing"
+            android:exported="true"
             android:enableOnBackInvokedCallback="true"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.Ella" />
+            android:theme="@style/Theme.Ella">
+            <intent-filter>
+                <action android:name="com.ella.music.action.LYRIC_TIMING" />
+                <action android:name="com.ella.music.action.EDIT_LYRICS" />
+                <action android:name="android.intent.action.EDIT" />
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="halcyon" android:host="lyric-timing" />
+                <data android:scheme="halcyon" android:host="lyrics-timing" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".CastingDeviceActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Ella.Casting" />
 
         <activity
             android:name=".SpectrumViewerActivity"
-            android:exported="false"
+            android:label="@string/song_more_view_spectrum"
+            android:exported="true"
             android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Ella" />
+            android:theme="@style/Theme.Ella">
+            <intent-filter>
+                <action android:name="com.ella.music.action.VIEW_SPECTRUM" />
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="halcyon" android:host="spectrum" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".MusicVideoActivity"
@@ -298,6 +340,14 @@
         <service
             android:name=".web.WebMusicService"
             android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled LAN browser music server and local file transfer" />
+        </service>
+
+        <receiver
+            android:name="androidx.mediarouter.media.MediaTransferReceiver"
             android:exported="false" />
 
         <provider

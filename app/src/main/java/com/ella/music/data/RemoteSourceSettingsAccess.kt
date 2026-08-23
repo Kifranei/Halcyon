@@ -39,6 +39,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_OPENSUBSONIC_SERVERS
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_INTERVAL_HOURS
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_LAST_AT
+import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_RESTORE_DEFAULT_TYPES
+import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_RESTORE_LAST_SEEN_AT
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_BACKUP_PASSWORD
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_BACKUP_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_BACKUP_URL
@@ -79,6 +81,8 @@ interface RemoteSourceSettingsAccess {
     val webDavAutoBackupEnabled: Flow<Boolean>
     val webDavAutoBackupIntervalHours: Flow<Int>
     val webDavAutoBackupLastAt: Flow<Long>
+    val webDavRestoreDefaultTypes: Flow<String>
+    val webDavRestoreLastSeenAt: Flow<Long>
     val lxSources: Flow<List<LxSourceConfig>>
     val selectedLxSourceId: Flow<String>
     val selectedLxSource: Flow<LxSourceConfig?>
@@ -121,6 +125,8 @@ interface RemoteSourceSettingsAccess {
     suspend fun setWebDavAutoBackupEnabled(enabled: Boolean)
     suspend fun setWebDavAutoBackupIntervalHours(hours: Int)
     suspend fun setWebDavAutoBackupLastAt(timestamp: Long)
+    suspend fun setWebDavRestoreDefaultTypes(types: String)
+    suspend fun setWebDavRestoreLastSeenAt(timestamp: Long)
     suspend fun deleteOpenSubsonicServer(id: String)
     suspend fun setActiveOpenSubsonicServer(id: String)
     suspend fun upsertEmbyServer(server: SavedRemoteServer)
@@ -152,6 +158,12 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
     }
     override val webDavAutoBackupLastAt: Flow<Long> = context.dataStore.data.map {
         it[KEY_WEBDAV_AUTO_BACKUP_LAST_AT]?.toLongOrNull() ?: 0L
+    }
+    override val webDavRestoreDefaultTypes: Flow<String> = context.dataStore.data.map {
+        it[KEY_WEBDAV_RESTORE_DEFAULT_TYPES].orEmpty()
+    }
+    override val webDavRestoreLastSeenAt: Flow<Long> = context.dataStore.data.map {
+        it[KEY_WEBDAV_RESTORE_LAST_SEEN_AT]?.toLongOrNull() ?: 0L
     }
     override val lxSources: Flow<List<LxSourceConfig>> = context.dataStore.data.map { prefs -> prefs.lxSources() }
     override val selectedLxSourceId: Flow<String> = context.dataStore.data.map { it[KEY_LX_SELECTED_SOURCE_ID] ?: "" }
@@ -421,6 +433,17 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
 
     override suspend fun setWebDavAutoBackupLastAt(timestamp: Long) {
         context.dataStore.edit { it[KEY_WEBDAV_AUTO_BACKUP_LAST_AT] = timestamp.coerceAtLeast(0L).toString() }
+    }
+
+    override suspend fun setWebDavRestoreDefaultTypes(types: String) {
+        context.dataStore.edit { prefs ->
+            if (types.isBlank()) prefs.remove(KEY_WEBDAV_RESTORE_DEFAULT_TYPES)
+            else prefs[KEY_WEBDAV_RESTORE_DEFAULT_TYPES] = types
+        }
+    }
+
+    override suspend fun setWebDavRestoreLastSeenAt(timestamp: Long) {
+        context.dataStore.edit { it[KEY_WEBDAV_RESTORE_LAST_SEEN_AT] = timestamp.coerceAtLeast(0L).toString() }
     }
 
     override suspend fun deleteOpenSubsonicServer(id: String) {

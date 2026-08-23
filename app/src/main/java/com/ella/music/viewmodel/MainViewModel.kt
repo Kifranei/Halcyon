@@ -96,7 +96,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             existingHistory = localHistory
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
-    val playbackHistory: StateFlow<List<PlaybackHistoryEntry>> = combine(
+    /** Immediate sessions used by the home-page "recently played" list. */
+    val recentPlaybackHistory: StateFlow<List<PlaybackHistoryEntry>> = combine(
         playbackStatsStore.history,
         lastFmHistoryStore.history,
         listeningHistorySource,
@@ -110,19 +111,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ListeningHistorySource.Combined -> mergePlaybackHistorySources(local, remote)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Qualified history: local sessions appear only after the configured #419 threshold. */
+    val playbackHistory: StateFlow<List<PlaybackHistoryEntry>> = combine(
+        playbackStatsStore.history,
+        lastFmHistoryStore.history,
+        listeningHistorySource,
+        playbackStatsStore.hiddenRemoteHistoryEntryIds
+    ) { local, lastFm, source, hiddenRemoteEntryIds ->
+        val qualifiedLocal = local.filter(PlaybackHistoryEntry::playCounted)
+        val remote = lastFm.map { it.toPlaybackHistoryEntry() }
+            .filterNot { it.entryId in hiddenRemoteEntryIds }
+        when (source) {
+            ListeningHistorySource.Local -> qualifiedLocal
+            ListeningHistorySource.LastFm -> remote
+            ListeningHistorySource.Combined -> mergePlaybackHistorySources(qualifiedLocal, remote)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val dailyListenMs: StateFlow<Map<String, Long>> = combine(
-        playbackHistory,
+        playbackStatsStore.dailyListenMs,
         lastFmDailyListenMs,
         listeningHistorySource
-    ) { visibleHistory, lastFm, source ->
-        val visibleLocal = visibleHistory
-            .filter { it.source == PlaybackHistorySource.LOCAL }
-            .groupBy { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it.playedAt)) }
-            .mapValues { (_, entries) -> entries.sumOf { it.listenedMs } }
+    ) { local, lastFm, source ->
         when (source) {
-            ListeningHistorySource.Local -> visibleLocal
+            ListeningHistorySource.Local -> local
             ListeningHistorySource.LastFm -> lastFm
-            ListeningHistorySource.Combined -> mergeDailyListenMs(visibleLocal, lastFm)
+            ListeningHistorySource.Combined -> mergeDailyListenMs(local, lastFm)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 

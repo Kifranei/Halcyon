@@ -16,10 +16,6 @@ object TTMLExporter : ILyricsExporter {
             var hasStart = false
             var hasEnd = false
 
-            if (lyrics.lines.isEmpty()) {
-                false
-            }
-
             for (line in lyrics.lines) {
                 if (line is KaraokeLine) {
                     when (line.alignment) {

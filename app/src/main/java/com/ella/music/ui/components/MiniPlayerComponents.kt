@@ -3,6 +3,8 @@ package com.ella.music.ui.components
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -86,32 +88,13 @@ internal fun MiniPlayerAnimatedText(
         isPlaying = isPlaying,
         timing = lyricTiming
     )
-    AnimatedContent(
-        targetState = textState,
-        transitionSpec = {
-            val direction = transitionDirection
-            val outOffset = { width: Int -> -direction * width / 3 }
-            val inOffset = { width: Int -> direction * width / 3 }
-            val enter = slideInHorizontally(
-                animationSpec = tween(450, easing = FastOutSlowInEasing),
-                initialOffsetX = inOffset
-            ) + fadeIn(
-                animationSpec = tween(450, easing = FastOutSlowInEasing),
-                initialAlpha = 0.15f
-            )
-            val exit = slideOutHorizontally(
-                animationSpec = tween(300, easing = FastOutLinearInEasing),
-                targetOffsetX = outOffset
-            ) + fadeOut(
-                animationSpec = tween(300, easing = FastOutLinearInEasing),
-                targetAlpha = 0f
-            )
-            enter togetherWith exit using SizeTransform(clip = false)
-        },
-        label = "MiniPlayerSongText",
-        modifier = modifier
-    ) { state ->
-        Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = modifier) {
+        AnimatedContent(
+            targetState = textState,
+            transitionSpec = { miniPlayerTextTransition(transitionDirection) },
+            label = "MiniPlayerPrimaryText",
+            modifier = Modifier.fillMaxWidth()
+        ) { state ->
             MiniPlayerTextRow(
                 text = state.primary,
                 explicit = state.primaryIsExplicit,
@@ -125,14 +108,39 @@ internal fun MiniPlayerAnimatedText(
                 lyricTiming = lyricTiming,
                 wordTiming = if (state.showingLyric) lyricTiming?.words.orEmpty() else emptyList<LyricWord>()
             )
+        }
+        if (textState.scrollSecondary) {
+            AnimatedContent(
+                targetState = textState,
+                transitionSpec = { miniPlayerTextTransition(transitionDirection) },
+                label = "MiniPlayerSecondaryLyric",
+                modifier = Modifier.fillMaxWidth()
+            ) { state ->
+                MiniPlayerTextRow(
+                    text = state.secondary,
+                    explicit = state.secondaryIsExplicit,
+                    fontSize = secondaryFontSize,
+                    fontWeight = FontWeight.Normal,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    enabled = true,
+                    highlightWithProgress = state.highlightSecondaryWithProgress,
+                    fallbackProgress = lyricProgress,
+                    smoothedPositionMs = smoothedPositionMs,
+                    lyricTiming = lyricTiming,
+                    wordTiming = emptyList<LyricWord>()
+                )
+            }
+        } else {
+            // With original-only lyrics this row is stable song metadata. Keep it anchored while
+            // the primary lyric line transitions instead of sliding the whole two-line column.
             MiniPlayerTextRow(
-                text = state.secondary,
-                explicit = state.secondaryIsExplicit,
+                text = textState.secondary,
+                explicit = textState.secondaryIsExplicit,
                 fontSize = secondaryFontSize,
                 fontWeight = FontWeight.Normal,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                enabled = state.scrollSecondary,
-                highlightWithProgress = state.highlightSecondaryWithProgress,
+                enabled = false,
+                highlightWithProgress = false,
                 fallbackProgress = lyricProgress,
                 smoothedPositionMs = smoothedPositionMs,
                 lyricTiming = lyricTiming,
@@ -140,6 +148,26 @@ internal fun MiniPlayerAnimatedText(
             )
         }
     }
+}
+
+private fun AnimatedContentTransitionScope<*>.miniPlayerTextTransition(direction: Int): ContentTransform {
+    val outOffset = { width: Int -> -direction * width / 3 }
+    val inOffset = { width: Int -> direction * width / 3 }
+    val enter = slideInHorizontally(
+        animationSpec = tween(450, easing = FastOutSlowInEasing),
+        initialOffsetX = inOffset
+    ) + fadeIn(
+        animationSpec = tween(450, easing = FastOutSlowInEasing),
+        initialAlpha = 0.15f
+    )
+    val exit = slideOutHorizontally(
+        animationSpec = tween(300, easing = FastOutLinearInEasing),
+        targetOffsetX = outOffset
+    ) + fadeOut(
+        animationSpec = tween(300, easing = FastOutLinearInEasing),
+        targetAlpha = 0f
+    )
+    return enter togetherWith exit using SizeTransform(clip = false)
 }
 
 @Composable

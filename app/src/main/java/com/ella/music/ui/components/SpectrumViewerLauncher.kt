@@ -25,9 +25,9 @@ internal object SpectrumViewerLauncher {
         )
         .putExtra(EXTRA_SONG, song.toSpectrumJson().toString())
 
-    fun songFrom(intent: Intent): Song? = intent.getStringExtra(EXTRA_SONG)
-        ?.let(::JSONObject)
-        ?.toSpectrumSong()
+    fun songFrom(context: Context, intent: Intent): Song? = runCatching {
+        intent.getStringExtra(EXTRA_SONG)?.let(::JSONObject)?.toSpectrumSong()
+    }.getOrNull() ?: context.songFromExternalAudioToolIntent(intent)
 
     suspend fun openSelected(context: Context, song: Song) {
         when (SettingsManager.getInstance(context).spectrumViewerId.first()) {

@@ -58,9 +58,13 @@ import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.toFastIndexSection
+import com.ella.music.ui.home.HomeRatingFilterUiState
+import com.ella.music.ui.home.StarRatingFilterRow
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -89,6 +93,8 @@ fun PlaylistDetailScreen(
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val showRemoveFromPlaylistButton by mainViewModel.settingsManager.showRemoveFromPlaylistButton.collectAsState(initial = true)
+    val showRatingFilter by mainViewModel.settingsManager.playlistShowRatingFilter.collectAsState(initial = true)
+    val showFavoriteFilter by mainViewModel.settingsManager.playlistShowFavoriteFilter.collectAsState(initial = true)
     val isFiveStarPlaylist = playlistId == FIVE_STAR_PLAYLIST_ID
     val storedPlaylist = playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
     val fiveStarSongs by produceState(initialValue = emptyList(), isFiveStarPlaylist, librarySongs, ratingRevision) {
@@ -116,6 +122,8 @@ fun PlaylistDetailScreen(
     val sortMode = PlaylistSongSortMode.entries.getOrElse(sortIndex) { PlaylistSongSortMode.AddedAt }
     var searchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
+    var ratingFilterExpanded by remember { mutableStateOf(false) }
     RestoreListScrollAfterSearch(
         searchExpanded = searchExpanded,
         query = searchQuery,
@@ -129,7 +137,27 @@ fun PlaylistDetailScreen(
     val selection = rememberLibrarySelectionState<String>()
     var draggedSongKey by remember { mutableStateOf<String?>(null) }
     var pressedDragHandleSongKey by remember { mutableStateOf<String?>(null) }
-    val sortedSongs = remember(songs, sortMode) { songs.sortedForPlaylistDetail(sortMode) }
+    val activeFavoriteSongKeys = if (ratingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
+    val activeRatingRevision = if (ratingFilter.hasRatingConstraint()) ratingRevision else 0
+    val ratingFilteredSongs by produceState(
+        initialValue = songs,
+        songs,
+        ratingFilter,
+        activeFavoriteSongKeys,
+        activeRatingRevision
+    ) {
+        value = if (ratingFilter.isUnfiltered()) songs else withContext(Dispatchers.IO) {
+            songs.filter { song ->
+                ratingFilter.matches(
+                    rating = mainViewModel.getSongRating(song),
+                    isFavorite = song.playlistIdentityKey() in activeFavoriteSongKeys
+                )
+            }
+        }
+    }
+    val sortedSongs = remember(ratingFilteredSongs, sortMode) {
+        ratingFilteredSongs.sortedForPlaylistDetail(sortMode)
+    }
     LaunchedEffect(playlist?.id, songs) {
         manualOrder = songs
     }
@@ -228,13 +256,14 @@ fun PlaylistDetailScreen(
     val selectedSongsForDrag = remember(displayedSongs, selection.selectedIds) {
         displayedSongs.filter { it.playlistIdentityKey() in selection.selectedIds }
     }
-    BackHandler(enabled = selection.selectionMode || searchExpanded) {
+    BackHandler(enabled = selection.selectionMode || searchExpanded || ratingFilterExpanded) {
         when {
             selection.selectionMode -> finishSelectionMode()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
             }
+            ratingFilterExpanded -> ratingFilterExpanded = false
         }
     }
     val displayedSongIndexByKey = remember(displayedSongs) {
@@ -320,6 +349,10 @@ fun PlaylistDetailScreen(
             selectionMode = selection.selectionMode,
             showRemoveSelected = !isFiveStarPlaylist && !isRemoteReadOnly,
             showExport = playlist != null && !isFiveStarPlaylist,
+            showRatingFilter = showRatingFilter,
+            showFavoriteFilter = showFavoriteFilter,
+            ratingFilterActive = ratingFilter.hasRatingConstraint() || ratingFilterExpanded,
+            favoriteFilterActive = ratingFilter.hasFavoriteFilterMemory(),
             onNavigationClick = {
                 if (selection.selectionMode) finishSelectionMode() else onBack()
             },
@@ -357,6 +390,11 @@ fun PlaylistDetailScreen(
                     selection.rangeTargetId = null
                 }
             },
+            onRatingFilterClick = { ratingFilterExpanded = !ratingFilterExpanded },
+            onFavoriteFilterClick = {
+                ratingFilter = ratingFilter.toggleFavoriteFilter()
+                HomeRatingFilterUiState.selection = ratingFilter
+            },
             onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } }
         )
 
@@ -366,6 +404,20 @@ fun PlaylistDetailScreen(
             onQueryChange = { searchQuery = it },
             onSearch = { searchExpanded = false }
         )
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = songs.isNotEmpty() && !selection.selectionMode && ratingFilterExpanded,
+            enter = androidx.compose.animation.expandVertically(),
+            exit = androidx.compose.animation.shrinkVertically()
+        ) {
+            StarRatingFilterRow(
+                selection = ratingFilter,
+                onSelectionChange = {
+                    ratingFilter = it
+                    HomeRatingFilterUiState.selection = it
+                }
+            )
+        }
 
         if (playlist == null) {
             PlaylistDetailNotFoundState()
@@ -394,8 +446,8 @@ fun PlaylistDetailScreen(
                         } else {
                             {
                                 if (displayedSongs.isNotEmpty()) {
-                                    playerViewModel.setPlaylist(
-                                        displayedSongs.shuffled(),
+                                    playerViewModel.setShuffledPlaylist(
+                                        displayedSongs,
                                         0,
                                         resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
                                     )

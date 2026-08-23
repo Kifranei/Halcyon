@@ -3,12 +3,19 @@ package com.ella.music.ui.components
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.ActionMenuIds
+import com.ella.music.data.ActionMenuLayout
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -35,34 +42,35 @@ internal fun SongMoreActionSheet(
     showSpectrum: Boolean,
     showAddToQueue: Boolean
 ) {
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val savedLayout by settingsManager.listActionMenuLayout.collectAsState(initial = "")
+    val visibleActions = remember(savedLayout) {
+        ActionMenuLayout.parse(savedLayout, ActionMenuIds.listDefaults)
+            .visibleIds(ActionMenuIds.listDefaults)
+    }
     SongSheetColumn {
         extraTopContent?.invoke(this)
-        SongMenuItem(stringResource(R.string.song_more_add_to_playlist), onAddToPlaylist)
-        if (showAddToQueue) {
-            SongMenuItem(stringResource(R.string.common_add_to_queue), onAddToQueue)
-        }
-        SongMenuItem(stringResource(R.string.song_more_play_next), onPlayNext)
-        SongMenuItem(stringResource(R.string.common_share), onShare)
-        if (showSpectrum) {
-            SongMenuItem(stringResource(R.string.song_more_view_spectrum), onSpectrum)
-        }
-        SongMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
-        SongMenuItem(stringResource(R.string.song_more_view_song_info), onInfo)
-        SongMenuItem(stringResource(R.string.song_more_set_rating), onRating)
-        if (onEditTag != null) {
-            SongMenuItem(stringResource(R.string.song_more_edit_tags_title), onEditTag)
-        }
-        if (onLyricTiming != null) {
-            SongMenuItem(stringResource(R.string.song_more_lyric_timing), onLyricTiming)
-        }
-        if (onAudioTools != null) {
-            SongMenuItem(stringResource(R.string.song_more_audio_tools), onAudioTools)
-        }
-        if (onRemoveFromPlaylist != null) {
-            SongMenuItem(stringResource(R.string.playlist_remove_song_title), onRemoveFromPlaylist, danger = true)
-        }
-        if (onDelete != null) {
-            SongMenuItem(stringResource(R.string.song_more_delete_permanently), onDelete, danger = true)
+        visibleActions.forEach { actionId ->
+            when (actionId) {
+                ActionMenuIds.ADD_TO_PLAYLIST -> SongMenuItem(stringResource(R.string.song_more_add_to_playlist), onAddToPlaylist)
+                ActionMenuIds.ADD_TO_QUEUE -> if (showAddToQueue) SongMenuItem(stringResource(R.string.common_add_to_queue), onAddToQueue)
+                ActionMenuIds.PLAY_NEXT -> SongMenuItem(stringResource(R.string.song_more_play_next), onPlayNext)
+                ActionMenuIds.SHARE -> SongMenuItem(stringResource(R.string.common_share), onShare)
+                ActionMenuIds.SPECTRUM -> if (showSpectrum) SongMenuItem(stringResource(R.string.song_more_view_spectrum), onSpectrum)
+                ActionMenuIds.AI -> SongMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
+                ActionMenuIds.INFO -> SongMenuItem(stringResource(R.string.song_more_view_song_info), onInfo)
+                ActionMenuIds.RATING -> SongMenuItem(stringResource(R.string.song_more_set_rating), onRating)
+                ActionMenuIds.EDIT_TAGS -> onEditTag?.let { SongMenuItem(stringResource(R.string.song_more_edit_tags_title), it) }
+                ActionMenuIds.LYRIC_TIMING -> onLyricTiming?.let { SongMenuItem(stringResource(R.string.song_more_lyric_timing), it) }
+                ActionMenuIds.AUDIO_TOOLS -> onAudioTools?.let { SongMenuItem(stringResource(R.string.song_more_audio_tools), it) }
+                ActionMenuIds.REMOVE_FROM_PLAYLIST -> onRemoveFromPlaylist?.let {
+                    SongMenuItem(stringResource(R.string.playlist_remove_song_title), it, danger = true)
+                }
+                ActionMenuIds.DELETE -> onDelete?.let {
+                    SongMenuItem(stringResource(R.string.song_more_delete_permanently), it, danger = true)
+                }
+            }
         }
         SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
     }

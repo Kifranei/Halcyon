@@ -301,12 +301,8 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
             emptyList()
         }
         var smoothPositionMs by remember { mutableLongStateOf(currentPositionMs) }
-        LaunchedEffect(currentPositionMs, playbackRunning, wordLiftEnabled) {
+        LaunchedEffect(currentPositionMs, playbackRunning) {
             val anchorPositionMs = currentPositionMs
-            if (!wordLiftEnabled) {
-                smoothPositionMs = anchorPositionMs
-                return@LaunchedEffect
-            }
             val anchorFrameNs = withFrameNanos { it }
             smoothPositionMs = anchorPositionMs
             while (playbackRunning) {
@@ -408,6 +404,7 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
 
     private fun String.hasCjkKanaOrHangul(): Boolean = any { char ->
         when (Character.UnicodeBlock.of(char)) {
+            null -> false
             Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
             Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
             Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,

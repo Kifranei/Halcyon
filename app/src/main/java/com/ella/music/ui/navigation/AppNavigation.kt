@@ -770,6 +770,9 @@ fun AppNavigation(
                 highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty(),
                 onNavigateToBottomNavigationSettings = {
                     navController.navigate(Screen.BottomNavigationSettings.route)
+                },
+                onNavigateToAppearancePage = { nestedPage ->
+                    navController.navigate(Screen.AppearanceSubpage.createRoute(nestedPage))
                 }
             )
         }

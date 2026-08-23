@@ -31,9 +31,10 @@ class DesktopLyricOverlayChromeTest {
     }
 
     @Test
-    fun lockedDesktopLyricsDoNotUsePassThroughBecauseItDimsOnSomeRoms() {
-        assertFalse(desktopLyricPassThroughTouches(statusBarMode = false))
-        assertTrue(desktopLyricPassThroughTouches(statusBarMode = true))
+    fun lockedDesktopLyricsPassTouchesThroughWithoutLeavingADeadZone() {
+        assertFalse(desktopLyricPassThroughTouches(locked = false, statusBarMode = false))
+        assertTrue(desktopLyricPassThroughTouches(locked = true, statusBarMode = false))
+        assertTrue(desktopLyricPassThroughTouches(locked = false, statusBarMode = true))
         assertTrue(desktopLyricUsesCompactWindow(locked = true, statusBarMode = false))
         assertFalse(desktopLyricUsesCompactWindow(locked = false, statusBarMode = false))
         assertFalse(desktopLyricUsesCompactWindow(locked = true, statusBarMode = true))

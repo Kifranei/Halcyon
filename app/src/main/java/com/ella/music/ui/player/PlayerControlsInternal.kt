@@ -1,6 +1,7 @@
 package com.ella.music.ui.player
 
 import android.content.Context
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.media.MediaRouter2
@@ -163,6 +164,12 @@ internal fun GlowSeekBar(
 }
 
 internal fun openSystemOutputSwitcher(context: Context) {
+    val intent = Intent(context, com.ella.music.CastingDeviceActivity::class.java)
+    if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
+}
+
+internal fun openPlatformOutputSwitcher(context: Context) {
     if (MiPlayAudioSupport.openMiPlayDetailIfSupported(context)) return
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

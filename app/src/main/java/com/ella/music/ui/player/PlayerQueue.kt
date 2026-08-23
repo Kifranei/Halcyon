@@ -361,7 +361,7 @@ internal fun PlayerQueueMenu(
                                         color = if (isCurrentSong) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
+                                        modifier = Modifier.weight(1f)
                                     )
                                     if (isFavorite) {
                                         Spacer(modifier = Modifier.width(5.dp))
@@ -396,25 +396,19 @@ internal fun PlayerQueueMenu(
                             }
                             if (isCurrentSong && navigateToPlaybackSource != null) {
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Row(
+                                Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                        .size(32.dp)
+                                        .clip(CircleShape)
                                         .playerNoIndicationClick(navigateToPlaybackSource)
-                                        .padding(horizontal = 8.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(5.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_link_chain),
-                                        contentDescription = null,
+                                        contentDescription = stringResource(R.string.player_queue_source),
                                         tint = MiuixTheme.colorScheme.primary,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = stringResource(R.string.player_queue_source),
-                                        fontSize = 11.sp,
-                                        color = MiuixTheme.colorScheme.primary
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }

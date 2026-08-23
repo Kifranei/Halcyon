@@ -6,6 +6,12 @@ import android.net.NetworkCapabilities
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,7 +21,8 @@ import java.util.concurrent.TimeUnit
 internal data class LastFmArtistWiki(
     val text: String,
     val artistUrl: String,
-    val wikiUrl: String
+    val wikiUrl: String,
+    val source: ArtistWikiSource
 )
 
 /** Wiki language switcher. English, Simplified Chinese and Japanese stay first. */
@@ -40,6 +47,31 @@ internal val LAST_FM_WIKI_REGIONS: List<LastFmWikiRegion> = listOf(
 )
 
 internal const val DEFAULT_LAST_FM_WIKI_REGION = "en"
+
+internal enum class ArtistWikiSource {
+    LastFmApi,
+    Netease,
+    LastFmHtml,
+    WikipediaSelected,
+    WikipediaEnglish
+}
+
+internal fun artistWikiSourceOrder(
+    regionCode: String,
+    hasApiKey: Boolean,
+    vpnActive: Boolean = false
+): List<ArtistWikiSource> {
+    val region = normalizeLastFmWikiRegion(regionCode)
+    return buildList {
+        if (hasApiKey) add(ArtistWikiSource.LastFmApi)
+        // NetEase is the mainland-reachable Chinese provider. It must not win for every selected
+        // region, otherwise changing the region just reloads the same Chinese biography (#505).
+        if (region == "zh" && !vpnActive) add(ArtistWikiSource.Netease)
+        add(ArtistWikiSource.LastFmHtml)
+        add(ArtistWikiSource.WikipediaSelected)
+        if (region != DEFAULT_LAST_FM_WIKI_REGION) add(ArtistWikiSource.WikipediaEnglish)
+    }
+}
 
 internal fun normalizeLastFmWikiRegion(code: String?): String {
     val normalized = code?.trim()?.lowercase(Locale.ROOT).orEmpty()
@@ -134,7 +166,8 @@ internal fun parseLastFmArtistGetInfoJson(
     return LastFmArtistWiki(
         text = text,
         artistUrl = artistUrl,
-        wikiUrl = lastFmArtistWikiUrl(name, regionCode)
+        wikiUrl = lastFmArtistWikiUrl(name, regionCode),
+        source = ArtistWikiSource.LastFmApi
     )
 }
 
@@ -163,6 +196,47 @@ internal fun parseWikipediaExtract(raw: String): Pair<String, String>? {
     if (extract.isBlank()) return null
     val title = page.optString("title").takeIf { it.isNotBlank() } ?: return extract to ""
     return extract to title
+}
+
+internal fun parseNeteaseArtistId(raw: String, artistName: String): String? {
+    val artists = runCatching {
+        Json.parseToJsonElement(raw).jsonObject["result"]?.jsonObject
+            ?.get("artists")?.jsonArray
+    }.getOrNull() ?: return null
+    val requested = artistName.trim()
+    fun findArtistId(ignoreCase: Boolean): String? {
+        artists.forEach { element ->
+            val artist = runCatching { element.jsonObject }.getOrNull() ?: return@forEach
+            val name = artist["name"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+            if (name.equals(requested, ignoreCase = ignoreCase)) {
+                return artist["id"]?.jsonPrimitive?.longOrNull?.takeIf { it > 0L }?.toString()
+            }
+        }
+        return null
+    }
+    findArtistId(ignoreCase = false)?.let { return it }
+    findArtistId(ignoreCase = true)?.let { return it }
+    return artists.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.longOrNull
+        ?.takeIf { it > 0L }?.toString()
+}
+
+internal fun parseNeteaseArtistBiography(raw: String): String {
+    val root = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return ""
+    val sections = buildList {
+        root["briefDesc"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+            .takeIf { it.isNotBlank() }?.let(::add)
+        val introduction = runCatching { root["introduction"]?.jsonArray }.getOrNull()
+        if (introduction != null) {
+            introduction.forEach { element ->
+                runCatching { element.jsonObject }.getOrNull()?.let { section ->
+                    val title = section["ti"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+                    val text = section["txt"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+                    if (text.isNotBlank()) add(listOf(title, text).filter(String::isNotBlank).joinToString("\n"))
+                }
+            }
+        }
+    }
+    return sections.distinct().joinToString("\n\n").trim()
 }
 
 internal fun stripLastFmLicenseFooter(text: String): String {
@@ -199,6 +273,13 @@ internal fun isWifiConnected(context: Context): Boolean {
     return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
 }
 
+internal fun isVpnActive(context: Context): Boolean {
+    val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        ?: return false
+    return manager.getNetworkCapabilities(manager.activeNetwork)
+        ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+}
+
 internal suspend fun fetchLastFmArtistWiki(
     artistName: String,
     locale: Locale,
@@ -212,39 +293,66 @@ internal suspend fun fetchLastFmArtistWiki(
 internal suspend fun fetchLastFmArtistWiki(
     artistName: String,
     regionCode: String,
-    apiKey: String? = null
+    apiKey: String? = null,
+    vpnActive: Boolean = false
 ): LastFmArtistWiki = withContext(Dispatchers.IO) {
     val region = normalizeLastFmWikiRegion(regionCode)
     val client = wikiHttpClient()
     val errors = mutableListOf<Throwable>()
 
-    // Pano Scrobbler-style: Last.fm 2.0 API on ws.audioscrobbler.com, which is reachable in
-    // mainland China when www.last.fm HTML is not.
-    if (!apiKey.isNullOrBlank()) {
-        runCatching { fetchLastFmArtistWikiFromApi(artistName, region, apiKey, client) }
-            .onSuccess { if (it.text.isNotBlank()) return@withContext it }
-            .onFailure(errors::add)
-    }
-
-    runCatching { fetchLastFmArtistWikiFromHtml(artistName, region, client) }
-        .onSuccess { if (it.text.isNotBlank()) return@withContext it }
-        .onFailure(errors::add)
-
-    runCatching { fetchWikipediaArtistWiki(artistName, region, client) }
-        .onSuccess { wiki -> if (wiki != null && wiki.text.isNotBlank()) return@withContext wiki }
-        .onFailure(errors::add)
-
-    if (region != DEFAULT_LAST_FM_WIKI_REGION) {
-        runCatching { fetchWikipediaArtistWiki(artistName, DEFAULT_LAST_FM_WIKI_REGION, client) }
-            .onSuccess { wiki -> if (wiki != null && wiki.text.isNotBlank()) return@withContext wiki }
-            .onFailure(errors::add)
+    for (source in artistWikiSourceOrder(
+        region,
+        hasApiKey = !apiKey.isNullOrBlank(),
+        vpnActive = vpnActive
+    )) {
+        val result = runCatching {
+            when (source) {
+                ArtistWikiSource.LastFmApi ->
+                    fetchLastFmArtistWikiFromApi(artistName, region, apiKey.orEmpty(), client)
+                ArtistWikiSource.Netease -> fetchNeteaseArtistWiki(artistName, client)
+                ArtistWikiSource.LastFmHtml -> fetchLastFmArtistWikiFromHtml(artistName, region, client)
+                ArtistWikiSource.WikipediaSelected -> fetchWikipediaArtistWiki(artistName, region, client)
+                ArtistWikiSource.WikipediaEnglish ->
+                    fetchWikipediaArtistWiki(artistName, DEFAULT_LAST_FM_WIKI_REGION, client)
+            }
+        }.onFailure(errors::add)
+        val wiki = result.getOrNull()
+        if (wiki != null && wiki.text.isNotBlank()) return@withContext wiki
     }
 
     if (errors.isNotEmpty()) throw errors.first()
     LastFmArtistWiki(
         text = "",
         artistUrl = lastFmArtistPageUrl(artistName, region),
-        wikiUrl = lastFmArtistWikiUrl(artistName, region)
+        wikiUrl = lastFmArtistWikiUrl(artistName, region),
+        source = ArtistWikiSource.LastFmHtml
+    )
+}
+
+private fun fetchNeteaseArtistWiki(
+    artistName: String,
+    client: OkHttpClient
+): LastFmArtistWiki? {
+    val searchUrl = "https://music.163.com/api/search/get/web".toHttpUrl().newBuilder()
+        .addQueryParameter("s", artistName)
+        .addQueryParameter("type", "100")
+        .addQueryParameter("offset", "0")
+        .addQueryParameter("limit", "5")
+        .build()
+        .toString()
+    val artistId = parseNeteaseArtistId(client.executeNeteaseText(searchUrl), artistName) ?: return null
+    val biographyUrl = "https://music.163.com/api/artist/introduction".toHttpUrl().newBuilder()
+        .addQueryParameter("id", artistId)
+        .build()
+        .toString()
+    val text = parseNeteaseArtistBiography(client.executeNeteaseText(biographyUrl))
+    if (text.isBlank()) return null
+    val pageUrl = "https://y.music.163.com/m/artist?id=$artistId"
+    return LastFmArtistWiki(
+        text = text,
+        artistUrl = pageUrl,
+        wikiUrl = pageUrl,
+        source = ArtistWikiSource.Netease
     )
 }
 
@@ -291,7 +399,8 @@ private fun fetchLastFmArtistWikiFromHtml(
     return LastFmArtistWiki(
         text = parseLastFmWikiHtml(html),
         artistUrl = lastFmArtistPageUrl(artistName, region),
-        wikiUrl = wikiUrl
+        wikiUrl = wikiUrl,
+        source = ArtistWikiSource.LastFmHtml
     )
 }
 
@@ -329,7 +438,8 @@ private fun fetchWikipediaArtistWiki(
     return LastFmArtistWiki(
         text = extract,
         artistUrl = pageUrl,
-        wikiUrl = pageUrl
+        wikiUrl = pageUrl,
+        source = ArtistWikiSource.WikipediaSelected
     )
 }
 
@@ -343,6 +453,18 @@ private fun OkHttpClient.executeText(
         .apply {
             if (!acceptLanguage.isNullOrBlank()) header("Accept-Language", acceptLanguage)
         }
+        .build()
+    return newCall(request).execute().use { response ->
+        if (!response.isSuccessful) error("HTTP ${response.code} for $url")
+        response.body?.string().orEmpty()
+    }
+}
+
+private fun OkHttpClient.executeNeteaseText(url: String): String {
+    val request = Request.Builder()
+        .url(url)
+        .header("User-Agent", HALCYON_WIKI_USER_AGENT)
+        .header("Referer", "https://music.163.com/")
         .build()
     return newCall(request).execute().use { response ->
         if (!response.isSuccessful) error("HTTP ${response.code} for $url")

@@ -28,6 +28,12 @@ internal class MusicAudioInfoProvider(
     private val replayGainCache = ConcurrentHashMap<String, Float>()
     private val replayGainMissingCache = ConcurrentHashMap.newKeySet<String>()
 
+    fun getCachedReplayGain(song: Song, mode: Int = SettingsManager.REPLAY_GAIN_AUTO): Float? {
+        val safeMode = mode.coerceIn(SettingsManager.REPLAY_GAIN_OFF, SettingsManager.REPLAY_GAIN_AUTO)
+        if (safeMode == SettingsManager.REPLAY_GAIN_OFF) return null
+        return replayGainCache["${song.metadataCacheKey()}:rg=$safeMode"]
+    }
+
     fun getReplayGain(song: Song, mode: Int = SettingsManager.REPLAY_GAIN_AUTO): Float? {
         val safeMode = mode.coerceIn(SettingsManager.REPLAY_GAIN_OFF, SettingsManager.REPLAY_GAIN_AUTO)
         if (safeMode == SettingsManager.REPLAY_GAIN_OFF) return null

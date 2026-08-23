@@ -626,8 +626,8 @@ fun ArtistScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && sortedArtistSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(
-                                            sortedArtistSongs.shuffled(),
+                                        playerViewModel.setShuffledPlaylist(
+                                            sortedArtistSongs,
                                             0,
                                             resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.artist(artistName)
                                         )
@@ -718,8 +718,8 @@ fun ArtistScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomParticipatedAlbumSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(
-                                            randomParticipatedAlbumSongs.shuffled(),
+                                        playerViewModel.setShuffledPlaylist(
+                                            randomParticipatedAlbumSongs,
                                             0,
                                             songSources = artistTabSongSources()
                                         )
@@ -775,8 +775,8 @@ fun ArtistScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomReleaseAlbumSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(
-                                            randomReleaseAlbumSongs.shuffled(),
+                                        playerViewModel.setShuffledPlaylist(
+                                            randomReleaseAlbumSongs,
                                             0,
                                             songSources = artistTabSongSources()
                                         )
@@ -835,7 +835,7 @@ fun ArtistScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomArtistMusicVideoSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(randomArtistMusicVideoSongs.shuffled(), 0)
+                                        playerViewModel.setShuffledPlaylist(randomArtistMusicVideoSongs, 0)
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )

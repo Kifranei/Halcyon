@@ -86,6 +86,9 @@ internal fun AppleMusicLyricsView(
     val sustainThresholdMs by remember(context) {
         SettingsManager.getInstance(context).appleMusicLyricsSustainThresholdMs
     }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
+    val nonCurrentLineBlurPercent by remember(context) {
+        SettingsManager.getInstance(context).lyricNonCurrentBlurPercent
+    }.collectAsState(initial = 40)
     if (lyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             BasicText(
@@ -191,6 +194,12 @@ internal fun AppleMusicLyricsView(
         }
     }
     var smoothPositionMs by remember { mutableLongStateOf(renderPositionMs) }
+    LaunchedEffect(renderCurrentIndex) {
+        val lineStartMs = lyrics.getOrNull(renderCurrentIndex)?.timeMs ?: return@LaunchedEffect
+        if (smoothPositionMs < lineStartMs) {
+            smoothPositionMs = renderPositionMs.coerceAtLeast(lineStartMs)
+        }
+    }
     val latestRenderPositionMs by rememberUpdatedState(renderPositionMs)
     val latestPlaying by rememberUpdatedState(renderIsPlaying)
     // Keep one frame-clock loop for the lifetime of this lyric list. Keying it on the 10 Hz
@@ -343,6 +352,7 @@ internal fun AppleMusicLyricsView(
                         distance = (index - activeIndex).coerceIn(-4, 4),
                         userScrolling = userDragging || keepLinesSharp,
                         nonCurrentLineBlurEnabled = nonCurrentLineBlurEnabled && renderIsPlaying,
+                        nonCurrentLineBlurPercent = nonCurrentLineBlurPercent,
                         // Do not invalidate every retained LazyColumn row for every playback tick.
                         // Only the active (or simultaneous duet) line needs a changing karaoke position.
                         currentPositionMs = if (lineIsActive) smoothPositionMs else Long.MIN_VALUE,

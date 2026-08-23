@@ -2,6 +2,7 @@ package com.ella.music.ui.components
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -90,11 +91,13 @@ fun EllaSmallTopAppBar(
         return
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier.then(
             if (title.isBlank()) Modifier.doubleTapTitle() else Modifier
         )
     ) {
+        val availableTitleWidth =
+            (maxWidth - titleStartPadding - titleEndPadding).coerceAtLeast(0.dp)
         SmallTopAppBar(
             title = "",
             color = color,
@@ -119,10 +122,13 @@ fun EllaSmallTopAppBar(
             overflow = TextOverflow.Ellipsis,
             softWrap = false,
             modifier = Modifier
-                .fillMaxWidth()
                 .align(Alignment.TopStart)
                 .then(if (titleWindowInsetsPadding) Modifier.windowInsetsPadding(WindowInsets.systemBars) else Modifier)
-                .padding(start = titleStartPadding, end = titleEndPadding, top = 12.dp)
+                // Give the gesture node an explicit width. A fill-width Text with content padding
+                // still participates in hit testing across the padded action area on Compose,
+                // which can swallow the left-most top-bar button (#267).
+                .padding(start = titleStartPadding, top = 12.dp)
+                .width(availableTitleWidth)
                 .then(if (title.isNotBlank()) Modifier.doubleTapTitle() else Modifier)
         )
     }

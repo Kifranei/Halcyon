@@ -500,7 +500,8 @@ class PlaybackStatsStore private constructor(context: Context) {
                 durationMs = item.optLong("durationMs").coerceAtLeast(0L),
                 listenedMs = item.optLong("listenedMs").coerceAtLeast(0L),
                 source = item.optString("source", PlaybackHistorySource.LOCAL),
-                playCounted = item.optBoolean("playCounted", false)
+                // History written before this flag existed already represented counted plays.
+                playCounted = if (item.has("playCounted")) item.optBoolean("playCounted") else true
             )
         }.filter { it.playedAt > 0L }
             .sortedByDescending { it.playedAt }

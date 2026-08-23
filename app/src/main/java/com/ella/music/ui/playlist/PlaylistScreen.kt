@@ -645,8 +645,8 @@ fun PlaylistScreen(
                     selectionMode = selection.selectionMode,
                     randomSongsAvailable = randomPlaylistSongs.isNotEmpty(),
                     onShuffleClick = {
-                        playerViewModel.setPlaylist(
-                            randomPlaylistSongs.shuffled(),
+                        playerViewModel.setShuffledPlaylist(
+                            randomPlaylistSongs,
                             0,
                             songSources = visiblePlaylistSongSources()
                         )
@@ -837,7 +837,7 @@ fun PlaylistScreen(
         EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
-            title = playlist.name,
+            title = stringResource(R.string.player_more_actions),
             onDismissRequest = { playlistMenuTarget = null }
         ) {
             Column(

@@ -21,10 +21,10 @@ internal suspend fun Context.copyCustomImageIntoApp(uri: Uri, name: String): Str
             ?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
             ?.takeIf { it.isNotBlank() }
             ?: "jpg"
-        dir.listFiles()
-            ?.filter { it.isFile && it.nameWithoutExtension == name }
-            ?.forEach { it.delete() }
-        val target = File(dir, "$name.$extension")
+        // Every replacement needs a new path. Reusing "$name.$extension" made currentUri point
+        // at the newly copied file, which the picker callback then deleted as the "old" image.
+        // A versioned path also gives Coil a fresh cache key immediately after replacement.
+        val target = File(dir, "${name}_${System.currentTimeMillis()}_${System.nanoTime()}.$extension")
         contentResolver.openInputStream(uri)?.use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
         } ?: return@runCatching null

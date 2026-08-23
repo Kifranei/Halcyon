@@ -39,7 +39,7 @@ class ExternalPlaybackActivity : ComponentActivity() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var handlingIntent = false
     private val externalUriResolver by lazy { ExternalUriResolver(this) }
-    private val audioTagRepository by lazy { AudioTagRepository(LyricoAudioTagReaderWriter()) }
+    private val audioTagRepository by lazy { AudioTagRepository(LyricoAudioTagReaderWriter(this)) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

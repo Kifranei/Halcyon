@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
@@ -77,6 +79,8 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.navigation.Screen
+import com.ella.music.ui.home.HomeRatingFilterUiState
+import com.ella.music.ui.home.StarRatingFilterRow
 import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
 import com.ella.music.ui.playlist.PlaylistDragHandle
 import com.ella.music.ui.playlist.moveSelectedItemsAsBlock
@@ -84,6 +88,8 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -122,6 +128,8 @@ fun FolderPlaylistDetailScreen(
     val playlists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
+    val showRatingFilter by mainViewModel.settingsManager.playlistShowRatingFilter.collectAsState(initial = true)
+    val showFavoriteFilter by mainViewModel.settingsManager.playlistShowFavoriteFilter.collectAsState(initial = true)
     val currentSong by playerViewModel.currentSong.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
@@ -129,6 +137,7 @@ fun FolderPlaylistDetailScreen(
         com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
     )
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
+    val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val playlist = remember(playlists, playlistId) {
         playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
     }
@@ -148,6 +157,8 @@ fun FolderPlaylistDetailScreen(
     var selectedTab by rememberSaveable(playlistId) { mutableStateOf(FolderPlaylistTab.Songs) }
     var searchExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
     var searchQuery by rememberSaveable(playlistId) { mutableStateOf("") }
+    var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
+    var ratingFilterExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
     var selectionMode by rememberSaveable(playlistId) { mutableStateOf(false) }
     var handledLocateTabRequest by remember { mutableIntStateOf(locateCurrentSongRequest) }
     LaunchedEffect(locateCurrentSongRequest) {
@@ -199,14 +210,32 @@ fun FolderPlaylistDetailScreen(
             )
         }
     }
-    val sortedPlaylistSongs = remember(playlistSongs, songSortMode, playlist?.songOrder) {
-        playlistSongs.sortedForFolderPlaylistDetail(songSortMode, playlist?.songOrder.orEmpty())
+    val activeFavoriteSongKeys = if (ratingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
+    val activeRatingRevision = if (ratingFilter.hasRatingConstraint()) ratingRevision else 0
+    val ratingFilteredPlaylistSongs by produceState(
+        initialValue = playlistSongs,
+        playlistSongs,
+        ratingFilter,
+        activeFavoriteSongKeys,
+        activeRatingRevision
+    ) {
+        value = if (ratingFilter.isUnfiltered()) playlistSongs else withContext(Dispatchers.IO) {
+            playlistSongs.filter { song ->
+                ratingFilter.matches(
+                    rating = mainViewModel.getSongRating(song),
+                    isFavorite = song.playlistIdentityKey() in activeFavoriteSongKeys
+                )
+            }
+        }
+    }
+    val sortedPlaylistSongs = remember(ratingFilteredPlaylistSongs, songSortMode, playlist?.songOrder) {
+        ratingFilteredPlaylistSongs.sortedForFolderPlaylistDetail(songSortMode, playlist?.songOrder.orEmpty())
     }
     val sortedFolderEntries = remember(folderEntries, folderSortMode, playlist?.folderOrder) {
         folderEntries.sortedForFolderPlaylistDetail(folderSortMode, playlist?.folderOrder.orEmpty())
     }
-    val customSongs = remember(playlistSongs, playlist?.songOrder) {
-        playlistSongs.sortedForFolderPlaylistDetail(
+    val customSongs = remember(ratingFilteredPlaylistSongs, playlist?.songOrder) {
+        ratingFilteredPlaylistSongs.sortedForFolderPlaylistDetail(
             FolderPlaylistSongSortMode.Custom,
             playlist?.songOrder.orEmpty()
         )
@@ -228,6 +257,7 @@ fun FolderPlaylistDetailScreen(
     val songReorderEnabled = selectionMode &&
         selectedTab == FolderPlaylistTab.Songs &&
         songSortMode == FolderPlaylistSongSortMode.Custom &&
+        ratingFilter.isUnfiltered() &&
         detailQuery.isBlank()
     val folderReorderEnabled = selectionMode &&
         selectedTab == FolderPlaylistTab.Folders &&
@@ -518,13 +548,14 @@ fun FolderPlaylistDetailScreen(
         }
     }
 
-    BackHandler(enabled = selectionMode || searchExpanded) {
+    BackHandler(enabled = selectionMode || searchExpanded || ratingFilterExpanded) {
         when {
             selectionMode -> exitSelection()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
             }
+            ratingFilterExpanded -> ratingFilterExpanded = false
         }
     }
 
@@ -541,6 +572,14 @@ fun FolderPlaylistDetailScreen(
                 playlist?.name ?: stringResource(R.string.folder_playlist_title)
             },
             color = ellaPageBackground(),
+            // The title owns a double-tap gesture layer. Reserve the full action row so that the
+            // newly-added rating/favorite buttons remain the top-most pointer targets (#267).
+            titleEndPadding = when {
+                selectionMode -> 168.dp
+                selectedTab == FolderPlaylistTab.Songs ->
+                    (168 + 48 * (if (showRatingFilter) 1 else 0) + 48 * (if (showFavoriteFilter) 1 else 0)).dp
+                else -> 168.dp
+            },
             onDoubleTapTitle = {
                 scope.launch {
                     when (selectedTab) {
@@ -607,6 +646,33 @@ fun FolderPlaylistDetailScreen(
                         )
                     }
                 } else {
+                if (selectedTab == FolderPlaylistTab.Songs) {
+                    if (showRatingFilter) IconButton(onClick = { ratingFilterExpanded = !ratingFilterExpanded }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_rating_star_half),
+                            contentDescription = stringResource(R.string.song_more_set_rating),
+                            tint = if (ratingFilter.hasRatingConstraint() || ratingFilterExpanded) {
+                                MiuixTheme.colorScheme.primary
+                            } else MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    if (showFavoriteFilter) IconButton(onClick = {
+                        ratingFilter = ratingFilter.toggleFavoriteFilter()
+                        HomeRatingFilterUiState.selection = ratingFilter
+                    }) {
+                        Icon(
+                            painter = painterResource(
+                                if (ratingFilter.hasFavoriteFilterMemory()) R.drawable.ic_notification_favorite_filled
+                                else R.drawable.ic_notification_favorite
+                            ),
+                            contentDescription = stringResource(R.string.favorite_filter),
+                            tint = if (ratingFilter.hasFavoriteFilterMemory()) Color(0xFFFF4D6D)
+                            else MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
                 IconButton(onClick = {
                     selectionMode = !selectionMode
                     selectedSongKeys = emptySet()
@@ -748,6 +814,21 @@ fun FolderPlaylistDetailScreen(
             )
         }
 
+        androidx.compose.animation.AnimatedVisibility(
+            visible = selectedTab == FolderPlaylistTab.Songs &&
+                playlistSongs.isNotEmpty() && !selectionMode && ratingFilterExpanded,
+            enter = androidx.compose.animation.expandVertically(),
+            exit = androidx.compose.animation.shrinkVertically()
+        ) {
+            StarRatingFilterRow(
+                selection = ratingFilter,
+                onSelectionChange = {
+                    ratingFilter = it
+                    HomeRatingFilterUiState.selection = it
+                }
+            )
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -789,8 +870,8 @@ fun FolderPlaylistDetailScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selectionMode && displayedSongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setPlaylist(
-                                        displayedSongs.shuffled(),
+                                    playerViewModel.setShuffledPlaylist(
+                                        displayedSongs,
                                         0,
                                         resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
                                     )
@@ -916,7 +997,7 @@ fun FolderPlaylistDetailScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selectionMode && randomFolderEntrySongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setPlaylist(randomFolderEntrySongs.shuffled(), 0)
+                                    playerViewModel.setShuffledPlaylist(randomFolderEntrySongs, 0)
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             )

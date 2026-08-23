@@ -91,6 +91,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val repository = MusicRepository.getInstance(application)
     val playerManager = ExoPlayerManager(application)
     val settingsManager = SettingsManager.getInstance(application)
+    private val playCountThresholdPercent = settingsManager.playCountThresholdPercent.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_PERCENT
+    )
+    private val playCountThresholdDurationMs = settingsManager.playCountThresholdDurationMs.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_DURATION_MS
+    )
     val lyriconBridge = LyriconBridge(application)
     val tickerBridge = TickerBridge(application)
     private val liveLyricNotificationBridge = LiveLyricNotificationBridge(application)
@@ -280,6 +290,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lyricOffsetOverrides = emptyMap<String, Long>()
     private var lyricBlacklistRules = emptyList<LyricBlacklistRule>()
     private var hideLyricExtraInfo = true
+    private var lyricOpeningTemplate = ""
     private var appliedDecoderMode: Int? = null
     private var appliedLyricSourceMode: Int? = null
     private var previousButtonAction = SettingsManager.PREVIOUS_BUTTON_PREVIOUS
@@ -325,6 +336,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initLyricExtraInfoFilter()
         initLyricHeaderTagFilter()
         initLyricOffsetOverrides()
+        initLyricOpeningTemplate()
         playbackSettingsBridge.initBluetoothAutoPlay()
         playbackSettingsBridge.initExternalPlaybackSync()
         lazyOnlineQueueController.observePlaybackEnd()
@@ -719,6 +731,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun initLyricOpeningTemplate() {
+        viewModelScope.launch {
+            var initialized = false
+            settingsManager.lyricOpeningTemplate.distinctUntilChanged().collect { template ->
+                lyricOpeningTemplate = template
+                if (!initialized) {
+                    initialized = true
+                    applyCurrentLyricOffset(notifyExternal = false)
+                    return@collect
+                }
+                applyCurrentLyricOffset(notifyExternal = true)
+            }
+        }
+    }
+
     private fun initLyricHeaderTagFilter() {
         viewModelScope.launch {
             var initialized = false
@@ -1000,7 +1027,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playbackStatsTracker.update(
             nowMs = SystemClock.elapsedRealtime(),
             song = currentSong.value,
-            isPlaying = isPlaying.value
+            isPlaying = isPlaying.value,
+            countThresholdPercent = playCountThresholdPercent.value,
+            countThresholdDurationMs = playCountThresholdDurationMs.value.toLong()
         )
     }
 
@@ -1214,6 +1243,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val nextLyrics = _rawLyrics.value
             .filterBlacklistedLyricLines()
             .shiftedBy(offsetMs)
+            .withOpeningMetadataLine(song, lyricOpeningTemplate)
             .withImplicitLineEndTimes()
         val lyricsChanged = _lyrics.value != nextLyrics
         if (lyricsChanged) {
@@ -1309,16 +1339,52 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _playbackSourceKey.value = queueSource
             com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
             if (songSources.isNullOrEmpty()) {
-                songs.forEach { song ->
-                    com.ella.music.data.PlaybackSourceNavigation.recordSongSource(
-                        song.playlistIdentityKey(),
-                        queueSource
-                    )
-                }
+                com.ella.music.data.PlaybackSourceNavigation.recordSongSources(
+                    sequenceOf(songs[startIndex.coerceIn(songs.indices)])
+                        .plus(songs.asSequence())
+                        .distinctBy { it.playlistIdentityKey() }
+                        .take(400)
+                        .associate { song -> song.playlistIdentityKey() to queueSource }
+                )
             }
         }
         songs.getOrNull(startIndex)?.let(::recordCategoryResume)
         playerManager.setPlaylist(songs, startIndex)
+    }
+
+    fun setShuffledPlaylist(
+        songs: List<Song>,
+        startIndex: Int = 0,
+        resumeCategoryKey: String? = null,
+        songSources: Map<String, String>? = null
+    ) {
+        if (songs.isEmpty()) return
+        val randomStartIndex = if (songs.size > 1 && startIndex == 0) songs.indices.random()
+        else startIndex.coerceIn(songs.indices)
+        lazyOnlineQueueController.clear()
+        if (!songSources.isNullOrEmpty()) {
+            com.ella.music.data.PlaybackSourceNavigation.recordSongSources(songSources)
+        }
+        val startSongKey = songs[randomStartIndex].playlistIdentityKey()
+        val queueSource = resumeCategoryKey
+            ?: songSources?.get(startSongKey)
+            ?: com.ella.music.data.PlaybackSourceNavigation.activeScreen()
+        if (queueSource != null) {
+            activeResumeCategoryKey = queueSource
+            _playbackSourceKey.value = queueSource
+            com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
+            if (songSources.isNullOrEmpty()) {
+                com.ella.music.data.PlaybackSourceNavigation.recordSongSources(
+                    sequenceOf(songs[randomStartIndex])
+                        .plus(songs.asSequence())
+                        .distinctBy { it.playlistIdentityKey() }
+                        .take(400)
+                        .associate { song -> song.playlistIdentityKey() to queueSource }
+                )
+            }
+        }
+        recordCategoryResume(songs[randomStartIndex])
+        playerManager.setPlaylistForShuffleAll(songs, randomStartIndex)
     }
 
     private fun recordCategoryResume(song: Song) {
@@ -1507,9 +1573,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             com.ella.music.data.PlaybackSourceNavigation.recordSongSources(songSources)
             return
         }
-        songs.forEach { song ->
-            com.ella.music.data.PlaybackSourceNavigation.recordSongSource(song.playlistIdentityKey(), null)
-        }
+        val source = com.ella.music.data.PlaybackSourceNavigation.activeScreen() ?: return
+        com.ella.music.data.PlaybackSourceNavigation.recordSongSources(
+            songs.asSequence()
+                .take(400)
+                .associate { song -> song.playlistIdentityKey() to source }
+        )
     }
 
     /** Re-establish the media controller if the playback session was torn down in the background. */

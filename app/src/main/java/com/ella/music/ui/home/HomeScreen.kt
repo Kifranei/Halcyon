@@ -79,6 +79,7 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.listmodel.SortDirection
+import com.ella.music.ui.search.searchPlaybackSelection
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -126,6 +127,10 @@ fun LibraryScreen(
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
+    val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
+    val searchClickPlaybackMode by settingsManager.searchClickPlaybackMode.collectAsState(
+        initial = SettingsManager.DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
+    )
     val pageBackground = ellaPageBackground()
     val wallpaperVisible = isAppWallpaperVisible()
     val libraryPageBackground = pageBackground
@@ -584,8 +589,8 @@ fun LibraryScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(
-                                            sortedSongs.shuffled(),
+                                        playerViewModel.setShuffledPlaylist(
+                                            sortedSongs,
                                             0,
                                             resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
                                         )
@@ -651,9 +656,22 @@ fun LibraryScreen(
                                     if (selection.selectionMode) {
                                         selection.toggleSelection(song.id)
                                     } else {
+                                        val playback = searchPlaybackSelection(
+                                            resultSongs = sortedSongs,
+                                            selectedIndex = index,
+                                            excludeResultsFromPlaylist =
+                                                searchQuery.isNotBlank() && excludeSearchResultsFromPlaylist,
+                                            playbackMode = if (searchQuery.isNotBlank()) {
+                                                searchClickPlaybackMode
+                                            } else {
+                                                SettingsManager.SEARCH_CLICK_REPLACE
+                                            },
+                                            currentQueue = playerViewModel.playlist.value,
+                                            currentSong = currentSong
+                                        )
                                         playerViewModel.setPlaylist(
-                                            sortedSongs,
-                                            index,
+                                            playback.songs,
+                                            playback.startIndex,
                                             resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
                                         )
                                         if (openPlayerOnPlay) onNavigateToPlayer()

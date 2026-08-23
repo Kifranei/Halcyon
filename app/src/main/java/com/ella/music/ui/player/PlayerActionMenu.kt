@@ -10,14 +10,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
+import com.ella.music.data.ActionMenuIds
+import com.ella.music.data.ActionMenuLayout
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.viewmodel.AbRepeatPhase
@@ -105,7 +111,18 @@ internal fun PlayerActionMenu(
     initialPage: PlayerActionSheetPage = PlayerActionSheetPage.Main,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val savedLayout by settingsManager.playerActionMenuLayout.collectAsState(initial = "")
+    val visibleActions = remember(savedLayout) {
+        ActionMenuLayout.parse(savedLayout, ActionMenuIds.playerDefaults)
+            .visibleIds(ActionMenuIds.playerDefaults)
+    }
     var page by remember(initialPage) { mutableStateOf(initialPage) }
+    val pageScrollState = rememberScrollState()
+    LaunchedEffect(page) {
+        pageScrollState.scrollTo(0)
+    }
     val abRepeatLabel = when (abRepeatState.phase) {
         AbRepeatPhase.IDLE -> stringResource(R.string.player_repeat_mode)
         AbRepeatPhase.A_SET -> stringResource(
@@ -121,7 +138,7 @@ internal fun PlayerActionMenu(
 
     Column(
         modifier = modifier
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(pageScrollState)
             .navigationBarsPadding()
             .padding(horizontal = 18.dp, vertical = 10.dp)
     ) {
@@ -143,57 +160,72 @@ internal fun PlayerActionMenu(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 PlayerActionMenuGroup {
-                    PlayerActionMenuItem(stringResource(R.string.common_add_to_queue), onAddToQueue)
-                    PlayerActionMenuItem(stringResource(R.string.common_share), onShare)
-                    PlayerActionMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
-                    PlayerActionMenuItem(stringResource(R.string.player_song_info), onSongInfo)
-                    PlayerActionMenuItem(abRepeatLabel, onAbRepeat)
-                    remoteStreamMaxBitRate?.let { bitRate ->
-                        PlayerActionMenuItem(
-                            stringResource(
-                                R.string.player_remote_stream_quality,
-                                if (bitRate == 0) stringResource(R.string.player_remote_stream_original) else "$bitRate kbps"
-                            ),
-                            onCycleRemoteStreamQuality
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                PlayerActionMenuGroup {
-                    PlayerActionMenuItem(stringResource(R.string.player_landscape_lyrics), onLandscape)
-                    if (showLyricsDisplayEntry) {
-                        PlayerActionMenuItem(
-                            stringResource(R.string.player_lyrics_display),
-                            { page = PlayerActionSheetPage.LyricDisplay }
-                        )
-                    }
-                    PlayerActionMenuItem(stringResource(R.string.song_more_view_spectrum), onSpectrum)
-                    PlayerActionMenuItem(stringResource(R.string.song_more_set_rating), onSetRating)
-                    PlayerActionMenuItem(stringResource(R.string.player_match_dynamic_cover), onMatchDynamicCover)
-                    if (visualizerAvailable) {
-                        PlayerActionMenuItem(stringResource(R.string.player_visualizer_settings), { page = PlayerActionSheetPage.Visualizer })
-                    }
-                    PlayerActionMenuItem(stringResource(R.string.player_edit_metadata), onEditMetadata)
-                    PlayerActionMenuItem(stringResource(R.string.player_lyric_timing), onLyricTiming)
-                    PlayerActionMenuItem(stringResource(R.string.player_match_online_lyrics), onMatchOnlineLyrics)
-                    PlayerActionMenuItem(stringResource(R.string.player_lyric_offset), { page = PlayerActionSheetPage.LyricOffset })
-                    if (showPlayerKeepScreenOnAction) {
-                        PlayerActionMenuItem(
-                            stringResource(
-                                if (playerKeepScreenOn) {
-                                    R.string.player_disable_playback_keep_screen_on
-                                } else {
-                                    R.string.player_enable_playback_keep_screen_on
-                                }
-                            ),
-                            { onPlayerKeepScreenOnChange(!playerKeepScreenOn) }
-                        )
-                    }
-                    if (song?.onlineSource == "kw" && song.path.startsWith("http")) {
-                        PlayerActionMenuItem(stringResource(R.string.player_download_lx_song), onDownload)
-                    }
-                    if (song != null && !song.path.startsWith("http://", ignoreCase = true) && !song.path.startsWith("https://", ignoreCase = true)) {
-                        PlayerActionMenuItem(stringResource(R.string.song_more_delete_permanently), onDeleteSong, danger = true)
+                    visibleActions.forEach { actionId ->
+                        when (actionId) {
+                            ActionMenuIds.ADD_TO_QUEUE -> PlayerActionMenuItem(stringResource(R.string.common_add_to_queue), onAddToQueue)
+                            ActionMenuIds.SHARE -> PlayerActionMenuItem(stringResource(R.string.common_share), onShare)
+                            ActionMenuIds.AI -> PlayerActionMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
+                            ActionMenuIds.INFO -> PlayerActionMenuItem(stringResource(R.string.player_song_info), onSongInfo)
+                            ActionMenuIds.AUDIO_OUTPUT -> PlayerActionMenuItem(
+                                text = stringResource(R.string.player_audio_output_info),
+                                onClick = { page = PlayerActionSheetPage.AudioOutput }
+                            )
+                            ActionMenuIds.CASTING -> PlayerActionMenuItem(
+                                text = stringResource(R.string.casting_devices_title),
+                                onClick = { openSystemOutputSwitcher(context) }
+                            )
+                            ActionMenuIds.AB_REPEAT -> PlayerActionMenuItem(abRepeatLabel, onAbRepeat)
+                            ActionMenuIds.REMOTE_QUALITY -> remoteStreamMaxBitRate?.let { bitRate ->
+                                PlayerActionMenuItem(
+                                    stringResource(
+                                        R.string.player_remote_stream_quality,
+                                        if (bitRate == 0) stringResource(R.string.player_remote_stream_original) else "$bitRate kbps"
+                                    ),
+                                    onCycleRemoteStreamQuality
+                                )
+                            }
+                            ActionMenuIds.LANDSCAPE -> PlayerActionMenuItem(stringResource(R.string.player_landscape_lyrics), onLandscape)
+                            ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) {
+                                PlayerActionMenuItem(
+                                    text = stringResource(R.string.player_lyrics_display),
+                                    onClick = { page = PlayerActionSheetPage.LyricDisplay }
+                                )
+                            }
+                            ActionMenuIds.SPECTRUM -> PlayerActionMenuItem(stringResource(R.string.song_more_view_spectrum), onSpectrum)
+                            ActionMenuIds.RATING -> PlayerActionMenuItem(stringResource(R.string.song_more_set_rating), onSetRating)
+                            ActionMenuIds.DYNAMIC_COVER -> PlayerActionMenuItem(stringResource(R.string.player_match_dynamic_cover), onMatchDynamicCover)
+                            ActionMenuIds.VISUALIZER -> if (visualizerAvailable) {
+                                PlayerActionMenuItem(
+                                    text = stringResource(R.string.player_visualizer_settings),
+                                    onClick = { page = PlayerActionSheetPage.Visualizer }
+                                )
+                            }
+                            ActionMenuIds.EDIT_TAGS -> PlayerActionMenuItem(stringResource(R.string.player_edit_metadata), onEditMetadata)
+                            ActionMenuIds.LYRIC_TIMING -> PlayerActionMenuItem(stringResource(R.string.player_lyric_timing), onLyricTiming)
+                            ActionMenuIds.ONLINE_LYRICS -> PlayerActionMenuItem(stringResource(R.string.player_match_online_lyrics), onMatchOnlineLyrics)
+                            ActionMenuIds.LYRIC_OFFSET -> PlayerActionMenuItem(
+                                text = stringResource(R.string.player_lyric_offset),
+                                onClick = { page = PlayerActionSheetPage.LyricOffset }
+                            )
+                            ActionMenuIds.KEEP_SCREEN_ON -> if (showPlayerKeepScreenOnAction) {
+                                PlayerActionMenuItem(
+                                    stringResource(
+                                        if (playerKeepScreenOn) R.string.player_disable_playback_keep_screen_on
+                                        else R.string.player_enable_playback_keep_screen_on
+                                    ),
+                                    { onPlayerKeepScreenOnChange(!playerKeepScreenOn) }
+                                )
+                            }
+                            ActionMenuIds.DOWNLOAD -> if (song?.onlineSource == "kw" && song.path.startsWith("http")) {
+                                PlayerActionMenuItem(stringResource(R.string.player_download_lx_song), onDownload)
+                            }
+                            ActionMenuIds.DELETE -> if (
+                                song != null && !song.path.startsWith("http://", ignoreCase = true) &&
+                                !song.path.startsWith("https://", ignoreCase = true)
+                            ) {
+                                PlayerActionMenuItem(stringResource(R.string.song_more_delete_permanently), onDeleteSong, danger = true)
+                            }
+                        }
                     }
                 }
             }
@@ -289,6 +321,12 @@ internal fun PlayerActionMenu(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+            PlayerActionSheetPage.AudioOutput -> {
+                AudioOutputInfoSheetContent(
+                    song = song,
+                    onBack = { page = PlayerActionSheetPage.Main }
+                )
+            }
         }
     }
 }
@@ -299,6 +337,7 @@ internal enum class PlayerActionSheetPage {
     Speed,
     LyricOffset,
     Visualizer,
+    AudioOutput,
     LyricDisplay,
     LyricStyle
 }

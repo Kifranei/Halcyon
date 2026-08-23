@@ -8,16 +8,20 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.Timeline
+import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.common.Player
+import androidx.media3.cast.CastPlayer
+import androidx.media3.cast.RemoteCastPlayer
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
@@ -106,6 +110,7 @@ class PlaybackService : MediaLibraryService() {
     private var mediaSession: MediaLibrarySession? = null
     private var sessionPresentationPlayer: SessionPresentationPlayer? = null
     private var crossfadePlaybackCoordinator: CrossfadePlaybackCoordinator? = null
+    private var castMediaServer: LocalCastMediaServer? = null
     private lateinit var notificationProvider: NoArtworkMediaNotificationProvider
     private lateinit var settingsManager: SettingsManager
     private lateinit var musicRepository: MusicRepository
@@ -306,9 +311,16 @@ class PlaybackService : MediaLibraryService() {
             )
         }
         equalizerAudioProcessor = EqualizerAudioProcessor()
+        val secondaryEqualizerAudioProcessor = EqualizerAudioProcessor()
         karaokeAccompanimentProcessor = CenterChannelSuppressorAudioProcessor()
+        val secondaryKaraokeAccompanimentProcessor = CenterChannelSuppressorAudioProcessor()
+        val primaryWaveformProbe = WaveformLevelAudioProcessor()
+        val secondaryWaveformProbe = WaveformLevelAudioProcessor()
+        val primaryTransitionGain = CrossfadeGainAudioProcessor()
+        val secondaryTransitionGain = CrossfadeGainAudioProcessor().apply { gain = 0f }
         renderersFactory.setEqualizerAudioProcessor(equalizerAudioProcessor)
-        renderersFactory.setExtraAudioProcessors(listOf(karaokeAccompanimentProcessor))
+        renderersFactory.setExtraAudioProcessors(listOf(karaokeAccompanimentProcessor, primaryWaveformProbe))
+        renderersFactory.setTransitionGainAudioProcessor(primaryTransitionGain)
         renderersFactory.setPlaybackOutputSettings(playbackOutputSettings)
         AppLogStore.info(this, TAG, "Decoder mode=${decoderMode.decoderModeLabel()}")
         AppLogStore.info(
@@ -341,11 +353,32 @@ class PlaybackService : MediaLibraryService() {
         player.repeatMode = Player.REPEAT_MODE_ALL
         // Pre-buffer the next queue item so skipToNext is decode-ready instead of a cold open.
         player.setPreloadConfiguration(ExoPlayer.PreloadConfiguration(/* targetPreloadDurationUs= */ 5_000_000L))
+        val mediaServer = LocalCastMediaServer(this)
+        val sessionPlayer: Player = runCatching {
+            val remotePlayer = RemoteCastPlayer.Builder(this)
+                .setMediaItemConverter(HalcyonCastMediaItemConverter(mediaServer))
+                .build()
+            CastPlayer.Builder(this)
+                .setLocalPlayer(player)
+                .setRemotePlayer(remotePlayer)
+                .build()
+        }.onSuccess {
+            castMediaServer = mediaServer
+            AppLogStore.info(this, TAG, "Chromecast player initialized")
+        }.getOrElse { error ->
+            mediaServer.release()
+            AppLogStore.warn(this, TAG, "Chromecast unavailable; using local player: ${error.message}")
+            player
+        }
         crossfadePlaybackCoordinator = CrossfadePlaybackCoordinator(
             context = this,
             primary = player,
             dataSourceFactory = dataSourceFactory,
             audioAttributes = mediaAudioAttributes,
+            primaryWaveformProbe = primaryWaveformProbe,
+            secondaryWaveformProbe = secondaryWaveformProbe,
+            primaryGainProcessor = primaryTransitionGain,
+            secondaryGainProcessor = secondaryTransitionGain,
             secondaryRenderersFactory = {
                 EllaRenderersFactory(this).apply {
                     setExtensionRendererMode(
@@ -355,8 +388,11 @@ class PlaybackService : MediaLibraryService() {
                             else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                         }
                     )
-                    setEqualizerAudioProcessor(equalizerAudioProcessor)
-                    setExtraAudioProcessors(listOf(karaokeAccompanimentProcessor))
+                    // AudioProcessor instances are stateful and belong to exactly one AudioSink.
+                    // Sharing the primary instances lets either player flush/reset the other's DSP.
+                    setEqualizerAudioProcessor(secondaryEqualizerAudioProcessor)
+                    setExtraAudioProcessors(listOf(secondaryKaraokeAccompanimentProcessor, secondaryWaveformProbe))
+                    setTransitionGainAudioProcessor(secondaryTransitionGain)
                     setPlaybackOutputSettings(playbackOutputSettings)
                 }
             },
@@ -365,6 +401,7 @@ class PlaybackService : MediaLibraryService() {
         serviceScope.launch {
             settingsManager.karaokeAccompanimentEnabled.collect { enabled ->
                 karaokeAccompanimentProcessor.enabled = enabled
+                secondaryKaraokeAccompanimentProcessor.enabled = enabled
             }
         }
         serviceScope.launch {
@@ -402,8 +439,7 @@ class PlaybackService : MediaLibraryService() {
                     crossfadePlaybackCoordinator?.setAudioAttributes(mediaAudioAttributes)
                 }
                 audioEffectController.apply(settings)
-                equalizerAudioProcessor.setSettings(
-                    EqualizerSettings(
+                val equalizerSettings = EqualizerSettings(
                         enabled = settings.eqEnabled,
                         bandGainsDb = FloatArray(TenBandEqualizer.BAND_COUNT) { index ->
                             settings.eqBandLevelsMb.getOrElse(index) { 0 } / 100f
@@ -449,10 +485,12 @@ class PlaybackService : MediaLibraryService() {
                         moogLadderMix = settings.moogLadderMix.toFloat(),
                         peakLimiterEnabled = settings.peakLimiterEnabled
                     )
-                )
+                equalizerAudioProcessor.setSettings(equalizerSettings)
+                secondaryEqualizerAudioProcessor.setSettings(equalizerSettings)
             }
         }
-        player.addListener(object : Player.Listener {
+        var localOutputBackend = PlaybackAudioOutputState.info.value.outputBackend
+        sessionPlayer.addListener(object : Player.Listener {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 PlaybackAudioSession.update(audioSessionId)
                 audioEffectController.bind(audioSessionId)
@@ -460,7 +498,8 @@ class PlaybackService : MediaLibraryService() {
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isPlaying) {
+                val isLocalPlayback = sessionPlayer.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE
+                if (isPlaying && isLocalPlayback) {
                     // Retry attaching effects now that the audio track is live: some ROMs
                     // (e.g. ColorOS/OxygenOS) reject Equalizer creation before playback starts.
                     audioEffectController.bind(player.audioSessionId)
@@ -468,18 +507,18 @@ class PlaybackService : MediaLibraryService() {
                 } else {
                     closeAudioEffectSession()
                 }
-                publishExternalPlaybackSnapshot(player)
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
+                publishExternalPlaybackSnapshot(sessionPlayer)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
             }
 
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-                notifyLibraryChanged(player.mediaItemCount)
-                oplusLyricHandler.refreshCurrentOplusLyricInfo(player)
+                notifyLibraryChanged(sessionPlayer.mediaItemCount)
+                oplusLyricHandler.refreshCurrentOplusLyricInfo(sessionPlayer)
             }
 
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 updateMediaButtonPreferences()
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -495,22 +534,58 @@ class PlaybackService : MediaLibraryService() {
                 )
                 sessionPresentationPlayer?.clearNotificationLyric()
                 updateMediaButtonPreferences()
-                oplusLyricHandler.refreshCurrentOplusLyricInfo(player)
-                publishExternalPlaybackSnapshot(player)
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
+                oplusLyricHandler.refreshCurrentOplusLyricInfo(sessionPlayer)
+                publishExternalPlaybackSnapshot(sessionPlayer)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
+            }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                if (sessionPlayer.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) {
+                    PlaybackAudioOutputState.clear()
+                    PlaybackAudioOutputState.updateBackend("Chromecast")
+                    return
+                }
+                val selectedAudioFormat = tracks.groups.asSequence()
+                    .filter { it.type == C.TRACK_TYPE_AUDIO }
+                    .flatMap { group ->
+                        (0 until group.length).asSequence()
+                            .filter(group::isTrackSelected)
+                            .map(group::getTrackFormat)
+                    }
+                    .firstOrNull()
+                PlaybackAudioOutputState.updateSource(selectedAudioFormat)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
-                    Player.STATE_BUFFERING -> Log.d(TIMING_TAG, "player state BUFFERING mediaId=${player.currentMediaItem?.mediaId}")
+                    Player.STATE_BUFFERING -> Log.d(TIMING_TAG, "player state BUFFERING mediaId=${sessionPlayer.currentMediaItem?.mediaId}")
                     Player.STATE_READY -> {
-                        Log.d(TIMING_TAG, "player state READY mediaId=${player.currentMediaItem?.mediaId}")
-                        audioEffectController.bind(player.audioSessionId)
+                        Log.d(TIMING_TAG, "player state READY mediaId=${sessionPlayer.currentMediaItem?.mediaId}")
+                        if (sessionPlayer.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE) {
+                            audioEffectController.bind(player.audioSessionId)
+                        }
                     }
-                    Player.STATE_ENDED -> Log.d(TIMING_TAG, "player state ENDED mediaId=${player.currentMediaItem?.mediaId}")
+                    Player.STATE_ENDED -> Log.d(TIMING_TAG, "player state ENDED mediaId=${sessionPlayer.currentMediaItem?.mediaId}")
                 }
-                publishExternalPlaybackSnapshot(player)
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
+                publishExternalPlaybackSnapshot(sessionPlayer)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
+            }
+
+            override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
+                if (deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) {
+                    localOutputBackend = PlaybackAudioOutputState.info.value.outputBackend
+                    closeAudioEffectSession()
+                    PlaybackAudioSession.clear()
+                    PlaybackAudioOutputState.clear()
+                    PlaybackAudioOutputState.updateBackend("Chromecast")
+                    crossfadePlaybackCoordinator?.setDuration(0)
+                } else {
+                    PlaybackAudioSession.update(player.audioSessionId)
+                    PlaybackAudioOutputState.updateBackend(localOutputBackend)
+                    serviceScope.launch {
+                        crossfadePlaybackCoordinator?.setDuration(settingsManager.crossfadeDurationMs.first())
+                    }
+                }
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -521,7 +596,7 @@ class PlaybackService : MediaLibraryService() {
             override fun onRepeatModeChanged(repeatMode: Int) {
                 updateMediaButtonPreferences()
                 notificationProvider.refresh()
-                publishExternalPlaybackSnapshot(player)
+                publishExternalPlaybackSnapshot(sessionPlayer)
             }
         })
 
@@ -533,7 +608,7 @@ class PlaybackService : MediaLibraryService() {
 
         val presentationPlayer = SessionPresentationPlayer(
             player = RepeatOneLockingPlayer(
-                player = player,
+                player = sessionPlayer,
                 previousButtonActionProvider = { previousButtonAction },
                 onExternalPlaybackChanged = ::scheduleExternalPlaybackRefresh
             ),
@@ -617,10 +692,13 @@ class PlaybackService : MediaLibraryService() {
         }
         mediaSession = null
         sessionPresentationPlayer = null
+        castMediaServer?.release()
+        castMediaServer = null
         usbAudioController.clearUsbRouting()
         honorHdAudioSupport?.release()
         honorHdAudioSupport = null
         PlaybackAudioSession.clear()
+        PlaybackAudioOutputState.clear()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -862,25 +940,25 @@ class PlaybackService : MediaLibraryService() {
         val buttons = mutableListOf<CommandButton>()
 
         if (player.shouldPublishOplusTranslationAction()) {
-            buttons += CommandButton.Builder()
+            buttons += CommandButton.Builder(CommandButton.ICON_UNDEFINED)
                 .setDisplayName(getString(R.string.settings_status_secondary_translation))
-                .setIconResId(R.drawable.ic_translation)
+                .setCustomIconResId(R.drawable.ic_translation)
                 .setSessionCommand(SessionCommand(ACTION_TOGGLE_TRANSLATION, Bundle.EMPTY))
                 .build()
         }
 
         if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC in selectedButtons) {
-            buttons += CommandButton.Builder()
+            buttons += CommandButton.Builder(CommandButton.ICON_UNDEFINED)
                 .setDisplayName(getString(R.string.notification_action_desktop_lyric))
-                .setIconResId(desktopLyricNotificationIcon())
+                .setCustomIconResId(desktopLyricNotificationIcon())
                 .setSessionCommand(SessionCommand(ACTION_TOGGLE_DESKTOP_LYRIC, Bundle.EMPTY))
                 .build()
         }
 
         if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_FAVORITE in selectedButtons) {
-            buttons += CommandButton.Builder()
+            buttons += CommandButton.Builder(CommandButton.ICON_UNDEFINED)
                 .setDisplayName(if (isFavorite) getString(R.string.common_unfavorite) else getString(R.string.common_favorite))
-                .setIconResId(
+                .setCustomIconResId(
                     if (isFavorite) {
                         R.drawable.ic_notification_favorite_filled
                     } else {
@@ -891,15 +969,17 @@ class PlaybackService : MediaLibraryService() {
                 .build()
         }
 
-        buttons += CommandButton.Builder()
+        buttons += CommandButton.Builder(CommandButton.ICON_PREVIOUS)
             .setDisplayName(getString(R.string.common_previous))
-            .setIconResId(R.drawable.ic_skip_previous)
+            .setCustomIconResId(R.drawable.ic_skip_previous)
             .setPlayerCommand(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
             .build()
 
-        buttons += CommandButton.Builder()
+        buttons += CommandButton.Builder(
+            if (player.isPlaying) CommandButton.ICON_PAUSE else CommandButton.ICON_PLAY
+        )
             .setDisplayName(if (player.isPlaying) getString(R.string.common_pause) else getString(R.string.common_play))
-            .setIconResId(
+            .setCustomIconResId(
                 if (player.isPlaying) {
                     R.drawable.ic_player_pause
                 } else {
@@ -909,16 +989,16 @@ class PlaybackService : MediaLibraryService() {
             .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
             .build()
 
-        buttons += CommandButton.Builder()
+        buttons += CommandButton.Builder(CommandButton.ICON_NEXT)
             .setDisplayName(getString(R.string.common_next))
-            .setIconResId(R.drawable.ic_skip_next)
+            .setCustomIconResId(R.drawable.ic_skip_next)
             .setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
             .build()
 
         if (SettingsManager.MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE in selectedButtons) {
-            buttons += CommandButton.Builder()
+            buttons += CommandButton.Builder(CommandButton.ICON_UNDEFINED)
                 .setDisplayName(playbackModeAction.title)
-                .setIconResId(playbackModeAction.icon)
+                .setCustomIconResId(playbackModeAction.icon)
                 .setSessionCommand(SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
                 .build()
         }
@@ -1074,7 +1154,6 @@ class PlaybackService : MediaLibraryService() {
                     .setTitle(getString(R.string.app_name))
                     .setDisplayTitle(getString(R.string.app_name))
                     .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS)
-                    .setFolderType(MediaMetadata.FOLDER_TYPE_PLAYLISTS)
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
                     .build()
@@ -1090,7 +1169,6 @@ class PlaybackService : MediaLibraryService() {
                     .setTitle(getString(R.string.notification_current_queue))
                     .setDisplayTitle(getString(R.string.notification_current_queue))
                     .setMediaType(MediaMetadata.MEDIA_TYPE_PLAYLIST)
-                    .setFolderType(MediaMetadata.FOLDER_TYPE_TITLES)
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
                     .build()

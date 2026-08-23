@@ -64,7 +64,7 @@ fun SongMoreActionHost(
     showAddToQueue: Boolean = true,
     resolveSongForAction: (suspend (Song) -> Song)? = null,
     onDeleteSong: ((Song) -> Unit)? = null,
-    showSongTitleInSheetHeader: Boolean = true,
+    showSongTitleInSheetHeader: Boolean = false,
     extraTopContent: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -108,7 +108,11 @@ fun SongMoreActionHost(
         initialValue = null,
         actionSong?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
     ) {
-        value = actionSong?.let { song ->
+        // produceState retains its last value across key changes. Clear it first so a newly
+        // selected song never shows the preceding song's cover while extraction is running.
+        value = null
+        val requestedSong = actionSong
+        value = requestedSong?.let { song ->
             withContext(Dispatchers.IO) { mainViewModel.getOriginalCoverModel(song) }
         }
     }

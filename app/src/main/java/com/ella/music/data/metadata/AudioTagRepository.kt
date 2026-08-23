@@ -1,12 +1,15 @@
 package com.ella.music.data.metadata
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.util.LruCache
+import com.ella.music.data.isContentAudioSource
 import com.ella.music.data.isHttpAudioSource
 import com.ella.music.data.looksLikeNeteaseKeyValue
 import com.lonx.audiotag.model.AudioPicture
@@ -326,7 +329,8 @@ class AudioTagRepository(
     }
 }
 
-class LyricoAudioTagReaderWriter : AudioTagReader, AudioTagWriter {
+class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, AudioTagWriter {
+    private val appContext = context?.applicationContext
     override suspend fun readTags(path: String): AudioTagInfo? = withPfd(path, ParcelFileDescriptor.MODE_READ_ONLY) { pfd ->
         val data = LyricoReader.read(pfd, readPictures = false)
         val raw = data.rawProperties.orEmpty().mapValues { (_, values) -> values.toList() }
@@ -447,6 +451,13 @@ class LyricoAudioTagReaderWriter : AudioTagReader, AudioTagWriter {
 
     private suspend fun <T> withPfd(path: String, mode: Int, block: suspend (ParcelFileDescriptor) -> T): T? =
         withContext(Dispatchers.IO) {
+            if (path.isContentAudioSource()) {
+                val resolver = appContext?.contentResolver ?: return@withContext null
+                val accessMode = if (mode == ParcelFileDescriptor.MODE_READ_ONLY) "r" else "rw"
+                return@withContext resolver.openFileDescriptor(Uri.parse(path), accessMode)?.use { pfd ->
+                    block(pfd)
+                }
+            }
             val file = File(path)
             if (!file.exists() || !file.isFile) return@withContext null
             ParcelFileDescriptor.open(file, mode).use { pfd -> block(pfd) }

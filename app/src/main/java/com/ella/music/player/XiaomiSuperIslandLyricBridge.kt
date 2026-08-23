@@ -606,7 +606,7 @@ internal class XiaomiSuperIslandLyricBridge(
             )
 
             ticker = displayLyric.ifBlank { fullLyric.ifBlank { trackTitle } }
-            tickerPic = appKey ?: smallIslandKey ?: avatarKey
+            tickerPic = appKey
             val customLightViews = createAdvancedExpandViews(
                 lyric = displayLyric,
                 subText = subText,

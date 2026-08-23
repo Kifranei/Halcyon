@@ -426,14 +426,20 @@ internal fun CoverPlayerPage(
             ) {
                 val musicVideoSource = resolvedMusicVideo
                 val dynamicCoverSource = displayedDynamicCover
-                AlbumArtView(
-                    song = song,
-                    embeddedCover = embeddedCover,
-                    coverModel = resolvedStaticCoverPreviewModel,
-                    cornerRadius = cornerRadius,
-                    showHiResLogo = false,
-                    modifier = Modifier.fillMaxSize()
-                )
+                val hideArtworkBehindMusicVideo =
+                    selectedPlayerPageStyle ==
+                        com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC &&
+                        musicVideoVisible && musicVideoSource != null
+                if (!hideArtworkBehindMusicVideo) {
+                    AlbumArtView(
+                        song = song,
+                        embeddedCover = embeddedCover,
+                        coverModel = resolvedStaticCoverPreviewModel,
+                        cornerRadius = cornerRadius,
+                        showHiResLogo = false,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 when {
                     videoPlaybackActive && musicVideoVisible && musicVideoSource != null -> {
                         DynamicCoverVideo(
@@ -631,6 +637,7 @@ internal fun CoverPlayerPage(
                 PlayerProgressBlock(
                     currentPosition = currentPosition,
                     duration = duration,
+                    song = song,
                     audioInfo = audioInfo,
                     bluetoothDeviceName = bluetoothDeviceName,
                     playbackModeLabel = if (musicVideoVisible) "MV" else null,
@@ -746,6 +753,7 @@ internal fun CoverPlayerPage(
                         PlayerProgressBlock(
                             currentPosition = currentPosition,
                             duration = duration,
+                            song = song,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
                             playbackModeLabel = if (musicVideoVisible) "MV" else null,
@@ -1091,6 +1099,7 @@ internal fun CoverPlayerPage(
                         PlayerProgressBlock(
                             currentPosition = currentPosition,
                             duration = duration,
+                            song = song,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
                             playbackModeLabel = if (musicVideoVisible) "MV" else null,
@@ -1511,6 +1520,7 @@ internal fun CoverPlayerPage(
                         PlayerProgressBlock(
                             currentPosition = currentPosition,
                             duration = duration,
+                            song = song,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
                             playbackModeLabel = if (musicVideoVisible) "MV" else null,
@@ -1782,6 +1792,7 @@ internal fun CoverPlayerPage(
                         PlayerProgressBlock(
                             currentPosition = currentPosition,
                             duration = duration,
+                            song = song,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
                             playbackModeLabel = if (musicVideoVisible) "MV" else null,

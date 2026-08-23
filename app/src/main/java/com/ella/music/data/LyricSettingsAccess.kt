@@ -47,6 +47,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_FONT_SCALE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_FONT_WEIGHT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_LINE_BLACKLIST
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_OFFSET_OVERRIDES
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_OPENING_TEMPLATE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_CJK_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_CJK_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_FONT_NAME
@@ -101,6 +102,7 @@ interface LyricSettingsAccess {
     val lyricPageKeepScreenOn: Flow<Boolean>
     val appleMusicLyricsWordLift: Flow<Boolean>
     val appleMusicLyricsSustainThresholdMs: Flow<Int>
+    val lyricOpeningTemplate: Flow<String>
     val lyricParserEngine: Flow<Int>
     val lyricShareCustomInfo: Flow<String>
     val lyricFontName: Flow<String>
@@ -147,6 +149,7 @@ interface LyricSettingsAccess {
     suspend fun setLyricPageKeepScreenOn(enabled: Boolean)
     suspend fun setAppleMusicLyricsWordLift(enabled: Boolean)
     suspend fun setAppleMusicLyricsSustainThresholdMs(thresholdMs: Int)
+    suspend fun setLyricOpeningTemplate(template: String)
     suspend fun setLyricPerspectiveEffect(enabled: Boolean)
     suspend fun setLyricPerspectiveYAngle(angle: Int)
     suspend fun setLyricShareCustomInfo(info: String)
@@ -211,6 +214,8 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
                     SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
                 )
         }
+    override val lyricOpeningTemplate: Flow<String> =
+        context.dataStore.data.map { it[KEY_LYRIC_OPENING_TEMPLATE] ?: "" }
 
     override val lyricParserEngine: Flow<Int> =
         context.dataStore.data.map { it[KEY_LYRIC_PARSER_ENGINE] ?: LYRIC_PARSER_ENGINE_ELLA }
@@ -342,6 +347,14 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
                 SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
                 SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
             )
+        }
+    }
+
+    override suspend fun setLyricOpeningTemplate(template: String) {
+        context.dataStore.edit { preferences ->
+            val value = template.trim()
+            if (value.isEmpty()) preferences.remove(KEY_LYRIC_OPENING_TEMPLATE)
+            else preferences[KEY_LYRIC_OPENING_TEMPLATE] = value
         }
     }
 

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +41,7 @@ import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.effect.BgEffectBackground
 import com.ella.music.viewmodel.MainViewModel
+import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -182,6 +184,26 @@ internal fun HomeTileGrid(
             }
             if (rowTiles.size == 1) Spacer(modifier = Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+internal fun HomeFeatureWallpaperCard(
+    uri: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        cornerRadius = 18.dp
+    ) {
+        AsyncImage(
+            model = uri,
+            contentDescription = stringResource(R.string.home_feature_wallpaper),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+        )
     }
 }
 

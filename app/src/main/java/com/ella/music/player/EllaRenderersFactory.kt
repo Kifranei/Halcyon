@@ -7,7 +7,9 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioTrackBufferSizeProvider
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -25,6 +27,7 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
 
     private var equalizerAudioProcessor: EqualizerAudioProcessor? = null
     private var extraAudioProcessors: List<AudioProcessor> = emptyList()
+    private var transitionGainAudioProcessor: CrossfadeGainAudioProcessor? = null
     private var playbackOutputSettings: PlaybackOutputSettings = PlaybackOutputSettings()
 
     fun setEqualizerAudioProcessor(processor: EqualizerAudioProcessor?) {
@@ -34,6 +37,11 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
     /** Adds lightweight, route-specific DSP without changing the app-wide EQ settings. */
     fun setExtraAudioProcessors(processors: List<AudioProcessor>) {
         extraAudioProcessors = processors
+    }
+
+    /** Keeps transient fades separate from Media3's persistent player/replay-gain volume. */
+    internal fun setTransitionGainAudioProcessor(processor: CrossfadeGainAudioProcessor?) {
+        transitionGainAudioProcessor = processor
     }
 
     fun setPlaybackOutputSettings(settings: PlaybackOutputSettings) {
@@ -78,6 +86,8 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
             if (playbackOutputSettings.needsFormatProcessor) {
                 add(OutputFormatAudioProcessor(playbackOutputSettings))
             }
+            transitionGainAudioProcessor?.let { add(it) }
+            add(OutputProbeAudioProcessor(PlaybackAudioOutputState::updatePcmOutput))
         }
 
         // Native AAudio / OpenSL ES output via Oboe. USB exclusive mode also routes here (AAudio
@@ -88,7 +98,15 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
         val useOboe = usbExclusive ||
             backend == SettingsManager.AUDIO_OUTPUT_BACKEND_AAUDIO ||
             backend == SettingsManager.AUDIO_OUTPUT_BACKEND_OPENSLES
-        if (useOboe && OboeAudioOutput.ensureLoaded()) {
+        val oboeAvailable = useOboe && OboeAudioOutput.ensureLoaded()
+        val resolvedBackend = when {
+            oboeAvailable && !playbackOutputSettings.usbExclusive &&
+                backend == SettingsManager.AUDIO_OUTPUT_BACKEND_OPENSLES -> "OpenSL ES"
+            oboeAvailable -> "AAudio"
+            else -> "AudioTrack"
+        }
+        PlaybackAudioOutputState.updateBackend(resolvedBackend)
+        if (oboeAvailable) {
             // USB exclusive needs AAudio (exclusive sharing mode); otherwise honour the selection.
             val audioApi = if (!usbExclusive && backend == SettingsManager.AUDIO_OUTPUT_BACKEND_OPENSLES) 2 else 1
             val deviceId = if (usbExclusive) resolveUsbOutputDeviceId(context) else 0
@@ -103,8 +121,21 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
         return if (processors.isNotEmpty() || playbackOutputSettings.forceFloatOutput) {
             DefaultAudioSink.Builder(context)
                 .setEnableFloatOutput(enableFloatOutput || playbackOutputSettings.forceFloatOutput)
-                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .setEnableAudioOutputPlaybackParameters(enableAudioTrackPlaybackParams)
                 .setAudioProcessors(processors.toTypedArray<AudioProcessor>())
+                // Media3 1.11 defaults PCM AudioTrack buffers to 500 ms. Some HyperOS devices
+                // drain most of that buffer after pause/skip, which feels like a one-second lag
+                // once hardware latency is included (#524). Keep enough headroom over the device
+                // minimum while making transport controls respond promptly.
+                .setAudioOutputProvider(
+                    AudioTrackAudioOutputProvider.Builder(context)
+                        .setAudioTrackBufferSizeProvider(
+                            DefaultAudioTrackBufferSizeProvider.Builder()
+                                .setTargetPcmBufferDurationUs(150_000)
+                                .build()
+                        )
+                        .build()
+                )
                 .build()
         } else {
             super.buildAudioSink(

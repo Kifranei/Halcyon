@@ -52,10 +52,13 @@ internal fun SettingsLyricsSection(
     val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsState(initial = emptyList())
     val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
     val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
+    val lyricOpeningTemplate by settingsManager.lyricOpeningTemplate.collectAsState(initial = "")
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var showLyricSizingSheet by remember { mutableStateOf(false) }
+    var showOpeningTemplateSheet by remember { mutableStateOf(false) }
     var showXiaomiSuperIslandSheet by remember { mutableStateOf(false) }
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
+    var openingTemplateDraft by remember(lyricOpeningTemplate) { mutableStateOf(lyricOpeningTemplate) }
 
     SettingsCardGroup(highlight = highlightKey == "lyric_basic" || highlightKey == "lyric_plugin_sources") {
         Column {
@@ -96,6 +99,46 @@ internal fun SettingsLyricsSection(
                     showBlacklistSheet = true
                 }
             )
+            ArrowPreference(
+                title = stringResource(R.string.settings_lyric_opening_template),
+                summary = lyricOpeningTemplate.ifBlank {
+                    stringResource(R.string.settings_lyric_opening_template_summary)
+                },
+                onClick = {
+                    openingTemplateDraft = lyricOpeningTemplate
+                    showOpeningTemplateSheet = true
+                }
+            )
+        }
+    }
+
+    EllaMiuixBottomSheet(
+        show = showOpeningTemplateSheet,
+        title = stringResource(R.string.settings_lyric_opening_template),
+        onDismissRequest = { showOpeningTemplateSheet = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            Text(text = stringResource(R.string.settings_lyric_opening_template_tokens))
+            EllaMiuixTextField(
+                value = openingTemplateDraft,
+                onValueChange = { openingTemplateDraft = it },
+                label = stringResource(R.string.settings_lyric_opening_template_hint),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+            )
+            Button(
+                onClick = {
+                    showOpeningTemplateSheet = false
+                    scope.launch { settingsManager.setLyricOpeningTemplate(openingTemplateDraft) }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp)
+            ) {
+                Text(text = stringResource(R.string.common_save))
+            }
         }
     }
 

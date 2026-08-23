@@ -46,22 +46,42 @@ internal fun SettingsHomeCustomizeSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val homeDailyMixVisible by settingsManager.homeDailyMixVisible.collectAsState(initial = true)
+    val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(initial = "")
     val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = true)
     val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
+    val homeFeatureWallpaperPicker = rememberAppearanceImagePicker(
+        currentUri = homeFeatureWallpaperUri,
+        imageName = "home_feature_wallpaper",
+        onImagePersisted = settingsManager::setHomeFeatureWallpaperUri
+    )
 
     SmallTitle(text = stringResource(R.string.settings_home_customize))
 
     SettingsCardGroup(highlight = highlightKey == "home_customize") {
         Column {
-            SwitchPreference(
-                title = stringResource(R.string.settings_daily_mix),
-                summary = stringResource(R.string.settings_daily_mix_summary),
-                checked = homeDailyMixVisible,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setHomeDailyMixVisible(it) }
-                }
+            ArrowPreference(
+                title = stringResource(R.string.settings_home_feature_wallpaper),
+                summary = stringResource(
+                    if (homeFeatureWallpaperUri.isBlank()) {
+                        R.string.settings_home_feature_wallpaper_summary_empty
+                    } else {
+                        R.string.settings_home_feature_wallpaper_summary_set
+                    }
+                ),
+                onClick = { homeFeatureWallpaperPicker.launch(arrayOf("image/*")) }
             )
+            if (homeFeatureWallpaperUri.isNotBlank()) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_home_feature_wallpaper_remove),
+                    summary = stringResource(R.string.settings_home_feature_wallpaper_remove_summary),
+                    onClick = {
+                        scope.launch {
+                            context.deletePersistedCustomImage(homeFeatureWallpaperUri)
+                            settingsManager.setHomeFeatureWallpaperUri("")
+                        }
+                    }
+                )
+            }
             SwitchPreference(
                 title = stringResource(R.string.settings_ai_mix),
                 summary = stringResource(R.string.settings_ai_mix_summary),
@@ -254,7 +274,14 @@ internal fun SettingsMcpSection(
                         scope.launch {
                             settingsManager.setWebMusicServerEnabled(enabled)
                             if (enabled) {
-                                com.ella.music.web.WebMusicService.start(context)
+                                if (!com.ella.music.web.WebMusicService.start(context)) {
+                                    settingsManager.setWebMusicServerEnabled(false)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        R.string.web_music_beta_start_failed,
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             } else {
                                 com.ella.music.web.WebMusicService.stop(context)
                             }

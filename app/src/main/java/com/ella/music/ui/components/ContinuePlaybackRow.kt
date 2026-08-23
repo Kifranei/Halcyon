@@ -65,12 +65,16 @@ fun ContinuePlaybackRow(
     var dismissed by rememberSaveable(dismissalKey) { mutableStateOf(false) }
     if (dismissed) return
     val playbackSourceKey by com.ella.music.data.PlaybackSourceNavigation.sourceKey.collectAsState()
-    if (isContinuePlaybackHiddenForCurrentSource(playbackSourceKey, categoryKey)) return
-
-    val resumeIndex = remember(songs, categoryKey) {
-        val resumeKey = CategoryResumeStore.getInstance(context).lastSongKey(categoryKey)
-            ?: return@remember -1
-        songs.indexOfFirst { it.playlistIdentityKey() == resumeKey }
+    val storedResumeKey = CategoryResumeStore.getInstance(context).lastSongKey(categoryKey)
+    val currentSongKey = currentSong?.playlistIdentityKey()
+    val resumeIndex = remember(songs, categoryKey, playbackSourceKey, currentSongKey, storedResumeKey) {
+        resolveContinuePlaybackIndex(
+            songs = songs,
+            categoryKey = categoryKey,
+            playbackSourceKey = playbackSourceKey,
+            currentSong = currentSong,
+            storedResumeKey = storedResumeKey
+        )
     }
     if (resumeIndex < 0) return
     val song = songs[resumeIndex]
@@ -134,10 +138,20 @@ fun ContinuePlaybackRow(
     }
 }
 
-internal fun isContinuePlaybackHiddenForCurrentSource(
+internal fun resolveContinuePlaybackIndex(
+    songs: List<Song>,
+    categoryKey: String,
     playbackSourceKey: String?,
-    categoryKey: String
-): Boolean = !playbackSourceKey.isNullOrBlank() && playbackSourceKey == categoryKey
+    currentSong: Song?,
+    storedResumeKey: String?
+): Int {
+    if (playbackSourceKey == categoryKey && currentSong != null) {
+        val currentKey = currentSong.playlistIdentityKey()
+        songs.indexOfFirst { it.playlistIdentityKey() == currentKey }.takeIf { it >= 0 }?.let { return it }
+    }
+    if (storedResumeKey.isNullOrBlank()) return -1
+    return songs.indexOfFirst { it.playlistIdentityKey() == storedResumeKey }
+}
 
 internal fun List<Song>.containsPlayingSong(currentSong: Song?): Boolean {
     val current = currentSong ?: return false

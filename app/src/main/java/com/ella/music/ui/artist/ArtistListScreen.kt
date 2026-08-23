@@ -636,8 +636,8 @@ fun ArtistListScreen(
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && randomArtistSongs.isNotEmpty(),
                                     onClick = {
-                                        playerViewModel.setPlaylist(
-                                            randomArtistSongs.shuffled(),
+                                        playerViewModel.setShuffledPlaylist(
+                                            randomArtistSongs,
                                             0,
                                             songSources = playbackSourcesForSongs(
                                                 filteredArtists.map { artist ->
@@ -778,7 +778,7 @@ fun ArtistListScreen(
         EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
-            title = artist.name,
+            title = stringResource(R.string.player_more_actions),
             onDismissRequest = { artistMenuTarget = null }
         ) {
             Column(
