@@ -1372,7 +1372,9 @@ class ExoPlayerManager(private val context: Context) {
             .setMediaMetadata(
                 song.mediaMetadata(
                     artworkData = cachedArtwork,
-                    includeArtworkUri = cachedArtwork != null
+                    // Publish the cover URI immediately so lock screens and OEM themes can
+                    // resolve artwork even before embedded bytes finish loading.
+                    includeArtworkUri = true
                 )
             )
 
@@ -1412,7 +1414,8 @@ class ExoPlayerManager(private val context: Context) {
                 duration.takeIf { it > 0L }?.let(::setDurationMs)
                 if (artworkData != null) {
                     setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                } else if (includeArtworkUri) {
+                }
+                if (includeArtworkUri) {
                     artworkUriForMediaCenter()?.let(::setArtworkUri)
                 }
             }
@@ -1694,7 +1697,7 @@ class ExoPlayerManager(private val context: Context) {
             val cachedArtwork = notificationArtworkCache.get(song.notificationArtworkKey())
             val targetMetadata = song.mediaMetadata(
                 artworkData = cachedArtwork,
-                includeArtworkUri = cachedArtwork != null
+                includeArtworkUri = true
             ).withPatchedExtrasFrom(currentItem, PATCH_REASON_BASE_SESSION_METADATA)
             sessionMetadataSongKey = songKey
             if (currentItem.mediaMetadata.matchesNotificationDisplay(targetMetadata)) {

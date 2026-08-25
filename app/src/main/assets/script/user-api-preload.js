@@ -11,6 +11,7 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
   const nativeFuncNames = [
     '__lx_native_call__set_timeout',
     '__lx_native_call__utils_str2b64',
+    '__lx_native_call__utils_buf2b64',
     '__lx_native_call__utils_b642buf',
     '__lx_native_call__utils_str2md5',
     '__lx_native_call__utils_aes_encrypt',
@@ -412,7 +413,7 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
             case 'hex':
               return new Uint8Array(buf).reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
             case 'base64':
-              return nativeFuncs.utils_str2b64(bytesToString(Array.from(buf)))
+              return nativeFuncs.utils_buf2b64(JSON.stringify(Array.from(buf)))
             case 'utf8':
             case 'utf-8':
             default:

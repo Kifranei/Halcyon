@@ -175,6 +175,9 @@ internal fun PlayerProgressBlock(
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val savedInfoMode by settingsManager.playerProgressInfoIndex.collectAsState(initial = 0)
+    val progressStyle by settingsManager.playerProgressStyle.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE
+    )
     val showQuality by settingsManager.playerProgressShowQuality.collectAsState(initial = true)
     val showAudioInfo by settingsManager.playerProgressShowAudioInfo.collectAsState(initial = true)
     val showOutputDevice by settingsManager.playerProgressShowOutputDevice.collectAsState(initial = true)
@@ -225,14 +228,29 @@ internal fun PlayerProgressBlock(
         infoMode = if (infoLabels.isEmpty()) 0 else savedInfoMode % infoLabels.size
     }
     Column(modifier = Modifier.fillMaxWidth()) {
-        GlowSeekBar(
-            value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
-            onSeek = onSeek,
-            accent = palette.accent,
-            allowTapSeek = allowTapSeek,
-            onPreviewProgressChange = { previewProgress = it },
-            modifier = Modifier.fillMaxWidth()
-        )
+        val progressValue = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
+        if (progressStyle == SettingsManager.PLAYER_PROGRESS_STYLE_GLOW) {
+            GlowSeekBar(
+                value = progressValue,
+                onSeek = onSeek,
+                accent = palette.accent,
+                allowTapSeek = allowTapSeek,
+                onPreviewProgressChange = { previewProgress = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            PlayerWaveformSeekBar(
+                value = progressValue,
+                song = song,
+                duration = duration,
+                style = progressStyle,
+                onSeek = onSeek,
+                accent = palette.accent,
+                allowTapSeek = allowTapSeek,
+                onPreviewProgressChange = { previewProgress = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         Box(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.align(Alignment.CenterStart),

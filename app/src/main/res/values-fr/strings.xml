@@ -355,6 +355,13 @@
     <string name="player_no_equalizer">Aucun égaliseur système trouvé</string>
     <string name="player_no_audio_session">Aucune session audio n’est disponible pour le moment</string>
     <string name="player_visualizer_settings">Paramètres du visualiseur</string>
+    <string name="player_visualizer_style">Style du visualiseur</string>
+    <string name="player_visualizer_style_flow">Courbe fluide</string>
+    <string name="player_visualizer_style_raws_spectrum">Spectre miroir RawS</string>
+    <string name="player_progress_style">Style de la barre de progression</string>
+    <string name="player_progress_style_glow">Lueur</string>
+    <string name="player_progress_style_waveform">Forme d’onde</string>
+    <string name="player_progress_style_segments">Segments</string>
     <string name="player_match_dynamic_cover">Associer une pochette dynamique</string>
     <string name="player_dynamic_cover_downloading">Téléchargement de la pochette dynamique…</string>
     <string name="player_dynamic_cover_downloaded">Pochette dynamique enregistrée</string>

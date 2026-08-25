@@ -355,6 +355,13 @@
     <string name="player_no_equalizer">システムイコライザーが見つかりません</string>
     <string name="player_no_audio_session">現在利用できるオーディオセッションがありません</string>
     <string name="player_visualizer_settings">ビジュアライザー設定</string>
+    <string name="player_visualizer_style">ビジュアライザーのスタイル</string>
+    <string name="player_visualizer_style_flow">フローカーブ</string>
+    <string name="player_visualizer_style_raws_spectrum">RawS ミラースペクトラム</string>
+    <string name="player_progress_style">プログレスバーのスタイル</string>
+    <string name="player_progress_style_glow">グロー</string>
+    <string name="player_progress_style_waveform">波形</string>
+    <string name="player_progress_style_segments">セグメント</string>
     <string name="player_match_dynamic_cover">アニメーションカバーを検索</string>
     <string name="player_dynamic_cover_downloading">アニメーションカバーをダウンロード中…</string>
     <string name="player_dynamic_cover_downloaded">アニメーションカバーを保存しました</string>

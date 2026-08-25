@@ -85,6 +85,11 @@ internal object PlaybackSourceNavigation {
         persist()
     }
 
+    fun clearSourceForSong(songKey: String) {
+        if (songKey.isBlank()) return
+        if (songSources.remove(songKey) != null) persist()
+    }
+
     fun sourceForSong(songKey: String): String? =
         songSources[songKey] ?: _sourceKey.value
 
@@ -133,13 +138,4 @@ internal fun playbackSourcesForSongs(
         }
     }
     return result
-}
-
-internal fun shouldUseHomeSourceForRecentSong(
-    queueSongKeys: Collection<String>,
-    recentSongKeys: Collection<String>,
-    clickedSongKey: String
-): Boolean {
-    if (clickedSongKey.isBlank() || clickedSongKey in queueSongKeys) return false
-    return queueSongKeys.isEmpty() || recentSongKeys.none { it in queueSongKeys }
 }

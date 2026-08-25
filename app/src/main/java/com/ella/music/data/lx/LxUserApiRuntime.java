@@ -10,7 +10,9 @@ import com.whl.quickjs.wrapper.QuickJSContext;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
@@ -24,17 +26,24 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.PriorityQueue;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import okhttp3.Call;
+import okhttp3.Callback;
 import okhttp3.FormBody;
 import okhttp3.MediaType;
+import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public final class LxUserApiRuntime implements AutoCloseable {
     private static final String TAG = "LxUserApiRuntime";
@@ -50,6 +59,8 @@ public final class LxUserApiRuntime implements AutoCloseable {
     private String lastError;
     private final PriorityQueue<PendingTimeout> pendingTimeouts =
             new PriorityQueue<>(Comparator.comparingLong(timeout -> timeout.runAtMs));
+    private final ConcurrentHashMap<String, Call> activeRequests = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedQueue<Runnable> pendingJsActions = new ConcurrentLinkedQueue<>();
 
     public LxUserApiRuntime(Context context, OkHttpClient client) {
         this.context = context.getApplicationContext();
@@ -194,10 +205,12 @@ public final class LxUserApiRuntime implements AutoCloseable {
         });
         jsContext.getGlobalObject().setProperty("__lx_native_call__utils_str2b64", args ->
                 Base64.encodeToString(String.valueOf(args[0]).getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
+        jsContext.getGlobalObject().setProperty("__lx_native_call__utils_buf2b64", args ->
+                safeString(() -> byteArrayToBase64(String.valueOf(args[0]))));
         jsContext.getGlobalObject().setProperty("__lx_native_call__utils_b642buf", args -> {
             byte[] bytes = Base64.decode(String.valueOf(args[0]), Base64.NO_WRAP);
             JSONArray array = new JSONArray();
-            for (byte b : bytes) array.put((int) b);
+            for (byte b : bytes) array.put(b & 0xff);
             return array.toString();
         });
         jsContext.getGlobalObject().setProperty("__lx_native_call__utils_str2md5", args ->
@@ -221,7 +234,9 @@ public final class LxUserApiRuntime implements AutoCloseable {
                     requestResponse = new JSONObject(data);
                     break;
                 case "showUpdateAlert":
+                    break;
                 case "cancelRequest":
+                    cancelScriptRequest(data);
                     break;
                 default:
                     Log.d(TAG, "Unknown script action: " + action);
@@ -252,38 +267,111 @@ public final class LxUserApiRuntime implements AutoCloseable {
         if (headerValue(headers, "User-Agent").isEmpty()) {
             builder.header("User-Agent", USER_AGENT);
         }
+        if (headerValue(headers, "Accept").isEmpty()) {
+            builder.header("Accept", "*/*");
+        }
 
         String method = options.optString("method", "get").toUpperCase(Locale.US);
         RequestBody body = buildRequestBody(options);
         if ("GET".equals(method)) builder.get();
         else builder.method(method, body != null ? body : RequestBody.create(new byte[0]));
 
-        JSONObject responseData = new JSONObject().put("requestKey", requestKey);
-        try (okhttp3.Response response = client.newCall(builder.build()).execute()) {
-            JSONObject headersJson = new JSONObject();
-            for (String name : response.headers().names()) {
-                headersJson.put(name, response.header(name));
+        final JSONObject requestOptions = options;
+        final Call call = client.newCall(builder.build());
+        long timeoutMs = options.optLong("timeout", 0L);
+        if (timeoutMs > 0L) {
+            call.timeout().timeout(Math.min(timeoutMs, 60_000L), TimeUnit.MILLISECONDS);
+        }
+        activeRequests.put(requestKey, call);
+        call.enqueue(new Callback() {
+            @Override
+            public void onFailure(Call failedCall, IOException error) {
+                activeRequests.remove(requestKey, failedCall);
+                enqueueHttpResponse(requestKey, null, requestOptions, error);
             }
-            Object bodyValue = response.body() == null ? "" : response.body().string();
-            if (!options.optBoolean("binary")) {
-                String bodyString = String.valueOf(bodyValue);
-                try {
-                    bodyValue = bodyString.startsWith("[") ? new JSONArray(bodyString) : new JSONObject(bodyString);
-                } catch (Exception ignored) {
-                    bodyValue = bodyString;
+
+            @Override
+            public void onResponse(Call completedCall, Response response) {
+                activeRequests.remove(requestKey, completedCall);
+                try (Response closeableResponse = response) {
+                    enqueueHttpResponse(requestKey, closeableResponse, requestOptions, null);
+                } catch (Exception error) {
+                    enqueueHttpResponse(requestKey, null, requestOptions, error);
                 }
             }
-            responseData
-                    .put("error", JSONObject.NULL)
-                    .put("response", new JSONObject()
-                            .put("statusCode", response.code())
-                            .put("statusMessage", response.message())
-                            .put("headers", headersJson)
-                            .put("body", bodyValue));
-        } catch (Exception e) {
-            responseData.put("error", e.getMessage()).put("response", JSONObject.NULL);
+        });
+    }
+
+    /**
+     * OkHttp callbacks run off the QuickJS owner thread. Queue the result and let waitFor pump it
+     * on that owner thread; entering QuickJS recursively from the native request callback breaks
+     * promise-heavy and encrypted LX sources.
+     */
+    private void enqueueHttpResponse(
+            String requestKey,
+            Response response,
+            JSONObject options,
+            Exception error
+    ) {
+        try {
+            JSONObject responseData = new JSONObject().put("requestKey", requestKey);
+            if (error != null || response == null) {
+                String message = error == null ? "Request failed" : error.getMessage();
+                responseData.put("error", message == null ? error.getClass().getSimpleName() : message)
+                        .put("response", JSONObject.NULL);
+            } else {
+                JSONObject headersJson = new JSONObject();
+                for (String name : response.headers().names()) {
+                    headersJson.put(name, response.header(name));
+                }
+                Object bodyValue;
+                if (options.optBoolean("binary")) {
+                    byte[] bytes = response.body() == null ? new byte[0] : response.body().bytes();
+                    JSONArray array = new JSONArray();
+                    for (byte value : bytes) array.put(value & 0xff);
+                    bodyValue = array;
+                } else {
+                    String bodyString = response.body() == null ? "" : response.body().string();
+                    bodyValue = parseJsonBodyOrString(bodyString);
+                }
+                responseData
+                        .put("error", JSONObject.NULL)
+                        .put("response", new JSONObject()
+                                .put("statusCode", response.code())
+                                .put("statusMessage", response.message())
+                                .put("headers", headersJson)
+                                .put("url", response.request().url().toString())
+                                .put("ok", response.isSuccessful())
+                                .put("body", bodyValue));
+            }
+            final String payload = responseData.toString();
+            pendingJsActions.add(() -> callJs("response", payload));
+        } catch (Exception buildError) {
+            final String message = buildError.getMessage();
+            pendingJsActions.add(() -> lastError = message == null ? "Failed to decode source response" : message);
         }
-        callJs("response", responseData.toString());
+    }
+
+    private Object parseJsonBodyOrString(String body) {
+        String trimmed = body.trim();
+        if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return body;
+        try {
+            return new JSONTokener(trimmed).nextValue();
+        } catch (Exception ignored) {
+            return body;
+        }
+    }
+
+    private void cancelScriptRequest(String rawData) {
+        String requestKey = rawData;
+        try {
+            Object parsed = new JSONTokener(rawData).nextValue();
+            requestKey = String.valueOf(parsed);
+        } catch (Exception ignored) {
+            // Older preload variants sent the key as a raw string.
+        }
+        Call call = activeRequests.remove(requestKey);
+        if (call != null) call.cancel();
     }
 
     private RequestBody buildRequestBody(JSONObject options) {
@@ -304,14 +392,22 @@ public final class LxUserApiRuntime implements AutoCloseable {
             if (body == null || body == JSONObject.NULL) return null;
             String contentType = headerValue(options.optJSONObject("headers"), "Content-Type");
             if (contentType.isEmpty()) contentType = "application/json";
-            return RequestBody.create(String.valueOf(body), MediaType.parse(contentType));
+            return RequestBody.create(body.toString(), MediaType.parse(contentType));
         }
         if (options.has("formData")) {
             Object body = options.opt("formData");
             if (body == null || body == JSONObject.NULL) return null;
-            String contentType = headerValue(options.optJSONObject("headers"), "Content-Type");
-            if (contentType.isEmpty()) contentType = "multipart/form-data";
-            return RequestBody.create(String.valueOf(body), MediaType.parse(contentType));
+            if (body instanceof JSONObject) {
+                MultipartBody.Builder multipart = new MultipartBody.Builder().setType(MultipartBody.FORM);
+                JSONObject fields = (JSONObject) body;
+                Iterator<String> keys = fields.keys();
+                while (keys.hasNext()) {
+                    String field = keys.next();
+                    multipart.addFormDataPart(field, fields.optString(field));
+                }
+                return multipart.build();
+            }
+            return RequestBody.create(body.toString(), MediaType.parse("multipart/form-data"));
         }
         return null;
     }
@@ -333,18 +429,22 @@ public final class LxUserApiRuntime implements AutoCloseable {
     private void waitFor(BooleanSupplier condition, long timeoutMs) throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
-            if (!runNextDueTimeout(deadline)) {
-                Thread.sleep(Math.min(8L, Math.max(1L, deadline - System.currentTimeMillis())));
-            }
+            boolean didWork = runNextJsAction();
+            didWork = runNextDueTimeout() || didWork;
+            if (!didWork) Thread.sleep(Math.min(8L, Math.max(1L, deadline - System.currentTimeMillis())));
         }
     }
 
-    private boolean runNextDueTimeout(long deadline) throws Exception {
+    private boolean runNextJsAction() {
+        Runnable action = pendingJsActions.poll();
+        if (action == null) return false;
+        action.run();
+        return true;
+    }
+
+    private boolean runNextDueTimeout() throws Exception {
         PendingTimeout timeout = pendingTimeouts.peek();
         if (timeout == null) return false;
-        long now = System.currentTimeMillis();
-        long waitMs = Math.min(timeout.runAtMs, deadline) - now;
-        if (waitMs > 0L) Thread.sleep(waitMs);
         if (System.currentTimeMillis() < timeout.runAtMs) return false;
         pendingTimeouts.poll();
         callJs("__set_timeout__", timeout.id);
@@ -384,6 +484,15 @@ public final class LxUserApiRuntime implements AutoCloseable {
         return builder.toString();
     }
 
+    private String byteArrayToBase64(String json) throws Exception {
+        JSONArray values = new JSONArray(json);
+        byte[] bytes = new byte[values.length()];
+        for (int index = 0; index < values.length(); index++) {
+            bytes[index] = (byte) values.getInt(index);
+        }
+        return Base64.encodeToString(bytes, Base64.NO_WRAP);
+    }
+
     private interface ThrowingStringSupplier {
         String get() throws Exception;
     }
@@ -400,7 +509,10 @@ public final class LxUserApiRuntime implements AutoCloseable {
     private String aesEncrypt(String dataB64, String keyB64, String ivB64, String transformation) throws Exception {
         byte[] data = Base64.decode(dataB64, Base64.NO_WRAP);
         byte[] keyBytes = Base64.decode(keyB64, Base64.NO_WRAP);
-        Cipher cipher = Cipher.getInstance(transformation.replace("PKCS7Padding", "PKCS5Padding"));
+        String normalizedTransformation = "AES".equals(transformation)
+                ? "AES/ECB/NoPadding"
+                : transformation.replace("PKCS7Padding", "PKCS5Padding");
+        Cipher cipher = Cipher.getInstance(normalizedTransformation);
         SecretKeySpec keySpec = new SecretKeySpec(keyBytes, "AES");
         if (transformation.contains("/CBC/")) {
             cipher.init(Cipher.ENCRYPT_MODE, keySpec, new IvParameterSpec(Base64.decode(ivB64, Base64.NO_WRAP)));
@@ -420,6 +532,9 @@ public final class LxUserApiRuntime implements AutoCloseable {
 
     @Override
     public void close() {
+        for (Call call : activeRequests.values()) call.cancel();
+        activeRequests.clear();
+        pendingJsActions.clear();
         pendingTimeouts.clear();
         if (jsContext != null) {
             jsContext.destroy();

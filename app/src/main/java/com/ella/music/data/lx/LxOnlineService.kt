@@ -44,7 +44,10 @@ class LxOnlineService(private val context: Context) {
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(context.getString(R.string.lx_service_import_failed_http, response.code))
             val script = response.body?.string().orEmpty()
-            importSourceScript(script, allowRuntimeInspect = false)
+            // Validate downloaded sources with the same QuickJS runtime used for playback.
+            // This catches encrypted/obfuscated sources that fail during initialization instead
+            // of accepting them and surfacing an opaque error only when a song is played.
+            importSourceScript(script, allowRuntimeInspect = true)
         }
     }
 

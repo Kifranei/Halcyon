@@ -3,8 +3,7 @@ package com.ella.music.data
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlaybackSourceNavigationTest {
@@ -24,13 +23,14 @@ class PlaybackSourceNavigationTest {
     }
 
     @Test
-    fun homeRecentUsesDashboardOnlyWhenAddingFreshSong() {
-        val recent = listOf("a", "b", "c", "d", "e")
-        assertTrue(shouldUseHomeSourceForRecentSong(emptyList(), recent, "a"))
-        assertTrue(shouldUseHomeSourceForRecentSong(listOf("other"), recent, "a"))
-        assertFalse(shouldUseHomeSourceForRecentSong(listOf("a", "x"), recent, "a"))
-        assertFalse(shouldUseHomeSourceForRecentSong(listOf("b"), recent, "a"))
-        assertFalse(shouldUseHomeSourceForRecentSong(emptyList(), recent, ""))
+    fun recentSongSourceCanBeClearedBeforeIndependentPlayback() {
+        val songKey = "recent-song"
+        PlaybackSourceNavigation.updateSource(null)
+        PlaybackSourceNavigation.recordSongSources(mapOf(songKey to CategoryResumeKeys.DASHBOARD))
+
+        PlaybackSourceNavigation.clearSourceForSong(songKey)
+
+        assertNull(PlaybackSourceNavigation.sourceForSong(songKey))
     }
 
     private fun song(id: Long, title: String): Song = Song(

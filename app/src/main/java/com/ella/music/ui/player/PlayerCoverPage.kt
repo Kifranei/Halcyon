@@ -647,6 +647,19 @@ internal fun CoverPlayerPage(
                     onSeek = onSeek,
                     fontFamily = fontFamily
                 )
+                if (!compactWindow) {
+                    AudioVisualizer(
+                        enabled = visualizerEnabled,
+                        audioSessionId = audioSessionId,
+                        isPlaying = isPlaying,
+                        positionMs = currentPosition,
+                        opacity = visualizerOpacity,
+                        accent = pagePalette.accent.copy(alpha = 0.88f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(28.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.height(14.dp))
                 LandscapeTransportControls(
                     isPlaying = isPlaying,
@@ -729,6 +742,20 @@ internal fun CoverPlayerPage(
                         focusOffsetRatio = 0.22f,
                         modifier = Modifier.fillMaxSize()
                     )
+                    if (!compactWindow) {
+                        AudioVisualizer(
+                            enabled = visualizerEnabled,
+                            audioSessionId = audioSessionId,
+                            isPlaying = isPlaying,
+                            positionMs = currentPosition,
+                            opacity = visualizerOpacity,
+                            accent = pagePalette.accent.copy(alpha = 0.64f),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(28.dp)
+                        )
+                    }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = PlayerMotion.lyricsCornerActionsVisible(appleMusicChromeVisible),
                         enter = fadeIn(),
@@ -1011,6 +1038,20 @@ internal fun CoverPlayerPage(
                         focusOffsetRatio = 0.12f,
                         modifier = Modifier.fillMaxSize()
                     )
+                    if (!compactWindow) {
+                        AudioVisualizer(
+                            enabled = visualizerEnabled,
+                            audioSessionId = audioSessionId,
+                            isPlaying = isPlaying,
+                            positionMs = currentPosition,
+                            opacity = visualizerOpacity,
+                            accent = pagePalette.accent.copy(alpha = 0.72f),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(30.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
             }
@@ -1848,7 +1889,7 @@ internal fun CoverPlayerPage(
             playbackSpeed = playbackSpeed,
             playbackPitch = playbackPitch,
             visualizerEnabled = visualizerEnabled,
-            visualizerAvailable = immersiveAlbumCover,
+            visualizerAvailable = true,
             visualizerOpacity = visualizerOpacityPercent,
             lyricOffsetMs = lyricOffsetMs,
             showPronunciation = showPronunciation,

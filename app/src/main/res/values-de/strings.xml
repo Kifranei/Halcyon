@@ -355,6 +355,13 @@
     <string name="player_no_equalizer">Kein System-Equalizer gefunden</string>
     <string name="player_no_audio_session">Derzeit ist keine Audiositzung verfügbar</string>
     <string name="player_visualizer_settings">Visualizer-Einstellungen</string>
+    <string name="player_visualizer_style">Visualizer-Stil</string>
+    <string name="player_visualizer_style_flow">Fließende Kurve</string>
+    <string name="player_visualizer_style_raws_spectrum">RawS-Spiegelspektrum</string>
+    <string name="player_progress_style">Fortschrittsleistenstil</string>
+    <string name="player_progress_style_glow">Leuchten</string>
+    <string name="player_progress_style_waveform">Wellenform</string>
+    <string name="player_progress_style_segments">Segmente</string>
     <string name="player_match_dynamic_cover">Dynamisches Cover abgleichen</string>
     <string name="player_dynamic_cover_downloading">Dynamisches Cover wird heruntergeladen…</string>
     <string name="player_dynamic_cover_downloaded">Dynamisches Cover gespeichert</string>

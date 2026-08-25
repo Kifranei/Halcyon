@@ -27,6 +27,26 @@ class SettingsManagerDisplayModeTest {
     }
 
     @Test
+    fun `player progress and visualizer styles normalize unknown values`() {
+        assertEquals(
+            SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE,
+            SettingsManager.normalizePlayerProgressStyle(Int.MAX_VALUE)
+        )
+        assertEquals(
+            SettingsManager.PLAYER_PROGRESS_STYLE_WAVEFORM,
+            SettingsManager.normalizePlayerProgressStyle(SettingsManager.PLAYER_PROGRESS_STYLE_WAVEFORM)
+        )
+        assertEquals(
+            SettingsManager.DEFAULT_AUDIO_VISUALIZER_STYLE,
+            SettingsManager.normalizeAudioVisualizerStyle(null)
+        )
+        assertEquals(
+            SettingsManager.AUDIO_VISUALIZER_STYLE_RAWS_SPECTRUM,
+            SettingsManager.normalizeAudioVisualizerStyle(SettingsManager.AUDIO_VISUALIZER_STYLE_RAWS_SPECTRUM)
+        )
+    }
+
+    @Test
     fun `legacy hidden system bars migrate to hide both`() {
         assertEquals(
             SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH,

@@ -13,16 +13,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.ui.settings.SettingsIntSliderPreference
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -33,6 +42,25 @@ internal fun VisualizerSheetContent(
     onEnabledChange: (Boolean) -> Unit,
     onOpacityChange: (Int) -> Unit
 ) {
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val scope = rememberCoroutineScope()
+    val visualizerStyle by settingsManager.audioVisualizerStyle.collectAsState(
+        initial = SettingsManager.DEFAULT_AUDIO_VISUALIZER_STYLE
+    )
+    val progressStyle by settingsManager.playerProgressStyle.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE
+    )
+    val visualizerStyleLabels = listOf(
+        stringResource(R.string.player_visualizer_style_flow),
+        stringResource(R.string.player_visualizer_style_raws_spectrum)
+    )
+    val progressStyleLabels = listOf(
+        stringResource(R.string.player_progress_style_glow),
+        stringResource(R.string.player_progress_style_waveform),
+        stringResource(R.string.player_progress_style_segments)
+    )
+
     HalfSheetTitle(title = stringResource(R.string.player_visualizer_settings), onBack = onBack)
     Spacer(modifier = Modifier.height(22.dp))
     Row(
@@ -72,6 +100,26 @@ internal fun VisualizerSheetContent(
         }
     }
     Spacer(modifier = Modifier.height(14.dp))
+    WindowSpinnerPreference(
+        title = stringResource(R.string.player_visualizer_style),
+        summary = visualizerStyleLabels[visualizerStyle.coerceIn(visualizerStyleLabels.indices)],
+        items = visualizerStyleLabels.map { DropdownItem(title = it) },
+        selectedIndex = visualizerStyle.coerceIn(visualizerStyleLabels.indices),
+        onSelectedIndexChange = { index ->
+            scope.launch { settingsManager.setAudioVisualizerStyle(index) }
+        }
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    WindowSpinnerPreference(
+        title = stringResource(R.string.player_progress_style),
+        summary = progressStyleLabels[progressStyle.coerceIn(progressStyleLabels.indices)],
+        items = progressStyleLabels.map { DropdownItem(title = it) },
+        selectedIndex = progressStyle.coerceIn(progressStyleLabels.indices),
+        onSelectedIndexChange = { index ->
+            scope.launch { settingsManager.setPlayerProgressStyle(index) }
+        }
+    )
+    Spacer(modifier = Modifier.height(10.dp))
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_visualizer_opacity),
         summary = stringResource(R.string.player_visualizer_opacity_summary),

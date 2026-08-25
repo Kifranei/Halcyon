@@ -12,6 +12,7 @@ import com.ella.music.data.SettingsManager.Companion.PLAYER_TITLE_POSITION_ABOVE
 import com.ella.music.data.SettingsManager.Companion.PLAYER_TITLE_POSITION_BELOW_COVER
 import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_VISUALIZER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_VISUALIZER_OPACITY
+import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_VISUALIZER_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_DYNAMIC_COVER_CUSTOM_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_DYNAMIC_COVER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HIDE_SYSTEM_BARS
@@ -53,6 +54,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRICS_CORNER_AC
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_ACTION_MENU_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_LIST_ACTION_MENU_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_INDEX
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_QUALITY
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE
@@ -109,6 +111,8 @@ interface PlayerUiSettingsAccess {
     val playerDynamicFlowEnabled: Flow<Boolean>
     val audioVisualizerEnabled: Flow<Boolean>
     val audioVisualizerOpacity: Flow<Int>
+    val audioVisualizerStyle: Flow<Int>
+    val playerProgressStyle: Flow<Int>
     val dynamicCoverEnabled: Flow<Boolean>
     val musicVideoSyncEnabled: Flow<Boolean>
     val musicVideoCaptureSubtitles: Flow<Boolean>
@@ -148,6 +152,8 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean)
     suspend fun setAudioVisualizerEnabled(enabled: Boolean)
     suspend fun setAudioVisualizerOpacity(opacity: Int)
+    suspend fun setAudioVisualizerStyle(style: Int)
+    suspend fun setPlayerProgressStyle(style: Int)
     suspend fun setDynamicCoverEnabled(enabled: Boolean)
     suspend fun setMusicVideoSyncEnabled(enabled: Boolean)
     suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean)
@@ -278,6 +284,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_ENABLED] ?: false }
     override val audioVisualizerOpacity: Flow<Int> =
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_OPACITY]?.coerceIn(20, 100) ?: 100 }
+    override val audioVisualizerStyle: Flow<Int> =
+        context.dataStore.data.map { SettingsManager.normalizeAudioVisualizerStyle(it[KEY_AUDIO_VISUALIZER_STYLE]) }
+    override val playerProgressStyle: Flow<Int> =
+        context.dataStore.data.map { SettingsManager.normalizePlayerProgressStyle(it[KEY_PLAYER_PROGRESS_STYLE]) }
 
     override val dynamicCoverEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_DYNAMIC_COVER_ENABLED] ?: false }
@@ -422,6 +432,14 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setAudioVisualizerOpacity(opacity: Int) {
         context.dataStore.edit { it[KEY_AUDIO_VISUALIZER_OPACITY] = opacity.coerceIn(20, 100) }
+    }
+
+    override suspend fun setAudioVisualizerStyle(style: Int) {
+        context.dataStore.edit { it[KEY_AUDIO_VISUALIZER_STYLE] = SettingsManager.normalizeAudioVisualizerStyle(style) }
+    }
+
+    override suspend fun setPlayerProgressStyle(style: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_PROGRESS_STYLE] = SettingsManager.normalizePlayerProgressStyle(style) }
     }
 
     override suspend fun setDynamicCoverEnabled(enabled: Boolean) {

@@ -381,6 +381,13 @@
     <string name="player_no_equalizer">找不到系統等化器</string>
     <string name="player_no_audio_session">目前沒有可用的音訊工作階段</string>
     <string name="player_visualizer_settings">視覺化設定</string>
+    <string name="player_visualizer_style">視覺化樣式</string>
+    <string name="player_visualizer_style_flow">流光曲線</string>
+    <string name="player_visualizer_style_raws_spectrum">RawS 鏡像頻譜</string>
+    <string name="player_progress_style">進度條樣式</string>
+    <string name="player_progress_style_glow">流光</string>
+    <string name="player_progress_style_waveform">波形</string>
+    <string name="player_progress_style_segments">分段刻度</string>
     <string name="player_match_dynamic_cover">搜尋動態封面</string>
     <string name="player_dynamic_cover_downloading">正在下載動態封面…</string>
     <string name="player_dynamic_cover_downloaded">動態封面已儲存</string>

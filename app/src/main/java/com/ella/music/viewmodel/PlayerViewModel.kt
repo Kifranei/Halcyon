@@ -1414,6 +1414,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playerManager.playSong(song)
     }
 
+    /** Plays a home-history item as an independent selection, not as any browse category. */
+    fun playSongUncategorized(song: Song) {
+        lazyOnlineQueueController.clear()
+        activeResumeCategoryKey = null
+        _playbackSourceKey.value = null
+        val navigation = com.ella.music.data.PlaybackSourceNavigation
+        navigation.clearSourceForSong(song.playlistIdentityKey())
+        navigation.updateSource(null)
+        playerManager.setPlaylist(listOf(song), 0)
+    }
+
     fun playRestoredQueue() {
         playerManager.play()
     }

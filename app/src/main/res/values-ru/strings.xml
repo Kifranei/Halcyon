@@ -353,6 +353,13 @@
     <string name="player_no_equalizer">Системный эквалайзер не найден</string>
     <string name="player_no_audio_session">В данный момент аудиосессия недоступна</string>
     <string name="player_visualizer_settings">Настройки визуализатора</string>
+    <string name="player_visualizer_style">Стиль визуализатора</string>
+    <string name="player_visualizer_style_flow">Плавная кривая</string>
+    <string name="player_visualizer_style_raws_spectrum">Зеркальный спектр RawS</string>
+    <string name="player_progress_style">Стиль индикатора прогресса</string>
+    <string name="player_progress_style_glow">Свечение</string>
+    <string name="player_progress_style_waveform">Волна</string>
+    <string name="player_progress_style_segments">Сегменты</string>
     <string name="player_match_dynamic_cover">Подберите динамическую обложку</string>
     <string name="player_dynamic_cover_downloading">Загрузка динамической обложки…</string>
     <string name="player_dynamic_cover_downloaded">Динамическая обложка сохранена.</string>

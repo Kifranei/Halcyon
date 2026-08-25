@@ -33,7 +33,6 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.FolderPlaylist
 import com.ella.music.data.model.playlistIdentityKey
-import com.ella.music.data.shouldUseHomeSourceForRecentSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -75,7 +74,6 @@ fun HomeScreen(
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val playbackHistory by mainViewModel.recentPlaybackHistory.collectAsState()
-    val playbackQueue by playerViewModel.playlist.collectAsState()
     com.ella.music.ui.components.RememberPlaybackSourceScreen(CategoryResumeKeys.DASHBOARD)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -368,18 +366,7 @@ fun HomeScreen(
                                     mainViewModel = mainViewModel,
                                     cardText = cardText,
                                     onClick = {
-                                        val queueKeys = playbackQueue.map { it.playlistIdentityKey() }
-                                        val recentKeys = recentSongs.map { it.playlistIdentityKey() }
-                                        val songKey = song.playlistIdentityKey()
-                                        if (shouldUseHomeSourceForRecentSong(queueKeys, recentKeys, songKey)) {
-                                            playerViewModel.setPlaylist(
-                                                listOf(song),
-                                                0,
-                                                resumeCategoryKey = CategoryResumeKeys.DASHBOARD
-                                            )
-                                        } else {
-                                            playerViewModel.playSong(song)
-                                        }
+                                        playerViewModel.playSongUncategorized(song)
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )

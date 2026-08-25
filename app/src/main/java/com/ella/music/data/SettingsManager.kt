@@ -186,6 +186,8 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
         val KEY_AUDIO_VISUALIZER_OPACITY = intPreferencesKey("audio_visualizer_opacity")
+        val KEY_AUDIO_VISUALIZER_STYLE = intPreferencesKey("audio_visualizer_style")
+        val KEY_PLAYER_PROGRESS_STYLE = intPreferencesKey("player_progress_style")
         val KEY_EQ_ENABLED = booleanPreferencesKey("audio_eq_enabled")
         val KEY_EQ_PRESET = intPreferencesKey("audio_eq_preset")
         val KEY_EQ_BANDS = stringPreferencesKey("audio_eq_bands")
@@ -464,6 +466,13 @@ class SettingsManager(private val context: Context) :
         const val PLAYER_PAGE_STYLE_APPLE_MUSIC = 1
         const val PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS = 2
         const val DEFAULT_PLAYER_PAGE_STYLE = PLAYER_PAGE_STYLE_HALCYON
+        const val PLAYER_PROGRESS_STYLE_GLOW = 0
+        const val PLAYER_PROGRESS_STYLE_WAVEFORM = 1
+        const val PLAYER_PROGRESS_STYLE_SEGMENTS = 2
+        const val DEFAULT_PLAYER_PROGRESS_STYLE = PLAYER_PROGRESS_STYLE_GLOW
+        const val AUDIO_VISUALIZER_STYLE_FLOW = 0
+        const val AUDIO_VISUALIZER_STYLE_RAWS_SPECTRUM = 1
+        const val DEFAULT_AUDIO_VISUALIZER_STYLE = AUDIO_VISUALIZER_STYLE_FLOW
         const val PLAYER_LANDSCAPE_STYLE_WIDE = 0
         const val PLAYER_LANDSCAPE_STYLE_COVER_FLOW = 2
         const val PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO = 3
@@ -493,6 +502,19 @@ class SettingsManager(private val context: Context) :
             SEARCH_REOPEN_CLEAR,
             SEARCH_REOPEN_KEEP -> behavior
             else -> DEFAULT_SEARCH_REOPEN_BEHAVIOR
+        }
+
+        fun normalizePlayerProgressStyle(style: Int?): Int = when (style) {
+            PLAYER_PROGRESS_STYLE_GLOW,
+            PLAYER_PROGRESS_STYLE_WAVEFORM,
+            PLAYER_PROGRESS_STYLE_SEGMENTS -> style
+            else -> DEFAULT_PLAYER_PROGRESS_STYLE
+        }
+
+        fun normalizeAudioVisualizerStyle(style: Int?): Int = when (style) {
+            AUDIO_VISUALIZER_STYLE_FLOW,
+            AUDIO_VISUALIZER_STYLE_RAWS_SPECTRUM -> style
+            else -> DEFAULT_AUDIO_VISUALIZER_STYLE
         }
 
         const val SEARCH_CLICK_INSERT_NEXT = 0
@@ -1062,6 +1084,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_HIDE_SYSTEM_BARS)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
+            setInt(KEY_AUDIO_VISUALIZER_STYLE)
+            setInt(KEY_PLAYER_PROGRESS_STYLE)
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_SYNC_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES)

@@ -435,6 +435,13 @@
     <string name="player_no_equalizer">No system equalizer found</string>
     <string name="player_no_audio_session">No audio session is available right now</string>
     <string name="player_visualizer_settings">Visualizer settings</string>
+    <string name="player_visualizer_style">Visualizer style</string>
+    <string name="player_visualizer_style_flow">Flowing curve</string>
+    <string name="player_visualizer_style_raws_spectrum">RawS mirrored spectrum</string>
+    <string name="player_progress_style">Progress bar style</string>
+    <string name="player_progress_style_glow">Glow</string>
+    <string name="player_progress_style_waveform">Waveform</string>
+    <string name="player_progress_style_segments">Segments</string>
     <string name="player_visualizer_opacity">Visualizer opacity</string>
     <string name="player_visualizer_opacity_summary">Adjust the opacity of the player visualizer waveform and flowing background</string>
     <string name="player_match_dynamic_cover">Match dynamic cover</string>

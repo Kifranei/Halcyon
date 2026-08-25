@@ -453,6 +453,13 @@
     <string name="player_no_equalizer">未找到系统均衡器</string>
     <string name="player_no_audio_session">当前没有可用的音频会话</string>
     <string name="player_visualizer_settings">可视化设置</string>
+    <string name="player_visualizer_style">可视化样式</string>
+    <string name="player_visualizer_style_flow">流光曲线</string>
+    <string name="player_visualizer_style_raws_spectrum">RawS 镜像频谱</string>
+    <string name="player_progress_style">进度条样式</string>
+    <string name="player_progress_style_glow">流光</string>
+    <string name="player_progress_style_waveform">波形</string>
+    <string name="player_progress_style_segments">分段刻度</string>
     <string name="player_visualizer_opacity">可视化透明度</string>
     <string name="player_visualizer_opacity_summary">调整播放器可视化波形与流光背景的显示透明度</string>
     <string name="player_match_dynamic_cover">匹配动态封面</string>

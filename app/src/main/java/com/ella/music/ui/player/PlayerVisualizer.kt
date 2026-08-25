@@ -3,6 +3,7 @@ package com.ella.music.ui.player
 import android.media.audiofx.Visualizer
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,11 +12,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.ln
@@ -33,6 +38,11 @@ internal fun AudioVisualizer(
     modifier: Modifier = Modifier
 ) {
     if (!enabled) return
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val style by settingsManager.audioVisualizerStyle.collectAsState(
+        initial = SettingsManager.DEFAULT_AUDIO_VISUALIZER_STYLE
+    )
     var levels by remember { mutableStateOf<List<Float>>(emptyList()) }
     var visualizerFailed by remember { mutableStateOf(false) }
     val playingState by rememberUpdatedState(isPlaying)
@@ -77,9 +87,46 @@ internal fun AudioVisualizer(
 
     Canvas(modifier = modifier.graphicsLayer { alpha = (if (isPlaying) 1f else 0.42f) * opacity.coerceIn(0f, 1f) }) {
         val barCount = 64
-        drawBetterLyricsSpectrumCurve(
-            levels = List(barCount) { index -> levels.getOrNull(index) ?: 0.04f },
-            accent = accent
+        val displayLevels = List(barCount) { index -> levels.getOrNull(index) ?: 0.04f }
+        when (SettingsManager.normalizeAudioVisualizerStyle(style)) {
+            SettingsManager.AUDIO_VISUALIZER_STYLE_RAWS_SPECTRUM ->
+                drawRawSSpectrum(displayLevels, accent)
+            else -> drawBetterLyricsSpectrumCurve(displayLevels, accent)
+        }
+    }
+}
+
+/** RawS Music-inspired mirrored FFT columns, adapted to Halcyon's Media3 visualizer stream. */
+private fun DrawScope.drawRawSSpectrum(levels: List<Float>, accent: Color) {
+    if (levels.isEmpty() || size.width <= 0f || size.height <= 0f) return
+    val slotWidth = size.width / levels.size
+    val barWidth = (slotWidth * 0.38f).coerceAtLeast(0.75f * density)
+    val axisY = size.height * 0.55f
+    val maximumHalfHeight = size.height * 0.43f
+    val minimumHalfHeight = 1.1f * density
+    val radius = CornerRadius(barWidth * 0.5f, barWidth * 0.5f)
+
+    levels.forEachIndexed { index, rawLevel ->
+        val shaped = sqrt(rawLevel.coerceIn(0f, 1f))
+        val halfHeight = minimumHalfHeight + maximumHalfHeight * shaped
+        val x = (index + 0.5f) * slotWidth
+        drawRoundRect(
+            color = accent.copy(alpha = 0.12f),
+            topLeft = Offset(x - barWidth * 0.7f, axisY - halfHeight - density),
+            size = Size(barWidth * 1.4f, halfHeight * 2f + density * 2f),
+            cornerRadius = radius
+        )
+        drawRoundRect(
+            brush = Brush.verticalGradient(
+                0f to accent.copy(alpha = 0.62f),
+                0.5f to Color.White.copy(alpha = 0.86f),
+                1f to accent.copy(alpha = 0.62f),
+                startY = axisY - maximumHalfHeight,
+                endY = axisY + maximumHalfHeight
+            ),
+            topLeft = Offset(x - barWidth * 0.5f, axisY - halfHeight),
+            size = Size(barWidth, halfHeight * 2f),
+            cornerRadius = radius
         )
     }
 }
