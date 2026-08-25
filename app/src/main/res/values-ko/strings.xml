@@ -2417,4 +2417,16 @@
     <string name="casting_no_current_song">There is no current song to cast</string>
     <string name="casting_dlna_started">Sent to DLNA device</string>
     <string name="casting_dlna_failed">DLNA cast failed: %1$s</string>
+    <string name="settings_player_progress_long_press_cycle">길게 눌러 진행 정보 전환</string>
+    <string name="settings_player_progress_long_press_cycle_summary">끄면 탭으로 전환하고 길게 누르기는 기존 동작을 유지하며, 켜면 길게 눌러 정보만 전환합니다</string>
+    <string name="settings_player_progress_info_separated">ReplayGain 별도 순환</string>
+    <string name="settings_player_progress_info_separated_summary">끄면 오디오 정보에만 합치고, 켜면 다음 독립 캡슐로 표시합니다</string>
+    <string name="settings_player_cover_long_press_preview">커버를 길게 눌러 이미지 보기</string>
+    <string name="settings_player_cover_long_press_preview_summary">세로 및 가로 플레이어 화면에 모두 적용됩니다</string>
+    <string name="settings_lyric_word_seek">단어별 정확한 탐색</string>
+    <string name="settings_lyric_word_seek_summary">시간 정보가 있는 단어를 눌러 정확한 시작 위치로 이동합니다</string>
+    <string name="settings_lyric_touch_feedback">가사 터치 윤곽</string>
+    <string name="settings_lyric_touch_feedback_summary">가사를 누르거나 탭할 때 터치 지점에서 퍼지는 빛 효과를 표시합니다</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color">데스크톱 가사를 커버 콘텐츠 색상과 동기화</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color_summary">플레이어와 동일한 커버 기반 색상을 사용합니다</string>
 </resources>

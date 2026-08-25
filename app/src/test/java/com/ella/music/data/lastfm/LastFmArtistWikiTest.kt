@@ -21,6 +21,21 @@ class LastFmArtistWikiTest {
     }
 
     @Test
+    fun wikipediaSearchPrefersCaseSensitiveArtistNameBeforeLooseMatch() {
+        val json = """{"query":{"search":[{"title":"LiSA"},{"title":"LISA"}]}}"""
+
+        assertEquals("LISA", parseWikipediaSearchTitle(json, "LISA"))
+        assertEquals("LiSA", parseWikipediaSearchTitle(json, "LiSA"))
+    }
+
+    @Test
+    fun biographySearchDoesNotFallBackToDifferentArtist() {
+        val json = """{"result":{"artists":[{"id":1,"name":"LISA Tribute"}]}}"""
+
+        assertEquals(null, parseNeteaseArtistId(json, "LISA"))
+    }
+
+    @Test
     fun neteaseBiographyCombinesBriefAndSections() {
         val json = """{"briefDesc":"Brief","introduction":[{"ti":"Career","txt":"Long text"}]}"""
 

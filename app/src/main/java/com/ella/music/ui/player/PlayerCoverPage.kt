@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -255,6 +256,8 @@ internal fun CoverPlayerPage(
     // Keep an opened preview as a snapshot.  Changing tracks must update the player behind the
     // dialog, not dismiss or replace the artwork the user is currently inspecting.
     var previewCover by remember { mutableStateOf<PlayerCoverPreview?>(null) }
+    val coverLongPressPreviewEnabled by playerViewModel.settingsManager.playerCoverLongPressPreviewEnabled
+        .collectAsState(initial = true)
     val bluetoothDeviceName = rememberBluetoothOutputName()
     val queueLocked by playerViewModel.queueLocked.collectAsState()
     val navidromeConfig by playerViewModel.settingsManager.navidromeConfig.collectAsState(
@@ -339,6 +342,7 @@ internal fun CoverPlayerPage(
     }
 
     BoxWithConstraints(modifier = modifier) {
+        val rootPlayerWidth = maxWidth
         val useWidePlayer = maxWidth > maxHeight && maxWidth >= 700.dp
         val isSmallWindow = maxWidth < 300.dp || (maxWidth < 420.dp && maxHeight < 560.dp)
         // Tall-but-narrow or short floating windows: the lyric preview overflows and the bottom
@@ -406,7 +410,7 @@ internal fun CoverPlayerPage(
                     }
                     .clip(coverShape)
                     .then(
-                        if (resolvedStaticCoverPreviewModel != null) {
+                        if (coverLongPressPreviewEnabled && resolvedStaticCoverPreviewModel != null) {
                             Modifier.combinedClickable(
                                 onClick = {},
                                 onLongClick = {
@@ -647,19 +651,6 @@ internal fun CoverPlayerPage(
                     onSeek = onSeek,
                     fontFamily = fontFamily
                 )
-                if (!compactWindow) {
-                    AudioVisualizer(
-                        enabled = visualizerEnabled,
-                        audioSessionId = audioSessionId,
-                        isPlaying = isPlaying,
-                        positionMs = currentPosition,
-                        opacity = visualizerOpacity,
-                        accent = pagePalette.accent.copy(alpha = 0.88f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(28.dp)
-                    )
-                }
                 Spacer(modifier = Modifier.height(14.dp))
                 LandscapeTransportControls(
                     isPlaying = isPlaying,
@@ -742,20 +733,6 @@ internal fun CoverPlayerPage(
                         focusOffsetRatio = 0.22f,
                         modifier = Modifier.fillMaxSize()
                     )
-                    if (!compactWindow) {
-                        AudioVisualizer(
-                            enabled = visualizerEnabled,
-                            audioSessionId = audioSessionId,
-                            isPlaying = isPlaying,
-                            positionMs = currentPosition,
-                            opacity = visualizerOpacity,
-                            accent = pagePalette.accent.copy(alpha = 0.64f),
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(28.dp)
-                        )
-                    }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = PlayerMotion.lyricsCornerActionsVisible(appleMusicChromeVisible),
                         enter = fadeIn(),
@@ -1048,7 +1025,7 @@ internal fun CoverPlayerPage(
                             accent = pagePalette.accent.copy(alpha = 0.72f),
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
+                                .requiredWidth(rootPlayerWidth)
                                 .height(30.dp)
                         )
                     }
@@ -1297,6 +1274,8 @@ internal fun CoverPlayerPage(
                 showTotalDuration = playerShowTotalDuration,
                 playerTapSeekEnabled = playerTapSeekEnabled,
                 coverSwipeEnabled = coverSwipeEnabled,
+                coverLongPressPreviewEnabled = coverLongPressPreviewEnabled &&
+                    resolvedStaticCoverPreviewModel != null,
                 queueExpanded = queueExpanded,
                 playlist = playlist,
                 queueLocked = queueLocked,
@@ -1320,6 +1299,15 @@ internal fun CoverPlayerPage(
                 onCyclePlaybackMode = onCyclePlaybackMode,
                 onPrevious = onPrevious,
                 onSwipePrevious = onSwipePrevious,
+                onPreviewCover = {
+                    resolvedStaticCoverPreviewModel?.let { model ->
+                        previewCover = PlayerCoverPreview(
+                            model = model,
+                            title = song?.coverPreviewDisplayTitle().orEmpty(),
+                            saveName = song?.coverPreviewSaveName().orEmpty()
+                        )
+                    }
+                },
                 onPlayPause = onPlayPause,
                 onNext = onNext,
                 onQueueSongClick = onQueueSongClick,
@@ -1369,7 +1357,7 @@ internal fun CoverPlayerPage(
                             }
                             .clip(immersiveCoverShape)
                             .then(
-                                if (resolvedStaticCoverPreviewModel != null) {
+                                if (coverLongPressPreviewEnabled && resolvedStaticCoverPreviewModel != null) {
                                     Modifier.combinedClickable(
                                         onClick = {},
                                         onLongClick = {
@@ -1608,7 +1596,7 @@ internal fun CoverPlayerPage(
                                 opacity = visualizerOpacity,
                                 accent = pagePalette.accent.copy(alpha = 0.88f),
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .requiredWidth(rootPlayerWidth)
                                     .height(30.dp)
                             )
                         }
@@ -1650,7 +1638,7 @@ internal fun CoverPlayerPage(
                                 }
                                 .clip(coverShape)
                                 .then(
-                                    if (resolvedStaticCoverPreviewModel != null) {
+                                    if (coverLongPressPreviewEnabled && resolvedStaticCoverPreviewModel != null) {
                                         Modifier.combinedClickable(
                                             onClick = {},
                                             onLongClick = {

@@ -15,7 +15,8 @@ data class LyricLine(
     val backgroundStartMs: Long? = null,
     val backgroundEndMs: Long? = null,
     val isTtml: Boolean = false,
-    val endMs: Long? = null
+    val endMs: Long? = null,
+    val isOpeningMetadata: Boolean = false
 )
 
 data class LyricWord(

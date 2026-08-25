@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -178,6 +179,7 @@ internal fun LyricsPlayerPage(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .clipToBounds()
                     .playerLyricPerspective(
                         enabled = perspectiveEffect,
                         angle = perspectiveYAngle,

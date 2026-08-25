@@ -10,4 +10,4 @@ internal fun desktopLyricPassThroughTouches(locked: Boolean, statusBarMode: Bool
     locked || statusBarMode
 
 internal fun desktopLyricUsesCompactWindow(locked: Boolean, statusBarMode: Boolean): Boolean =
-    locked && !statusBarMode
+    false

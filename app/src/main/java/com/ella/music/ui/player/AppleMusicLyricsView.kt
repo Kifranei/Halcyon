@@ -89,6 +89,12 @@ internal fun AppleMusicLyricsView(
     val nonCurrentLineBlurPercent by remember(context) {
         SettingsManager.getInstance(context).lyricNonCurrentBlurPercent
     }.collectAsState(initial = 40)
+    val wordSeekEnabled by remember(context) {
+        SettingsManager.getInstance(context).lyricWordSeekEnabled
+    }.collectAsState(initial = false)
+    val touchFeedbackEnabled by remember(context) {
+        SettingsManager.getInstance(context).lyricTouchFeedbackEnabled
+    }.collectAsState(initial = false)
     if (lyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             BasicText(
@@ -137,7 +143,12 @@ internal fun AppleMusicLyricsView(
                         reserveExtraLyricSpace = false,
                         onClick = { onLineClick(line) },
                         onDoubleClick = onLineDoubleClick,
-                        onLongClick = { onLineLongClick(line) }
+                        onLongClick = { onLineLongClick(line) },
+                        onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
+                            { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
+                        } else null,
+                        onTapFraction = line.openingSeekHandler(onLineClick),
+                        touchFeedbackEnabled = touchFeedbackEnabled
                     )
                 }
             }
@@ -338,7 +349,11 @@ internal fun AppleMusicLyricsView(
                             positionMs = smoothPositionMs,
                             contentColor = contentColor,
                             textAlign = lyrics[if (interlude.nextLineIndex == 0) 0 else interlude.nextLineIndex - 1]
-                                .duetTextAlign(defaultTextAlign)
+                                .duetTextAlign(defaultTextAlign),
+                            touchFeedbackEnabled = touchFeedbackEnabled,
+                            onSeek = { positionMs ->
+                                onLineClick(LyricLine(timeMs = positionMs, text = ""))
+                            }
                         )
                     }
                 }
@@ -374,6 +389,11 @@ internal fun AppleMusicLyricsView(
                         onClick = { onLineClick(line) },
                         onDoubleClick = onLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },
+                        onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
+                            { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
+                        } else null,
+                        onTapFraction = line.openingSeekHandler(onLineClick),
+                        touchFeedbackEnabled = touchFeedbackEnabled,
                         modifier = if (index == lyrics.lastIndex) {
                             Modifier.onSizeChanged { trailingLineHeightPx = it.height }
                         } else {
@@ -383,6 +403,16 @@ internal fun AppleMusicLyricsView(
                 }
             }
         }
+    }
+}
+
+private fun LyricLine.openingSeekHandler(
+    onLineClick: (LyricLine) -> Unit
+): ((Float) -> Unit)? {
+    val openingEndMs = endMs?.takeIf { isOpeningMetadata && it > timeMs } ?: return null
+    return { fraction ->
+        val positionMs = timeMs + ((openingEndMs - timeMs) * fraction.coerceIn(0f, 1f)).toLong()
+        onLineClick(copy(timeMs = positionMs))
     }
 }
 

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,7 +32,9 @@ internal fun AppleMusicInterlude(
     interlude: AppleMusicInterlude,
     positionMs: Long,
     contentColor: Color,
-    textAlign: TextAlign
+    textAlign: TextAlign,
+    touchFeedbackEnabled: Boolean,
+    onSeek: (Long) -> Unit
 ) {
     val visible = interlude.isActiveAt(positionMs)
     AnimatedVisibility(
@@ -42,7 +45,19 @@ internal fun AppleMusicInterlude(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(48.dp)
+                .appleMusicTouchRipple(
+                    key = interlude,
+                    color = contentColor,
+                    feedbackEnabled = touchFeedbackEnabled,
+                    onTap = { offset, width ->
+                        val fraction = (offset.x / width.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                        onSeek(
+                            interlude.startMs +
+                                ((interlude.endMs - interlude.startMs) * fraction).toLong()
+                        )
+                    }
+                ),
             contentAlignment = when (textAlign) {
                 TextAlign.End -> Alignment.CenterEnd
                 TextAlign.Center -> Alignment.Center

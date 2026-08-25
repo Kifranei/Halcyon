@@ -53,7 +53,8 @@ internal fun List<LyricLine>.withOpeningMetadataLine(song: Song, template: Strin
         timeMs = 0L,
         text = text,
         words = listOf(LyricWord(text = text, startMs = 0L, endMs = firstStartMs)),
-        endMs = firstStartMs
+        endMs = firstStartMs,
+        isOpeningMetadata = true
     )
     return listOf(opening) + this
 }

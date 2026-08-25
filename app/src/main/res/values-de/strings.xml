@@ -2417,4 +2417,16 @@
     <string name="casting_no_current_song">There is no current song to cast</string>
     <string name="casting_dlna_started">Sent to DLNA device</string>
     <string name="casting_dlna_failed">DLNA cast failed: %1$s</string>
+    <string name="settings_player_progress_long_press_cycle">Fortschrittsinfo per Langdruck wechseln</string>
+    <string name="settings_player_progress_long_press_cycle_summary">Aus: Tippen wechselt die Info und Langdruck behält die alte Aktion; Ein: Langdruck wechselt nur die Info</string>
+    <string name="settings_player_progress_info_separated">ReplayGain separat durchschalten</string>
+    <string name="settings_player_progress_info_separated_summary">Aus: nur mit Audioinfo zusammenführen; Ein: als nächstes eigenes Feld anzeigen</string>
+    <string name="settings_player_cover_long_press_preview">Cover lange drücken, um das Bild anzuzeigen</string>
+    <string name="settings_player_cover_long_press_preview_summary">Gilt für Hoch- und Querformat des Players</string>
+    <string name="settings_lyric_word_seek">Wortgenaues Springen in Liedtexten</string>
+    <string name="settings_lyric_word_seek_summary">Auf ein zeitcodiertes Wort tippen, um zu dessen Beginn zu springen</string>
+    <string name="settings_lyric_touch_feedback">Berührungsrahmen für Liedtexte</string>
+    <string name="settings_lyric_touch_feedback_summary">Beim Drücken oder Tippen einen sich ausbreitenden Leuchteffekt anzeigen</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color">Desktop-Liedtext mit Cover-Inhaltsfarbe synchronisieren</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color_summary">Verwendet dieselbe Coverfarbe wie die Player-Einstellung</string>
 </resources>

@@ -152,7 +152,9 @@ internal fun htmlToPlainWikiText(html: String): String {
 
 internal fun parseLastFmArtistGetInfoJson(
     raw: String,
-    regionCode: String = DEFAULT_LAST_FM_WIKI_REGION
+    regionCode: String = DEFAULT_LAST_FM_WIKI_REGION,
+    requestedArtistName: String? = null,
+    ignoreCase: Boolean = true
 ): LastFmArtistWiki? {
     val root = runCatching { JSONObject(raw) }.getOrNull() ?: return null
     if (root.has("error")) return null
@@ -162,6 +164,9 @@ internal fun parseLastFmArtistGetInfoJson(
     val text = htmlToPlainWikiText(content)
     if (text.isBlank()) return null
     val name = artist.optString("name").ifBlank { "unknown" }
+    if (!requestedArtistName.isNullOrBlank() &&
+        !name.trim().equals(requestedArtistName.trim(), ignoreCase = ignoreCase)
+    ) return null
     val artistUrl = artist.optString("url").ifBlank { lastFmArtistPageUrl(name, regionCode) }
     return LastFmArtistWiki(
         text = text,
@@ -174,13 +179,20 @@ internal fun parseLastFmArtistGetInfoJson(
 internal fun wikipediaLanguage(regionCode: String): String =
     normalizeLastFmWikiRegion(regionCode)
 
-internal fun parseWikipediaSearchTitle(raw: String): String? {
-    val search = runCatching { JSONObject(raw) }.getOrNull()
-        ?.optJSONObject("query")
-        ?.optJSONArray("search")
-        ?: return null
-    if (search.length() == 0) return null
-    return search.optJSONObject(0)?.optString("title")?.takeIf { it.isNotBlank() }
+internal fun parseWikipediaSearchTitle(raw: String, artistName: String): String? {
+    val search = runCatching {
+        Json.parseToJsonElement(raw).jsonObject["query"]?.jsonObject
+            ?.get("search")?.jsonArray
+    }.getOrNull() ?: return null
+    val requested = artistName.trim()
+    val titles = buildList {
+        search.forEach { element ->
+            runCatching { element.jsonObject["title"]?.jsonPrimitive?.contentOrNull }
+                .getOrNull()?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+        }
+    }
+    return titles.firstOrNull { it == requested }
+        ?: titles.firstOrNull { it.equals(requested, ignoreCase = true) }
 }
 
 internal fun parseWikipediaExtract(raw: String): Pair<String, String>? {
@@ -216,8 +228,7 @@ internal fun parseNeteaseArtistId(raw: String, artistName: String): String? {
     }
     findArtistId(ignoreCase = false)?.let { return it }
     findArtistId(ignoreCase = true)?.let { return it }
-    return artists.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.longOrNull
-        ?.takeIf { it > 0L }?.toString()
+    return null
 }
 
 internal fun parseNeteaseArtistBiography(raw: String): String {
@@ -368,17 +379,23 @@ private fun fetchLastFmArtistWikiFromApi(
     apiKey: String,
     client: OkHttpClient
 ): LastFmArtistWiki {
-    val url = LAST_FM_API_ROOT.toHttpUrl().newBuilder()
-        .addQueryParameter("method", "artist.getinfo")
-        .addQueryParameter("artist", artistName)
-        .addQueryParameter("api_key", apiKey)
-        .addQueryParameter("lang", region)
-        .addQueryParameter("autocorrect", "1")
-        .addQueryParameter("format", "json")
-        .build()
-    val raw = client.executeText(url.toString())
-    return parseLastFmArtistGetInfoJson(raw, region)
-        ?: error("Last.fm artist.getInfo returned no biography")
+    for ((autocorrect, ignoreCase) in listOf("0" to false, "1" to true)) {
+        val url = LAST_FM_API_ROOT.toHttpUrl().newBuilder()
+            .addQueryParameter("method", "artist.getinfo")
+            .addQueryParameter("artist", artistName)
+            .addQueryParameter("api_key", apiKey)
+            .addQueryParameter("lang", region)
+            .addQueryParameter("autocorrect", autocorrect)
+            .addQueryParameter("format", "json")
+            .build()
+        parseLastFmArtistGetInfoJson(
+            raw = client.executeText(url.toString()),
+            regionCode = region,
+            requestedArtistName = artistName,
+            ignoreCase = ignoreCase
+        )?.let { return it }
+    }
+    error("Last.fm artist.getInfo returned no matching biography")
 }
 
 private fun fetchLastFmArtistWikiFromHtml(
@@ -415,12 +432,12 @@ private fun fetchWikipediaArtistWiki(
         .addQueryParameter("action", "query")
         .addQueryParameter("list", "search")
         .addQueryParameter("srsearch", artistName)
-        .addQueryParameter("srlimit", "1")
+        .addQueryParameter("srlimit", "10")
         .addQueryParameter("format", "json")
         .addQueryParameter("utf8", "1")
         .build()
         .toString()
-    val title = parseWikipediaSearchTitle(client.executeText(searchUrl)) ?: artistName
+    val title = parseWikipediaSearchTitle(client.executeText(searchUrl), artistName) ?: artistName
     val extractUrl = apiRoot.toHttpUrl().newBuilder()
         .addQueryParameter("action", "query")
         .addQueryParameter("prop", "extracts")

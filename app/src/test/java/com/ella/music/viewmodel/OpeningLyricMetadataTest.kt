@@ -32,6 +32,7 @@ class OpeningLyricMetadataTest {
         assertEquals(0L, result.first().timeMs)
         assertEquals(8_000L, result.first().endMs)
         assertEquals(8_000L, result.first().words.single().endMs)
+        assertEquals(true, result.first().isOpeningMetadata)
         assertEquals(lyrics.first(), result[1])
     }
 

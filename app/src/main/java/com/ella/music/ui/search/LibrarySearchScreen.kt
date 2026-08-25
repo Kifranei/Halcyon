@@ -783,7 +783,11 @@ fun LibrarySearchScreen(
             },
             onSongAction = { actionSong = it },
             onActionTarget = { actionTarget = it },
-            onCommitSearch = { commitSearch() },
+            onCommitSearch = {
+                commitSearch()
+                keyboardController?.hide()
+                focusManager.clearFocus(force = true)
+            },
             onNavigateToAlbum = onNavigateToAlbum,
             onNavigateToArtist = onNavigateToArtist,
             onNavigateToPlaylist = onNavigateToPlaylist,

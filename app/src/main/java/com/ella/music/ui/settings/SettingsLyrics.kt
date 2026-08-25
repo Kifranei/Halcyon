@@ -53,6 +53,8 @@ internal fun SettingsLyricsSection(
     val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
     val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
     val lyricOpeningTemplate by settingsManager.lyricOpeningTemplate.collectAsState(initial = "")
+    val lyricWordSeekEnabled by settingsManager.lyricWordSeekEnabled.collectAsState(initial = false)
+    val lyricTouchFeedbackEnabled by settingsManager.lyricTouchFeedbackEnabled.collectAsState(initial = false)
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var showLyricSizingSheet by remember { mutableStateOf(false) }
     var showOpeningTemplateSheet by remember { mutableStateOf(false) }
@@ -60,7 +62,12 @@ internal fun SettingsLyricsSection(
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
     var openingTemplateDraft by remember(lyricOpeningTemplate) { mutableStateOf(lyricOpeningTemplate) }
 
-    SettingsCardGroup(highlight = highlightKey == "lyric_basic" || highlightKey == "lyric_plugin_sources") {
+    SettingsCardGroup(
+        highlight = highlightKey == "lyric_basic" ||
+            highlightKey == "lyric_plugin_sources" ||
+            highlightKey == "lyric_word_seek" ||
+            highlightKey == "lyric_touch_feedback"
+    ) {
         Column {
             ArrowPreference(
                 title = stringResource(R.string.settings_lyric_plugin_sources),
@@ -75,6 +82,26 @@ internal fun SettingsLyricsSection(
                 summary = stringResource(R.string.settings_lyrics_summary),
                 onClick = { showLyricSizingSheet = true }
             )
+            SettingsFocusAnchor(active = highlightKey == "lyric_word_seek") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_lyric_word_seek),
+                    summary = stringResource(R.string.settings_lyric_word_seek_summary),
+                    checked = lyricWordSeekEnabled,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsManager.setLyricWordSeekEnabled(enabled) }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "lyric_touch_feedback") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_lyric_touch_feedback),
+                    summary = stringResource(R.string.settings_lyric_touch_feedback_summary),
+                    checked = lyricTouchFeedbackEnabled,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsManager.setLyricTouchFeedbackEnabled(enabled) }
+                    }
+                )
+            }
             SwitchPreference(
                 title = stringResource(R.string.settings_ignore_lyric_header_tags),
                 summary = stringResource(R.string.settings_ignore_lyric_header_tags_summary),
@@ -276,6 +303,7 @@ private fun SettingsPlayerLyricSizingControls() {
     val secondaryTextSizeRange = remember(layoutProfile) { layoutProfile.secondaryTextSizeRangeSp() }
     val lyricFontScale by settingsManager.lyricFontScale.collectAsState(initial = 100)
     val lyricSecondaryFontScale by settingsManager.lyricSecondaryFontScale.collectAsState(initial = 100)
+    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = 40)
     val lyricPrimaryTextSize by when (layoutProfile) {
         PlayerLyricLayoutProfile.Compact -> settingsManager.lyricCompactPrimaryTextSize
             .collectAsState(initial = SettingsManager.LYRIC_COMPACT_PRIMARY_TEXT_SIZE_DEFAULT_SP)
@@ -288,6 +316,16 @@ private fun SettingsPlayerLyricSizingControls() {
         PlayerLyricLayoutProfile.Wide -> settingsManager.lyricWideSecondaryTextSize
             .collectAsState(initial = SettingsManager.LYRIC_WIDE_SECONDARY_TEXT_SIZE_DEFAULT_SP)
     }
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.settings_lyric_non_current_blur),
+        summary = stringResource(R.string.settings_lyric_non_current_blur_summary),
+        value = lyricNonCurrentBlurPercent,
+        valueRange = 0..100,
+        valueText = "$lyricNonCurrentBlurPercent%",
+        onValueChange = { value ->
+            scope.launch { settingsManager.setLyricNonCurrentBlurPercent(value) }
+        }
+    )
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_font_scale),
         summary = stringResource(

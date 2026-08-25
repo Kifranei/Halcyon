@@ -74,6 +74,8 @@ internal fun SettingsDesktopLyricControls(
     val desktopLyricTranslationScale by settingsManager.desktopLyricTranslationScale.collectSettingsState(initialValue = 110)
     val desktopLyricOpacity by settingsManager.desktopLyricOpacity.collectSettingsState(initialValue = 100)
     val desktopLyricTextColor by settingsManager.desktopLyricTextColor.collectSettingsState(initialValue = -1)
+    val desktopLyricSyncCoverContentColor by settingsManager.desktopLyricSyncCoverContentColor
+        .collectSettingsState(initialValue = false)
     val activeLyricFontScale = if (desktopLyricStatusBarMode) desktopLyricStatusBarFontScale else desktopLyricFontScale
     val activeLyricTranslationScale = if (desktopLyricStatusBarMode) desktopLyricStatusBarTranslationScale else desktopLyricTranslationScale
     val activeLyricOpacity = if (desktopLyricStatusBarMode) desktopLyricStatusBarOpacity else desktopLyricOpacity
@@ -282,6 +284,19 @@ internal fun SettingsDesktopLyricControls(
         onValueChange = { width ->
             scope.launch {
                 settingsManager.setDesktopLyricWidth(width)
+                applyDesktopLyricSettings()
+            }
+        }
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.settings_desktop_lyric_sync_cover_content_color),
+        summary = stringResource(R.string.settings_desktop_lyric_sync_cover_content_color_summary),
+        enabled = desktopLyricEnabled,
+        checked = desktopLyricSyncCoverContentColor,
+        onCheckedChange = { enabled ->
+            scope.launch {
+                settingsManager.setDesktopLyricSyncCoverContentColor(enabled)
                 applyDesktopLyricSettings()
             }
         }
@@ -522,7 +537,7 @@ internal fun SettingsDesktopLyricControls(
             R.string.settings_current_value,
             desktopLyricColorPresets[selectedDesktopLyricColorIndex].first
         ),
-        enabled = desktopLyricEnabled,
+        enabled = desktopLyricEnabled && !desktopLyricSyncCoverContentColor,
         items = desktopLyricColorEntries,
         selectedIndex = selectedDesktopLyricColorIndex,
         onSelectedIndexChange = { index ->
@@ -537,7 +552,7 @@ internal fun SettingsDesktopLyricControls(
     ArrowPreference(
         title = stringResource(R.string.common_custom),
         summary = String.format("#%06X", 0xFFFFFF and activeLyricTextColor),
-        enabled = desktopLyricEnabled,
+        enabled = desktopLyricEnabled && !desktopLyricSyncCoverContentColor,
         onClick = { showColorPickerSheet = true }
     )
 

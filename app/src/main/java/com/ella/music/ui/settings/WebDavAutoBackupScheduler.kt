@@ -61,7 +61,6 @@ object WebDavAutoBackupScheduler {
     }
 
     private suspend fun backupIfDue(context: Context, settings: SettingsManager) {
-        if (!settings.webDavAutoBackupEnabled.first()) return
         val baseUrl = settings.webDavBackupUrl.first().ifBlank { settings.webDavUrl.first() }.trim()
         if (baseUrl.isBlank()) return
         val config = WebDavConfig(
@@ -70,8 +69,12 @@ object WebDavAutoBackupScheduler {
             password = settings.webDavBackupPassword.first().ifBlank { settings.webDavPassword.first() }
         )
         val path = settings.webDavBackupPath.first().trim().ifBlank { "halcyon_backup" }
-        val targetUrl = "${baseUrl.trimEnd('/')}/$path/halcyon_backup_auto_latest.json"
-        if (offerNewerCloudBackup(context, settings, config, targetUrl)) return
+        val backupDirUrl = "${baseUrl.trimEnd('/')}/$path/"
+        val targetUrl = "${backupDirUrl}halcyon_backup_auto_latest.json"
+        // Cloud restore detection belongs to the WebDAV configuration, not to automatic upload.
+        // A second device must still be warned about newer backups when auto-backup is disabled.
+        if (offerNewerCloudBackup(context, settings, config, backupDirUrl)) return
+        if (!settings.webDavAutoBackupEnabled.first()) return
 
         val now = System.currentTimeMillis()
         val intervalMs = settings.webDavAutoBackupIntervalHours.first() * 60L * 60L * 1000L
@@ -86,20 +89,49 @@ object WebDavAutoBackupScheduler {
         context: Context,
         settings: SettingsManager,
         config: WebDavConfig,
-        targetUrl: String
+        backupDirUrl: String
     ): Boolean {
         val localWatermark = maxOf(
             settings.webDavAutoBackupLastAt.first(),
             settings.webDavRestoreLastSeenAt.first()
         )
-        val tempFile = java.io.File(context.cacheDir, "webdav_auto_restore_probe.json")
-        val root = runCatching {
-            WebDavClient.downloadToFile(targetUrl, config, tempFile)
-            JSONObject(tempFile.readText(Charsets.UTF_8))
-        }.getOrNull().also {
-            runCatching { tempFile.delete() }
-        } ?: return false
-        val exportedAt = root.optLong("exportedAt", 0L)
+        val files = runCatching {
+            WebDavClient.list(
+                config = config,
+                url = backupDirUrl,
+                forceRefresh = true,
+                includeNonAudioFiles = true
+            )
+        }.getOrNull().orEmpty()
+            .asSequence()
+            .filterNot { it.isDirectory }
+            .filter { it.name.startsWith("halcyon_backup") && it.name.endsWith(".json") }
+            .sortedByDescending { it.name }
+            .toList()
+        // Timestamped manual files sort chronologically by name. Probe only the newest manual
+        // file plus the rolling automatic file, rather than downloading the whole backup history.
+        val probeFiles = listOfNotNull(
+            files.firstOrNull { it.name == "halcyon_backup_auto_latest.json" },
+            files.firstOrNull { it.name != "halcyon_backup_auto_latest.json" }
+        ).distinctBy { it.url }
+        var newestRoot: JSONObject? = null
+        var newestExportedAt = 0L
+        probeFiles.forEachIndexed { index, item ->
+            val tempFile = java.io.File(context.cacheDir, "webdav_restore_probe_$index.json")
+            val root = runCatching {
+                WebDavClient.downloadToFile(item.url, config, tempFile)
+                JSONObject(tempFile.readText(Charsets.UTF_8))
+            }.getOrNull().also {
+                runCatching { tempFile.delete() }
+            } ?: return@forEachIndexed
+            val exportedAt = root.optLong("exportedAt", 0L)
+            if (exportedAt > newestExportedAt) {
+                newestExportedAt = exportedAt
+                newestRoot = root
+            }
+        }
+        val root = newestRoot ?: return false
+        val exportedAt = newestExportedAt
         if (exportedAt <= localWatermark) return false
         WebDavCloudRestoreCoordinator.offer(WebDavCloudBackupCandidate(root, exportedAt))
         Log.i("WebDavAutoBackup", "Newer cloud backup detected; automatic upload paused")

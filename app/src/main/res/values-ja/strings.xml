@@ -2417,4 +2417,16 @@
     <string name="casting_no_current_song">There is no current song to cast</string>
     <string name="casting_dlna_started">Sent to DLNA device</string>
     <string name="casting_dlna_failed">DLNA cast failed: %1$s</string>
+    <string name="settings_player_progress_long_press_cycle">長押しで進行情報を切り替える</string>
+    <string name="settings_player_progress_long_press_cycle_summary">オフではタップで切替、長押しは従来の操作。オンでは長押しで情報切替のみを行います</string>
+    <string name="settings_player_progress_info_separated">ReplayGainを個別に切り替え</string>
+    <string name="settings_player_progress_info_separated_summary">オフでは音声情報にのみ結合し、オンでは次の独立したカプセルとして表示します</string>
+    <string name="settings_player_cover_long_press_preview">カバー長押しで画像を表示</string>
+    <string name="settings_player_cover_long_press_preview_summary">縦画面と横画面のプレーヤーに適用します</string>
+    <string name="settings_lyric_word_seek">単語単位の正確なシーク</string>
+    <string name="settings_lyric_word_seek_summary">時間情報付きの単語をタップして開始位置へ移動します</string>
+    <string name="settings_lyric_touch_feedback">歌詞タッチの輪郭</string>
+    <string name="settings_lyric_touch_feedback_summary">歌詞を押す／タップすると、触点から広がる発光を表示します</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color">デスクトップ歌詞をカバー内容色に同期</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color_summary">プレーヤーと同じカバー由来の色を使用します</string>
 </resources>

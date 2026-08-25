@@ -70,6 +70,42 @@ class LibrarySearchModelsTest {
         assertEquals(3, selection.startIndex)
     }
 
+    @Test
+    fun appendTargetsTheNewOccurrenceWhenSongAlreadyExistsInQueue() {
+        val duplicate = song(8)
+        val queue = listOf(song(1), duplicate, song(3))
+
+        val selection = searchPlaybackSelection(
+            resultSongs = listOf(duplicate),
+            selectedIndex = 0,
+            excludeResultsFromPlaylist = true,
+            playbackMode = SettingsManager.SEARCH_CLICK_APPEND,
+            currentQueue = queue,
+            currentSong = queue.first()
+        )
+
+        assertEquals(listOf(1L, 8L, 3L, 8L), selection.songs.map(Song::id))
+        assertEquals(3, selection.startIndex)
+    }
+
+    @Test
+    fun insertNextTargetsTheNewOccurrenceWhenSongAlreadyExistsInQueue() {
+        val duplicate = song(8)
+        val queue = listOf(song(1), duplicate, song(3))
+
+        val selection = searchPlaybackSelection(
+            resultSongs = listOf(duplicate),
+            selectedIndex = 0,
+            excludeResultsFromPlaylist = true,
+            playbackMode = SettingsManager.SEARCH_CLICK_INSERT_NEXT,
+            currentQueue = queue,
+            currentSong = queue.first()
+        )
+
+        assertEquals(listOf(1L, 8L, 8L, 3L), selection.songs.map(Song::id))
+        assertEquals(1, selection.startIndex)
+    }
+
     private fun song(id: Long) = Song(
         id = id,
         title = "Song $id",

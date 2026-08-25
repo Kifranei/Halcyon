@@ -2417,4 +2417,16 @@
     <string name="casting_no_current_song">当前没有可投放的歌曲</string>
     <string name="casting_dlna_started">已发送到 DLNA 设备</string>
     <string name="casting_dlna_failed">DLNA 投放失败：%1$s</string>
+    <string name="settings_player_progress_long_press_cycle">長按切換進度列資訊</string>
+    <string name="settings_player_progress_long_press_cycle_summary">關閉時輕觸切換、長按開啟原有音訊面板或輸出裝置；開啟後長按僅切換資訊</string>
+    <string name="settings_player_progress_info_separated">ReplayGain 獨立輪播</string>
+    <string name="settings_player_progress_info_separated_summary">關閉時僅合併至音訊資訊；開啟後作為音訊資訊之後的獨立膠囊</string>
+    <string name="settings_player_cover_long_press_preview">長按封面檢視原圖</string>
+    <string name="settings_player_cover_long_press_preview_summary">同時控制直向與橫向播放頁的封面長按預覽</string>
+    <string name="settings_lyric_word_seek">逐字歌詞精確定位</string>
+    <string name="settings_lyric_word_seek_summary">點擊逐字歌詞中的字詞時跳轉到其開始時間</string>
+    <string name="settings_lyric_touch_feedback">歌詞點擊輪廓</string>
+    <string name="settings_lyric_touch_feedback_summary">按下或點擊歌詞時顯示從觸點擴散的泛光回饋</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color">桌面歌詞同步封面內容色</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color_summary">使用與「播放頁－封面內容色」相同的封面取色邏輯</string>
 </resources>

@@ -2404,4 +2404,16 @@
     <string name="casting_no_current_song">There is no current song to cast</string>
     <string name="casting_dlna_started">Sent to DLNA device</string>
     <string name="casting_dlna_failed">DLNA cast failed: %1$s</string>
+    <string name="settings_player_progress_long_press_cycle">Смена информации долгим нажатием</string>
+    <string name="settings_player_progress_long_press_cycle_summary">Выкл.: касание меняет информацию, долгое нажатие сохраняет прежнее действие; вкл.: долгое нажатие только меняет информацию</string>
+    <string name="settings_player_progress_info_separated">Переключать ReplayGain отдельно</string>
+    <string name="settings_player_progress_info_separated_summary">Выкл.: объединять только с аудиоинформацией; вкл.: показывать следующей отдельной капсулой</string>
+    <string name="settings_player_cover_long_press_preview">Долгое нажатие на обложку показывает изображение</string>
+    <string name="settings_player_cover_long_press_preview_summary">Действует на экранах проигрывателя в обеих ориентациях</string>
+    <string name="settings_lyric_word_seek">Точная перемотка по словам</string>
+    <string name="settings_lyric_word_seek_summary">Нажмите слово с таймингом, чтобы перейти к его началу</string>
+    <string name="settings_lyric_touch_feedback">Контур касания текста</string>
+    <string name="settings_lyric_touch_feedback_summary">Показывать расходящееся свечение от точки касания строки текста</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color">Синхронизировать текст с цветом обложки</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color_summary">Использовать тот же цвет обложки, что и в проигрывателе</string>
 </resources>

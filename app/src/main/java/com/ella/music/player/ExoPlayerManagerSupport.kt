@@ -22,6 +22,9 @@ internal data class ExternalSnapshotGuard(
     val song: Song
 )
 
+internal fun queueEntryMediaId(songId: Long, sequence: Long): String =
+    "queue:$songId:$sequence"
+
 internal fun MediaController.matchesExternalSnapshot(guard: ExternalSnapshotGuard?): Boolean {
     guard ?: return true
     val item = currentMediaItem ?: return false

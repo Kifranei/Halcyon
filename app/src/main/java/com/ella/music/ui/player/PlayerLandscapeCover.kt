@@ -3,6 +3,8 @@ package com.ella.music.ui.player
 import android.net.Uri
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -63,6 +66,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 internal fun LandscapeCoverPlayerPage(
     song: Song?,
     embeddedCover: Bitmap?,
@@ -98,6 +102,7 @@ internal fun LandscapeCoverPlayerPage(
     showTotalDuration: Boolean,
     playerTapSeekEnabled: Boolean,
     coverSwipeEnabled: Boolean,
+    coverLongPressPreviewEnabled: Boolean,
     queueExpanded: Boolean,
     playlist: List<Song>,
     queueLocked: Boolean,
@@ -127,6 +132,7 @@ internal fun LandscapeCoverPlayerPage(
     onCyclePlaybackMode: () -> Unit,
     onPrevious: () -> Unit,
     onSwipePrevious: () -> Unit,
+    onPreviewCover: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onQueueSongClick: (Int) -> Unit,
@@ -373,6 +379,14 @@ internal fun LandscapeCoverPlayerPage(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(14.dp))
                             .then(
+                                if (coverLongPressPreviewEnabled) {
+                                    Modifier.combinedClickable(
+                                        onClick = {},
+                                        onLongClick = onPreviewCover
+                                    )
+                                } else Modifier
+                            )
+                            .then(
                                 Modifier.playerCoverGestures(
                                     swipeEnabled = coverSwipeEnabled,
                                     onSwipePrevious = onSwipePrevious,
@@ -457,6 +471,7 @@ internal fun LandscapeCoverPlayerPage(
                         .weight(rightPaneWeight)
                         .widthIn(max = if (ultraWideLandscape) 940.dp else 840.dp)
                         .padding(start = 0.dp)
+                        .clipToBounds()
                         .playerLyricPerspective(
                             enabled = lyricPerspectiveEffect,
                             angle = lyricPerspectiveYAngle,
@@ -756,6 +771,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                         // The compact landscape title/playback row only needs a short lane;
                         // a 118dp gap made the lyric panel look detached from it.
                         .padding(top = 82.dp, bottom = 24.dp)
+                        .clipToBounds()
                         .playerLyricPerspective(
                             enabled = lyricPerspectiveEffect,
                             angle = lyricPerspectiveYAngle,

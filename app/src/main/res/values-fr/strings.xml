@@ -2417,4 +2417,16 @@
     <string name="casting_no_current_song">There is no current song to cast</string>
     <string name="casting_dlna_started">Sent to DLNA device</string>
     <string name="casting_dlna_failed">DLNA cast failed: %1$s</string>
+    <string name="settings_player_progress_long_press_cycle">Appui long pour changer les infos</string>
+    <string name="settings_player_progress_long_press_cycle_summary">Désactivé : toucher change l’info et l’appui long garde l’action d’origine ; activé : l’appui long change seulement l’info</string>
+    <string name="settings_player_progress_info_separated">Faire défiler ReplayGain séparément</string>
+    <string name="settings_player_progress_info_separated_summary">Désactivé : fusion avec les infos audio uniquement ; activé : capsule indépendante suivante</string>
+    <string name="settings_player_cover_long_press_preview">Appui long sur la pochette pour voir l’image</string>
+    <string name="settings_player_cover_long_press_preview_summary">S’applique aux pages du lecteur en portrait et paysage</string>
+    <string name="settings_lyric_word_seek">Recherche précise par mot</string>
+    <string name="settings_lyric_word_seek_summary">Toucher un mot temporisé pour atteindre son début exact</string>
+    <string name="settings_lyric_touch_feedback">Contour tactile des paroles</string>
+    <string name="settings_lyric_touch_feedback_summary">Afficher une lueur qui s’étend depuis le point touché lors d’un appui</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color">Synchroniser les paroles avec la couleur de la pochette</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color_summary">Utiliser la même couleur dérivée de la pochette que le lecteur</string>
 </resources>

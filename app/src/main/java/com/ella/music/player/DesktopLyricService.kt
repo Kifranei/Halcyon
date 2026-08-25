@@ -9,6 +9,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -25,11 +26,15 @@ import android.widget.TextView
 import com.ella.music.data.DesktopLyricSettings
 import com.ella.music.data.SettingsManager
 import androidx.media3.common.Player
+import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.ella.music.R
 import com.ella.music.ui.components.ScriptFontPaths
 import com.ella.music.ui.player.ensureBundledMiSansBoldPath
+import com.ella.music.ui.player.PlayerPalette
+import com.ella.music.ui.player.coverContentColor
+import androidx.compose.ui.graphics.toArgb
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -66,6 +71,8 @@ class DesktopLyricService : Service() {
     private var translationScale = 1.1f
     private var opacityPercent = 100
     private var lyricTextColor = Color.WHITE
+    private var configuredLyricTextColor = Color.WHITE
+    private var syncCoverContentColor = false
     private var statusBarMode = false
     private var hideWhenPaused = true
     private var hideInLandscape = false
@@ -132,8 +139,13 @@ class DesktopLyricService : Service() {
                                 updatePlayPauseIcon()
                                 updateStatusBarModeVisibility()
                             }
+
+                            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                                if (syncCoverContentColor) refreshCoverContentColor()
+                            }
                         })
                         controllerIsPlaying = result?.isPlaying == true
+                        if (syncCoverContentColor) refreshCoverContentColor()
                         updatePlayPauseIcon()
                         updateStatusBarModeVisibility()
                     }
@@ -820,6 +832,7 @@ class DesktopLyricService : Service() {
         // truth for its primary color so switching modes cannot make the text jump to a stale
         // independently stored color.
         lyricTextColor = settingsManager.desktopLyricTextColor.first(),
+        syncCoverContentColor = settingsManager.desktopLyricSyncCoverContentColor.first(),
         // When "apply font to desktop lyric" is off, pass an empty path so the lyric view falls
         // back to the system default typeface instead of the custom lyric font.
         lyricFontPath = if (settingsManager.lyricFontApplyToDesktop.first()) {
@@ -868,6 +881,11 @@ class DesktopLyricService : Service() {
         translationScale = settings.translationScale
         opacityPercent = settings.opacityPercent
         lyricTextColor = settings.lyricTextColor
+        configuredLyricTextColor = settings.lyricTextColor
+        syncCoverContentColor = settings.syncCoverContentColor
+        if (syncCoverContentColor) {
+            lyricTextColor = resolveCoverContentColor() ?: configuredLyricTextColor
+        }
         lyricFontPath = settings.lyricFontPath
         lyricFontWeight = settings.lyricFontWeight
         lyricFontItalic = settings.lyricFontItalic
@@ -1007,6 +1025,19 @@ class DesktopLyricService : Service() {
         android.util.DisplayMetrics().also(windowManager.defaultDisplay::getRealMetrics).widthPixels
     }
 
+    private fun refreshCoverContentColor() {
+        val resolved = resolveCoverContentColor() ?: return
+        if (lyricTextColor == resolved) return
+        lyricTextColor = resolved
+        applyCurrentSettingsToViews()
+    }
+
+    private fun resolveCoverContentColor(): Int? {
+        val artwork = controller?.currentMediaItem?.mediaMetadata?.artworkData ?: return null
+        val bitmap = BitmapFactory.decodeByteArray(artwork, 0, artwork.size) ?: return null
+        return PlayerPalette.from(bitmap, light = false).coverContentColor().toArgb()
+    }
+
     private fun displayHeightPixels(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         windowManager.maximumWindowMetrics.bounds.height()
     } else {
@@ -1037,6 +1068,7 @@ class DesktopLyricService : Service() {
         val translationScale: Float,
         val opacityPercent: Int,
         val lyricTextColor: Int,
+        val syncCoverContentColor: Boolean,
         val lyricFontPath: String,
         val lyricFontWeight: Int,
         val lyricFontItalic: Boolean,

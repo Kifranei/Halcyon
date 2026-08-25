@@ -186,12 +186,15 @@ internal fun SettingsAppearanceSection(
     val playerProgressShowQuality by settingsManager.playerProgressShowQuality.collectCachedAsState("playerProgressShowQuality", true)
     val playerProgressShowAudioInfo by settingsManager.playerProgressShowAudioInfo.collectCachedAsState("playerProgressShowAudioInfo", true)
     val playerProgressShowOutputDevice by settingsManager.playerProgressShowOutputDevice.collectCachedAsState("playerProgressShowOutputDevice", true)
+    val playerProgressLongPressCycle by settingsManager.playerProgressLongPressCycle.collectCachedAsState("playerProgressLongPressCycle", false)
+    val playerProgressInfoSeparated by settingsManager.playerProgressInfoSeparated.collectCachedAsState("playerProgressInfoSeparated", false)
     val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectCachedAsState(
         "playerShowTotalDuration",
         SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION
     )
     val playerShowSongAnnotation by settingsManager.playerShowSongAnnotation.collectCachedAsState("playerShowSongAnnotation", true)
     val playerCoverSwipeEnabled by settingsManager.playerCoverSwipeEnabled.collectCachedAsState("playerCoverSwipeEnabled", true)
+    val playerCoverLongPressPreviewEnabled by settingsManager.playerCoverLongPressPreviewEnabled.collectCachedAsState("playerCoverLongPressPreviewEnabled", true)
     val playerPredictiveBackEnabled by settingsManager.playerPredictiveBackEnabled.collectCachedAsState(
         "playerPredictiveBackEnabled",
         false
@@ -1113,6 +1116,18 @@ internal fun SettingsAppearanceSection(
                 onCheckedChange = { scope.launch { settingsManager.setPlayerProgressShowOutputDevice(it) } }
             )
             SwitchPreference(
+                title = stringResource(R.string.settings_player_progress_long_press_cycle),
+                summary = stringResource(R.string.settings_player_progress_long_press_cycle_summary),
+                checked = playerProgressLongPressCycle,
+                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressLongPressCycle(it) } }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_player_progress_info_separated),
+                summary = stringResource(R.string.settings_player_progress_info_separated_summary),
+                checked = playerProgressInfoSeparated,
+                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressInfoSeparated(it) } }
+            )
+            SwitchPreference(
                 title = stringResource(R.string.settings_player_cover_swipe),
                 summary = stringResource(R.string.settings_player_cover_swipe_summary),
                 checked = playerCoverSwipeEnabled,
@@ -1136,6 +1151,14 @@ internal fun SettingsAppearanceSection(
                 checked = playerShowSongAnnotation,
                 onCheckedChange = {
                     scope.launch { settingsManager.setPlayerShowSongAnnotation(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_player_cover_long_press_preview),
+                summary = stringResource(R.string.settings_player_cover_long_press_preview_summary),
+                checked = playerCoverLongPressPreviewEnabled,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setPlayerCoverLongPressPreviewEnabled(it) }
                 }
             )
             SwitchPreference(

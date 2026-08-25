@@ -42,6 +42,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BEAUTIFUL_LYRICS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BEAUTIFUL_LYRICS_SPEED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_CONTENT_COLOR
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_SWIPE_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PREDICTIVE_BACK_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_NON_CURRENT_BLUR_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_DYNAMIC_FLOW_ENABLED
@@ -58,6 +59,10 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_QUALITY
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_SEPARATED
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_WORD_SEEK_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_TOUCH_FEEDBACK_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_TOTAL_DURATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_TAP_SEEK_ENABLED
@@ -89,13 +94,18 @@ interface PlayerUiSettingsAccess {
     val playerProgressShowQuality: Flow<Boolean>
     val playerProgressShowAudioInfo: Flow<Boolean>
     val playerProgressShowOutputDevice: Flow<Boolean>
+    val playerProgressLongPressCycle: Flow<Boolean>
+    val playerProgressInfoSeparated: Flow<Boolean>
     val transportButtonOutlines: Flow<Boolean>
     val playerTapSeekEnabled: Flow<Boolean>
     val playerShowTotalDuration: Flow<Boolean>
     val playerShowSongAnnotation: Flow<Boolean>
     val playerCoverSwipeEnabled: Flow<Boolean>
+    val playerCoverLongPressPreviewEnabled: Flow<Boolean>
     val playerPredictiveBackEnabled: Flow<Boolean>
     val lyricNonCurrentBlurPercent: Flow<Int>
+    val lyricWordSeekEnabled: Flow<Boolean>
+    val lyricTouchFeedbackEnabled: Flow<Boolean>
     val playerTitlePosition: Flow<Int>
     val playerPageStyle: Flow<Int>
     val playerLyricsCornerActionsEnabled: Flow<Boolean>
@@ -144,6 +154,8 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerProgressShowQuality(enabled: Boolean)
     suspend fun setPlayerProgressShowAudioInfo(enabled: Boolean)
     suspend fun setPlayerProgressShowOutputDevice(enabled: Boolean)
+    suspend fun setPlayerProgressLongPressCycle(enabled: Boolean)
+    suspend fun setPlayerProgressInfoSeparated(enabled: Boolean)
     suspend fun setTransportButtonOutlines(enabled: Boolean)
     suspend fun setPlayerHdrGlow(enabled: Boolean)
     suspend fun setPlayerImmersiveCover(enabled: Boolean)
@@ -174,8 +186,11 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerShowTotalDuration(enabled: Boolean)
     suspend fun setPlayerShowSongAnnotation(enabled: Boolean)
     suspend fun setPlayerCoverSwipeEnabled(enabled: Boolean)
+    suspend fun setPlayerCoverLongPressPreviewEnabled(enabled: Boolean)
     suspend fun setPlayerPredictiveBackEnabled(enabled: Boolean)
     suspend fun setLyricNonCurrentBlurPercent(percent: Int)
+    suspend fun setLyricWordSeekEnabled(enabled: Boolean)
+    suspend fun setLyricTouchFeedbackEnabled(enabled: Boolean)
     suspend fun setPlayerTitlePosition(position: Int)
     suspend fun setPlayerPageStyle(style: Int)
     suspend fun setPlayerLyricsCornerActionsEnabled(enabled: Boolean)
@@ -219,6 +234,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO] ?: true }
     override val playerProgressShowOutputDevice: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE] ?: true }
+    override val playerProgressLongPressCycle: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE] ?: false }
+    override val playerProgressInfoSeparated: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_INFO_SEPARATED] ?: false }
     override val transportButtonOutlines: Flow<Boolean> =
         context.dataStore.data.map {
             it[KEY_TRANSPORT_BUTTON_OUTLINES]
@@ -235,10 +254,16 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_PLAYER_SHOW_SONG_ANNOTATION] ?: true }
     override val playerCoverSwipeEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_COVER_SWIPE_ENABLED] ?: false }
+    override val playerCoverLongPressPreviewEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED] ?: true }
     override val playerPredictiveBackEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_PREDICTIVE_BACK_ENABLED] ?: false }
     override val lyricNonCurrentBlurPercent: Flow<Int> =
         context.dataStore.data.map { (it[KEY_LYRIC_NON_CURRENT_BLUR_PERCENT] ?: 40).coerceIn(0, 100) }
+    override val lyricWordSeekEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_WORD_SEEK_ENABLED] ?: false }
+    override val lyricTouchFeedbackEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_TOUCH_FEEDBACK_ENABLED] ?: false }
 
     override val playerTitlePosition: Flow<Int> =
         context.dataStore.data.map {
@@ -396,6 +421,14 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE] = enabled }
     }
 
+    override suspend fun setPlayerProgressLongPressCycle(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE] = enabled }
+    }
+
+    override suspend fun setPlayerProgressInfoSeparated(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_PROGRESS_INFO_SEPARATED] = enabled }
+    }
+
     override suspend fun setTransportButtonOutlines(enabled: Boolean) {
         context.dataStore.edit { it[KEY_TRANSPORT_BUTTON_OUTLINES] = enabled }
     }
@@ -547,12 +580,24 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_COVER_SWIPE_ENABLED] = enabled }
     }
 
+    override suspend fun setPlayerCoverLongPressPreviewEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED] = enabled }
+    }
+
     override suspend fun setPlayerPredictiveBackEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_PREDICTIVE_BACK_ENABLED] = enabled }
     }
 
     override suspend fun setLyricNonCurrentBlurPercent(percent: Int) {
         context.dataStore.edit { it[KEY_LYRIC_NON_CURRENT_BLUR_PERCENT] = percent.coerceIn(0, 100) }
+    }
+
+    override suspend fun setLyricWordSeekEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_WORD_SEEK_ENABLED] = enabled }
+    }
+
+    override suspend fun setLyricTouchFeedbackEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_TOUCH_FEEDBACK_ENABLED] = enabled }
     }
 
     override suspend fun setPlayerTitlePosition(position: Int) {

@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 
 class ExoPlayerManager(private val context: Context) {
@@ -76,6 +77,7 @@ class ExoPlayerManager(private val context: Context) {
     val playbackPitch: StateFlow<Float> = _playbackPitch.asStateFlow()
 
     private var playlist = mutableListOf<Song>()
+    private val queueEntrySequence = AtomicLong(0L)
 
     private val _playlist = MutableStateFlow<List<Song>>(emptyList())
     val playlistFlow: StateFlow<List<Song>> = _playlist.asStateFlow()
@@ -1368,7 +1370,10 @@ class ExoPlayerManager(private val context: Context) {
         val cachedArtwork = notificationArtworkCache.get(song.notificationArtworkKey())
         val builder = MediaItem.Builder()
             .setUri(song.playbackUri())
-            .setMediaId(song.id.toString())
+            // Media3 uses mediaId as an item identity in several transitions. The same song is
+            // allowed to appear more than once in a queue, so each occurrence needs its own id;
+            // the stable library id remains in MediaMetadata extras.
+            .setMediaId(queueEntryMediaId(song.id, queueEntrySequence.incrementAndGet()))
             .setMediaMetadata(
                 song.mediaMetadata(
                     artworkData = cachedArtwork,

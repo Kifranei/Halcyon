@@ -371,6 +371,8 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_library_tile_artist), stringResource(R.string.settings_library_tile_artist_summary), "首页 艺术家 歌手 artist 音乐库 宫格") { onNavigateToHomeDisplaySettings("home_sections") },
         entry(stringResource(R.string.settings_lyric_timing_editor), stringResource(R.string.settings_editor_builtin_lyric_timing), "歌词 打轴 时间轴 LRC 内置 编辑器 LySy") { onNavigateToHighlightedLibrarySettings("tag_scraping") },
         entry(stringResource(R.string.settings_lyrics), stringResource(R.string.settings_lyrics_summary), "歌词 逐字 翻译 音译 字体 对齐 大小 黑名单 歌词源") { onNavigateToHighlightedLyricSettings("lyric_basic") },
+        entry(stringResource(R.string.settings_lyric_word_seek), stringResource(R.string.settings_lyric_word_seek_summary), "歌词 逐字 精确 定位 点击 跳转") { onNavigateToHighlightedLyricSettings("lyric_word_seek") },
+        entry(stringResource(R.string.settings_lyric_touch_feedback), stringResource(R.string.settings_lyric_touch_feedback_summary), "歌词 点击 按下 轮廓 泛光 水波纹 触控 反馈") { onNavigateToHighlightedLyricSettings("lyric_touch_feedback") },
         entry(stringResource(R.string.settings_mini_player_lyrics), stringResource(R.string.settings_mini_player_lyrics_summary), "迷你歌词 小窗 翻译 音译 迷你播放器") { onNavigateToHighlightedLyricSettings("mini_lyrics") },
         entry(stringResource(R.string.desktop_lyric_status_bar_mode), stringResource(R.string.desktop_lyric_status_bar_mode_summary), "桌面歌词 悬浮窗 状态栏歌词 暂停隐藏 横屏隐藏 宽度 位置 对齐") { onNavigateToHighlightedLyricSettings("desktop_lyric") },
         entry(stringResource(R.string.settings_enable_lyricon), stringResource(R.string.settings_enable_lyricon_summary), "词幕 Lyricon 外部歌词 翻译 音译") { onNavigateToHighlightedLyricSettings("lyricon") },

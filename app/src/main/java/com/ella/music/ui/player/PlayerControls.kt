@@ -25,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -171,7 +170,6 @@ internal fun PlayerProgressBlock(
     fontFamily: FontFamily? = null
 ) {
     val context = LocalContext.current
-    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val savedInfoMode by settingsManager.playerProgressInfoIndex.collectAsState(initial = 0)
@@ -181,6 +179,8 @@ internal fun PlayerProgressBlock(
     val showQuality by settingsManager.playerProgressShowQuality.collectAsState(initial = true)
     val showAudioInfo by settingsManager.playerProgressShowAudioInfo.collectAsState(initial = true)
     val showOutputDevice by settingsManager.playerProgressShowOutputDevice.collectAsState(initial = true)
+    val longPressCyclesInfo by settingsManager.playerProgressLongPressCycle.collectAsState(initial = false)
+    val separateGainChip by settingsManager.playerProgressInfoSeparated.collectAsState(initial = false)
     var infoMode by remember { mutableIntStateOf(0) }
     var showAudioOutputSheet by remember { mutableStateOf(false) }
     var previewProgress by remember { mutableStateOf<Float?>(null) }
@@ -193,14 +193,22 @@ internal fun PlayerProgressBlock(
             else -> summary.playerCompactText()
         }
     }
+    val replayGainLabel = audioInfo?.replayGainDb?.let { gain ->
+        stringResource(
+            R.string.player_replay_gain_badge,
+            String.format(Locale.US, "%+.2f dB", gain)
+        )
+    }
     val infoLabels = remember(
         qualityLabel,
         qualitySummary,
         bluetoothDeviceName,
         playbackModeLabel,
+        replayGainLabel,
         showQuality,
         showAudioInfo,
-        showOutputDevice
+        showOutputDevice,
+        separateGainChip
     ) {
         buildList {
             playbackModeLabel?.takeIf { it.isNotBlank() }
@@ -212,20 +220,33 @@ internal fun PlayerProgressBlock(
                 if (showAudioInfo) qualitySummary?.detailLabel
                     ?.takeIf { text -> text.isNotBlank() }
                     ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
+                if (separateGainChip) replayGainLabel?.takeIf { it.isNotBlank() }?.let {
+                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.ReplayGain))
+                }
                 if (showOutputDevice) bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
                     add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
                 }
             }
         }.distinctBy { it.text }
     }
-    val replayGainLabel = audioInfo?.replayGainDb?.let { gain ->
-        stringResource(
-            R.string.player_replay_gain_badge,
-            String.format(Locale.US, "%+.2f dB", gain)
-        )
-    }
     androidx.compose.runtime.LaunchedEffect(savedInfoMode, infoLabels.size) {
         infoMode = if (infoLabels.isEmpty()) 0 else savedInfoMode % infoLabels.size
+    }
+    fun cycleInfo() {
+        if (infoLabels.size > 1) {
+            val nextMode = (infoMode + 1) % infoLabels.size
+            infoMode = nextMode
+            scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
+        }
+    }
+    fun handleExistingLongPress(infoItem: PlayerProgressInfoItem?) {
+        when (infoItem?.kind) {
+            PlayerProgressInfoKind.Quality,
+            PlayerProgressInfoKind.AudioInfo,
+            PlayerProgressInfoKind.ReplayGain -> showAudioOutputSheet = true
+            PlayerProgressInfoKind.OutputDevice -> openSystemOutputSwitcher(context)
+            else -> Unit
+        }
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         val progressValue = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
@@ -278,69 +299,31 @@ internal fun PlayerProgressBlock(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isTablet && (infoLabels.isNotEmpty() || replayGainLabel != null)) {
-                    val infoItem = infoLabels.getOrNull(infoMode % infoLabels.size.coerceAtLeast(1))
-                    val infoText = infoItem?.text
+                val infoItem = infoLabels.getOrNull(infoMode % infoLabels.size.coerceAtLeast(1))
+                val chipText = listOfNotNull(
+                    infoItem?.text,
+                    replayGainLabel.takeIf {
+                        !separateGainChip && infoItem?.kind == PlayerProgressInfoKind.AudioInfo
+                    }
+                ).joinToString(" / ")
+                if (chipText.isNotBlank()) {
                     PlayerQualityInfoChip(
-                        text = listOfNotNull(infoText, replayGainLabel).joinToString(" / "),
-                        showWaveform = infoText == qualityLabel && qualitySummary?.showWaveform == true,
-                        showDolbyLogo = infoText == qualityLabel && qualitySummary?.showDolbyLogo == true,
+                        text = chipText,
+                        showWaveform = infoItem?.kind == PlayerProgressInfoKind.Quality &&
+                            qualitySummary?.showWaveform == true,
+                        showDolbyLogo = infoItem?.kind == PlayerProgressInfoKind.Quality &&
+                            qualitySummary?.showDolbyLogo == true,
                         palette = palette,
                         fontFamily = fontFamily,
-                        onTap = {
-                            if (infoLabels.size > 1) {
-                                val nextMode = (infoMode + 1) % infoLabels.size
-                                infoMode = nextMode
-                                scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
-                            }
-                        },
+                        onTap = { if (!longPressCyclesInfo) cycleInfo() },
                         onLongPress = {
-                            when (infoItem?.kind) {
-                                PlayerProgressInfoKind.Quality,
-                                PlayerProgressInfoKind.AudioInfo -> showAudioOutputSheet = true
-                                PlayerProgressInfoKind.OutputDevice -> openSystemOutputSwitcher(context)
-                                else -> Unit
+                            if (longPressCyclesInfo) {
+                                cycleInfo()
+                            } else {
+                                handleExistingLongPress(infoItem)
                             }
                         }
                     )
-                } else {
-                    if (infoLabels.isNotEmpty()) {
-                        val infoItem = infoLabels[infoMode % infoLabels.size]
-                        val infoText = infoItem.text
-                        PlayerQualityInfoChip(
-                            text = infoText,
-                            showWaveform = infoText == qualityLabel && qualitySummary.showWaveform,
-                            showDolbyLogo = infoText == qualityLabel && qualitySummary.showDolbyLogo,
-                            palette = palette,
-                            fontFamily = fontFamily,
-                            onTap = {
-                                if (infoLabels.size > 1) {
-                                    val nextMode = (infoMode + 1) % infoLabels.size
-                                    infoMode = nextMode
-                                    scope.launch { settingsManager.setPlayerProgressInfoIndex(nextMode) }
-                                }
-                            },
-                            onLongPress = {
-                                when (infoItem.kind) {
-                                    PlayerProgressInfoKind.Quality,
-                                    PlayerProgressInfoKind.AudioInfo -> showAudioOutputSheet = true
-                                    PlayerProgressInfoKind.OutputDevice -> openSystemOutputSwitcher(context)
-                                    else -> Unit
-                                }
-                            }
-                        )
-                    }
-                    replayGainLabel?.let { label ->
-                    Text(
-                        text = label,
-                        fontSize = 12.sp,
-                        color = palette.onBackground.copy(alpha = 0.72f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(palette.onBackground.copy(alpha = 0.10f))
-                            .padding(horizontal = 10.dp, vertical = 3.dp)
-                    )
-                    }
                 }
             }
             Text(
@@ -379,6 +362,7 @@ private data class PlayerProgressInfoItem(
 private enum class PlayerProgressInfoKind {
     Quality,
     AudioInfo,
+    ReplayGain,
     OutputDevice,
     PlaybackMode
 }

@@ -2419,4 +2419,16 @@
     <string name="casting_no_current_song">There is no current song to cast</string>
     <string name="casting_dlna_started">Sent to DLNA device</string>
     <string name="casting_dlna_failed">DLNA cast failed: %1$s</string>
+    <string name="settings_player_progress_long_press_cycle">Long press to cycle progress info</string>
+    <string name="settings_player_progress_long_press_cycle_summary">Off uses tap and keeps the original long-press action; on makes long press cycle information only</string>
+    <string name="settings_player_progress_info_separated">Cycle ReplayGain separately</string>
+    <string name="settings_player_progress_info_separated_summary">Off merges gain into audio info only; on adds it as the next independent chip</string>
+    <string name="settings_player_cover_long_press_preview">Long press cover to view image</string>
+    <string name="settings_player_cover_long_press_preview_summary">Controls cover preview on both portrait and landscape player pages</string>
+    <string name="settings_lyric_word_seek">Precise word-timed lyric seeking</string>
+    <string name="settings_lyric_word_seek_summary">Tap a timed word to seek to its exact start time</string>
+    <string name="settings_lyric_touch_feedback">Lyric touch outline</string>
+    <string name="settings_lyric_touch_feedback_summary">Show an expanding glow from the touch point when pressing or tapping a lyric</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color">Sync desktop lyrics with cover content color</string>
+    <string name="settings_desktop_lyric_sync_cover_content_color_summary">Use the same cover-derived color as Player – Cover content color</string>
 </resources>

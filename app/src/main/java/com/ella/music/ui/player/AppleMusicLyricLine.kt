@@ -23,11 +23,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
@@ -44,6 +49,8 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import kotlin.math.abs
+import kotlin.math.hypot
+import kotlinx.coroutines.launch
 
 /** Shared single-line surface used by the system desktop-lyrics overlay. */
 @Composable
@@ -150,6 +157,9 @@ internal fun AppleMusicLyricLine(
     onClick: () -> Unit,
     onDoubleClick: () -> Unit,
     onLongClick: () -> Unit,
+    onWordClick: ((Long) -> Unit)? = null,
+    onTapFraction: ((Float) -> Unit)? = null,
+    touchFeedbackEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val textAlign = line.duetTextAlign(defaultTextAlign)
@@ -212,13 +222,21 @@ internal fun AppleMusicLyricLine(
                     Modifier
                 }
             )
-            .pointerInput(line) {
-                detectTapGestures(
-                    onTap = { onClick() },
-                    onDoubleTap = { onDoubleClick() },
-                    onLongPress = { onLongClick() }
-                )
-            }
+            .appleMusicTouchRipple(
+                key = line,
+                color = contentColor,
+                feedbackEnabled = touchFeedbackEnabled,
+                onTap = { offset, width ->
+                    val fractionHandler = onTapFraction
+                    if (fractionHandler == null) {
+                        onClick()
+                    } else {
+                        fractionHandler((offset.x / width.coerceAtLeast(1f)).coerceIn(0f, 1f))
+                    }
+                },
+                onDoubleTap = onDoubleClick,
+                onLongPress = onLongClick
+            )
             .padding(horizontal = 2.dp),
         horizontalAlignment = when (textAlign) {
             TextAlign.End -> Alignment.End
@@ -282,6 +300,7 @@ internal fun AppleMusicLyricLine(
                 pronunciation = if (inlineRuby) pronunciation else "",
                 pronunciationWords = if (inlineRuby) line.pronunciationWords else emptyList(),
                 rubyStyle = if (inlineRuby) secondaryStyle else null,
+                onWordClick = onWordClick,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -370,6 +389,57 @@ internal fun AppleMusicLyricLine(
                 }
             }
         }
+    }
+}
+
+@Composable
+internal fun Modifier.appleMusicTouchRipple(
+    key: Any?,
+    color: Color,
+    feedbackEnabled: Boolean,
+    onTap: (Offset, Float) -> Unit,
+    onDoubleTap: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null
+): Modifier {
+    val progress = remember(key, feedbackEnabled) { androidx.compose.animation.core.Animatable(1f) }
+    var origin by remember(key, feedbackEnabled) { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
+    val scope = rememberCoroutineScope()
+    return drawWithContent {
+        val animatedProgress = progress.value
+        if (feedbackEnabled && animatedProgress < 1f) {
+            val radius = hypot(
+                maxOf(origin.x, size.width - origin.x),
+                maxOf(origin.y, size.height - origin.y)
+            ) * animatedProgress
+            clipRect {
+                drawCircle(
+                    color = color.copy(alpha = 0.16f * (1f - animatedProgress)),
+                    radius = radius,
+                    center = origin
+                )
+            }
+        }
+        drawContent()
+    }.pointerInput(key, feedbackEnabled, onTap, onDoubleTap, onLongPress) {
+        detectTapGestures(
+            onPress = { offset ->
+                if (feedbackEnabled) {
+                    origin = offset
+                    scope.launch {
+                        progress.stop()
+                        progress.snapTo(0f)
+                        progress.animateTo(
+                            targetValue = 1f,
+                            animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+                        )
+                    }
+                }
+                tryAwaitRelease()
+            },
+            onTap = { offset -> onTap(offset, size.width.toFloat()) },
+            onDoubleTap = onDoubleTap?.let { callback -> { callback() } },
+            onLongPress = onLongPress?.let { callback -> { callback() } }
+        )
     }
 }
 

@@ -51,6 +51,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.ella.music.ui.player.PlayerPalette
+import com.ella.music.ui.player.coverContentColor
 import com.ella.music.ui.player.loadPaletteCoverBitmap
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.components.ScriptFontPaths
@@ -177,18 +178,7 @@ class MainActivity : ComponentActivity() {
             val monetSong by produceState<Song?>(null, playerVm) {
                 playerVm.currentSong.collect { value = it }
             }
-            // Seed color for cover-based Monet: extract a representative color from the current cover.
-            val coverSeed by produceState<ComposeColor?>(null, monetMode, monetSong?.id) {
-                val song = monetSong
-                value = if (monetMode == MONET_COVER && song != null) {
-                    withContext(Dispatchers.IO) {
-                        PlayerPalette.seedColor(loadPaletteCoverBitmap(this@MainActivity, song))
-                    }
-                } else {
-                    null
-                }
-            }
-
+            val playerCoverContentColor by settingsManager.playerCoverContentColor.collectAsState(initial = false)
             val systemDark = when (currentSystemNightMode) {
                 Configuration.UI_MODE_NIGHT_YES -> true
                 Configuration.UI_MODE_NIGHT_NO -> false
@@ -198,6 +188,28 @@ class MainActivity : ComponentActivity() {
                 THEME_DARK -> true
                 THEME_FOLLOW_SYSTEM -> systemDark
                 else -> false
+            }
+            // Seed color for cover-based Monet: extract a representative color from the current cover.
+            val coverSeed by produceState<ComposeColor?>(
+                null,
+                monetMode,
+                monetSong?.id,
+                playerCoverContentColor,
+                isDark
+            ) {
+                val song = monetSong
+                value = if (monetMode == MONET_COVER && song != null) {
+                    withContext(Dispatchers.IO) {
+                        val bitmap = loadPaletteCoverBitmap(this@MainActivity, song)
+                        if (playerCoverContentColor) {
+                            PlayerPalette.from(bitmap, light = !isDark).coverContentColor()
+                        } else {
+                            PlayerPalette.seedColor(bitmap)
+                        }
+                    }
+                } else {
+                    null
+                }
             }
 
             LaunchedEffect(appLanguage) {

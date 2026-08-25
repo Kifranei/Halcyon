@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -16,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -64,6 +66,7 @@ internal fun TimedLyricText(
     pronunciation: String = "",
     pronunciationWords: List<LyricWord> = emptyList(),
     rubyStyle: TextStyle? = null,
+    onWordClick: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // TTML may encode the blank before a word as part of that word. Move it to the prior
@@ -109,7 +112,8 @@ internal fun TimedLyricText(
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
                 ruby = rubies.getOrNull(index).orEmpty(),
-                rubyStyle = rubyStyle
+                rubyStyle = rubyStyle,
+                onWordClick = onWordClick
             )
         }
     }
@@ -204,8 +208,9 @@ private fun AppleMusicKaraokeWord(
     contentColor: Color,
     wordLiftEnabled: Boolean,
     ruby: String = "",
-    rubyStyle: TextStyle? = null
- ) {
+    rubyStyle: TextStyle? = null,
+    onWordClick: ((Long) -> Unit)? = null
+) {
     val word = renderWord.word
     val progress = if (active) ((positionMs - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1L))
         .coerceIn(0f, 1f)
@@ -221,12 +226,20 @@ private fun AppleMusicKaraokeWord(
     val liftPx = appleMusicKaraokeLiftPx(wordLiftEnabled, textSizePx, progress)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.graphicsLayer {
-            translationY = -liftPx
-            // Keep the glyph box stable during a held note. Pulsing scale changes are perceived
-            // as character jitter on the desktop overlay, especially with long TTML spans.
-            transformOrigin = TransformOrigin(0.5f, 1f)
-        }
+        modifier = Modifier
+            .then(
+                if (onWordClick != null) {
+                    Modifier.pointerInput(word.startMs, onWordClick) {
+                        detectTapGestures(onTap = { onWordClick(word.startMs) })
+                    }
+                } else Modifier
+            )
+            .graphicsLayer {
+                translationY = -liftPx
+                // Keep the glyph box stable during a held note. Pulsing scale changes are perceived
+                // as character jitter on the desktop overlay, especially with long TTML spans.
+                transformOrigin = TransformOrigin(0.5f, 1f)
+            }
     ) {
         if (ruby.isNotBlank() && rubyStyle != null) {
             BasicText(

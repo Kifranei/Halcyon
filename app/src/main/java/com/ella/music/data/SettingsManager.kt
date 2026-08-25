@@ -117,6 +117,7 @@ class SettingsManager(private val context: Context) :
         val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
         val KEY_DESKTOP_LYRIC_OPACITY = intPreferencesKey("desktop_lyric_opacity")
         val KEY_DESKTOP_LYRIC_TEXT_COLOR = intPreferencesKey("desktop_lyric_text_color")
+        val KEY_DESKTOP_LYRIC_SYNC_COVER_CONTENT_COLOR = booleanPreferencesKey("desktop_lyric_sync_cover_content_color")
         val KEY_DESKTOP_LYRIC_X = intPreferencesKey("desktop_lyric_x")
         val KEY_DESKTOP_LYRIC_Y = intPreferencesKey("desktop_lyric_y")
         val KEY_SUPER_LYRIC_ENABLED = booleanPreferencesKey("super_lyric_enabled")
@@ -160,13 +161,18 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYER_PROGRESS_SHOW_QUALITY = booleanPreferencesKey("player_progress_show_quality")
         val KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO = booleanPreferencesKey("player_progress_show_audio_info")
         val KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE = booleanPreferencesKey("player_progress_show_output_device")
+        val KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE = booleanPreferencesKey("player_progress_long_press_cycle")
+        val KEY_PLAYER_PROGRESS_INFO_SEPARATED = booleanPreferencesKey("player_progress_info_separated")
         val KEY_TRANSPORT_BUTTON_OUTLINES = booleanPreferencesKey("transport_button_outlines")
         val KEY_PLAYER_TAP_SEEK_ENABLED = booleanPreferencesKey("player_tap_seek_enabled")
         val KEY_PLAYER_SHOW_TOTAL_DURATION = booleanPreferencesKey("player_show_total_duration")
         val KEY_PLAYER_SHOW_SONG_ANNOTATION = booleanPreferencesKey("player_show_song_annotation")
         val KEY_PLAYER_COVER_SWIPE_ENABLED = booleanPreferencesKey("player_cover_swipe_enabled")
+        val KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED = booleanPreferencesKey("player_cover_long_press_preview_enabled")
         val KEY_PLAYER_PREDICTIVE_BACK_ENABLED = booleanPreferencesKey("player_predictive_back_enabled")
         val KEY_LYRIC_NON_CURRENT_BLUR_PERCENT = intPreferencesKey("lyric_non_current_blur_percent")
+        val KEY_LYRIC_WORD_SEEK_ENABLED = booleanPreferencesKey("lyric_word_seek_enabled")
+        val KEY_LYRIC_TOUCH_FEEDBACK_ENABLED = booleanPreferencesKey("lyric_touch_feedback_enabled")
         val KEY_LYRIC_PARSER_ENGINE = intPreferencesKey("lyric_parser_engine")
         val KEY_PLAYER_TITLE_POSITION = intPreferencesKey("player_title_position")
         val KEY_PLAYER_PAGE_STYLE = intPreferencesKey("player_page_style")
@@ -945,6 +951,7 @@ class SettingsManager(private val context: Context) :
     val desktopLyricTranslationScale get() = desktopLyricSettings.desktopLyricTranslationScale
     val desktopLyricOpacity get() = desktopLyricSettings.desktopLyricOpacity
     val desktopLyricTextColor get() = desktopLyricSettings.desktopLyricTextColor
+    val desktopLyricSyncCoverContentColor get() = desktopLyricSettings.desktopLyricSyncCoverContentColor
     val desktopLyricX get() = desktopLyricSettings.desktopLyricX
     val desktopLyricY get() = desktopLyricSettings.desktopLyricY
 
@@ -975,6 +982,8 @@ class SettingsManager(private val context: Context) :
     suspend fun setDesktopLyricTranslationScale(scale: Int) = desktopLyricSettings.setDesktopLyricTranslationScale(scale)
     suspend fun setDesktopLyricOpacity(opacity: Int) = desktopLyricSettings.setDesktopLyricOpacity(opacity)
     suspend fun setDesktopLyricTextColor(color: Int) = desktopLyricSettings.setDesktopLyricTextColor(color)
+    suspend fun setDesktopLyricSyncCoverContentColor(enabled: Boolean) =
+        desktopLyricSettings.setDesktopLyricSyncCoverContentColor(enabled)
     suspend fun setDesktopLyricPosition(x: Int, y: Int) = desktopLyricSettings.setDesktopLyricPosition(x, y)
     suspend fun resetDesktopLyricPosition() = desktopLyricSettings.resetDesktopLyricPosition()
 
@@ -1034,6 +1043,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_HIDE_IN_LANDSCAPE)
             setBoolean(KEY_DESKTOP_LYRIC_STATUS_BAR_MERGE_SECONDARY)
             setBoolean(KEY_DESKTOP_LYRIC_LOCKED)
+            setBoolean(KEY_DESKTOP_LYRIC_SYNC_COVER_CONTENT_COLOR)
             setBoolean(KEY_SUPER_LYRIC_ENABLED)
             setBoolean(KEY_SUPER_LYRIC_TRANSLATION)
             setBoolean(KEY_SUPER_LYRIC_PRONUNCIATION)
@@ -1051,6 +1061,8 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_PLAYER_PROGRESS_SHOW_QUALITY)
             setBoolean(KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO)
             setBoolean(KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE)
+            setBoolean(KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE)
+            setBoolean(KEY_PLAYER_PROGRESS_INFO_SEPARATED)
             setBoolean(KEY_PLAYLIST_SHOW_RATING_FILTER)
             setBoolean(KEY_PLAYLIST_SHOW_FAVORITE_FILTER)
             setInt(KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
@@ -1073,6 +1085,9 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_PLAYER_SHOW_TOTAL_DURATION)
             setBoolean(KEY_PLAYER_SHOW_SONG_ANNOTATION)
             setBoolean(KEY_PLAYER_COVER_SWIPE_ENABLED)
+            setBoolean(KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED)
+            setBoolean(KEY_LYRIC_WORD_SEEK_ENABLED)
+            setBoolean(KEY_LYRIC_TOUCH_FEEDBACK_ENABLED)
             setBoolean(KEY_PLAYER_LYRICS_CORNER_ACTIONS)
             setBoolean(KEY_PLAYER_KEEP_SCREEN_ON)
             setBoolean(KEY_PLAYER_HDR_GLOW)
