@@ -104,7 +104,8 @@ data class LyricoPluginSource(
     val manifest: com.ella.music.plugin.model.PluginManifest,
     val assetDir: String,
     val script: String,
-    val cacheRootDir: File? = null
+    val cacheRootDir: File? = null,
+    val bundled: Boolean = false
 )
 
 val pluginJson: Json = Json {

@@ -25,7 +25,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun SortSummaryHeader(
     text: String,
     modifier: Modifier = Modifier,
-    leadingContent: (@Composable RowScope.() -> Unit)? = null
+    leadingContent: (@Composable RowScope.() -> Unit)? = null,
+    trailingContent: (@Composable RowScope.() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
@@ -43,6 +44,7 @@ internal fun SortSummaryHeader(
                 .weight(1f)
                 .padding(vertical = 4.dp)
         )
+        trailingContent?.invoke(this)
     }
 }
 

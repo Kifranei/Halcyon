@@ -295,6 +295,8 @@
     <string name="settings_show_artist_introduction_summary">アーティストページに「紹介」入口を表示します</string>
     <string name="settings_open_player_on_play">再生後にプレーヤー画面を開く</string>
     <string name="settings_open_player_on_play_summary">ローカル、WebDAV、オンライン曲の再生を開始すると、自動でプレーヤー画面を開きます</string>
+    <string name="settings_open_player_from_notification">メディア通知からプレーヤーを開く</string>
+    <string name="settings_open_player_from_notification_summary">通知またはロック画面のメディアカードをタップすると、現在のプレーヤー画面を直接開きます</string>
     <string name="settings_mini_player_swipe_to_open_player">ミニプレーヤーを上にスワイプしてプレーヤーを開く</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">オフにするとリストのスクロール中に誤って開くのを防ぎます</string>
     <string name="settings_show_play_next_in_lists">曲リストに「次に再生」を表示</string>
@@ -404,7 +406,7 @@
     <string name="home_play_daily_mix">デイリーミックスを再生</string>
     <string name="home_ai_section">AI</string>
     <string name="home_ai_playlist">AI 再生アシスタント</string>
-    <string name="home_ai_playlist_summary">ローカル曲の再生のみ許可されています。曲の削除や変更は行いません。現在のライブラリ：%1$d 曲</string>
+    <string name="home_ai_playlist_summary">Ella に選曲を任せる・現在のライブラリ %1$d 曲</string>
     <string name="home_ai_playlist_loading">AI 設定を読み込み、プレイリストを生成中…</string>
     <string name="home_ai_playlist_play">AI おすすめプレイリストを生成して再生</string>
     <string name="home_ai_chat_open">AI チャットを開く</string>
@@ -846,6 +848,8 @@
     <string name="settings_startup_poster_image">起動ポスター画像を選択</string>
     <string name="settings_app_wallpaper">グローバルカスタム壁紙</string>
     <string name="settings_app_wallpaper_summary">ライブラリ、アルバム、プレイリスト、フォルダなどのページの背景にカスタム壁紙を表示</string>
+    <string name="settings_app_now_playing_flow_background">一覧ページに再生中のフローを表示</string>
+    <string name="settings_app_now_playing_flow_background_summary">ホーム、ライブラリ、一覧ページでプレーヤーのフロー様式と速度を再利用します。既定はオフで、カスタム壁紙が優先されます。</string>
     <string name="settings_app_wallpaper_image">壁紙画像を選択</string>
     <string name="settings_player_background">プレーヤー画面のカスタム背景</string>
     <string name="settings_player_background_summary">タブレット横画面プレーヤー画面とスマートフォン非イマーシブプレーヤー画面のみ表示</string>
@@ -1554,6 +1558,10 @@
     <string name="equalizer_preset">プリセット</string>
     <string name="equalizer_preset_custom">カスタム</string>
     <string name="equalizer_reset">リセット</string>
+    <string name="equalizer_section_master_gain">マスターゲイン</string>
+    <string name="equalizer_master_gain">マスターゲイン</string>
+    <string name="equalizer_master_gain_summary">EQ カーブを変えず、すべてのソフトウェアエフェクトの後で音量を調整します。</string>
+    <string name="equalizer_master_gain_warning">EQ カーブとは独立し、すべてのソフトウェアエフェクトの後に適用されます。正のゲインではピークリミッターが動作する場合があり、無効にするとクリッピングが発生することがあります。</string>
     <string name="equalizer_section_parametric">パラメトリックEQ</string>
     <string name="equalizer_eq_q">バンド Q（帯域幅）</string>
     <string name="equalizer_section_tone">音色</string>
@@ -1955,6 +1963,8 @@
     <string name="settings_full_tag_search_summary_on">スキャン時に完全な音声タグを読み取り、作曲者、作詞者、コメント、別名、カスタムタグも検索します</string>
     <string name="settings_player_dynamic_flow">Apple Music アニメーション背景</string>
     <string name="settings_player_dynamic_flow_summary">Apple Music の背景スタイルを保ち、オフ時は継続的な動きだけを停止します。この背景のみに適用されます</string>
+    <string name="settings_apple_flow_speed">Apple Music フロー速度</string>
+    <string name="settings_apple_flow_speed_summary">値を大きくするとカバーフローの動きがより目立ちます</string>
     <!-- Arranger metadata -->
     <string name="settings_library_tile_arranger">編曲者</string>
     <string name="settings_library_tile_arranger_summary">編曲者別に表示</string>
@@ -2429,4 +2439,15 @@
     <string name="settings_lyric_touch_feedback_summary">歌詞を押す／タップすると、触点から広がる発光を表示します</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">デスクトップ歌詞をカバー内容色に同期</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">プレーヤーと同じカバー由来の色を使用します</string>
+    <string name="settings_player_mini_lyrics">プレーヤーのミニ歌詞</string>
+    <string name="settings_player_mini_lyrics_summary">カバー下のミニ歌詞の拡大率、サイズ、間隔、配置を個別に調整します</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">ミニ歌詞を 1% 単位で調整します（50%～150%）</string>
+    <string name="settings_player_mini_lyrics_line_spacing">ミニ歌詞の行間</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">プレーヤーのカバー下にあるミニ歌詞だけに適用します</string>
+    <string name="settings_lyric_pause_current_only">一時停止中は現在の歌詞だけを強調</string>
+    <string name="settings_lyric_pause_current_only_summary">オフの場合、一時停止中はすべての歌詞を強調します</string>
+    <string name="settings_immersive_lyric_swipe">没入モードで歌詞をスワイプして曲を切り替える</string>
+    <string name="settings_immersive_lyric_swipe_summary">下部の歌詞領域を左右にスワイプして前後の曲に切り替えます</string>
+    <string name="library_layout_grid">グリッド表示</string>
+    <string name="library_layout_list">リスト表示</string>
 </resources>

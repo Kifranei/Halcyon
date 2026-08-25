@@ -514,7 +514,12 @@ class ExoPlayerManager(private val context: Context) {
         return PreparedPlaybackQueue(queueSongs, safeIndex, sourceWindow)
     }
 
-    fun playResolvedFromVirtualQueue(songs: List<Song>, currentIndex: Int, resolvedSong: Song) {
+    fun playResolvedFromVirtualQueue(
+        songs: List<Song>,
+        currentIndex: Int,
+        resolvedSong: Song,
+        shouldPlay: Boolean = true
+    ) {
         if (songs.isEmpty()) return
         cancelPendingSeekCommand()
         val safeIndex = currentIndex.coerceIn(songs.indices)
@@ -535,9 +540,10 @@ class ExoPlayerManager(private val context: Context) {
         _playlist.value = playlist.toList()
 
         mediaController?.apply {
+            playWhenReady = shouldPlay
             setMediaItems(listOf(songToMediaItem(resolvedSong)), 0, resumePositionFor(resolvedSong))
             prepare()
-            play()
+            if (shouldPlay) play()
         }
         _currentSong.value = resolvedSong
         _duration.value = resolvedSong.duration
@@ -929,7 +935,6 @@ class ExoPlayerManager(private val context: Context) {
         val positionMs = startPositionMs(target)
         applyOptimisticSong(target, positionMs)
         controller.seekTo(targetIndex, positionMs)
-        controller.play()
         return true
     }
 
@@ -1377,9 +1382,11 @@ class ExoPlayerManager(private val context: Context) {
             .setMediaMetadata(
                 song.mediaMetadata(
                     artworkData = cachedArtwork,
-                    // Publish the cover URI immediately so lock screens and OEM themes can
-                    // resolve artwork even before embedded bytes finish loading.
-                    includeArtworkUri = true
+                    // A local album URI is shared by every track in that album and can therefore
+                    // display the wrong picture. Wait for this song's embedded bytes; the album
+                    // URI is published later only if extraction confirms they are unavailable.
+                    includeArtworkUri = cachedArtwork == null,
+                    includeAlbumArtworkUri = false
                 )
             )
 
@@ -1394,7 +1401,8 @@ class ExoPlayerManager(private val context: Context) {
         titleOverride: CharSequence? = null,
         artistOverride: CharSequence? = null,
         artworkData: ByteArray? = null,
-        includeArtworkUri: Boolean = true
+        includeArtworkUri: Boolean = true,
+        includeAlbumArtworkUri: Boolean = true
     ): MediaMetadata {
         val extras = toMediaItemExtras().apply {
             putString(EXTRA_ONLINE_SOURCE, onlineSource)
@@ -1421,7 +1429,7 @@ class ExoPlayerManager(private val context: Context) {
                     setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
                 }
                 if (includeArtworkUri) {
-                    artworkUriForMediaCenter()?.let(::setArtworkUri)
+                    artworkUriForMediaCenter(includeAlbumArtworkUri)?.let(::setArtworkUri)
                 }
             }
             .build()
@@ -1702,7 +1710,8 @@ class ExoPlayerManager(private val context: Context) {
             val cachedArtwork = notificationArtworkCache.get(song.notificationArtworkKey())
             val targetMetadata = song.mediaMetadata(
                 artworkData = cachedArtwork,
-                includeArtworkUri = true
+                includeArtworkUri = cachedArtwork == null,
+                includeAlbumArtworkUri = false
             ).withPatchedExtrasFrom(currentItem, PATCH_REASON_BASE_SESSION_METADATA)
             sessionMetadataSongKey = songKey
             if (currentItem.mediaMetadata.matchesNotificationDisplay(targetMetadata)) {
@@ -1755,8 +1764,11 @@ class ExoPlayerManager(private val context: Context) {
             if (data == null) {
                 Log.d(TIMING_TAG, "artwork load finish mediaId=${song.id} elapsed=${SystemClock.elapsedRealtime() - startedAt}ms missing")
                 withContext(Dispatchers.Main.immediate) {
-                    if (mediaController?.currentMediaItem?.matchesSong(song) == true) {
+                    val latestController = mediaController
+                    val latestIndex = latestController?.currentMediaItemIndex ?: -1
+                    if (latestController?.currentMediaItem?.matchesSong(song) == true) {
                         missingNotificationArtworkKeys += artworkKey
+                        replaceCurrentItemArtwork(latestController, latestIndex, song, null)
                     }
                 }
                 return@launch
@@ -1765,8 +1777,11 @@ class ExoPlayerManager(private val context: Context) {
                 Log.d(TIMING_TAG, "artwork load finish mediaId=${song.id} elapsed=${SystemClock.elapsedRealtime() - startedAt}ms oversized=${data.size}")
                 AppLogStore.warn(context, "PlayerArtwork", "Skip oversized notification artwork for ${song.title}: ${data.size} bytes")
                 withContext(Dispatchers.Main.immediate) {
-                    if (mediaController?.currentMediaItem?.matchesSong(song) == true) {
+                    val latestController = mediaController
+                    val latestIndex = latestController?.currentMediaItemIndex ?: -1
+                    if (latestController?.currentMediaItem?.matchesSong(song) == true) {
                         missingNotificationArtworkKeys += artworkKey
+                        replaceCurrentItemArtwork(latestController, latestIndex, song, null)
                     }
                 }
                 return@launch
@@ -1791,14 +1806,18 @@ class ExoPlayerManager(private val context: Context) {
         controller: MediaController,
         index: Int,
         song: Song,
-        artworkData: ByteArray
+        artworkData: ByteArray?
     ) {
         if (index != controller.currentMediaItemIndex) return
         val latestItem = controller.currentMediaItem ?: return
         if (!latestItem.matchesSong(song)) return
         runCatching {
             artworkAppliedSongKey = song.notificationArtworkKey()
-            val targetMetadata = song.mediaMetadata(artworkData = artworkData)
+            val targetMetadata = song.mediaMetadata(
+                artworkData = artworkData,
+                includeArtworkUri = artworkData == null,
+                includeAlbumArtworkUri = artworkData == null
+            )
                 .withPatchedExtrasFrom(latestItem, PATCH_REASON_NOTIFICATION_ARTWORK)
             if (latestItem.mediaMetadata.matchesNotificationDisplay(targetMetadata)) {
                 Log.d(TIMING_TAG, "artwork metadata already current mediaId=${song.id}")

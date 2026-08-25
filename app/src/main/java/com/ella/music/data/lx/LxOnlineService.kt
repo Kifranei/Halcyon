@@ -9,16 +9,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+
+data class LxOnlineQuality(
+    val type: String,
+    val hash: String = ""
+)
 
 data class LxOnlineSong(
     val song: Song,
     val source: String,
     val songmid: String,
     val quality: String,
-    val coverUrl: String = ""
+    val coverUrl: String = "",
+    val qualities: List<LxOnlineQuality> = emptyList(),
+    val sourceMetadata: Map<String, String> = emptyMap()
 )
 
 enum class LxSearchPlatform(
@@ -26,7 +35,10 @@ enum class LxSearchPlatform(
     val displayName: String
 ) {
     Kuwo("kw", "酷我"),
-    Netease("wy", "网易云")
+    Netease("wy", "网易云"),
+    QQ("tx", "QQ音乐"),
+    Kugou("kg", "酷狗"),
+    Migu("mg", "咪咕音乐")
 }
 
 class LxOnlineService(private val context: Context) {
@@ -74,6 +86,9 @@ class LxOnlineService(private val context: Context) {
         when (platform) {
             LxSearchPlatform.Kuwo -> searchKuwo(keyword, page)
             LxSearchPlatform.Netease -> searchNetease(keyword, page)
+            LxSearchPlatform.QQ -> searchQQ(keyword, page)
+            LxSearchPlatform.Kugou -> searchKugou(keyword, page)
+            LxSearchPlatform.Migu -> searchMigu(keyword, page)
         }
     }
 
@@ -137,7 +152,7 @@ class LxOnlineService(private val context: Context) {
             if (!response.isSuccessful) error(context.getString(R.string.lx_service_search_failed_http, response.code))
             val root = JSONObject(response.body?.string().orEmpty())
             val songs = root.optJSONObject("result")?.optJSONArray("songs") ?: return@use emptyList()
-            List(songs.length()) { index ->
+            val parsed = List(songs.length()) { index ->
                 val item = songs.getJSONObject(index)
                 val idValue = item.optLong("id", 0L).takeIf { it > 0L }?.toString().orEmpty()
                 val title = decodeHtml(item.optString("name"))
@@ -175,12 +190,304 @@ class LxOnlineService(private val context: Context) {
                     coverUrl = coverUrl
                 )
             }.filter { it.songmid.isNotBlank() && it.song.title.isNotBlank() }
+            val missingCoverIds = parsed.filter { it.coverUrl.isBlank() }.map { it.songmid }
+            if (missingCoverIds.isEmpty()) return@use parsed
+            val coverById = loadNeteaseCoverUrls(missingCoverIds)
+            parsed.map { onlineSong ->
+                val coverUrl = onlineSong.coverUrl.ifBlank { coverById[onlineSong.songmid].orEmpty() }
+                onlineSong.copy(
+                    song = onlineSong.song.copy(coverUrl = coverUrl),
+                    coverUrl = coverUrl
+                )
+            }
+        }
+    }
+
+    private fun loadNeteaseCoverUrls(songIds: List<String>): Map<String, String> {
+        if (songIds.isEmpty()) return emptyMap()
+        val encodedIds = URLEncoder.encode(JSONArray(songIds).toString(), "UTF-8")
+        val request = Request.Builder()
+            .url("https://music.163.com/api/song/detail/?ids=$encodedIds")
+            .header("User-Agent", USER_AGENT)
+            .header("Referer", "https://music.163.com/")
+            .build()
+        return runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyMap()
+                val details = JSONObject(response.body?.string().orEmpty()).optJSONArray("songs")
+                    ?: return@use emptyMap()
+                buildMap {
+                    repeat(details.length()) { index ->
+                        val item = details.optJSONObject(index) ?: return@repeat
+                        val id = item.optLong("id", 0L).takeIf { it > 0L }?.toString() ?: return@repeat
+                        val coverUrl = item.optJSONObject("album")?.optString("picUrl").orEmpty()
+                        if (coverUrl.isNotBlank()) put(id, coverUrl)
+                    }
+                }
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun searchQQ(keyword: String, page: Int): List<LxOnlineSong> {
+        val encoded = URLEncoder.encode(keyword.trim(), "UTF-8")
+        val url = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=${page.coerceAtLeast(1)}" +
+            "&n=30&w=$encoded&format=json&new_json=1"
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", USER_AGENT)
+            .header("Referer", "https://y.qq.com/")
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error(context.getString(R.string.lx_service_search_failed_http, response.code))
+            val songs = JSONObject(response.body?.string().orEmpty())
+                .optJSONObject("data")
+                ?.optJSONObject("song")
+                ?.optJSONArray("list")
+                ?: return@use emptyList()
+            List(songs.length()) { index ->
+                val item = songs.getJSONObject(index)
+                val mid = item.optString("mid").ifBlank { item.optString("songmid") }
+                val title = decodeHtml(item.optString("name").ifBlank { item.optString("songname") })
+                val singers = item.optJSONArray("singer")
+                val artist = if (singers != null) {
+                    List(singers.length()) { singerIndex ->
+                        decodeHtml(singers.optJSONObject(singerIndex)?.optString("name").orEmpty())
+                    }.filter { it.isNotBlank() }.joinToString("、")
+                } else {
+                    ""
+                }
+                val album = item.optJSONObject("album")
+                val albumName = decodeHtml(album?.optString("name").orEmpty())
+                val albumMid = album?.optString("mid").orEmpty()
+                val coverUrl = albumMid.takeIf { it.isNotBlank() }
+                    ?.let { "https://y.gtimg.cn/music/photo_new/T002R500x500M000$it.jpg" }
+                    .orEmpty()
+                val file = item.optJSONObject("file")
+                val qualities = buildList {
+                    if ((file?.optLong("size_128") ?: 0L) > 0L) add(LxOnlineQuality("128k"))
+                    if ((file?.optLong("size_320") ?: 0L) > 0L) add(LxOnlineQuality("320k"))
+                    if ((file?.optLong("size_flac") ?: 0L) > 0L) add(LxOnlineQuality("flac"))
+                    if ((file?.optLong("size_hires") ?: 0L) > 0L) add(LxOnlineQuality("flac24bit"))
+                }.ifEmpty { listOf(LxOnlineQuality("128k")) }
+                val quality = qualities.bestQuality()
+                val songId = item.optLong("id", 0L).takeIf { it > 0L }?.toString().orEmpty()
+                val strMediaMid = file?.optString("media_mid").orEmpty().ifBlank { mid }
+                LxOnlineSong(
+                    song = Song(
+                        id = "lx_tx_$mid".hashCode().toLong(),
+                        title = title,
+                        artist = artist,
+                        album = albumName,
+                        albumId = 0L,
+                        duration = item.optLong("interval", 0L) * 1000L,
+                        path = "",
+                        fileName = "$title-$artist.mp3",
+                        mimeType = "audio/mpeg",
+                        coverUrl = coverUrl,
+                        onlineSource = LxSearchPlatform.QQ.source,
+                        onlineId = mid
+                    ),
+                    source = LxSearchPlatform.QQ.source,
+                    songmid = mid,
+                    quality = quality,
+                    coverUrl = coverUrl,
+                    qualities = qualities,
+                    sourceMetadata = buildMap {
+                        if (strMediaMid.isNotBlank()) put("strMediaMid", strMediaMid)
+                        if (albumMid.isNotBlank()) put("albumMid", albumMid)
+                        if (songId.isNotBlank()) put("songId", songId)
+                    }
+                )
+            }.filter { it.songmid.isNotBlank() && it.song.title.isNotBlank() }
+        }
+    }
+
+    private fun searchKugou(keyword: String, page: Int): List<LxOnlineSong> {
+        val encoded = URLEncoder.encode(keyword.trim(), "UTF-8")
+        val url = "https://songsearch.kugou.com/song_search_v2?keyword=$encoded" +
+            "&page=${page.coerceAtLeast(1)}&pagesize=30&platform=WebFilter&userid=-1&clientver=2000"
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", USER_AGENT)
+            .header("Referer", "https://www.kugou.com/")
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error(context.getString(R.string.lx_service_search_failed_http, response.code))
+            val songs = JSONObject(response.body?.string().orEmpty())
+                .optJSONObject("data")
+                ?.optJSONArray("lists")
+                ?: return@use emptyList()
+            List(songs.length()) { index ->
+                val item = songs.getJSONObject(index)
+                val hash = item.optString("FileHash").ifBlank { item.optString("Hash") }
+                val mid = item.optString("Audioid").ifBlank { item.optString("AudioID") }
+                val title = decodeSearchMarkup(item.optString("SongName").ifBlank { item.optString("FileName") })
+                val artist = decodeSearchMarkup(item.optString("SingerName"))
+                val album = decodeSearchMarkup(item.optString("AlbumName"))
+                val albumId = item.optString("AlbumID")
+                val coverUrl = item.optString("Image")
+                    .replace("{size}", "500")
+                    .replace("http://", "https://")
+                val qualities = buildList {
+                    if (item.optLong("FileSize") > 0L && hash.isNotBlank()) {
+                        add(LxOnlineQuality("128k", hash))
+                    }
+                    val highHash = item.optString("HQFileHash")
+                    if (item.optLong("HQFileSize") > 0L && highHash.isNotBlank()) {
+                        add(LxOnlineQuality("320k", highHash))
+                    }
+                    val losslessHash = item.optString("SQFileHash")
+                    if (item.optLong("SQFileSize") > 0L && losslessHash.isNotBlank()) {
+                        add(LxOnlineQuality("flac", losslessHash))
+                    }
+                    val hiResHash = item.optString("ResFileHash")
+                    if (item.optLong("ResFileSize") > 0L && hiResHash.isNotBlank()) {
+                        add(LxOnlineQuality("flac24bit", hiResHash))
+                    }
+                }.ifEmpty { listOf(LxOnlineQuality("128k", hash)) }
+                val quality = qualities.bestQuality()
+                LxOnlineSong(
+                    song = Song(
+                        id = "lx_kg_${mid}_$hash".hashCode().toLong(),
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        albumId = 0L,
+                        duration = item.optLong("Duration", 0L) * 1000L,
+                        path = "",
+                        fileName = "$title-$artist.mp3",
+                        mimeType = "audio/mpeg",
+                        coverUrl = coverUrl,
+                        onlineSource = LxSearchPlatform.Kugou.source,
+                        onlineId = mid
+                    ),
+                    source = LxSearchPlatform.Kugou.source,
+                    songmid = mid,
+                    quality = quality,
+                    coverUrl = coverUrl,
+                    qualities = qualities,
+                    sourceMetadata = buildMap {
+                        if (hash.isNotBlank()) put("hash", hash)
+                        if (albumId.isNotBlank()) put("albumId", albumId)
+                    }
+                )
+            }.filter {
+                it.songmid.isNotBlank() &&
+                    it.sourceMetadata["hash"].orEmpty().isNotBlank() &&
+                    it.song.title.isNotBlank()
+            }
+        }
+    }
+
+    private fun searchMigu(keyword: String, page: Int): List<LxOnlineSong> {
+        val normalizedKeyword = keyword.trim()
+        val timestamp = System.currentTimeMillis().toString()
+        val deviceId = MIGU_DEVICE_ID
+        val signature = createMiguSearchSignature(normalizedKeyword, timestamp, deviceId)
+        val encoded = URLEncoder.encode(normalizedKeyword, "UTF-8")
+        val url = "https://jadeite.migu.cn/music_search/v3/search/searchAll?isCorrect=0&isCopyright=1" +
+            "&searchSwitch=%7B%22song%22%3A1%2C%22album%22%3A0%2C%22singer%22%3A0%2C%22tagSong%22%3A1%2C%22mvSong%22%3A0%2C%22bestShow%22%3A1%2C%22songlist%22%3A0%2C%22lyricSong%22%3A0%7D" +
+            "&pageSize=30&text=$encoded&pageNo=${page.coerceAtLeast(1)}&sort=0&sid=USS"
+        val request = Request.Builder()
+            .url(url)
+            .header("uiVersion", "A_music_3.6.1")
+            .header("deviceId", deviceId)
+            .header("timestamp", timestamp)
+            .header("sign", signature)
+            .header("channel", "0146921")
+            .header("User-Agent", MIGU_USER_AGENT)
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error(context.getString(R.string.lx_service_search_failed_http, response.code))
+            val root = JSONObject(response.body?.string().orEmpty())
+            if (root.optString("code") != "000000") {
+                error(root.optString("info").ifBlank { context.getString(R.string.lx_online_search_failed) })
+            }
+            val groups = root.optJSONObject("songResultData")?.optJSONArray("resultList")
+                ?: return@use emptyList()
+            val seenCopyrightIds = mutableSetOf<String>()
+            buildList {
+                repeat(groups.length()) { groupIndex ->
+                    val group = groups.optJSONArray(groupIndex) ?: return@repeat
+                    repeat(group.length()) { itemIndex ->
+                        val item = group.optJSONObject(itemIndex) ?: return@repeat
+                        val songmid = item.optString("songId")
+                        val copyrightId = item.optString("copyrightId")
+                        if (songmid.isBlank() || copyrightId.isBlank() || !seenCopyrightIds.add(copyrightId)) {
+                            return@repeat
+                        }
+                        val title = decodeHtml(item.optString("name").ifBlank { item.optString("songName") })
+                        if (title.isBlank()) return@repeat
+                        val singers = item.optJSONArray("singerList")
+                        val artist = buildList {
+                            if (singers != null) repeat(singers.length()) { singerIndex ->
+                                singers.optJSONObject(singerIndex)?.optString("name")
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?.let { singerName -> add(singerName) }
+                            }
+                        }.joinToString("、")
+                        val album = decodeHtml(item.optString("album"))
+                        val albumId = item.optString("albumId")
+                        val rawCover = item.optString("img3")
+                            .ifBlank { item.optString("img2") }
+                            .ifBlank { item.optString("img1") }
+                        val coverUrl = when {
+                            rawCover.startsWith("https://") -> rawCover
+                            rawCover.startsWith("http://") -> rawCover.replaceFirst("http://", "https://")
+                            rawCover.isNotBlank() -> "https://d.musicapp.migu.cn$rawCover"
+                            else -> ""
+                        }
+                        val qualities = buildList {
+                            val formats = item.optJSONArray("audioFormats")
+                            if (formats != null) repeat(formats.length()) { formatIndex ->
+                                when (formats.optJSONObject(formatIndex)?.optString("formatType")) {
+                                    "PQ" -> add(LxOnlineQuality("128k"))
+                                    "HQ" -> add(LxOnlineQuality("320k"))
+                                    "SQ" -> add(LxOnlineQuality("flac"))
+                                    "ZQ24" -> add(LxOnlineQuality("flac24bit"))
+                                }
+                            }
+                        }.distinctBy { it.type }.ifEmpty { listOf(LxOnlineQuality("128k")) }
+                        val quality = qualities.bestQuality()
+                        add(
+                            LxOnlineSong(
+                                song = Song(
+                                    id = "lx_mg_$copyrightId".hashCode().toLong(),
+                                    title = title,
+                                    artist = artist,
+                                    album = album,
+                                    albumId = 0L,
+                                    duration = item.optLong("duration", 0L) * 1000L,
+                                    path = "",
+                                    fileName = "$title-$artist.mp3",
+                                    mimeType = "audio/mpeg",
+                                    coverUrl = coverUrl,
+                                    onlineSource = LxSearchPlatform.Migu.source,
+                                    onlineId = copyrightId
+                                ),
+                                source = LxSearchPlatform.Migu.source,
+                                songmid = songmid,
+                                quality = quality,
+                                coverUrl = coverUrl,
+                                qualities = qualities,
+                                sourceMetadata = buildMap {
+                                    put("copyrightId", copyrightId)
+                                    if (albumId.isNotBlank()) put("albumId", albumId)
+                                    item.optString("lrcUrl").takeIf { it.isNotBlank() }?.let { put("lrcUrl", it) }
+                                    item.optString("mrcurl").takeIf { it.isNotBlank() }?.let { put("mrcUrl", it) }
+                                    item.optString("trcUrl").takeIf { it.isNotBlank() }?.let { put("trcUrl", it) }
+                                }
+                            )
+                        )
+                    }
+                }
+            }
         }
     }
 
     suspend fun resolvePlayableSong(item: LxOnlineSong, sourceScript: String = ""): Song = withContext(Dispatchers.IO) {
-        runCatching { resolveByImportedSource(item, sourceScript) }
-            .getOrNull()
+        val importedResolution = runCatching { resolveByImportedSource(item, sourceScript) }
+        importedResolution.getOrNull()
             ?.let { playableUrl ->
             val extension = playableUrl.substringBefore('?')
                 .substringAfterLast('.', missingDelimiterValue = "")
@@ -192,6 +499,11 @@ class LxOnlineService(private val context: Context) {
         if (item.source == LxSearchPlatform.Netease.source) {
             val url = "https://music.163.com/song/media/outer/url?id=${item.songmid}.mp3"
             return@withContext item.song.copy(path = url, fileName = "${item.song.title}.mp3")
+        }
+
+        if (item.source != LxSearchPlatform.Kuwo.source) {
+            importedResolution.exceptionOrNull()?.let { throw it }
+            error(context.getString(R.string.lx_service_resolve_url_failed))
         }
 
         val format = when (item.quality) {
@@ -224,7 +536,12 @@ class LxOnlineService(private val context: Context) {
         }
         val config = extractRenderApiConfig(sourceScript) ?: return null
         val quality = config.bestQuality(item.source, item.quality)
-        val url = "${config.apiUrl}/url/${item.source}/${item.songmid}/$quality"
+        val sourceId = when (item.source) {
+            LxSearchPlatform.Kugou.source -> item.sourceMetadata["hash"]
+            LxSearchPlatform.Migu.source -> item.sourceMetadata["copyrightId"]
+            else -> null
+        }.orEmpty().ifBlank { item.songmid }
+        val url = "${config.apiUrl}/url/${item.source}/$sourceId/$quality"
         val request = Request.Builder()
             .url(url)
             .header("Content-Type", "application/json")
@@ -320,7 +637,32 @@ class LxOnlineService(private val context: Context) {
         .replace("&quot;", "\"")
         .trim()
 
+    private fun decodeSearchMarkup(value: String): String = decodeHtml(value)
+        .replace(Regex("<[^>]+>"), "")
+        .trim()
+
     companion object {
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Halcyon/1.0"
+        private const val MIGU_DEVICE_ID = "963B7AA0D21511ED807EE5846EC87D20"
+        private const val MIGU_USER_AGENT =
+            "Mozilla/5.0 (Linux; U; Android 11.0.0; zh-cn; MI 11 Build/OPR1.170623.032) " +
+                "AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30"
     }
 }
+
+private fun List<LxOnlineQuality>.bestQuality(): String = when {
+    any { it.type == "flac24bit" } -> "flac24bit"
+    any { it.type == "flac" } -> "flac"
+    any { it.type == "320k" } -> "320k"
+    else -> "128k"
+}
+
+internal fun createMiguSearchSignature(keyword: String, timestamp: String, deviceId: String): String {
+    val raw = keyword + MIGU_SIGNATURE_PREFIX + deviceId + timestamp
+    return MessageDigest.getInstance("MD5")
+        .digest(raw.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+}
+
+private const val MIGU_SIGNATURE_PREFIX =
+    "6cdc72a439cef99a3418d2a78aa28c73yyapp2d16148780a1dcc7408e06336b98cfd50"

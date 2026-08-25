@@ -1,11 +1,9 @@
 package com.ella.music.viewmodel
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import com.ella.music.R
 import com.ella.music.data.lx.LxSearchPlatform
 import com.ella.music.data.lx.LxOnlineSong
 
@@ -16,13 +14,10 @@ class LxOnlineViewModel : ViewModel() {
     var importExpanded by mutableStateOf(false)
     var isBusy by mutableStateOf(false)
     var results by mutableStateOf<List<LxOnlineSong>>(emptyList())
-    var messageId by mutableIntStateOf(R.string.lx_online_import_hint)
-    var hasCustomMessage by mutableStateOf(false)
     var message by mutableStateOf("")
 
-    fun clearResults(message: String) {
+    fun clearResults() {
         results = emptyList()
-        this.message = message
-        this.hasCustomMessage = true
+        message = ""
     }
 }

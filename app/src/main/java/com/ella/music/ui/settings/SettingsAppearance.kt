@@ -130,6 +130,10 @@ internal fun SettingsAppearanceSection(
         "appWallpaperContentOverlay",
         24
     )
+    val appNowPlayingFlowBackground by settingsManager.appNowPlayingFlowBackground.collectCachedAsState(
+        "appNowPlayingFlowBackground",
+        true
+    )
     val playerBackgroundEnabled by settingsManager.playerBackgroundEnabled.collectCachedAsState("playerBackgroundEnabled", false)
     val playerBackgroundUri by settingsManager.playerBackgroundUri.collectCachedAsState("playerBackgroundUri", "")
     val playerBackgroundOpacity by settingsManager.playerBackgroundOpacity.collectCachedAsState(
@@ -141,6 +145,10 @@ internal fun SettingsAppearanceSection(
     val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectCachedAsState(
         "playerDynamicFlowEnabled",
         SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
+    )
+    val playerAppleFlowSpeed by settingsManager.playerAppleFlowSpeed.collectCachedAsState(
+        "playerAppleFlowSpeed",
+        SettingsManager.DEFAULT_PLAYER_APPLE_FLOW_SPEED
     )
     val beautifulLyricsSpeed by settingsManager.playerBeautifulLyricsSpeed.collectCachedAsState("beautifulLyricsSpeed", 25)
     val beautifulLyricsBlur by settingsManager.playerBeautifulLyricsBlur.collectCachedAsState("beautifulLyricsBlur", 32)
@@ -227,6 +235,10 @@ internal fun SettingsAppearanceSection(
         SettingsManager.DEFAULT_SEARCH_REOPEN_BEHAVIOR
     )
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectCachedAsState("openPlayerOnPlay", false)
+    val openPlayerFromNotification by settingsManager.openPlayerFromNotification.collectCachedAsState(
+        "openPlayerFromNotification",
+        false
+    )
     val miniPlayerLongPressSource by settingsManager.miniPlayerLongPressSource.collectCachedAsState("miniPlayerLongPressSource", false)
     val categoryGridColumns by settingsManager.categoryGridColumns.collectCachedAsState("categoryGridColumns", 2)
     val playerBgTheme by settingsManager.playerBackgroundTheme.collectCachedAsState(
@@ -702,6 +714,14 @@ internal fun SettingsAppearanceSection(
                     }
                 )
             }
+            SwitchPreference(
+                title = stringResource(R.string.settings_app_now_playing_flow_background),
+                summary = stringResource(R.string.settings_app_now_playing_flow_background_summary),
+                checked = appNowPlayingFlowBackground,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setAppNowPlayingFlowBackground(it) }
+                }
+            )
             ArrowPreference(
                 title = stringResource(R.string.settings_app_wallpaper_image),
                 summary = if (appWallpaperUri.isBlank()) {
@@ -747,7 +767,7 @@ internal fun SettingsAppearanceSection(
                 value = appWallpaperContentOverlay,
                 valueRange = 0..80,
                 valueText = "$appWallpaperContentOverlay%",
-                enabled = appWallpaperEnabled,
+                enabled = appWallpaperEnabled || appNowPlayingFlowBackground,
                 onValueChange = { scope.launch { settingsManager.setAppWallpaperContentOverlay(it) } }
             )
             SwitchPreference(
@@ -816,6 +836,15 @@ internal fun SettingsAppearanceSection(
                     onCheckedChange = {
                         scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
                     }
+                )
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_apple_flow_speed),
+                    summary = stringResource(R.string.settings_apple_flow_speed_summary),
+                    value = playerAppleFlowSpeed,
+                    valueRange = 5..60,
+                    valueText = playerAppleFlowSpeed.formatBeautifulLyricsSpeed(),
+                    enabled = playerDynamicFlowEnabled,
+                    onValueChange = { scope.launch { settingsManager.setPlayerAppleFlowSpeed(it) } }
                 )
             }
             SettingsIntSliderPreference(
@@ -1018,6 +1047,14 @@ internal fun SettingsAppearanceSection(
         )
     ) {
         Column {
+            SwitchPreference(
+                title = stringResource(R.string.settings_open_player_from_notification),
+                summary = stringResource(R.string.settings_open_player_from_notification_summary),
+                checked = openPlayerFromNotification,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setOpenPlayerFromNotification(it) }
+                }
+            )
             SettingsFocusAnchor(active = highlightKey == "player_immersive") {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_immersive_cover),

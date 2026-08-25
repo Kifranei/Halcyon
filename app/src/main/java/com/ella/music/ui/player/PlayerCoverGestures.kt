@@ -5,7 +5,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
@@ -39,7 +39,9 @@ internal fun Modifier.playerCoverGestures(
             val velocityTracker = VelocityTracker()
             velocityTracker.addPosition(down.uptimeMillis, down.position)
             do {
-                val event = awaitPointerEvent()
+                // Observe the raw motion before lyric rows consume it for tap/long-press
+                // detection. Horizontal switching is still gated by swipeEnabled below.
+                val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                 if (!change.pressed) {
                     if (lockedHorizontal) {
@@ -52,7 +54,7 @@ internal fun Modifier.playerCoverGestures(
                     }
                     break
                 }
-                val delta = change.positionChange()
+                val delta = change.position - change.previousPosition
                 totalDx += delta.x
                 totalDy += delta.y
                 velocityTracker.addPosition(change.uptimeMillis, change.position)

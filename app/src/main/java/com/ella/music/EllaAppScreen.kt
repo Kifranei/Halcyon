@@ -77,8 +77,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import com.ella.music.ui.components.MiniPlayerLyricTiming
+import com.ella.music.ui.components.LocalSharedAppBackgroundVisible
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.TagEditorEditTracker
+import com.ella.music.ui.components.supportsNowPlayingFlowBackground
 import com.ella.music.ui.components.updateEllaDynamicShortcuts
 import com.ella.music.ui.navigation.AppNavigation
 import com.ella.music.ui.navigation.EXTRA_SHORTCUT_ROUTE
@@ -89,6 +91,7 @@ import com.ella.music.ui.navigation.SHORTCUT_ACTION_PLAY
 import com.ella.music.ui.navigation.SHORTCUT_ACTION_SHUFFLE_ALL
 import com.ella.music.player.DesktopLyricService
 import com.ella.music.ui.player.PlayerScreen
+import com.ella.music.ui.player.AppNowPlayingFlowBackground
 import com.ella.music.ui.settings.BackupType
 import com.ella.music.ui.settings.WebDavCloudRestoreCoordinator
 import com.ella.music.ui.settings.availableBackupTypes
@@ -146,6 +149,7 @@ fun EllaApp(
                 appWallpaperOpacity = settingsManager.appWallpaperOpacity.first(),
                 appWallpaperDim = settingsManager.appWallpaperDim.first(),
                 appWallpaperContentOverlay = settingsManager.appWallpaperContentOverlay.first(),
+                appNowPlayingFlowBackground = settingsManager.appNowPlayingFlowBackground.first(),
                 startupPosterEnabled = settingsManager.startupPosterEnabled.first(),
                 startupPosterUri = settingsManager.startupPosterUri.first(),
                 startupPosterDurationMs = settingsManager.startupPosterDurationMs.first(),
@@ -337,6 +341,21 @@ fun EllaApp(
 
     LaunchedEffect(currentProcessingIntent.value) {
         val activity = context as? Activity
+        val processingIntent = currentProcessingIntent.value
+        if (
+            processingIntent?.action == MainActivity.ACTION_MEDIA_NOTIFICATION_CLICK &&
+            processingIntent.getBooleanExtra(MainActivity.EXTRA_OPEN_PLAYER_FROM_NOTIFICATION, false)
+        ) {
+            val currentSong = playerViewModel.currentSong.value ?: withTimeoutOrNull(2_000L) {
+                playerViewModel.currentSong.first { it != null }
+            }
+            if (currentSong != null) {
+                playerDismissProgress = 0f
+                snapPlayerOverlay = false
+                playerOverlayOpenToken++
+                showPlayerOverlay = true
+            }
+        }
         val shortcutAction = currentProcessingIntent.value?.resolveShortcutAction().orEmpty()
         when (shortcutAction) {
             SHORTCUT_ACTION_PLAY -> {
@@ -397,6 +416,10 @@ fun EllaApp(
         }
         currentProcessingIntent.value?.removeExtra(EXTRA_SHORTCUT_ACTION)
         currentProcessingIntent.value?.removeExtra(EXTRA_SHORTCUT_ROUTE)
+        currentProcessingIntent.value?.removeExtra(MainActivity.EXTRA_OPEN_PLAYER_FROM_NOTIFICATION)
+        if (currentProcessingIntent.value?.action == MainActivity.ACTION_MEDIA_NOTIFICATION_CLICK) {
+            currentProcessingIntent.value?.action = null
+        }
         currentProcessingIntent.value?.setData(null)
     }
 
@@ -564,6 +587,9 @@ fun EllaApp(
     val appWallpaperContentOverlay by settingsManager.appWallpaperContentOverlay.collectAsState(
         initial = initialUiSettings.appWallpaperContentOverlay
     )
+    val appNowPlayingFlowBackground by settingsManager.appNowPlayingFlowBackground.collectAsState(
+        initial = initialUiSettings.appNowPlayingFlowBackground
+    )
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = initialUiSettings.startupPosterEnabled)
     val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = initialUiSettings.startupPosterUri)
     val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
@@ -667,6 +693,11 @@ fun EllaApp(
     val currentTabRoute = currentRoute.toCurrentTabRoute()
 
     val wallpaperVisible = appWallpaperEnabled && appWallpaperUri.isNotBlank()
+    val nowPlayingFlowVisible = !wallpaperVisible &&
+        appNowPlayingFlowBackground &&
+        currentSong != null &&
+        supportsNowPlayingFlowBackground(navBackStackEntry?.destination?.route)
+    val sharedAppBackgroundVisible = wallpaperVisible || nowPlayingFlowVisible
     val startupPosterVisible = startupPosterEnabled && startupPosterUri.isNotBlank() && showStartupPoster
     LaunchedEffect(startupPosterVisible, notificationPermissionPromptHandled) {
         if (startupPosterVisible) return@LaunchedEffect
@@ -680,7 +711,7 @@ fun EllaApp(
     }
     val contentModifier = Modifier
         .fillMaxSize()
-        .then(if (wallpaperVisible) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
+        .then(if (sharedAppBackgroundVisible) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -718,7 +749,8 @@ fun EllaApp(
                     }
                     navController.navigate(route)
                 },
-                LocalLibrarySearchDockState provides librarySearchDockState
+                LocalLibrarySearchDockState provides librarySearchDockState,
+                LocalSharedAppBackgroundVisible provides sharedAppBackgroundVisible
             ) {
             Box(
                 modifier = Modifier
@@ -753,6 +785,28 @@ fun EllaApp(
                                     )
                                 )
                             )
+                    )
+                }
+                val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
+                val contentOverlayColor = if (isDarkTheme) {
+                    ComposeColor.Black.copy(alpha = (contentOverlayAlpha * 0.82f).coerceAtMost(0.70f))
+                } else {
+                    ComposeColor.White.copy(alpha = (contentOverlayAlpha * 0.95f).coerceAtMost(0.78f))
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(contentOverlayColor)
+                )
+            } else if (nowPlayingFlowVisible) {
+                currentSong?.let { song ->
+                    AppNowPlayingFlowBackground(
+                        song = song,
+                        mainViewModel = mainViewModel,
+                        currentPositionMs = currentPosition,
+                        isPlaying = isPlaying,
+                        light = !isDarkTheme,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
                 val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
@@ -1061,6 +1115,7 @@ private data class EllaInitialUiSettings(
     val appWallpaperOpacity: Int,
     val appWallpaperDim: Int,
     val appWallpaperContentOverlay: Int,
+    val appNowPlayingFlowBackground: Boolean,
     val startupPosterEnabled: Boolean,
     val startupPosterUri: String,
     val startupPosterDurationMs: Int,

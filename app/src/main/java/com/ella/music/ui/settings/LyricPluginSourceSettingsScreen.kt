@@ -156,7 +156,15 @@ fun LyricPluginSourceSettingsScreen(
                         sources.forEach { source ->
                             val manifest = source.manifest
                             val summary = buildString {
-                                append(context.getString(R.string.settings_lyric_plugin_source_imported))
+                                append(
+                                    context.getString(
+                                        if (source.bundled) {
+                                            R.string.settings_lyric_font_source_builtin
+                                        } else {
+                                            R.string.settings_lyric_plugin_source_imported
+                                        }
+                                    )
+                                )
                                 append(" · ")
                                 append(manifest.description.ifBlank { manifest.id })
                                 if (manifest.versionName.isNotBlank()) append(" · v${manifest.versionName}")
@@ -196,13 +204,15 @@ fun LyricPluginSourceSettingsScreen(
                                         }
                                         Spacer(modifier = Modifier.width(4.dp))
                                     }
-                                    IconButton(onClick = { pendingDelete = source }) {
-                                        Icon(
-                                            imageVector = MiuixIcons.Regular.Delete,
-                                            contentDescription = stringResource(R.string.common_delete),
-                                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
+                                    if (!source.bundled) {
+                                        IconButton(onClick = { pendingDelete = source }) {
+                                            Icon(
+                                                imageVector = MiuixIcons.Regular.Delete,
+                                                contentDescription = stringResource(R.string.common_delete),
+                                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Switch(checked = checked, onCheckedChange = onToggle)

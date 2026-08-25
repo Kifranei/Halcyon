@@ -63,10 +63,14 @@ internal fun Song.playbackUri(): Uri {
     return if (path.startsWith("/")) Uri.fromFile(File(path)) else path.toUri()
 }
 
-internal fun Song.artworkUriForMediaCenter(): Uri? {
-    coverUrl.takeIf { it.isNotBlank() }?.let { return it.toUri() }
-    if (albumId > 0L) {
-        return Uri.parse("content://media/external/audio/albumart/$albumId")
+internal fun Song.artworkUriForMediaCenter(includeAlbumFallback: Boolean = true): Uri? {
+    return artworkUriStringForMediaCenter(includeAlbumFallback)?.toUri()
+}
+
+internal fun Song.artworkUriStringForMediaCenter(includeAlbumFallback: Boolean = true): String? {
+    coverUrl.takeIf { it.isNotBlank() }?.let { return it }
+    if (includeAlbumFallback && albumId > 0L) {
+        return "content://media/external/audio/albumart/$albumId"
     }
     return null
 }

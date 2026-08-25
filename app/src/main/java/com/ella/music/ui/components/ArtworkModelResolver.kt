@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 
 enum class ArtworkUsage {
     ListThumbnail,
+    LibraryGrid,
     ArtistImage,
     MiniPlayer
 }
@@ -62,6 +63,9 @@ fun rememberSongArtworkState(
         loadCoverArt != null &&
         when (usage) {
             ArtworkUsage.ListThumbnail -> true
+            // Library grid cards are much larger than list thumbnails and must resolve through
+            // their own high-resolution loader/cache entry instead of upscaling the 128 px model.
+            ArtworkUsage.LibraryGrid -> true
             // Artist/album detail headers need the song's embedded cover even when MediaStore
             // exposes an album-art URI.  Several providers return no artwork for mp3/ogg there.
             ArtworkUsage.ArtistImage -> true
@@ -73,8 +77,11 @@ fun rememberSongArtworkState(
         cacheKey?.let(ArtworkModelMemoryCache::get)
     }
     val resolutionGeneration by artworkResolutionGeneration.collectAsState()
+    // Song-specific surfaces must not flash a different track's album-level artwork while the
+    // embedded picture is being extracted.  Use the shared album URI only after that lookup has
+    // completed and confirmed that this song has no readable cover of its own.
     val initialModel = cachedModel ?: when {
-        usage == ArtworkUsage.ListThumbnail && shouldTryEmbedded -> coverUrl
+        shouldTryEmbedded -> coverUrl
         else -> coverUrl ?: albumArtUri
     }
 
@@ -107,6 +114,7 @@ fun rememberSongArtworkState(
             }
             val resolved = coverUrl ?: when {
                 usage == ArtworkUsage.ListThumbnail -> embeddedCover
+                usage == ArtworkUsage.LibraryGrid -> embeddedCover ?: albumArtUri
                 usage == ArtworkUsage.ArtistImage -> embeddedCover ?: albumArtUri
                 preferEmbedded -> embeddedCover ?: albumArtUri
                 // Prefer the individual track artwork for playback surfaces, then fall back to

@@ -372,6 +372,8 @@
     <string name="settings_cover_export_folder_cleared">已恢复默认封面保存目录</string>
     <string name="settings_open_player_on_play">播放后进入播放页</string>
     <string name="settings_open_player_on_play_summary">本地、WebDAV 和在线歌曲点播放后自动打开播放界面</string>
+    <string name="settings_open_player_from_notification">点击媒体通知进入播放页</string>
+    <string name="settings_open_player_from_notification_summary">开启后，点击通知栏或锁屏的媒体卡片会直接打开当前播放页</string>
     <string name="settings_mini_player_swipe_to_open_player">迷你播放条上滑打开播放页</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">关闭后滚动列表时不会误触打开播放页</string>
     <string name="settings_mini_player_long_press_source">长按迷你播放条前往播放来源</string>
@@ -504,7 +506,7 @@
     <string name="home_play_daily_mix">播放每日精选</string>
     <string name="home_ai_section">AI</string>
     <string name="home_ai_playlist">AI 播放助手</string>
-    <string name="home_ai_playlist_summary">只允许调用本地歌曲播放，不会删除或修改歌曲；当前曲库 %1$d 首</string>
+    <string name="home_ai_playlist_summary">让 Ella 帮你选歌，当前曲库 %1$d 首</string>
     <string name="home_ai_playlist_loading">正在读取 AI 配置并生成歌单…</string>
     <string name="home_ai_playlist_play">生成并播放 AI 推荐歌单</string>
     <string name="home_ai_chat_open">打开 AI 对话</string>
@@ -738,6 +740,10 @@
     <string name="equalizer_reverb_church">教堂</string>
     <string name="equalizer_reverb_plate">板式</string>
     <string name="equalizer_reset">重置</string>
+    <string name="equalizer_section_master_gain">总增益</string>
+    <string name="equalizer_master_gain">总增益</string>
+    <string name="equalizer_master_gain_summary">独立于均衡器曲线，在全部软件音效之后统一调整音量</string>
+    <string name="equalizer_master_gain_warning">独立于均衡器曲线，应用在全部软件音效之后；正增益可能触发峰值限制，关闭峰值限制时可能产生削波失真</string>
     <string name="equalizer_section_parametric">参数均衡</string>
     <string name="equalizer_eq_q">频带 Q（带宽）</string>
     <string name="equalizer_section_tone">音色</string>
@@ -1018,7 +1024,7 @@
     <string name="settings_backup_type_personalization">个性化设置</string>
     <string name="settings_backup_type_personalization_summary">主题、歌词显示、播放器行为和其它偏好设置</string>
     <string name="settings_backup_type_library_scan">音乐库与扫描设置</string>
-    <string name="settings_backup_type_library_scan_summary">扫描目录、标签解析、排序和音乐库展示相关设置</string>
+    <string name="settings_backup_type_library_scan_summary">扫描目录、标签解析、排序、音乐库展示以及艺术家和专辑等置顶设置</string>
     <string name="settings_backup_type_ai_config_chat">AI配置及对话</string>
     <string name="settings_backup_type_ai_config_chat_summary">AI 接口配置和对话记录</string>
     <string name="settings_backup_type_playback_stats">听歌统计</string>
@@ -1252,6 +1258,8 @@
     <string name="settings_startup_poster_image">选择开屏海报图片</string>
     <string name="settings_app_wallpaper">全局自定义壁纸</string>
     <string name="settings_app_wallpaper_summary">在音乐库、专辑、歌单、文件夹等页面背后显示自定义壁纸</string>
+    <string name="settings_app_now_playing_flow_background">浏览页跟随当前歌曲流光</string>
+    <string name="settings_app_now_playing_flow_background_summary">在首页、音乐库及各列表页复用播放页的流光样式与速度；默认关闭，自定义壁纸优先</string>
     <string name="settings_app_wallpaper_image">选择壁纸图片</string>
     <string name="settings_wallpaper_opacity">全局壁纸透明度</string>
     <string name="settings_wallpaper_opacity_summary">调节全局自定义壁纸本身的显示强度</string>
@@ -1268,6 +1276,8 @@
     <string name="settings_player_background_dim_summary">在播放页自定义背景上叠加暗色遮罩</string>
     <string name="settings_player_dynamic_flow">动态效果</string>
     <string name="settings_player_dynamic_flow_summary">开启为持续流光，关闭后保留 Apple Music 背景样式但不再流动</string>
+    <string name="settings_apple_flow_speed">Apple Music 流光速度</string>
+    <string name="settings_apple_flow_speed_summary">数值越大，封面流光动画越明显</string>
     <string name="settings_beautiful_lyrics_background">播放与歌词页背景</string>
     <string name="settings_beautiful_lyrics_background_summary">Apple Music 低功耗；Beautiful Lyrics 取色更鲜艳</string>
     <string name="settings_beautiful_lyrics_background_static">Apple Music</string>
@@ -2433,4 +2443,15 @@
     <string name="settings_lyric_touch_feedback_summary">按下或点击歌词时显示从触点扩散的泛光反馈</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">桌面歌词同步封面内容色</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">使用“播放页－封面内容色”相同的封面取色逻辑</string>
+    <string name="settings_player_mini_lyrics">播放页迷你歌词</string>
+    <string name="settings_player_mini_lyrics_summary">独立调整封面下方迷你歌词的缩放、字号、间距与对齐</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">以 1% 精度调整迷你歌词整体缩放（50%–150%）</string>
+    <string name="settings_player_mini_lyrics_line_spacing">迷你歌词行间距</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">仅影响播放页封面下方的迷你歌词</string>
+    <string name="settings_lyric_pause_current_only">暂停时仅高亮当前歌词</string>
+    <string name="settings_lyric_pause_current_only_summary">关闭后，暂停播放时会高亮显示全部歌词</string>
+    <string name="settings_immersive_lyric_swipe">沉浸模式歌词区域横滑切歌</string>
+    <string name="settings_immersive_lyric_swipe_summary">在下方歌词区域左右横滑切换上一首或下一首</string>
+    <string name="library_layout_grid">网格排列</string>
+    <string name="library_layout_list">列表排列</string>
 </resources>

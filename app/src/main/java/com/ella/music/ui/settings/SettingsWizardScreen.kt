@@ -25,7 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +77,8 @@ fun SettingsWizardScreen(
     )
     val selectedPlayerPageStyle = playerPageStyleOptions.indexOfFirst { it.first == playerPageStyle }
         .takeIf { it >= 0 } ?: 0
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val heroColor = MiuixTheme.colorScheme.onBackground
 
     fun completeWizard() {
         scope.launch { settingsManager.setSetupWizardCompleted(true) }
@@ -87,7 +89,7 @@ fun SettingsWizardScreen(
         dynamicBackground = true,
         modifier = Modifier.fillMaxSize(),
         effectBackground = true,
-        isDarkTheme = true
+        isDarkTheme = isDark
     ) {
         Column(
             modifier = Modifier
@@ -103,13 +105,13 @@ fun SettingsWizardScreen(
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
                         contentDescription = stringResource(R.string.common_back),
-                        tint = Color.White,
+                        tint = heroColor,
                         modifier = Modifier.size(24.dp)
                     )
                 }
                 Text(
                     text = stringResource(R.string.settings_setup_wizard_skip),
-                    color = Color.White.copy(alpha = 0.88f),
+                    color = heroColor.copy(alpha = 0.88f),
                     fontSize = 15.sp,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -128,12 +130,12 @@ fun SettingsWizardScreen(
                     text = stringResource(R.string.settings_setup_wizard),
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = heroColor
                 )
                 Text(
                     text = stringResource(R.string.settings_setup_wizard_step, step + 1, lastStep + 1),
                     fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.72f),
+                    color = heroColor.copy(alpha = 0.72f),
                     modifier = Modifier.padding(top = 8.dp, bottom = 20.dp)
                 )
             when (step) {

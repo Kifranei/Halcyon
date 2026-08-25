@@ -68,6 +68,8 @@ fun EqualizerScreen(
     val eqEnabled by settingsManager.eqEnabled.collectAsState(initial = false)
     val eqPreset by settingsManager.eqPreset.collectAsState(initial = AudioEffectSettings.PRESET_CUSTOM)
     val bandLevels by settingsManager.eqBandLevelsMb.collectAsState(initial = emptyList())
+    val masterGainEnabled by settingsManager.masterGainEnabled.collectAsState(initial = false)
+    val masterGainTenthsDb by settingsManager.masterGainTenthsDb.collectAsState(initial = 0)
     val eqQ by settingsManager.eqQ.collectAsState(initial = AudioEffectSettings.EQ_Q_DEFAULT)
     val toneBassDb by settingsManager.toneBassDb.collectAsState(initial = 0)
     val toneTrebleDb by settingsManager.toneTrebleDb.collectAsState(initial = 0)
@@ -252,6 +254,39 @@ fun EqualizerScreen(
                             }
                         }
                 )
+
+                SmallTitle(text = stringResource(R.string.equalizer_section_master_gain))
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = stringResource(R.string.equalizer_master_gain),
+                            summary = stringResource(R.string.equalizer_master_gain_summary),
+                            checked = masterGainEnabled,
+                            onCheckedChange = { scope.launch { settingsManager.setMasterGainEnabled(it) } }
+                        )
+                        if (masterGainEnabled) {
+                            EqControlSlider(
+                                title = stringResource(R.string.equalizer_master_gain),
+                                valueText = String.format(Locale.ROOT, "%+.1f dB", masterGainTenthsDb / 10f),
+                                value = masterGainTenthsDb,
+                                range = AudioEffectSettings.MASTER_GAIN_MIN_TENTHS_DB..AudioEffectSettings.MASTER_GAIN_MAX_TENTHS_DB,
+                                onChange = { scope.launch { settingsManager.setMasterGainTenthsDb(it) } }
+                            )
+                            Text(
+                                text = stringResource(R.string.equalizer_master_gain_warning),
+                                fontSize = 13.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+                SectionResetLink(accent) {
+                    scope.launch {
+                        settingsManager.setMasterGainEnabled(false)
+                        settingsManager.setMasterGainTenthsDb(0)
+                    }
+                }
 
                 SmallTitle(text = stringResource(R.string.equalizer_section_parametric))
                 SettingsCardGroup {

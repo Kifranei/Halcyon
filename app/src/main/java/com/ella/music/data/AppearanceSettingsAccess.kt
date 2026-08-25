@@ -38,6 +38,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_DIM
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_URI
+import com.ella.music.data.SettingsManager.Companion.KEY_APP_NOW_PLAYING_FLOW_BACKGROUND
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_COVER_CAROUSEL
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_COVER_FOLDER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_GLASS_EFFECT
@@ -104,6 +105,7 @@ interface AppearanceSettingsAccess {
     val appWallpaperOpacity: Flow<Int>
     val appWallpaperDim: Flow<Int>
     val appWallpaperContentOverlay: Flow<Int>
+    val appNowPlayingFlowBackground: Flow<Boolean>
     val homeCardColor: Flow<String>
     val homeCardOpacity: Flow<Int>
     val homeTileColors: Flow<String>
@@ -146,6 +148,7 @@ interface AppearanceSettingsAccess {
     suspend fun setAppWallpaperOpacity(opacity: Int)
     suspend fun setAppWallpaperDim(dim: Int)
     suspend fun setAppWallpaperContentOverlay(strength: Int)
+    suspend fun setAppNowPlayingFlowBackground(enabled: Boolean)
     suspend fun setHomeCardColor(color: String)
     suspend fun setHomeCardOpacity(opacity: Int)
     suspend fun setHomeTileColor(tileId: String, color: String)
@@ -237,6 +240,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         context.dataStore.data.map { it[KEY_APP_WALLPAPER_DIM]?.coerceIn(0, 80) ?: 30 }
     override val appWallpaperContentOverlay: Flow<Int> =
         context.dataStore.data.map { it[KEY_APP_WALLPAPER_CONTENT_OVERLAY]?.coerceIn(0, 80) ?: 24 }
+    override val appNowPlayingFlowBackground: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_APP_NOW_PLAYING_FLOW_BACKGROUND] ?: true }
 
     override val homeCardColor: Flow<String> =
         context.dataStore.data.map { it[KEY_HOME_CARD_COLOR] ?: "" }
@@ -409,6 +414,10 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setAppWallpaperContentOverlay(strength: Int) {
         context.dataStore.edit { it[KEY_APP_WALLPAPER_CONTENT_OVERLAY] = strength.coerceIn(0, 80) }
+    }
+
+    override suspend fun setAppNowPlayingFlowBackground(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APP_NOW_PLAYING_FLOW_BACKGROUND] = enabled }
     }
 
     override suspend fun setHomeCardColor(color: String) {

@@ -23,7 +23,9 @@ import java.security.spec.X509EncodedKeySpec;
 import java.net.URLDecoder;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -135,7 +137,7 @@ public final class LxUserApiRuntime implements AutoCloseable {
                         .put("action", "musicUrl")
                         .put("info", new JSONObject()
                                 .put("type", quality)
-                                .put("musicInfo", buildMusicInfo(item.getSong(), item.getSource(), item.getSongmid(), quality))));
+                                .put("musicInfo", buildMusicInfo(item, quality))));
 
         callJs("request", request.toString());
         waitFor(() -> requestResponse != null || lastError != null, 25_000L);
@@ -154,19 +156,42 @@ public final class LxUserApiRuntime implements AutoCloseable {
         return url;
     }
 
-    private JSONObject buildMusicInfo(Song song, String source, String songmid, String quality) throws Exception {
+    private JSONObject buildMusicInfo(LxOnlineSong item, String quality) throws Exception {
+        Song song = item.getSong();
+        String source = item.getSource();
+        String songmid = item.getSongmid();
+        Map<String, String> sourceMetadata = item.getSourceMetadata();
+        List<LxOnlineQuality> availableQualities = item.getQualities();
+        JSONArray qualitys = new JSONArray();
+        JSONObject qualityMap = new JSONObject();
+        if (availableQualities.isEmpty()) {
+            availableQualities = java.util.Collections.singletonList(new LxOnlineQuality(quality, ""));
+        }
+        for (LxOnlineQuality availableQuality : availableQualities) {
+            JSONObject qualityInfo = new JSONObject()
+                    .put("type", availableQuality.getType())
+                    .put("size", JSONObject.NULL);
+            JSONObject qualityMapInfo = new JSONObject().put("size", JSONObject.NULL);
+            if (!availableQuality.getHash().isEmpty()) {
+                qualityInfo.put("hash", availableQuality.getHash());
+                qualityMapInfo.put("hash", availableQuality.getHash());
+            }
+            qualitys.put(qualityInfo);
+            qualityMap.put(availableQuality.getType(), qualityMapInfo);
+        }
+
+        String metadataSongId = source.equals("mg")
+                ? sourceMetadata.getOrDefault("copyrightId", songmid)
+                : songmid;
         String interval = formatDuration(song.getDuration());
-        JSONObject qualityInfo = new JSONObject().put("type", quality).put("size", JSONObject.NULL);
-        JSONArray qualitys = new JSONArray().put(qualityInfo);
-        JSONObject qualityMap = new JSONObject().put(quality, new JSONObject().put("size", JSONObject.NULL));
         JSONObject meta = new JSONObject()
-                .put("songId", songmid)
+                .put("songId", metadataSongId)
                 .put("albumName", song.getAlbum())
                 .put("picUrl", song.getCoverUrl().isEmpty() ? JSONObject.NULL : song.getCoverUrl())
                 .put("qualitys", qualitys)
                 .put("_qualitys", qualityMap);
 
-        return new JSONObject()
+        JSONObject musicInfo = new JSONObject()
                 .put("id", source + "_" + songmid)
                 .put("name", song.getTitle())
                 .put("singer", song.getArtist())
@@ -178,6 +203,14 @@ public final class LxUserApiRuntime implements AutoCloseable {
                 .put("_types", qualityMap)
                 .put("typeUrl", new JSONObject())
                 .put("meta", meta);
+
+        for (Map.Entry<String, String> entry : sourceMetadata.entrySet()) {
+            if (entry.getValue() == null || entry.getValue().isEmpty()) continue;
+            musicInfo.put(entry.getKey(), entry.getValue());
+            meta.put(entry.getKey(), entry.getValue());
+        }
+
+        return musicInfo;
     }
 
     private String formatDuration(long durationMs) {

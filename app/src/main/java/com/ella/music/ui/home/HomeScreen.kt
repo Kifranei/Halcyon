@@ -3,9 +3,16 @@ package com.ella.music.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.rounded.GridView
 import android.widget.Toast
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +20,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,11 +46,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
@@ -64,6 +77,11 @@ import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.SongItem
+import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.DefaultAlbumCover
+import com.ella.music.ui.components.SelectionCheck
+import com.ella.music.ui.components.ArtworkUsage
+import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SongSelectionActionRow
 import com.ella.music.ui.components.ShuffleAllSummaryButton
@@ -97,6 +115,7 @@ import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Job
 
@@ -131,6 +150,7 @@ fun LibraryScreen(
     val searchClickPlaybackMode by settingsManager.searchClickPlaybackMode.collectAsState(
         initial = SettingsManager.DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
     )
+    val librarySongGrid by settingsManager.librarySongGrid.collectAsState(initial = false)
     val pageBackground = ellaPageBackground()
     val wallpaperVisible = isAppWallpaperVisible()
     val libraryPageBackground = pageBackground
@@ -491,6 +511,7 @@ fun LibraryScreen(
             val listState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
                 androidx.compose.foundation.lazy.LazyListState()
             }
+            var pendingLayoutAnchor by remember { mutableStateOf<LibraryLayoutAnchor?>(null) }
             RestoreListScrollAfterSearch(
                 searchExpanded = searchExpanded,
                 query = searchQuery,
@@ -503,12 +524,17 @@ fun LibraryScreen(
                 currentSongKey ?: return@remember -1
                 sortedSongs.indexOfFirst { it.playlistIdentityKey() == currentSongKey }
             }
-            val showLocateCurrentSongButton by remember(currentSongIndex, selection.selectionMode) {
+            val currentVisibleItemIndex = if (librarySongGrid && currentSongIndex >= 0) {
+                currentSongIndex / 2
+            } else {
+                currentSongIndex
+            }
+            val showLocateCurrentSongButton by remember(currentVisibleItemIndex, selection.selectionMode, librarySongGrid) {
                 derivedStateOf {
-                    if (selection.selectionMode || currentSongIndex < 0) return@derivedStateOf false
+                    if (selection.selectionMode || currentVisibleItemIndex < 0) return@derivedStateOf false
                     val visibleIndexes = listState.layoutInfo.visibleItemsInfo.map { it.index }
                     if (visibleIndexes.isEmpty()) return@derivedStateOf false
-                    visibleIndexes.none { kotlin.math.abs(it - currentSongIndex) <= 2 }
+                    visibleIndexes.none { kotlin.math.abs(it - currentVisibleItemIndex) <= 2 }
                 }
             }
 
@@ -522,18 +548,37 @@ fun LibraryScreen(
                     return@LaunchedEffect
                 }
                 handledLocateRequest = locateCurrentSongRequest
-                listState.animateScrollToItem(currentSongIndex)
+                listState.animateScrollToItem(currentVisibleItemIndex)
             }
 
             LaunchedEffect(scrollToTopRequest) {
                 if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
             }
 
+            LaunchedEffect(librarySongGrid, pendingLayoutAnchor, sortedSongs.size) {
+                val anchor = pendingLayoutAnchor ?: return@LaunchedEffect
+                if (anchor.targetGrid != librarySongGrid || sortedSongs.isEmpty()) {
+                    return@LaunchedEffect
+                }
+                val lastItemIndex = if (librarySongGrid) {
+                    (sortedSongs.lastIndex / LIBRARY_GRID_COLUMN_COUNT).coerceAtLeast(0)
+                } else {
+                    sortedSongs.lastIndex
+                }
+                listState.scrollToItem(
+                    libraryLayoutItemIndexForSong(
+                        songIndex = anchor.songIndex,
+                        grid = librarySongGrid
+                    ).coerceIn(0, lastItemIndex)
+                )
+                pendingLayoutAnchor = null
+            }
+
             // Compute the per-song index letter once and reuse it for both the bar labels and the
             // scroll targets. Building this inline on every recomposition was O(n) main-thread work
             // that scaled badly for large libraries (1k–10k+ songs).
             val showFastIndexBar = sortMode.sortField() in setOf(HomeSortField.Title, HomeSortField.FileName) && sortedSongs.size > 30
-            val fastIndexData = remember(showFastIndexBar, sortedSongs, sortKeysBySongId) {
+            val fastIndexData = remember(showFastIndexBar, sortedSongs, sortKeysBySongId, librarySongGrid) {
                 if (!showFastIndexBar) {
                     FastIndexData.Empty
                 } else {
@@ -544,7 +589,7 @@ fun LibraryScreen(
                         } else {
                             sortKeysBySongId[song.id]
                         }
-                        targets.putIfAbsent(song.indexLetter(indexKey), index)
+                        targets.putIfAbsent(song.indexLetter(indexKey), if (librarySongGrid) index / 2 else index)
                     }
                     FastIndexData(
                         letters = targets.keys.toList(),
@@ -597,6 +642,39 @@ fun LibraryScreen(
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 )
+                            },
+                            trailingContent = {
+                                IconButton(
+                                    onClick = {
+                                        val targetGrid = !librarySongGrid
+                                        pendingLayoutAnchor = LibraryLayoutAnchor(
+                                            songIndex = libraryLayoutAnchorSongIndex(
+                                                firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                                                grid = librarySongGrid
+                                            ).coerceIn(0, sortedSongs.lastIndex),
+                                            targetGrid = targetGrid
+                                        )
+                                        scope.launch { settingsManager.setLibrarySongGrid(targetGrid) }
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (librarySongGrid) {
+                                            Icons.AutoMirrored.Rounded.ViewList
+                                        } else {
+                                            Icons.Rounded.GridView
+                                        },
+                                        contentDescription = stringResource(
+                                            if (librarySongGrid) {
+                                                R.string.library_layout_list
+                                            } else {
+                                                R.string.library_layout_grid
+                                            }
+                                        ),
+                                        tint = MiuixTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         )
                     }
@@ -620,7 +698,72 @@ fun LibraryScreen(
                         state = listState,
                         contentPadding = PaddingValues(end = listEndInset, bottom = 160.dp)
                     ) {
-                        itemsIndexed(
+                        if (librarySongGrid) {
+                            itemsIndexed(
+                                items = sortedSongs.chunked(LIBRARY_GRID_COLUMN_COUNT),
+                                key = { _, row -> row.first().playlistIdentityKey() }
+                            ) { rowIndex, rowSongs ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp)
+                                ) {
+                                    rowSongs.forEachIndexed { columnIndex, song ->
+                                        val index = rowIndex * LIBRARY_GRID_COLUMN_COUNT + columnIndex
+                                        val selected = song.id in selection.selectedIds
+                                        val albumArtUri = remember(listCoversEnabled, song.albumId) {
+                                            song.albumId
+                                                .takeIf { listCoversEnabled && it > 0L }
+                                                ?.let(mainViewModel::getAlbumArtUri)
+                                        }
+                                        LibrarySongGridCard(
+                                            song = song,
+                                            title = sortMode.songDisplaySpec().displayTitleFor(song),
+                                            albumArtUri = albumArtUri,
+                                            loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
+                                            current = song.playlistIdentityKey() == currentSongKey,
+                                            selectionMode = selection.selectionMode,
+                                            selected = selected,
+                                            onLongClick = {
+                                                selection.selectionMode = true
+                                                if (song.id !in selection.selectedIds) {
+                                                    selection.selectedIds = selection.selectedIds + song.id
+                                                    selection.updateRangeAnchorsForManualSelection(song.id, selectedNow = true)
+                                                }
+                                            },
+                                            onClick = {
+                                                if (selection.selectionMode) {
+                                                    selection.toggleSelection(song.id)
+                                                } else {
+                                                    val playback = searchPlaybackSelection(
+                                                        resultSongs = sortedSongs,
+                                                        selectedIndex = index,
+                                                        excludeResultsFromPlaylist =
+                                                            searchQuery.isNotBlank() && excludeSearchResultsFromPlaylist,
+                                                        playbackMode = if (searchQuery.isNotBlank()) {
+                                                            searchClickPlaybackMode
+                                                        } else {
+                                                            SettingsManager.SEARCH_CLICK_REPLACE
+                                                        },
+                                                        currentQueue = playerViewModel.playlist.value,
+                                                        currentSong = currentSong
+                                                    )
+                                                    playerViewModel.setPlaylist(
+                                                        playback.songs,
+                                                        playback.startIndex,
+                                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
+                                                    )
+                                                    if (openPlayerOnPlay) onNavigateToPlayer()
+                                                }
+                                            },
+                                            onMore = { actionSong = song },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    if (rowSongs.size == 1) Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        } else itemsIndexed(
                             items = sortedSongs,
                             key = { _, song -> song.playlistIdentityKey() }
                         ) { index, song ->
@@ -881,6 +1024,104 @@ fun LibraryScreen(
     }
 }
 
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun LibrarySongGridCard(
+    song: Song,
+    title: String,
+    albumArtUri: Uri?,
+    loadCoverArt: (Song) -> Bitmap?,
+    current: Boolean,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onMore: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val coverState = rememberSongArtworkState(
+        song = song,
+        albumArtUri = albumArtUri,
+        loadCoverArt = loadCoverArt,
+        usage = ArtworkUsage.LibraryGrid,
+        showDefaultWhenMissing = false
+    )
+    Column(
+        modifier = modifier
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                .background(
+                    if (current) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+                    else MiuixTheme.colorScheme.surfaceContainer
+                )
+        ) {
+            if (coverState.model != null) {
+                SafeCoverImage(
+                    model = coverState.model,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    sizePx = 420,
+                    showDefaultPlaceholder = false,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                DefaultAlbumCover(modifier = Modifier.fillMaxSize())
+            }
+            if (selectionMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.36f)
+                            else Color.Black.copy(alpha = 0.14f)
+                        )
+                )
+                SelectionCheck(
+                    selected = selected,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                    unselectedColor = Color.White.copy(alpha = 0.30f),
+                    checkColor = Color.White
+                )
+            }
+            if (!selectionMode) {
+                IconButton(
+                    onClick = onMore,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.More,
+                        contentDescription = stringResource(R.string.player_more_actions),
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+        Text(
+            text = title,
+            fontSize = 15.sp,
+            color = if (current) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 7.dp, start = 2.dp, end = 2.dp)
+        )
+        Text(
+            text = song.artist.ifBlank { stringResource(R.string.player_unknown_artist) },
+            fontSize = 12.sp,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 2.dp)
+        )
+    }
+}
+
 private data class FastIndexData(
     val letters: List<String>,
     val targets: Map<String, Int>
@@ -889,3 +1130,18 @@ private data class FastIndexData(
         val Empty = FastIndexData(emptyList(), emptyMap())
     }
 }
+
+private const val LIBRARY_GRID_COLUMN_COUNT = 2
+
+private data class LibraryLayoutAnchor(
+    val songIndex: Int,
+    val targetGrid: Boolean
+)
+
+internal fun libraryLayoutAnchorSongIndex(firstVisibleItemIndex: Int, grid: Boolean): Int =
+    if (grid) firstVisibleItemIndex.coerceAtLeast(0) * LIBRARY_GRID_COLUMN_COUNT
+    else firstVisibleItemIndex.coerceAtLeast(0)
+
+internal fun libraryLayoutItemIndexForSong(songIndex: Int, grid: Boolean): Int =
+    if (grid) songIndex.coerceAtLeast(0) / LIBRARY_GRID_COLUMN_COUNT
+    else songIndex.coerceAtLeast(0)

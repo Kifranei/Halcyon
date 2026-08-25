@@ -46,6 +46,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_LONG_PRESS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PREDICTIVE_BACK_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_NON_CURRENT_BLUR_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_DYNAMIC_FLOW_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_APPLE_FLOW_SPEED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_HDR_GLOW
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_COVER
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_KEEP_SCREEN_ON
@@ -63,6 +64,13 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_LONG_PR
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_SEPARATED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_WORD_SEEK_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_TOUCH_FEEDBACK_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_SCALE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_PRIMARY_SIZE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_LINE_SPACING
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAUSE_CURRENT_ONLY
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_TOTAL_DURATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_TAP_SEEK_ENABLED
@@ -106,6 +114,13 @@ interface PlayerUiSettingsAccess {
     val lyricNonCurrentBlurPercent: Flow<Int>
     val lyricWordSeekEnabled: Flow<Boolean>
     val lyricTouchFeedbackEnabled: Flow<Boolean>
+    val playerMiniLyricScale: Flow<Int>
+    val playerMiniLyricPrimarySize: Flow<Int>
+    val playerMiniLyricSecondarySize: Flow<Int>
+    val playerMiniLyricLineSpacing: Flow<Int>
+    val playerMiniLyricTextAlign: Flow<Int>
+    val lyricPauseCurrentOnly: Flow<Boolean>
+    val playerImmersiveLyricSwipe: Flow<Boolean>
     val playerTitlePosition: Flow<Int>
     val playerPageStyle: Flow<Int>
     val playerLyricsCornerActionsEnabled: Flow<Boolean>
@@ -119,6 +134,7 @@ interface PlayerUiSettingsAccess {
     val systemBarsMode: Flow<Int>
     val systemBarsReserveSpace: Flow<Boolean>
     val playerDynamicFlowEnabled: Flow<Boolean>
+    val playerAppleFlowSpeed: Flow<Int>
     val audioVisualizerEnabled: Flow<Boolean>
     val audioVisualizerOpacity: Flow<Int>
     val audioVisualizerStyle: Flow<Int>
@@ -162,6 +178,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setSystemBarsMode(mode: Int)
     suspend fun setSystemBarsReserveSpace(enabled: Boolean)
     suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean)
+    suspend fun setPlayerAppleFlowSpeed(value: Int)
     suspend fun setAudioVisualizerEnabled(enabled: Boolean)
     suspend fun setAudioVisualizerOpacity(opacity: Int)
     suspend fun setAudioVisualizerStyle(style: Int)
@@ -191,6 +208,13 @@ interface PlayerUiSettingsAccess {
     suspend fun setLyricNonCurrentBlurPercent(percent: Int)
     suspend fun setLyricWordSeekEnabled(enabled: Boolean)
     suspend fun setLyricTouchFeedbackEnabled(enabled: Boolean)
+    suspend fun setPlayerMiniLyricScale(value: Int)
+    suspend fun setPlayerMiniLyricPrimarySize(value: Int)
+    suspend fun setPlayerMiniLyricSecondarySize(value: Int)
+    suspend fun setPlayerMiniLyricLineSpacing(value: Int)
+    suspend fun setPlayerMiniLyricTextAlign(value: Int)
+    suspend fun setLyricPauseCurrentOnly(enabled: Boolean)
+    suspend fun setPlayerImmersiveLyricSwipe(enabled: Boolean)
     suspend fun setPlayerTitlePosition(position: Int)
     suspend fun setPlayerPageStyle(style: Int)
     suspend fun setPlayerLyricsCornerActionsEnabled(enabled: Boolean)
@@ -264,6 +288,20 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_LYRIC_WORD_SEEK_ENABLED] ?: false }
     override val lyricTouchFeedbackEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_TOUCH_FEEDBACK_ENABLED] ?: false }
+    override val playerMiniLyricScale: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_SCALE] ?: 100).coerceIn(50, 150) }
+    override val playerMiniLyricPrimarySize: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_PRIMARY_SIZE] ?: 19).coerceIn(12, 32) }
+    override val playerMiniLyricSecondarySize: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE] ?: 16).coerceIn(10, 28) }
+    override val playerMiniLyricLineSpacing: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_LINE_SPACING] ?: 7).coerceIn(0, 24) }
+    override val playerMiniLyricTextAlign: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN] ?: 0).coerceIn(0, 2) }
+    override val lyricPauseCurrentOnly: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_PAUSE_CURRENT_ONLY] ?: true }
+    override val playerImmersiveLyricSwipe: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE] ?: false }
 
     override val playerTitlePosition: Flow<Int> =
         context.dataStore.data.map {
@@ -304,6 +342,12 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map {
             it[KEY_PLAYER_DYNAMIC_FLOW_ENABLED]
                 ?: SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
+        }
+    override val playerAppleFlowSpeed: Flow<Int> =
+        context.dataStore.data.map {
+            it[KEY_PLAYER_APPLE_FLOW_SPEED]
+                ?.coerceIn(5, 60)
+                ?: SettingsManager.DEFAULT_PLAYER_APPLE_FLOW_SPEED
         }
     override val audioVisualizerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_ENABLED] ?: false }
@@ -459,6 +503,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_DYNAMIC_FLOW_ENABLED] = enabled }
     }
 
+    override suspend fun setPlayerAppleFlowSpeed(value: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_APPLE_FLOW_SPEED] = value.coerceIn(5, 60) }
+    }
+
     override suspend fun setAudioVisualizerEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AUDIO_VISUALIZER_ENABLED] = enabled }
     }
@@ -598,6 +646,34 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setLyricTouchFeedbackEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LYRIC_TOUCH_FEEDBACK_ENABLED] = enabled }
+    }
+
+    override suspend fun setPlayerMiniLyricScale(value: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_MINI_LYRIC_SCALE] = value.coerceIn(50, 150) }
+    }
+
+    override suspend fun setPlayerMiniLyricPrimarySize(value: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_MINI_LYRIC_PRIMARY_SIZE] = value.coerceIn(12, 32) }
+    }
+
+    override suspend fun setPlayerMiniLyricSecondarySize(value: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE] = value.coerceIn(10, 28) }
+    }
+
+    override suspend fun setPlayerMiniLyricLineSpacing(value: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_MINI_LYRIC_LINE_SPACING] = value.coerceIn(0, 24) }
+    }
+
+    override suspend fun setPlayerMiniLyricTextAlign(value: Int) {
+        context.dataStore.edit { it[KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN] = value.coerceIn(0, 2) }
+    }
+
+    override suspend fun setLyricPauseCurrentOnly(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_PAUSE_CURRENT_ONLY] = enabled }
+    }
+
+    override suspend fun setPlayerImmersiveLyricSwipe(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE] = enabled }
     }
 
     override suspend fun setPlayerTitlePosition(position: Int) {

@@ -23,6 +23,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_EQ_PRESET
 import com.ella.music.data.SettingsManager.Companion.KEY_EQ_Q
 import com.ella.music.data.SettingsManager.Companion.KEY_LOUDNESS_BALANCE_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LOUDNESS_PERCENT
+import com.ella.music.data.SettingsManager.Companion.KEY_MASTER_GAIN_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_MASTER_GAIN_TENTHS_DB
 import com.ella.music.data.SettingsManager.Companion.KEY_MONO_BASS_AMOUNT
 import com.ella.music.data.SettingsManager.Companion.KEY_MONO_BASS_CROSSOVER_HZ
 import com.ella.music.data.SettingsManager.Companion.KEY_MONO_BASS_ENABLED
@@ -71,6 +73,8 @@ interface AudioEffectSettingsAccess {
     val eqEnabled: Flow<Boolean>
     val eqPreset: Flow<Int>
     val eqBandLevelsMb: Flow<List<Int>>
+    val masterGainEnabled: Flow<Boolean>
+    val masterGainTenthsDb: Flow<Int>
     val bassBoostEnabled: Flow<Boolean>
     val bassBoostStrength: Flow<Int>
     val virtualizerEnabled: Flow<Boolean>
@@ -121,6 +125,8 @@ interface AudioEffectSettingsAccess {
     suspend fun setEqPreset(preset: Int)
     suspend fun setEqPresetWithBands(preset: Int, bandLevelsMb: List<Int>)
     suspend fun setEqBandLevelsMb(bandLevelsMb: List<Int>)
+    suspend fun setMasterGainEnabled(enabled: Boolean)
+    suspend fun setMasterGainTenthsDb(tenthsDb: Int)
     suspend fun setBassBoostEnabled(enabled: Boolean)
     suspend fun setBassBoostStrength(strength: Int)
     suspend fun setVirtualizerEnabled(enabled: Boolean)
@@ -176,6 +182,15 @@ internal class AudioEffectSettingsAccessImpl(private val context: Context) : Aud
         context.dataStore.data.map { it[KEY_EQ_PRESET] ?: AudioEffectSettings.PRESET_CUSTOM }
     override val eqBandLevelsMb: Flow<List<Int>> =
         context.dataStore.data.map { parseEqBands(it[KEY_EQ_BANDS]) }
+    override val masterGainEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MASTER_GAIN_ENABLED] ?: false }
+    override val masterGainTenthsDb: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_MASTER_GAIN_TENTHS_DB] ?: 0).coerceIn(
+                AudioEffectSettings.MASTER_GAIN_MIN_TENTHS_DB,
+                AudioEffectSettings.MASTER_GAIN_MAX_TENTHS_DB
+            )
+        }
     override val bassBoostEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_BASS_BOOST_ENABLED] ?: false }
     override val bassBoostStrength: Flow<Int> =
@@ -378,6 +393,8 @@ internal class AudioEffectSettingsAccessImpl(private val context: Context) : Aud
         context.dataStore.data.map { it[KEY_PLATFORM_SPATIAL_AUDIO_ENABLED] ?: false }
     private data class CustomDspSettings(
         val eqQ: Int,
+        val masterGainEnabled: Boolean,
+        val masterGainTenthsDb: Int,
         val bassDb: Int,
         val trebleDb: Int,
         val compEnabled: Boolean,
@@ -503,7 +520,9 @@ internal class AudioEffectSettingsAccessImpl(private val context: Context) : Aud
         )
     }
     private val toneAndDynamics: Flow<CustomDspSettings> = combine(
-        combine(eqQ, toneBassDb, toneTrebleDb) { q, bass, treble -> Triple(q, bass, treble) },
+        combine(eqQ, toneBassDb, toneTrebleDb, masterGainEnabled, masterGainTenthsDb) { q, bass, treble, masterGainOn, masterGain ->
+            listOf(q, bass, treble, if (masterGainOn) 1 else 0, masterGain)
+        },
         combine(compressorEnabled, compressorThresholdDb, compressorRatio, compressorMakeupDb) { en, th, ra, mk ->
             listOf(if (en) 1 else 0, th, ra, mk)
         },
@@ -527,9 +546,11 @@ internal class AudioEffectSettingsAccessImpl(private val context: Context) : Aud
         val surround = spatial.first
         val panoramic = spatial.second
         CustomDspSettings(
-            eqQ = tone.first,
-            bassDb = tone.second,
-            trebleDb = tone.third,
+            eqQ = tone[0],
+            bassDb = tone[1],
+            trebleDb = tone[2],
+            masterGainEnabled = tone[3] == 1,
+            masterGainTenthsDb = tone[4],
             compEnabled = comp[0] == 1,
             compThresholdDb = comp[1],
             compRatio = comp[2],
@@ -583,6 +604,8 @@ internal class AudioEffectSettingsAccessImpl(private val context: Context) : Aud
             eqEnabled = eq.first,
             eqPreset = eq.second,
             eqBandLevelsMb = eq.third,
+            masterGainEnabled = dsp.masterGainEnabled,
+            masterGainTenthsDb = dsp.masterGainTenthsDb,
             eqQ = dsp.eqQ,
             bassGainDb = dsp.bassDb,
             trebleGainDb = dsp.trebleDb,
@@ -651,6 +674,19 @@ internal class AudioEffectSettingsAccessImpl(private val context: Context) : Aud
             it[KEY_EQ_BANDS] = bandLevelsMb.normalizedEqBands().joinToString(",")
             it[KEY_EQ_PRESET] = AudioEffectSettings.PRESET_CUSTOM
         }
+    }
+
+    override suspend fun setMasterGainTenthsDb(tenthsDb: Int) {
+        context.dataStore.edit {
+            it[KEY_MASTER_GAIN_TENTHS_DB] = tenthsDb.coerceIn(
+                AudioEffectSettings.MASTER_GAIN_MIN_TENTHS_DB,
+                AudioEffectSettings.MASTER_GAIN_MAX_TENTHS_DB
+            )
+        }
+    }
+
+    override suspend fun setMasterGainEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MASTER_GAIN_ENABLED] = enabled }
     }
 
     override suspend fun setBassBoostEnabled(enabled: Boolean) {

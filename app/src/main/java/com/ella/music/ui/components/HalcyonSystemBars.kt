@@ -1,6 +1,10 @@
 package com.ella.music.ui.components
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.Color
+import android.os.Build
 import android.view.View
 import android.view.ViewParent
 import android.view.Window
@@ -18,6 +22,10 @@ import com.ella.music.data.SettingsManager
 
 internal fun Window.applyHalcyonSystemBars(mode: Int) {
     WindowCompat.setDecorFitsSystemWindows(this, false)
+    navigationBarColor = Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        isNavigationBarContrastEnforced = false
+    }
     val controller = WindowInsetsControllerCompat(this, decorView)
     controller.show(WindowInsetsCompat.Type.systemBars())
     if (mode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH) {
@@ -43,8 +51,18 @@ internal fun ApplyHalcyonSystemBarsToCurrentWindow() {
     )
     DisposableEffect(view, mode) {
         view.findHostWindow()?.applyHalcyonSystemBars(mode)
-        onDispose { }
+        onDispose {
+            // WindowBottomSheet owns a separate window. Restore the activity window immediately
+            // when it disappears so gesture navigation never inherits the sheet's white bar.
+            context.findActivity()?.window?.applyHalcyonSystemBars(mode)
+        }
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private fun View.findHostWindow(): Window? {

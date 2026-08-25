@@ -200,7 +200,11 @@ class MainActivity : ComponentActivity() {
                 val song = monetSong
                 value = if (monetMode == MONET_COVER && song != null) {
                     withContext(Dispatchers.IO) {
-                        val bitmap = loadPaletteCoverBitmap(this@MainActivity, song)
+                        // Global cover-based Monet must use the same song-specific artwork as the
+                        // player. MediaStore's album URI can point at a sibling track when one
+                        // album contains several different embedded covers.
+                        val bitmap = playerVm.getCoverArtBitmap(song)
+                            ?: loadPaletteCoverBitmap(this@MainActivity, song)
                         if (playerCoverContentColor) {
                             PlayerPalette.from(bitmap, light = !isDark).coverContentColor()
                         } else {
@@ -370,8 +374,10 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private companion object {
-        var startupPlaybackHandled = false
+    companion object {
+        const val ACTION_MEDIA_NOTIFICATION_CLICK = "com.ella.music.action.MEDIA_NOTIFICATION_CLICK"
+        const val EXTRA_OPEN_PLAYER_FROM_NOTIFICATION = "open_player_from_notification"
+        private var startupPlaybackHandled = false
     }
 
     private data class StartupAppearance(

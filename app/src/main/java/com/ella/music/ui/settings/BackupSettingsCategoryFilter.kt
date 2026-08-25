@@ -15,7 +15,7 @@ internal fun JSONObject.filterBackupSettings(selectedTypes: Set<BackupType>): JS
     return filtered
 }
 
-private fun String.backupType(): BackupType = when {
+internal fun String.backupType(): BackupType = when {
     isEqualizerSettingKey() -> BackupType.Equalizer
     isOnlineSourceSettingKey() -> BackupType.OnlineSources
     isAiSettingKey() -> BackupType.AiConfigAndChat

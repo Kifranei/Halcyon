@@ -155,7 +155,7 @@ internal fun AppleMusicLyricLine(
     secondaryAlpha: Float = 0.74f,
     reserveExtraLyricSpace: Boolean = false,
     onClick: () -> Unit,
-    onDoubleClick: () -> Unit,
+    onDoubleClick: (() -> Unit)?,
     onLongClick: () -> Unit,
     onWordClick: ((Long) -> Unit)? = null,
     onTapFraction: ((Float) -> Unit)? = null,

@@ -295,6 +295,8 @@
     <string name="settings_show_artist_introduction_summary">Den Eintrag „Einführung“ auf Künstlerseiten anzeigen</string>
     <string name="settings_open_player_on_play">Player nach Wiedergabestart öffnen</string>
     <string name="settings_open_player_on_play_summary">Player automatisch öffnen, wenn lokale, WebDAV- oder Online-Titel gestartet werden</string>
+    <string name="settings_open_player_from_notification">Player über Medienbenachrichtigung öffnen</string>
+    <string name="settings_open_player_from_notification_summary">Beim Tippen auf die Medienkarte in Benachrichtigungen oder auf dem Sperrbildschirm direkt den aktuellen Player öffnen</string>
     <string name="settings_mini_player_swipe_to_open_player">Mini-Player nach oben wischen, um den Player zu öffnen</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">Deaktivieren, um versehentliches Öffnen beim Scrollen zu vermeiden</string>
     <string name="settings_show_play_next_in_lists">„Als Nächstes wiedergeben“ in Titellisten anzeigen</string>
@@ -404,7 +406,7 @@
     <string name="home_play_daily_mix">Täglichen Mix wiedergeben</string>
     <string name="home_ai_section">KI</string>
     <string name="home_ai_playlist">KI-Wiedergabeassistent</string>
-    <string name="home_ai_playlist_summary">Kann nur lokale Titel zur Wiedergabe aufrufen; Titel werden nicht gelöscht oder geändert. Mediathek: %1$d Titel</string>
+    <string name="home_ai_playlist_summary">Lass Ella Songs für dich auswählen · %1$d Titel in deiner Mediathek</string>
     <string name="home_ai_playlist_loading">KI-Einstellungen werden gelesen und eine Playlist wird erstellt…</string>
     <string name="home_ai_playlist_play">KI-Playlist erstellen und wiedergeben</string>
     <string name="home_ai_chat_open">KI-Chat öffnen</string>
@@ -846,6 +848,8 @@
     <string name="settings_startup_poster_image">Bild für Startposter auswählen</string>
     <string name="settings_app_wallpaper">Globales eigenes Hintergrundbild</string>
     <string name="settings_app_wallpaper_summary">Eigenes Hintergrundbild hinter Mediathek, Album, Playlist, Ordner und ähnlichen Seiten anzeigen</string>
+    <string name="settings_app_now_playing_flow_background">Song-Fluss auf Übersichtsseiten</string>
+    <string name="settings_app_now_playing_flow_background_summary">Verwendet Stil und Tempo des Player-Hintergrunds auf Startseite, Mediathek und Listen. Standardmäßig aus; eigene Hintergrundbilder haben Vorrang.</string>
     <string name="settings_app_wallpaper_image">Hintergrundbild auswählen</string>
     <string name="settings_player_background">Eigener Player-Hintergrund</string>
     <string name="settings_player_background_summary">Wird nur auf Playerseiten im Tablet-Querformat und auf nicht immersiven Playerseiten auf Smartphones angezeigt</string>
@@ -1554,6 +1558,10 @@
     <string name="equalizer_preset">Voreinstellung</string>
     <string name="equalizer_preset_custom">Benutzerdefiniert</string>
     <string name="equalizer_reset">Zurücksetzen</string>
+    <string name="equalizer_section_master_gain">Gesamtverstärkung</string>
+    <string name="equalizer_master_gain">Gesamtverstärkung</string>
+    <string name="equalizer_master_gain_summary">Passt die Lautstärke nach allen Softwareeffekten an, ohne die EQ-Kurve zu verändern.</string>
+    <string name="equalizer_master_gain_warning">Unabhängig von der EQ-Kurve und nach allen Softwareeffekten angewendet. Positive Verstärkung kann den Spitzenbegrenzer auslösen; ohne Begrenzer kann Clipping entstehen.</string>
     <string name="equalizer_section_parametric">Parametrischer EQ</string>
     <string name="equalizer_eq_q">Band-Q (Bandbreite)</string>
     <string name="equalizer_section_tone">Klang</string>
@@ -1955,6 +1963,8 @@
     <string name="settings_full_tag_search_summary_on">Beim Scannen vollständige Audio-Tags lesen; die Suche umfasst Komponisten, Texter, Kommentare, Aliasse und benutzerdefinierte Tags</string>
     <string name="settings_player_dynamic_flow">Animierter Apple-Music-Hintergrund</string>
     <string name="settings_player_dynamic_flow_summary">Den Apple-Music-Hintergrundstil beibehalten, aber bei Deaktivierung dessen ständige Bewegung anhalten; betrifft nur diesen Hintergrund</string>
+    <string name="settings_apple_flow_speed">Apple-Music-Flussgeschwindigkeit</string>
+    <string name="settings_apple_flow_speed_summary">Höhere Werte machen die Cover-Flussanimation deutlicher sichtbar</string>
     <!-- Arranger metadata -->
     <string name="settings_library_tile_arranger">Arrangeure</string>
     <string name="settings_library_tile_arranger_summary">Nach Arrangeur durchsuchen</string>
@@ -2429,4 +2439,15 @@
     <string name="settings_lyric_touch_feedback_summary">Beim Drücken oder Tippen einen sich ausbreitenden Leuchteffekt anzeigen</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">Desktop-Liedtext mit Cover-Inhaltsfarbe synchronisieren</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">Verwendet dieselbe Coverfarbe wie die Player-Einstellung</string>
+    <string name="settings_player_mini_lyrics">Mini-Liedtext im Player</string>
+    <string name="settings_player_mini_lyrics_summary">Skalierung, Größe, Abstand und Ausrichtung unter dem Cover separat anpassen</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">Skalierung in 1-%-Schritten anpassen (50 %–150 %)</string>
+    <string name="settings_player_mini_lyrics_line_spacing">Zeilenabstand der Mini-Liedtexte</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">Wirkt sich nur auf Mini-Liedtexte unter dem Cover aus</string>
+    <string name="settings_lyric_pause_current_only">Bei Pause nur aktuelle Zeile hervorheben</string>
+    <string name="settings_lyric_pause_current_only_summary">Wenn deaktiviert, werden bei Pause alle Zeilen hervorgehoben</string>
+    <string name="settings_immersive_lyric_swipe">Im immersiven Modus über Liedtexte wischen</string>
+    <string name="settings_immersive_lyric_swipe_summary">Im unteren Liedtextbereich horizontal zum Titelwechsel wischen</string>
+    <string name="library_layout_grid">Rasteransicht</string>
+    <string name="library_layout_list">Listenansicht</string>
 </resources>

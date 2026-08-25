@@ -256,7 +256,6 @@ internal class MusicCoverArtManager(
             stem,
             fileNameBase,
             id.takeIf { it > 0L }?.toString().orEmpty(),
-            albumId.takeIf { it > 0L }?.toString().orEmpty(),
             path.sha256()
         ).filter { it.isNotBlank() }.distinct()
         val extensions = listOf("jpg", "jpeg", "png", "webp")

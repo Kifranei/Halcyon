@@ -37,6 +37,7 @@ import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.isAppWallpaperVisible
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -132,7 +133,7 @@ fun HomeScreen(
     var aiPlaylistLoading by remember { mutableStateOf(false) }
     val pageBackground = ellaPageBackground()
     val cardText = if (isDark) Color.White else Color(0xFF15151A)
-    val wallpaperVisible = appWallpaperEnabled && appWallpaperUri.isNotBlank()
+    val wallpaperVisible = isAppWallpaperVisible()
     val baseHomeCardColor = homeCardColorRaw.parseHomeCardColorOrNull()
         ?: MiuixTheme.colorScheme.surfaceContainer
     val homeTileCardColor = baseHomeCardColor.copy(alpha = homeCardOpacity.coerceIn(20, 100) / 100f)

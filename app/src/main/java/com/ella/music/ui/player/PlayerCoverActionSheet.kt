@@ -1,7 +1,8 @@
 package com.ella.music.ui.player
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -16,6 +17,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 internal fun PlayerCoverActionSheet(
     show: Boolean,
     song: Song?,
+    embeddedCover: Bitmap?,
     showLyricsDisplayEntry: Boolean,
     playbackSpeed: Float,
     playbackPitch: Float,
@@ -94,10 +96,8 @@ internal fun PlayerCoverActionSheet(
     onPreviewCover: () -> Unit,
     initialPage: PlayerActionSheetPage
 ) {
-    if (!show) return
-
     EllaMiuixBottomSheet(
-        show = true,
+        show = show,
         enableNestedScroll = false,
         title = stringResource(R.string.player_more_actions),
         onDismissRequest = onDismiss
@@ -105,8 +105,9 @@ internal fun PlayerCoverActionSheet(
         PlayerActionMenu(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(560.dp),
+                .heightIn(min = 560.dp, max = 680.dp),
             song = song,
+            embeddedCover = embeddedCover,
             showLyricsDisplayEntry = showLyricsDisplayEntry,
             speed = playbackSpeed,
             pitch = playbackPitch,

@@ -93,6 +93,9 @@ class LyricoPluginManager(
     }
 
     companion object {
+        const val LUNABEAT_TTML_SOURCE_ID = "lunabeat-ttml-hub"
+        val DEFAULT_ENABLED_SOURCE_IDS = setOf(LUNABEAT_TTML_SOURCE_ID)
+
         fun normalizeEnabledIds(raw: String?): Set<String> =
             raw.orEmpty()
                 .split(',', '，', ';', '；', '\n')

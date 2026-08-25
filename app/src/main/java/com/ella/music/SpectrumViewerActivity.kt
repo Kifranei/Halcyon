@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -339,18 +342,11 @@ private fun SpectrumChart(
 ) {
     Column(modifier = modifier) {
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Column(
-                modifier = Modifier.fillMaxHeight().width(42.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    maxFrequencyHz?.formatSpectrumFrequency() ?: stringResource(R.string.spectrum_frequency_unknown),
-                    color = Color.White.copy(alpha = 0.62f),
-                    fontSize = 10.sp
-                )
-                Text("0 Hz", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
-            }
+            SpectrumFrequencyAxis(
+                maxFrequencyHz = maxFrequencyHz,
+                unknownFrequencyLabel = stringResource(R.string.spectrum_frequency_unknown),
+                modifier = Modifier.fillMaxHeight().width(54.dp)
+            )
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = stringResource(R.string.song_more_view_spectrum),
@@ -391,12 +387,63 @@ private fun SpectrumChart(
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 42.dp, end = 42.dp, top = 5.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 54.dp, end = 42.dp, top = 5.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("0:00", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
             Text(duration.formatSpectrumTime(), color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
         }
+    }
+}
+
+@Composable
+private fun SpectrumFrequencyAxis(
+    maxFrequencyHz: Int?,
+    unknownFrequencyLabel: String,
+    modifier: Modifier = Modifier
+) {
+    val label = maxFrequencyHz?.formatSpectrumFrequency() ?: unknownFrequencyLabel
+    Canvas(modifier = modifier) {
+        val labelPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb((255 * 0.62f).toInt(), 255, 255, 255)
+            textSize = 10.sp.toPx()
+            textAlign = android.graphics.Paint.Align.RIGHT
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        val axisX = size.width - 5.dp.toPx()
+        val axisTop = 27.dp.toPx()
+        val axisBottom = size.height - 27.dp.toPx()
+        drawLine(
+            color = Color.White.copy(alpha = 0.92f),
+            start = androidx.compose.ui.geometry.Offset(axisX, axisTop),
+            end = androidx.compose.ui.geometry.Offset(axisX, axisBottom),
+            strokeWidth = 3.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+        drawContext.canvas.nativeCanvas.apply {
+            drawText(label, axisX, 11.sp.toPx(), labelPaint)
+            drawText("0 Hz", axisX, size.height - 2.dp.toPx(), labelPaint)
+        }
+        val maximum = maxFrequencyHz?.takeIf { it > 0 } ?: return@Canvas
+        listOf(5_000, 10_000, 15_000, 20_000)
+            .filter { it < maximum }
+            .forEach { frequency ->
+                val fraction = frequency.toFloat() / maximum.toFloat()
+                val y = axisBottom - (axisBottom - axisTop) * fraction
+                drawLine(
+                    color = Color.White.copy(alpha = 0.78f),
+                    start = androidx.compose.ui.geometry.Offset(axisX - 5.dp.toPx(), y),
+                    end = androidx.compose.ui.geometry.Offset(axisX + 3.dp.toPx(), y),
+                    strokeWidth = 1.5.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${frequency / 1_000}K",
+                    axisX - 8.dp.toPx(),
+                    y - (labelPaint.ascent() + labelPaint.descent()) / 2f,
+                    labelPaint
+                )
+            }
     }
 }
 

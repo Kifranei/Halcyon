@@ -36,6 +36,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_DECODER_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_GAPLESS
 import com.ella.music.data.SettingsManager.Companion.KEY_KARAOKE_ACCOMPANIMENT
 import com.ella.music.data.SettingsManager.Companion.KEY_OPEN_PLAYER_ON_PLAY
+import com.ella.music.data.SettingsManager.Companion.KEY_OPEN_PLAYER_FROM_NOTIFICATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PREVIOUS_BUTTON_ACTION
 import com.ella.music.data.SettingsManager.Companion.KEY_REPLAYGAIN_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_REPLAYGAIN_MODE
@@ -82,6 +83,7 @@ interface PlaybackSettingsAccess {
     val sleepTimerCustomMinutes: Flow<Int>
     val sleepTimerStopAfterCurrent: Flow<Boolean>
     val openPlayerOnPlay: Flow<Boolean>
+    val openPlayerFromNotification: Flow<Boolean>
     val startupAutoPlay: Flow<Boolean>
     val bluetoothAutoPlay: Flow<Boolean>
     val startupPlayMode: Flow<Int>
@@ -102,6 +104,7 @@ interface PlaybackSettingsAccess {
     suspend fun setSleepTimerCustomMinutes(minutes: Int)
     suspend fun setSleepTimerStopAfterCurrent(enabled: Boolean)
     suspend fun setOpenPlayerOnPlay(enabled: Boolean)
+    suspend fun setOpenPlayerFromNotification(enabled: Boolean)
     suspend fun setStartupAutoPlay(enabled: Boolean)
     suspend fun setBluetoothAutoPlay(enabled: Boolean)
     suspend fun setStartupPlayMode(mode: Int)
@@ -180,6 +183,8 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
         context.dataStore.data.map { it[KEY_SLEEP_TIMER_STOP_AFTER_CURRENT] ?: false }
 
     override val openPlayerOnPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_OPEN_PLAYER_ON_PLAY] ?: false }
+    override val openPlayerFromNotification: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_OPEN_PLAYER_FROM_NOTIFICATION] ?: false }
     override val startupAutoPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_STARTUP_AUTO_PLAY] ?: false }
     override val bluetoothAutoPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_BLUETOOTH_AUTO_PLAY] ?: false }
     override val startupPlayMode: Flow<Int> = context.dataStore.data.map {
@@ -275,6 +280,10 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
 
     override suspend fun setOpenPlayerOnPlay(enabled: Boolean) {
         context.dataStore.edit { it[KEY_OPEN_PLAYER_ON_PLAY] = enabled }
+    }
+
+    override suspend fun setOpenPlayerFromNotification(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_OPEN_PLAYER_FROM_NOTIFICATION] = enabled }
     }
 
     override suspend fun setStartupAutoPlay(enabled: Boolean) {

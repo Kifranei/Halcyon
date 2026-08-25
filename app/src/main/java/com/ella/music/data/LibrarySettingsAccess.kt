@@ -22,6 +22,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_AUTO_SHOW_SEARCH_KEYBOA
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_REOPEN_BEHAVIOR
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_SEARCH_REOPEN_BEHAVIOR
 import com.ella.music.data.SettingsManager.Companion.KEY_CATEGORY_GRID_COLUMNS
+import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SONG_GRID
 import com.ella.music.data.SettingsManager.Companion.KEY_COVER_EXPORT_FOLDER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_CLICK_PLAYBACK_MODE
@@ -130,6 +131,7 @@ interface LibrarySettingsAccess {
     val folderPlaylistCustomOrder: Flow<List<String>>
     val addToPlaylistAppendToEnd: Flow<Boolean>
     val categoryGridColumns: Flow<Int>
+    val librarySongGrid: Flow<Boolean>
     val folderPlaylists: Flow<List<FolderPlaylist>>
     suspend fun setAutoScan(enabled: Boolean)
     suspend fun setAutoScanLocalPlaylists(enabled: Boolean)
@@ -164,6 +166,7 @@ interface LibrarySettingsAccess {
     suspend fun pinKeysInOrder(namespace: String, keys: List<String>)
     suspend fun setAddToPlaylistAppendToEnd(appendToEnd: Boolean)
     suspend fun setCategoryGridColumns(columns: Int)
+    suspend fun setLibrarySongGrid(enabled: Boolean)
     suspend fun upsertFolderPlaylist(
         playlistId: String?,
         name: String,
@@ -328,6 +331,8 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
             (it[KEY_CATEGORY_GRID_COLUMNS] ?: 2).coerceIn(1, 4)
         }
     }
+    override val librarySongGrid: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LIBRARY_SONG_GRID] ?: false }
 
     override val folderPlaylists: Flow<List<FolderPlaylist>> =
         context.dataStore.data.map { it[KEY_FOLDER_PLAYLISTS].orEmpty().toFolderPlaylists() }
@@ -371,7 +376,6 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     override suspend fun setExcludeSearchResultsFromPlaylist(enabled: Boolean) {
         context.dataStore.edit { it[KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST] = enabled }
     }
-
     override suspend fun setSearchClickPlaybackMode(mode: Int) {
         context.dataStore.edit {
             it[KEY_SEARCH_CLICK_PLAYBACK_MODE] = SettingsManager.normalizeSearchClickPlaybackMode(mode)
@@ -565,6 +569,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     override suspend fun setCategoryGridColumns(columns: Int) {
         val tablet = context.resources.configuration.smallestScreenWidthDp >= 600
         context.dataStore.edit { it[KEY_CATEGORY_GRID_COLUMNS] = columns.coerceIn(if (tablet) 5 else 1, if (tablet) 8 else 4) }
+    }
+
+    override suspend fun setLibrarySongGrid(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LIBRARY_SONG_GRID] = enabled }
     }
 
     override suspend fun upsertFolderPlaylist(

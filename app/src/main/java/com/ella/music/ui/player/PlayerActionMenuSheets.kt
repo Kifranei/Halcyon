@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,7 @@ import kotlin.math.round
 @OptIn(ExperimentalFoundationApi::class)
 internal fun PlayerActionMenuHeader(
     song: Song?,
+    embeddedCover: android.graphics.Bitmap?,
     onArtist: () -> Unit,
     onAlbum: () -> Unit,
     onPreviewCover: () -> Unit
@@ -71,7 +73,7 @@ internal fun PlayerActionMenuHeader(
     ) {
         SmallCover(
             song = song,
-            embeddedCover = null,
+            embeddedCover = embeddedCover,
             modifier = Modifier
                 .size(68.dp)
                 .combinedClickable(onClick = {}, onLongClick = onPreviewCover)
@@ -202,7 +204,7 @@ private fun PlayerActionShortcut(
 ) {
     Column(
         modifier = modifier
-            .height(82.dp)
+            .heightIn(min = 82.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
             .clickable(onClick = onClick)

@@ -55,8 +55,11 @@ internal fun SettingsLyricsSection(
     val lyricOpeningTemplate by settingsManager.lyricOpeningTemplate.collectAsState(initial = "")
     val lyricWordSeekEnabled by settingsManager.lyricWordSeekEnabled.collectAsState(initial = false)
     val lyricTouchFeedbackEnabled by settingsManager.lyricTouchFeedbackEnabled.collectAsState(initial = false)
+    val lyricPauseCurrentOnly by settingsManager.lyricPauseCurrentOnly.collectAsState(initial = true)
+    val immersiveLyricSwipe by settingsManager.playerImmersiveLyricSwipe.collectAsState(initial = false)
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var showLyricSizingSheet by remember { mutableStateOf(false) }
+    var showPlayerMiniLyricsSheet by remember { mutableStateOf(false) }
     var showOpeningTemplateSheet by remember { mutableStateOf(false) }
     var showXiaomiSuperIslandSheet by remember { mutableStateOf(false) }
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
@@ -77,6 +80,11 @@ internal fun SettingsLyricsSection(
             SettingsFocusAnchor(active = highlightKey == "lyric_basic") {
                 SettingsPlayerLyricAlignmentPreference()
             }
+            ArrowPreference(
+                title = stringResource(R.string.settings_player_mini_lyrics),
+                summary = stringResource(R.string.settings_player_mini_lyrics_summary),
+                onClick = { showPlayerMiniLyricsSheet = true }
+            )
             ArrowPreference(
                 title = stringResource(R.string.player_lyric_style_settings),
                 summary = stringResource(R.string.settings_lyrics_summary),
@@ -102,6 +110,22 @@ internal fun SettingsLyricsSection(
                     }
                 )
             }
+            SwitchPreference(
+                title = stringResource(R.string.settings_lyric_pause_current_only),
+                summary = stringResource(R.string.settings_lyric_pause_current_only_summary),
+                checked = lyricPauseCurrentOnly,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setLyricPauseCurrentOnly(enabled) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_immersive_lyric_swipe),
+                summary = stringResource(R.string.settings_immersive_lyric_swipe_summary),
+                checked = immersiveLyricSwipe,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setPlayerImmersiveLyricSwipe(enabled) }
+                }
+            )
             SwitchPreference(
                 title = stringResource(R.string.settings_ignore_lyric_header_tags),
                 summary = stringResource(R.string.settings_ignore_lyric_header_tags_summary),
@@ -181,6 +205,21 @@ internal fun SettingsLyricsSection(
                 .verticalScroll(rememberScrollState())
         ) {
             SettingsPlayerLyricSizingControls()
+        }
+    }
+
+    EllaMiuixBottomSheet(
+        show = showPlayerMiniLyricsSheet,
+        title = stringResource(R.string.settings_player_mini_lyrics),
+        onDismissRequest = { showPlayerMiniLyricsSheet = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsPlayerMiniLyricControls()
         }
     }
 
@@ -391,6 +430,64 @@ private fun SettingsPlayerLyricSizingControls() {
                 }
             }
         }
+    )
+}
+
+@Composable
+private fun SettingsPlayerMiniLyricControls() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val scale by settingsManager.playerMiniLyricScale.collectAsState(initial = 100)
+    val primarySize by settingsManager.playerMiniLyricPrimarySize.collectAsState(initial = 19)
+    val secondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 16)
+    val lineSpacing by settingsManager.playerMiniLyricLineSpacing.collectAsState(initial = 7)
+    val textAlign by settingsManager.playerMiniLyricTextAlign.collectAsState(initial = 0)
+    val alignLabels = listOf(
+        stringResource(R.string.settings_status_align_left),
+        stringResource(R.string.settings_status_align_center),
+        stringResource(R.string.settings_status_align_right)
+    )
+    WindowSpinnerPreference(
+        title = stringResource(R.string.settings_player_lyric_text_align),
+        summary = stringResource(R.string.settings_current_value, alignLabels[textAlign.coerceIn(0, 2)]),
+        items = alignLabels.map { DropdownItem(title = it) },
+        selectedIndex = textAlign.coerceIn(0, 2),
+        onSelectedIndexChange = { value ->
+            scope.launch { settingsManager.setPlayerMiniLyricTextAlign(value) }
+        }
+    )
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.player_lyric_font_scale),
+        summary = stringResource(R.string.settings_player_mini_lyrics_scale_summary),
+        value = scale,
+        valueRange = 50..150,
+        valueText = "$scale%",
+        onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricScale(value) } }
+    )
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.player_lyric_font_size),
+        summary = stringResource(R.string.settings_lyric_font_size_summary, 12, 32),
+        value = primarySize,
+        valueRange = 12..32,
+        valueText = "${primarySize}sp",
+        onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricPrimarySize(value) } }
+    )
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.player_lyric_secondary_font_size),
+        summary = stringResource(R.string.settings_lyric_font_size_summary, 10, 28),
+        value = secondarySize,
+        valueRange = 10..28,
+        valueText = "${secondarySize}sp",
+        onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricSecondarySize(value) } }
+    )
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.settings_player_mini_lyrics_line_spacing),
+        summary = stringResource(R.string.settings_player_mini_lyrics_line_spacing_summary),
+        value = lineSpacing,
+        valueRange = 0..24,
+        valueText = "${lineSpacing}dp",
+        onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricLineSpacing(value) } }
     )
 }
 

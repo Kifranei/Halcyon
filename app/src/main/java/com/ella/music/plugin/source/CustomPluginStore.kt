@@ -18,10 +18,13 @@ class CustomPluginStore(
     private val rootDir: File = File(context.filesDir, "lyrico_plugins")
 
     suspend fun loadPlugins(): List<LyricoPluginSource> = withContext(Dispatchers.IO) {
-        rootDir.listFiles { file -> file.isDirectory }
+        val bundled = loadBundledPlugins()
+        val imported = rootDir.listFiles { file -> file.isDirectory }
             .orEmpty()
             .sortedBy { it.name }
             .mapNotNull { dir -> runCatching { loadPlugin(dir) }.getOrNull() }
+        // First-party sources cannot be replaced by an imported plugin with the same id.
+        (bundled + imported).distinctBy { it.manifest.id }
     }
 
     suspend fun deletePlugin(id: String): Boolean = withContext(Dispatchers.IO) {
@@ -62,6 +65,42 @@ class CustomPluginStore(
         )
     }
 
+    private fun loadBundledPlugins(): List<LyricoPluginSource> =
+        context.assets.list(BUNDLED_PLUGIN_ROOT)
+            .orEmpty()
+            .sorted()
+            .mapNotNull { directoryName ->
+                runCatching { loadBundledPlugin(directoryName) }.getOrNull()
+            }
+
+    private fun loadBundledPlugin(directoryName: String): LyricoPluginSource {
+        val pluginRoot = "$BUNDLED_PLUGIN_ROOT/$directoryName"
+        val manifest = json.decodeFromString<PluginManifest>(readAssetText("$pluginRoot/manifest.json"))
+        validateManifestBasics(manifest)
+        require(assetExists("$pluginRoot/${manifest.entry}")) { "Missing plugin entry file" }
+        val includeSources = manifest.includeDirs
+            .flatMap { includeDir -> assetFilesUnder("$pluginRoot/$includeDir") }
+            .filter { it.endsWith(".js", ignoreCase = true) }
+            .map { path ->
+                IncludedScript(
+                    path = path.removePrefix("$pluginRoot/"),
+                    content = readAssetText(path)
+                )
+            }
+            .sortedBy { it.path }
+        return LyricoPluginSource(
+            manifest = manifest,
+            assetDir = "asset://$pluginRoot",
+            script = composeScript(
+                manifest = manifest,
+                includeSources = includeSources,
+                entryContent = readAssetText("$pluginRoot/${manifest.entry}")
+            ),
+            cacheRootDir = File(context.cacheDir, "lyrico_plugin_cache"),
+            bundled = true
+        )
+    }
+
     private fun buildScript(pluginDir: File, manifest: PluginManifest): String {
         val includeSources = manifest.includeDirs
             .flatMap { includeDir ->
@@ -76,6 +115,18 @@ class CustomPluginStore(
                     .toList()
             }
             .sortedBy { it.path }
+        return composeScript(
+            manifest = manifest,
+            includeSources = includeSources,
+            entryContent = File(pluginDir, manifest.entry).readText()
+        )
+    }
+
+    private fun composeScript(
+        manifest: PluginManifest,
+        includeSources: List<IncludedScript>,
+        entryContent: String
+    ): String {
         val includePathSetJson = json.encodeToString(includeSources.map { it.path }.toSet())
         return buildString {
             append(
@@ -101,8 +152,23 @@ class CustomPluginStore(
                 append("\n//# sourceURL=${source.path}\n")
             }
             append("\n;\n// ===== Platform entry: ${manifest.entry} =====\n")
-            append(File(pluginDir, manifest.entry).readText())
+            append(entryContent)
             append("\n//# sourceURL=${manifest.entry}\n")
+        }
+    }
+
+    private fun readAssetText(path: String): String =
+        context.assets.open(path).bufferedReader().use { it.readText() }
+
+    private fun assetExists(path: String): Boolean =
+        runCatching { context.assets.open(path).close() }.isSuccess
+
+    private fun assetFilesUnder(path: String): List<String> {
+        val children = context.assets.list(path).orEmpty()
+        return if (children.isEmpty()) {
+            listOf(path)
+        } else {
+            children.flatMap { child -> assetFilesUnder("$path/$child") }
         }
     }
 
@@ -141,6 +207,11 @@ class CustomPluginStore(
     }
 
     private fun validateManifest(manifest: PluginManifest, pluginDir: File) {
+        validateManifestBasics(manifest)
+        require(File(pluginDir, manifest.entry).isFile) { "Missing plugin entry file" }
+    }
+
+    private fun validateManifestBasics(manifest: PluginManifest) {
         require(HostApiRegistry.supportsPluginApiVersion(manifest.apiVersion)) {
             "Unsupported plugin apiVersion: ${manifest.apiVersion}"
         }
@@ -148,7 +219,6 @@ class CustomPluginStore(
             "Unsupported minHostApiVersion: ${manifest.minHostApiVersion}"
         }
         require(manifest.entry.isNotBlank()) { "Missing plugin entry" }
-        require(File(pluginDir, manifest.entry).isFile) { "Missing plugin entry file" }
     }
 
     private fun copyDirectory(from: File, to: File) {
@@ -169,4 +239,8 @@ class CustomPluginStore(
         replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "plugin" }
 
     private data class IncludedScript(val path: String, val content: String)
+
+    private companion object {
+        const val BUNDLED_PLUGIN_ROOT = "lyrico_plugins"
+    }
 }

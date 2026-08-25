@@ -26,6 +26,7 @@ import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
+import androidx.media3.session.LegacyArtworkCompat
 import androidx.media3.session.SessionCommand
 import com.ella.music.R
 import com.ella.music.MainActivity
@@ -41,6 +42,8 @@ import com.ella.music.data.webdav.WebDavConfig
 import com.ella.music.dsp.TenBandEqualizer
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.MoreExecutors
 import com.google.common.util.concurrent.SettableFuture
 import com.ella.music.oem.HonorHdAudioSupport
 import kotlinx.coroutines.CancellationException
@@ -108,6 +111,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private var mediaSession: MediaLibrarySession? = null
+    private var legacyArtworkPublishSequence = 0L
     private var sessionPresentationPlayer: SessionPresentationPlayer? = null
     private var crossfadePlaybackCoordinator: CrossfadePlaybackCoordinator? = null
     private var castMediaServer: LocalCastMediaServer? = null
@@ -141,6 +145,8 @@ class PlaybackService : MediaLibraryService() {
     internal var desktopLyricLocked = false
     @Volatile
     private var bluetoothAutoPlayEnabled = false
+    @Volatile
+    private var openPlayerFromNotification = false
 
     internal fun desktopLyricNotificationIcon(): Int = when {
         desktopLyricEnabled && desktopLyricLocked -> R.drawable.ic_notification_desktop_lyrics_locked
@@ -155,6 +161,9 @@ class PlaybackService : MediaLibraryService() {
         notificationProvider = NoArtworkMediaNotificationProvider(this)
         setMediaNotificationProvider(notificationProvider)
         settingsManager = SettingsManager.getInstance(this)
+        openPlayerFromNotification = runBlocking(Dispatchers.IO) {
+            settingsManager.openPlayerFromNotification.first()
+        }
         musicRepository = MusicRepository.getInstance(this)
         desktopLyricBridge = DesktopLyricBridge(this)
         mediaNotificationButtonIds = runBlocking(Dispatchers.IO) {
@@ -370,6 +379,12 @@ class PlaybackService : MediaLibraryService() {
             AppLogStore.warn(this, TAG, "Chromecast unavailable; using local player: ${error.message}")
             player
         }
+        serviceScope.launch {
+            settingsManager.openPlayerFromNotification.collect { enabled ->
+                openPlayerFromNotification = enabled
+                mediaSession?.setSessionActivity(buildSessionActivityPendingIntent(enabled))
+            }
+        }
         crossfadePlaybackCoordinator = CrossfadePlaybackCoordinator(
             context = this,
             primary = player,
@@ -395,6 +410,16 @@ class PlaybackService : MediaLibraryService() {
                     setTransitionGainAudioProcessor(secondaryTransitionGain)
                     setPlaybackOutputSettings(playbackOutputSettings)
                 }
+            },
+            onIncomingAudible = { targetIndex, positionMs, playbackSpeed ->
+                sessionPresentationPlayer?.presentCrossfadeTarget(
+                    targetIndex = targetIndex,
+                    positionMs = positionMs,
+                    playbackSpeed = playbackSpeed
+                )
+            },
+            onIncomingFinished = {
+                sessionPresentationPlayer?.clearCrossfadePresentation()
             },
             scope = serviceScope
         )
@@ -444,6 +469,7 @@ class PlaybackService : MediaLibraryService() {
                         bandGainsDb = FloatArray(TenBandEqualizer.BAND_COUNT) { index ->
                             settings.eqBandLevelsMb.getOrElse(index) { 0 } / 100f
                         },
+                        masterGainDb = if (settings.masterGainEnabled) settings.masterGainTenthsDb / 10f else 0f,
                         eqQ = settings.eqQ / 100f,
                         bassGainDb = settings.bassGainDb.toFloat(),
                         trebleGainDb = settings.trebleGainDb.toFloat(),
@@ -514,11 +540,13 @@ class PlaybackService : MediaLibraryService() {
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 notifyLibraryChanged(sessionPlayer.mediaItemCount)
                 oplusLyricHandler.refreshCurrentOplusLyricInfo(sessionPlayer)
+                scheduleLegacyArtworkCompat(sessionPlayer.mediaMetadata)
             }
 
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 updateMediaButtonPreferences()
                 PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
+                scheduleLegacyArtworkCompat(mediaMetadata)
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -600,11 +628,7 @@ class PlaybackService : MediaLibraryService() {
             }
         })
 
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = buildSessionActivityPendingIntent(openPlayerFromNotification)
 
         val presentationPlayer = SessionPresentationPlayer(
             player = RepeatOneLockingPlayer(
@@ -625,6 +649,7 @@ class PlaybackService : MediaLibraryService() {
         )
             .setSessionActivity(pendingIntent)
             .build()
+        scheduleLegacyArtworkCompat(presentationPlayer.mediaMetadata)
 
         updateMediaButtonPreferences()
 
@@ -639,6 +664,19 @@ class PlaybackService : MediaLibraryService() {
 
         Log.i(TAG, "PlaybackService created")
         AppLogStore.info(this, TAG, "PlaybackService created")
+    }
+
+    private fun buildSessionActivityPendingIntent(openPlayer: Boolean): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java)
+            .setAction(MainActivity.ACTION_MEDIA_NOTIFICATION_CLICK)
+            .putExtra(MainActivity.EXTRA_OPEN_PLAYER_FROM_NOTIFICATION, openPlayer)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
@@ -675,6 +713,8 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        legacyArtworkPublishSequence++
+        LegacyArtworkCompat.clear()
         PlaybackWidgetUpdater.stopProgressUpdates()
         bluetoothReceiver?.let {
             runCatching { unregisterReceiver(it) }
@@ -701,6 +741,48 @@ class PlaybackService : MediaLibraryService() {
         PlaybackAudioOutputState.clear()
         serviceScope.cancel()
         super.onDestroy()
+    }
+
+    /**
+     * Media3 publishes DISPLAY_ICON and ALBUM_ART to its legacy platform session but omits ART.
+     * Some OEM lock screens only read ART. Salt Player writes the same 500 px bitmap to all three
+     * fields, so mirror that compatibility behaviour after Media3 has finished its own update.
+     */
+    private fun scheduleLegacyArtworkCompat(metadata: MediaMetadata) {
+        val session = mediaSession
+        val sequence = ++legacyArtworkPublishSequence
+        if (session == null) return
+        val bitmapFuture = session.bitmapLoader.loadBitmapFromMetadata(metadata) ?: return
+        bitmapFuture.addListener(
+            {
+                val bitmap = runCatching { Futures.getDone(bitmapFuture) }.getOrNull() ?: return@addListener
+                serviceScope.launch {
+                    // Media3 also posts an async legacy metadata update. Publish after it so ART is
+                    // not immediately replaced by Media3's ALBUM_ART-only metadata.
+                    delay(64L)
+                    if (sequence != legacyArtworkPublishSequence || mediaSession !== session) return@launch
+                    val player = session.player
+                    runCatching {
+                        LegacyArtworkCompat.publish(
+                            session,
+                            player.mediaMetadata,
+                            player.currentMediaItem?.mediaId.orEmpty(),
+                            player.duration,
+                            bitmap
+                        )
+                    }
+                        .onFailure { error ->
+                            AppLogStore.warn(
+                                this@PlaybackService,
+                                "LegacyArtwork",
+                                "Failed to publish lock-screen ART metadata",
+                                error
+                            )
+                        }
+                }
+            },
+            MoreExecutors.directExecutor()
+        )
     }
 
     fun launchServiceJob(block: suspend () -> Unit) {

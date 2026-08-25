@@ -1,12 +1,16 @@
 package com.ella.music.ui.player
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -20,14 +24,30 @@ import top.yukonga.miuix.kmp.basic.Text
 // Keep the player layout stable when TTML background/translation layers appear or disappear.
 // Extra lyric layers are clipped/scrolled inside this viewport instead of moving transport controls.
 internal fun miniLyricsPreviewHeight(
+    line: LyricLine?,
+    showTranslation: Boolean,
+    showPronunciation: Boolean,
     compact: Boolean = false
-) = if (compact) 154.dp else 202.dp
+) = when (line?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1) {
+    0, 1 -> if (compact) 150.dp else 186.dp
+    2 -> if (compact) 154.dp else 202.dp
+    3 -> if (compact) 168.dp else 220.dp
+    else -> if (compact) 176.dp else 232.dp
+}
 
 /**
  * Fixed compact viewport for cramped floating windows. TTML background layers remain inside this
  * area so the transport controls below never shift when the active lyric changes.
  */
-internal fun miniLyricsCompactHeight() = 64.dp
+internal fun miniLyricsCompactHeight(
+    line: LyricLine?,
+    showTranslation: Boolean,
+    showPronunciation: Boolean
+) = when (line?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1) {
+    0, 1 -> 40.dp
+    2 -> 64.dp
+    else -> 84.dp
+}
 
 @Composable
 internal fun MiniLyricsPreview(
@@ -41,15 +61,22 @@ internal fun MiniLyricsPreview(
     fontFamily: FontFamily? = null,
     translationFontFamily: FontFamily? = fontFamily,
     fontWeight: FontWeight = FontWeight.ExtraBold,
-    fontScale: Float = 1f,
-    secondaryFontScale: Float = 1f,
-    lyricTextAlign: Int = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT,
     compact: Boolean = false,
     contentColor: Color = Color.White,
     wordLiftEnabled: Boolean = true,
     onLineClick: (LyricLine) -> Unit = {},
+    onLineDoubleClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val miniScale by settingsManager.playerMiniLyricScale.collectAsState(initial = 100)
+    val miniPrimarySize by settingsManager.playerMiniLyricPrimarySize.collectAsState(initial = 19)
+    val miniSecondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 16)
+    val miniLineSpacing by settingsManager.playerMiniLyricLineSpacing.collectAsState(initial = 7)
+    val miniTextAlign by settingsManager.playerMiniLyricTextAlign.collectAsState(
+        initial = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT
+    )
     val safeIndex = currentIndex.takeIf { it in lyrics.indices }
         ?: lyrics.indexOfFirst { it.hasMiniLyric() }.takeIf { it >= 0 }
         ?: return
@@ -61,8 +88,8 @@ internal fun MiniLyricsPreview(
     val denseMultiPartPreview = !compact && visiblePartCount >= 3
     // In a cramped floating window, shrink the type so long (e.g. English) lines fit the narrow
     // width instead of overflowing, and take less vertical room.
-    val primarySizeSp = if (compact) 15.5f else 19f
-    val secondarySizeSp = if (compact) 12.8f else 15.5f
+    val primarySizeSp = miniPrimarySize * if (compact) 0.816f else 1f
+    val secondarySizeSp = miniSecondarySize * if (compact) 0.80f else 1f
     AppleMusicLyricsView(
         lyrics = lyrics,
         currentIndex = safeIndex,
@@ -77,9 +104,10 @@ internal fun MiniLyricsPreview(
         fontFamily = fontFamily,
         translationFontFamily = translationFontFamily,
         fontWeight = fontWeight,
-        fontScale = fontScale * 0.92f,
-        secondaryFontScale = secondaryFontScale,
-        lyricTextAlign = lyricTextAlign,
+        // Match the 1.2.0 preview density at 100%, while keeping the control accurate to 1%.
+        fontScale = miniScale.coerceIn(50, 150) / 100f * 0.92f,
+        secondaryFontScale = 1f,
+        lyricTextAlign = miniTextAlign,
         primaryTextSizeSp = primarySizeSp,
         secondaryTextSizeSp = secondarySizeSp,
         topContentPadding = 0.dp,
@@ -87,7 +115,7 @@ internal fun MiniLyricsPreview(
         focusOffsetRatio = if (compact) 0.02f else 0.12f,
         contentColor = contentColor,
         onLineClick = onLineClick,
-        onLineDoubleClick = {},
+        onLineDoubleClick = onLineDoubleClick,
         onLineLongClick = {},
         wordLiftEnabled = wordLiftEnabled,
         nonCurrentLineBlurEnabled = false,
@@ -95,9 +123,8 @@ internal fun MiniLyricsPreview(
         userScrollEnabled = false,
         reserveExtraLyricSpace = true,
         lineSpacing = when {
-            singleLinePreview -> 4.dp
-            denseMultiPartPreview -> 4.dp
-            else -> 7.dp
+            singleLinePreview || denseMultiPartPreview -> miniLineSpacing.coerceAtMost(4).dp
+            else -> miniLineSpacing.dp
         },
         modifier = modifier.fillMaxWidth()
     )
@@ -121,7 +148,8 @@ internal fun MiniNoLyricsPreview(
             color = contentColor.copy(alpha = 0.68f),
             fontSize = 19.sp,
             fontWeight = fontWeight,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }

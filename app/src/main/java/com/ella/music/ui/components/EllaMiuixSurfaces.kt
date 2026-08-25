@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -82,6 +84,9 @@ fun EllaMiuixBottomSheet(
     enableNestedScroll: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    // MIUIX window surfaces create a separate composition. Re-provide the caller's adjusted
+    // density so global interface/font scaling also reaches player and lyric action sheets.
+    val inheritedDensity = LocalDensity.current
     WindowBottomSheet(
         show = show,
         title = title,
@@ -94,9 +99,11 @@ fun EllaMiuixBottomSheet(
         backgroundColor = MiuixTheme.colorScheme.background.copy(alpha = 0.98f),
         modifier = modifier,
         content = {
-            ApplyHalcyonSystemBarsToCurrentWindow()
-            Box(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)) {
-                content()
+            CompositionLocalProvider(LocalDensity provides inheritedDensity) {
+                ApplyHalcyonSystemBarsToCurrentWindow()
+                Box(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)) {
+                    content()
+                }
             }
         }
     )

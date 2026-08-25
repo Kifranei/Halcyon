@@ -295,6 +295,8 @@
     <string name="settings_show_artist_introduction_summary">Показывать пункт «Описание» на страницах исполнителей</string>
     <string name="settings_open_player_on_play">Открыть плеер после нажатия кнопки воспроизведения</string>
     <string name="settings_open_player_on_play_summary">Автоматически открывать плеер после запуска локальных, WebDAV или онлайн-песен.</string>
+    <string name="settings_open_player_from_notification">Открывать плеер из медиауведомления</string>
+    <string name="settings_open_player_from_notification_summary">Сразу открывать текущий плеер при нажатии на медиакарточку в уведомлении или на экране блокировки</string>
     <string name="settings_mini_player_swipe_to_open_player">Открывать плеер свайпом мини-плеера вверх</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">Отключите, чтобы не открывать плеер случайно при прокрутке списков</string>
     <string name="settings_show_play_next_in_lists">Показывать «Воспроизвести дальше» в списках песен</string>
@@ -402,7 +404,7 @@
     <string name="home_play_daily_mix">Включи ежедневный микс</string>
     <string name="home_ai_section">ИИ</string>
     <string name="home_ai_playlist">AI-помощник по воспроизведению</string>
-    <string name="home_ai_playlist_summary">Можно вызывать для воспроизведения только местные песни; он не будет удалять или изменять песни. Библиотека: песни %1$d</string>
+    <string name="home_ai_playlist_summary">Пусть Ella подберёт музыку · в медиатеке %1$d треков</string>
     <string name="home_ai_playlist_loading">Чтение настроек AI и создание плейлиста…</string>
     <string name="home_ai_playlist_play">Создание и воспроизведение плейлиста AI</string>
     <string name="home_ai_chat_open">Открыть чат с ИИ</string>
@@ -844,6 +846,8 @@
     <string name="settings_startup_poster_image">Выберите изображение постера стартапа</string>
     <string name="settings_app_wallpaper">Глобальные пользовательские обои</string>
     <string name="settings_app_wallpaper_summary">Показывать пользовательские обои позади библиотеки, альбома, списка воспроизведения, папки и подобных страниц.</string>
+    <string name="settings_app_now_playing_flow_background">Поток текущего трека на страницах обзора</string>
+    <string name="settings_app_now_playing_flow_background_summary">Использует стиль и скорость фона проигрывателя на главной, в медиатеке и списках. По умолчанию выключено; пользовательские обои имеют приоритет.</string>
     <string name="settings_app_wallpaper_image">Выберите изображение обоев</string>
     <string name="settings_player_background">Пользовательский фон игрока</string>
     <string name="settings_player_background_summary">Отображается только на страницах горизонтального проигрывателя планшетов и страницах проигрывателя без погружения на телефоне.</string>
@@ -1541,6 +1545,10 @@
     <string name="equalizer_preset">Пресет</string>
     <string name="equalizer_preset_custom">Свой</string>
     <string name="equalizer_reset">Сбросить</string>
+    <string name="equalizer_section_master_gain">Общее усиление</string>
+    <string name="equalizer_master_gain">Общее усиление</string>
+    <string name="equalizer_master_gain_summary">Регулирует громкость после всех программных эффектов, не изменяя кривую эквалайзера.</string>
+    <string name="equalizer_master_gain_warning">Не зависит от кривой эквалайзера и применяется после всех программных эффектов. Положительное усиление может включить ограничитель пиков; без него возможно клиппирование.</string>
     <string name="equalizer_section_parametric">Параметрический эквалайзер</string>
     <string name="equalizer_eq_q">Добротность полосы (Q)</string>
     <string name="equalizer_section_tone">Тембр</string>
@@ -1942,6 +1950,8 @@
     <string name="settings_full_tag_search_summary_on">Читать все аудиотеги при сканировании; искать по композиторам, авторам текста, комментариям, псевдонимам и пользовательским тегам</string>
     <string name="settings_player_dynamic_flow">Анимированный фон Apple Music</string>
     <string name="settings_player_dynamic_flow_summary">Сохранять стиль фона Apple Music, но при отключении останавливать его постоянное движение; влияет только на этот фон</string>
+    <string name="settings_apple_flow_speed">Скорость потока Apple Music</string>
+    <string name="settings_apple_flow_speed_summary">Чем выше значение, тем заметнее анимация потока обложки</string>
     <!-- Arranger metadata -->
     <string name="settings_library_tile_arranger">Аранжировщики</string>
     <string name="settings_library_tile_arranger_summary">Просмотр по аранжировщику</string>
@@ -2416,4 +2426,15 @@
     <string name="settings_lyric_touch_feedback_summary">Показывать расходящееся свечение от точки касания строки текста</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">Синхронизировать текст с цветом обложки</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">Использовать тот же цвет обложки, что и в проигрывателе</string>
+    <string name="settings_player_mini_lyrics">Мини-текст в проигрывателе</string>
+    <string name="settings_player_mini_lyrics_summary">Отдельно настройте масштаб, размер, интервал и выравнивание текста под обложкой</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">Масштаб с шагом 1% (50%–150%)</string>
+    <string name="settings_player_mini_lyrics_line_spacing">Интервал мини-текста</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">Влияет только на мини-текст под обложкой</string>
+    <string name="settings_lyric_pause_current_only">При паузе выделять только текущую строку</string>
+    <string name="settings_lyric_pause_current_only_summary">Если выключено, при паузе выделяются все строки</string>
+    <string name="settings_immersive_lyric_swipe">Переключать треки свайпом по тексту</string>
+    <string name="settings_immersive_lyric_swipe_summary">Проведите горизонтально в нижней области текста</string>
+    <string name="library_layout_grid">Сетка</string>
+    <string name="library_layout_list">Список</string>
 </resources>

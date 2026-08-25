@@ -54,7 +54,7 @@ internal fun AppleMusicLyricsView(
     currentPositionMs: Long,
     isPlaying: Boolean,
     isPaused: Boolean = !isPlaying,
-    brightenAllLinesWhenPaused: Boolean = true,
+    brightenAllLinesWhenPaused: Boolean? = null,
     pageVisible: Boolean = true,
     showTranslation: Boolean,
     showPronunciation: Boolean,
@@ -69,7 +69,7 @@ internal fun AppleMusicLyricsView(
     contentColor: Color,
     wordLiftEnabled: Boolean = true,
     onLineClick: (LyricLine) -> Unit,
-    onLineDoubleClick: () -> Unit,
+    onLineDoubleClick: (() -> Unit)? = null,
     onLineLongClick: (LyricLine) -> Unit,
     topContentPadding: Dp = 72.dp,
     bottomContentPadding: Dp = 132.dp,
@@ -92,9 +92,16 @@ internal fun AppleMusicLyricsView(
     val wordSeekEnabled by remember(context) {
         SettingsManager.getInstance(context).lyricWordSeekEnabled
     }.collectAsState(initial = false)
+    val effectiveLineDoubleClick = onLineDoubleClick.takeIf {
+        lyricLineDoubleTapEnabled(wordSeekEnabled)
+    }
     val touchFeedbackEnabled by remember(context) {
         SettingsManager.getInstance(context).lyricTouchFeedbackEnabled
     }.collectAsState(initial = false)
+    val pauseCurrentOnly by remember(context) {
+        SettingsManager.getInstance(context).lyricPauseCurrentOnly
+    }.collectAsState(initial = true)
+    val revealAllLinesWhilePaused = brightenAllLinesWhenPaused ?: !pauseCurrentOnly
     if (lyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             BasicText(
@@ -142,7 +149,7 @@ internal fun AppleMusicLyricsView(
                         sustainThresholdMs = sustainThresholdMs,
                         reserveExtraLyricSpace = false,
                         onClick = { onLineClick(line) },
-                        onDoubleClick = onLineDoubleClick,
+                        onDoubleClick = effectiveLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },
                         onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
                             { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
@@ -300,11 +307,16 @@ internal fun AppleMusicLyricsView(
             }
             if (abs(distance) <= CONE_SCROLL_VISIBILITY_THRESHOLD_PX) return@LaunchedEffect
 
-            val animationStart = scrollSpring.value
-            var appliedValue = animationStart
+            // A line change can cancel the preceding spring while it still carries position and
+            // velocity. Reusing that stale Animatable state makes the list travel past the new
+            // row and then visibly pull the entire lyric block backwards. Keep the spring motion,
+            // but restart each measured correction from zero so only the current distance is
+            // applied to LazyColumn.
+            scrollSpring.snapTo(0f)
+            var appliedValue = 0f
             listState.scroll {
                 scrollSpring.animateTo(
-                    targetValue = animationStart + distance,
+                    targetValue = distance,
                     animationSpec = spring(
                         dampingRatio = CONE_SCROLL_DAMPING_RATIO,
                         stiffness = CONE_SCROLL_STIFFNESS,
@@ -325,6 +337,14 @@ internal fun AppleMusicLyricsView(
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val trailingLineHeight = with(LocalDensity.current) { trailingLineHeightPx.toDp() }
+        // The first lyric has no preceding rows that LazyColumn can scroll through. Reserve its
+        // focus offset as actual leading content so 00:00 lyrics land at the same visual anchor
+        // instead of sticking to the top edge of compact/immersive lyric viewports.
+        val leadingFocusPadding = resolveAppleMusicLyricsLeadingPadding(
+            viewportHeight = maxHeight,
+            focusOffsetRatio = focusOffsetRatio,
+            minimumTopPadding = topContentPadding
+        )
         // The regular fixed bottom inset is too short for the final line to reach the same
         // focus offset as every other line. Reserve the remaining viewport after that line so
         // the final lyric can still scroll to the focus position rather than pinning to the bottom.
@@ -336,7 +356,7 @@ internal fun AppleMusicLyricsView(
         )
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(top = topContentPadding, bottom = trailingFocusPadding),
+            contentPadding = PaddingValues(top = leadingFocusPadding, bottom = trailingFocusPadding),
             verticalArrangement = Arrangement.spacedBy(lineSpacing),
             userScrollEnabled = userScrollEnabled,
             modifier = Modifier.fillMaxSize()
@@ -363,7 +383,7 @@ internal fun AppleMusicLyricsView(
                     AppleMusicLyricLine(
                         line = line,
                         active = lineIsActive,
-                        paused = isPaused && brightenAllLinesWhenPaused,
+                        paused = isPaused && revealAllLinesWhilePaused,
                         distance = (index - activeIndex).coerceIn(-4, 4),
                         userScrolling = userDragging || keepLinesSharp,
                         nonCurrentLineBlurEnabled = nonCurrentLineBlurEnabled && renderIsPlaying,
@@ -387,7 +407,7 @@ internal fun AppleMusicLyricsView(
                         sustainThresholdMs = sustainThresholdMs,
                         reserveExtraLyricSpace = reserveExtraLyricSpace,
                         onClick = { onLineClick(line) },
-                        onDoubleClick = onLineDoubleClick,
+                        onDoubleClick = effectiveLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },
                         onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
                             { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
@@ -406,6 +426,8 @@ internal fun AppleMusicLyricsView(
     }
 }
 
+internal fun lyricLineDoubleTapEnabled(wordSeekEnabled: Boolean): Boolean = !wordSeekEnabled
+
 private fun LyricLine.openingSeekHandler(
     onLineClick: (LyricLine) -> Unit
 ): ((Float) -> Unit)? {
@@ -415,6 +437,15 @@ private fun LyricLine.openingSeekHandler(
         onLineClick(copy(timeMs = positionMs))
     }
 }
+
+internal fun resolveAppleMusicLyricsLeadingPadding(
+    viewportHeight: Dp,
+    focusOffsetRatio: Float,
+    minimumTopPadding: Dp
+): Dp = maxOf(
+    minimumTopPadding,
+    viewportHeight * focusOffsetRatio.coerceIn(0f, 1f)
+)
 
 /**
  * Leaves enough scrollable space after the final lyric for its top edge to reach the same

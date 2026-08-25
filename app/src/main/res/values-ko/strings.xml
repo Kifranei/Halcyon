@@ -295,6 +295,8 @@
     <string name="settings_show_artist_introduction_summary">아티스트 페이지에 소개 항목을 표시합니다</string>
     <string name="settings_open_player_on_play">재생을 탭한 후 플레이어 열기</string>
     <string name="settings_open_player_on_play_summary">로컬, WebDAV 또는 온라인 곡을 시작한 후 자동으로 플레이어 열기</string>
+    <string name="settings_open_player_from_notification">미디어 알림에서 플레이어 열기</string>
+    <string name="settings_open_player_from_notification_summary">알림 또는 잠금 화면의 미디어 카드를 탭하면 현재 플레이어 화면을 바로 엽니다</string>
     <string name="settings_mini_player_swipe_to_open_player">미니 플레이어를 위로 밀어 플레이어 열기</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">끄면 목록을 스크롤할 때 실수로 열리는 것을 방지합니다</string>
     <string name="settings_show_play_next_in_lists">곡 목록에 다음 재생 표시</string>
@@ -404,7 +406,7 @@
     <string name="home_play_daily_mix">일일 믹스 재생</string>
     <string name="home_ai_section">AI</string>
     <string name="home_ai_playlist">AI 재생 도우미</string>
-    <string name="home_ai_playlist_summary">재생을 위해 로컬 곡만 호출할 수 있습니다. 곡을 삭제하거나 수정하지 않습니다. 라이브러리: %1$d 곡</string>
+    <string name="home_ai_playlist_summary">Ella가 노래를 골라드려요 · 현재 라이브러리 %1$d곡</string>
     <string name="home_ai_playlist_loading">AI 설정을 읽고 재생목록을 생성하는 중…</string>
     <string name="home_ai_playlist_play">AI 재생목록 생성 및 재생</string>
     <string name="home_ai_chat_open">AI 채팅 열기</string>
@@ -846,6 +848,8 @@
     <string name="settings_startup_poster_image">시작 포스터 이미지 선택</string>
     <string name="settings_app_wallpaper">전체 사용자 지정 배경화면</string>
     <string name="settings_app_wallpaper_summary">라이브러리, 앨범, 재생목록, 폴더 및 유사한 페이지 뒤에 사용자 지정 배경화면 표시</string>
+    <string name="settings_app_now_playing_flow_background">탐색 페이지에 현재 곡 흐름 표시</string>
+    <string name="settings_app_now_playing_flow_background_summary">홈, 라이브러리 및 목록 페이지에서 플레이어의 흐름 스타일과 속도를 재사용합니다. 기본값은 꺼짐이며 사용자 지정 배경화면이 우선합니다.</string>
     <string name="settings_app_wallpaper_image">배경화면 이미지 선택</string>
     <string name="settings_player_background">사용자 지정 플레이어 배경</string>
     <string name="settings_player_background_summary">태블릿 가로 모드 플레이어 페이지와 휴대폰 비몰입형 플레이어 페이지에만 표시됩니다.</string>
@@ -1554,6 +1558,10 @@
     <string name="equalizer_preset">프리셋</string>
     <string name="equalizer_preset_custom">사용자 지정</string>
     <string name="equalizer_reset">초기화</string>
+    <string name="equalizer_section_master_gain">마스터 게인</string>
+    <string name="equalizer_master_gain">마스터 게인</string>
+    <string name="equalizer_master_gain_summary">EQ 곡선을 바꾸지 않고 모든 소프트웨어 효과 뒤에서 음량을 조절합니다.</string>
+    <string name="equalizer_master_gain_warning">EQ 곡선과 독립적으로 모든 소프트웨어 효과 뒤에 적용됩니다. 양의 게인은 피크 리미터를 작동시킬 수 있으며, 리미터를 끄면 클리핑이 발생할 수 있습니다.</string>
     <string name="equalizer_section_parametric">파라메트릭 EQ</string>
     <string name="equalizer_eq_q">밴드 Q(대역폭)</string>
     <string name="equalizer_section_tone">음색</string>
@@ -1955,6 +1963,8 @@
     <string name="settings_full_tag_search_summary_on">스캔 중 전체 오디오 태그를 읽으며 작곡가, 작사가, 주석, 별칭, 사용자 태그도 검색합니다</string>
     <string name="settings_player_dynamic_flow">Apple Music 애니메이션 배경</string>
     <string name="settings_player_dynamic_flow_summary">Apple Music 배경 스타일은 유지하고 끄면 지속적인 움직임만 멈춥니다. 해당 배경에만 적용됩니다</string>
+    <string name="settings_apple_flow_speed">Apple Music 흐름 속도</string>
+    <string name="settings_apple_flow_speed_summary">값이 클수록 커버 흐름 애니메이션이 더 뚜렷해집니다</string>
     <!-- Arranger metadata -->
     <string name="settings_library_tile_arranger">편곡가</string>
     <string name="settings_library_tile_arranger_summary">편곡가별로 탐색</string>
@@ -2429,4 +2439,15 @@
     <string name="settings_lyric_touch_feedback_summary">가사를 누르거나 탭할 때 터치 지점에서 퍼지는 빛 효과를 표시합니다</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">데스크톱 가사를 커버 콘텐츠 색상과 동기화</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">플레이어와 동일한 커버 기반 색상을 사용합니다</string>
+    <string name="settings_player_mini_lyrics">플레이어 미니 가사</string>
+    <string name="settings_player_mini_lyrics_summary">표지 아래 미니 가사의 배율, 크기, 간격 및 정렬을 별도로 조정합니다</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">미니 가사 배율을 1% 단위로 조정합니다(50%–150%)</string>
+    <string name="settings_player_mini_lyrics_line_spacing">미니 가사 줄 간격</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">플레이어 표지 아래 미니 가사에만 적용됩니다</string>
+    <string name="settings_lyric_pause_current_only">일시 정지 시 현재 가사만 강조</string>
+    <string name="settings_lyric_pause_current_only_summary">끄면 일시 정지 중 모든 가사를 강조합니다</string>
+    <string name="settings_immersive_lyric_swipe">몰입 모드에서 가사를 밀어 곡 전환</string>
+    <string name="settings_immersive_lyric_swipe_summary">아래 가사 영역을 좌우로 밀어 이전 또는 다음 곡으로 이동합니다</string>
+    <string name="library_layout_grid">격자 보기</string>
+    <string name="library_layout_list">목록 보기</string>
 </resources>

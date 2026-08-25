@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +32,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -65,6 +67,10 @@ internal fun AppleCoverFlowBackground(
 ) {
     val context = LocalContext.current
     val densityDpi = context.resources.displayMetrics.densityDpi
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val speed by settingsManager.playerAppleFlowSpeed.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_APPLE_FLOW_SPEED
+    )
 
     // Pre-scale the cover once to a small source; it is drawn into an even smaller frame canvas, so a
     // large source only wastes memory bandwidth.
@@ -72,9 +78,12 @@ internal fun AppleCoverFlowBackground(
 
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
 
-    // ~24 fps clock that stops when the surface is hidden or animation is disabled.
-    val elapsedMs = rememberThrottledFlowTimeMs(sourceBitmap, animate)
-    val frameTimeMs = (elapsedMs / FRAME_INTERVAL_MS) * FRAME_INTERVAL_MS
+    // Use the process-wide frame clock instead of an elapsed timer local to this Composable.
+    // Browsing pages and every player/lyrics surface therefore render the same flow coordinates
+    // when one replaces another, rather than restarting the animation at a different phase.
+    val sharedClockMs = rememberThrottledFlowTimeMs(sourceBitmap, animate)
+    val scaledTimeMs = scaledAppleFlowTimeMs(sharedClockMs, speed)
+    val frameTimeMs = (scaledTimeMs / FRAME_INTERVAL_MS) * FRAME_INTERVAL_MS
 
     val normalizedBlur = blur.coerceIn(30f, 100f)
     val washPrimary = remember(backgroundColor, isDark) {
@@ -155,24 +164,27 @@ internal fun AppleCoverFlowBackground(
     }
 }
 
+internal fun scaledAppleFlowTimeMs(elapsedMs: Long, speedTenths: Int): Long =
+    elapsedMs.coerceAtLeast(0L) * speedTenths.coerceIn(5, 60) / 10L
+
 /**
- * ~24 fps monotonic clock in milliseconds. Freezes (returns the last value) when [animate] is false
- * or the player surface is hidden, so a hidden-but-resident player draws nothing.
+ * ~24 fps process-wide monotonic clock in milliseconds. Every composed flow background samples
+ * the same clock origin, so switching surfaces preserves the current coordinates. It freezes
+ * (returns the last value) when [animate] is false or the player surface is hidden.
  */
 @Composable
 private fun rememberThrottledFlowTimeMs(key: Any?, animate: Boolean): Long {
     val active = animate && LocalPlayerSurfaceActive.current
-    var elapsed by remember(key) { mutableLongStateOf(0L) }
+    var sharedClockMs by remember(key) { mutableLongStateOf(0L) }
     LaunchedEffect(key, active) {
         if (!active) return@LaunchedEffect
-        val startNanos = withFrameNanos { it }
         while (true) {
             val now = withFrameNanos { it }
-            elapsed = (now - startNanos) / 1_000_000L
+            sharedClockMs = now / 1_000_000L
             delay(FRAME_INTERVAL_MS)
         }
     }
-    return elapsed
+    return sharedClockMs
 }
 
 private fun Bitmap.scaledForFlowSource(maxDimension: Int = 256): Bitmap {

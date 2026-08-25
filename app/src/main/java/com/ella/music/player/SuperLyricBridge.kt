@@ -1,6 +1,7 @@
 package com.ella.music.player
 
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -16,16 +17,17 @@ class SuperLyricBridge {
     private var lastKey: String? = null
     private var lastSongKey: String? = null
     private var lastSong: Song? = null
+    private var consecutiveFailures = 0
+    private var retryAfterElapsedMs = 0L
 
     fun setEnabled(enabled: Boolean) {
+        if (this.enabled == enabled) return
         this.enabled = enabled
         lastKey = null
         lastSongKey = null
+        resetRetryState()
         if (enabled) {
-            runCatching { register() }.onFailure {
-                Log.w(TAG, "Failed to register SuperLyric", it)
-                registered = false
-            }
+            register()
         } else {
             sendStop()
             unregister()
@@ -58,9 +60,8 @@ class SuperLyricBridge {
         val key = "${song?.id}:${line.timeMs}:${line.endMs}:$secondaryMode:$showTranslation:${secondary.orEmpty()}"
         if (force && !registered) lastKey = null
         if (key == lastKey) return
-        lastKey = key
+        if (!register()) return
         runCatching {
-            register()
             val end = line.endMs ?: (line.words.maxOfOrNull { it.endMs } ?: (line.timeMs + 3000L))
             SuperLyricHelper.sendLyric(
                 SuperLyricData()
@@ -90,10 +91,10 @@ class SuperLyricBridge {
                         }
                     })
             )
+            lastKey = key
+            resetRetryState()
         }.onFailure {
-            Log.w(TAG, "Failed to send SuperLyric", it)
-            registered = false
-            lastKey = null
+            recordFailure("send", it)
         }
     }
 
@@ -116,6 +117,7 @@ class SuperLyricBridge {
         lastSong = null
         lastKey = null
         lastSongKey = null
+        resetRetryState()
     }
 
     private fun Song.superLyricSongKey(): String =
@@ -137,17 +139,50 @@ class SuperLyricBridge {
         Pronunciation
     }
 
-    private fun register() {
-        if (registered || !SuperLyricHelper.isAvailable()) return
-        SuperLyricHelper.registerPublisher()
-        SuperLyricHelper.setSystemPlayStateListenerEnabled(true)
-        registered = true
+    private fun register(): Boolean {
+        if (!enabled) return false
+        if (registered) return true
+        if (SystemClock.elapsedRealtime() < retryAfterElapsedMs) return false
+
+        val available = runCatching { SuperLyricHelper.isAvailable() }
+            .getOrElse {
+                recordFailure("availability check", it)
+                return false
+            }
+        if (!available) {
+            recordFailure("attach")
+            return false
+        }
+
+        return runCatching {
+            SuperLyricHelper.registerPublisher()
+            SuperLyricHelper.setSystemPlayStateListenerEnabled(true)
+            registered = true
+            true
+        }.getOrElse {
+            recordFailure("register", it)
+            false
+        }
     }
 
     private fun unregister() {
         if (!registered) return
         runCatching { SuperLyricHelper.unregisterPublisher() }
         registered = false
+    }
+
+    private fun recordFailure(operation: String, cause: Throwable? = null) {
+        registered = false
+        consecutiveFailures++
+        val delayMs = superLyricRetryDelayMs(consecutiveFailures)
+        retryAfterElapsedMs = SystemClock.elapsedRealtime() + delayMs
+        val reason = cause?.let { " (${it.javaClass.simpleName}: ${it.message.orEmpty()})" }.orEmpty()
+        Log.w(TAG, "SuperLyric $operation unavailable; retry in ${delayMs / 1000}s$reason")
+    }
+
+    private fun resetRetryState() {
+        consecutiveFailures = 0
+        retryAfterElapsedMs = 0L
     }
 
     private fun List<com.ella.music.data.model.LyricWord>.toSuperWords(lineText: String): Array<SuperLyricWord>? {
@@ -191,3 +226,12 @@ class SuperLyricBridge {
         const val TAG = "SuperLyricBridge"
     }
 }
+
+internal fun superLyricRetryDelayMs(failureCount: Int): Long {
+    val exponent = (failureCount.coerceAtLeast(1) - 1).coerceAtMost(4)
+    return (SUPER_LYRIC_INITIAL_RETRY_MS * (1L shl exponent))
+        .coerceAtMost(SUPER_LYRIC_MAX_RETRY_MS)
+}
+
+private const val SUPER_LYRIC_INITIAL_RETRY_MS = 30_000L
+private const val SUPER_LYRIC_MAX_RETRY_MS = 5 * 60_000L

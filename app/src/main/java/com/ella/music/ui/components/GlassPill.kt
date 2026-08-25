@@ -53,11 +53,7 @@ fun GlassPill(
             },
             highlight = {
                 Highlight.Default.copy(
-                    alpha = if (glassEffect == BottomBarGlassEffect.LiquidGlass) {
-                        if (isLight) 0.42f else 0.32f
-                    } else {
-                        bottomBarGlassHighlightAlpha(isLight, glassEffect)
-                    }
+                    alpha = bottomBarGlassHighlightAlpha(isLight, glassEffect)
                 )
             },
             onDrawSurface = {
@@ -79,12 +75,7 @@ fun GlassPill(
                     alpha = if (isInDark) 0.2f else 0.1f,
                 ),
             )
-            .then(glassModifier)
-            .liquidGlassDepthOverlay(
-                enabled = glassEffect == BottomBarGlassEffect.LiquidGlass,
-                isLight = isLight,
-                cornerRadius = 32.dp
-            ),
+            .then(glassModifier),
         content = content
     )
 }

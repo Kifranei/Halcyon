@@ -371,6 +371,8 @@
     <string name="settings_artist_bio_download_never">Never</string>
     <string name="settings_open_player_on_play">Open player after tapping play</string>
     <string name="settings_open_player_on_play_summary">Automatically open the player after starting local, WebDAV, or online songs</string>
+    <string name="settings_open_player_from_notification">Open player from media notification</string>
+    <string name="settings_open_player_from_notification_summary">Open the current player directly when tapping the notification or lock-screen media card</string>
     <string name="settings_mini_player_swipe_to_open_player">Swipe mini player up to open the player</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">Turn off to avoid opening the player accidentally while scrolling lists</string>
     <string name="settings_show_play_next_in_lists">Show Play Next in song lists</string>
@@ -486,7 +488,7 @@
     <string name="home_play_daily_mix">Play daily mix</string>
     <string name="home_ai_section">AI</string>
     <string name="home_ai_playlist">AI playback assistant</string>
-    <string name="home_ai_playlist_summary">Can only call local songs for playback; it will not delete or modify songs. Library: %1$d songs</string>
+    <string name="home_ai_playlist_summary">Let Ella pick songs for you · %1$d songs in your library</string>
     <string name="home_ai_playlist_loading">Reading AI settings and generating a playlist…</string>
     <string name="home_ai_playlist_play">Generate and play AI playlist</string>
     <string name="home_ai_chat_open">Open AI chat</string>
@@ -1063,6 +1065,8 @@
     <string name="settings_startup_poster_image">Choose startup poster image</string>
     <string name="settings_app_wallpaper">Global custom wallpaper</string>
     <string name="settings_app_wallpaper_summary">Show a custom wallpaper behind library, album, playlist, folder, and similar pages</string>
+    <string name="settings_app_now_playing_flow_background">Current-song flow on browsing pages</string>
+    <string name="settings_app_now_playing_flow_background_summary">Reuse the player flow style and speed on Home, Library, and list pages. Off by default; custom wallpaper takes priority.</string>
     <string name="settings_app_wallpaper_image">Choose wallpaper image</string>
     <string name="settings_player_background">Custom player background</string>
     <string name="settings_player_background_summary">Only shown on tablet landscape player pages and phone non-immersive player pages</string>
@@ -1810,6 +1814,10 @@
     <string name="equalizer_preset">Preset</string>
     <string name="equalizer_preset_custom">Custom</string>
     <string name="equalizer_reset">Reset</string>
+    <string name="equalizer_section_master_gain">Master gain</string>
+    <string name="equalizer_master_gain">Master gain</string>
+    <string name="equalizer_master_gain_summary">Adjusts volume after all software effects without changing the EQ curve.</string>
+    <string name="equalizer_master_gain_warning">Independent of the EQ curve and applied after all software effects. Positive gain may trigger peak limiting; disabling the limiter can cause clipping.</string>
     <string name="equalizer_section_parametric">Parametric EQ</string>
     <string name="equalizer_eq_q">Band Q (bandwidth)</string>
     <string name="equalizer_section_tone">Tone</string>
@@ -2037,6 +2045,8 @@
     <string name="settings_apple_music_lyrics_word_lift_summary">Gently lift the current word while it is sung; feathered karaoke and sustained-note glow remain enabled when off</string>
     <string name="settings_player_dynamic_flow">Motion</string>
     <string name="settings_player_dynamic_flow_summary">On keeps the Apple Music background flowing; off keeps the style but stops the motion</string>
+    <string name="settings_apple_flow_speed">Apple Music flow speed</string>
+    <string name="settings_apple_flow_speed_summary">Higher values make the cover-flow animation more noticeable</string>
     <string name="player_enable_lyrics_word_lift">Enable word lift</string>
     <string name="player_disable_lyrics_word_lift">Disable word lift</string>
     <string name="player_lyrics_sustain_threshold">Sustained-note trigger threshold</string>
@@ -2431,4 +2441,15 @@
     <string name="settings_lyric_touch_feedback_summary">Show an expanding glow from the touch point when pressing or tapping a lyric</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">Sync desktop lyrics with cover content color</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">Use the same cover-derived color as Player – Cover content color</string>
+    <string name="settings_player_mini_lyrics">Player mini lyrics</string>
+    <string name="settings_player_mini_lyrics_summary">Adjust the scale, size, spacing, and alignment of lyrics below the cover independently</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">Adjust mini lyric scale in 1% increments (50%–150%)</string>
+    <string name="settings_player_mini_lyrics_line_spacing">Mini lyric line spacing</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">Only affects mini lyrics below the cover on the player page</string>
+    <string name="settings_lyric_pause_current_only">Highlight only the current lyric when paused</string>
+    <string name="settings_lyric_pause_current_only_summary">When off, all lyrics are highlighted while playback is paused</string>
+    <string name="settings_immersive_lyric_swipe">Swipe lyrics to change tracks in immersive mode</string>
+    <string name="settings_immersive_lyric_swipe_summary">Swipe horizontally in the lower lyric area for previous or next track</string>
+    <string name="library_layout_grid">Grid layout</string>
+    <string name="library_layout_list">List layout</string>
 </resources>

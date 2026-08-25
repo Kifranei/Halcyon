@@ -18,6 +18,8 @@ data class AudioEffectSettings(
     val eqEnabled: Boolean = false,
     val eqPreset: Int = PRESET_CUSTOM,
     val eqBandLevelsMb: List<Int> = emptyList(),
+    val masterGainEnabled: Boolean = false,
+    val masterGainTenthsDb: Int = 0,
     val eqQ: Int = EQ_Q_DEFAULT,
     val bassGainDb: Int = 0,
     val trebleGainDb: Int = 0,
@@ -70,6 +72,8 @@ data class AudioEffectSettings(
         const val EQ_Q_DEFAULT = 141   // Q * 100 (1.41)
         const val EQ_Q_MIN = 30        // 0.3
         const val EQ_Q_MAX = 1000      // 10.0
+        const val MASTER_GAIN_MIN_TENTHS_DB = -300
+        const val MASTER_GAIN_MAX_TENTHS_DB = 300
         const val TONE_GAIN_MIN_DB = -12
         const val TONE_GAIN_MAX_DB = 12
         const val COMP_THRESHOLD_MIN_DB = -60

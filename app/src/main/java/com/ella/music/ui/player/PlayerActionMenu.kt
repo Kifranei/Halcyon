@@ -1,5 +1,6 @@
 package com.ella.music.ui.player
 
+import android.graphics.Bitmap
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +33,7 @@ import com.ella.music.viewmodel.AbRepeatState
 @Composable
 internal fun PlayerActionMenu(
     song: Song?,
+    embeddedCover: Bitmap?,
     showLyricsDisplayEntry: Boolean,
     speed: Float,
     pitch: Float,
@@ -146,6 +148,7 @@ internal fun PlayerActionMenu(
             PlayerActionSheetPage.Main -> {
                 PlayerActionMenuHeader(
                     song = song,
+                    embeddedCover = embeddedCover,
                     onArtist = onArtist,
                     onAlbum = onAlbum,
                     onPreviewCover = onPreviewCover

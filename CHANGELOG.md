@@ -1,6 +1,66 @@
+# 1.2.7
+
+From `1.2.6` to `1.2.7`.
+
+中文更新日志
+- 新增统一「投放设备」页：集中提供系统音频输出、Chromecast 和 DLNA MediaRenderer；DLNA 使用应用内局域网媒体服务投放当前歌曲，并同步投放状态。
+- 播放页新增流光、波形和分段刻度进度条，以及全宽流光曲线 / RawS 镜像频谱可视化；可视化样式统一收进设置，Apple Music 播放页保持原本布局（`#539`）。
+- Apple Music 流光增加独立速度调节；Beautiful Lyrics 补充速度、亮度和模糊调节。当前歌曲流光可延伸到首页、音乐库和列表页，并与沉浸播放页 / 歌词页统一坐标、取色和过渡（`#522`、`#551`）。
+- 封面改为按当前歌曲解析：同一专辑含多张内嵌封面时，播放页、迷你播放条、更多菜单、通知、锁屏与封面取色保持一致；补充旧版 MediaSession / OEM 锁屏封面兼容（`#405`、`#514`、`#541`）。
+- 新增实时音频输出面板，显示音源、实际播放链、重采样状态与输出设备；原有长按音频面板 / 系统输出选择手势与信息胶囊切换开关互不冲突（`#393`、`#507`）。
+- 均衡器新增独立总增益，在全部软件音效之后以平滑增益统一调整音量，并提示正增益的峰值限制与削波风险。
+- 频谱查看器补充 5 kHz / 10 kHz / 15 kHz / 20 kHz 频率刻度，优化高采样率频谱布局并保留 Aspect Pro / Kaspek 外部入口。
+- 完善交叉淡入淡出：提前把界面交给已经淡入的下一首，去除切换点的暂停与爆音，稳定长时长交叉区间，并在暂停状态切歌时继续保持暂停（`#403`、`#512`、`#513`）。
+- 播放页音质 / 音频信息 / 输出设备胶囊可分别显示；ReplayGain 可合并进音频信息或作为独立胶囊，胶囊字体跟随播放页字体。Hi-Res 封面标识默认关闭（`#393`）。
+- 播放页和歌曲列表的「更多操作」支持分别排序、隐藏和恢复默认布局；封面长按预览新增独立开关（`#508`、`#549`）。
+- 播放页迷你歌词新增独立缩放、字号、行距与对齐设置；暂无歌词保持居中，修复 00:00 歌词顶边、滚动越界和回退抖动（`#301`）。
+- 内置 LunaBeat TTML Hub 歌词源，支持搜索高精度逐拍 TTML；Lyrico 匹配结果显示封面，并完善插件运行时与来源导入（`#506`）。
+- 歌词点击支持逐字精确定位与连续时间跳转，新增可关闭的扩散轮廓反馈；开头模板歌词按连续进度 seek，避免短标题只能跳到 00:00（`#548`）。
+- 开头空白可用模板显示歌曲名、艺术家、专辑、流派、年份等元数据；完善长音高亮、Apple 风格间奏等待符、暂停时仅高亮当前句和沉浸歌词区域横滑切歌（`#516`、`#517`、`#518`、`#551`）。
+- 歌词样式中的非当前歌词模糊同步到设置页；桌面歌词修复逐字推进卡顿、锁定触控死区、宽度与封面内容色同步，SuperLyric 增加失败重试（`#509`、`#510`、`#515`、`#536`、`#547`）。
+- LX 在线搜索增加网易云、QQ 音乐、酷狗和咪咕横向来源切换，并完善加密 LX 用户源运行时；修复酷狗结果无法播放、网易云结果缺少封面、返回后退出 LX 页和冗余来源提示（`#201`、`#540`）。
+- WebDAV 自动备份会发现并提示较新的云端备份，可预设默认恢复分类；本地 / WebDAV 备份新增艺术家与专辑置顶等音乐库展示设置（`#345`）。
+- 歌单与文件夹歌单的星级 / 红心筛选新增独立开关；音乐库增加列表 / 网格布局并在切换时保持当前位置，修复文件夹歌单排序跳到底部（`#267`、`#374`、`#530`、`#551`）。
+- 搜索结果新增插入下一首、追加队尾或替换队列三种播放策略；修复重复条目身份、播放后键盘未收起和 LX 播放页返回链路（`#543`、`#546`）。
+- 听歌统计可分别设置计次所需的播放比例与时长；修复日历切换时封面 / 全局图片资源异常，曲库分析图例支持长按查看对应歌曲（`#172`、`#521`）。
+- 点击通知或锁屏媒体卡片可按设置直接进入播放页；修复锁屏、第三方灵动岛等 MediaSession 控制切歌卡住或上一首被解释为重播当前曲，并保持暂停切歌不自动播放（`#415`）。
+- 艺术家传记增加网易云与 Wikipedia 跳转，国内网络下可回退加载；匹配优先精确大小写并在无精确结果时回退到不区分大小写（`#505`、`#545`）。
+- 首页 AI 播放助手默认开启并显示实际曲库歌曲数，卡片改为浅蓝 / 浅绿渐变；设置向导流光与关于页统一，改善浅色 / 深色标题对比度和悬浮底栏高亮状态（`#550`）。
+- 修复「全部随机」只改队列未切换播放模式、继续播放来源判断、最近听过手动播放来源、液态玻璃高亮与底栏状态、封面网格清晰度和布局切换定位等问题（`#519`、`#520`、`#542`、`#550`）。
+
+English Changelog
+- Added a unified Casting Devices page for system audio routes, Chromecast, and DLNA MediaRenderers. DLNA serves the current track through an in-app local-network media server and reports active casting state.
+- Added glow, waveform, and segmented progress styles plus full-width flowing-curve / RawS mirrored-spectrum visualizers. Visualizer selection now lives in settings while the Apple Music player keeps its original layout (`#539`).
+- Added an independent Apple Music flow-speed control and Beautiful Lyrics speed, brightness, and blur controls. The current-track flow can extend across Home, Library, and list pages with shared coordinates, palette, and transitions on immersive player / lyrics pages (`#522`, `#551`).
+- Artwork is resolved per current track: albums containing multiple embedded covers now stay consistent across the player, MiniPlayer, action sheets, notifications, lock screen, and palette extraction. Legacy MediaSession / OEM lock-screen artwork compatibility is included (`#405`, `#514`, `#541`).
+- Added a realtime audio-output panel for source format, effective playback chain, resampling state, and output device. Existing long-press audio-panel / system-route gestures remain independent from the information-capsule cycling option (`#393`, `#507`).
+- Added an independent equalizer master gain applied smoothly after all software effects, with peak-limiter and clipping guidance for positive gain.
+- Added 5 kHz / 10 kHz / 15 kHz / 20 kHz frequency marks to the spectrum viewer, refined high-sample-rate layout, and retained Aspect Pro / Kaspek launchers.
+- Refined crossfade to hand the UI to the incoming track as it fades in, remove the pause/click at the transition boundary, stabilize long overlap intervals, and preserve the paused state when skipping (`#403`, `#512`, `#513`).
+- Quality, audio-information, and output-device capsules can be shown independently. ReplayGain may be merged into audio details or shown as a separate capsule, capsule typography follows the player font, and the Hi-Res cover badge is off by default (`#393`).
+- Player and list action menus can be independently reordered, hidden, or reset. Artwork long-press preview now has its own switch (`#508`, `#549`).
+- Added independent scale, font-size, spacing, and alignment controls for player mini lyrics. No-lyrics content remains centered, and 00:00 top alignment, overscroll, and backward-jump issues are fixed (`#301`).
+- Bundled a LunaBeat TTML Hub source for high-precision beat-timed TTML. Lyrico matches now show artwork, and plugin runtime / source importing is more complete (`#506`).
+- Lyric taps support exact word timing and continuous timestamp seeking with an optional expanding outline response. Opening-template lyrics use continuous seeking so short titles no longer remain stuck at 00:00 (`#548`).
+- Opening gaps can show title, artist, album, genre, year, and other metadata through a template. Sustained-word highlights, Apple-style interlude wait marks, paused current-line-only highlighting, and optional lyric-area swipe-to-skip are refined (`#516`, `#517`, `#518`, `#551`).
+- Non-current lyric blur is synchronized with the Settings page. Floating lyrics fix word-progress stutter, locked touch dead zones, width / artwork-content-color sync, and SuperLyric gains retry handling (`#509`, `#510`, `#515`, `#536`, `#547`).
+- LX online search now switches horizontally between NetEase Cloud Music, QQ Music, KuGou, and Migu, with expanded encrypted LX user-source runtime support. Fixed unplayable KuGou results, missing NetEase artwork, incorrect back navigation, and redundant source notices (`#201`, `#540`).
+- WebDAV automatic backup detects newer cloud backups and can remember default restore categories. Local / WebDAV backups now include library-presentation state such as pinned artists and albums (`#345`).
+- Added independent rating / favorite filter switches to playlist and folder-playlist pages. The library gains list / grid layouts that keep the current position, and folder-playlist sorting no longer jumps to the bottom (`#267`, `#374`, `#530`, `#551`).
+- Search results can insert after the current item, append to the queue, or replace the queue. Fixed duplicate queue-entry identity, keyboards remaining open after playback, and LX player back navigation (`#543`, `#546`).
+- Listening-count percentage and elapsed-time thresholds are configurable. Fixed calendar navigation causing artwork / global-image loss, and analytics legends can be long-pressed to inspect matching songs (`#172`, `#521`).
+- Notification or lock-screen media cards can open the player directly. Fixed lock-screen and third-party Dynamic Island MediaSession controls freezing on skip or treating Previous as replay-current, while paused skips remain paused (`#415`).
+- Artist biographies add NetEase and Wikipedia destinations, with fallback loading on mainland networks. Matching prefers exact case and falls back to case-insensitive results when needed (`#505`, `#545`).
+- The Home AI playlist assistant is enabled by default, shows the actual library track count, and uses a light-blue / light-green gradient. Setup-wizard flow now matches the About page, with improved light / dark title contrast and floating-dock selection state (`#550`).
+- Fixed Shuffle All changing only the queue, continue-playback source detection, manual Recent Plays source tracking, Liquid Glass highlights / bottom-dock state, grid artwork sharpness, and layout-switch positioning (`#519`, `#520`, `#542`, `#550`).
+
+Version
+- Version name: `1.2.7`
+- Version code: `35`
+
 # 1.2.6
 
-From `1.2.5` to the current unreleased `1.2.6` tree.
+From `1.2.5` to `1.2.6`.
 
 中文更新日志
 - 伴奏不再打包人声分离模型，改回实时中央声道衰减。平板 Apple Music 收起歌词时封面按剩余高度约束，不再盖住歌名。无损胶囊改用 Apple Music 波形标，Hi-Res 封面角标默认用内置金标。歌曲列表杜比角标改用 Apple Music 的双 D 标志。

@@ -80,6 +80,34 @@ class CrossfadeTransitionMathTest {
     }
 
     @Test
+    fun `handoff compensation leads a lagging primary by measured seek latency`() {
+        assertEquals(
+            4_450L,
+            CrossfadeTransitionMath.compensatedHandoffPosition(
+                auxiliaryPositionMs = 4_000L,
+                positionDriftMs = -450L,
+                measuredSeekLatencyMs = 450L
+            )
+        )
+        assertEquals(
+            4_000L,
+            CrossfadeTransitionMath.compensatedHandoffPosition(
+                auxiliaryPositionMs = 4_000L,
+                positionDriftMs = 180L,
+                measuredSeekLatencyMs = 450L
+            )
+        )
+    }
+
+    @Test
+    fun `handoff blend replaces hard gain switch with a bounded ramp`() {
+        assertEquals(0f, CrossfadeTransitionMath.handoffBlendProgress(0L, 112L), 0.0001f)
+        assertEquals(0.5f, CrossfadeTransitionMath.handoffBlendProgress(56L, 112L), 0.0001f)
+        assertEquals(1f, CrossfadeTransitionMath.handoffBlendProgress(112L, 112L), 0.0001f)
+        assertEquals(1f, CrossfadeTransitionMath.handoffBlendProgress(160L, 112L), 0.0001f)
+    }
+
+    @Test
     fun `adaptive fade keeps outgoing track full during incoming silence`() {
         assertEquals(
             0f,

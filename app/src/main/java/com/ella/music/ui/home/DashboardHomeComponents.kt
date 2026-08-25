@@ -60,6 +60,7 @@ internal fun AiMixCard(
     onPlay: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val aiCardContentColor = Color(0xFF123F49)
     Card(
         modifier = modifier,
         cornerRadius = 16.dp,
@@ -70,7 +71,7 @@ internal fun AiMixCard(
                 .fillMaxWidth()
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xFF3A0CA3), Color(0xFF4361EE), Color(0xFF4CC9F0))
+                        listOf(Color(0xFF91DFFF), Color(0xFFA4EBCF))
                     )
                 )
                 .padding(horizontal = 18.dp, vertical = 16.dp),
@@ -81,7 +82,7 @@ internal fun AiMixCard(
                     text = stringResource(R.string.home_ai_playlist),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = aiCardContentColor,
                     maxLines = 1
                 )
                 Text(
@@ -91,7 +92,7 @@ internal fun AiMixCard(
                         stringResource(R.string.home_ai_playlist_summary, songCount)
                     },
                     fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.82f),
+                    color = aiCardContentColor.copy(alpha = 0.76f),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 4.dp)
@@ -101,7 +102,7 @@ internal fun AiMixCard(
                 Icon(
                     imageVector = MiuixIcons.Regular.Community,
                     contentDescription = stringResource(R.string.home_ai_chat_open),
-                    tint = Color.White.copy(alpha = 0.92f),
+                    tint = aiCardContentColor.copy(alpha = 0.9f),
                     modifier = Modifier.size(26.dp)
                 )
             }
@@ -109,7 +110,7 @@ internal fun AiMixCard(
                 Icon(
                     imageVector = MiuixIcons.Regular.Play,
                     contentDescription = stringResource(R.string.home_ai_playlist_play),
-                    tint = Color.White,
+                    tint = aiCardContentColor,
                     modifier = Modifier.size(30.dp)
                 )
             }

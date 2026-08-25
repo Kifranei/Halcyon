@@ -2,6 +2,7 @@ package com.ella.music.ui.player
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -56,8 +57,12 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -243,6 +248,9 @@ internal fun CoverPlayerPage(
 ) {
     val playWhenReady by playerViewModel.playWhenReady.collectAsState()
     val isActuallyPaused = !isPlaying && !playWhenReady
+    // Seeking may briefly clear isPlaying while playWhenReady remains true. Keep the transport
+    // glyph stable during that buffering window instead of flashing from pause to play and back.
+    val visualIsPlaying = isPlaying || playWhenReady
     val staticCoverPreviewModel by produceState<Any?>(
         initialValue = resolveCoverPreviewModel(song, embeddedCover),
         song?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
@@ -258,6 +266,8 @@ internal fun CoverPlayerPage(
     var previewCover by remember { mutableStateOf<PlayerCoverPreview?>(null) }
     val coverLongPressPreviewEnabled by playerViewModel.settingsManager.playerCoverLongPressPreviewEnabled
         .collectAsState(initial = true)
+    val immersiveLyricSwipeEnabled by playerViewModel.settingsManager.playerImmersiveLyricSwipe
+        .collectAsState(initial = false)
     val bluetoothDeviceName = rememberBluetoothOutputName()
     val queueLocked by playerViewModel.queueLocked.collectAsState()
     val navidromeConfig by playerViewModel.settingsManager.navidromeConfig.collectAsState(
@@ -328,6 +338,11 @@ internal fun CoverPlayerPage(
         onSwipeNext = onNext
     )
     val coverSwipeModifier = skipCoverSwipeModifier
+    val immersiveLyricSwipeModifier = rememberCoverSwipeModifier(
+        swipeEnabled = immersiveLyricSwipeEnabled,
+        onSwipePrevious = onSwipePrevious,
+        onSwipeNext = onNext
+    )
     var appleMusicShowLyrics by remember { mutableStateOf(false) }
     var appleMusicChromeVisible by remember { mutableStateOf(true) }
     var appleMusicChromeGeneration by remember { mutableIntStateOf(0) }
@@ -339,6 +354,14 @@ internal fun CoverPlayerPage(
         if (!appleMusicShowLyrics || !appleMusicChromeVisible) return@LaunchedEffect
         delay(2_000)
         appleMusicChromeVisible = false
+    }
+    BackHandler(
+        enabled = appleMusicShowLyrics &&
+            com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle) ==
+            com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
+    ) {
+        appleMusicShowLyrics = false
+        revealAppleMusicChrome()
     }
 
     BoxWithConstraints(modifier = modifier) {
@@ -653,7 +676,7 @@ internal fun CoverPlayerPage(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 LandscapeTransportControls(
-                    isPlaying = isPlaying,
+                    isPlaying = visualIsPlaying,
                     shuffleEnabled = shuffleEnabled,
                     repeatMode = repeatMode,
                     palette = pagePalette,
@@ -772,7 +795,7 @@ internal fun CoverPlayerPage(
                         )
                         Spacer(modifier = Modifier.height(if (compactWindow) 8.dp else 12.dp))
                         LandscapeTransportControls(
-                            isPlaying = isPlaying,
+                            isPlaying = visualIsPlaying,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             palette = pagePalette,
@@ -901,11 +924,9 @@ internal fun CoverPlayerPage(
                 maxWidth,
                 maxHeight * if (compactWindow) 0.42f else 0.50f
             )
-            val lyricsSurface = pagePalette.bottom
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(lyricsSurface)
             ) {
                 Box(
                     modifier = Modifier
@@ -916,21 +937,27 @@ internal fun CoverPlayerPage(
                         cornerRadius = 0.dp,
                         showOverlayBadges = false,
                         swipeModifier = skipCoverSwipeModifier,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    0.00f to Color.Transparent,
-                                    0.48f to Color.Transparent,
-                                    0.72f to lyricsSurface.copy(alpha = 0.45f),
-                                    1.00f to lyricsSurface
+                            .graphicsLayer {
+                                compositingStrategy = CompositingStrategy.Offscreen
+                            }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    brush = Brush.verticalGradient(
+                                        colorStops = arrayOf(
+                                            0.00f to Color.White,
+                                            0.70f to Color.White,
+                                            0.88f to Color.White.copy(alpha = 0.62f),
+                                            1.00f to Color.Transparent
+                                        )
+                                    ),
+                                    blendMode = BlendMode.DstIn
                                 )
-                            )
+                            }
                     )
-                    CompositionLocalProvider(LocalPlayerContentColor provides Color.White) {
+                    CompositionLocalProvider(LocalPlayerContentColor provides pagePalette.onBackground) {
                         Row(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -945,7 +972,7 @@ internal fun CoverPlayerPage(
                                 artistFontSize = 15.sp,
                                 artistAlpha = 0.72f,
                                 showArtistWithAnnotation = true,
-                                contentColor = Color.White,
+                                contentColor = pagePalette.onBackground,
                                 fontFamily = fontFamily,
                                 onArtistClick = onArtist,
                                 titleMarqueeEnabled = true,
@@ -958,13 +985,13 @@ internal fun CoverPlayerPage(
                                 modifier = Modifier
                                     .size(44.dp)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(Color.White.copy(alpha = 0.20f))
+                                    .background(pagePalette.onBackground.copy(alpha = 0.20f))
                                     .playerNoIndicationClick(onPlayPause),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CenteredPlayPauseGlyph(
-                                    isPlaying = isPlaying,
-                                    tint = Color.White,
+                                    isPlaying = visualIsPlaying,
+                                    tint = pagePalette.onBackground,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -984,7 +1011,7 @@ internal fun CoverPlayerPage(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .background(lyricsSurface)
+                        .then(immersiveLyricSwipeModifier)
                         .padding(horizontal = 24.dp)
                 ) {
                     AppleMusicLyricsView(
@@ -1007,7 +1034,7 @@ internal fun CoverPlayerPage(
                         contentColor = pagePalette.onBackground,
                         wordLiftEnabled = appleMusicWordLiftEnabled,
                         onLineClick = onLyricLineClick,
-                        onLineDoubleClick = onShowLyrics,
+                        onLineDoubleClick = onPlayPause,
                         onLineLongClick = onLyricLineLongClick,
                         topContentPadding = 8.dp,
                         bottomContentPadding = if (compactWindow) 56.dp else 72.dp,
@@ -1129,7 +1156,7 @@ internal fun CoverPlayerPage(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         LandscapeTransportControls(
-                            isPlaying = isPlaying,
+                            isPlaying = visualIsPlaying,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             palette = pagePalette,
@@ -1330,10 +1357,10 @@ internal fun CoverPlayerPage(
                     ImmersiveLyricsPlayerPage()
                 }
                 else -> {
-            val immersiveCoverHeight = minOf(
-                maxWidth,
-                maxHeight * if (annotation.isNotBlank()) 0.42f else 0.47f
-            )
+            // A static immersive cover is always a screen-width square. Metadata annotations
+            // belong to the section below and must never squeeze the artwork into a shorter Fit
+            // container, which exposes the black backing at both sides of a square cover.
+            val immersiveCoverHeight = maxWidth
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -1354,8 +1381,26 @@ internal fun CoverPlayerPage(
                             .graphicsLayer {
                                 shape = immersiveCoverShape
                                 clip = true
+                                // The artwork fades into the one full-screen flow canvas behind
+                                // both the cover and lyric pages. Offscreen compositing is required
+                                // for the destination-in mask to affect only this artwork layer.
+                                compositingStrategy = CompositingStrategy.Offscreen
                             }
                             .clip(immersiveCoverShape)
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    brush = Brush.verticalGradient(
+                                        colorStops = arrayOf(
+                                            0.00f to Color.White,
+                                            0.70f to Color.White,
+                                            0.88f to Color.White.copy(alpha = 0.62f),
+                                            1.00f to Color.Transparent
+                                        )
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
                             .then(
                                 if (coverLongPressPreviewEnabled && resolvedStaticCoverPreviewModel != null) {
                                     Modifier.combinedClickable(
@@ -1437,24 +1482,6 @@ internal fun CoverPlayerPage(
                                 )
                             )
                         )
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                // Fade the full-bleed artwork into the content surface before the
-                                // layout switches from the cover box to the detail column.
-                                .height(280.dp)
-                                .background(
-                                    Brush.verticalGradient(
-                                        colorStops = arrayOf(
-                                            0.0f to Color.Transparent,
-                                            0.40f to pagePalette.middle.copy(alpha = 0.30f),
-                                            0.72f to pagePalette.middle.copy(alpha = 0.82f),
-                                            1.0f to pagePalette.middle
-                                        )
-                                    )
-                                )
-                        )
                     }
                     Column(
                         modifier = Modifier
@@ -1466,10 +1493,15 @@ internal fun CoverPlayerPage(
                                     Modifier.weight(1f)
                                 }
                             )
-                            .background(playerContentSurfaceBrush(pagePalette, flowEffectMode))
+                            // The root PlayerScreen owns one full-screen flow renderer. Keeping
+                            // this surface transparent makes the mini-lyric area the exact lower
+                            // crop of the canvas that remains visible on the immersive lyric page.
                             .padding(horizontal = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        val useFlexibleMiniLyricsViewport = !portraitDynamicCover && !compactWindow
+                        val hasMiniLyricsViewport = effectiveMiniLyricLine != null ||
+                            (lyrics.isEmpty() && !lyricsLoading)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1512,20 +1544,36 @@ internal fun CoverPlayerPage(
                                 fontFamily = fontFamily,
                                 translationFontFamily = translationFontFamily,
                                 fontWeight = fontWeight,
-                                fontScale = fontScale,
-                                secondaryFontScale = secondaryFontScale,
-                                lyricTextAlign = lyricTextAlign,
                                 compact = compactWindow,
                                 contentColor = pagePalette.onBackground,
                                 wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
+                                onLineDoubleClick = onPlayPause,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(
-                                        if (compactWindow) {
-                                            miniLyricsCompactHeight()
+                                    .then(immersiveLyricSwipeModifier)
+                                    .then(
+                                        if (useFlexibleMiniLyricsViewport) {
+                                            // Consume the former spacer above the progress block.
+                                            // The fixed progress/transport/footer area below is
+                                            // therefore unchanged with or without visualization.
+                                            Modifier.weight(1f)
                                         } else {
-                                            miniLyricsPreviewHeight()
+                                            Modifier.height(
+                                                if (compactWindow) {
+                                                    miniLyricsCompactHeight(
+                                                        effectiveMiniLyricLine,
+                                                        showTranslation,
+                                                        showPronunciation
+                                                    )
+                                                } else {
+                                                    miniLyricsPreviewHeight(
+                                                        effectiveMiniLyricLine,
+                                                        showTranslation,
+                                                        showPronunciation
+                                                    )
+                                                }
+                                            )
                                         }
                                     )
                             )
@@ -1537,13 +1585,20 @@ internal fun CoverPlayerPage(
                                 onClick = onShowLyrics,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(if (compactWindow) 40.dp else 150.dp)
+                                    .then(immersiveLyricSwipeModifier)
+                                    .then(
+                                        if (useFlexibleMiniLyricsViewport) {
+                                            Modifier.weight(1f)
+                                        } else {
+                                            Modifier.height(if (compactWindow) 40.dp else 150.dp)
+                                        }
+                                    )
                             )
                         }
 
                         if (portraitDynamicCover) {
                             Spacer(modifier = Modifier.height(10.dp))
-                        } else {
+                        } else if (!hasMiniLyricsViewport || !useFlexibleMiniLyricsViewport) {
                             Spacer(modifier = Modifier.weight(1f))
                         }
                         PlayerProgressBlock(
@@ -1561,7 +1616,7 @@ internal fun CoverPlayerPage(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         PlayerTransportControls(
-                            isPlaying = isPlaying,
+                            isPlaying = visualIsPlaying,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             palette = pagePalette,
@@ -1772,21 +1827,24 @@ internal fun CoverPlayerPage(
                                 fontFamily = fontFamily,
                                 translationFontFamily = translationFontFamily,
                                 fontWeight = fontWeight,
-                                fontScale = fontScale,
-                                secondaryFontScale = secondaryFontScale,
-                                lyricTextAlign = lyricTextAlign,
                                 compact = compactNonImmersiveLyrics,
                                 contentColor = pagePalette.onBackground,
                                 wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
+                                onLineDoubleClick = onPlayPause,
                                 modifier = Modifier
                                     .width(nonImmersiveCoverSize)
                                     .align(Alignment.CenterHorizontally)
                                     .height(
                                         if (compactNonImmersiveLyrics) {
-                                            miniLyricsCompactHeight()
+                                            miniLyricsCompactHeight(effectiveMiniLyricLine, showTranslation, showPronunciation)
                                         } else {
-                                            miniLyricsPreviewHeight(compact = true)
+                                            miniLyricsPreviewHeight(
+                                                effectiveMiniLyricLine,
+                                                showTranslation,
+                                                showPronunciation,
+                                                compact = true
+                                            )
                                         }
                                     )
                             )
@@ -1833,7 +1891,7 @@ internal fun CoverPlayerPage(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         PlayerTransportControls(
-                            isPlaying = isPlaying,
+                            isPlaying = visualIsPlaying,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             palette = pagePalette,
@@ -1873,6 +1931,7 @@ internal fun CoverPlayerPage(
         PlayerCoverActionSheet(
             show = menuExpanded,
             song = song,
+            embeddedCover = embeddedCover,
             showLyricsDisplayEntry = true,
             playbackSpeed = playbackSpeed,
             playbackPitch = playbackPitch,

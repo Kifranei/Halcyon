@@ -29,23 +29,23 @@ internal class PlayerLazyOnlineQueueController(
             index = startIndex.coerceIn(songs.indices),
             resolver = resolver
         )
-        playerManager.playResolvedFromVirtualQueue(songs, startIndex, resolvedStartSong)
+        playerManager.playResolvedFromVirtualQueue(songs, startIndex, resolvedStartSong, shouldPlay = true)
     }
 
     fun observePlaybackEnd() {
         scope.launch {
             playerManager.playbackState.collect { state ->
-                if (state == Player.STATE_ENDED) playOffset(1)
+                if (state == Player.STATE_ENDED) playOffset(1, shouldPlay = true)
             }
         }
     }
 
-    fun playOffset(offset: Int): Boolean {
+    fun playOffset(offset: Int, shouldPlay: Boolean = playerManager.playWhenReady.value): Boolean {
         val currentQueue = queue ?: return false
-        return playIndex(currentQueue.index + offset)
+        return playIndex(currentQueue.index + offset, shouldPlay)
     }
 
-    fun playIndex(index: Int): Boolean {
+    fun playIndex(index: Int, shouldPlay: Boolean = playerManager.playWhenReady.value): Boolean {
         val currentQueue = queue ?: return false
         if (index !in currentQueue.songs.indices || resolving) return false
         resolving = true
@@ -53,7 +53,12 @@ internal class PlayerLazyOnlineQueueController(
             runCatching {
                 val resolved = currentQueue.resolver(currentQueue.songs[index])
                 currentQueue.index = index
-                playerManager.playResolvedFromVirtualQueue(currentQueue.songs, index, resolved)
+                playerManager.playResolvedFromVirtualQueue(
+                    currentQueue.songs,
+                    index,
+                    resolved,
+                    shouldPlay = shouldPlay
+                )
             }
             resolving = false
         }

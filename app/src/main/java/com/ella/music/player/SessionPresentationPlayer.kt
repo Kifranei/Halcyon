@@ -1,6 +1,7 @@
 package com.ella.music.player
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.ForwardingSimpleBasePlayer
 import androidx.media3.common.Player
@@ -8,10 +9,11 @@ import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
 
 /**
- * Publishes notification and lock-screen metadata without mutating the playback timeline.
+ * Publishes notification/lock-screen metadata and the audible crossfade item without mutating the
+ * wrapped playback timeline.
  *
  * The wrapped player remains the single source of truth for queue, position and duration. This
- * layer only changes the metadata snapshot observed by MediaSession clients.
+ * layer changes only the state snapshot observed by MediaSession clients.
  */
 @OptIn(UnstableApi::class)
 internal class SessionPresentationPlayer(
@@ -30,10 +32,38 @@ internal class SessionPresentationPlayer(
         val publishSequence: Long
     )
 
+    private data class CrossfadePresentation(
+        val targetIndex: Int,
+        val startPositionMs: Long,
+        val startedAtElapsedRealtimeMs: Long,
+        val playbackSpeed: Float
+    ) {
+        fun currentPositionMs(): Long = startPositionMs +
+            ((SystemClock.elapsedRealtime() - startedAtElapsedRealtimeMs) * playbackSpeed).toLong()
+    }
+
     private var notificationLyric: NotificationLyric? = null
     private var oplusLyric: OPlusLyric? = null
     private var oplusPublishSequence = 0L
     private var keepSongIdentityMetadata = false
+    private var crossfadePresentation: CrossfadePresentation? = null
+
+    fun presentCrossfadeTarget(targetIndex: Int, positionMs: Long, playbackSpeed: Float) {
+        val next = CrossfadePresentation(
+            targetIndex = targetIndex,
+            startPositionMs = positionMs.coerceAtLeast(0L),
+            startedAtElapsedRealtimeMs = SystemClock.elapsedRealtime(),
+            playbackSpeed = playbackSpeed.coerceAtLeast(0f)
+        )
+        crossfadePresentation = next
+        invalidateState()
+    }
+
+    fun clearCrossfadePresentation() {
+        if (crossfadePresentation == null) return
+        crossfadePresentation = null
+        invalidateState()
+    }
 
     fun setNotificationLyric(songKey: String, title: String?, secondaryText: String?) {
         val next = title?.takeIf(String::isNotBlank)?.let {
@@ -90,10 +120,16 @@ internal class SessionPresentationPlayer(
 
     override fun getState(): SimpleBasePlayer.State {
         val state = super.getState()
-        val currentItem = getPlayer().currentMediaItem ?: return state
+        val crossfade = crossfadePresentation
+            ?.takeIf { it.targetIndex in 0 until state.timeline.windowCount }
+        val currentItem = if (crossfade != null) {
+            getPlayer().getMediaItemAt(crossfade.targetIndex)
+        } else {
+            getPlayer().currentMediaItem
+        } ?: return state
         val song = currentItem.toSongFromMediaItemExtras() ?: return state
         val songKey = song.playbackStackKey()
-        val baseMetadata = state.currentMetadata
+        val baseMetadata = crossfade?.let { currentItem.mediaMetadata } ?: state.currentMetadata
         val metadataBuilder = baseMetadata.buildUpon()
         val extras = Bundle(baseMetadata.extras ?: currentItem.mediaMetadata.extras ?: Bundle.EMPTY).apply {
             markMetadataOnlyPatch(PATCH_REASON_SESSION_PRESENTATION)
@@ -136,9 +172,18 @@ internal class SessionPresentationPlayer(
         }
 
         val presentationMetadata = metadataBuilder.setExtras(extras).build()
-        return state.buildUpon()
+        val stateBuilder = state.buildUpon()
             .setPlaylist(state.timeline, state.currentTracks, presentationMetadata)
-            .build()
+        if (crossfade != null) {
+            // The incoming player is already the audible song. Present it immediately instead of
+            // leaving clients on the outgoing item until the physical player handoff completes.
+            stateBuilder
+                .setCurrentMediaItemIndex(crossfade.targetIndex)
+                .setContentPositionMs(crossfade.currentPositionMs())
+                .setPlaybackState(Player.STATE_READY)
+                .setIsLoading(false)
+        }
+        return stateBuilder.build()
     }
 
     private companion object {

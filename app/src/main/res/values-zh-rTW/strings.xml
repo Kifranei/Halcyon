@@ -321,6 +321,8 @@
     <string name="settings_show_artist_introduction_summary">在藝人詳情頁顯示「介紹」入口</string>
     <string name="settings_open_player_on_play">點選播放後開啟播放頁</string>
     <string name="settings_open_player_on_play_summary">本機、WebDAV 與線上歌曲開始播放後，自動開啟播放頁</string>
+    <string name="settings_open_player_from_notification">點選媒體通知進入播放頁</string>
+    <string name="settings_open_player_from_notification_summary">開啟後，點選通知列或鎖定畫面的媒體卡片會直接開啟目前播放頁</string>
     <string name="settings_mini_player_swipe_to_open_player">上滑迷你播放條開啟播放頁</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">關閉後在列表滾動時不會誤觸開啟播放頁</string>
     <string name="settings_show_play_next_in_lists">在列表中顯示「下一首播放」</string>
@@ -430,7 +432,7 @@
     <string name="home_play_daily_mix">播放每日精選</string>
     <string name="home_ai_section">AI</string>
     <string name="home_ai_playlist">AI 播放助理</string>
-    <string name="home_ai_playlist_summary">只允許呼叫本機歌曲播放，不會刪除或修改歌曲；目前音樂庫有 %1$d 首歌</string>
+    <string name="home_ai_playlist_summary">讓 Ella 幫你選歌，目前音樂庫 %1$d 首</string>
     <string name="home_ai_playlist_loading">正在讀取 AI 設定並產生播放清單…</string>
     <string name="home_ai_playlist_play">產生並播放 AI 推薦播放清單</string>
     <string name="home_ai_chat_open">開啟 AI 對話</string>
@@ -892,6 +894,8 @@
     <string name="settings_startup_poster_image">選擇啟動畫面海報圖片</string>
     <string name="settings_app_wallpaper">全域自訂桌布</string>
     <string name="settings_app_wallpaper_summary">在音樂庫、專輯、播放清單、資料夾等頁面背景顯示自訂桌布</string>
+    <string name="settings_app_now_playing_flow_background">瀏覽頁跟隨目前歌曲流光</string>
+    <string name="settings_app_now_playing_flow_background_summary">在首頁、音樂庫及各清單頁沿用播放頁的流光樣式與速度；預設關閉，自訂桌布優先</string>
     <string name="settings_app_wallpaper_image">選擇桌布圖片</string>
     <string name="settings_player_background">播放頁自訂背景</string>
     <string name="settings_player_background_summary">僅在平板橫向播放頁與手機非沉浸播放頁顯示</string>
@@ -1613,6 +1617,10 @@
     <string name="equalizer_preset">預設</string>
     <string name="equalizer_preset_custom">自訂</string>
     <string name="equalizer_reset">重設</string>
+    <string name="equalizer_section_master_gain">總增益</string>
+    <string name="equalizer_master_gain">總增益</string>
+    <string name="equalizer_master_gain_summary">獨立於等化器曲線，在所有軟體音效之後統一調整音量</string>
+    <string name="equalizer_master_gain_warning">獨立於等化器曲線，套用在所有軟體音效之後；正增益可能觸發峰值限制，關閉峰值限制時可能產生削波失真</string>
     <string name="equalizer_section_parametric">參數等化</string>
     <string name="equalizer_eq_q">頻帶 Q（頻寬）</string>
     <string name="equalizer_section_tone">音色</string>
@@ -1982,6 +1990,8 @@
     <string name="settings_full_tag_search_summary_on">掃描時讀取完整音訊標籤；搜尋包含作曲者、作詞者、註解、別名與自訂標籤</string>
     <string name="settings_player_dynamic_flow">動態效果</string>
     <string name="settings_player_dynamic_flow_summary">開啟為持續流光，關閉後保留 Apple Music 背景樣式但不再流動</string>
+    <string name="settings_apple_flow_speed">Apple Music 流光速度</string>
+    <string name="settings_apple_flow_speed_summary">數值越大，封面流光動畫越明顯</string>
     <!-- 編曲家中繼資料 -->
     <string name="settings_library_tile_arranger">編曲家</string>
     <string name="settings_library_tile_arranger_summary">按編曲家瀏覽</string>
@@ -2429,4 +2439,15 @@
     <string name="settings_lyric_touch_feedback_summary">按下或點擊歌詞時顯示從觸點擴散的泛光回饋</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">桌面歌詞同步封面內容色</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">使用與「播放頁－封面內容色」相同的封面取色邏輯</string>
+    <string name="settings_player_mini_lyrics">播放頁迷你歌詞</string>
+    <string name="settings_player_mini_lyrics_summary">獨立調整封面下方迷你歌詞的縮放、字號、間距與對齊</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">以 1% 精度調整迷你歌詞整體縮放（50%–150%）</string>
+    <string name="settings_player_mini_lyrics_line_spacing">迷你歌詞行間距</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">僅影響播放頁封面下方的迷你歌詞</string>
+    <string name="settings_lyric_pause_current_only">暫停時僅醒目顯示目前歌詞</string>
+    <string name="settings_lyric_pause_current_only_summary">關閉後，暫停播放時會醒目顯示全部歌詞</string>
+    <string name="settings_immersive_lyric_swipe">沉浸模式歌詞區域橫滑切歌</string>
+    <string name="settings_immersive_lyric_swipe_summary">在下方歌詞區域左右橫滑切換上一首或下一首</string>
+    <string name="library_layout_grid">網格排列</string>
+    <string name="library_layout_list">列表排列</string>
 </resources>

@@ -20,6 +20,7 @@ import com.ella.music.dsp.TenBandEqualizer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.pow
 
 /**
  * Immutable snapshot of the custom equalizer settings.
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference
 data class EqualizerSettings(
     val enabled: Boolean = false,
     val bandGainsDb: FloatArray = FloatArray(TenBandEqualizer.BAND_COUNT) { 0f },
+    val masterGainDb: Float = 0f,
     val eqQ: Float = EQ_DEFAULT_Q,
     val bassGainDb: Float = 0f,
     val trebleGainDb: Float = 0f,
@@ -76,6 +78,7 @@ data class EqualizerSettings(
         if (other !is EqualizerSettings) return false
         return enabled == other.enabled &&
             bandGainsDb.contentEquals(other.bandGainsDb) &&
+            masterGainDb == other.masterGainDb &&
             eqQ == other.eqQ &&
             bassGainDb == other.bassGainDb &&
             trebleGainDb == other.trebleGainDb &&
@@ -121,6 +124,7 @@ data class EqualizerSettings(
     override fun hashCode(): Int {
         var result = enabled.hashCode()
         result = 31 * result + bandGainsDb.contentHashCode()
+        result = 31 * result + masterGainDb.hashCode()
         result = 31 * result + eqQ.hashCode()
         result = 31 * result + bassGainDb.hashCode()
         result = 31 * result + trebleGainDb.hashCode()
@@ -201,6 +205,7 @@ class EqualizerAudioProcessor : AudioProcessor {
     private var inputEnded = false
 
     private var tempFloatBuffer: FloatArray = FloatArray(0)
+    private var currentMasterGainLinear = 1f
 
     private var reusableOutputBuffer: ByteBuffer? = null
 
@@ -238,6 +243,7 @@ class EqualizerAudioProcessor : AudioProcessor {
         moogLadder = MoogLadderFilter(inputAudioFormat.sampleRate)
         peakLimiter = PeakLimiter(inputAudioFormat.sampleRate)
         applySettings(force = true)
+        currentMasterGainLinear = masterGainLinear(settingsRef.get().masterGainDb)
         return outputAudioFormat
     }
 
@@ -290,6 +296,7 @@ class EqualizerAudioProcessor : AudioProcessor {
             stereoWidener.process(tempFloatBuffer, frames, channels)
         }
         speakerOutput?.process(tempFloatBuffer, frames, channels)
+        applyMasterGain(tempFloatBuffer, frames, channels, settingsRef.get().masterGainDb)
         peakLimiter?.process(tempFloatBuffer, frames, channels)
 
         // float -> 16-bit PCM, matching RawS-Music's conversion sign handling.
@@ -341,6 +348,7 @@ class EqualizerAudioProcessor : AudioProcessor {
         moogLadder?.reset()
         peakLimiter?.reset()
         applySettings(force = true)
+        currentMasterGainLinear = masterGainLinear(settingsRef.get().masterGainDb)
     }
 
     override fun reset() {
@@ -361,7 +369,33 @@ class EqualizerAudioProcessor : AudioProcessor {
         moogLadder = null
         peakLimiter = null
         reusableOutputBuffer = null
+        currentMasterGainLinear = 1f
     }
+
+    private fun applyMasterGain(samples: FloatArray, frames: Int, channels: Int, gainDb: Float) {
+        if (frames <= 0 || channels <= 0) return
+        val target = masterGainLinear(gainDb)
+        val start = currentMasterGainLinear
+        if (kotlin.math.abs(target - start) < MASTER_GAIN_EPSILON) {
+            if (kotlin.math.abs(target - 1f) >= MASTER_GAIN_EPSILON) {
+                for (index in 0 until frames * channels) samples[index] *= target
+            }
+            currentMasterGainLinear = target
+            return
+        }
+
+        // Ramp across one PCM buffer so live slider changes cannot introduce a discontinuity click.
+        for (frame in 0 until frames) {
+            val progress = (frame + 1f) / frames
+            val gain = start + (target - start) * progress
+            val frameOffset = frame * channels
+            for (channel in 0 until channels) samples[frameOffset + channel] *= gain
+        }
+        currentMasterGainLinear = target
+    }
+
+    private fun masterGainLinear(gainDb: Float): Float =
+        10.0.pow(gainDb.coerceIn(-30f, 30f) / 20.0).toFloat()
 
     private fun applySettings(force: Boolean = false) {
         val eq = equalizer ?: return
@@ -453,5 +487,6 @@ class EqualizerAudioProcessor : AudioProcessor {
     companion object {
         private val EMPTY_BUFFER: ByteBuffer = ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder())
         private const val BYTES_PER_SAMPLE = 2
+        private const val MASTER_GAIN_EPSILON = 0.000001f
     }
 }

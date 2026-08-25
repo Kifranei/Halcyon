@@ -1,0 +1,12 @@
+{
+  "id": "lunabeat-ttml-hub",
+  "name": "LunaBeat TTML Hub",
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "author": "LunaBeat / Halcyon",
+  "description": "LunaBeat 开放 TTML 歌词目录",
+  "apiVersion": 3,
+  "minHostApiVersion": 1,
+  "entry": "source.js",
+  "capabilities": ["searchSongs", "getLyrics"]
+}

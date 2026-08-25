@@ -97,12 +97,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-private data class FolderPlaylistSortAnchor(
-    val playlistId: String,
-    val offset: Int,
-    val targetSortMode: FolderPlaylistSortMode
-)
-
 @Composable
 fun FolderPlaylistsScreen(
     mainViewModel: MainViewModel,
@@ -178,7 +172,7 @@ fun FolderPlaylistsScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingBulkDelete by remember { mutableStateOf<List<FolderPlaylist>?>(null) }
-    var pendingSortAnchor by remember { mutableStateOf<FolderPlaylistSortAnchor?>(null) }
+    var pendingSortResetMode by remember { mutableStateOf<FolderPlaylistSortMode?>(null) }
     val userPlaylists by mainViewModel.playlists.collectAsState()
 
     val songCountMap = remember(playlists, songs) {
@@ -304,16 +298,8 @@ fun FolderPlaylistsScreen(
     fun selectedSongsFor(playlist: FolderPlaylist): List<Song> =
         songs.songsForFolderPlaylist(playlist.folders).sortedForFolderPlaylistDetail(folderDetailSongSortMode)
 
-    fun preserveListAnchorForSortChange(mode: FolderPlaylistSortMode) {
-        // LazyColumn may already be reconciling an earlier sort when the menu is tapped. Its
-        // visible key is stable across every ordering, unlike firstVisibleItemIndex.
-        val anchorId = listState.layoutInfo.visibleItemsInfo
-            .firstOrNull()
-            ?.key as? String
-            ?: filteredPlaylists.getOrNull(listState.firstVisibleItemIndex)?.id
-        val anchorOffset = listState.firstVisibleItemScrollOffset
-        // Keep the same card under the reader after sorting rather than retaining a raw index.
-        pendingSortAnchor = anchorId?.let { FolderPlaylistSortAnchor(it, anchorOffset, mode) }
+    fun changeFolderPlaylistSort(mode: FolderPlaylistSortMode) {
+        pendingSortResetMode = mode
         LibrarySortUiState.pendingFolderPlaylistListSortIndex = mode.ordinal
         LibrarySortUiState.folderPlaylistListSortIndex = mode.ordinal
         scope.launch {
@@ -321,18 +307,16 @@ fun FolderPlaylistsScreen(
         }
     }
 
-    androidx.compose.runtime.LaunchedEffect(filteredPlaylists, pendingSortAnchor, sortMode) {
-        val anchor = pendingSortAnchor ?: return@LaunchedEffect
-        if (sortMode != anchor.targetSortMode) return@LaunchedEffect
-        // Sorting changes the item order during LazyColumn's next layout. Restore after that
-        // layout has committed; otherwise its own key reconciliation can overwrite the seek and
-        // place the list at its end (#374).
+    androidx.compose.runtime.LaunchedEffect(filteredPlaylists, pendingSortResetMode, sortMode) {
+        val targetMode = pendingSortResetMode ?: return@LaunchedEffect
+        if (sortMode != targetMode) return@LaunchedEffect
+        // A sort is a new view of the collection. Reset after LazyColumn has committed the new
+        // keyed order; preserving the formerly visible card can deliberately carry the viewport
+        // to the bottom when that card sorts last (#374).
         androidx.compose.runtime.withFrameNanos { }
         androidx.compose.runtime.withFrameNanos { }
-        filteredPlaylists.indexOfFirst { it.id == anchor.playlistId }
-            .takeIf { it >= 0 }
-            ?.let { index -> listState.scrollToItem(index, anchor.offset) }
-        pendingSortAnchor = null
+        if (filteredPlaylists.isNotEmpty()) listState.scrollToItem(0)
+        pendingSortResetMode = null
     }
 
     // Unlike the shared toggleSelectAll, deselecting-all here also exits selection mode and the
@@ -552,7 +536,7 @@ fun FolderPlaylistsScreen(
                                 )
                             ),
                             selectedMode = sortMode,
-                            onSelect = ::preserveListAnchorForSortChange
+                            onSelect = ::changeFolderPlaylistSort
                         )
                     )
                 }

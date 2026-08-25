@@ -98,6 +98,8 @@ class QuickJsHostApi(
 
             "crypto.md5" -> text(md5(payload.string("text")))
 
+            "crypto.sha256" -> text(digestHex("SHA-256", payload.string("text")))
+
             "crypto.aesEcbPkcs5EncryptBase64" -> text(
                 aesEcbPkcs5EncryptBase64(
                     text = payload.string("text"),
@@ -403,7 +405,11 @@ class QuickJsHostApi(
     }
 
     private fun md5(text: String): String {
-        val digest = MessageDigest.getInstance("MD5").digest(
+        return digestHex("MD5", text)
+    }
+
+    private fun digestHex(algorithm: String, text: String): String {
+        val digest = MessageDigest.getInstance(algorithm).digest(
             text.toByteArray(Charsets.UTF_8)
         )
         return digest.joinToString("") { "%02x".format(it) }

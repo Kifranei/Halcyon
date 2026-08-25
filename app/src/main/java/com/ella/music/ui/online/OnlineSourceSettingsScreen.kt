@@ -38,7 +38,6 @@ import com.ella.music.R
 import com.ella.music.data.LxSourceConfig
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lx.LxOnlineService
-import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
@@ -47,7 +46,6 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -58,7 +56,6 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
 fun LxSourceSettingsScreen(onBack: () -> Unit) {
@@ -70,7 +67,6 @@ fun LxSourceSettingsScreen(onBack: () -> Unit) {
     val service = remember(context) { LxOnlineService(context) }
     val sources by settingsManager.lxSources.collectAsState(initial = emptyList())
     val selectedId by settingsManager.selectedLxSourceId.collectAsState(initial = "")
-    val selectedProvider by settingsManager.selectedOnlineProvider.collectAsState(initial = RemoteMusicProvider.Lx)
     var importUrl by remember { mutableStateOf("") }
     var isBusy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf(context.getString(R.string.lx_source_import_hint)) }
@@ -108,29 +104,6 @@ fun LxSourceSettingsScreen(onBack: () -> Unit) {
         onImportUrlChange = { importUrl = it },
         importPlaceholder = "https://.../source.js",
         isBusy = isBusy,
-        showLxSettings = selectedProvider == RemoteMusicProvider.Lx,
-        headerContent = {
-            SmallTitle(text = stringResource(R.string.online_provider_switch))
-            Card(modifier = Modifier.fillMaxWidth()) {
-                val providerOptions = listOf(
-                    RemoteMusicProvider.Lx to "LX Music",
-                    RemoteMusicProvider.Navidrome to stringResource(R.string.remote_source_navidrome),
-                    RemoteMusicProvider.OpenSubsonic to stringResource(R.string.remote_source_opensubsonic),
-                    RemoteMusicProvider.Emby to stringResource(R.string.remote_source_emby)
-                )
-                WindowSpinnerPreference(
-                    title = stringResource(R.string.online_provider_switch),
-                    summary = stringResource(R.string.online_provider_switch_summary),
-                    items = providerOptions.map { (_, label) -> DropdownItem(title = label) },
-                    selectedIndex = providerOptions.indexOfFirst { it.first == selectedProvider }.coerceAtLeast(0),
-                    onSelectedIndexChange = { index ->
-                        providerOptions.getOrNull(index)?.first?.let { provider ->
-                            scope.launch { settingsManager.selectOnlineProvider(provider) }
-                        }
-                    }
-                )
-            }
-        },
         onLocalImport = {
             localSourceLauncher.launch(
                 arrayOf(
@@ -162,30 +135,28 @@ fun LxSourceSettingsScreen(onBack: () -> Unit) {
             }
         }
     ) {
-        if (selectedProvider == RemoteMusicProvider.Lx) {
-            SmallTitle(text = stringResource(R.string.lx_source_imported_section))
-            if (sources.isEmpty()) {
-                EmptySourceText(stringResource(R.string.lx_source_empty))
-            } else {
-                sources.forEach { source ->
-                    LxSourceManageRow(
-                        source = source,
-                        selected = source.id == selectedId || selectedId.isBlank() && source == sources.first(),
-                        enabled = !isBusy,
-                        onSelect = {
-                            scope.launch {
-                                settingsManager.selectLxSource(source.id)
-                                message = context.getString(R.string.lx_source_switched_named, source.name)
-                            }
-                        },
-                        onRemove = {
-                            scope.launch {
-                                settingsManager.removeLxSource(source.id)
-                                message = context.getString(R.string.lx_source_removed_named, source.name)
-                            }
+        SmallTitle(text = stringResource(R.string.lx_source_imported_section))
+        if (sources.isEmpty()) {
+            EmptySourceText(stringResource(R.string.lx_source_empty))
+        } else {
+            sources.forEach { source ->
+                LxSourceManageRow(
+                    source = source,
+                    selected = source.id == selectedId || selectedId.isBlank() && source == sources.first(),
+                    enabled = !isBusy,
+                    onSelect = {
+                        scope.launch {
+                            settingsManager.selectLxSource(source.id)
+                            message = context.getString(R.string.lx_source_switched_named, source.name)
                         }
-                    )
-                }
+                    },
+                    onRemove = {
+                        scope.launch {
+                            settingsManager.removeLxSource(source.id)
+                            message = context.getString(R.string.lx_source_removed_named, source.name)
+                        }
+                    }
+                )
             }
         }
     }
@@ -202,8 +173,6 @@ private fun SourceSettingsScaffold(
     isBusy: Boolean,
     onLocalImport: () -> Unit,
     onUrlImport: () -> Unit,
-    showLxSettings: Boolean = true,
-    headerContent: @Composable ColumnScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
@@ -234,46 +203,43 @@ private fun SourceSettingsScaffold(
             .padding(horizontal = 12.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            headerContent()
-            if (showLxSettings) {
-                SmallTitle(text = stringResource(R.string.lx_source_import_section))
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                        EllaMiuixTextField(
-                            value = importUrl,
-                            onValueChange = onImportUrlChange,
-                            label = importPlaceholder,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Button(enabled = !isBusy, onClick = onLocalImport) {
-                                Text(stringResource(R.string.lx_source_local_js))
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(enabled = !isBusy && importUrl.isNotBlank(), onClick = onUrlImport) {
-                                Icon(
-                                    imageVector = MiuixIcons.Regular.Import,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(stringResource(R.string.lx_source_url_import))
-                            }
+            SmallTitle(text = stringResource(R.string.lx_source_import_section))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    EllaMiuixTextField(
+                        value = importUrl,
+                        onValueChange = onImportUrlChange,
+                        label = importPlaceholder,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Button(enabled = !isBusy, onClick = onLocalImport) {
+                            Text(stringResource(R.string.lx_source_local_js))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(enabled = !isBusy && importUrl.isNotBlank(), onClick = onUrlImport) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Import,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(stringResource(R.string.lx_source_url_import))
                         }
                     }
                 }
-                Text(
-                    text = message,
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp)
-                )
-                content()
             }
+            Text(
+                text = message,
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp)
+            )
+            content()
             Spacer(modifier = Modifier.height(120.dp))
         }
     }

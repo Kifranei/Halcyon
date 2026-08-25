@@ -22,6 +22,7 @@ object HostApiRegistry {
         "cache.remove",
         "cache.clear",
         "crypto.md5",
+        "crypto.sha256",
         "crypto.aesEcbPkcs5EncryptBase64",
         "crypto.aesEcbPkcs5EncryptHex",
         "crypto.aesEcbPkcs5DecryptBase64ToText",

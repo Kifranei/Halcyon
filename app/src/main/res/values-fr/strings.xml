@@ -295,6 +295,8 @@
     <string name="settings_show_artist_introduction_summary">Afficher l’entrée Présentation sur les pages d’artiste</string>
     <string name="settings_open_player_on_play">Ouvrir le lecteur après un appui sur Lire</string>
     <string name="settings_open_player_on_play_summary">Ouvrir automatiquement le lecteur après le démarrage de titres locaux, WebDAV ou en ligne</string>
+    <string name="settings_open_player_from_notification">Ouvrir le lecteur depuis la notification multimédia</string>
+    <string name="settings_open_player_from_notification_summary">Ouvrir directement le lecteur actuel en touchant la carte multimédia de la notification ou de l’écran verrouillé</string>
     <string name="settings_mini_player_swipe_to_open_player">Balayer le mini-lecteur vers le haut pour ouvrir le lecteur</string>
     <string name="settings_mini_player_swipe_to_open_player_summary">Désactiver pour éviter une ouverture accidentelle pendant le défilement</string>
     <string name="settings_show_play_next_in_lists">Afficher Lire ensuite dans les listes de titres</string>
@@ -404,7 +406,7 @@
     <string name="home_play_daily_mix">Lire le mix du jour</string>
     <string name="home_ai_section">IA</string>
     <string name="home_ai_playlist">Assistant de lecture IA</string>
-    <string name="home_ai_playlist_summary">Peut uniquement lancer des titres locaux ; ne supprimera ni ne modifiera aucun titre. Bibliothèque : %1$d titres</string>
+    <string name="home_ai_playlist_summary">Laissez Ella choisir vos titres · %1$d titres dans votre bibliothèque</string>
     <string name="home_ai_playlist_loading">Lecture des paramètres IA et génération d’une playlist…</string>
     <string name="home_ai_playlist_play">Générer et lire une playlist IA</string>
     <string name="home_ai_chat_open">Ouvrir le chat IA</string>
@@ -846,6 +848,8 @@
     <string name="settings_startup_poster_image">Choisir l’image d’affiche de démarrage</string>
     <string name="settings_app_wallpaper">Fond d’écran personnalisé global</string>
     <string name="settings_app_wallpaper_summary">Afficher un fond personnalisé derrière la bibliothèque, les albums, playlists, dossiers et pages similaires</string>
+    <string name="settings_app_now_playing_flow_background">Flux du morceau sur les pages de navigation</string>
+    <string name="settings_app_now_playing_flow_background_summary">Réutilise le style et la vitesse du lecteur sur l’accueil, la bibliothèque et les listes. Désactivé par défaut ; le fond personnalisé est prioritaire.</string>
     <string name="settings_app_wallpaper_image">Choisir l’image de fond</string>
     <string name="settings_player_background">Fond personnalisé du lecteur</string>
     <string name="settings_player_background_summary">Affiché uniquement sur les pages du lecteur en paysage sur tablette et en mode non immersif sur téléphone</string>
@@ -1554,6 +1558,10 @@
     <string name="equalizer_preset">Préréglage</string>
     <string name="equalizer_preset_custom">Personnalisé</string>
     <string name="equalizer_reset">Réinitialiser</string>
+    <string name="equalizer_section_master_gain">Gain général</string>
+    <string name="equalizer_master_gain">Gain général</string>
+    <string name="equalizer_master_gain_summary">Règle le volume après tous les effets logiciels sans modifier la courbe d’égalisation.</string>
+    <string name="equalizer_master_gain_warning">Indépendant de la courbe d’égalisation et appliqué après tous les effets logiciels. Un gain positif peut déclencher le limiteur de crête ; sans limiteur, un écrêtage peut se produire.</string>
     <string name="equalizer_section_parametric">Égaliseur paramétrique</string>
     <string name="equalizer_eq_q">Q de bande (largeur de bande)</string>
     <string name="equalizer_section_tone">Tonalité</string>
@@ -1955,6 +1963,8 @@
     <string name="settings_full_tag_search_summary_on">Lire tous les tags audio pendant l’analyse ; la recherche inclut compositeurs, paroliers, commentaires, alias et tags personnalisés</string>
     <string name="settings_player_dynamic_flow">Fond Apple Music animé</string>
     <string name="settings_player_dynamic_flow_summary">Conserver le style Apple Music mais arrêter son mouvement continu lorsque l’option est désactivée ; seul ce fond est concerné</string>
+    <string name="settings_apple_flow_speed">Vitesse du flux Apple Music</string>
+    <string name="settings_apple_flow_speed_summary">Une valeur élevée rend l’animation du flux de pochette plus visible</string>
     <!-- Arranger metadata -->
     <string name="settings_library_tile_arranger">Arrangeurs</string>
     <string name="settings_library_tile_arranger_summary">Parcourir par arrangeur</string>
@@ -2429,4 +2439,15 @@
     <string name="settings_lyric_touch_feedback_summary">Afficher une lueur qui s’étend depuis le point touché lors d’un appui</string>
     <string name="settings_desktop_lyric_sync_cover_content_color">Synchroniser les paroles avec la couleur de la pochette</string>
     <string name="settings_desktop_lyric_sync_cover_content_color_summary">Utiliser la même couleur dérivée de la pochette que le lecteur</string>
+    <string name="settings_player_mini_lyrics">Mini-paroles du lecteur</string>
+    <string name="settings_player_mini_lyrics_summary">Réglez séparément l’échelle, la taille, l’espacement et l’alignement sous la pochette</string>
+    <string name="settings_player_mini_lyrics_scale_summary" formatted="false">Réglez l’échelle par pas de 1 % (50 %–150 %)</string>
+    <string name="settings_player_mini_lyrics_line_spacing">Espacement des mini-paroles</string>
+    <string name="settings_player_mini_lyrics_line_spacing_summary">Affecte uniquement les mini-paroles sous la pochette</string>
+    <string name="settings_lyric_pause_current_only">Surligner uniquement la parole actuelle en pause</string>
+    <string name="settings_lyric_pause_current_only_summary">Si désactivé, toutes les paroles sont surlignées en pause</string>
+    <string name="settings_immersive_lyric_swipe">Balayer les paroles pour changer de titre</string>
+    <string name="settings_immersive_lyric_swipe_summary">Balayez horizontalement la zone inférieure des paroles</string>
+    <string name="library_layout_grid">Affichage en grille</string>
+    <string name="library_layout_list">Affichage en liste</string>
 </resources>

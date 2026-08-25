@@ -155,6 +155,11 @@ class PluginJsRuntime(
                       text: String(text || "")
                     });
                   },
+                  sha256: function(text) {
+                    return hostCall("crypto.sha256", {
+                      text: String(text || "")
+                    });
+                  },
                   aesEcbPkcs5EncryptBase64: function(text, key) {
                     return hostCall("crypto.aesEcbPkcs5EncryptBase64", {
                       text: String(text || ""),

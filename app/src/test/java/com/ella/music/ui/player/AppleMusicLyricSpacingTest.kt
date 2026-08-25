@@ -9,6 +9,12 @@ import org.junit.Test
 
 class AppleMusicLyricSpacingTest {
     @Test
+    fun lineDoubleTapOnlyOwnsTheGestureWhenWordSeekIsDisabled() {
+        assertTrue(lyricLineDoubleTapEnabled(wordSeekEnabled = false))
+        assertFalse(lyricLineDoubleTapEnabled(wordSeekEnabled = true))
+    }
+
+    @Test
     fun disablingWordLiftZeroesLiftButDoesNotDisableKaraokeProgress() {
         assertEquals(
             0f,
@@ -166,6 +172,30 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
+    fun leadingPaddingReservesTheFocusOffsetForTheFirstLyric() {
+        assertEquals(
+            72.dp,
+            resolveAppleMusicLyricsLeadingPadding(
+                viewportHeight = 600.dp,
+                focusOffsetRatio = 0.12f,
+                minimumTopPadding = 8.dp
+            )
+        )
+    }
+
+    @Test
+    fun leadingPaddingDoesNotShrinkAnExistingTopInset() {
+        assertEquals(
+            72.dp,
+            resolveAppleMusicLyricsLeadingPadding(
+                viewportHeight = 200.dp,
+                focusOffsetRatio = 0.12f,
+                minimumTopPadding = 72.dp
+            )
+        )
+    }
+
+    @Test
     fun focusOffsetIsClampedWhenLyricRowIsTallerThanTheViewport() {
         assertEquals(
             0,
@@ -224,6 +254,37 @@ class AppleMusicLyricSpacingTest {
                 interludes = interludes
             )
         )
+    }
+
+    @Test
+    fun waitingDotsUseAppleGroupExitBeforeTheNextLyric() {
+        val interlude = AppleMusicInterlude(startMs = 10_000L, endMs = 20_000L, nextLineIndex = 2)
+
+        assertEquals(1f, resolveAppleMusicInterludeGroupState(interlude, positionMs = 19_000L).scale)
+        assertEquals(1.2f, resolveAppleMusicInterludeGroupState(interlude, positionMs = 19_750L).scale)
+        assertEquals(0.5f, resolveAppleMusicInterludeGroupState(interlude, positionMs = 20_000L).scale)
+        assertEquals(0f, resolveAppleMusicInterludeGroupState(interlude, positionMs = 20_000L).alpha)
+    }
+
+    @Test
+    fun waitingDotsBreatheAsOneAppleStyleGroup() {
+        val interlude = AppleMusicInterlude(startMs = 10_000L, endMs = 20_000L, nextLineIndex = 2)
+
+        assertEquals(1f, resolveAppleMusicInterludeGroupState(interlude, positionMs = 10_000L).scale)
+        assertEquals(1.2f, resolveAppleMusicInterludeGroupState(interlude, positionMs = 12_000L).scale)
+        assertEquals(1f, resolveAppleMusicInterludeGroupState(interlude, positionMs = 14_000L).scale)
+    }
+
+    @Test
+    fun waitingDotsRetireSequentiallyFromPlaybackTime() {
+        val interlude = AppleMusicInterlude(startMs = 0L, endMs = 9_000L, nextLineIndex = 0)
+
+        assertEquals(1f, resolveAppleMusicInterludeDotAlpha(interlude, 0L, 0), 0.001f)
+        assertEquals(0f, resolveAppleMusicInterludeDotAlpha(interlude, 3_250L, 0), 0.001f)
+        assertEquals(1f, resolveAppleMusicInterludeDotAlpha(interlude, 3_250L, 1), 0.001f)
+        assertEquals(0f, resolveAppleMusicInterludeDotAlpha(interlude, 6_500L, 1), 0.001f)
+        assertEquals(1f, resolveAppleMusicInterludeDotAlpha(interlude, 6_500L, 2), 0.001f)
+        assertEquals(0f, resolveAppleMusicInterludeDotAlpha(interlude, 9_000L, 2), 0.001f)
     }
 
     @Test

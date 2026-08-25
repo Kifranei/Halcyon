@@ -185,7 +185,11 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
             normalizeLyricSourcePriority(it[KEY_LYRIC_SOURCE_PRIORITY] ?: DEFAULT_LYRIC_SOURCE_PRIORITY)
         }
     override val lyricoPluginEnabledIds: Flow<Set<String>> =
-        context.dataStore.data.map { LyricoPluginManager.normalizeEnabledIds(it[KEY_LYRICO_PLUGIN_ENABLED_IDS]) }
+        context.dataStore.data.map { preferences ->
+            preferences[KEY_LYRICO_PLUGIN_ENABLED_IDS]
+                ?.let(LyricoPluginManager::normalizeEnabledIds)
+                ?: LyricoPluginManager.DEFAULT_ENABLED_SOURCE_IDS
+        }
     override val ignoreLyricHeaderTags: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_IGNORE_LYRIC_HEADER_TAGS] ?: true }
     override val hideLyricExtraInfo: Flow<Boolean> =

@@ -45,6 +45,8 @@ internal class CrossfadePlaybackCoordinator(
     private val primaryGainProcessor: CrossfadeGainAudioProcessor,
     private val secondaryGainProcessor: CrossfadeGainAudioProcessor,
     private val secondaryRenderersFactory: () -> EllaRenderersFactory,
+    private val onIncomingAudible: (targetIndex: Int, positionMs: Long, playbackSpeed: Float) -> Unit,
+    private val onIncomingFinished: () -> Unit,
     private val scope: CoroutineScope
 ) {
     private var audioAttributes: AudioAttributes = audioAttributes
@@ -54,7 +56,11 @@ internal class CrossfadePlaybackCoordinator(
         val targetIndex: Int,
         val baseVolume: Float,
         var incomingAudibleStartMs: Long? = null,
-        var effectiveFadeDurationMs: Long = 0L
+        var effectiveFadeDurationMs: Long = 0L,
+        var presentationStarted: Boolean = false,
+        var handoffResyncAttempts: Int = 0,
+        var handoffBlendStartedAtElapsedRealtime: Long = 0L,
+        var handoffSilentDrainStartedAtElapsedRealtime: Long = 0L
     )
 
     private var crossfadeDurationMs = 0L
@@ -66,6 +72,7 @@ internal class CrossfadePlaybackCoordinator(
     private var handingOff = false
     private var handoffStarted = false
     private var handoffStartedAtElapsedRealtime = 0L
+    private var handoffSeekStartedAtElapsedRealtime = 0L
 
     private var monitorJob: kotlinx.coroutines.Job? = null
 
@@ -188,6 +195,7 @@ internal class CrossfadePlaybackCoordinator(
                 active.incomingAudibleStartMs = auxiliary.currentPosition
                 val remainingMs = (primary.duration - primary.currentPosition).coerceAtLeast(MIN_SMART_FADE_MS)
                 active.effectiveFadeDurationMs = minOf(fadeMs, remainingMs).coerceAtLeast(MIN_SMART_FADE_MS)
+                presentIncoming(active, auxiliary)
             }
             val audibleStartMs = active.incomingAudibleStartMs
             val timelineProgress = if (audibleStartMs == null) {
@@ -240,6 +248,7 @@ internal class CrossfadePlaybackCoordinator(
             val baseVolume = primary.volume.coerceIn(0f, 1f)
             candidate.volume = baseVolume
             secondaryGainProcessor.gain = 0f
+            candidate.playbackParameters = primary.playbackParameters
             candidate.playWhenReady = true
             transition = ActiveTransition(
                 sourceMediaId = current.mediaId,
@@ -250,6 +259,7 @@ internal class CrossfadePlaybackCoordinator(
             )
             handoffStarted = false
             handoffStartedAtElapsedRealtime = 0L
+            handoffSeekStartedAtElapsedRealtime = 0L
         }
     }
 
@@ -281,7 +291,10 @@ internal class CrossfadePlaybackCoordinator(
         }
         handoffStarted = true
         handoffStartedAtElapsedRealtime = SystemClock.elapsedRealtime()
+        handoffSeekStartedAtElapsedRealtime = handoffStartedAtElapsedRealtime
+        presentIncoming(active, auxiliary)
         primaryGainProcessor.gain = 0f
+        secondaryGainProcessor.gain = 1f
         primary.playWhenReady = auxiliary.playWhenReady
         val targetPositionMs = auxiliary.currentPosition.coerceAtLeast(0L)
         handingOff = true
@@ -300,9 +313,10 @@ internal class CrossfadePlaybackCoordinator(
     }
 
     private fun updateHandoff(active: ActiveTransition, auxiliary: ExoPlayer) {
+        val now = SystemClock.elapsedRealtime()
         if (
             handoffStartedAtElapsedRealtime > 0L &&
-            SystemClock.elapsedRealtime() - handoffStartedAtElapsedRealtime >= HANDOFF_TIMEOUT_MS
+            now - handoffStartedAtElapsedRealtime >= HANDOFF_TIMEOUT_MS
         ) {
             abortTransition("handoff timed out")
             return
@@ -313,17 +327,49 @@ internal class CrossfadePlaybackCoordinator(
         ) {
             return
         }
+        if (active.handoffSilentDrainStartedAtElapsedRealtime > 0L) {
+            if (now - active.handoffSilentDrainStartedAtElapsedRealtime >= HANDOFF_SILENT_DRAIN_MS) {
+                finishTransition(active)
+            }
+            return
+        }
+        if (active.handoffBlendStartedAtElapsedRealtime > 0L) {
+            val progress = CrossfadeTransitionMath.handoffBlendProgress(
+                elapsedMs = now - active.handoffBlendStartedAtElapsedRealtime,
+                durationMs = HANDOFF_BLEND_MS
+            )
+            // Both players contain the incoming song here. A linear handoff avoids the correlated
+            // signal boost of an equal-power curve while eliminating the old hard 0-to-1 switch.
+            primaryGainProcessor.gain = progress
+            secondaryGainProcessor.gain = 1f - progress
+            if (progress >= 1f) {
+                active.handoffSilentDrainStartedAtElapsedRealtime = now
+            }
+            return
+        }
         val driftMs = primary.currentPosition - auxiliary.currentPosition
-        if (CrossfadeTransitionMath.shouldResyncHandoff(driftMs)) {
+        if (
+            CrossfadeTransitionMath.shouldResyncHandoff(driftMs) &&
+            active.handoffResyncAttempts < MAX_HANDOFF_RESYNC_ATTEMPTS
+        ) {
+            active.handoffResyncAttempts++
+            val measuredSeekLatencyMs = (now - handoffSeekStartedAtElapsedRealtime)
+                .coerceIn(0L, MAX_HANDOFF_SEEK_LEAD_MS)
+            val compensatedTargetMs = CrossfadeTransitionMath.compensatedHandoffPosition(
+                auxiliaryPositionMs = auxiliary.currentPosition,
+                positionDriftMs = driftMs,
+                measuredSeekLatencyMs = measuredSeekLatencyMs
+            )
             handingOff = true
             try {
-                primary.seekTo(active.targetIndex, auxiliary.currentPosition.coerceAtLeast(0L))
+                handoffSeekStartedAtElapsedRealtime = now
+                primary.seekTo(active.targetIndex, compensatedTargetMs)
             } finally {
                 handingOff = false
             }
             return
         }
-        finishTransition(active)
+        active.handoffBlendStartedAtElapsedRealtime = now
     }
 
     private fun finishTransition(active: ActiveTransition) {
@@ -331,18 +377,40 @@ internal class CrossfadePlaybackCoordinator(
         transition = null
         handoffStarted = false
         handoffStartedAtElapsedRealtime = 0L
+        handoffSeekStartedAtElapsedRealtime = 0L
+        secondaryGainProcessor.gain = 0f
         restorePrimaryGain()
         clearSecondary()
+        finishIncomingPresentation(active)
     }
 
     private fun cancelTransition() {
+        val active = transition
         transition = null
         handoffStarted = false
         handoffStartedAtElapsedRealtime = 0L
+        handoffSeekStartedAtElapsedRealtime = 0L
         // Restore the PCM envelope first. Releasing a vendor decoder can throw, and must never
         // strand the session at the handoff's temporary zero gain.
         restorePrimaryGain()
         clearSecondary()
+        if (active != null) finishIncomingPresentation(active)
+    }
+
+    private fun presentIncoming(active: ActiveTransition, auxiliary: ExoPlayer) {
+        if (active.presentationStarted) return
+        active.presentationStarted = true
+        onIncomingAudible(
+            active.targetIndex,
+            auxiliary.currentPosition.coerceAtLeast(0L),
+            auxiliary.playbackParameters.speed
+        )
+    }
+
+    private fun finishIncomingPresentation(active: ActiveTransition) {
+        if (!active.presentationStarted) return
+        active.presentationStarted = false
+        onIncomingFinished()
     }
 
     private fun restorePrimaryGain() {
@@ -371,6 +439,10 @@ internal class CrossfadePlaybackCoordinator(
         const val ACTIVE_TICK_MS = 16L
         const val MIN_SMART_FADE_MS = 450L
         const val HANDOFF_TIMEOUT_MS = 5_000L
+        const val HANDOFF_BLEND_MS = 112L
+        const val HANDOFF_SILENT_DRAIN_MS = 160L
+        const val MAX_HANDOFF_SEEK_LEAD_MS = 600L
+        const val MAX_HANDOFF_RESYNC_ATTEMPTS = 1
         const val TAG = "CrossfadeCoordinator"
     }
 }
@@ -432,6 +504,20 @@ internal object CrossfadeTransitionMath {
 
     fun shouldResyncHandoff(positionDriftMs: Long): Boolean =
         kotlin.math.abs(positionDriftMs) > HANDOFF_RESYNC_THRESHOLD_MS
+
+    fun compensatedHandoffPosition(
+        auxiliaryPositionMs: Long,
+        positionDriftMs: Long,
+        measuredSeekLatencyMs: Long
+    ): Long {
+        val latencyLeadMs = if (positionDriftMs < 0L) measuredSeekLatencyMs.coerceAtLeast(0L) else 0L
+        return (auxiliaryPositionMs + latencyLeadMs).coerceAtLeast(0L)
+    }
+
+    fun handoffBlendProgress(elapsedMs: Long, durationMs: Long): Float {
+        if (durationMs <= 0L) return 1f
+        return (elapsedMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    }
 }
 
 /**

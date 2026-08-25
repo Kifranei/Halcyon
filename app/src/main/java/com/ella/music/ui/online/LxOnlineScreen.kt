@@ -5,8 +5,8 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,8 +85,6 @@ fun LxOnlineScreen(
     onNavigateToArtist: (String) -> Unit = {},
     state: LxOnlineViewModel = viewModel()
 ) {
-    BackHandler(onBack = onBack)
-
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val service = remember(context) { LxOnlineService(context) }
@@ -121,9 +120,7 @@ fun LxOnlineScreen(
         val previousSourceId = observedSourceId
         val marker = "${selectedProvider.id}:$currentSourceId"
         if (previousSourceId != null && previousSourceId != marker) {
-            state.clearResults(
-                context.getString(R.string.lx_online_source_switched, selectedProvider.displayName(context))
-            )
+            state.clearResults()
             remoteResults = emptyList()
         }
         observedSourceId = marker
@@ -300,6 +297,7 @@ fun LxOnlineScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -310,7 +308,7 @@ fun LxOnlineScreen(
                             onClick = {
                                 if (state.searchPlatform != platform) {
                                     state.searchPlatform = platform
-                                    state.clearResults(platform.displayName)
+                                    state.clearResults()
                                     remoteResults = emptyList()
                                 }
                             }
@@ -329,16 +327,17 @@ fun LxOnlineScreen(
                 Text(text = stringResource(R.string.common_search))
             }
 
-            Text(
-                text = if (state.isBusy) stringResource(R.string.lx_online_processing)
-                else if (state.hasCustomMessage) state.message
-                else stringResource(state.messageId),
-                fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
-            )
+            val statusMessage = if (state.isBusy) stringResource(R.string.lx_online_processing) else state.message
+            if (statusMessage.isNotBlank()) {
+                Text(
+                    text = statusMessage,
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                )
+            }
 
             val showingRemote = selectedProvider != RemoteMusicProvider.Lx
             if ((!showingRemote && state.results.isEmpty()) || (showingRemote && remoteResults.isEmpty())) {

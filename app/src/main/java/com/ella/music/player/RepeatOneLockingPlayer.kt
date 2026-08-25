@@ -18,15 +18,15 @@ internal class RepeatOneLockingPlayer(
         if (!seekAdjacentMediaItemInRepeatOne(1)) {
             Log.d(PlaybackService.TIMING_TAG, "seekToNext called")
             super.seekToNextMediaItem()
+            onExternalPlaybackChanged()
         }
     }
 
     override fun seekToNext() {
-        Log.d(PlaybackService.TIMING_TAG, "skipNext command received mediaId=${currentMediaItem?.mediaId}")
-        if (!seekAdjacentMediaItemInRepeatOne(1)) {
-            Log.d(PlaybackService.TIMING_TAG, "seekToNext called")
-            super.seekToNext()
-        }
+        // Some lock-screen and Dynamic Island implementations send the semantic SEEK_TO_NEXT
+        // command while others send SEEK_TO_NEXT_MEDIA_ITEM. Keep both paths identical so the
+        // queue and the published media-session metadata cannot drift apart.
+        seekToNextMediaItem()
     }
 
     override fun seekToPreviousMediaItem() {
@@ -34,15 +34,16 @@ internal class RepeatOneLockingPlayer(
         if (!restartCurrentFromPreviousButton() && !seekAdjacentMediaItemInRepeatOne(-1)) {
             Log.d(PlaybackService.TIMING_TAG, "seekToPrevious called")
             super.seekToPreviousMediaItem()
+            onExternalPlaybackChanged()
         }
     }
 
     override fun seekToPrevious() {
-        Log.d(PlaybackService.TIMING_TAG, "skipPrevious command received mediaId=${currentMediaItem?.mediaId}")
-        if (!restartCurrentFromPreviousButton() && !seekAdjacentMediaItemInRepeatOne(-1)) {
-            Log.d(PlaybackService.TIMING_TAG, "seekToPrevious called")
-            super.seekToPrevious()
-        }
+        // Player.seekToPrevious() normally restarts the current item once playback has passed
+        // Media3's threshold. Third-party lock-screen/Dynamic Island controllers commonly send
+        // that command even when their button is visually a "previous track" button. Route it
+        // through our explicit preference-aware media-item implementation instead.
+        seekToPreviousMediaItem()
     }
 
     private fun restartCurrentFromPreviousButton(): Boolean {
