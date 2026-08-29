@@ -17,6 +17,7 @@ import com.ella.music.R
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 import com.ella.music.ui.artist.rememberArtistCoverModel
@@ -209,9 +210,16 @@ internal fun LibrarySearchResultsPane(
         if (albumResults.isNotEmpty() && filter in listOf(SearchFilter.All, SearchFilter.Albums)) {
             item { SearchSectionHeader(stringResource(R.string.library_search_albums) + " (${albumResults.size})") }
             items(albumResults, key = { it.id }) { album ->
+                val representativeSong = remember(album.id, album.artAlbumId, songs) {
+                    songs.firstOrNull { song ->
+                        song.albumIdentityId() == album.id || song.albumId == album.artAlbumId
+                    }
+                }
                 AlbumResultRow(
                     album = album,
                     coverModel = mainViewModel.getAlbumArtUri(album.artAlbumId),
+                    representativeSong = representativeSong,
+                    loadCoverArt = mainViewModel::getCoverArtBitmap,
                     query = trimmedQuery,
                     onClick = {
                         onCommitSearch()

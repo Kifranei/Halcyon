@@ -49,6 +49,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.playbackSourcesForSongs
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.LibrarySortUiState
@@ -115,10 +116,13 @@ private class ArtistListAccumulator(
     val participatedAlbumIds: MutableSet<Long> = linkedSetOf()
 }
 
-internal fun buildArtistCoverCandidates(songs: List<Song>): Map<String, List<Song>> {
+internal fun buildArtistCoverCandidates(
+    songs: List<Song>,
+    includeFeaturedArtists: Boolean = com.ella.music.data.NameSplitConfigStore.parseFeaturedArtists
+): Map<String, List<Song>> {
     val candidates = linkedMapOf<String, MutableList<Song>>()
     songs.forEach { song ->
-        (splitArtistNames(song.artist) + splitArtistNames(song.albumArtist))
+        (artistNamesForSong(song, includeFeaturedArtists) + splitArtistNames(song.albumArtist))
             .distinctBy { it.tagIdentityKey() }
             .forEach { rawName ->
                 candidates
@@ -132,14 +136,15 @@ internal fun buildArtistCoverCandidates(songs: List<Song>): Map<String, List<Son
 private fun buildArtistListAggregate(
     songs: List<Song>,
     albums: List<Album>,
-    includeAlbumArtists: Boolean
+    includeAlbumArtists: Boolean,
+    includeFeaturedArtists: Boolean
 ): ArtistListAggregate {
     val artistsByKey = linkedMapOf<String, ArtistListAccumulator>()
     // Cover candidates are collected from both artist fields regardless of the
     // "show album artists" list setting. That setting controls which artists appear and how
     // their counts are calculated; it must not change the #266 image priority for an artist that
     // is already visible in the list.
-    val coverCandidatesByArtist = buildArtistCoverCandidates(songs)
+    val coverCandidatesByArtist = buildArtistCoverCandidates(songs, includeFeaturedArtists)
     val participatedAlbumCounts = mutableMapOf<String, Int>()
     val releaseAlbumCounts = mutableMapOf<String, Int>()
 
@@ -150,7 +155,7 @@ private fun buildArtistListAggregate(
 
     songs.forEach { song ->
         val albumIdentityId = song.albumIdentityId()
-        splitArtistNames(song.artist).forEach { artistName ->
+        artistNamesForSong(song, includeFeaturedArtists).forEach { artistName ->
             val accumulator = accumulatorFor(artistName)
             accumulator.songCount += 1
             accumulator.duration += song.duration
@@ -236,6 +241,7 @@ fun ArtistListScreen(
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val tagIgnoreCase by mainViewModel.settingsManager.tagIgnoreCase.collectAsState(initial = false)
+    val parseFeaturedArtists by mainViewModel.settingsManager.parseFeaturedArtists.collectAsState(initial = false)
     val pinnedArtistKeys by mainViewModel.settingsManager.pinnedKeysFlow("artist").collectAsState(initial = emptyList())
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val persistedSortMode = ArtistSortMode.entries.getOrElse(sortIndex) { ArtistSortMode.Name }
@@ -268,13 +274,15 @@ fun ArtistListScreen(
         songs,
         albums,
         showAlbumArtists,
-        tagIgnoreCase
+        tagIgnoreCase,
+        parseFeaturedArtists
     ) {
         value = withContext(Dispatchers.Default) {
             buildArtistListAggregate(
                 songs = songs,
                 albums = albums,
-                includeAlbumArtists = showAlbumArtists
+                includeAlbumArtists = showAlbumArtists,
+                includeFeaturedArtists = parseFeaturedArtists
             )
         }
     }
@@ -322,8 +330,8 @@ fun ArtistListScreen(
     fun selectedArtistSongs(): List<Song> {
         if (selection.selectedIds.isEmpty()) return emptyList()
         return songs.filter { song ->
-            val names = if (showAlbumArtists) splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
-            else splitArtistNames(song.artist)
+            val names = if (showAlbumArtists) artistNamesForSong(song, parseFeaturedArtists) + splitArtistNames(song.albumArtist)
+            else artistNamesForSong(song, parseFeaturedArtists)
             names.any { it.tagIdentityKey() in selection.selectedIds }
         }.distinctBy { it.id }
     }
@@ -335,9 +343,9 @@ fun ArtistListScreen(
                     val artistKey = artist.name.tagIdentityKey()
                     CategoryResumeKeys.artist(artist.name) to songs.filter { song ->
                         val names = if (showAlbumArtists) {
-                            splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
+                            artistNamesForSong(song, parseFeaturedArtists) + splitArtistNames(song.albumArtist)
                         } else {
-                            splitArtistNames(song.artist)
+                            artistNamesForSong(song, parseFeaturedArtists)
                         }
                         names.any { it.tagIdentityKey() == artistKey }
                     }
@@ -346,13 +354,13 @@ fun ArtistListScreen(
     val filteredArtistKeys = remember(filteredArtists) {
         filteredArtists.map { it.name.tagIdentityKey() }
     }
-    val randomArtistSongs = remember(filteredArtists, songs, showAlbumArtists) {
+    val randomArtistSongs = remember(filteredArtists, songs, showAlbumArtists, parseFeaturedArtists) {
         val visibleArtistKeys = filteredArtists.mapTo(mutableSetOf()) { it.name.tagIdentityKey() }
         songs.filter { song ->
             val names = if (showAlbumArtists) {
-                splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
+                artistNamesForSong(song, parseFeaturedArtists) + splitArtistNames(song.albumArtist)
             } else {
-                splitArtistNames(song.artist)
+                artistNamesForSong(song, parseFeaturedArtists)
             }
             names.any { it.tagIdentityKey() in visibleArtistKeys }
         }.distinctBy { it.id }
@@ -644,9 +652,9 @@ fun ArtistListScreen(
                                                     val artistKey = artist.name.tagIdentityKey()
                                                     CategoryResumeKeys.artist(artist.name) to songs.filter { song ->
                                                         val names = if (showAlbumArtists) {
-                                                            splitArtistNames(song.artist) + splitArtistNames(song.albumArtist)
+                                                            artistNamesForSong(song, parseFeaturedArtists) + splitArtistNames(song.albumArtist)
                                                         } else {
-                                                            splitArtistNames(song.artist)
+                                                            artistNamesForSong(song, parseFeaturedArtists)
                                                         }
                                                         names.any { it.tagIdentityKey() == artistKey }
                                                     }

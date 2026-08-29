@@ -5,10 +5,14 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,26 +23,38 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
+import com.ella.music.data.lastfm.LAST_FM_WIKI_REGIONS
+import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import sh.calvin.reorderable.ReorderableColumn
+import sh.calvin.reorderable.ReorderableItem
 
 @Composable
 fun CoverMediaSettingsScreen(
@@ -75,11 +91,270 @@ fun CoverMediaSettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
             SettingsArtistCoverSection(highlightKey = highlightKey)
+            SettingsArtistImageSection(highlightKey = highlightKey)
             SettingsDynamicCoverSection(highlightKey = highlightKey)
             SettingsMusicVideoSection(highlightKey = highlightKey)
             Spacer(modifier = Modifier.height(160.dp))
         }
     }
+}
+
+@Composable
+internal fun SettingsArtistImageSection(highlightKey: String? = null) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val downloadMode by settingsManager.artistImageDownload.collectCachedAsState(
+        "artistImageDownload",
+        SettingsManager.DEFAULT_ARTIST_IMAGE_DOWNLOAD
+    )
+    val sourceOrderPreference by settingsManager.artistImageSourceOrder.collectCachedAsState(
+        "artistImageSourceOrder",
+        SettingsManager.DEFAULT_ARTIST_IMAGE_SOURCES
+    )
+    val spotifyClientId by settingsManager.spotifyClientId.collectCachedAsState(
+        "spotifyClientId",
+        ""
+    )
+    val spotifyClientSecret by settingsManager.spotifyClientSecret.collectCachedAsState(
+        "spotifyClientSecret",
+        ""
+    )
+    val imageRegion by settingsManager.artistBioLastFmLang.collectCachedAsState(
+        "artistImageRegion",
+        DEFAULT_LAST_FM_WIKI_REGION
+    )
+    val downloadOptions = listOf(
+        SettingsManager.ARTIST_IMAGE_DOWNLOAD_ALWAYS to stringResource(R.string.settings_artist_image_download_always),
+        SettingsManager.ARTIST_IMAGE_DOWNLOAD_WIFI to stringResource(R.string.settings_artist_image_download_wifi),
+        SettingsManager.ARTIST_IMAGE_DOWNLOAD_NEVER to stringResource(R.string.settings_artist_image_download_never)
+    )
+    val selectedDownloadMode = downloadOptions.indexOfFirst { it.first == SettingsManager.normalizeArtistImageDownload(downloadMode) }
+        .coerceAtLeast(0)
+    val selectedImageRegion = normalizeLastFmWikiRegion(imageRegion)
+    val selectedImageRegionIndex = LAST_FM_WIKI_REGIONS.indexOfFirst { it.code == selectedImageRegion }
+        .takeIf { it >= 0 } ?: 0
+    val sourceOptions = listOf(
+        SettingsManager.ARTIST_IMAGE_SOURCE_LASTFM to stringResource(R.string.settings_artist_image_source_lastfm),
+        SettingsManager.ARTIST_IMAGE_SOURCE_SPOTIFY to stringResource(R.string.settings_artist_image_source_spotify),
+        SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE to stringResource(R.string.settings_artist_image_source_netease)
+    )
+    val sourceIds = remember(sourceOptions) { sourceOptions.map { it.first } }
+    val sourceLabels = remember(sourceOptions) { sourceOptions.toMap() }
+    val enabledSourceIds = sourceOrderPreference.filter { it in sourceIds }.distinct()
+    val disabledSourceIds = sourceIds.filterNot { it in enabledSourceIds }
+
+    fun saveSourceOrder(next: List<String>) {
+        scope.launch { settingsManager.setArtistImageSourceOrder(next) }
+    }
+
+    fun moveSource(sourceList: List<String>, fromIndex: Int, toIndex: Int): List<String> {
+        if (fromIndex !in sourceList.indices || toIndex !in sourceList.indices) return sourceList
+        return sourceList.toMutableList().apply {
+            add(toIndex, removeAt(fromIndex))
+        }
+    }
+
+    SmallTitle(text = stringResource(R.string.settings_artist_image_download))
+    SettingsCardGroup(
+        highlight = highlightKey in setOf(
+            "artist_image_download",
+            "artist_image_region",
+            "artist_image_sources",
+            "cover_media"
+        )
+    ) {
+        Column {
+            SettingsFocusAnchor(active = highlightKey == "artist_image_download") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_artist_image_download),
+                    summary = stringResource(
+                        R.string.settings_current_value,
+                        downloadOptions[selectedDownloadMode].second
+                    ),
+                    items = downloadOptions.map { DropdownItem(title = it.second) },
+                    selectedIndex = selectedDownloadMode,
+                    onSelectedIndexChange = { index ->
+                        downloadOptions.getOrNull(index)?.first?.let { mode ->
+                            scope.launch { settingsManager.setArtistImageDownload(mode) }
+                        }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "artist_image_region") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_artist_image_region),
+                    summary = stringResource(
+                        R.string.settings_current_value,
+                        stringResource(LAST_FM_WIKI_REGIONS[selectedImageRegionIndex].countryNameRes)
+                    ),
+                    items = LAST_FM_WIKI_REGIONS.map {
+                        DropdownItem(title = stringResource(it.countryNameRes))
+                    },
+                    selectedIndex = selectedImageRegionIndex,
+                    onSelectedIndexChange = { index ->
+                        LAST_FM_WIKI_REGIONS.getOrNull(index)?.let { region ->
+                            scope.launch { settingsManager.setArtistBioLastFmLang(region.code) }
+                        }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "artist_image_sources") {
+                Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+                    Text(
+                        text = stringResource(R.string.settings_artist_image_sources),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_artist_image_sources_summary),
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    if (enabledSourceIds.isNotEmpty()) {
+                        ReorderableColumn(
+                            list = enabledSourceIds,
+                            onSettle = { fromIndex, toIndex ->
+                                saveSourceOrder(moveSource(enabledSourceIds, fromIndex, toIndex))
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { _, sourceId, isDragging ->
+                            val sourceIndex = enabledSourceIds.indexOf(sourceId)
+                            ReorderableItem {
+                                ArtistImageSourceRow(
+                                    label = sourceLabels[sourceId].orEmpty(),
+                                    enabled = true,
+                                    canMoveUp = sourceIndex > 0,
+                                    canMoveDown = sourceIndex < enabledSourceIds.lastIndex,
+                                    isDragging = isDragging,
+                                    onToggle = {
+                                        saveSourceOrder(enabledSourceIds - sourceId)
+                                    },
+                                    onMoveUp = {
+                                        saveSourceOrder(moveSource(enabledSourceIds, sourceIndex, sourceIndex - 1))
+                                    },
+                                    onMoveDown = {
+                                        saveSourceOrder(moveSource(enabledSourceIds, sourceIndex, sourceIndex + 1))
+                                    },
+                                    modifier = Modifier.longPressDraggableHandle()
+                                )
+                            }
+                        }
+                    }
+                    disabledSourceIds.forEach { sourceId ->
+                        ArtistImageSourceRow(
+                            label = sourceLabels[sourceId].orEmpty(),
+                            enabled = false,
+                            canMoveUp = false,
+                            canMoveDown = false,
+                            isDragging = false,
+                            onToggle = { saveSourceOrder(enabledSourceIds + sourceId) },
+                            onMoveUp = {},
+                            onMoveDown = {}
+                        )
+                    }
+                }
+            }
+            SettingsFocusAnchor(active = highlightKey == "artist_image_sources") {
+                Column {
+                    SplitSettingTextField(
+                        label = stringResource(R.string.settings_spotify_client_id),
+                        value = spotifyClientId,
+                        summary = stringResource(R.string.settings_spotify_client_id_summary),
+                        singleLine = true,
+                        onValueChange = { value ->
+                            scope.launch { settingsManager.setSpotifyClientId(value) }
+                        }
+                    )
+                    SplitSettingTextField(
+                        label = stringResource(R.string.settings_spotify_client_secret),
+                        value = spotifyClientSecret,
+                        summary = stringResource(R.string.settings_spotify_client_secret_summary),
+                        singleLine = true,
+                        isPassword = true,
+                        onValueChange = { value ->
+                            scope.launch { settingsManager.setSpotifyClientSecret(value) }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistImageSourceRow(
+    label: String,
+    enabled: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    isDragging: Boolean,
+    onToggle: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                if (isDragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
+            )
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 15.sp,
+            color = if (enabled) {
+                MiuixTheme.colorScheme.onSurface
+            } else {
+                MiuixTheme.colorScheme.onSurfaceVariantSummary
+            },
+            modifier = Modifier.weight(1f)
+        )
+        if (enabled) {
+            ArtistImageSourceAction(
+                text = "↑",
+                description = stringResource(R.string.settings_artist_image_source_move_up),
+                enabled = canMoveUp,
+                onClick = onMoveUp
+            )
+            ArtistImageSourceAction(
+                text = "↓",
+                description = stringResource(R.string.settings_artist_image_source_move_down),
+                enabled = canMoveDown,
+                onClick = onMoveDown
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = { onToggle() }
+        )
+    }
+}
+
+@Composable
+private fun ArtistImageSourceAction(
+    text: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Text(
+        text = text,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold,
+        color = if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
+        modifier = Modifier
+            .size(36.dp)
+            .semantics { contentDescription = description }
+            .clickable(enabled = enabled, onClick = onClick)
+    )
 }
 
 @Composable

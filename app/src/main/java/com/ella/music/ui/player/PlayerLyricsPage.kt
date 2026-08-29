@@ -63,6 +63,7 @@ internal fun LyricsPlayerPage(
     perspectiveEffect: Boolean,
     perspectiveYAngle: Int,
     lyricTextAlign: Int,
+    lyricPageVerticalAlignment: Int,
     palette: PlayerPalette,
     flowEffectMode: Int,
     currentPositionMs: Long,

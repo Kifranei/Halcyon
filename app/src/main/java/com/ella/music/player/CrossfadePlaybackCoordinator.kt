@@ -1,7 +1,6 @@
 package com.ella.music.player
 
 import android.content.Context
-import android.os.SystemClock
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -26,25 +25,26 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * Performs an opt-in, two-player crossfade without changing the MediaSession's primary player.
+ * Performs an opt-in, two-player crossfade while keeping one stable MediaSession player identity.
  *
- * The session player remains responsible for the queue, notification, and lyrics. A silent
- * secondary player pre-buffers the next media item, fades it in while the primary finishes the
- * current item, then stays audible until the primary is ready at the same target position. Keeping
- * the feature off by default avoids a second decoder and extra network request for users who prefer
- * gapless playback.
+ * A silent standby player pre-buffers the next media item and fades it in while the active player
+ * finishes the current item. Once the fade completes, that already-running decoder is promoted as
+ * the active player; the implementation never seeks a second decoder to the same position or swaps
+ * AudioTracks at the ownership boundary. Keeping the feature off by default avoids a second decoder
+ * and extra network request for users who prefer gapless playback.
  */
 @UnstableApi
 internal class CrossfadePlaybackCoordinator(
     private val context: Context,
-    private val primary: ExoPlayer,
+    initialPrimary: ExoPlayer,
     private val dataSourceFactory: DataSource.Factory,
     audioAttributes: AudioAttributes,
-    private val primaryWaveformProbe: WaveformLevelAudioProcessor,
-    private val secondaryWaveformProbe: WaveformLevelAudioProcessor,
-    private val primaryGainProcessor: CrossfadeGainAudioProcessor,
-    private val secondaryGainProcessor: CrossfadeGainAudioProcessor,
+    initialPrimaryWaveformProbe: WaveformLevelAudioProcessor,
+    initialSecondaryWaveformProbe: WaveformLevelAudioProcessor,
+    initialPrimaryGainProcessor: CrossfadeGainAudioProcessor,
+    initialSecondaryGainProcessor: CrossfadeGainAudioProcessor,
     private val secondaryRenderersFactory: () -> EllaRenderersFactory,
+    private val onPrimaryPromoted: (ExoPlayer) -> Unit,
     private val onIncomingAudible: (targetIndex: Int, positionMs: Long, playbackSpeed: Float) -> Unit,
     private val onIncomingFinished: () -> Unit,
     private val scope: CoroutineScope
@@ -57,24 +57,24 @@ internal class CrossfadePlaybackCoordinator(
         val baseVolume: Float,
         var incomingAudibleStartMs: Long? = null,
         var effectiveFadeDurationMs: Long = 0L,
-        var presentationStarted: Boolean = false,
-        var handoffResyncAttempts: Int = 0,
-        var handoffBlendStartedAtElapsedRealtime: Long = 0L,
-        var handoffSilentDrainStartedAtElapsedRealtime: Long = 0L
+        var presentationStarted: Boolean = false
     )
 
+    private var primary: ExoPlayer = initialPrimary
+    private var primaryWaveformProbe = initialPrimaryWaveformProbe
+    private var secondaryWaveformProbe = initialSecondaryWaveformProbe
+    private var primaryGainProcessor = initialPrimaryGainProcessor
+    private var secondaryGainProcessor = initialSecondaryGainProcessor
     private var crossfadeDurationMs = 0L
     private var crossfadeCurve = CrossfadeTransitionMath.CURVE_EQUAL_POWER
     private var secondary: ExoPlayer? = null
     private var preparedSourceMediaId: String? = null
     private var preparedTargetMediaId: String? = null
     private var transition: ActiveTransition? = null
-    private var handingOff = false
     private var handoffStarted = false
-    private var handoffStartedAtElapsedRealtime = 0L
-    private var handoffSeekStartedAtElapsedRealtime = 0L
 
     private var monitorJob: kotlinx.coroutines.Job? = null
+    private var standbyDrainJob: kotlinx.coroutines.Job? = null
 
     private val primaryListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -93,7 +93,7 @@ internal class CrossfadePlaybackCoordinator(
                     return
                 }
                 if (mediaItem?.mediaId == active.targetMediaId) {
-                    beginHandoff(active)
+                    promoteIncoming(active)
                 } else {
                     cancelTransition()
                 }
@@ -107,7 +107,7 @@ internal class CrossfadePlaybackCoordinator(
             newPosition: Player.PositionInfo,
             reason: Int
         ) {
-            if (transition != null && !handingOff && reason != Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+            if (transition != null && reason != Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
                 // A user seek or an externally requested queue jump must immediately win over an
                 // in-flight crossfade; leaving the secondary running would create a duplicate song.
                 cancelTransition()
@@ -152,11 +152,21 @@ internal class CrossfadePlaybackCoordinator(
         secondary?.setAudioAttributes(attributes, false)
     }
 
+    /** True while the pre-buffered player is carrying the audible transport. */
+    fun isIncomingAudible(): Boolean =
+        transition?.presentationStarted == true && secondary?.isPlaying == true
+
     fun release() {
         primary.removeListener(primaryListener)
         monitorJob?.cancel()
         monitorJob = null
+        standbyDrainJob?.cancel()
+        standbyDrainJob = null
+        val standby = secondary
         cancelTransition()
+        secondary = null
+        runCatching { standby?.release() }
+            .onFailure { Log.w(TAG, "Failed to release standby player", it) }
     }
 
     private fun update() {
@@ -185,8 +195,7 @@ internal class CrossfadePlaybackCoordinator(
             }
             auxiliary.playWhenReady = primary.playWhenReady
             if (current.mediaId == active.targetMediaId || handoffStarted) {
-                beginHandoff(active)
-                updateHandoff(active, auxiliary)
+                promoteIncoming(active)
                 return
             }
             if (!primary.playWhenReady) return
@@ -222,7 +231,7 @@ internal class CrossfadePlaybackCoordinator(
                 primary.playbackState == Player.STATE_ENDED ||
                 auxiliary.playbackState == Player.STATE_ENDED
             ) {
-                beginHandoff(active)
+                promoteIncoming(active)
             }
             return
         }
@@ -236,12 +245,13 @@ internal class CrossfadePlaybackCoordinator(
         val remainingMs = (primary.duration - primary.currentPosition).coerceAtLeast(0L)
 
         if (remainingMs <= fadeMs + PREPARE_LEAD_MS) {
-            prepareSecondary(current, target)
+            prepareSecondary(current, target, nextIndex)
         }
         val candidate = secondary
         if (
             remainingMs <= fadeMs &&
             candidate?.playbackState == Player.STATE_READY &&
+            candidate.currentMediaItem?.mediaId == target.mediaId &&
             preparedSourceMediaId == current.mediaId &&
             preparedTargetMediaId == target.mediaId
         ) {
@@ -250,148 +260,108 @@ internal class CrossfadePlaybackCoordinator(
             secondaryGainProcessor.gain = 0f
             candidate.playbackParameters = primary.playbackParameters
             candidate.playWhenReady = true
-            transition = ActiveTransition(
+            val startedTransition = ActiveTransition(
                 sourceMediaId = current.mediaId,
                 targetMediaId = target.mediaId,
                 targetIndex = nextIndex,
                 baseVolume = baseVolume,
                 effectiveFadeDurationMs = fadeMs
             )
+            transition = startedTransition
             handoffStarted = false
-            handoffStartedAtElapsedRealtime = 0L
-            handoffSeekStartedAtElapsedRealtime = 0L
+            // Publish the exact queue target when its decoder starts, rather than waiting for a
+            // waveform threshold or the final ownership swap. This keeps cover/title/lyrics in
+            // lock-step with the incoming transport throughout the complete crossfade window.
+            presentIncoming(startedTransition, candidate)
         }
     }
 
-    private fun prepareSecondary(source: MediaItem, target: MediaItem) {
+    private fun prepareSecondary(source: MediaItem, target: MediaItem, targetIndex: Int) {
         if (preparedSourceMediaId == source.mediaId && preparedTargetMediaId == target.mediaId) return
         clearSecondary()
-        secondary = ExoPlayer.Builder(context, secondaryRenderersFactory())
+        val standby = secondary ?: ExoPlayer.Builder(context, secondaryRenderersFactory())
             .setAudioAttributes(audioAttributes, false)
             .setHandleAudioBecomingNoisy(false)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
-            .also { player ->
-                player.volume = 0f
-                secondaryGainProcessor.gain = 0f
-                player.setMediaItem(target)
-                player.prepare()
-                player.playWhenReady = false
-            }
+            .also { secondary = it }
+        val queue = List(primary.mediaItemCount) { index -> primary.getMediaItemAt(index) }
+        standby.volume = 0f
+        secondaryGainProcessor.gain = 0f
+        standby.repeatMode = primary.repeatMode
+        standby.shuffleModeEnabled = primary.shuffleModeEnabled
+        standby.playbackParameters = primary.playbackParameters
+        standby.setMediaItems(queue, targetIndex, 0L)
+        standby.prepare()
+        standby.playWhenReady = false
         preparedSourceMediaId = source.mediaId
         preparedTargetMediaId = target.mediaId
     }
 
-    private fun beginHandoff(active: ActiveTransition) {
+    private fun promoteIncoming(active: ActiveTransition) {
         if (transition !== active || handoffStarted) return
-        val auxiliary = secondary ?: run {
+        val incoming = secondary ?: run {
             cancelTransition()
             return
         }
+        if (incoming.currentMediaItem?.mediaId != active.targetMediaId) {
+            abortTransition(
+                "incoming identity changed before promotion expected=${active.targetMediaId} " +
+                    "actual=${incoming.currentMediaItem?.mediaId}"
+            )
+            return
+        }
         handoffStarted = true
-        handoffStartedAtElapsedRealtime = SystemClock.elapsedRealtime()
-        handoffSeekStartedAtElapsedRealtime = handoffStartedAtElapsedRealtime
-        presentIncoming(active, auxiliary)
+        presentIncoming(active, incoming)
         primaryGainProcessor.gain = 0f
         secondaryGainProcessor.gain = 1f
-        primary.playWhenReady = auxiliary.playWhenReady
-        val targetPositionMs = auxiliary.currentPosition.coerceAtLeast(0L)
-        handingOff = true
-        try {
-            if (
-                primary.currentMediaItem?.mediaId != active.targetMediaId ||
-                CrossfadeTransitionMath.shouldResyncHandoff(
-                    primary.currentPosition - targetPositionMs
-                )
-            ) {
-                primary.seekTo(active.targetIndex, targetPositionMs)
-            }
-        } finally {
-            handingOff = false
-        }
-    }
 
-    private fun updateHandoff(active: ActiveTransition, auxiliary: ExoPlayer) {
-        val now = SystemClock.elapsedRealtime()
-        if (
-            handoffStartedAtElapsedRealtime > 0L &&
-            now - handoffStartedAtElapsedRealtime >= HANDOFF_TIMEOUT_MS
-        ) {
-            abortTransition("handoff timed out")
-            return
-        }
-        if (
-            primary.currentMediaItem?.mediaId != active.targetMediaId ||
-            primary.playbackState != Player.STATE_READY
-        ) {
-            return
-        }
-        if (active.handoffSilentDrainStartedAtElapsedRealtime > 0L) {
-            if (now - active.handoffSilentDrainStartedAtElapsedRealtime >= HANDOFF_SILENT_DRAIN_MS) {
-                finishTransition(active)
-            }
-            return
-        }
-        if (active.handoffBlendStartedAtElapsedRealtime > 0L) {
-            val progress = CrossfadeTransitionMath.handoffBlendProgress(
-                elapsedMs = now - active.handoffBlendStartedAtElapsedRealtime,
-                durationMs = HANDOFF_BLEND_MS
-            )
-            // Both players contain the incoming song here. A linear handoff avoids the correlated
-            // signal boost of an equal-power curve while eliminating the old hard 0-to-1 switch.
-            primaryGainProcessor.gain = progress
-            secondaryGainProcessor.gain = 1f - progress
-            if (progress >= 1f) {
-                active.handoffSilentDrainStartedAtElapsedRealtime = now
-            }
-            return
-        }
-        val driftMs = primary.currentPosition - auxiliary.currentPosition
-        if (
-            CrossfadeTransitionMath.shouldResyncHandoff(driftMs) &&
-            active.handoffResyncAttempts < MAX_HANDOFF_RESYNC_ATTEMPTS
-        ) {
-            active.handoffResyncAttempts++
-            val measuredSeekLatencyMs = (now - handoffSeekStartedAtElapsedRealtime)
-                .coerceIn(0L, MAX_HANDOFF_SEEK_LEAD_MS)
-            val compensatedTargetMs = CrossfadeTransitionMath.compensatedHandoffPosition(
-                auxiliaryPositionMs = auxiliary.currentPosition,
-                positionDriftMs = driftMs,
-                measuredSeekLatencyMs = measuredSeekLatencyMs
-            )
-            handingOff = true
-            try {
-                handoffSeekStartedAtElapsedRealtime = now
-                primary.seekTo(active.targetIndex, compensatedTargetMs)
-            } finally {
-                handingOff = false
-            }
-            return
-        }
-        active.handoffBlendStartedAtElapsedRealtime = now
-    }
+        val outgoing = primary
+        val outgoingProbe = primaryWaveformProbe
+        val outgoingGain = primaryGainProcessor
+        primary.removeListener(primaryListener)
+        primary = incoming
+        primaryWaveformProbe = secondaryWaveformProbe
+        primaryGainProcessor = secondaryGainProcessor
+        secondary = outgoing
+        secondaryWaveformProbe = outgoingProbe
+        secondaryGainProcessor = outgoingGain
+        primary.addListener(primaryListener)
 
-    private fun finishTransition(active: ActiveTransition) {
-        if (transition !== active) return
         transition = null
         handoffStarted = false
-        handoffStartedAtElapsedRealtime = 0L
-        handoffSeekStartedAtElapsedRealtime = 0L
-        secondaryGainProcessor.gain = 0f
+        preparedSourceMediaId = null
+        preparedTargetMediaId = null
         restorePrimaryGain()
-        clearSecondary()
-        finishIncomingPresentation(active)
+        onPrimaryPromoted(primary)
+
+        // The incoming AudioTrack remains the one users already hear. Retire the old, zero-gain
+        // output later and off the ownership boundary so AudioFlinger/vendor mixers never have to
+        // stop one track in the same instant another becomes authoritative.
+        standbyDrainJob?.cancel()
+        standbyDrainJob = scope.launch {
+            delay(PROMOTED_STANDBY_DRAIN_MS)
+            if (secondary === outgoing && transition == null) {
+                runCatching {
+                    outgoing.playWhenReady = false
+                    outgoing.stop()
+                    outgoing.clearMediaItems()
+                }.onFailure { Log.w(TAG, "Failed to quiesce promoted standby", it) }
+            }
+        }
+        Log.i(
+            TAG,
+            "Promoted incoming player without seek/restart mediaId=${active.targetMediaId} " +
+                "positionMs=${primary.currentPosition}"
+        )
     }
 
     private fun cancelTransition() {
         val active = transition
         transition = null
         handoffStarted = false
-        handoffStartedAtElapsedRealtime = 0L
-        handoffSeekStartedAtElapsedRealtime = 0L
-        // Restore the PCM envelope first. Releasing a vendor decoder can throw, and must never
-        // strand the session at the handoff's temporary zero gain.
+        // Restore the PCM envelope before touching the silent standby transport.
         restorePrimaryGain()
         clearSecondary()
         if (active != null) finishIncomingPresentation(active)
@@ -423,13 +393,17 @@ internal class CrossfadePlaybackCoordinator(
     }
 
     private fun clearSecondary() {
-        val playerToRelease = secondary
+        standbyDrainJob?.cancel()
+        standbyDrainJob = null
+        val standby = secondary
         secondaryGainProcessor.gain = 0f
-        secondary = null
         preparedSourceMediaId = null
         preparedTargetMediaId = null
-        runCatching { playerToRelease?.release() }
-            .onFailure { Log.w(TAG, "Failed to release secondary player", it) }
+        runCatching {
+            standby?.playWhenReady = false
+            standby?.stop()
+            standby?.clearMediaItems()
+        }.onFailure { Log.w(TAG, "Failed to reset standby player", it) }
     }
 
     private companion object {
@@ -438,11 +412,7 @@ internal class CrossfadePlaybackCoordinator(
         const val IDLE_TICK_MS = 250L
         const val ACTIVE_TICK_MS = 16L
         const val MIN_SMART_FADE_MS = 450L
-        const val HANDOFF_TIMEOUT_MS = 5_000L
-        const val HANDOFF_BLEND_MS = 112L
-        const val HANDOFF_SILENT_DRAIN_MS = 160L
-        const val MAX_HANDOFF_SEEK_LEAD_MS = 600L
-        const val MAX_HANDOFF_RESYNC_ATTEMPTS = 1
+        const val PROMOTED_STANDBY_DRAIN_MS = 750L
         const val TAG = "CrossfadeCoordinator"
     }
 }
@@ -453,7 +423,6 @@ internal object CrossfadeTransitionMath {
     const val CURVE_SMOOTH = 2
     const val CURVE_FLAT = 3
 
-    private const val HANDOFF_RESYNC_THRESHOLD_MS = 120L
     private const val AUDIBLE_LEVEL = 0.0035f
     private const val QUIET_LEVEL = 0.0015f
 
@@ -502,22 +471,6 @@ internal object CrossfadeTransitionMath {
         )
     }
 
-    fun shouldResyncHandoff(positionDriftMs: Long): Boolean =
-        kotlin.math.abs(positionDriftMs) > HANDOFF_RESYNC_THRESHOLD_MS
-
-    fun compensatedHandoffPosition(
-        auxiliaryPositionMs: Long,
-        positionDriftMs: Long,
-        measuredSeekLatencyMs: Long
-    ): Long {
-        val latencyLeadMs = if (positionDriftMs < 0L) measuredSeekLatencyMs.coerceAtLeast(0L) else 0L
-        return (auxiliaryPositionMs + latencyLeadMs).coerceAtLeast(0L)
-    }
-
-    fun handoffBlendProgress(elapsedMs: Long, durationMs: Long): Float {
-        if (durationMs <= 0L) return 1f
-        return (elapsedMs.toFloat() / durationMs).coerceIn(0f, 1f)
-    }
 }
 
 /**

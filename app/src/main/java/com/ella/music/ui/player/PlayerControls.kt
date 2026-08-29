@@ -51,7 +51,8 @@ internal fun LandscapeProgressRow(
     palette: PlayerPalette,
     allowTapSeek: Boolean,
     showTotalDuration: Boolean,
-    onSeek: (Float) -> Unit
+    onSeek: (Float) -> Unit,
+    fontFamily: FontFamily? = null
 ) {
     var previewProgress by remember { mutableStateOf<Float?>(null) }
     Row(
@@ -65,6 +66,7 @@ internal fun LandscapeProgressRow(
                 text = formatTime(currentPosition),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = fontFamily,
                 // Keep the real position visible while previewing a seek target.
                 color = palette.onBackground.copy(alpha = if (previewProgress == null) 0.72f else 0.48f)
             )
@@ -73,6 +75,7 @@ internal fun LandscapeProgressRow(
                     text = formatTime((duration * progress).toLong()),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = fontFamily,
                     color = palette.onBackground.copy(alpha = 0.82f),
                     modifier = Modifier.padding(start = 4.dp)
                 )
@@ -96,6 +99,7 @@ internal fun LandscapeProgressRow(
             },
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
+            fontFamily = fontFamily,
             color = palette.onBackground.copy(alpha = 0.72f)
         )
     }

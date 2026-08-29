@@ -9,9 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +31,7 @@ import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixMenuItem
+import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.wallpaperAwareCardColors
 import com.ella.music.ui.playlist.wallpaperAwarePlaylistCardColor
 import top.yukonga.miuix.kmp.basic.Card
@@ -154,11 +159,14 @@ internal fun WebDavBrowserCard(
     canGoParent: Boolean,
     loading: Boolean,
     error: String?,
-    items: List<WebDavItem>,
+    remoteItems: List<WebDavItem>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
     onRefresh: () -> Unit,
     onGoParent: () -> Unit,
     onItemClick: (WebDavItem) -> Unit,
-    onAddToQueue: (WebDavItem) -> Unit
+    onAddToQueue: (WebDavItem) -> Unit,
+    onItemLongClick: (WebDavItem) -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -198,16 +206,44 @@ internal fun WebDavBrowserCard(
                     )
                 }
             }
+            EllaSearchBar(
+                query = searchQuery,
+                onQueryChange = onSearchQueryChange,
+                placeholder = stringResource(R.string.webdav_search_placeholder),
+                onSearch = {},
+                autoFocus = false,
+                modifier = Modifier.fillMaxWidth()
+            )
+            val visibleItems = remoteItems.filter { item ->
+                searchQuery.isBlank() || item.name.contains(searchQuery.trim(), ignoreCase = true)
+            }
             when {
                 loading -> Text(stringResource(R.string.webdav_loading_directory), color = MiuixTheme.colorScheme.primary)
                 error != null -> Text(error, color = MiuixTheme.colorScheme.primary)
-                items.isEmpty() -> Text(stringResource(R.string.webdav_empty_directory), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                else -> items.forEach { item ->
-                    WebDavItemRow(
-                        item = item,
-                        onClick = { onItemClick(item) },
-                        onAddToQueue = { onAddToQueue(item) }
-                    )
+                visibleItems.isEmpty() -> Text(
+                    stringResource(
+                        if (remoteItems.isEmpty()) {
+                            R.string.webdav_empty_directory
+                        } else {
+                            R.string.webdav_search_empty
+                        }
+                    ),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+                else -> LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    itemsIndexed(visibleItems, key = { index, item -> "${item.url}#$index" }) { _, item ->
+                        WebDavItemRow(
+                            item = item,
+                            onClick = { onItemClick(item) },
+                            onAddToQueue = { onAddToQueue(item) },
+                            onLongClick = { onItemLongClick(item) }
+                        )
+                    }
                 }
             }
         }

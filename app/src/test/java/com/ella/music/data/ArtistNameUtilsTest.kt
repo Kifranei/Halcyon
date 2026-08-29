@@ -3,6 +3,7 @@ package com.ella.music.data
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.ella.music.data.model.Song
 
 class ArtistNameUtilsTest {
     @After
@@ -12,6 +13,7 @@ class ArtistNameUtilsTest {
         NameSplitConfigStore.genreCustomSeparators = emptyList()
         NameSplitConfigStore.genreProtectedNames = emptyList()
         NameSplitConfigStore.tagIgnoreCase = false
+        NameSplitConfigStore.parseFeaturedArtists = false
     }
 
     @Test
@@ -30,5 +32,26 @@ class ArtistNameUtilsTest {
     @Test
     fun splitGenreNames_doesNotUseImplicitSeparators() {
         assertEquals(listOf("Rock/Pop"), splitGenreNames("Rock/Pop"))
+    }
+
+    @Test
+    fun artistNamesForSong_addsFeaturedArtistsAndDeduplicatesTheTrackArtist() {
+        NameSplitConfigStore.artistCustomSeparators = listOf("/")
+
+        val song = Song(
+            id = 1L,
+            title = "Main song (feat. Guest / Main)",
+            artist = "Main",
+            album = "Album",
+            albumId = 1L,
+            duration = 1L,
+            path = "/music/main.mp3",
+            fileName = "main.mp3"
+        )
+
+        assertEquals(
+            listOf("Main", "Guest"),
+            artistNamesForSong(song, includeFeaturedArtists = true)
+        )
     }
 }

@@ -31,7 +31,10 @@ fun LocateCurrentSongFloatingButton(
 ) {
     val scope = rememberCoroutineScope()
     var handledLocateRequest by remember {
-        mutableIntStateOf(if (currentItemIndex >= 0) locateRequest else 0)
+        // A locate request can be emitted by the previous screen before this destination has
+        // resolved its list.  Treat that request as already handled on first composition;
+        // otherwise album/artist pages jump to the current song as soon as their list appears.
+        mutableIntStateOf(locateRequest)
     }
     val visible by remember(currentItemIndex, enabled) {
         derivedStateOf {

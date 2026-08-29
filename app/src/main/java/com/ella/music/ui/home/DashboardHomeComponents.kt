@@ -1,11 +1,15 @@
 package com.ella.music.ui.home
 
 import android.content.Context
+import android.content.res.Configuration
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,16 +18,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +64,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
@@ -158,30 +174,126 @@ internal fun HomeTileGrid(
     gradientEnabled: Boolean = false,
     gradientStartColor: Color? = null
 ) {
+    val televisionDevice = remember(context) {
+        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+            Configuration.UI_MODE_TYPE_TELEVISION
+    }
+    val tileIds = remember(tiles) { tiles.map { it.id } }
+    val focusRequesters = remember(tileIds) {
+        List(tileIds.size) { FocusRequester() }
+    }
+    val bringIntoViewRequesters = remember(tileIds) {
+        List(tileIds.size) { BringIntoViewRequester() }
+    }
+    val focusScope = rememberCoroutineScope()
     tiles.chunked(2).forEachIndexed { index, rowTiles ->
         if (index > 0) Spacer(modifier = Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            rowTiles.forEach { tile ->
-                HomeTile(
-                    title = tile.title,
-                    subtitle = tile.subtitle,
-                    onClick = tile.onClick,
-                    onPinClick = if (showPinButtons) {
-                        {
-                            val ok = requestPinnedEllaShortcut(context, "home_${tile.id}", tile.title, tile.route)
-                            Toast.makeText(
-                                context,
-                                if (ok) context.getString(R.string.playlist_shortcut_requested, tile.title) else context.getString(R.string.playlist_shortcut_unsupported),
-                                Toast.LENGTH_SHORT
-                            ).show()
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+        ) {
+            rowTiles.forEachIndexed { column, tile ->
+                val tileIndex = index * 2 + column
+                val rowStart = index * 2
+                val previousRowStart = rowStart - 2
+                val nextRowStart = rowStart + 2
+                val previousRowIndex = (previousRowStart + column)
+                    .takeIf { previousRowStart >= 0 && it < tiles.size }
+                val nextRowIndex = (nextRowStart + column)
+                    .takeIf { nextRowStart < tiles.size && it < tiles.size }
+                    ?: (nextRowStart.takeIf { it < tiles.size })
+                val onPinClick = if (showPinButtons) {
+                    {
+                        val ok = requestPinnedEllaShortcut(context, "home_${tile.id}", tile.title, tile.route)
+                        Toast.makeText(
+                            context,
+                            if (ok) context.getString(R.string.playlist_shortcut_requested, tile.title) else context.getString(R.string.playlist_shortcut_unsupported),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } else null
+                val tileModifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequesters[tileIndex])
+                        .focusProperties {
+                            if (column > 0) left = focusRequesters[tileIndex - 1]
+                            if (column == 0 && tileIndex + 1 < rowStart + rowTiles.size) {
+                                right = focusRequesters[tileIndex + 1]
+                            }
+                            previousRowIndex?.let { up = focusRequesters[it] }
+                            nextRowIndex?.let { down = focusRequesters[it] }
                         }
-                    } else null,
-                    cardColor = cardColor,
-                    tileColor = tile.color,
-                    gradientEnabled = gradientEnabled,
-                    gradientStartColor = gradientStartColor,
-                    modifier = Modifier.weight(1f)
-                )
+                        .bringIntoViewRequester(bringIntoViewRequesters[tileIndex])
+                        .onFocusChanged { state ->
+                            if (state.hasFocus) {
+                                focusScope.launch {
+                                    bringIntoViewRequesters[tileIndex].bringIntoView()
+                                }
+                            }
+                        }
+                val onDirectionalKeyEvent: (android.view.KeyEvent) -> Boolean = { nativeEvent ->
+                    val target = when (nativeEvent.keyCode) {
+                        android.view.KeyEvent.KEYCODE_DPAD_LEFT ->
+                            if (column > 0) focusRequesters.getOrNull(tileIndex - 1) else null
+                        android.view.KeyEvent.KEYCODE_DPAD_RIGHT ->
+                            if (column == 0 && tileIndex + 1 < rowStart + rowTiles.size) {
+                                focusRequesters.getOrNull(tileIndex + 1)
+                            } else null
+                        android.view.KeyEvent.KEYCODE_DPAD_UP ->
+                            previousRowIndex?.let(focusRequesters::get)
+                        android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
+                            nextRowIndex?.let(focusRequesters::get)
+                        else -> null
+                    }
+                    if (target == null) {
+                        false
+                    } else {
+                        if (nativeEvent.action == android.view.KeyEvent.ACTION_DOWN ||
+                            nativeEvent.action == android.view.KeyEvent.ACTION_UP
+                        ) {
+                                focusScope.launch {
+                                    delay(1L)
+                                    runCatching { target.requestFocus() }
+                                }
+                        }
+                        true
+                    }
+                }
+                if (televisionDevice) {
+                    TvNavigableHomeTile(
+                        modifier = tileModifier,
+                        onClick = tile.onClick,
+                        onLongClick = onPinClick,
+                        onDirectionalKeyEvent = onDirectionalKeyEvent
+                    ) {
+                        HomeTile(
+                            title = tile.title,
+                            subtitle = tile.subtitle,
+                            onClick = {},
+                            onPinClick = null,
+                            cardColor = cardColor,
+                            tileColor = tile.color,
+                            gradientEnabled = gradientEnabled,
+                            gradientStartColor = gradientStartColor,
+                            interactive = false,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                } else {
+                    HomeTile(
+                        title = tile.title,
+                        subtitle = tile.subtitle,
+                        onClick = tile.onClick,
+                        onPinClick = onPinClick,
+                        cardColor = cardColor,
+                        tileColor = tile.color,
+                        gradientEnabled = gradientEnabled,
+                        gradientStartColor = gradientStartColor,
+                        modifier = tileModifier
+                    )
+                }
             }
             if (rowTiles.size == 1) Spacer(modifier = Modifier.weight(1f))
         }
@@ -300,6 +412,12 @@ internal fun CompactRecentSongRow(
     cardText: Color,
     onClick: () -> Unit
 ) {
+    val coverState = rememberSongArtworkState(
+        song = song,
+        albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
+        loadCoverArt = mainViewModel::getCoverArtBitmap,
+        usage = ArtworkUsage.ListThumbnail
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -308,12 +426,13 @@ internal fun CompactRecentSongRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SafeCoverImage(
-            model = mainViewModel.getAlbumArtUri(song.albumId),
+            model = coverState.model,
             contentDescription = null,
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(10.dp)),
-            sizePx = 128
+            sizePx = 128,
+            showDefaultPlaceholder = coverState.showDefaultCover
         )
         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
             ExplicitSongTitle(
@@ -355,6 +474,7 @@ private fun HomeTile(
     tileColor: Color = MiuixTheme.colorScheme.primary,
     gradientEnabled: Boolean = false,
     gradientStartColor: Color? = null,
+    interactive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
@@ -377,7 +497,7 @@ private fun HomeTile(
                     Brush.linearGradient(listOf(background, background))
                 }
             )
-            .combinedClickable(onClick = onClick, onLongClick = onPinClick)
+            .then(if (interactive) Modifier.combinedClickable(onClick = onClick, onLongClick = onPinClick) else Modifier)
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -409,6 +529,45 @@ private fun HomeTile(
             color = contentColor.copy(alpha = 0.68f),
             maxLines = 1
         )
+    }
+}
+
+@Composable
+private fun TvNavigableHomeTile(
+    modifier: Modifier,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    onDirectionalKeyEvent: (android.view.KeyEvent) -> Boolean,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .onPreviewKeyEvent { event ->
+                val nativeEvent = event.nativeKeyEvent
+                when (nativeEvent.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                    android.view.KeyEvent.KEYCODE_ENTER,
+                    android.view.KeyEvent.KEYCODE_BUTTON_A -> {
+                        if (nativeEvent.action == android.view.KeyEvent.ACTION_UP) onClick()
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
+                        onDirectionalKeyEvent(nativeEvent)
+                    else -> false
+                }
+            }
+            .focusable()
+            .pointerInput(onClick, onLongClick) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onLongClick?.invoke() }
+                )
+            }
+    ) {
+        content()
     }
 }
 

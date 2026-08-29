@@ -11,6 +11,8 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.text.StaticLayout
 import android.text.TextPaint
+import com.ella.music.ui.player.createAppleFlowFrameBitmap
+import com.ella.music.ui.player.scaledForFlowSource
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -25,7 +27,8 @@ internal fun renderLyricShareCardBitmap(
         canvas = canvas,
         width = layout.canvasWidth,
         height = layout.adaptiveCanvasHeight,
-        colors = content.backgroundColors
+        colors = content.backgroundColors,
+        cover = cover
     )
     drawShareHeader(canvas, layout, cover)
     drawShareLyrics(canvas, layout)
@@ -113,7 +116,8 @@ private fun drawShareBackground(
     canvas: Canvas,
     width: Int,
     height: Int,
-    colors: List<Int>
+    colors: List<Int>,
+    cover: Bitmap?
 ) {
     val fallbackColors = listOf(
         Color.rgb(69, 78, 110),
@@ -125,42 +129,69 @@ private fun drawShareBackground(
     val c2 = picked.getOrElse(1) { c1 }
     val c3 = picked.last()
 
-    Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = LinearGradient(
-            0f,
-            0f,
-            width.toFloat(),
-            height * 0.92f,
-            intArrayOf(
-                c1.lightenForShare(1.12f),
-                c2.lightenForShare(1.04f),
-                c3.darkenForShare(0.74f)
+    if (cover != null) {
+        val flowSource = cover.scaledForFlowSource()
+        val flowFrame = createAppleFlowFrameBitmap(
+            cover = flowSource,
+            viewportW = width,
+            viewportH = height,
+            timeMs = 0L,
+            densityDpi = 320,
+            blur = 60f,
+            washPrimaryArgb = Color.argb(
+                86,
+                (Color.red(c1) * 0.72f).roundToInt(),
+                (Color.green(c1) * 0.72f).roundToInt(),
+                (Color.blue(c1) * 0.72f).roundToInt()
             ),
-            floatArrayOf(0f, 0.5f, 1f),
-            Shader.TileMode.CLAMP
+            washSecondaryArgb = Color.argb(46, 0, 0, 0)
         )
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), this)
-    }
+        canvas.drawBitmap(
+            flowFrame,
+            null,
+            RectF(0f, 0f, width.toFloat(), height.toFloat()),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+        )
+        flowFrame.recycle()
+        if (flowSource !== cover) flowSource.recycle()
+    } else {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f,
+                0f,
+                width.toFloat(),
+                height * 0.92f,
+                intArrayOf(
+                    c1.lightenForShare(1.12f),
+                    c2.lightenForShare(1.04f),
+                    c3.darkenForShare(0.74f)
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), this)
+        }
 
-    val blobSlots = listOf(
-        ShareColorBlob(width * 0.14f, height * 0.16f, width * 0.76f, 112, 1.12f),
-        ShareColorBlob(width * 0.84f, height * 0.24f, width * 0.62f, 96, 1.08f),
-        ShareColorBlob(width * 0.46f, height * 0.86f, width * 0.82f, 108, 1.10f),
-        ShareColorBlob(width * 0.18f, height * 0.68f, width * 0.60f, 82, 1.08f),
-        ShareColorBlob(width * 0.76f, height * 0.72f, width * 0.58f, 84, 1.06f),
-        ShareColorBlob(width * 0.50f, height * 0.38f, width * 0.66f, 74, 1.10f),
-        ShareColorBlob(width * 0.58f, height * 0.08f, width * 0.48f, 68, 1.10f)
-    )
-    picked.forEachIndexed { index, color ->
-        val slot = blobSlots[index % blobSlots.size]
-        drawShareColorBlob(
-            canvas = canvas,
-            cx = slot.cx,
-            cy = slot.cy,
-            radius = slot.radius,
-            color = color.lightenForShare(slot.lightenFactor),
-            alpha = slot.alpha
+        val blobSlots = listOf(
+            ShareColorBlob(width * 0.14f, height * 0.16f, width * 0.76f, 112, 1.12f),
+            ShareColorBlob(width * 0.84f, height * 0.24f, width * 0.62f, 96, 1.08f),
+            ShareColorBlob(width * 0.46f, height * 0.86f, width * 0.82f, 108, 1.10f),
+            ShareColorBlob(width * 0.18f, height * 0.68f, width * 0.60f, 82, 1.08f),
+            ShareColorBlob(width * 0.76f, height * 0.72f, width * 0.58f, 84, 1.06f),
+            ShareColorBlob(width * 0.50f, height * 0.38f, width * 0.66f, 74, 1.10f),
+            ShareColorBlob(width * 0.58f, height * 0.08f, width * 0.48f, 68, 1.10f)
         )
+        picked.forEachIndexed { index, color ->
+            val slot = blobSlots[index % blobSlots.size]
+            drawShareColorBlob(
+                canvas = canvas,
+                cx = slot.cx,
+                cy = slot.cy,
+                radius = slot.radius,
+                color = color.lightenForShare(slot.lightenFactor),
+                alpha = slot.alpha
+            )
+        }
     }
 
     Paint(Paint.ANTI_ALIAS_FLAG).apply {

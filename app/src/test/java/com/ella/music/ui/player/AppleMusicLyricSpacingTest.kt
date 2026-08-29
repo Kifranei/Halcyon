@@ -9,6 +9,11 @@ import org.junit.Test
 
 class AppleMusicLyricSpacingTest {
     @Test
+    fun miniLyricsDoNotReserveBlankRowsForInactiveXbg() {
+        assertFalse(MINI_LYRICS_RESERVE_EXTRA_LYRIC_SPACE)
+    }
+
+    @Test
     fun lineDoubleTapOnlyOwnsTheGestureWhenWordSeekIsDisabled() {
         assertTrue(lyricLineDoubleTapEnabled(wordSeekEnabled = false))
         assertFalse(lyricLineDoubleTapEnabled(wordSeekEnabled = true))
@@ -285,6 +290,13 @@ class AppleMusicLyricSpacingTest {
         assertEquals(0f, resolveAppleMusicInterludeDotAlpha(interlude, 6_500L, 1), 0.001f)
         assertEquals(1f, resolveAppleMusicInterludeDotAlpha(interlude, 6_500L, 2), 0.001f)
         assertEquals(0f, resolveAppleMusicInterludeDotAlpha(interlude, 9_000L, 2), 0.001f)
+    }
+
+    @Test
+    fun waitingDotsRetireFromRightToLeftInVisualOrder() {
+        assertEquals(2, resolveAppleMusicInterludeDotTimelineIndex(0))
+        assertEquals(1, resolveAppleMusicInterludeDotTimelineIndex(1))
+        assertEquals(0, resolveAppleMusicInterludeDotTimelineIndex(2))
     }
 
     @Test

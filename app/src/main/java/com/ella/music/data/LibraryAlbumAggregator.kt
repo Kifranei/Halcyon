@@ -8,7 +8,7 @@ object LibraryAlbumAggregator {
     fun toAlbums(songs: List<Song>): List<Album> {
         return songs.toAlbumAccumulators()
             .values
-            .map { it.toAlbum(unknownAlbumName = "Unknown Album", preferAlbumArtist = true) }
+            .map { it.toAlbum(unknownAlbumName = "Unknown Album") }
             .sortedWith(
                 compareBy<Album> { it.name.lowercase() }
                     .thenBy { it.artist.lowercase() }
@@ -42,8 +42,7 @@ object LibraryAlbumAggregator {
         return songs.toAlbumAccumulators()
             .map { (albumId, accumulator) ->
                 albumById[albumId] ?: accumulator.toAlbum(
-                    unknownAlbumName = unknownAlbumName,
-                    preferAlbumArtist = false
+                    unknownAlbumName = unknownAlbumName
                 )
             }
     }
@@ -71,12 +70,9 @@ object LibraryAlbumAggregator {
             if (minYear.isBlank() || year < minYear) minYear = year
         }
 
-        fun toAlbum(unknownAlbumName: String, preferAlbumArtist: Boolean): Album {
-            val artist = if (preferAlbumArtist) {
-                first.albumArtist.takeIf(LibraryNormalizer::isUsableArtistText).orEmpty()
-            } else {
-                first.artist.takeIf(LibraryNormalizer::isUsableArtistText).orEmpty()
-            }
+        fun toAlbum(unknownAlbumName: String): Album {
+            // Album cards must never substitute the track artist for a missing album artist.
+            val artist = first.albumArtist.takeIf(LibraryNormalizer::isUsableArtistText).orEmpty()
             return Album(
                 id = albumId,
                 name = first.album.takeIf(LibraryNormalizer::isUsableAlbumText) ?: unknownAlbumName,

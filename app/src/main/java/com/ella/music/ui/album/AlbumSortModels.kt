@@ -1,6 +1,7 @@
 package com.ella.music.ui.album
 
 import com.ella.music.R
+import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.toFastIndexSection
@@ -31,7 +32,7 @@ internal fun AlbumSortMode.isDescending(): Boolean = when (this) {
 internal fun Album.summaryForSort(context: android.content.Context, sortMode: AlbumSortMode, duration: Long): String {
     if (sortMode == AlbumSortMode.Artist || sortMode == AlbumSortMode.ArtistDesc) {
         return buildList {
-            albumArtist.ifBlank { artist }.trim().takeIf { it.isNotBlank() }?.let(::add)
+            albumArtist.trim().takeIf(LibraryNormalizer::isUsableArtistText)?.let(::add)
             if (year.isNotBlank()) add(year)
             add(context.getString(R.string.song_count, songCount))
         }.joinToString(" · ")
@@ -45,7 +46,7 @@ internal fun Album.summaryForSort(context: android.content.Context, sortMode: Al
         add(first)
         if (year.isNotBlank()) add(year)
         val artistText = albumArtist.trim()
-        if (artistText.isNotBlank()) add(artistText)
+        if (LibraryNormalizer.isUsableArtistText(artistText)) add(artistText)
     }.joinToString(" · ")
 }
 
@@ -54,7 +55,7 @@ private fun Long.formatAlbumDuration(): String {
 }
 
 internal fun Album.indexLetter(sortMode: AlbumSortMode): String {
-    val source = if (sortMode == AlbumSortMode.Artist || sortMode == AlbumSortMode.ArtistDesc) albumArtist.ifBlank { artist } else name
+    val source = if (sortMode == AlbumSortMode.Artist || sortMode == AlbumSortMode.ArtistDesc) albumArtist else name
     return source.musicSortKey().toFastIndexSection()
 }
 

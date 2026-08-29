@@ -155,8 +155,11 @@ fun PlaylistDetailScreen(
             }
         }
     }
-    val sortedSongs = remember(ratingFilteredSongs, sortMode) {
-        ratingFilteredSongs.sortedForPlaylistDetail(sortMode)
+    val playCountBySongId = remember(playbackStats) {
+        playbackStats.associate { it.songId to it.playCount }
+    }
+    val sortedSongs = remember(ratingFilteredSongs, sortMode, playCountBySongId) {
+        ratingFilteredSongs.sortedForPlaylistDetail(sortMode, playCountBySongId)
     }
     LaunchedEffect(playlist?.id, songs) {
         manualOrder = songs
@@ -514,6 +517,11 @@ fun PlaylistDetailScreen(
                                     text = stringResource(R.string.playlist_song_sort_date_modified),
                                     ascendingMode = PlaylistSongSortMode.DateModifiedAsc,
                                     descendingMode = PlaylistSongSortMode.DateModified
+                                ),
+                                DirectionalSortModeField(
+                                    text = stringResource(R.string.playlist_sort_play_count),
+                                    ascendingMode = PlaylistSongSortMode.PlayCountAsc,
+                                    descendingMode = PlaylistSongSortMode.PlayCount
                                 )
                             ),
                             selectedMode = sortMode,

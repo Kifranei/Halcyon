@@ -1,5 +1,7 @@
 package com.ella.music.ui.folder
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,19 +37,24 @@ import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun WebDavItemRow(
     item: WebDavItem,
     onClick: () -> Unit,
-    onAddToQueue: () -> Unit
+    onAddToQueue: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         cornerRadius = 16.dp,
-        colors = wallpaperAwareCardColors(defaultAlpha = 0.50f),
-        onClick = onClick
+        colors = wallpaperAwareCardColors(defaultAlpha = 0.50f)
     ) {
         Row(
             modifier = Modifier
@@ -181,6 +188,47 @@ internal fun WebDavItem.toRemoteSong(): Song {
         fileSize = size,
         mimeType = mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)
     )
+}
+
+@Composable
+internal fun WebDavFolderActionSheet(
+    title: String,
+    onDismiss: () -> Unit,
+    onFavorite: () -> Unit,
+    onCreatePlaylist: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onAddToQueue: () -> Unit
+) {
+    EllaMiuixBottomSheet(
+        show = true,
+        enableNestedScroll = false,
+        title = title,
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            com.ella.music.ui.components.EllaMiuixMenuItem(
+                text = stringResource(R.string.webdav_folder_add_to_favorites),
+                onClick = onFavorite
+            )
+            com.ella.music.ui.components.EllaMiuixMenuItem(
+                text = stringResource(R.string.webdav_folder_create_playlist),
+                onClick = onCreatePlaylist
+            )
+            com.ella.music.ui.components.EllaMiuixMenuItem(
+                text = stringResource(R.string.song_more_add_to_playlist),
+                onClick = onAddToPlaylist
+            )
+            com.ella.music.ui.components.EllaMiuixMenuItem(
+                text = stringResource(R.string.common_add_to_queue),
+                onClick = onAddToQueue
+            )
+        }
+    }
 }
 
 internal fun String.toFolderSettingList(): List<String> =

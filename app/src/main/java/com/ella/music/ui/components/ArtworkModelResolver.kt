@@ -25,7 +25,7 @@ data class SongArtworkState(
     val showDefaultCover: Boolean
 )
 
-private val artworkResolutionGeneration = MutableStateFlow(0L)
+internal val artworkResolutionGeneration = MutableStateFlow(0L)
 
 @Composable
 fun rememberSongArtworkState(
@@ -112,17 +112,8 @@ fun rememberSongArtworkState(
                     CoverLoadLimiter.run { loadCoverArt.invoke(currentSong) }
                 }.getOrNull()
             }
-            val resolved = coverUrl ?: when {
-                usage == ArtworkUsage.ListThumbnail -> embeddedCover
-                usage == ArtworkUsage.LibraryGrid -> embeddedCover ?: albumArtUri
-                usage == ArtworkUsage.ArtistImage -> embeddedCover ?: albumArtUri
-                preferEmbedded -> embeddedCover ?: albumArtUri
-                // Prefer the individual track artwork for playback surfaces, then fall back to
-                // the album provider URI when the file has no readable embedded cover.
-                usage == ArtworkUsage.MiniPlayer -> embeddedCover ?: albumArtUri
-                else -> albumArtUri ?: embeddedCover
-            }
-            if (resolved != null && cacheKey != null) {
+            val resolved: Any? = coverUrl ?: embeddedCover
+            if (resolved != null && cacheKey != null && resolved is android.net.Uri) {
                 ArtworkModelMemoryCache.put(cacheKey, resolved)
             }
             SongArtworkState(

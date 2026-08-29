@@ -197,8 +197,8 @@ class AlbumDescriptionStore internal constructor(
             val raw = listOf(
                 folder,
                 album?.name ?: representative?.album.orEmpty(),
-                album?.albumArtist?.ifBlank { album.artist }
-                    ?: representative?.albumArtist?.ifBlank { representative.artist }.orEmpty(),
+                album?.albumArtist
+                    ?: representative?.albumArtist.orEmpty(),
                 album?.year ?: representative?.year.orEmpty(),
                 representative?.onlineSource.orEmpty(),
                 representative?.onlineId.orEmpty()
@@ -271,7 +271,6 @@ internal object AlbumNfoDocument {
         document.appendChild(root)
         album?.name?.takeIf(String::isNotBlank)?.let { root.appendTextElement(document, "title", it) }
         album?.albumArtist
-            ?.ifBlank { album.artist }
             ?.takeIf(String::isNotBlank)
             ?.let { root.appendTextElement(document, "artist", it) }
         album?.year?.takeIf(String::isNotBlank)?.let {

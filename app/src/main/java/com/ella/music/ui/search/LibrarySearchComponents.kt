@@ -1,5 +1,7 @@
 package com.ella.music.ui.search
 
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -31,9 +33,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.model.Album
+import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.viewmodel.MetadataCategoryItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
@@ -133,18 +139,35 @@ internal fun HistoryRow(text: String, onClick: () -> Unit, onDelete: () -> Unit)
 }
 
 @Composable
-internal fun AlbumResultRow(album: Album, coverModel: Any?, query: String, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
+internal fun AlbumResultRow(
+    album: Album,
+    coverModel: Any?,
+    representativeSong: Song? = null,
+    loadCoverArt: ((Song) -> Bitmap?)? = null,
+    query: String,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
+) {
+    val artworkState = rememberSongArtworkState(
+        song = representativeSong,
+        albumArtUri = coverModel as? Uri,
+        loadCoverArt = loadCoverArt,
+        usage = ArtworkUsage.ListThumbnail,
+        showDefaultWhenMissing = false
+    )
     val subtitle = buildList {
         add("${album.songCount} ${stringResource(R.string.library_search_song_count_unit)}")
         if (album.year.isNotBlank()) add(album.year)
-        album.albumArtist.ifBlank { album.artist }
-            .takeIf { it.isNotBlank() }
+        album.albumArtist
+            .takeIf(LibraryNormalizer::isUsableArtistText)
             ?.let(::add)
     }.joinToString(" · ")
     SearchResultRow(
-        title = album.name,
+        title = album.name
+            .takeUnless(LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
+            ?: stringResource(R.string.player_unknown_album),
         subtitle = subtitle,
-        coverModel = coverModel,
+        coverModel = artworkState.model ?: coverModel,
         query = query,
         onClick = onClick,
         onLongClick = onLongClick

@@ -21,6 +21,10 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
 import top.yukonga.miuix.kmp.basic.Text
 
+// Full lyrics already collapse inactive x-bg. The mini preview must do the same:
+// alpha(0) still occupies layout, which left blank rows around backing-vocal lines.
+internal const val MINI_LYRICS_RESERVE_EXTRA_LYRIC_SPACE = false
+
 // Keep the player layout stable when TTML background/translation layers appear or disappear.
 // Extra lyric layers are clipped/scrolled inside this viewport instead of moving transport controls.
 internal fun miniLyricsPreviewHeight(
@@ -121,7 +125,7 @@ internal fun MiniLyricsPreview(
         nonCurrentLineBlurEnabled = false,
         // The mini preview is tap-to-open only; don't let it scroll on drag.
         userScrollEnabled = false,
-        reserveExtraLyricSpace = true,
+        reserveExtraLyricSpace = MINI_LYRICS_RESERVE_EXTRA_LYRIC_SPACE,
         lineSpacing = when {
             singleLinePreview || denseMultiPartPreview -> miniLineSpacing.coerceAtMost(4).dp
             else -> miniLineSpacing.dp

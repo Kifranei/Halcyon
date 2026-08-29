@@ -42,7 +42,11 @@ class SettingsCoverageTest {
             .toHashSet()
 
         // Device-local acknowledgement watermarks must never move between devices with a backup.
-        val intentionallyExcluded = setOf("KEY_WEBDAV_RESTORE_LAST_SEEN_AT")
+        // The home feature image is restorable only through the ZIP asset path; legacy JSON still
+        // excludes its device-local URI.
+        val intentionallyExcluded = setOf(
+            "KEY_WEBDAV_RESTORE_LAST_SEEN_AT",
+        )
 
         val missing = declared - referenced - intentionallyExcluded
         assertTrue(

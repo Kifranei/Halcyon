@@ -79,11 +79,10 @@ internal fun AppleMusicInterlude(
                     }
                 ) {
                     repeat(INTERLUDE_DOT_COUNT) { visualIndex ->
-                        val timelineIndex = if (textAlign == TextAlign.End) {
-                            INTERLUDE_DOT_COUNT - 1 - visualIndex
-                        } else {
-                            visualIndex
-                        }
+                        // The rightmost dot retires first. Keep this tied to the visual order so
+                        // alignment changes cannot accidentally turn the animation back into a
+                        // left-to-right disappearance.
+                        val timelineIndex = resolveAppleMusicInterludeDotTimelineIndex(visualIndex)
                         val timelineAlpha = resolveAppleMusicInterludeDotAlpha(
                             interlude = interlude,
                             positionMs = positionMs,
@@ -173,6 +172,9 @@ internal fun resolveAppleMusicInterludeDotAlpha(
     if (elapsedMs >= endMs) return 0f
     return 1f - ((elapsedMs - startMs) / (endMs - startMs).coerceAtLeast(1f))
 }
+
+internal fun resolveAppleMusicInterludeDotTimelineIndex(visualIndex: Int): Int =
+    (INTERLUDE_DOT_COUNT - 1 - visualIndex.coerceIn(0, INTERLUDE_DOT_COUNT - 1))
 
 internal data class AppleMusicInterlude(
     val startMs: Long,

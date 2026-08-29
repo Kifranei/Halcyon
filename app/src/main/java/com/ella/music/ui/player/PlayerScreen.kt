@@ -33,6 +33,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.normalizedAudioFormat
 import com.ella.music.data.normalizedBitDepth
 import com.ella.music.data.parser.LrcParser
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.data.model.AudioInfo
@@ -81,6 +82,8 @@ fun PlayerScreen(
     val lyricParserEngine = playerSettings.lyricParserEngine
     val playerTitlePosition = playerSettings.playerTitlePosition
     val playerPageStyle = playerSettings.playerPageStyle
+    val defaultAppleMusicShowLyrics = isLargeScreenDevice &&
+        SettingsManager.normalizePlayerPageStyle(playerPageStyle) == SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
     val playerLandscapeStyle = playerSettings.playerLandscapeStyle
     val playerKeepScreenOn = playerSettings.playerKeepScreenOn
     val lyricSourceMode = playerSettings.lyricSourceMode
@@ -342,7 +345,11 @@ fun PlayerScreen(
         }
     }
     fun navigateToArtistOrChoose(artistText: String) {
-        val artists = splitArtistNames(artistText)
+        val artists = if (song != null && artistText == song.artist) {
+            artistNamesForSong(song)
+        } else {
+            splitArtistNames(artistText)
+        }
             .distinctBy { it.tagIdentityKey() }
         when (artists.size) {
             0 -> Toast.makeText(context, context.getString(R.string.player_no_artist_jump), Toast.LENGTH_SHORT).show()
@@ -557,11 +564,13 @@ fun PlayerScreen(
                         lyricPerspectiveEffect = lyricPerspectiveEffect,
                         lyricPerspectiveYAngle = lyricPerspectiveYAngle,
                         lyricTextAlign = playerLyricTextAlign,
+                        lyricPageVerticalAlignment = playerSettings.lyricPageVerticalAlignment,
                         playerTapSeekEnabled = playerTapSeekEnabled,
                         playerShowTotalDuration = playerShowTotalDuration,
                         coverSwipeEnabled = coverSwipeEnabled,
                         playerTitlePosition = playerTitlePosition,
                         playerPageStyle = playerPageStyle,
+                        defaultAppleMusicShowLyrics = defaultAppleMusicShowLyrics,
                         showPlayerKeepScreenOnAction = true,
                         playerKeepScreenOn = playerKeepScreenOn,
                         menuExpanded = uiState.menuExpanded,
@@ -661,6 +670,7 @@ fun PlayerScreen(
                         lyricPerspectiveEffect = lyricPerspectiveEffect,
                         lyricPerspectiveYAngle = lyricPerspectiveYAngle,
                         lyricTextAlign = playerLyricTextAlign,
+                        lyricPageVerticalAlignment = playerSettings.lyricPageVerticalAlignment,
                         lyricPalette = palette,
                         isPlaying = isPlaying,
                         playerBackgroundEnabled = playerBackgroundEnabled,

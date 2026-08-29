@@ -41,6 +41,7 @@ import com.ella.music.R
 import com.ella.music.data.AlbumDescriptionRecord
 import com.ella.music.data.AlbumDescriptionSaveResult
 import com.ella.music.data.AlbumDescriptionStore
+import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.DefaultAlbumCover
@@ -243,7 +244,9 @@ internal fun AlbumIntroductionScreen(
                     }
                     Spacer(modifier = Modifier.height(22.dp))
                     Text(
-                        text = album?.name ?: stringResource(R.string.player_unknown_album),
+                        text = album?.name
+                            ?.takeUnless(LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
+                            ?: stringResource(R.string.player_unknown_album),
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
                         fontSize = 24.sp,
@@ -251,8 +254,7 @@ internal fun AlbumIntroductionScreen(
                         fontWeight = FontWeight.Bold,
                         color = MiuixTheme.colorScheme.onSurface
                     )
-                    val albumArtist = album?.albumArtist?.ifBlank { album.artist }
-                        ?.takeIf(String::isNotBlank)
+                    val albumArtist = album?.albumArtist?.takeIf(LibraryNormalizer::isUsableArtistText)
                     if (albumArtist != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(

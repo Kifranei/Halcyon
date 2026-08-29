@@ -1,16 +1,27 @@
 package com.ella.music.ui.player
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -19,6 +30,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -44,9 +56,10 @@ private fun Char.isAppleMusicKana(): Boolean {
 internal fun appleMusicKaraokeLiftPx(
     wordLiftEnabled: Boolean,
     textSizePx: Float,
-    progress: Float
+    progress: Float,
+    wordLiftScale: Float = 1f
 ): Float = if (wordLiftEnabled) {
-    maxOf(textSizePx * 0.06f, 5f) * progress
+    maxOf(textSizePx * 0.06f, 5f) * progress * wordLiftScale.coerceIn(0f, 1f)
 } else {
     0f
 }
@@ -60,11 +73,16 @@ internal fun TimedLyricText(
     style: TextStyle,
     contentColor: Color,
     wordLiftEnabled: Boolean,
+    wordLiftScale: Float = 1f,
     sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
+    sustainGlowScale: Float = 1f,
     singleLine: Boolean = false,
     statusBarMarquee: Boolean = false,
+    followWordFocus: Boolean = false,
     pronunciation: String = "",
     pronunciationWords: List<LyricWord> = emptyList(),
+    rubyBelow: Boolean = false,
+    splitRubyByCharacter: Boolean = false,
     rubyStyle: TextStyle? = null,
     onWordClick: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -73,8 +91,13 @@ internal fun TimedLyricText(
     // karaoke unit before wrapping so every v1 line, including wrapped continuations, starts
     // at the same left edge. Right-aligned v2 rows are visually tolerant of this, but v1 is not.
     // wordLiftEnabled controls per-word vertical lift only; timed karaoke fill still renders.
-    val timedWords = remember(text, words, sustainThresholdMs) {
-        words.moveLeadingSpacesToPreviousWord().toAppleMusicRenderWords(text, sustainThresholdMs)
+    val sourceWords = remember(text, words, splitRubyByCharacter) {
+        words.moveLeadingSpacesToPreviousWord().let { source ->
+            if (splitRubyByCharacter) source.splitForAppleMusicRuby() else source
+        }
+    }
+    val timedWords = remember(text, sourceWords, sustainThresholdMs) {
+        sourceWords.toAppleMusicRenderWords(text, sustainThresholdMs)
     }
     val rubies = remember(timedWords, pronunciation, pronunciationWords) {
         rubiesForTimedWords(
@@ -111,19 +134,33 @@ internal fun TimedLyricText(
                 baseStyle = style,
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
+                wordLiftScale = wordLiftScale,
+                sustainGlowScale = sustainGlowScale,
                 ruby = rubies.getOrNull(index).orEmpty(),
                 rubyStyle = rubyStyle,
+                rubyBelow = rubyBelow,
                 onWordClick = onWordClick
             )
         }
     }
     if (singleLine) {
-        Row(
-            modifier = modifier.then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
-            horizontalArrangement = horizontalArrangement,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            content()
+        if (followWordFocus) {
+            AppleMusicFocusedTimedRow(
+                timedWords = timedWords,
+                positionMs = positionMs,
+                active = active,
+                horizontalArrangement = horizontalArrangement,
+                modifier = modifier,
+                content = content
+            )
+        } else {
+            Row(
+                modifier = modifier.then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
+                horizontalArrangement = horizontalArrangement,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                content()
+            }
         }
     } else {
         // FlowRow measures each visual row independently. With centered/right-aligned lyrics it
@@ -133,6 +170,56 @@ internal fun TimedLyricText(
         AppleMusicTimedWordRows(
             textAlign = style.textAlign,
             modifier = modifier
+        ) {
+            content()
+        }
+    }
+}
+
+/**
+ * Scroll a long single-line lyric to the currently sung word. Unlike basicMarquee this has a
+ * stable end position: the first word stays at the leading edge until focus reaches it, and the
+ * last word stays visible after the line finishes instead of restarting from the beginning.
+ */
+@Composable
+private fun AppleMusicFocusedTimedRow(
+    timedWords: List<AppleMusicRenderWord>,
+    positionMs: Long,
+    active: Boolean,
+    horizontalArrangement: Arrangement.Horizontal,
+    modifier: Modifier,
+    content: @Composable () -> Unit
+) {
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        val viewportWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
+        var contentWidthPx by remember(timedWords) { mutableIntStateOf(0) }
+        val focusIndex = if (!active || timedWords.isEmpty()) {
+            0
+        } else {
+            timedWords.indexOfLast { positionMs >= it.word.startMs }
+                .coerceIn(0, timedWords.lastIndex)
+        }
+        val focusFraction = if (timedWords.size <= 1) {
+            0f
+        } else {
+            focusIndex.toFloat() / (timedWords.lastIndex).coerceAtLeast(1)
+        }
+        val targetOffset = ((contentWidthPx - viewportWidthPx).coerceAtLeast(0f) * focusFraction)
+        val animatedOffset = remember { Animatable(0f) }
+        LaunchedEffect(targetOffset) {
+            animatedOffset.animateTo(
+                targetValue = targetOffset,
+                animationSpec = tween(durationMillis = 180)
+            )
+        }
+        Row(
+            modifier = Modifier
+                .width(IntrinsicSize.Max)
+                .wrapContentWidth(unbounded = true)
+                .onSizeChanged { contentWidthPx = it.width }
+                .graphicsLayer { translationX = -animatedOffset.value },
+            horizontalArrangement = horizontalArrangement,
+            verticalAlignment = Alignment.Bottom
         ) {
             content()
         }
@@ -207,8 +294,11 @@ private fun AppleMusicKaraokeWord(
     baseStyle: TextStyle,
     contentColor: Color,
     wordLiftEnabled: Boolean,
+    wordLiftScale: Float = 1f,
+    sustainGlowScale: Float = 1f,
     ruby: String = "",
     rubyStyle: TextStyle? = null,
+    rubyBelow: Boolean = false,
     onWordClick: ((Long) -> Unit)? = null
 ) {
     val word = renderWord.word
@@ -218,12 +308,28 @@ private fun AppleMusicKaraokeWord(
     val bright = contentColor.copy(alpha = baseStyle.color.alpha)
     val dim = contentColor.copy(alpha = baseStyle.color.alpha * 0.36f)
     val sustainGlow = renderWord.sustainGlowAlpha(positionMs, active)
+    val visibleSustainGlow = sustainGlow * sustainGlowScale.coerceIn(0f, 1f)
     val sustainDurationMs = renderWord.sustainDurationMs
     val textSizePx = with(LocalDensity.current) { baseStyle.fontSize.toPx() }
     // The reference renderer moves each word independently by 6% of the text size (at least
     // 5 px), then adds only a 3% bottom-anchored scale during the held-note phase. Keeping the
     // transform on the word rather than the whole line is what creates the floating vocal feel.
-    val liftPx = appleMusicKaraokeLiftPx(wordLiftEnabled, textSizePx, progress)
+    val liftPx = appleMusicKaraokeLiftPx(
+        wordLiftEnabled = wordLiftEnabled,
+        textSizePx = textSizePx,
+        progress = progress,
+        wordLiftScale = wordLiftScale
+    )
+    val rubyContent: @Composable () -> Unit = {
+        if (ruby.isNotBlank() && rubyStyle != null) {
+            BasicText(
+                text = ruby,
+                style = rubyStyle,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
+        }
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -241,32 +347,25 @@ private fun AppleMusicKaraokeWord(
                 transformOrigin = TransformOrigin(0.5f, 1f)
             }
     ) {
-        if (ruby.isNotBlank() && rubyStyle != null) {
-            BasicText(
-                text = ruby,
-                style = rubyStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Clip
-            )
-        }
-    Box {
-        if (sustainGlow > 0f) {
+        if (!rubyBelow) rubyContent()
+        Box {
+        if (visibleSustainGlow > 0f) {
             val durationScale = ((sustainDurationMs - 600L).coerceAtLeast(0L) / 2_400f)
                 .coerceIn(0f, 1f)
-            val haloAlpha = (0.12f + durationScale * 0.16f) * sustainGlow * baseStyle.color.alpha
+            val haloAlpha = (0.12f + durationScale * 0.16f) * visibleSustainGlow * baseStyle.color.alpha
             BasicText(
                 text = word.text,
                 style = baseStyle.copy(
                     color = contentColor.copy(alpha = haloAlpha),
                     shadow = Shadow(
-                        color = contentColor.copy(alpha = (0.72f + durationScale * 0.20f) * sustainGlow),
+                        color = contentColor.copy(alpha = (0.72f + durationScale * 0.20f) * visibleSustainGlow),
                         offset = Offset.Zero,
-                        blurRadius = (14f + durationScale * 12f) * sustainGlow
+                        blurRadius = (14f + durationScale * 12f) * visibleSustainGlow
                     )
                 )
             )
         }
-        val glowShadow = sustainGlow.takeIf { it > 0f }?.let { glowAlpha ->
+        val glowShadow = visibleSustainGlow.takeIf { it > 0f }?.let { glowAlpha ->
             Shadow(
                 color = contentColor.copy(alpha = baseStyle.color.alpha * glowAlpha),
                 offset = Offset.Zero,
@@ -305,11 +404,11 @@ private fun AppleMusicKaraokeWord(
                 // A second moving highlight on every short syllable can be perceived as two
                 // independent karaoke progress bars. Reserve the material sheen for an actual
                 // held note; ordinary syllables now have one unambiguous feathered edge.
-                if (sustainGlow > 0.05f) {
+                if (visibleSustainGlow > 0.05f) {
                     val sheenStart = (progress - 0.20f).coerceAtLeast(0f)
                     val sheenPeak = (progress - 0.055f).coerceIn(sheenStart, progress)
                     val sheenEnd = (progress + 0.045f).coerceAtMost(1f)
-                    val sheenAlpha = (0.20f + sustainGlow * 0.42f) * baseStyle.color.alpha
+                    val sheenAlpha = (0.20f + visibleSustainGlow * 0.42f) * baseStyle.color.alpha
                     BasicText(
                         text = word.text,
                         style = baseStyle.copy(
@@ -327,8 +426,9 @@ private fun AppleMusicKaraokeWord(
                 }
             }
         }
+        if (rubyBelow) rubyContent()
     }
-    }
+}
 }
 
 internal fun rubiesForTimedWords(
@@ -669,4 +769,43 @@ internal fun List<LyricWord>.moveLeadingSpacesToPreviousWord(): List<LyricWord> 
         if (visibleText.isNotEmpty()) result += word.copy(text = visibleText)
     }
     return result
+}
+
+/**
+ * TTML ruby often arrives as one timed span for a whole Japanese phrase. Split that span into
+ * character-sized timed units before attaching ruby text so the reading can sit below its own
+ * character instead of becoming one second line under the whole phrase.
+ */
+internal fun List<LyricWord>.splitForAppleMusicRuby(): List<LyricWord> {
+    if (isEmpty()) return this
+    return flatMap { word ->
+        val pieces = mutableListOf<StringBuilder>()
+        word.text.forEach { character ->
+            if (character.isWhitespace() && pieces.isNotEmpty()) {
+                pieces.last().append(character)
+            } else {
+                pieces += StringBuilder().append(character)
+            }
+        }
+        val hasMultipleCjkCharacters = pieces.size > 1 &&
+            pieces.any { piece -> piece.any { it.isAppleMusicCjkCharacter() } }
+        val duration = word.endMs - word.startMs
+        if (!hasMultipleCjkCharacters || duration < pieces.size.toLong()) {
+            listOf(word)
+        } else {
+            pieces.mapIndexed { index, piece ->
+                val start = word.startMs + duration * index / pieces.size
+                val end = if (index == pieces.lastIndex) {
+                    word.endMs
+                } else {
+                    word.startMs + duration * (index + 1) / pieces.size
+                }
+                LyricWord(
+                    text = piece.toString(),
+                    startMs = start,
+                    endMs = end.coerceAtLeast(start + 1L)
+                )
+            }
+        }
+    }
 }

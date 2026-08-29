@@ -79,6 +79,24 @@ internal fun normalizeLastFmWikiRegion(code: String?): String {
         ?: DEFAULT_LAST_FM_WIKI_REGION
 }
 
+/** Maps the existing Last.fm language choice to Spotify's ISO 3166-1 market parameter. */
+internal fun spotifyMarketForLastFmRegion(regionCode: String): String = when (
+    normalizeLastFmWikiRegion(regionCode)
+) {
+    "zh" -> "CN"
+    "ja" -> "JP"
+    "de" -> "DE"
+    "es" -> "ES"
+    "fr" -> "FR"
+    "it" -> "IT"
+    "pl" -> "PL"
+    "pt" -> "PT"
+    "ru" -> "RU"
+    "sv" -> "SE"
+    "tr" -> "TR"
+    else -> "US"
+}
+
 internal fun lastFmWikiHostPrefix(regionCode: String): String {
     val code = normalizeLastFmWikiRegion(regionCode)
     return if (code == "en") "" else code
@@ -176,6 +194,46 @@ internal fun parseLastFmArtistGetInfoJson(
     )
 }
 
+/** Extracts the largest usable artist image from Last.fm's artist.getinfo response. */
+internal fun parseLastFmArtistImageUrl(
+    raw: String,
+    requestedArtistName: String? = null,
+    ignoreCase: Boolean = true
+): String? {
+    val root = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return null
+    if (root.containsKey("error")) return null
+    val artist = root["artist"]?.jsonObject ?: return null
+    val returnedName = artist["name"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+    if (!requestedArtistName.isNullOrBlank() &&
+        !returnedName.equals(requestedArtistName.trim(), ignoreCase = ignoreCase)
+    ) return null
+    val images = runCatching { artist["image"]?.jsonArray }.getOrNull() ?: return null
+    val preferredSizes = listOf("mega", "extralarge", "large", "medium", "small")
+    preferredSizes.forEach { preferredSize ->
+        for (index in images.indices) {
+            val image = runCatching { images[index].jsonObject }.getOrNull() ?: continue
+            val size = image["size"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            if (size.equals(preferredSize, ignoreCase = true)) {
+                image["#text"]?.jsonPrimitive?.contentOrNull
+                    ?.trim()
+                    ?.takeIf(::isUsableArtistImageUrl)
+                    ?.let { return it }
+            }
+        }
+    }
+    for (index in images.indices.reversed()) {
+        runCatching { images[index].jsonObject }
+            .getOrNull()
+            ?.get("#text")
+            ?.jsonPrimitive
+            ?.contentOrNull
+            ?.trim()
+            ?.takeIf(::isUsableArtistImageUrl)
+            ?.let { return it }
+    }
+    return null
+}
+
 internal fun wikipediaLanguage(regionCode: String): String =
     normalizeLastFmWikiRegion(regionCode)
 
@@ -229,6 +287,31 @@ internal fun parseNeteaseArtistId(raw: String, artistName: String): String? {
     findArtistId(ignoreCase = false)?.let { return it }
     findArtistId(ignoreCase = true)?.let { return it }
     return null
+}
+
+internal fun parseNeteaseArtistImageUrl(raw: String, artistName: String): String? {
+    val artists = runCatching {
+        Json.parseToJsonElement(raw).jsonObject["result"]?.jsonObject
+            ?.get("artists")?.jsonArray
+    }.getOrNull() ?: return null
+    val requested = artistName.trim()
+    val candidates = buildList {
+        artists.forEach { element ->
+            val artist = runCatching { element.jsonObject }.getOrNull() ?: return@forEach
+            val name = artist["name"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+            if (name == requested || name.equals(requested, ignoreCase = true)) add(artist)
+        }
+    }.sortedWith(compareBy { artist ->
+        val name = artist["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        if (name == requested) 0 else 1
+    })
+    return candidates.asSequence()
+        .flatMap { artist ->
+            sequenceOf("picUrl", "img1v1Url", "coverUrl").mapNotNull { key ->
+                artist[key]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf(::isUsableArtistImageUrl)
+            }
+        }
+        .firstOrNull()
 }
 
 internal fun parseNeteaseArtistBiography(raw: String): String {
@@ -338,6 +421,59 @@ internal suspend fun fetchLastFmArtistWiki(
         wikiUrl = lastFmArtistWikiUrl(artistName, region),
         source = ArtistWikiSource.LastFmHtml
     )
+}
+
+/**
+ * Reads an artist image without requiring the Last.fm account session. An API key is used when
+ * configured; the public artist page remains a useful fallback for installations without one.
+ */
+internal suspend fun fetchLastFmArtistImage(
+    artistName: String,
+    apiKey: String? = null,
+    regionCode: String = DEFAULT_LAST_FM_WIKI_REGION
+): String? = withContext(Dispatchers.IO) {
+    if (artistName.isBlank()) return@withContext null
+    val client = wikiHttpClient()
+    if (!apiKey.isNullOrBlank()) {
+        val apiUrl = LAST_FM_API_ROOT.toHttpUrl().newBuilder()
+            .addQueryParameter("method", "artist.getinfo")
+            .addQueryParameter("artist", artistName)
+            .addQueryParameter("api_key", apiKey)
+            .addQueryParameter("lang", normalizeLastFmWikiRegion(regionCode))
+            .addQueryParameter("autocorrect", "1")
+            .addQueryParameter("format", "json")
+            .build()
+            .toString()
+        runCatching {
+            parseLastFmArtistImageUrl(
+                raw = client.executeText(apiUrl),
+                requestedArtistName = artistName,
+                ignoreCase = true
+            )
+        }.getOrNull()?.let { return@withContext it }
+    }
+    runCatching {
+        val html = client.newBuilder()
+            .connectTimeout(4, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .build()
+            .executeText(lastFmArtistPageUrl(artistName, regionCode))
+        parseArtistOpenGraphImageUrl(html)
+    }.getOrNull()
+}
+
+internal suspend fun fetchNeteaseArtistImage(artistName: String): String? = withContext(Dispatchers.IO) {
+    if (artistName.isBlank()) return@withContext null
+    val searchUrl = "https://music.163.com/api/search/get/web".toHttpUrl().newBuilder()
+        .addQueryParameter("s", artistName)
+        .addQueryParameter("type", "100")
+        .addQueryParameter("offset", "0")
+        .addQueryParameter("limit", "5")
+        .build()
+        .toString()
+    runCatching {
+        parseNeteaseArtistImageUrl(wikiHttpClient().executeNeteaseText(searchUrl), artistName)
+    }.getOrNull()
 }
 
 private fun fetchNeteaseArtistWiki(
@@ -488,6 +624,19 @@ private fun OkHttpClient.executeNeteaseText(url: String): String {
         response.body?.string().orEmpty()
     }
 }
+
+private fun parseArtistOpenGraphImageUrl(html: String): String? {
+    val patterns = listOf(
+        Regex("""(?is)<meta[^>]+property=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)[\"'][^>]*>"""),
+        Regex("""(?is)<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+property=[\"']og:image[\"'][^>]*>""")
+    )
+    return patterns.asSequence()
+        .mapNotNull { pattern -> pattern.find(html)?.groupValues?.getOrNull(1)?.trim() }
+        .firstOrNull(::isUsableArtistImageUrl)
+}
+
+private fun isUsableArtistImageUrl(url: String): Boolean =
+    url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)
 
 internal fun lastFmAcceptLanguage(regionCode: String): String = when (normalizeLastFmWikiRegion(regionCode)) {
     "en" -> "en-US,en;q=0.9"

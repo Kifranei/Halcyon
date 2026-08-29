@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -21,6 +21,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -66,11 +68,12 @@ fun LogScreen(
     var selectedEntry by remember { mutableStateOf<AppLogEntry?>(null) }
     var showDetailSheet by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
-    var retentionDays by remember { mutableIntStateOf(AppLogStore.retentionDays(context)) }
-    val retentionOptions = remember { listOf(1, 3, 7, 14, 30) }
 
     val entries by produceState(initialValue = emptyList<AppLogEntry>(), refreshKey) {
-        value = withContext(Dispatchers.IO) { AppLogStore.read(context) }
+        while (isActive) {
+            value = withContext(Dispatchers.IO) { AppLogStore.read(context) }
+            delay(1_000)
+        }
     }
 
     val filteredEntries = remember(entries, selectedLevel, selectedType, query) {
@@ -95,7 +98,7 @@ fun LogScreen(
     fun shareLogs() {
         scope.launch {
             val filterDescription = buildString {
-                append("all persisted logs")
+                append("process logcat")
                 append("; visible before export=${filteredEntries.size}/${entries.size}")
                 append("; level=${selectedLevel?.name ?: "ALL"}")
                 append("; type=${selectedType?.name ?: "ALL"}")
@@ -107,17 +110,17 @@ fun LogScreen(
                     "LogExport",
                     "Export requested: $filterDescription"
                 )
-                val persistedEntries = AppLogStore.read(context)
-                val exportScope = "$filterDescription; persisted after request=${persistedEntries.size}"
+                val logcatEntries = AppLogStore.read(context)
+                val exportScope = "$filterDescription; logcat after request=${logcatEntries.size}"
                 AppLogStore.exportDetailedReport(
                     context = context,
-                    entries = persistedEntries,
+                    entries = logcatEntries,
                     scopeDescription = exportScope
                 ).also { exportedFile ->
                     AppLogStore.info(
                         context,
                         "LogExport",
-                        "Export finished: entries=${persistedEntries.size}, bytes=${exportedFile.length()}, file=${exportedFile.name}"
+                        "Export finished: entries=${logcatEntries.size}, bytes=${exportedFile.length()}, file=${exportedFile.name}"
                     )
                 }
             }
@@ -218,26 +221,6 @@ fun LogScreen(
                             selectedType = if (index == 0) null else EllaLogTypeFilter.entries[index - 1]
                         }
                     )
-                    WindowDropdownPreference(
-                        title = stringResource(R.string.logs_retention_filter),
-                        items = retentionOptions.map { stringResource(R.string.logs_retention_days, it) },
-                        selectedIndex = retentionOptions.indexOf(retentionDays).takeIf { it >= 0 } ?: 2,
-                        onSelectedIndexChange = { index ->
-                            val days = retentionOptions[index]
-                            scope.launch {
-                                val removed = withContext(Dispatchers.IO) { AppLogStore.setRetentionDays(context, days) }
-                                retentionDays = days
-                                refreshKey++
-                                showToast(
-                                    if (removed > 0) {
-                                        context.getString(R.string.logs_retention_removed, removed)
-                                    } else {
-                                        context.getString(R.string.logs_retention_set, days)
-                                    }
-                                )
-                            }
-                        }
-                    )
                 }
             }
 
@@ -261,8 +244,7 @@ fun LogScreen(
                             entries.size,
                             filteredEntries.size,
                             entries.count { it.level.equals("ERROR", true) },
-                            entries.count { it.level.equals("WARNING", true) || it.level.equals("WARN", true) },
-                            retentionDays
+                            entries.count { it.level.equals("WARNING", true) || it.level.equals("WARN", true) }
                         )
                     )
                 }
@@ -275,10 +257,12 @@ fun LogScreen(
                     }
                 }
             } else {
-                items(
+                itemsIndexed(
                     items = filteredEntries,
-                    key = { entry -> "${entry.time}-${entry.level}-${entry.tag}-${entry.message.hashCode()}" }
-                ) { entry ->
+                    key = { index, entry ->
+                        "${index}-${entry.time}-${entry.level}-${entry.tag}-${entry.message.hashCode()}"
+                    }
+                ) { _, entry ->
                     AppLogItem(
                         entry = entry,
                         onClick = {

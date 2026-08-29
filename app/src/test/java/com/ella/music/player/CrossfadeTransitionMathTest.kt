@@ -1,7 +1,6 @@
 package com.ella.music.player
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.sqrt
@@ -69,42 +68,6 @@ class CrossfadeTransitionMathTest {
         val flat = CrossfadeTransitionMath.gains(0.25f, CrossfadeTransitionMath.CURVE_FLAT)
         assertEquals(1f, flat.incoming, 0.0001f)
         assertEquals(1f, flat.outgoing, 0.0001f)
-    }
-
-    @Test
-    fun `handoff resync ignores decoder jitter but corrects audible drift`() {
-        assertFalse(CrossfadeTransitionMath.shouldResyncHandoff(120L))
-        assertFalse(CrossfadeTransitionMath.shouldResyncHandoff(-120L))
-        assertTrue(CrossfadeTransitionMath.shouldResyncHandoff(121L))
-        assertTrue(CrossfadeTransitionMath.shouldResyncHandoff(-121L))
-    }
-
-    @Test
-    fun `handoff compensation leads a lagging primary by measured seek latency`() {
-        assertEquals(
-            4_450L,
-            CrossfadeTransitionMath.compensatedHandoffPosition(
-                auxiliaryPositionMs = 4_000L,
-                positionDriftMs = -450L,
-                measuredSeekLatencyMs = 450L
-            )
-        )
-        assertEquals(
-            4_000L,
-            CrossfadeTransitionMath.compensatedHandoffPosition(
-                auxiliaryPositionMs = 4_000L,
-                positionDriftMs = 180L,
-                measuredSeekLatencyMs = 450L
-            )
-        )
-    }
-
-    @Test
-    fun `handoff blend replaces hard gain switch with a bounded ramp`() {
-        assertEquals(0f, CrossfadeTransitionMath.handoffBlendProgress(0L, 112L), 0.0001f)
-        assertEquals(0.5f, CrossfadeTransitionMath.handoffBlendProgress(56L, 112L), 0.0001f)
-        assertEquals(1f, CrossfadeTransitionMath.handoffBlendProgress(112L, 112L), 0.0001f)
-        assertEquals(1f, CrossfadeTransitionMath.handoffBlendProgress(160L, 112L), 0.0001f)
     }
 
     @Test

@@ -539,7 +539,12 @@ class PlaybackStatsStore private constructor(context: Context) {
                     album = album,
                     playedAt = endedAt,
                     durationMs = item.optLong("durationMs").coerceAtLeast(0L),
-                    listenedMs = playedMs
+                    listenedMs = playedMs,
+                    source = PlaybackHistorySource.LOCAL,
+                    // Sollin sessions already represent completed plays.  Mark them as counted
+                    // so restored records are immediately visible in the normal history view
+                    // instead of waiting for another playback observer (#561).
+                    playCounted = true
                 )
             }
 

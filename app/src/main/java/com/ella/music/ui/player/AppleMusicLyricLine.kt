@@ -69,12 +69,17 @@ internal fun AppleMusicSingleLyricLine(
     lyricTextAlign: Int,
     contentColor: Color,
     wordLiftEnabled: Boolean,
+    sustainGlowScale: Float = 1f,
+    wordLiftScale: Float = 1f,
     singleLine: Boolean,
     inlineStaticSecondaryText: String = "",
     inlineStaticSecondaryWords: List<LyricWord> = emptyList(),
     mergeInlineSecondary: Boolean = false,
     statusBarMarquee: Boolean = false,
+    followWordFocus: Boolean = false,
     secondaryAlpha: Float = 0.74f,
+    interactive: Boolean = true,
+    showBackgroundText: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -110,12 +115,17 @@ internal fun AppleMusicSingleLyricLine(
         contentColor = contentColor,
         wordLiftEnabled = wordLiftEnabled,
         sustainThresholdMs = sustainThresholdMs,
+        sustainGlowScale = sustainGlowScale,
+        wordLiftScale = wordLiftScale,
         singleLine = singleLine,
         inlineStaticSecondaryText = inlineStaticSecondaryText,
         inlineStaticSecondaryWords = inlineStaticSecondaryWords,
         mergeInlineSecondary = mergeInlineSecondary,
         statusBarMarquee = statusBarMarquee,
+        followWordFocus = followWordFocus,
         secondaryAlpha = secondaryAlpha,
+        showBackgroundText = showBackgroundText,
+        interactive = interactive,
         onClick = {},
         onDoubleClick = {},
         onLongClick = {},
@@ -147,13 +157,18 @@ internal fun AppleMusicLyricLine(
     contentColor: Color,
     wordLiftEnabled: Boolean,
     sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
+    sustainGlowScale: Float = 1f,
+    wordLiftScale: Float = 1f,
     singleLine: Boolean = false,
     inlineStaticSecondaryText: String = "",
     inlineStaticSecondaryWords: List<LyricWord> = emptyList(),
     mergeInlineSecondary: Boolean = false,
     statusBarMarquee: Boolean = false,
+    followWordFocus: Boolean = false,
     secondaryAlpha: Float = 0.74f,
     reserveExtraLyricSpace: Boolean = false,
+    interactive: Boolean = true,
+    showBackgroundText: Boolean = true,
     onClick: () -> Unit,
     onDoubleClick: (() -> Unit)?,
     onLongClick: () -> Unit,
@@ -162,6 +177,9 @@ internal fun AppleMusicLyricLine(
     touchFeedbackEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // A mini player is a primary-vocal surface. Do not leave a blank row behind when the source
+    // contains an accompaniment-only x-bg line that has intentionally been hidden.
+    if (!showBackgroundText && line.text.isBlank()) return
     val textAlign = line.duetTextAlign(defaultTextAlign)
     val scale by animateFloatAsState(
         targetValue = if (active) 1f else 0.91f,
@@ -222,20 +240,26 @@ internal fun AppleMusicLyricLine(
                     Modifier
                 }
             )
-            .appleMusicTouchRipple(
-                key = line,
-                color = contentColor,
-                feedbackEnabled = touchFeedbackEnabled,
-                onTap = { offset, width ->
-                    val fractionHandler = onTapFraction
-                    if (fractionHandler == null) {
-                        onClick()
-                    } else {
-                        fractionHandler((offset.x / width.coerceAtLeast(1f)).coerceIn(0f, 1f))
-                    }
-                },
-                onDoubleTap = onDoubleClick,
-                onLongPress = onLongClick
+            .then(
+                if (interactive) {
+                    Modifier.appleMusicTouchRipple(
+                        key = line,
+                        color = contentColor,
+                        feedbackEnabled = touchFeedbackEnabled,
+                        onTap = { offset, width ->
+                            val fractionHandler = onTapFraction
+                            if (fractionHandler == null) {
+                                onClick()
+                            } else {
+                                fractionHandler((offset.x / width.coerceAtLeast(1f)).coerceIn(0f, 1f))
+                            }
+                        },
+                        onDoubleTap = onDoubleClick,
+                        onLongPress = onLongClick
+                    )
+                } else {
+                    Modifier
+                }
             )
             .padding(horizontal = 2.dp),
         horizontalAlignment = when (textAlign) {
@@ -253,13 +277,24 @@ internal fun AppleMusicLyricLine(
             BasicText(text = pronunciation, style = secondaryStyle, modifier = Modifier.fillMaxWidth())
         }
         val primaryText = line.text.ifBlank { line.backgroundText.orEmpty().ifBlank { "♪" } }
+        val primaryWords = if (inlineRuby && line.isTtml && line.words.isEmpty() && primaryText.isNotBlank()) {
+            listOf(
+                LyricWord(
+                    text = primaryText,
+                    startMs = line.timeMs,
+                    endMs = line.endMs ?: line.backgroundEndMs ?: (line.timeMs + 4_000L)
+                )
+            )
+        } else {
+            line.words
+        }
         val hasInlineSecondary = singleLine && inlineStaticSecondaryText.isNotBlank()
         if (hasInlineSecondary && mergeInlineSecondary) {
             // "Merge secondary into primary" is a presentation mode, not an end-of-line effect:
             // it must stay inline from the first word for both word-timed and line-timed lyrics.
             StatusBarMergedTimedLyricRow(
                 primaryText = primaryText,
-                primaryWords = line.words,
+                primaryWords = primaryWords,
                 secondaryText = inlineStaticSecondaryText,
                 positionMs = currentPositionMs,
                 active = active,
@@ -267,6 +302,7 @@ internal fun AppleMusicLyricLine(
                 contentColor = contentColor,
                 secondaryAlpha = secondaryAlpha,
                 wordLiftEnabled = wordLiftEnabled,
+                wordLiftScale = wordLiftScale,
                 sustainThresholdMs = sustainThresholdMs,
                 textAlign = textAlign
             )
@@ -283,23 +319,30 @@ internal fun AppleMusicLyricLine(
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
                 sustainThresholdMs = sustainThresholdMs,
-                statusBarMarquee = statusBarMarquee
+                wordLiftScale = wordLiftScale,
+                statusBarMarquee = statusBarMarquee,
+                followWordFocus = followWordFocus
             )
         } else {
             TimedLyricText(
                 text = primaryText,
-                words = line.words,
+                words = primaryWords,
                 positionMs = currentPositionMs,
                 active = active,
                 style = primaryStyle,
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
                 sustainThresholdMs = sustainThresholdMs,
+                wordLiftScale = wordLiftScale,
+                sustainGlowScale = sustainGlowScale,
                 singleLine = singleLine,
                 statusBarMarquee = statusBarMarquee,
+                followWordFocus = followWordFocus,
                 pronunciation = if (inlineRuby) pronunciation else "",
                 pronunciationWords = if (inlineRuby) line.pronunciationWords else emptyList(),
                 rubyStyle = if (inlineRuby) secondaryStyle else null,
+                rubyBelow = inlineRuby && pronunciationBelow,
+                splitRubyByCharacter = line.isTtml && inlineRuby,
                 onWordClick = onWordClick,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -308,17 +351,31 @@ internal fun AppleMusicLyricLine(
             BasicText(
                 text = pronunciation,
                 style = secondaryStyle,
-                modifier = Modifier.fillMaxWidth().padding(top = 5.dp)
+                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                softWrap = !singleLine,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 5.dp)
+                    .then(if (singleLine) Modifier.basicMarquee() else Modifier)
             )
         }
         line.translation?.takeIf { showTranslation && it.isNotBlank() }?.let { translation ->
             BasicText(
                 text = translation,
                 style = secondaryStyle,
-                modifier = Modifier.fillMaxWidth().padding(top = 5.dp)
+                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                softWrap = !singleLine,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 5.dp)
+                    .then(if (singleLine) Modifier.basicMarquee() else Modifier)
             )
         }
-        line.backgroundText?.trim()?.takeIf { it.isNotBlank() && line.text.isNotBlank() }?.let { background ->
+        line.backgroundText?.trim()?.takeIf {
+            showBackgroundText && it.isNotBlank() && line.text.isNotBlank()
+        }?.let { background ->
             val backgroundActive = line.isBackgroundActiveAt(currentPositionMs)
             val backgroundAlpha by animateFloatAsState(
                 targetValue = if (backgroundActive) 1f else 0f,
@@ -340,6 +397,8 @@ internal fun AppleMusicLyricLine(
                         contentColor = contentColor,
                         wordLiftEnabled = wordLiftEnabled,
                         sustainThresholdMs = sustainThresholdMs,
+                        wordLiftScale = wordLiftScale,
+                        sustainGlowScale = sustainGlowScale,
                         singleLine = singleLine,
                         modifier = Modifier.fillMaxWidth().padding(top = 7.dp)
                     )
@@ -455,8 +514,10 @@ private fun StatusBarSeparatedTimedLyricLines(
     secondaryStyle: TextStyle,
     contentColor: Color,
     wordLiftEnabled: Boolean,
+    wordLiftScale: Float,
     sustainThresholdMs: Int,
-    statusBarMarquee: Boolean
+    statusBarMarquee: Boolean,
+    followWordFocus: Boolean
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         TimedLyricText(
@@ -467,9 +528,11 @@ private fun StatusBarSeparatedTimedLyricLines(
             style = primaryStyle,
             contentColor = contentColor,
             wordLiftEnabled = wordLiftEnabled,
+            wordLiftScale = wordLiftScale,
             sustainThresholdMs = sustainThresholdMs,
             singleLine = true,
             statusBarMarquee = statusBarMarquee,
+            followWordFocus = followWordFocus,
             modifier = Modifier.fillMaxWidth()
         )
         TimedLyricText(
@@ -480,6 +543,7 @@ private fun StatusBarSeparatedTimedLyricLines(
             style = secondaryStyle,
             contentColor = contentColor,
             wordLiftEnabled = wordLiftEnabled,
+            wordLiftScale = wordLiftScale,
             sustainThresholdMs = sustainThresholdMs,
             singleLine = true,
             statusBarMarquee = statusBarMarquee,
@@ -501,6 +565,7 @@ private fun StatusBarMergedTimedLyricRow(
     contentColor: Color,
     secondaryAlpha: Float,
     wordLiftEnabled: Boolean,
+    wordLiftScale: Float,
     sustainThresholdMs: Int,
     textAlign: TextAlign
 ) {
@@ -518,7 +583,8 @@ private fun StatusBarMergedTimedLyricRow(
     )
     val secondaryLiftPx = with(LocalDensity.current) {
         if (wordLiftEnabled) {
-            maxOf(primaryStyle.fontSize.toPx() * 0.06f, 5f) * animatedSecondaryLiftProgress
+            maxOf(primaryStyle.fontSize.toPx() * 0.06f, 5f) *
+                animatedSecondaryLiftProgress * wordLiftScale.coerceIn(0f, 1f)
         } else {
             0f
         }
@@ -554,6 +620,7 @@ private fun StatusBarMergedTimedLyricRow(
                 style = primaryStyle,
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
+                wordLiftScale = wordLiftScale,
                 sustainThresholdMs = sustainThresholdMs,
                 singleLine = true,
                 modifier = Modifier.wrapContentWidth(unbounded = true)

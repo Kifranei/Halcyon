@@ -53,6 +53,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_CJK_FONT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_KEEP_SCREEN_ON
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_TRANSLATION
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PARSER_ENGINE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_EFFECT
@@ -97,6 +98,7 @@ interface LyricSettingsAccess {
     val lyricLineBlacklist: Flow<List<String>>
     val lyricOffsetOverrides: Flow<Map<String, Long>>
     val playerLyricTextAlign: Flow<Int>
+    val lyricPageVerticalAlignment: Flow<Int>
     val lyricPronunciationBelow: Flow<Boolean>
     val lyricPageTranslation: Flow<Boolean>
     val lyricPageKeepScreenOn: Flow<Boolean>
@@ -137,6 +139,7 @@ interface LyricSettingsAccess {
     val lyricPerspectiveEffect: Flow<Boolean>
     val lyricPerspectiveYAngle: Flow<Int>
     suspend fun setPlayerLyricTextAlign(align: Int)
+    suspend fun setLyricPageVerticalAlignment(alignment: Int)
     suspend fun setLyricPronunciationBelow(below: Boolean)
     suspend fun setLyricLineBlacklist(lines: List<String>)
     suspend fun setIgnoreLyricHeaderTags(enabled: Boolean)
@@ -200,6 +203,14 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         context.dataStore.data.map { parseLyricOffsetOverrides(it[KEY_LYRIC_OFFSET_OVERRIDES]) }
     override val playerLyricTextAlign: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_LYRIC_TEXT_ALIGN] ?: PLAYER_LYRIC_ALIGN_LEFT).coerceIn(0, 2) }
+    override val lyricPageVerticalAlignment: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT] ?: SettingsManager.DEFAULT_LYRIC_PAGE_VERTICAL_ALIGNMENT)
+                .coerceIn(
+                    SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_UPPER,
+                    SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_CENTER
+                )
+        }
     // Whether romaji / phonetic guides render BELOW the main lyric line (main → romaji → translation)
     // instead of above it. Default false = above.
     override val lyricPronunciationBelow: Flow<Boolean> =
@@ -280,6 +291,15 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
 
     override suspend fun setPlayerLyricTextAlign(align: Int) {
         context.dataStore.edit { it[KEY_PLAYER_LYRIC_TEXT_ALIGN] = align.coerceIn(0, 2) }
+    }
+
+    override suspend fun setLyricPageVerticalAlignment(alignment: Int) {
+        context.dataStore.edit {
+            it[KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT] = alignment.coerceIn(
+                SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_UPPER,
+                SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_CENTER
+            )
+        }
     }
 
     override suspend fun setLyricPronunciationBelow(below: Boolean) {

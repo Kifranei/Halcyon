@@ -131,7 +131,7 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
                     AudioTrackAudioOutputProvider.Builder(context)
                         .setAudioTrackBufferSizeProvider(
                             DefaultAudioTrackBufferSizeProvider.Builder()
-                                .setTargetPcmBufferDurationUs(150_000)
+                                .setTargetPcmBufferDurationUs(300_000)
                                 .build()
                         )
                         .build()

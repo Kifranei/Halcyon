@@ -101,6 +101,7 @@ internal fun LandscapeCoverPlayerPage(
     lyricTextAlign: Int,
     showTotalDuration: Boolean,
     playerTapSeekEnabled: Boolean,
+    playerTitlePosition: Int,
     coverSwipeEnabled: Boolean,
     coverLongPressPreviewEnabled: Boolean,
     queueExpanded: Boolean,
@@ -170,16 +171,6 @@ internal fun LandscapeCoverPlayerPage(
     val showHiResLogo = hiResLogoEnabled && audioInfo?.isHiResLogoTrack() == true
     val leftPaneWeight = if (showLyricsPane && ultraWideLandscape) 0.34f else 0.38f
     val rightPaneWeight = if (ultraWideLandscape) 0.66f else 0.62f
-    val headerTitleFontSize = if (showLyricsPane) {
-        if (ultraWideLandscape) 18.sp else 20.sp
-    } else {
-        if (ultraWideLandscape) 20.sp else 24.sp
-    }
-    val headerArtistFontSize = if (showLyricsPane) {
-        if (ultraWideLandscape) 11.sp else 12.sp
-    } else {
-        if (ultraWideLandscape) 13.sp else 16.sp
-    }
     val coverWidthFraction = when {
         ultraWideLandscape && showLyricsPane -> 0.72f
         ultraWideLandscape -> 0.70f
@@ -195,6 +186,8 @@ internal fun LandscapeCoverPlayerPage(
     val lyricPrimaryTextSize = primaryTextSizeSp
     val lyricSecondaryTextSize = secondaryTextSizeSp
     val lyricTopPadding = if (ultraWideLandscape) 0.dp else 8.dp
+    val titleAboveCover = playerTitlePosition ==
+        com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
     val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
 
     if (compactPhoneLandscape) {
@@ -316,114 +309,101 @@ internal fun LandscapeCoverPlayerPage(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (showLyricsPane) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        PlayerSongMetaText(
-                            song = song,
-                            annotation = annotation,
-                            titleFontSize = headerTitleFontSize,
-                            artistFontSize = headerArtistFontSize,
-                            artistAlpha = 0.56f,
-                            showArtistWithAnnotation = true,
-                            contentColor = palette.onBackground,
-                            fontFamily = fontFamily,
-                            onArtistClick = onArtist,
-                            modifier = Modifier.weight(1f)
-                        )
-                        PlayerHeaderAction(
-                            kind = PlayerHeaderActionKind.Favorite,
-                            selected = isFavorite,
-                            onClick = onToggleFavorite
-                        )
-                        PlayerHeaderAction(kind = PlayerHeaderActionKind.More, onClick = onToggleMenu)
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        PlayerSongMetaText(
-                            song = song,
-                            annotation = annotation,
-                            titleFontSize = headerTitleFontSize,
-                            artistFontSize = headerArtistFontSize,
-                            artistAlpha = 0.62f,
-                            showArtistWithAnnotation = true,
-                            contentColor = palette.onBackground,
-                            fontFamily = fontFamily,
-                            onArtistClick = onArtist,
-                            modifier = Modifier.weight(1f)
-                        )
-                        PlayerHeaderAction(
-                            kind = PlayerHeaderActionKind.Favorite,
-                            selected = isFavorite,
-                            onClick = onToggleFavorite
-                        )
-                        PlayerHeaderAction(kind = PlayerHeaderActionKind.More, onClick = onToggleMenu)
-                    }
-                }
-                Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 22.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(coverWidthFraction)
-                            .widthIn(max = coverMaxSize)
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .then(
-                                if (coverLongPressPreviewEnabled) {
-                                    Modifier.combinedClickable(
-                                        onClick = {},
-                                        onLongClick = onPreviewCover
-                                    )
-                                } else Modifier
-                            )
-                            .then(
-                                Modifier.playerCoverGestures(
-                                    swipeEnabled = coverSwipeEnabled,
-                                    onSwipePrevious = onSwipePrevious,
-                                    onSwipeNext = onNext,
-                                    dismissHandle = LocalPlayerCoverDismiss.current
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (foregroundDynamicCoverSource != null) {
-                            DynamicCoverVideo(
-                                source = foregroundDynamicCoverSource,
-                                isPlaying = isPlaying,
-                                onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
-                                modifier = Modifier.fillMaxSize(),
-                                cornerRadiusDp = 14f
-                            )
-                        } else {
-                            AlbumArtView(
+                        if (titleAboveCover) {
+                            PlayerCoverTitleRow(
                                 song = song,
-                                embeddedCover = embeddedCover,
-                                showHiResLogo = showHiResLogo,
-                                hiResLogoUri = hiResLogoUri,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        if (showHiResLogo) {
-                            HiResLogoBadge(
-                                logoUri = hiResLogoUri,
+                                annotation = annotation,
+                                palette = palette,
+                                fontFamily = fontFamily,
+                                isFavorite = isFavorite,
+                                onArtist = onArtist,
+                                onToggleFavorite = onToggleFavorite,
+                                onToggleMenu = onToggleMenu,
                                 modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(10.dp)
+                                    .fillMaxWidth(coverWidthFraction)
+                                    .widthIn(max = coverMaxSize)
+                            )
+                            Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(coverWidthFraction)
+                                .widthIn(max = coverMaxSize)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .then(
+                                    if (coverLongPressPreviewEnabled) {
+                                        Modifier.combinedClickable(
+                                            onClick = {},
+                                            onLongClick = onPreviewCover
+                                        )
+                                    } else Modifier
+                                )
+                                .then(
+                                    Modifier.playerCoverGestures(
+                                        swipeEnabled = coverSwipeEnabled,
+                                        onSwipePrevious = onSwipePrevious,
+                                        onSwipeNext = onNext,
+                                        dismissHandle = LocalPlayerCoverDismiss.current
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (foregroundDynamicCoverSource != null) {
+                                DynamicCoverVideo(
+                                    source = foregroundDynamicCoverSource,
+                                    isPlaying = isPlaying,
+                                    onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
+                                    modifier = Modifier.fillMaxSize(),
+                                    cornerRadiusDp = 14f
+                                )
+                            } else {
+                                AlbumArtView(
+                                    song = song,
+                                    embeddedCover = embeddedCover,
+                                    showHiResLogo = showHiResLogo,
+                                    hiResLogoUri = hiResLogoUri,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            if (showHiResLogo) {
+                                HiResLogoBadge(
+                                    logoUri = hiResLogoUri,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(10.dp)
+                                )
+                            }
+                        }
+                        if (!titleAboveCover) {
+                            Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
+                            PlayerCoverTitleRow(
+                                song = song,
+                                annotation = annotation,
+                                palette = palette,
+                                fontFamily = fontFamily,
+                                isFavorite = isFavorite,
+                                onArtist = onArtist,
+                                onToggleFavorite = onToggleFavorite,
+                                onToggleMenu = onToggleMenu,
+                                modifier = Modifier
+                                    .fillMaxWidth(coverWidthFraction)
+                                    .widthIn(max = coverMaxSize)
                             )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(if (ultraWideLandscape) 8.dp else 12.dp))
+                Spacer(modifier = Modifier.height(if (ultraWideLandscape) 6.dp else 10.dp))
                 PlayerProgressBlock(
                     currentPosition = currentPosition,
                     duration = duration,
@@ -433,9 +413,10 @@ internal fun LandscapeCoverPlayerPage(
                     palette = palette,
                     allowTapSeek = playerTapSeekEnabled,
                     showTotalDuration = showTotalDuration,
-                    onSeek = onSeek
+                    onSeek = onSeek,
+                    fontFamily = fontFamily
                 )
-                Spacer(modifier = Modifier.height(if (ultraWideLandscape) 0.dp else 4.dp))
+                Spacer(modifier = Modifier.height(if (ultraWideLandscape) 6.dp else 10.dp))
                 PlayerTransportControls(
                     isPlaying = isPlaying,
                     shuffleEnabled = shuffleEnabled,
@@ -686,12 +667,14 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                         Text(
                             text = formatTime(currentPosition),
                             fontSize = 12.sp,
+                            fontFamily = fontFamily,
                             color = palette.onBackground.copy(alpha = if (previewProgress == null) 0.76f else 0.48f)
                         )
                         previewProgress?.let { progress ->
                             Text(
                                 text = formatTime((duration * progress).toLong()),
                                 fontSize = 12.sp,
+                                fontFamily = fontFamily,
                                 color = palette.onBackground.copy(alpha = 0.84f),
                                 modifier = Modifier.padding(start = 4.dp)
                             )
@@ -700,6 +683,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                     Text(
                         text = formatTime(duration.coerceAtLeast(0L)),
                         fontSize = 12.sp,
+                        fontFamily = fontFamily,
                         color = palette.onBackground.copy(alpha = 0.76f)
                     )
                 }

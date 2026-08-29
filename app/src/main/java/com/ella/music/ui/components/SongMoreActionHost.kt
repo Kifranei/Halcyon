@@ -37,10 +37,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.exception.WritePermissionRequiredException
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
-import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -180,7 +180,7 @@ fun SongMoreActionHost(
                         coverModel = actionCoverModel,
                         onPreview = { coverPreviewSong = song },
                         onArtist = {
-                            val artists = splitArtistNames(song.artist)
+                            val artists = artistNamesForSong(song)
                                 .distinctBy { it.tagIdentityKey() }
                             when (artists.size) {
                                 0 -> Toast.makeText(context, noArtistJump, Toast.LENGTH_SHORT).show()
@@ -245,7 +245,7 @@ fun SongMoreActionHost(
                     closeAction()
                 },
                 onArtist = {
-                    val artists = splitArtistNames(song.artist)
+                    val artists = artistNamesForSong(song)
                         .distinctBy { it.tagIdentityKey() }
                     when (artists.size) {
                         0 -> Toast.makeText(context, noArtistJump, Toast.LENGTH_SHORT).show()

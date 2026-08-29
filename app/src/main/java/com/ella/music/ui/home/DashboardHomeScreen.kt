@@ -33,6 +33,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.FolderPlaylist
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -110,6 +111,7 @@ fun HomeScreen(
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = initialSettings.openPlayerOnPlay)
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = initialSettings.showAlbumArtists)
     val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = initialSettings.tagIgnoreCase)
+    val parseFeaturedArtists by settingsManager.parseFeaturedArtists.collectAsState(initial = false)
     val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(
         initial = initialSettings.homeFeatureWallpaperUri
     )
@@ -140,11 +142,11 @@ fun HomeScreen(
     val homeTileGradientStartColor = homeTileGradientStartColorRaw.parseHomeCardColorOrNull()
     val customTileColors = remember(homeTileColorsRaw) { homeTileColorsRaw.parseHomeTileColors() }
     fun tileColor(id: String, fallback: Color): Color = customTileColors[id] ?: fallback
-    val artistCount = remember(songs, showAlbumArtists, tagIgnoreCase) {
+    val artistCount = remember(songs, showAlbumArtists, tagIgnoreCase, parseFeaturedArtists) {
         songs
             .flatMap {
-                if (showAlbumArtists) splitArtistNames(it.artist) + splitArtistNames(it.albumArtist)
-                else splitArtistNames(it.artist)
+                if (showAlbumArtists) artistNamesForSong(it, parseFeaturedArtists) + splitArtistNames(it.albumArtist)
+                else artistNamesForSong(it, parseFeaturedArtists)
             }
             .distinctBy { it.tagIdentityKey() }
             .size

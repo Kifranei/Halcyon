@@ -84,6 +84,7 @@ fun PlaylistScreen(
     val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     val librarySongs by mainViewModel.songs.collectAsState()
+    val playbackStats by mainViewModel.playbackStats.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
@@ -134,6 +135,9 @@ fun PlaylistScreen(
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val favorites = playlists.firstOrNull { it.id == FAVORITES_PLAYLIST_ID }
+    val playCountBySongId = remember(playbackStats) {
+        playbackStats.associate { it.songId to it.playCount }
+    }
     val storedCustomPlaylists = remember(playlists) {
         playlists.filterNot { it.id == FAVORITES_PLAYLIST_ID || it.id == FIVE_STAR_PLAYLIST_ID }
     }
@@ -158,11 +162,16 @@ fun PlaylistScreen(
             manualCustomOrderDirty = false
         }
     }
-    val customPlaylists = remember(storedCustomPlaylists, orderedCustomPlaylists, playlistSortMode) {
+    val customPlaylists = remember(
+        storedCustomPlaylists,
+        orderedCustomPlaylists,
+        playlistSortMode,
+        playCountBySongId
+    ) {
         when (playlistSortMode) {
             PlaylistSortMode.Custom -> orderedCustomPlaylists
             PlaylistSortMode.CustomDesc -> orderedCustomPlaylists.asReversed()
-            else -> storedCustomPlaylists.sortedForPlaylistList(playlistSortMode)
+            else -> storedCustomPlaylists.sortedForPlaylistList(playlistSortMode, playCountBySongId)
         }
     }
     val reorderEnabled = selection.selectionMode &&
@@ -490,6 +499,11 @@ fun PlaylistScreen(
                             text = stringResource(R.string.playlist_sort_duration),
                             ascendingMode = PlaylistSortMode.DurationAsc,
                             descendingMode = PlaylistSortMode.Duration
+                        ),
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_play_count),
+                            ascendingMode = PlaylistSortMode.PlayCountAsc,
+                            descendingMode = PlaylistSortMode.PlayCount
                         )
                     ),
                     selectedMode = playlistSortMode,

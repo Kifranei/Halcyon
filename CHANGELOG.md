@@ -3,6 +3,9 @@
 From `1.2.6` to `1.2.7`.
 
 中文更新日志
+- 日志页改为直接读取本进程 logcat（不再落盘 TSV、取消 3000 条上限）。导出完整 logcat，清空只清界面快照。
+- 播放页会读取歌曲目录里的 cover.jpg / folder.jpg 等封面。自动解码时系统有杜比解码器走系统，没有才回退 FFmpeg，避免 FFmpeg 音量偏小、放不出 6 声道。
+- LX 源导入会拒绝网页 HTML（提示用 .js 直链）；在线歌词覆盖更多平台；下载会写入封面和歌词。介绍页会抽取 latest.js，青听 JSON/网盘分享页给出明确错误；聚合 API 源的 303 跳转和请求体解析已对齐。
 - 新增统一「投放设备」页：集中提供系统音频输出、Chromecast 和 DLNA MediaRenderer；DLNA 使用应用内局域网媒体服务投放当前歌曲，并同步投放状态。
 - 播放页新增流光、波形和分段刻度进度条，以及全宽流光曲线 / RawS 镜像频谱可视化；可视化样式统一收进设置，Apple Music 播放页保持原本布局（`#539`）。
 - Apple Music 流光增加独立速度调节；Beautiful Lyrics 补充速度、亮度和模糊调节。当前歌曲流光可延伸到首页、音乐库和列表页，并与沉浸播放页 / 歌词页统一坐标、取色和过渡（`#522`、`#551`）。
@@ -13,7 +16,7 @@ From `1.2.6` to `1.2.7`.
 - 完善交叉淡入淡出：提前把界面交给已经淡入的下一首，去除切换点的暂停与爆音，稳定长时长交叉区间，并在暂停状态切歌时继续保持暂停（`#403`、`#512`、`#513`）。
 - 播放页音质 / 音频信息 / 输出设备胶囊可分别显示；ReplayGain 可合并进音频信息或作为独立胶囊，胶囊字体跟随播放页字体。Hi-Res 封面标识默认关闭（`#393`）。
 - 播放页和歌曲列表的「更多操作」支持分别排序、隐藏和恢复默认布局；封面长按预览新增独立开关（`#508`、`#549`）。
-- 播放页迷你歌词新增独立缩放、字号、行距与对齐设置；暂无歌词保持居中，修复 00:00 歌词顶边、滚动越界和回退抖动（`#301`）。
+- 播放页迷你歌词新增独立缩放、字号、行距与对齐设置；暂无歌词保持居中，修复 00:00 歌词顶边、滚动越界和回退抖动（`#301`）。未唱到的 x-bg 和声不再预留下空白行。
 - 内置 LunaBeat TTML Hub 歌词源，支持搜索高精度逐拍 TTML；Lyrico 匹配结果显示封面，并完善插件运行时与来源导入（`#506`）。
 - 歌词点击支持逐字精确定位与连续时间跳转，新增可关闭的扩散轮廓反馈；开头模板歌词按连续进度 seek，避免短标题只能跳到 00:00（`#548`）。
 - 开头空白可用模板显示歌曲名、艺术家、专辑、流派、年份等元数据；完善长音高亮、Apple 风格间奏等待符、暂停时仅高亮当前句和沉浸歌词区域横滑切歌（`#516`、`#517`、`#518`、`#551`）。
@@ -29,6 +32,9 @@ From `1.2.6` to `1.2.7`.
 - 修复「全部随机」只改队列未切换播放模式、继续播放来源判断、最近听过手动播放来源、液态玻璃高亮与底栏状态、封面网格清晰度和布局切换定位等问题（`#519`、`#520`、`#542`、`#550`）。
 
 English Changelog
+- The log screen now reads this process logcat directly (no TSV snapshot, no 3000-entry cap). Export dumps full logcat.
+- The player reads folder sidecar covers such as cover.jpg. Auto decoder uses the system Dolby decoder when present and falls back to FFmpeg only when the device has none, so 6-channel output is preserved.
+- LX source import rejects HTML pages, online lyrics cover more platforms, and downloads embed cover art and lyrics.
 - Added a unified Casting Devices page for system audio routes, Chromecast, and DLNA MediaRenderers. DLNA serves the current track through an in-app local-network media server and reports active casting state.
 - Added glow, waveform, and segmented progress styles plus full-width flowing-curve / RawS mirrored-spectrum visualizers. Visualizer selection now lives in settings while the Apple Music player keeps its original layout (`#539`).
 - Added an independent Apple Music flow-speed control and Beautiful Lyrics speed, brightness, and blur controls. The current-track flow can extend across Home, Library, and list pages with shared coordinates, palette, and transitions on immersive player / lyrics pages (`#522`, `#551`).
@@ -39,7 +45,7 @@ English Changelog
 - Refined crossfade to hand the UI to the incoming track as it fades in, remove the pause/click at the transition boundary, stabilize long overlap intervals, and preserve the paused state when skipping (`#403`, `#512`, `#513`).
 - Quality, audio-information, and output-device capsules can be shown independently. ReplayGain may be merged into audio details or shown as a separate capsule, capsule typography follows the player font, and the Hi-Res cover badge is off by default (`#393`).
 - Player and list action menus can be independently reordered, hidden, or reset. Artwork long-press preview now has its own switch (`#508`, `#549`).
-- Added independent scale, font-size, spacing, and alignment controls for player mini lyrics. No-lyrics content remains centered, and 00:00 top alignment, overscroll, and backward-jump issues are fixed (`#301`).
+- Added independent scale, font-size, spacing, and alignment controls for player mini lyrics. No-lyrics content remains centered, and 00:00 top alignment, overscroll, and backward-jump issues are fixed (`#301`). Inactive x-bg backing vocals no longer reserve empty rows.
 - Bundled a LunaBeat TTML Hub source for high-precision beat-timed TTML. Lyrico matches now show artwork, and plugin runtime / source importing is more complete (`#506`).
 - Lyric taps support exact word timing and continuous timestamp seeking with an optional expanding outline response. Opening-template lyrics use continuous seeking so short titles no longer remain stuck at 00:00 (`#548`).
 - Opening gaps can show title, artist, album, genre, year, and other metadata through a template. Sustained-word highlights, Apple-style interlude wait marks, paused current-line-only highlighting, and optional lyric-area swipe-to-skip are refined (`#516`, `#517`, `#518`, `#551`).

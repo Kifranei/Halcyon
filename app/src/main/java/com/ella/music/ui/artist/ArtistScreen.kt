@@ -53,6 +53,7 @@ import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.ConfirmDangerDialog
+import com.ella.music.ui.components.CoverPreviewDialog
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
@@ -151,6 +152,7 @@ fun ArtistScreen(
     var pendingDeleteMusicVideos by remember { mutableStateOf<List<ArtistMusicVideo>>(emptyList()) }
     var musicVideoMenuTarget by remember { mutableStateOf<ArtistMusicVideo?>(null) }
     var showIntroduction by rememberSaveable(artistName) { mutableStateOf(false) }
+    var artistCoverPreviewVisible by remember(artistName) { mutableStateOf(false) }
     var musicVideoInfoTarget by remember { mutableStateOf<ArtistMusicVideo?>(null) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
 
@@ -383,6 +385,17 @@ fun ArtistScreen(
         folderLocation = artistCoverFolderUri,
         mainViewModel = mainViewModel
     )
+    val artistDownloadedCoverModel = rememberArtistCoverModel(
+        artistName = artistName,
+        representativeSong = representativeCoverSong,
+        folderLocation = artistCoverFolderUri,
+        mainViewModel = mainViewModel
+    )
+    val artistHeaderCoverModel = artistDownloadedCoverModel ?: artistOriginalCoverModel
+    val artistPreviewModel = customArtistCoverAssets
+        .firstOrNull { it.kind == ArtistCoverKind.Image }
+        ?.uri
+        ?: artistHeaderCoverModel
     val artistCoverCarousel by mainViewModel.settingsManager.artistCoverCarousel.collectAsState(initial = true)
     val librarySongsByAlbumId = remember(songs) {
         songs.groupBy { it.albumIdentityId() }
@@ -501,7 +514,7 @@ fun ArtistScreen(
             coverModel = customArtistCoverAssets
                 .firstOrNull { it.kind == ArtistCoverKind.Image }
                 ?.uri
-                ?: artistOriginalCoverModel,
+                ?: artistHeaderCoverModel,
             onBack = { showIntroduction = false }
         )
         return
@@ -559,7 +572,7 @@ fun ArtistScreen(
             item {
                 ArtistHeader(
                     artistName = artistName,
-                    fallbackCoverModel = artistOriginalCoverModel,
+                    fallbackCoverModel = artistHeaderCoverModel,
                     customCoverAssets = customArtistCoverAssets,
                     dynamicCoverEnabled = dynamicCoverEnabled,
                     carousel = artistCoverCarousel,
@@ -571,6 +584,9 @@ fun ArtistScreen(
                     },
                     onIntroductionClick = { showIntroduction = true },
                     showIntroductionEntry = showArtistIntroduction,
+                    onPreviewCover = {
+                        if (artistPreviewModel != null) artistCoverPreviewVisible = true
+                    },
                     onPlayAll = {
                         if (playableArtistTabSongs.isNotEmpty()) {
                             val albumSources = artistTabSongSources()
@@ -1280,5 +1296,16 @@ fun ArtistScreen(
                 }
             }
         )
+
+        if (artistCoverPreviewVisible) {
+            artistPreviewModel?.let { model ->
+                CoverPreviewDialog(
+                    model = model,
+                    title = artistName,
+                    saveName = artistName,
+                    onDismiss = { artistCoverPreviewVisible = false }
+                )
+            }
+        }
     }
 }

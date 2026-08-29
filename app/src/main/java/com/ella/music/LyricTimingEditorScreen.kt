@@ -6,6 +6,8 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,8 +58,10 @@ import com.ella.music.ui.components.EllaMiuixChip
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.LyricTimingFormat
 import com.ella.music.ui.components.LyricTimingLine
+import com.ella.music.ui.components.TagEditorEditTracker
 import com.ella.music.ui.components.toEmbeddedElrc
 import com.ella.music.ui.components.toEmbeddedLrc
 import com.ella.music.ui.components.toEmbeddedTtml
@@ -87,7 +91,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private enum class TimingMode { Line, Word }
 
+private sealed interface TimingDeleteTarget {
+    data class Line(val index: Int) : TimingDeleteTarget
+    data class Word(val lineIndex: Int, val wordIndex: Int) : TimingDeleteTarget
+}
+
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 internal fun LyricTimingEditorScreen(
     song: Song,
     lyricsReadSong: Song? = song,
@@ -150,6 +160,7 @@ internal fun LyricTimingEditorScreen(
     var undoSnapshots by remember(song.path) { mutableStateOf(emptyList<List<LyricTimingLine>>()) }
     var redoSnapshots by remember(song.path) { mutableStateOf(emptyList<List<LyricTimingLine>>()) }
     var followPlayback by remember(song.path) { mutableStateOf(true) }
+    var pendingDeleteTarget by remember(song.path) { mutableStateOf<TimingDeleteTarget?>(null) }
     val lyricListState = rememberLazyListState()
 
     LaunchedEffect(sourceLyrics, initialized) {
@@ -329,6 +340,31 @@ internal fun LyricTimingEditorScreen(
         updateLines(lines.toMutableList().also { it[selectedIndex] = transform(line) }, selectedIndex, selectedWordIndex)
     }
 
+    fun deleteLine(index: Int) {
+        if (index !in lines.indices) return
+        val next = lines.toMutableList().also { it.removeAt(index) }
+        updateLines(
+            next = next,
+            nextLine = (index - 1).coerceIn(0, next.lastIndex.coerceAtLeast(0)),
+            nextWord = 0
+        )
+    }
+
+    fun deleteWord(lineIndex: Int, wordIndex: Int) {
+        val line = lines.getOrNull(lineIndex) ?: return
+        if (wordIndex !in line.words.indices) return
+        val words = line.words.toMutableList().also { it.removeAt(wordIndex) }
+        val nextLine = line.copy(
+            words = words,
+            endMs = words.maxOfOrNull(LyricWord::endMs) ?: line.endMs
+        )
+        updateLines(
+            next = lines.toMutableList().also { it[lineIndex] = nextLine },
+            nextLine = lineIndex,
+            nextWord = wordIndex.coerceAtMost(words.lastIndex.coerceAtLeast(0))
+        )
+    }
+
     fun applyBackgroundTime(end: Boolean) {
         val line = selected ?: return
         val background = line.backgroundText?.takeIf(String::isNotBlank) ?: return
@@ -395,6 +431,9 @@ internal fun LyricTimingEditorScreen(
         }
         val result = mainViewModel.writeSongMetadata(song, tags)
         if (result.isSuccess) {
+            // This editor runs in its own Activity. Notify the main Activity only after a
+            // successful write so its player reloads the embedded lyric data when we return.
+            TagEditorEditTracker.mark(song)
             if (isCurrentSong) playerViewModel.reloadCurrentLyrics()
             Toast.makeText(context, R.string.lyric_timing_editor_saved, Toast.LENGTH_SHORT).show()
             onBack()
@@ -494,7 +533,8 @@ internal fun LyricTimingEditorScreen(
                             selectedLine = index
                             selectedWord = 0
                             if (isCurrentSong) line.timeMs?.let(playerViewModel::seekTo)
-                        }
+                        },
+                        onLongClick = { pendingDeleteTarget = TimingDeleteTarget.Line(index) }
                     )
                     if (index == selectedIndex) {
                         TimingLineEditor(
@@ -503,6 +543,11 @@ internal fun LyricTimingEditorScreen(
                             selectedWord = selectedWordIndex,
                             activeWord = if (index == activeLineIndex) activeWordIndex else null,
                             onSelectWord = { selectedWord = it },
+                            onWordLongClick = { wordIndex ->
+                                if (line.words.isNotEmpty() && wordIndex in line.words.indices) {
+                                    pendingDeleteTarget = TimingDeleteTarget.Word(index, wordIndex)
+                                }
+                            },
                             onRoleChange = ::changeRole,
                             onLineChange = { text -> updateSelected { it.copy(text = text) } },
                             onTranslationChange = { translation -> updateSelected { it.copy(translation = translation.takeIf(String::isNotBlank)) } },
@@ -605,6 +650,29 @@ internal fun LyricTimingEditorScreen(
             }
         }
     }
+
+    pendingDeleteTarget?.let { target ->
+        val isLine = target is TimingDeleteTarget.Line
+        ConfirmDangerDialog(
+            show = true,
+            title = stringResource(
+                if (isLine) R.string.lyric_timing_editor_delete_line_title
+                else R.string.lyric_timing_editor_delete_word_title
+            ),
+            message = stringResource(
+                if (isLine) R.string.lyric_timing_editor_delete_line_message
+                else R.string.lyric_timing_editor_delete_word_message
+            ),
+            onDismiss = { pendingDeleteTarget = null },
+            onConfirm = {
+                pendingDeleteTarget = null
+                when (target) {
+                    is TimingDeleteTarget.Line -> deleteLine(target.index)
+                    is TimingDeleteTarget.Word -> deleteWord(target.lineIndex, target.wordIndex)
+                }
+            }
+        )
+    }
 }
 
 private const val MAX_EDITOR_HISTORY = 32
@@ -694,7 +762,8 @@ private fun TimingLineCard(
     line: LyricTimingLine,
     selected: Boolean,
     active: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -708,7 +777,7 @@ private fun TimingLineCard(
                     else -> MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.74f)
                 }
             )
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -734,6 +803,7 @@ private fun TimingLineEditor(
     selectedWord: Int,
     activeWord: Int?,
     onSelectWord: (Int) -> Unit,
+    onWordLongClick: (Int) -> Unit,
     onRoleChange: (String?) -> Unit,
     onLineChange: (String) -> Unit,
     onTranslationChange: (String) -> Unit,
@@ -799,7 +869,13 @@ private fun TimingLineEditor(
                     )
                 }
             }
-            WordTimingGrid(displayWords, selectedWord, activeWord, onSelectWord)
+            WordTimingGrid(
+                words = displayWords,
+                selectedWord = selectedWord,
+                activeWord = activeWord,
+                onSelectWord = onSelectWord,
+                onWordLongClick = onWordLongClick
+            )
         }
         EllaMiuixTextField(
             value = line.backgroundText.orEmpty(),
@@ -822,7 +898,8 @@ private fun WordTimingGrid(
     words: List<LyricWord>,
     selectedWord: Int,
     activeWord: Int?,
-    onSelectWord: (Int) -> Unit
+    onSelectWord: (Int) -> Unit,
+    onWordLongClick: (Int) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         words.chunked(3).forEachIndexed { row, rowWords ->
@@ -840,7 +917,10 @@ private fun WordTimingGrid(
                                     else -> MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f)
                                 }
                             )
-                            .clickable { onSelectWord(index) }
+                            .combinedClickable(
+                                onClick = { onSelectWord(index) },
+                                onLongClick = { onWordLongClick(index) }
+                            )
                             .padding(vertical = 7.dp, horizontal = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {

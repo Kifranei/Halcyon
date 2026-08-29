@@ -259,6 +259,9 @@
     <string name="settings_lyrics">歌词</string>
     <string name="settings_lyrics_summary">词幕、桌面歌词、状态栏歌词和车载歌词</string>
     <string name="settings_player_lyric_text_align">播放页歌词对齐</string>
+    <string name="settings_lyric_page_vertical_align">播放页歌词垂直位置</string>
+    <string name="settings_lyric_page_vertical_align_upper">上方（Apple Music）</string>
+    <string name="settings_lyric_page_vertical_align_center">居中（1.2.7 之前）</string>
     <string name="player_output_bluetooth">蓝牙设备</string>
     <string name="player_output_headphones">耳机</string>
     <string name="player_output_usb_audio">USB 音频</string>
@@ -295,10 +298,10 @@
     <string name="logs_retention_days">%1$d 天</string>
     <string name="logs_retention_removed">已清理 %1$d 条旧日志</string>
     <string name="logs_retention_set">已设为保留 %1$d 天</string>
-    <string name="logs_summary">共 %1$d 条，当前显示 %2$d 条；错误 %3$d 条，警告 %4$d 条；自动抓取本进程 logcat、网络失败和关键播放/歌词/扫描日志，最多保留最近 %5$d 天和 3000 条记录</string>
+    <string name="logs_summary">共 %1$d 条，当前显示 %2$d 条；错误 %3$d 条，警告 %4$d 条。直接读取本进程 logcat，不再单独落盘，也不再截断为 3000 条</string>
     <string name="logs_empty">暂无日志</string>
     <string name="logs_empty_filtered">没有匹配的日志</string>
-    <string name="logs_clear_message">将清空全部 %1$d 条持久化日志，此操作不可恢复。</string>
+    <string name="logs_clear_message">将清空当前界面中的 %1$d 条 logcat 记录。系统 logcat 缓冲区仍由 Android 管理。</string>
     <string name="logs_field_time">时间</string>
     <string name="logs_field_level">级别</string>
     <string name="logs_field_type">类型</string>
@@ -352,6 +355,8 @@
     <string name="settings_category_grid_columns_option_summary_default">适合多数屏幕</string>
     <string name="settings_show_album_artists">显示专辑艺术家</string>
     <string name="settings_show_album_artists_summary">开启后将专辑艺术家并入艺术家列表，并在艺术家页显示发行专辑标签页</string>
+    <string name="settings_parse_featured_artists">从歌曲名识别 feat. 艺术家</string>
+    <string name="settings_parse_featured_artists_summary">将歌曲名中的 feat.、ft.、featuring 艺术家加入艺术家列表，并与 ARTIST 标签去重</string>
     <string name="settings_show_artist_introduction">显示艺术家介绍</string>
     <string name="settings_show_artist_introduction_summary">在艺术家详情页显示“介绍”入口</string>
     <string name="settings_artist_cover_folder">艺术家封面目录</string>
@@ -662,11 +667,19 @@
     <string name="webdav_config_removed">WebDAV 配置已移除</string>
     <string name="webdav_configure_first">请先配置 WebDAV</string>
     <string name="webdav_added_to_queue">已加入播放列表</string>
+    <string name="webdav_folder_add_to_favorites">收藏整个目录</string>
+    <string name="webdav_folder_create_playlist">用此目录新建歌单</string>
+    <string name="webdav_folder_collecting">正在收集目录歌曲…</string>
+    <string name="webdav_folder_collect_empty">这个目录里没有可导入的歌曲</string>
+    <string name="webdav_folder_favorited">已收藏 %1$d 首</string>
+    <string name="webdav_folder_playlist_created">已用「%1$s」新建歌单，共 %2$d 首</string>
     <string name="webdav_directory">WebDAV 目录</string>
     <string name="webdav_loading_directory">正在读取远程目录...</string>
     <string name="webdav_empty_directory">远程目录为空或没有可播放音频</string>
     <string name="webdav_item_directory">目录</string>
     <string name="webdav_remote_audio">远程音频</string>
+    <string name="webdav_search_placeholder">搜索当前 WebDAV 歌单</string>
+    <string name="webdav_search_empty">没有找到匹配的远程歌曲或目录</string>
     <string name="webdav_url">地址</string>
     <string name="webdav_username">用户名</string>
     <string name="webdav_password">密码</string>
@@ -977,9 +990,9 @@
     <string name="settings_backup_settings_section">应用数据</string>
     <string name="settings_backup_playback_section">Prism Music</string>
     <string name="settings_backup_export_settings_title">导出应用数据</string>
-    <string name="settings_backup_export_settings_summary">导出设置、歌单、听歌历史、统计、AI 对话和在线源</string>
+    <string name="settings_backup_export_settings_summary">以 ZIP 导出设置、歌单、听歌历史、统计、AI 对话、在线源和自定义资源</string>
     <string name="settings_backup_restore_settings_title">恢复应用数据</string>
-    <string name="settings_backup_restore_settings_summary">从备份 JSON 恢复设置、歌单、历史、统计和在线源</string>
+    <string name="settings_backup_restore_settings_summary">从 ZIP 或旧版 JSON 恢复设置、歌单、历史、统计和在线源</string>
     <string name="settings_backup_export_playback_title">导出听歌历史到 Prism Music</string>
     <string name="settings_backup_export_playback_summary">导出 Prism Music 兼容 sessions JSON</string>
     <string name="settings_backup_restore_playback_title">导入听歌历史</string>
@@ -1076,6 +1089,10 @@
     <string name="lyric_timing_editor_saved">歌词打轴已写入歌曲内嵌 LRC</string>
     <string name="lyric_timing_editor_no_lines">请先输入至少一行歌词</string>
     <string name="lyric_timing_editor_complete_lines">请先为全部歌词打轴</string>
+    <string name="lyric_timing_editor_delete_line_title">删除整行歌词？</string>
+    <string name="lyric_timing_editor_delete_line_message">这会删除当前行及其所有时间信息，是否继续？</string>
+    <string name="lyric_timing_editor_delete_word_title">删除整词时间？</string>
+    <string name="lyric_timing_editor_delete_word_message">这会删除当前词的时间信息，是否继续？</string>
     <string name="lyric_timing_editor_embed_format">嵌入格式</string>
     <string name="lyric_timing_editor_format_lrc">LRC</string>
     <string name="lyric_timing_editor_format_elrc">ELRC</string>
@@ -1725,6 +1742,7 @@
     <string name="playlist_sort_name">名称</string>
     <string name="playlist_sort_song_count">歌曲数</string>
     <string name="playlist_sort_duration">歌曲时长</string>
+    <string name="playlist_sort_play_count">播放次数</string>
     <string name="playlist_song_sort_custom">自定义</string>
     <string name="playlist_song_sort_custom_desc">自定义倒序</string>
     <string name="playlist_song_sort_added_at">加入时间</string>
@@ -2177,6 +2195,9 @@
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">导入失败: HTTP %1$d</string>
     <string name="lx_service_source_script_abnormal">源脚本内容异常</string>
+    <string name="lx_service_source_html_page">导入的是网页而不是 JS 源。请粘贴源脚本的 .js 直链，而不是介绍页地址</string>
+    <string name="lx_service_source_json_not_lx">这是 JSON 配置（例如青听音乐/MusicFree），不是洛雪 JS 源。请导入 script.js 或 latest.js 直链</string>
+    <string name="lx_service_source_share_page">这是网盘分享页，不能当音源导入。请打开分享后复制 .js 直链</string>
     <string name="lx_service_source_init_failed">源初始化失败</string>
     <string name="lx_service_select_source_first">请先选择一个 LX 源</string>
     <string name="lx_service_search_failed_http">搜索失败: HTTP %1$d</string>
@@ -2454,4 +2475,22 @@
     <string name="settings_immersive_lyric_swipe_summary">在下方歌词区域左右横滑切换上一首或下一首</string>
     <string name="library_layout_grid">网格排列</string>
     <string name="library_layout_list">列表排列</string>
+    <string name="settings_artist_image_download">自动下载艺术家图片</string>
+    <string name="settings_artist_image_download_summary">按网络条件自动从启用的艺术家图片来源获取图片；艺术家封面目录始终优先</string>
+    <string name="settings_artist_image_download_always">总是</string>
+    <string name="settings_artist_image_download_wifi">仅通过 Wi-Fi</string>
+    <string name="settings_artist_image_download_never">从不</string>
+    <string name="settings_artist_image_sources">艺术家图片来源优先级</string>
+    <string name="settings_artist_image_sources_summary">拖动或使用箭头调整顺序，关闭来源后将跳过它</string>
+    <string name="settings_artist_image_source_lastfm">Last.fm</string>
+    <string name="settings_artist_image_source_spotify">Spotify</string>
+    <string name="settings_artist_image_source_netease">网易云音乐</string>
+    <string name="settings_artist_image_source_move_up">上移</string>
+    <string name="settings_artist_image_source_move_down">下移</string>
+    <string name="settings_spotify_client_id">Spotify Client ID</string>
+    <string name="settings_spotify_client_id_summary">用于获取 Spotify 艺术家图片；留空则跳过 Spotify</string>
+    <string name="settings_spotify_client_secret">Spotify Client Secret</string>
+    <string name="settings_spotify_client_secret_summary">仅用于 Spotify Client Credentials 请求</string>
+    <string name="settings_artist_image_region">Last.fm / Spotify 地区</string>
+    <string name="settings_artist_image_region_summary">选择 Last.fm 语言与 Spotify 区域，影响艺术家图片检索。</string>
 </resources>

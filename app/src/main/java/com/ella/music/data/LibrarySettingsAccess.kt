@@ -16,6 +16,7 @@ import com.ella.music.data.SettingsManager.Companion.DEFAULT_GENRE_SEPARATORS
 import com.ella.music.data.SettingsManager.Companion.KEY_ADD_TO_PLAYLIST_APPEND_TO_END
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_PROTECTED_NAMES
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_SEPARATORS
+import com.ella.music.data.SettingsManager.Companion.KEY_PARSE_FEATURED_ARTISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_AUTO_SCAN
 import com.ella.music.data.SettingsManager.Companion.KEY_AUTO_SCAN_LOCAL_PLAYLISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_AUTO_SHOW_SEARCH_KEYBOARD
@@ -55,7 +56,13 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ALBUM_ARTISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ARTIST_INTRODUCTION
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_BIO_DOWNLOAD
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_BIO_LASTFM_LANG
+import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_IMAGE_DOWNLOAD
+import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_IMAGE_SOURCES
+import com.ella.music.data.SettingsManager.Companion.KEY_SPOTIFY_CLIENT_ID
+import com.ella.music.data.SettingsManager.Companion.KEY_SPOTIFY_CLIENT_SECRET
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_ARTIST_BIO_DOWNLOAD
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_ARTIST_IMAGE_DOWNLOAD
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_ARTIST_IMAGE_SOURCES
 import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
 import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_LOCAL_MV_IN_LISTS
@@ -104,6 +111,10 @@ interface LibrarySettingsAccess {
     val showArtistIntroduction: Flow<Boolean>
     val artistBioDownload: Flow<Int>
     val artistBioLastFmLang: Flow<String>
+    val artistImageDownload: Flow<Int>
+    val artistImageSourceOrder: Flow<List<String>>
+    val spotifyClientId: Flow<String>
+    val spotifyClientSecret: Flow<String>
     val metadataEditorId: Flow<String>
     val lyricTimingEditorId: Flow<String>
     val spectrumViewerId: Flow<String>
@@ -124,6 +135,7 @@ interface LibrarySettingsAccess {
     val notificationPermissionPromptHandled: Flow<Boolean>
     val artistSeparators: Flow<String>
     val artistProtectedNames: Flow<String>
+    val parseFeaturedArtists: Flow<Boolean>
     val genreSeparators: Flow<String>
     val genreProtectedNames: Flow<String>
     val tagIgnoreCase: Flow<Boolean>
@@ -153,6 +165,10 @@ interface LibrarySettingsAccess {
     suspend fun setShowArtistIntroduction(enabled: Boolean)
     suspend fun setArtistBioDownload(mode: Int)
     suspend fun setArtistBioLastFmLang(lang: String)
+    suspend fun setArtistImageDownload(mode: Int)
+    suspend fun setArtistImageSourceOrder(sources: List<String>)
+    suspend fun setSpotifyClientId(value: String)
+    suspend fun setSpotifyClientSecret(value: String)
     suspend fun setMetadataEditorId(id: String)
     suspend fun setLyricTimingEditorId(id: String)
     suspend fun setSpectrumViewerId(id: String)
@@ -188,6 +204,7 @@ interface LibrarySettingsAccess {
     suspend fun setNotificationPermissionPromptHandled(handled: Boolean)
     suspend fun setArtistSeparators(separators: String)
     suspend fun setArtistProtectedNames(names: String)
+    suspend fun setParseFeaturedArtists(enabled: Boolean)
     suspend fun setGenreSeparators(separators: String)
     suspend fun setGenreProtectedNames(names: String)
     suspend fun setTagIgnoreCase(enabled: Boolean)
@@ -255,6 +272,29 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map {
             normalizeLastFmWikiRegion(it[KEY_ARTIST_BIO_LASTFM_LANG] ?: DEFAULT_LAST_FM_WIKI_REGION)
         }
+    override val artistImageDownload: Flow<Int> =
+        context.dataStore.data.map {
+            SettingsManager.normalizeArtistImageDownload(
+                it[KEY_ARTIST_IMAGE_DOWNLOAD] ?: DEFAULT_ARTIST_IMAGE_DOWNLOAD
+            )
+        }
+      override val artistImageSourceOrder: Flow<List<String>> =
+          context.dataStore.data.map {
+            val raw = it[KEY_ARTIST_IMAGE_SOURCES]
+            val stored = raw
+                .orEmpty()
+                .lineSequence()
+                .toList()
+            val normalized = SettingsManager.normalizeArtistImageSources(stored)
+            if (raw == null) {
+                DEFAULT_ARTIST_IMAGE_SOURCES
+            } else {
+                normalized
+            }
+        }
+    override val spotifyClientId: Flow<String> = context.dataStore.data.map { it[KEY_SPOTIFY_CLIENT_ID].orEmpty() }
+    override val spotifyClientSecret: Flow<String> =
+        context.dataStore.data.map { it[KEY_SPOTIFY_CLIENT_SECRET].orEmpty() }
     override val metadataEditorId: Flow<String> =
         context.dataStore.data.map { it[KEY_METADATA_EDITOR_ID] ?: "" }
     override val lyricTimingEditorId: Flow<String> =
@@ -299,6 +339,9 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         it[KEY_ARTIST_SEPARATORS] ?: DEFAULT_ARTIST_SEPARATORS
     }
     override val artistProtectedNames: Flow<String> = context.dataStore.data.map { it[KEY_ARTIST_PROTECTED_NAMES] ?: "" }
+    override val parseFeaturedArtists: Flow<Boolean> = context.dataStore.data.map {
+        it[KEY_PARSE_FEATURED_ARTISTS] ?: false
+    }
     override val genreSeparators: Flow<String> = context.dataStore.data.map {
         it[KEY_GENRE_SEPARATORS] ?: DEFAULT_GENRE_SEPARATORS
     }
@@ -423,6 +466,33 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     override suspend fun setArtistBioLastFmLang(lang: String) {
         context.dataStore.edit {
             it[KEY_ARTIST_BIO_LASTFM_LANG] = normalizeLastFmWikiRegion(lang)
+        }
+    }
+
+    override suspend fun setArtistImageDownload(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_ARTIST_IMAGE_DOWNLOAD] = SettingsManager.normalizeArtistImageDownload(mode)
+        }
+    }
+
+    override suspend fun setArtistImageSourceOrder(sources: List<String>) {
+        context.dataStore.edit {
+            it[KEY_ARTIST_IMAGE_SOURCES] = SettingsManager.normalizeArtistImageSources(sources)
+                .joinToString(separator = "\n")
+        }
+    }
+
+    override suspend fun setSpotifyClientId(value: String) {
+        context.dataStore.edit {
+            val normalized = value.trim()
+            if (normalized.isBlank()) it.remove(KEY_SPOTIFY_CLIENT_ID) else it[KEY_SPOTIFY_CLIENT_ID] = normalized
+        }
+    }
+
+    override suspend fun setSpotifyClientSecret(value: String) {
+        context.dataStore.edit {
+            val normalized = value.trim()
+            if (normalized.isBlank()) it.remove(KEY_SPOTIFY_CLIENT_SECRET) else it[KEY_SPOTIFY_CLIENT_SECRET] = normalized
         }
     }
 
@@ -708,6 +778,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setArtistProtectedNames(names: String) {
         context.dataStore.edit { it[KEY_ARTIST_PROTECTED_NAMES] = names.trim() }
+    }
+
+    override suspend fun setParseFeaturedArtists(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PARSE_FEATURED_ARTISTS] = enabled }
     }
 
     override suspend fun setGenreSeparators(separators: String) {

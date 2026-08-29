@@ -11,6 +11,7 @@ import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -379,6 +380,7 @@ fun FloatingBottomBar(
         CompositionLocalProvider(LocalFloatingBottomBarContentColor provides colors.contentColor) {
             Row(
                 Modifier
+                    .focusGroup()
                     .onGloballyPositioned { coords ->
                         totalWidthPx = coords.size.width.toFloat()
                         val contentWidthPx = totalWidthPx - with(density) { 8.dp.toPx() }

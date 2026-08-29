@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.LibraryNormalizer
 import com.ella.music.viewmodel.MainViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
@@ -234,6 +235,13 @@ internal fun TasteProfileCard(profile: TasteProfile) {
 @Composable
 private fun TasteInsightRow(insight: TasteInsight) {
     val context = LocalContext.current
+    val displayTitle = if (insight.labelRes == R.string.analytics_taste_top_album &&
+        LibraryNormalizer.isGeneratedUnknownAlbumPlaceholder(insight.title)
+    ) {
+        context.getString(R.string.player_unknown_album)
+    } else {
+        insight.title
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -247,7 +255,7 @@ private fun TasteInsightRow(insight: TasteInsight) {
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
             Text(
-                text = insight.title,
+                text = displayTitle,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onSurface,
@@ -331,6 +339,14 @@ private fun FavoriteInsightCard(
     insight: ListeningInsight,
     mainViewModel: MainViewModel
 ) {
+    val context = LocalContext.current
+    val displayTitle = if (insight.labelRes == R.string.analytics_month_favorite_album &&
+        LibraryNormalizer.isGeneratedUnknownAlbumPlaceholder(insight.title)
+    ) {
+        context.getString(R.string.player_unknown_album)
+    } else {
+        insight.title
+    }
     Card(
         modifier = Modifier
             .width(168.dp)
@@ -375,7 +391,7 @@ private fun FavoriteInsightCard(
                     .padding(12.dp)
             ) {
                 Text(
-                    text = insight.title,
+                    text = displayTitle,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,

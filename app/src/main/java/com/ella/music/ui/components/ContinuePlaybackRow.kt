@@ -146,8 +146,10 @@ internal fun resolveContinuePlaybackIndex(
     storedResumeKey: String?
 ): Int {
     if (playbackSourceKey == categoryKey && currentSong != null) {
-        val currentKey = currentSong.playlistIdentityKey()
-        songs.indexOfFirst { it.playlistIdentityKey() == currentKey }.takeIf { it >= 0 }?.let { return it }
+        // The current list is already the playback surface. Showing a "continue" row here after
+        // the user just tapped a song is both redundant and misleading; it also used to leave a
+        // stale-looking header above the newly playing item on library and playlist pages.
+        return -1
     }
     if (storedResumeKey.isNullOrBlank()) return -1
     return songs.indexOfFirst { it.playlistIdentityKey() == storedResumeKey }

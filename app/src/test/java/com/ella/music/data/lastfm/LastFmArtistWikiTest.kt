@@ -46,6 +46,31 @@ class LastFmArtistWikiTest {
     }
 
     @Test
+    fun lastFmArtistImagePrefersLargestMatchingImage() {
+        val json = """
+            {"artist":{"name":"Muse","image":[
+              {"#text":"https://example.com/small.jpg","size":"small"},
+              {"#text":"https://example.com/mega.jpg","size":"mega"},
+              {"#text":"https://example.com/large.jpg","size":"large"}
+            ]}}
+        """.trimIndent()
+
+        assertEquals(
+            "https://example.com/mega.jpg",
+            parseLastFmArtistImageUrl(json, requestedArtistName = "Muse")
+        )
+    }
+
+    @Test
+    fun artistImageParsersRejectDifferentArtist() {
+        val lastFm = """{"artist":{"name":"Muse Tribute","image":[{"#text":"https://example.com/a.jpg","size":"mega"}]}}"""
+        val netease = """{"result":{"artists":[{"name":"Muse Tribute","picUrl":"https://example.com/a.jpg"}]}}"""
+
+        assertEquals(null, parseLastFmArtistImageUrl(lastFm, requestedArtistName = "Muse"))
+        assertEquals(null, parseNeteaseArtistImageUrl(netease, "Muse"))
+    }
+
+    @Test
     fun chineseFallbackDoesNotOverrideOtherSelectedRegions() {
         assertEquals(
             listOf(

@@ -187,7 +187,7 @@ private fun rememberThrottledFlowTimeMs(key: Any?, animate: Boolean): Long {
     return sharedClockMs
 }
 
-private fun Bitmap.scaledForFlowSource(maxDimension: Int = 256): Bitmap {
+internal fun Bitmap.scaledForFlowSource(maxDimension: Int = 256): Bitmap {
     val longest = max(width, height)
     if (longest <= maxDimension || longest <= 0) return this
     val scale = maxDimension.toFloat() / longest
@@ -204,7 +204,7 @@ private fun appleFlowDownsampleFactor(densityDpi: Int): Float = if (densityDpi >
 /**
  * Renders one flow frame into a tiny bitmap. All heavy work is confined to this ~1/16-scale canvas.
  */
-private fun createAppleFlowFrameBitmap(
+internal fun createAppleFlowFrameBitmap(
     cover: Bitmap,
     viewportW: Int,
     viewportH: Int,
@@ -260,13 +260,16 @@ private fun createAppleFlowFrameBitmap(
     // Center-crop the 1.3x overscan.
     val cropW = (blurred.width / 1.3f).roundToInt().coerceIn(1, blurred.width)
     val cropH = (blurred.height / 1.3f).roundToInt().coerceIn(1, blurred.height)
-    return Bitmap.createBitmap(
+    val result = Bitmap.createBitmap(
         blurred,
         ((blurred.width - cropW) / 2).coerceAtLeast(0),
         ((blurred.height - cropH) / 2).coerceAtLeast(0),
         cropW,
         cropH
     )
+    if (result !== blurred) blurred.recycle()
+    if (frame !== blurred && frame !== result) frame.recycle()
+    return result
 }
 
 private fun drawFlowLayer(

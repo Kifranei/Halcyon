@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.MusicVideoLauncher
 import com.ella.music.data.audioQualitySummary
+import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
@@ -531,8 +532,12 @@ internal fun AlbumHeader(
     onCoverClick: () -> Unit,
     onPlayAll: () -> Unit
 ) {
-    val albumArtist = album?.albumArtist?.takeIf { it.isNotBlank() }
-        ?: album?.artist?.takeIf { it.isNotBlank() }
+    // An album artist is a distinct tag.  Do not substitute the track artist when the album
+    // artist is missing; that makes split/compilation albums display misleading metadata (#570).
+    val albumArtist = album?.albumArtist?.takeIf(LibraryNormalizer::isUsableArtistText)
+    val albumTitle = album?.name
+        ?.takeUnless(LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
+        ?: stringResource(R.string.player_unknown_album)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -573,7 +578,7 @@ internal fun AlbumHeader(
                     .padding(top = 2.dp)
             ) {
                 Text(
-                    text = album?.name ?: stringResource(R.string.player_unknown_album),
+                    text = albumTitle,
                     fontSize = 20.sp,
                     lineHeight = 25.sp,
                     fontWeight = FontWeight.Bold,

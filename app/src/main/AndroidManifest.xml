@@ -6,6 +6,7 @@
 
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -193,10 +194,12 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:label="@string/app_name"
+            android:banner="@drawable/tv_banner"
             android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity-alias>
 
@@ -206,10 +209,12 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_anime"
             android:label="@string/app_name"
+            android:banner="@drawable/tv_banner"
             android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity-alias>
 
@@ -219,10 +224,12 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_black_hair"
             android:label="@string/app_name"
+            android:banner="@drawable/tv_banner"
             android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity-alias>
 
@@ -232,10 +239,12 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_loli"
             android:label="@string/app_name"
+            android:banner="@drawable/tv_banner"
             android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity-alias>
 

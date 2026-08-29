@@ -3,6 +3,7 @@ package com.ella.music.data.webdav
 import android.content.Context
 import android.text.Html
 import android.util.Log
+import android.util.Xml
 import com.ella.music.R
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.AppLogType
@@ -12,10 +13,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import org.w3c.dom.Element
-import org.xml.sax.InputSource
 import java.io.File
 import java.io.IOException
 import java.io.StringReader
@@ -29,7 +29,7 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLHandshakeException
-import javax.xml.parsers.DocumentBuilderFactory
+import org.xmlpull.v1.XmlPullParser
 
 enum class WebDavAuthMode {
     AUTO,
@@ -63,6 +63,7 @@ class WebDavException(message: String) : IOException(message)
 
 object WebDavClient {
     private const val TAG = "WebDavClient"
+    private const val DEFAULT_LIST_BATCH_SIZE = 200
     private val audioExtensions = setOf("mp3", "m4a", "flac", "wav", "ogg", "opus", "aac", "alac")
 
     @Volatile
@@ -141,17 +142,65 @@ object WebDavClient {
         }
     }
 
+    fun listAudioRecursive(
+        config: WebDavConfig,
+        url: String,
+        maxDepth: Int = 6,
+        maxItems: Int = 1_500
+    ): List<WebDavItem> {
+        val result = ArrayList<WebDavItem>()
+        fun walk(dirUrl: String, depth: Int) {
+            if (depth > maxDepth || result.size >= maxItems) return
+            val children = runCatching { list(config, dirUrl) }.getOrDefault(emptyList())
+            children.forEach { item ->
+                if (result.size >= maxItems) return
+                if (item.isDirectory) {
+                    walk(item.url, depth + 1)
+                } else {
+                    result += item
+                }
+            }
+        }
+        walk(url, 0)
+        return result
+    }
+
     fun list(
         config: WebDavConfig,
         url: String = config.url,
         forceRefresh: Boolean = false,
         includeNonAudioFiles: Boolean = false
+    ): List<WebDavItem> = listBatched(
+        config = config,
+        url = url,
+        forceRefresh = forceRefresh,
+        includeNonAudioFiles = includeNonAudioFiles
+    )
+
+    /**
+     * Reads a directory in bounded UI-sized chunks. PROPFIND itself has no portable offset/limit
+     * parameter, so the server response is parsed once and the already sorted result is merged in
+     * batches. This keeps large flat directories from making Compose compose thousands of rows in
+     * one frame while retaining one consistent snapshot for callers such as the library scanner.
+     */
+    fun listBatched(
+        config: WebDavConfig,
+        url: String = config.url,
+        forceRefresh: Boolean = false,
+        includeNonAudioFiles: Boolean = false,
+        batchSize: Int = DEFAULT_LIST_BATCH_SIZE,
+        onBatch: (List<WebDavItem>) -> Unit = {}
     ): List<WebDavItem> {
         if (!config.isConfigured) return emptyList()
         val ctx = requireContext()
         val requestUrl = normalizeCollectionUrl(url)
         val cacheKey = "${requestUrl}|${config.username}|${config.authMode}|files=$includeNonAudioFiles"
-        if (!forceRefresh) listCache[cacheKey]?.let { return it }
+        if (!forceRefresh) {
+            listCache[cacheKey]?.let {
+                emitListBatches(it, batchSize, onBatch)
+                return it
+            }
+        }
         val propfind = executePropfind(requestUrl, config, depth = "1")
         val response = propfind.body
         if (propfind.code !in 200..399) {
@@ -161,11 +210,27 @@ object WebDavClient {
         }
         if (response.isBlank()) return emptyList()
 
-        return parseItems(response, requestUrl)
+        val result = parseItems(response, requestUrl)
             .filterNot { normalizeCollectionUrl(it.url) == requestUrl }
             .filter { it.isDirectory || includeNonAudioFiles || isAudioFile(it.name) }
             .sortedWith(compareByDescending<WebDavItem> { it.isDirectory }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name })
-            .also { listCache[cacheKey] = it }
+        emitListBatches(result, batchSize, onBatch)
+        listCache[cacheKey] = result
+        return result
+    }
+
+    private fun emitListBatches(
+        items: List<WebDavItem>,
+        batchSize: Int,
+        onBatch: (List<WebDavItem>) -> Unit
+    ) {
+        val safeBatchSize = batchSize.coerceAtLeast(1)
+        if (items.isEmpty()) return
+        val merged = ArrayList<WebDavItem>(items.size)
+        items.chunked(safeBatchSize).forEach { batch ->
+            merged += batch
+            onBatch(merged.toList())
+        }
     }
 
     fun clearListCache() {
@@ -195,6 +260,26 @@ object WebDavClient {
 
     fun uploadFileFromString(url: String, config: WebDavConfig, content: String, contentType: String = "application/json") {
         uploadFile(url, config, content.toByteArray(Charsets.UTF_8), contentType)
+    }
+
+    fun uploadFileFromFile(url: String, config: WebDavConfig, file: File, contentType: String = "application/zip") {
+        val ctx = requireContext()
+        require(file.isFile) { "Upload file does not exist" }
+        val requestUrl = normalizeRequestUrl(url)
+        ensureParentDirectory(requestUrl, config)
+        val body = file.asRequestBody(contentType.toMediaType())
+        val request = Request.Builder()
+            .url(requestUrl)
+            .put(body)
+            .tag(WebDavConfig::class.java, config)
+            .apply { applyPreemptiveBasicAuth(config) }
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+            if (response.code !in 200..399) {
+                throw WebDavException(WebDavResponse(response.code, response.body?.string().orEmpty()).toFriendlyMessage(ctx))
+            }
+        }
     }
 
     fun mkdir(url: String, config: WebDavConfig) {
@@ -298,32 +383,52 @@ object WebDavClient {
 
     private fun parseItems(xml: String, baseUrl: String): List<WebDavItem> {
         return runCatching {
-            val document = DocumentBuilderFactory.newInstance().apply {
-                isNamespaceAware = true
-                isIgnoringComments = true
-            }.newDocumentBuilder().parse(InputSource(StringReader(xml)))
-            val responses = document.getElementsByTagNameNS("*", "response")
-            (0 until responses.length).mapNotNull { index ->
-                val response = responses.item(index) as? Element ?: return@mapNotNull null
-                val href = response.firstText("href").ifBlank { return@mapNotNull null }
-                val itemUrl = resolveHref(baseUrl, href)
-                val decodedPath = URLDecoder.decode(URI(itemUrl).path.substringAfterLast('/'), "UTF-8")
-                val name = decodedPath.ifBlank { itemUrl.trimEnd('/').substringAfterLast('/').decodeUrlPart() }
-                val resourceType = response.getElementsByTagNameNS("*", "collection")
-                val isDirectory = resourceType.length > 0 || itemUrl.endsWith("/")
-                val size = response.firstText("getcontentlength").toLongOrNull() ?: 0L
-                val mimeType = response.firstText("getcontenttype")
-                    .substringBefore(';')
-                    .trim()
-                    .lowercase(Locale.ROOT)
-                WebDavItem(
-                    name = Html.fromHtml(name, Html.FROM_HTML_MODE_LEGACY).toString(),
-                    url = itemUrl,
-                    isDirectory = isDirectory,
-                    size = size,
-                    mimeType = mimeType
-                )
+            val parser = Xml.newPullParser()
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
+            parser.setInput(StringReader(xml))
+            val result = mutableListOf<WebDavItem>()
+            var current: WebDavItemBuilder? = null
+            var textTag: String? = null
+            val text = StringBuilder()
+
+            while (true) {
+                when (parser.eventType) {
+                    XmlPullParser.START_TAG -> {
+                        val tag = parser.name.orEmpty().substringAfterLast(':').lowercase(Locale.ROOT)
+                        if (tag == "response") {
+                            current = WebDavItemBuilder()
+                        } else if (current != null) {
+                            when (tag) {
+                                "collection" -> current.isDirectory = true
+                                "href", "getcontentlength", "getcontenttype" -> {
+                                    textTag = tag
+                                    text.setLength(0)
+                                }
+                            }
+                        }
+                    }
+                    XmlPullParser.TEXT, XmlPullParser.CDSECT -> {
+                        if (textTag != null) text.append(parser.text.orEmpty())
+                    }
+                    XmlPullParser.END_TAG -> {
+                        val tag = parser.name.orEmpty().substringAfterLast(':').lowercase(Locale.ROOT)
+                        if (tag == textTag) {
+                            current?.setText(tag, text.toString())
+                            textTag = null
+                            text.setLength(0)
+                        }
+                        if (tag == "response") {
+                            current?.toItem(baseUrl)?.let(result::add)
+                            current = null
+                            textTag = null
+                            text.setLength(0)
+                        }
+                    }
+                }
+                if (parser.eventType == XmlPullParser.END_DOCUMENT) break
+                parser.next()
             }
+            result
         }.getOrElse { error ->
             Log.e(TAG, "WebDAV XML parse failed: ${baseUrl.safeLogUrl()}", error)
             AppLogStore.error(
@@ -334,6 +439,39 @@ object WebDavClient {
                 AppLogType.NETWORK
             )
             emptyList()
+        }
+    }
+
+    private class WebDavItemBuilder {
+        var href: String = ""
+        var size: Long = 0L
+        var mimeType: String = ""
+        var isDirectory: Boolean = false
+
+        fun setText(tag: String, value: String) {
+            when (tag) {
+                "href" -> href = value.trim()
+                "getcontentlength" -> size = value.trim().toLongOrNull() ?: 0L
+                "getcontenttype" -> mimeType = value.substringBefore(';').trim().lowercase(Locale.ROOT)
+            }
+        }
+
+        fun toItem(baseUrl: String): WebDavItem? {
+            if (href.isBlank()) return null
+            return runCatching {
+                val itemUrl = resolveHref(baseUrl, href)
+                val fallbackName = itemUrl.trimEnd('/').substringAfterLast('/').decodeUrlPart()
+                val pathName = runCatching { URI(itemUrl).path.orEmpty().substringAfterLast('/').decodeUrlPart() }
+                    .getOrDefault(fallbackName)
+                val displayName = pathName.ifBlank { fallbackName }.ifBlank { itemUrl }
+                WebDavItem(
+                    name = Html.fromHtml(displayName, Html.FROM_HTML_MODE_LEGACY)?.toString() ?: displayName,
+                    url = itemUrl,
+                    isDirectory = isDirectory || itemUrl.endsWith('/'),
+                    size = size,
+                    mimeType = mimeType
+                )
+            }.getOrNull()
         }
     }
 
@@ -631,11 +769,6 @@ object WebDavClient {
             total += read
         }
         return total
-    }
-
-    private fun Element.firstText(localName: String): String {
-        val nodes = getElementsByTagNameNS("*", localName)
-        return (nodes.item(0)?.textContent ?: "").trim()
     }
 
     private val BASIC_PROPFIND = """

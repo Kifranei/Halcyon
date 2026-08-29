@@ -461,8 +461,7 @@ fun LxOnlineScreen(
                                 scope.launch {
                                     state.isBusy = true
                                     runCatching {
-                                        val playable = service.resolvePlayableSong(item, selectedSource?.script.orEmpty())
-                                        enqueueDownload(context, playable)
+                                        downloadLxSong(context, service, item, selectedSource?.script.orEmpty())
                                         showToast(context.getString(R.string.player_download_started))
                                     }.onFailure {
                                         state.message = it.localizedMessage ?: context.getString(R.string.lx_online_download_failed)
@@ -519,4 +518,19 @@ private fun enqueueDownload(context: Context, song: com.ella.music.data.model.So
         .setAllowedOverRoaming(true)
     val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     manager.enqueue(request)
+}
+
+private suspend fun downloadLxSong(
+    context: Context,
+    service: com.ella.music.data.lx.LxOnlineService,
+    item: com.ella.music.data.lx.LxOnlineSong,
+    sourceScript: String
+) {
+    val fileName = item.song.fileName.ifBlank { "${item.song.title}-${item.song.artist}.mp3" }
+        .sanitizeExportFileName(fallback = "Halcyon.mp3", maxLength = 160)
+    val target = java.io.File(
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+        "Halcyon/$fileName"
+    )
+    service.downloadWithMetadata(item, sourceScript, target)
 }

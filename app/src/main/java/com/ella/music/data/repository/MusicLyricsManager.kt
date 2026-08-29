@@ -194,6 +194,22 @@ internal class MusicLyricsManager(
                     ?.let { return it }
             }
         }
+        if (song.onlineId.isBlank() && song.onlineSource.isBlank()) return null
+        val script = settingsManager.lxSourceScript.first()
+        if (song.onlineSource.isNotBlank()) {
+            val onlineSong = com.ella.music.data.lx.LxOnlineSong(
+                song = song,
+                source = song.onlineSource,
+                songmid = song.onlineId,
+                quality = "128k",
+                coverUrl = song.coverUrl
+            )
+            runCatching {
+                com.ella.music.data.lx.LxOnlineService(context).fetchLyrics(onlineSong, script)
+            }.getOrNull()
+                ?.let { raw -> parseRemoteLyrics(raw, ignoreHeaderTags) }
+                ?.let { return it }
+        }
         if (song.onlineSource != "kw" || song.onlineId.isBlank()) return null
         val request = Request.Builder()
             .url("https://www.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${song.onlineId}")

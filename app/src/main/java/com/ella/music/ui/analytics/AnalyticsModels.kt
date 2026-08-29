@@ -6,6 +6,7 @@ import com.ella.music.R
 import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.audioQualitySummary
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.normalizedAudioFormat
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
@@ -157,7 +158,7 @@ internal fun buildMonthlyListeningReport(
 internal fun List<ResolvedHistoryEntry>.favoriteArtistInsight(): ListeningInsight? {
     val rows = flatMap { row ->
         val artistText = row.song?.artist?.takeIf { it.isNotBlank() } ?: row.entry.artist
-        splitArtistNames(artistText)
+        (row.song?.let(::artistNamesForSong) ?: splitArtistNames(artistText))
             .ifEmpty { listOf(artistText.trim()) }
             .filter { it.isNotBlank() }
             .map { artist -> artist to row }
@@ -204,7 +205,7 @@ internal fun List<ResolvedHistoryEntry>.favoriteAlbumInsight(): ListeningInsight
     return ListeningInsight(
         labelRes = R.string.analytics_month_favorite_album,
         title = first.song?.album ?: first.entry.album,
-        subtitle = first.song?.albumArtist?.takeIf { it.isNotBlank() } ?: first.song?.artist ?: first.entry.artist,
+        subtitle = first.song?.albumArtist?.takeIf { it.isNotBlank() }.orEmpty(),
         playCount = top.size,
         song = first.song
     )
@@ -282,12 +283,12 @@ internal fun buildTasteProfile(
 
     resolved.forEach { (stat, song) ->
         val artistText = song?.artist?.takeIf { it.isNotBlank() } ?: stat.artist
-        splitArtistNames(artistText)
+        (song?.let(::artistNamesForSong) ?: splitArtistNames(artistText))
             .ifEmpty { listOf(artistText) }
             .forEach { artist -> add(artists, artist, song?.album.orEmpty(), stat) }
 
         val album = song?.album?.takeIf { it.isNotBlank() } ?: stat.album
-        add(albums, album, song?.albumArtist?.takeIf { it.isNotBlank() } ?: artistText, stat)
+        add(albums, album, song?.albumArtist?.takeIf { it.isNotBlank() }.orEmpty(), stat)
 
         splitGenreNames(song?.genre.orEmpty()).forEach { genre -> add(genres, genre, "", stat) }
     }

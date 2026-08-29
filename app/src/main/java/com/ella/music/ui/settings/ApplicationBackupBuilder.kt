@@ -12,12 +12,33 @@ import org.json.JSONObject
 internal suspend fun buildCompleteApplicationBackupJson(
     context: Context,
     librarySongs: List<Song> = emptyList()
+): JSONObject = buildApplicationBackupJson(context, librarySongs = librarySongs)
+
+internal suspend fun buildApplicationBackupJson(
+    context: Context,
+    selectedTypes: Set<BackupType> = BackupType.entries.toSet(),
+    librarySongs: List<Song> = emptyList(),
+    includeDeviceLocalAssets: Boolean = false
 ): JSONObject = withContext(Dispatchers.IO) {
+    val filteredSettings = SettingsManager.getInstance(context)
+        .exportSettingsJson(includeDeviceLocalAssets = includeDeviceLocalAssets)
+        .filterBackupSettings(
+            selectedTypes = selectedTypes,
+            includeDeviceLocalAssets = includeDeviceLocalAssets
+        )
     JSONObject()
-        .put("version", 1)
+        .put("version", if (includeDeviceLocalAssets) 2 else 1)
         .put("exportedAt", System.currentTimeMillis())
-        .put("settings", SettingsManager.getInstance(context).exportSettingsJson())
-        .put("playlists", PlaylistStore.getInstance(context).exportJson())
-        .put("playback", PlaybackStatsStore.getInstance(context).exportJson(librarySongs))
-        .put("aiChat", exportAiChatBackupJson(context))
+        .apply {
+            if (filteredSettings.length() > 0) put("settings", filteredSettings)
+            if (BackupType.Playlists in selectedTypes) {
+                put("playlists", PlaylistStore.getInstance(context).exportJson())
+            }
+            if (BackupType.PlaybackStats in selectedTypes) {
+                put("playback", PlaybackStatsStore.getInstance(context).exportJson(librarySongs))
+            }
+            if (BackupType.AiConfigAndChat in selectedTypes) {
+                put("aiChat", exportAiChatBackupJson(context))
+            }
+        }
 }

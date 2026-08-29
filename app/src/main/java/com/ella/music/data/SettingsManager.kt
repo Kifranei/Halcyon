@@ -143,6 +143,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LYRIC_LINE_BLACKLIST = stringPreferencesKey("lyric_line_blacklist")
         val KEY_LYRIC_OFFSET_OVERRIDES = stringPreferencesKey("lyric_offset_overrides")
         val KEY_PLAYER_LYRIC_TEXT_ALIGN = intPreferencesKey("player_lyric_text_align")
+        val KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT = intPreferencesKey("lyric_page_vertical_alignment")
         val KEY_LYRIC_PRONUNCIATION_BELOW = booleanPreferencesKey("lyric_pronunciation_below")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_LYRIC_PAGE_KEEP_SCREEN_ON = booleanPreferencesKey("lyric_page_keep_screen_on")
@@ -268,6 +269,10 @@ class SettingsManager(private val context: Context) :
         val KEY_SHOW_ONLINE_MV_IN_LISTS = booleanPreferencesKey("show_online_mv_in_lists")
         val KEY_ARTIST_COVER_FOLDER_URI = stringPreferencesKey("artist_cover_folder_uri")
         val KEY_ARTIST_COVER_CAROUSEL = booleanPreferencesKey("artist_cover_carousel")
+        val KEY_ARTIST_IMAGE_DOWNLOAD = intPreferencesKey("artist_image_download")
+        val KEY_ARTIST_IMAGE_SOURCES = stringPreferencesKey("artist_image_sources")
+        val KEY_SPOTIFY_CLIENT_ID = stringPreferencesKey("spotify_client_id")
+        val KEY_SPOTIFY_CLIENT_SECRET = stringPreferencesKey("spotify_client_secret")
         val KEY_STARTUP_POSTER_ENABLED = booleanPreferencesKey("startup_poster_enabled")
         val KEY_STARTUP_POSTER_URI = stringPreferencesKey("startup_poster_uri")
         val KEY_STARTUP_POSTER_DURATION_MS = intPreferencesKey("startup_poster_duration_ms")
@@ -409,6 +414,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED = booleanPreferencesKey("local_playlist_scan_prompt_handled")
         val KEY_ARTIST_SEPARATORS = stringPreferencesKey("artist_separators")
         val KEY_ARTIST_PROTECTED_NAMES = stringPreferencesKey("artist_protected_names")
+        val KEY_PARSE_FEATURED_ARTISTS = booleanPreferencesKey("parse_featured_artists")
         val KEY_GENRE_SEPARATORS = stringPreferencesKey("genre_separators")
         val KEY_GENRE_PROTECTED_NAMES = stringPreferencesKey("genre_protected_names")
         val KEY_TAG_IGNORE_CASE = booleanPreferencesKey("tag_ignore_case")
@@ -435,6 +441,9 @@ class SettingsManager(private val context: Context) :
         val KEY_LISTENING_HISTORY_SOURCE = intPreferencesKey("listening_history_source")
         val KEY_HOME_DAILY_MIX_VISIBLE = booleanPreferencesKey("home_daily_mix_visible")
         val KEY_HOME_FEATURE_WALLPAPER_URI = stringPreferencesKey("home_feature_wallpaper_uri")
+        // This URI points to device-local app storage. Legacy JSON excludes the path; ZIP backups
+        // carry the referenced image and restore it into the target app's private directory.
+        const val BACKUP_EXCLUDED_HOME_FEATURE_WALLPAPER_URI = "home_feature_wallpaper_uri"
         val KEY_HOME_AI_MIX_VISIBLE = booleanPreferencesKey("home_ai_mix_visible")
         val KEY_CONTINUE_PLAYBACK_ROW_VISIBLE = booleanPreferencesKey("continue_playback_row_visible")
         val KEY_HOME_RECENT_SECTION_MODE = intPreferencesKey("home_recent_section_mode")
@@ -561,6 +570,35 @@ class SettingsManager(private val context: Context) :
             ARTIST_BIO_DOWNLOAD_WIFI,
             ARTIST_BIO_DOWNLOAD_NEVER -> mode
             else -> DEFAULT_ARTIST_BIO_DOWNLOAD
+        }
+
+        const val ARTIST_IMAGE_DOWNLOAD_ALWAYS = 0
+        const val ARTIST_IMAGE_DOWNLOAD_WIFI = 1
+        const val ARTIST_IMAGE_DOWNLOAD_NEVER = 2
+        const val DEFAULT_ARTIST_IMAGE_DOWNLOAD = ARTIST_IMAGE_DOWNLOAD_WIFI
+
+        const val ARTIST_IMAGE_SOURCE_LASTFM = "lastfm"
+        const val ARTIST_IMAGE_SOURCE_SPOTIFY = "spotify"
+        const val ARTIST_IMAGE_SOURCE_NETEASE = "netease"
+        val DEFAULT_ARTIST_IMAGE_SOURCES = listOf(
+            ARTIST_IMAGE_SOURCE_LASTFM,
+            ARTIST_IMAGE_SOURCE_SPOTIFY,
+            ARTIST_IMAGE_SOURCE_NETEASE
+        )
+
+        fun normalizeArtistImageDownload(mode: Int?): Int = when (mode) {
+            ARTIST_IMAGE_DOWNLOAD_ALWAYS,
+            ARTIST_IMAGE_DOWNLOAD_WIFI,
+            ARTIST_IMAGE_DOWNLOAD_NEVER -> mode
+            else -> DEFAULT_ARTIST_IMAGE_DOWNLOAD
+        }
+
+        fun normalizeArtistImageSources(sources: List<String>): List<String> {
+            val known = DEFAULT_ARTIST_IMAGE_SOURCES.toSet()
+            return sources
+                .map(String::trim)
+                .filter { it in known }
+                .distinct()
         }
 
         const val SYSTEM_BARS_MODE_SHOW_BOTH = 0
@@ -736,6 +774,9 @@ class SettingsManager(private val context: Context) :
         const val PLAYER_LYRIC_ALIGN_LEFT = 0
         const val PLAYER_LYRIC_ALIGN_CENTER = 1
         const val PLAYER_LYRIC_ALIGN_RIGHT = 2
+        const val LYRIC_PAGE_VERTICAL_ALIGN_UPPER = 0
+        const val LYRIC_PAGE_VERTICAL_ALIGN_CENTER = 1
+        const val DEFAULT_LYRIC_PAGE_VERTICAL_ALIGNMENT = LYRIC_PAGE_VERTICAL_ALIGN_UPPER
         const val DESKTOP_LYRIC_STATUS_VERTICAL_TOP = 0
         const val DESKTOP_LYRIC_STATUS_VERTICAL_CENTER = 1
         const val DESKTOP_LYRIC_STATUS_VERTICAL_BOTTOM = 2
@@ -1004,10 +1045,17 @@ class SettingsManager(private val context: Context) :
     suspend fun setDesktopLyricPosition(x: Int, y: Int) = desktopLyricSettings.setDesktopLyricPosition(x, y)
     suspend fun resetDesktopLyricPosition() = desktopLyricSettings.resetDesktopLyricPosition()
 
-    suspend fun exportSettingsJson(): JSONObject {
+    /**
+     * Exports settings for the legacy JSON format by default. Device-local artwork is only
+     * included when the caller is building an archive that also carries the actual file.
+     */
+    suspend fun exportSettingsJson(includeDeviceLocalAssets: Boolean = false): JSONObject {
         val prefs = context.dataStore.data.first()
         val payload = JSONObject()
         prefs.asMap().forEach { (key, value) ->
+            if (!includeDeviceLocalAssets && key.name == BACKUP_EXCLUDED_HOME_FEATURE_WALLPAPER_URI) {
+                return@forEach
+            }
             when (value) {
                 is Boolean -> payload.put(key.name, value)
                 is Int -> payload.put(key.name, value)
@@ -1017,7 +1065,15 @@ class SettingsManager(private val context: Context) :
         return payload
     }
 
-    suspend fun restoreSettingsJson(payload: JSONObject) {
+    /**
+     * Restores a legacy JSON payload without touching the current device's home artwork. ZIP
+     * archives pass [restoreDeviceLocalAssets] after materializing their artwork into this app's
+     * private storage.
+     */
+    suspend fun restoreSettingsJson(
+        payload: JSONObject,
+        restoreDeviceLocalAssets: Boolean = false
+    ) {
         context.dataStore.edit { prefs ->
             fun setBoolean(key: Preferences.Key<Boolean>) {
                 if (payload.has(key.name) && !payload.isNull(key.name)) prefs[key] = payload.optBoolean(key.name)
@@ -1146,6 +1202,10 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_SHOW_ARTIST_INTRODUCTION)
             setInt(KEY_ARTIST_BIO_DOWNLOAD)
             setString(KEY_ARTIST_BIO_LASTFM_LANG)
+            setInt(KEY_ARTIST_IMAGE_DOWNLOAD)
+            setString(KEY_ARTIST_IMAGE_SOURCES)
+            setString(KEY_SPOTIFY_CLIENT_ID)
+            setString(KEY_SPOTIFY_CLIENT_SECRET)
             setBoolean(KEY_HOME_TILE_PIN_BUTTONS_VISIBLE)
             setBoolean(KEY_HOME_TILE_GRADIENT_ENABLED)
             setBoolean(KEY_USE_ANDROID_MEDIA_LIBRARY)
@@ -1153,6 +1213,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED)
             setBoolean(KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED)
             setBoolean(KEY_TAG_IGNORE_CASE)
+            setBoolean(KEY_PARSE_FEATURED_ARTISTS)
             setBoolean(KEY_BLUETOOTH_LYRIC_ENABLED)
             setBoolean(KEY_BLUETOOTH_LYRIC_TRANSLATION)
             setBoolean(KEY_BLUETOOTH_LYRIC_PRONUNCIATION)
@@ -1241,6 +1302,7 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_PLAYER_LANDSCAPE_STYLE)
             setInt(KEY_MUSIC_VIDEO_ORIENTATION)
             setInt(KEY_PLAYER_LYRIC_TEXT_ALIGN)
+            setInt(KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT)
             setInt(KEY_PLAYER_MINI_LYRIC_SCALE)
             setInt(KEY_PLAYER_MINI_LYRIC_PRIMARY_SIZE)
             setInt(KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE)
@@ -1395,8 +1457,8 @@ class SettingsManager(private val context: Context) :
             setString(KEY_STARTUP_POSTER_URI)
             setString(KEY_APP_WALLPAPER_URI)
             setString(KEY_PLAYER_BACKGROUND_URI)
+            if (restoreDeviceLocalAssets) setString(KEY_HOME_FEATURE_WALLPAPER_URI)
             setString(KEY_HOME_CARD_COLOR)
-            setString(KEY_HOME_FEATURE_WALLPAPER_URI)
             setString(KEY_HI_RES_LOGO_URI)
             setString(KEY_METADATA_EDITOR_ID)
             setString(KEY_LYRIC_TIMING_EDITOR_ID)
@@ -1448,6 +1510,14 @@ class SettingsManager(private val context: Context) :
             clearMissingCustomImage(KEY_APP_WALLPAPER_ENABLED, KEY_APP_WALLPAPER_URI)
             clearMissingCustomImage(KEY_PLAYER_BACKGROUND_ENABLED, KEY_PLAYER_BACKGROUND_URI)
             clearMissingCustomImage(KEY_HI_RES_LOGO_ENABLED, KEY_HI_RES_LOGO_URI)
+            if (restoreDeviceLocalAssets) {
+                val homeFeatureWallpaperUri = prefs[KEY_HOME_FEATURE_WALLPAPER_URI].orEmpty()
+                if (homeFeatureWallpaperUri.isNotBlank() &&
+                    !isRestoredCustomImageAvailable(homeFeatureWallpaperUri)
+                ) {
+                    prefs.remove(KEY_HOME_FEATURE_WALLPAPER_URI)
+                }
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.ella.music.ui.category
 
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -37,12 +38,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Album
+import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -187,6 +191,8 @@ internal fun MetadataAlbumRow(
     album: Album,
     duration: Long,
     albumArtUri: Uri?,
+    representativeSong: Song? = null,
+    loadCoverArt: ((Song) -> Bitmap?)? = null,
     contextPersonName: String? = null,
     selectionMode: Boolean = false,
     selected: Boolean = false,
@@ -194,6 +200,13 @@ internal fun MetadataAlbumRow(
     onLongClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val artworkState = rememberSongArtworkState(
+        song = representativeSong,
+        albumArtUri = albumArtUri,
+        loadCoverArt = loadCoverArt,
+        usage = ArtworkUsage.ListThumbnail,
+        showDefaultWhenMissing = false
+    )
     val summary = buildList {
         add(context.getString(R.string.analytics_song_count_value, album.songCount))
         add(duration.formatDuration())
@@ -223,9 +236,9 @@ internal fun MetadataAlbumRow(
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
         ) {
-            if (albumArtUri != null) {
+            if (artworkState.model != null) {
                 SafeCoverImage(
-                    model = albumArtUri,
+                    model = artworkState.model,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
@@ -238,7 +251,9 @@ internal fun MetadataAlbumRow(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = album.name,
+                text = album.name
+                    .takeUnless(com.ella.music.data.LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
+                    ?: stringResource(R.string.player_unknown_album),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MiuixTheme.colorScheme.onSurface,

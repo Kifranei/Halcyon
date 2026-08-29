@@ -106,7 +106,7 @@ public final class LxUserApiRuntime implements AutoCloseable {
                 script
         );
         jsContext.evaluate(script);
-        waitFor(() -> initInfo != null, 8_000L);
+        waitFor(() -> initInfo != null, 20_000L);
         if (initInfo == null) {
             throw new IllegalStateException(lastError != null ? lastError : "源未调用 lx.send(EVENT_NAMES.inited)");
         }
@@ -140,7 +140,7 @@ public final class LxUserApiRuntime implements AutoCloseable {
                                 .put("musicInfo", buildMusicInfo(item, quality))));
 
         callJs("request", request.toString());
-        waitFor(() -> requestResponse != null || lastError != null, 25_000L);
+        waitFor(() -> requestResponse != null || lastError != null, 40_000L);
         if (requestResponse == null) {
             throw new IllegalStateException(lastError != null ? lastError : "源没有返回播放地址");
         }
@@ -149,11 +149,67 @@ public final class LxUserApiRuntime implements AutoCloseable {
         }
         JSONObject result = requestResponse.optJSONObject("result");
         JSONObject data = result == null ? null : result.optJSONObject("data");
-        String url = data == null ? "" : data.optString("url");
+        String url = "";
+        if (data != null) {
+            url = data.optString("url");
+        }
+        if (url.isEmpty() && result != null) {
+            url = result.optString("url");
+            if (url.isEmpty() && result.opt("data") instanceof String) {
+                url = result.optString("data");
+            }
+        }
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             throw new IllegalStateException("源返回的播放地址无效");
         }
         return url;
+    }
+
+    public String requestLyric(LxOnlineSong item, String script, String sourceName) throws Exception {
+        JSONObject info = load(script, sourceName, sourceName, "");
+        JSONObject sources = info == null ? null : info.optJSONObject("sources");
+        JSONObject source = sources == null ? null : sources.optJSONObject(item.getSource());
+        if (source == null) {
+            throw new IllegalStateException("当前源不支持 " + item.getSource());
+        }
+        if (!contains(source.optJSONArray("actions"), "lyric")) {
+            throw new IllegalStateException("当前源不支持歌词");
+        }
+        String quality = bestQuality(source.optJSONArray("qualitys"), item.getQuality());
+        requestResponse = null;
+        lastError = null;
+
+        JSONObject request = new JSONObject()
+                .put("requestKey", "ella_" + System.nanoTime())
+                .put("data", new JSONObject()
+                        .put("source", item.getSource())
+                        .put("action", "lyric")
+                        .put("info", new JSONObject()
+                                .put("type", quality)
+                                .put("musicInfo", buildMusicInfo(item, quality))));
+
+        callJs("request", request.toString());
+        waitFor(() -> requestResponse != null || lastError != null, 40_000L);
+        if (requestResponse == null) {
+            throw new IllegalStateException(lastError != null ? lastError : "源没有返回歌词");
+        }
+        if (!requestResponse.optBoolean("status")) {
+            throw new IllegalStateException(requestResponse.optString("errorMessage", "源歌词解析失败"));
+        }
+        JSONObject result = requestResponse.optJSONObject("result");
+        JSONObject data = result == null ? null : result.optJSONObject("data");
+        String lyric = data == null ? "" : data.optString("lyric");
+        String translation = data == null ? "" : data.optString("tlyric");
+        if (lyric.isEmpty() && data != null) {
+            lyric = data.optString("lrc");
+        }
+        if (lyric.isEmpty()) {
+            throw new IllegalStateException("源没有返回歌词");
+        }
+        if (translation != null && !translation.isEmpty()) {
+            return lyric + "\n" + translation;
+        }
+        return lyric;
     }
 
     private JSONObject buildMusicInfo(LxOnlineSong item, String quality) throws Exception {
@@ -408,31 +464,28 @@ public final class LxUserApiRuntime implements AutoCloseable {
     }
 
     private RequestBody buildRequestBody(JSONObject options) {
-        if (options.has("form")) {
-            JSONObject form = options.optJSONObject("form");
-            FormBody.Builder builder = new FormBody.Builder();
-            if (form != null) {
-                Iterator<String> keys = form.keys();
-                while (keys.hasNext()) {
-                    String key = keys.next();
-                    builder.add(key, form.optString(key));
-                }
-            }
-            return builder.build();
-        }
-        if (options.has("body")) {
-            Object body = options.opt("body");
-            if (body == null || body == JSONObject.NULL) return null;
+        Object body = options.opt("body");
+        if (body != null && body != JSONObject.NULL) {
             String contentType = headerValue(options.optJSONObject("headers"), "Content-Type");
             if (contentType.isEmpty()) contentType = "application/json";
             return RequestBody.create(body.toString(), MediaType.parse(contentType));
         }
+        if (options.optJSONObject("form") != null) {
+            JSONObject form = options.optJSONObject("form");
+            FormBody.Builder builder = new FormBody.Builder();
+            Iterator<String> keys = form.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                builder.add(key, form.optString(key));
+            }
+            return builder.build();
+        }
         if (options.has("formData")) {
-            Object body = options.opt("formData");
-            if (body == null || body == JSONObject.NULL) return null;
-            if (body instanceof JSONObject) {
+            Object formData = options.opt("formData");
+            if (formData == null || formData == JSONObject.NULL) return null;
+            if (formData instanceof JSONObject) {
                 MultipartBody.Builder multipart = new MultipartBody.Builder().setType(MultipartBody.FORM);
-                JSONObject fields = (JSONObject) body;
+                JSONObject fields = (JSONObject) formData;
                 Iterator<String> keys = fields.keys();
                 while (keys.hasNext()) {
                     String field = keys.next();
@@ -440,7 +493,7 @@ public final class LxUserApiRuntime implements AutoCloseable {
                 }
                 return multipart.build();
             }
-            return RequestBody.create(body.toString(), MediaType.parse("multipart/form-data"));
+            return RequestBody.create(formData.toString(), MediaType.parse("multipart/form-data"));
         }
         return null;
     }
@@ -464,7 +517,15 @@ public final class LxUserApiRuntime implements AutoCloseable {
         while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
             boolean didWork = runNextJsAction();
             didWork = runNextDueTimeout() || didWork;
-            if (!didWork) Thread.sleep(Math.min(8L, Math.max(1L, deadline - System.currentTimeMillis())));
+            if (didWork) {
+                try {
+                    jsContext.evaluate("void 0");
+                } catch (Exception ignored) {
+                    // Flushing microtasks is best-effort.
+                }
+            } else {
+                Thread.sleep(Math.min(8L, Math.max(1L, deadline - System.currentTimeMillis())));
+            }
         }
     }
 

@@ -728,10 +728,17 @@ fun MetadataCategoryDetailScreen(
                                 .takeIf { shouldBuildAlbumTabContent && it > 0L }
                                 ?.let(mainViewModel::getAlbumArtUri)
                         }
+                        val representativeSong = remember(album.id, album.artAlbumId, songs) {
+                            songs.firstOrNull { song ->
+                                song.albumIdentityId() == album.id || song.albumId == album.artAlbumId
+                            }
+                        }
                         MetadataAlbumRow(
                             album = album,
                             duration = albumDurations[album.id] ?: 0L,
                             albumArtUri = albumArtUri,
+                            representativeSong = representativeSong,
+                            loadCoverArt = mainViewModel::getCoverArtBitmap,
                             contextPersonName = albumArtistContextName,
                             selectionMode = selection.selectionMode,
                             selected = album.id in selection.selectedIds,

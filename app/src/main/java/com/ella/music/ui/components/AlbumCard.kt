@@ -56,16 +56,18 @@ fun AlbumCard(
         album.name.takeUnless(LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
             ?: context.getString(R.string.player_unknown_album)
     }
-    val displayArtist = remember(album.artist, context) {
-        album.artist.takeUnless(LibraryNormalizer::isGeneratedUnknownArtistPlaceholder)
-            ?: context.getString(R.string.player_unknown_artist)
+    val displayArtist = remember(album.albumArtist) {
+        album.albumArtist.takeIf(LibraryNormalizer::isUsableArtistText)
     }
-    val resolvedSummary = summary ?: "$displayArtist · ${context.getString(R.string.song_count, album.songCount)}"
+    val resolvedSummary = summary ?: buildList {
+        displayArtist?.let(::add)
+        add(context.getString(R.string.song_count, album.songCount))
+    }.joinToString(" · ")
     val coverState = rememberSongArtworkState(
         song = representativeSong,
         albumArtUri = albumArtUri,
         loadCoverArt = loadCoverArt,
-        usage = ArtworkUsage.ArtistImage,
+        usage = ArtworkUsage.LibraryGrid,
         showDefaultWhenMissing = false
     )
     val coverModel: Any? = coverState.model

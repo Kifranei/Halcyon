@@ -83,7 +83,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.ella.music.data.SettingsManager
-import com.ella.music.data.splitArtistNames
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.shiftedBy
@@ -1428,7 +1428,7 @@ private fun ArtistTitleBlock(song: Song) {
 @Composable
 private fun ArtistChip(song: Song) {
     val context = LocalContext.current
-    val artists = remember(song.artist) { splitArtistNames(song.artist) }
+    val artists = remember(song.artist, song.title) { artistNamesForSong(song) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (artists.isEmpty()) {
             Text(

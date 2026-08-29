@@ -3,12 +3,22 @@ plugins {
     id("kotlin-parcelize")
 }
 
+val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+val configuredAbis = providers.gradleProperty("ellaAbi")
+    .orNull
+    ?.split(",")
+    ?.map { it.trim() }
+    ?.filter { it.isNotEmpty() }
+    ?.ifEmpty { null }
+    ?: supportedAbis
+val buildNative = providers.gradleProperty("ellaBuildNative")
+    .map { it.toBoolean() }
+    // Only arm64 has a checked-in prebuilt. Multi-ABI and non-arm64 builds must compile TagLib.
+    .getOrElse(configuredAbis.any { it != "arm64-v8a" })
+
 android {
     namespace = "com.lonx.audiotag"
     compileSdk = 37
-    val buildNative = providers.gradleProperty("ellaBuildNative")
-        .map { it.toBoolean() }
-        .getOrElse(false)
 
     defaultConfig {
         minSdk = 28
@@ -21,13 +31,7 @@ android {
             }
         }
         ndk {
-            val abiIncludes = providers.gradleProperty("ellaAbi")
-                .orNull
-                ?.split(",")
-                ?.map { it.trim() }
-                ?.filter { it.isNotEmpty() }
-                ?: listOf("arm64-v8a")
-            abiFilters += abiIncludes
+            abiFilters += configuredAbis
         }
     }
 

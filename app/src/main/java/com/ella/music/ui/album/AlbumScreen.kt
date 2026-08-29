@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.CategoryResumeKeys
+import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
@@ -161,13 +162,13 @@ fun AlbumScreen(
             AlbumSortMode.Name -> filteredAlbums.sortedBy { it.name.musicSortKey() }
             AlbumSortMode.NameDesc -> filteredAlbums.sortedByDescending { it.name.musicSortKey() }
             AlbumSortMode.Artist -> filteredAlbums.sortedWith(
-                compareBy<Album> { it.albumArtist.isBlank() && it.artist.isBlank() }
-                    .thenBy { it.albumArtist.ifBlank { it.artist }.musicSortKey() }
+                compareBy<Album> { !LibraryNormalizer.isUsableArtistText(it.albumArtist) }
+                    .thenBy { it.albumArtist.musicSortKey() }
                     .thenBy { it.name.musicSortKey() }
             )
             AlbumSortMode.ArtistDesc -> filteredAlbums.sortedWith(
-                compareBy<Album> { it.albumArtist.isBlank() && it.artist.isBlank() }
-                    .thenByDescending { it.albumArtist.ifBlank { it.artist }.musicSortKey() }
+                compareBy<Album> { !LibraryNormalizer.isUsableArtistText(it.albumArtist) }
+                    .thenByDescending { it.albumArtist.musicSortKey() }
                     .thenBy { it.name.musicSortKey() }
             )
             AlbumSortMode.SongCount -> filteredAlbums.sortedByDescending { it.songCount }

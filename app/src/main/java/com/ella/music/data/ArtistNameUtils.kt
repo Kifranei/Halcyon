@@ -1,5 +1,7 @@
 package com.ella.music.data
 
+import com.ella.music.data.model.Song
+
 object NameSplitConfigStore {
     @Volatile
     var artistCustomSeparators: List<String> = emptyList()
@@ -15,12 +17,18 @@ object NameSplitConfigStore {
 
     @Volatile
     var tagIgnoreCase: Boolean = false
+
+    @Volatile
+    var parseFeaturedArtists: Boolean = false
 }
 
 // Compiled separator regexes are reused across calls; building them per call was a
 // hot spot when grouping the whole library (artist/genre/composer/lyricist screens).
 private val separatorRegexCache = java.util.concurrent.ConcurrentHashMap<String, Regex>()
 private val protectedNameRegexCache = java.util.concurrent.ConcurrentHashMap<String, Regex>()
+private val featuredArtistMarker = Regex(
+    "(?i)(?:^|[\\s(\\[{])(?:feat\\.?|ft\\.?|featuring)\\s+(.+)$"
+)
 
 fun splitArtistNames(value: String): List<String> {
     return splitNames(
@@ -31,6 +39,40 @@ fun splitArtistNames(value: String): List<String> {
         protectedNames = NameSplitConfigStore.artistProtectedNames,
         unknownValues = setOf("<unknown>")
     )
+}
+
+/**
+ * Returns the ARTIST tag artists and, when enabled, artists declared after a title's feat./ft.
+ * marker. ARTIST-tag artists stay first so a duplicate title credit cannot change display names.
+ */
+fun artistNamesForSong(song: Song, includeFeaturedArtists: Boolean = NameSplitConfigStore.parseFeaturedArtists): List<String> {
+    val names = splitArtistNames(song.artist).toMutableList()
+    if (includeFeaturedArtists) names += extractFeaturedArtistNames(song.title)
+    return names
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinctBy { it.lowercase(java.util.Locale.ROOT) }
+}
+
+fun extractFeaturedArtistNames(title: String): List<String> {
+    val featuredPart = featuredArtistMarker.find(title)?.groupValues?.getOrNull(1)
+        ?.substringBeforeAny(')', ']', '}')
+        ?.trim()
+        .orEmpty()
+    if (featuredPart.isBlank()) return emptyList()
+    return splitArtistNames(featuredPart)
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinctBy { it.lowercase(java.util.Locale.ROOT) }
+}
+
+private fun String.substringBeforeAny(vararg delimiters: Char): String {
+    var end = length
+    delimiters.forEach { delimiter ->
+        val index = indexOf(delimiter)
+        if (index >= 0) end = minOf(end, index)
+    }
+    return substring(0, end)
 }
 
 fun splitGenreNames(value: String): List<String> {

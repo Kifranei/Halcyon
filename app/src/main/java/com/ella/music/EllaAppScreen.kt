@@ -1,10 +1,8 @@
 package com.ella.music
 
-import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -58,7 +56,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -95,6 +92,7 @@ import com.ella.music.ui.player.AppNowPlayingFlowBackground
 import com.ella.music.ui.settings.BackupType
 import com.ella.music.ui.settings.WebDavCloudRestoreCoordinator
 import com.ella.music.ui.settings.availableBackupTypes
+import com.ella.music.ui.settings.hasPortableBackupAssets
 import com.ella.music.ui.settings.toWebDavRestoreTypes
 import com.ella.music.ui.search.LocalLibrarySearchDockState
 import com.ella.music.ui.search.rememberLibrarySearchDockState
@@ -152,8 +150,7 @@ fun EllaApp(
                 appNowPlayingFlowBackground = settingsManager.appNowPlayingFlowBackground.first(),
                 startupPosterEnabled = settingsManager.startupPosterEnabled.first(),
                 startupPosterUri = settingsManager.startupPosterUri.first(),
-                startupPosterDurationMs = settingsManager.startupPosterDurationMs.first(),
-                notificationPermissionPromptHandled = settingsManager.notificationPermissionPromptHandled.first()
+                startupPosterDurationMs = settingsManager.startupPosterDurationMs.first()
             )
         }
     }
@@ -552,6 +549,7 @@ fun EllaApp(
     DisposableEffect(lifecycleOwner, mainViewModel, playerViewModel) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                com.ella.music.ui.components.clearArtworkModelMemoryCache()
                 playerViewModel.ensurePlayerConnected()
                 TagEditorEditTracker.consume()?.let { editedSong ->
                     mainViewModel.refreshSongAfterExternalEdit(editedSong) { updatedSong ->
@@ -595,22 +593,7 @@ fun EllaApp(
     val startupPosterDurationMs by settingsManager.startupPosterDurationMs.collectAsState(
         initial = initialUiSettings.startupPosterDurationMs
     )
-    val notificationPermissionPromptHandled by settingsManager.notificationPermissionPromptHandled.collectAsState(
-        initial = initialUiSettings.notificationPermissionPromptHandled
-    )
     var showStartupPoster by rememberSaveable { mutableStateOf(true) }
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        scope.launch { settingsManager.setNotificationPermissionPromptHandled(true) }
-        if (!granted) {
-            Toast.makeText(
-                context,
-                context.getString(R.string.notification_permission_denied_hint),
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
 
     LaunchedEffect(startupPosterEnabled, startupPosterUri, startupPosterDurationMs) {
         if (startupPosterEnabled && startupPosterUri.isNotBlank() && showStartupPoster) {
@@ -699,16 +682,6 @@ fun EllaApp(
         supportsNowPlayingFlowBackground(navBackStackEntry?.destination?.route)
     val sharedAppBackgroundVisible = wallpaperVisible || nowPlayingFlowVisible
     val startupPosterVisible = startupPosterEnabled && startupPosterUri.isNotBlank() && showStartupPoster
-    LaunchedEffect(startupPosterVisible, notificationPermissionPromptHandled) {
-        if (startupPosterVisible) return@LaunchedEffect
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
-        if (notificationPermissionPromptHandled) return@LaunchedEffect
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-            scope.launch { settingsManager.setNotificationPermissionPromptHandled(true) }
-        } else {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
     val contentModifier = Modifier
         .fillMaxSize()
         .then(if (sharedAppBackgroundVisible) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
@@ -1048,7 +1021,9 @@ fun EllaApp(
                 },
                 onRestore = {
                     cloudCandidate ?: return@WebDavCloudRestorePromptDialog
-                    val availableTypes = cloudCandidate.root.availableBackupTypes()
+                    val availableTypes = cloudCandidate.root.availableBackupTypes(
+                        cloudCandidate.root.hasPortableBackupAssets()
+                    )
                     val configuredTypes = webDavRestoreDefaults.toWebDavRestoreTypes().intersect(availableTypes)
                     val selectedTypes = configuredTypes.ifEmpty {
                         availableTypes.ifEmpty { BackupType.entries.toSet() }
@@ -1119,5 +1094,4 @@ private data class EllaInitialUiSettings(
     val startupPosterEnabled: Boolean,
     val startupPosterUri: String,
     val startupPosterDurationMs: Int,
-    val notificationPermissionPromptHandled: Boolean
 )

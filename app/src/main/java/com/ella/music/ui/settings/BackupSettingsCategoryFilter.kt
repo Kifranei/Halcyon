@@ -2,13 +2,21 @@ package com.ella.music.ui.settings
 
 import org.json.JSONObject
 
-internal fun JSONObject.filterBackupSettings(selectedTypes: Set<BackupType>): JSONObject {
+private const val BACKUP_EXCLUDED_HOME_FEATURE_WALLPAPER_URI = "home_feature_wallpaper_uri"
+
+internal fun String.isBackupExcludedSettingKey(): Boolean =
+    this == BACKUP_EXCLUDED_HOME_FEATURE_WALLPAPER_URI
+
+internal fun JSONObject.filterBackupSettings(
+    selectedTypes: Set<BackupType>,
+    includeDeviceLocalAssets: Boolean = false
+): JSONObject {
     if (selectedTypes.isEmpty()) return JSONObject()
     val filtered = JSONObject()
     val iterator = keys()
     while (iterator.hasNext()) {
         val key = iterator.next()
-        if (key.backupType() in selectedTypes) {
+        if ((includeDeviceLocalAssets || !key.isBackupExcludedSettingKey()) && key.backupType() in selectedTypes) {
             filtered.put(key, opt(key))
         }
     }
@@ -25,13 +33,14 @@ internal fun String.backupType(): BackupType = when {
     else -> BackupType.Personalization
 }
 
-internal fun JSONObject.availableBackupTypes(): Set<BackupType> {
+internal fun JSONObject.availableBackupTypes(includeDeviceLocalAssets: Boolean = false): Set<BackupType> {
     val available = linkedSetOf<BackupType>()
     val hasSectionedPayload = has("settings") || has("playlists") || has("playback") || has("aiChat")
     val settings = if (hasSectionedPayload) optJSONObject("settings") ?: JSONObject() else this
     val keys = settings.keys()
     while (keys.hasNext()) {
-        available += keys.next().backupType()
+        val key = keys.next()
+        if (includeDeviceLocalAssets || !key.isBackupExcludedSettingKey()) available += key.backupType()
     }
     if (has("playlists")) available += BackupType.Playlists
     if (has("playback")) available += BackupType.PlaybackStats

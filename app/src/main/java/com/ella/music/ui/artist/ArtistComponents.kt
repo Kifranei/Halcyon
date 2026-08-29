@@ -294,7 +294,8 @@ internal fun ArtistHeader(
     albumCount: Int,
     onPlayAll: () -> Unit,
     onIntroductionClick: () -> Unit,
-    showIntroductionEntry: Boolean = true
+    showIntroductionEntry: Boolean = true,
+    onPreviewCover: (() -> Unit)? = null
 ) {
     val headerTextColor = Color.White
     val headerSubTextColor = Color.White.copy(alpha = 0.78f)
@@ -317,41 +318,53 @@ internal fun ArtistHeader(
         customCoverAssets.filter { it.kind == ArtistCoverKind.Image }.map { it.uri }
     }
     var videoFailed by remember(dynamicCoverSource?.failureKey) { mutableStateOf(false) }
+    val coverInteractionModifier = if (onPreviewCover == null) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier
+            .fillMaxSize()
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onPreviewCover
+            )
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(468.dp)
     ) {
-        if (dynamicCoverSource != null && !videoFailed) {
-            DynamicCoverVideo(
-                source = dynamicCoverSource,
-                isPlaying = true,
-                onPlaybackError = { videoFailed = true },
-                modifier = Modifier.fillMaxSize(),
-                cornerRadiusDp = 0f,
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            )
-        } else if (imageUris.isNotEmpty()) {
-            ArtistHeaderImageCover(
-                imageUris = imageUris,
-                carousel = carousel,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (fallbackCoverModel != null) {
-            SafeCoverImage(
-                model = fallbackCoverModel,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                sizePx = 3000,
-                loadOriginal = true
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MiuixTheme.colorScheme.surfaceContainer)
-            )
+        Box(modifier = coverInteractionModifier) {
+            if (dynamicCoverSource != null && !videoFailed) {
+                DynamicCoverVideo(
+                    source = dynamicCoverSource,
+                    isPlaying = true,
+                    onPlaybackError = { videoFailed = true },
+                    modifier = Modifier.fillMaxSize(),
+                    cornerRadiusDp = 0f,
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                )
+            } else if (imageUris.isNotEmpty()) {
+                ArtistHeaderImageCover(
+                    imageUris = imageUris,
+                    carousel = carousel,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (fallbackCoverModel != null) {
+                SafeCoverImage(
+                    model = fallbackCoverModel,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    sizePx = 3000,
+                    loadOriginal = true
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MiuixTheme.colorScheme.surfaceContainer)
+                )
+            }
         }
 
         Box(
@@ -568,7 +581,9 @@ internal fun ArtistAlbumRow(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = album.name,
+                text = album.name
+                    .takeUnless(com.ella.music.data.LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
+                    ?: stringResource(R.string.player_unknown_album),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MiuixTheme.colorScheme.onSurface

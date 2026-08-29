@@ -75,9 +75,13 @@ internal fun AppleMusicLyricsView(
     bottomContentPadding: Dp = 132.dp,
     lineSpacing: Dp = 25.dp,
     focusOffsetRatio: Float = 0.24f,
+    focusOffsetNudgeDp: Dp = 0.dp,
     nonCurrentLineBlurEnabled: Boolean = true,
     userScrollEnabled: Boolean = true,
     reserveExtraLyricSpace: Boolean = false,
+    singleLine: Boolean = false,
+    followWordFocus: Boolean = false,
+    showBackgroundText: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -148,6 +152,9 @@ internal fun AppleMusicLyricsView(
                         wordLiftEnabled = false,
                         sustainThresholdMs = sustainThresholdMs,
                         reserveExtraLyricSpace = false,
+                        singleLine = singleLine,
+                        followWordFocus = followWordFocus,
+                        showBackgroundText = showBackgroundText,
                         onClick = { onLineClick(line) },
                         onDoubleClick = effectiveLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },
@@ -262,14 +269,17 @@ internal fun AppleMusicLyricsView(
         interludes = interludes
     )
     val scrollTargetIndex = if (pageVisible) renderedScrollTargetIndex else playbackScrollTargetIndex
-    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll) {
+    val focusOffsetNudgePx = with(LocalDensity.current) { focusOffsetNudgeDp.toPx() }
+    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, focusOffsetNudgePx) {
         if (userDragging || deferAutoScroll) return@LaunchedEffect
         // Do not issue the first scroll before LazyColumn has a viewport; that was making the
         // focus line land under the page header until the user manually scrolled.
         val viewportHeight = snapshotFlow {
             listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
         }.filter { it > 0 }.first()
-        val desiredItemOffset = viewportHeight * focusOffsetRatio
+        val desiredItemOffset = (
+            viewportHeight * focusOffsetRatio - focusOffsetNudgePx
+        ).coerceAtLeast(0f)
 
         if (!hasPositionedScroll) {
             // Initial positioning should not fly through the whole song when the player is
@@ -343,6 +353,7 @@ internal fun AppleMusicLyricsView(
         val leadingFocusPadding = resolveAppleMusicLyricsLeadingPadding(
             viewportHeight = maxHeight,
             focusOffsetRatio = focusOffsetRatio,
+            focusOffsetNudge = focusOffsetNudgeDp,
             minimumTopPadding = topContentPadding
         )
         // The regular fixed bottom inset is too short for the final line to reach the same
@@ -351,6 +362,7 @@ internal fun AppleMusicLyricsView(
         val trailingFocusPadding = resolveAppleMusicLyricsTrailingPadding(
             viewportHeight = maxHeight,
             focusOffsetRatio = focusOffsetRatio,
+            focusOffsetNudge = focusOffsetNudgeDp,
             trailingLineHeight = trailingLineHeight,
             minimumBottomPadding = bottomContentPadding
         )
@@ -406,6 +418,9 @@ internal fun AppleMusicLyricsView(
                         wordLiftEnabled = wordLiftEnabled,
                         sustainThresholdMs = sustainThresholdMs,
                         reserveExtraLyricSpace = reserveExtraLyricSpace,
+                        singleLine = singleLine,
+                        followWordFocus = followWordFocus,
+                        showBackgroundText = showBackgroundText,
                         onClick = { onLineClick(line) },
                         onDoubleClick = effectiveLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },
@@ -441,10 +456,11 @@ private fun LyricLine.openingSeekHandler(
 internal fun resolveAppleMusicLyricsLeadingPadding(
     viewportHeight: Dp,
     focusOffsetRatio: Float,
-    minimumTopPadding: Dp
+    minimumTopPadding: Dp,
+    focusOffsetNudge: Dp = 0.dp
 ): Dp = maxOf(
     minimumTopPadding,
-    viewportHeight * focusOffsetRatio.coerceIn(0f, 1f)
+    (viewportHeight * focusOffsetRatio.coerceIn(0f, 1f) - focusOffsetNudge).coerceAtLeast(0.dp)
 )
 
 /**
@@ -457,11 +473,12 @@ internal fun resolveAppleMusicLyricsTrailingPadding(
     viewportHeight: Dp,
     focusOffsetRatio: Float,
     trailingLineHeight: Dp,
-    minimumBottomPadding: Dp
+    minimumBottomPadding: Dp,
+    focusOffsetNudge: Dp = 0.dp
 ): Dp {
     val clampedFocusRatio = focusOffsetRatio.coerceIn(0f, 1f)
     val requiredPadding = (
-        viewportHeight * (1f - clampedFocusRatio) - trailingLineHeight
+        viewportHeight * (1f - clampedFocusRatio) + focusOffsetNudge - trailingLineHeight
     ).coerceAtLeast(0.dp)
     return maxOf(minimumBottomPadding, requiredPadding)
 }

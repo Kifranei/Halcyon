@@ -224,6 +224,10 @@ class ExoPlayerManager(private val context: Context) {
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 _playWhenReady.value = playWhenReady
+                // A pause intent must update UI/lyric consumers immediately. Some controller or
+                // crossfade paths deliver onIsPlayingChanged one callback later (or not at all),
+                // which otherwise leaves a stale pause glyph while the session is already paused.
+                if (!playWhenReady) _isPlaying.value = false
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {

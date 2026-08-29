@@ -31,6 +31,12 @@ import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.data.webdav.WebDavTestResult
+import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
+import com.ella.music.data.model.Song
+import com.ella.music.ui.components.AddToPlaylistSheet
+import com.ella.music.ui.components.CreatePlaylistAndAddSheet
+import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -69,10 +75,16 @@ fun WebDavScreen(
     var webDavPassword by remember { mutableStateOf("") }
     var currentUrl by remember { mutableStateOf("") }
     var items by remember { mutableStateOf<List<WebDavItem>>(emptyList()) }
+    var searchQuery by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var testStatus by remember { mutableStateOf<String?>(null) }
     var loadedKey by remember { mutableStateOf("") }
+    var loadRequestId by remember { mutableStateOf(0) }
+    var folderMenuTarget by remember { mutableStateOf<WebDavItem?>(null) }
+    var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
+    val playlists by mainViewModel.playlists.collectAsState()
 
     fun logWebDavError(action: String, error: Throwable) {
         AppLogStore.error(
@@ -85,21 +97,51 @@ fun WebDavScreen(
     }
 
     fun load(url: String, forceRefresh: Boolean = false) {
+        val requestId = ++loadRequestId
         scope.launch {
             val config = WebDavConfig(webDavUrl, webDavUser, webDavPassword)
             loading = true
             error = null
+            items = emptyList()
             if (forceRefresh) WebDavClient.clearListCache()
             runCatching {
-                withContext(Dispatchers.IO) { WebDavClient.list(config, url, forceRefresh = forceRefresh) }
+                withContext(Dispatchers.IO) {
+                    WebDavClient.listBatched(
+                        config = config,
+                        url = url,
+                        forceRefresh = forceRefresh,
+                        onBatch = { batch ->
+                            // listBatched parses on IO. Hop back to the Compose scope before
+                            // publishing each cumulative snapshot, and ignore an older refresh
+                            // if the user has already navigated or refreshed again.
+                            scope.launch {
+                                if (requestId == loadRequestId) items = batch
+                            }
+                        }
+                    )
+                }
             }.onSuccess {
-                items = it
+                if (requestId == loadRequestId) items = it
             }.onFailure {
-                items = emptyList()
-                error = it.localizedMessage ?: context.getString(R.string.webdav_load_failed)
-                logWebDavError("Load failed", it)
+                if (requestId == loadRequestId) {
+                    items = emptyList()
+                    error = it.localizedMessage ?: context.getString(R.string.webdav_load_failed)
+                    logWebDavError("Load failed", it)
+                }
             }
-            loading = false
+            if (requestId == loadRequestId) {
+                loading = false
+            }
+        }
+    }
+
+    suspend fun collectFolderSongs(folder: WebDavItem): List<Song> {
+        val config = WebDavConfig(webDavUrl, webDavUser, webDavPassword)
+        val items = withContext(Dispatchers.IO) {
+            WebDavClient.listAudioRecursive(config, folder.url)
+        }
+        return withContext(Dispatchers.IO) {
+            items.map { item -> mainViewModel.resolveSongForPlayback(item.toRemoteSong()) }
         }
     }
 
@@ -108,6 +150,7 @@ fun WebDavScreen(
         val current = currentUrl.ifBlank { rootUrl }.trimEnd('/')
         val parent = parentWebDavUrl(current, rootUrl) ?: return
         currentUrl = parent
+        searchQuery = ""
         scope.launch { mainViewModel.settingsManager.setWebDavLastUrl(parent) }
         load(parent)
     }
@@ -119,6 +162,7 @@ fun WebDavScreen(
         if (savedUrl.isBlank()) {
             currentUrl = ""
             items = emptyList()
+            searchQuery = ""
             error = null
             return@LaunchedEffect
         }
@@ -131,7 +175,7 @@ fun WebDavScreen(
     }
 
     LaunchedEffect(currentUrl, items, savedUrl, savedUser, savedPassword) {
-        if (savedUrl.isBlank() || items.isEmpty()) return@LaunchedEffect
+        if (loading || savedUrl.isBlank() || items.isEmpty()) return@LaunchedEffect
         val songsToPrefetch = items
             .asSequence()
             .filterNot { it.isDirectory }
@@ -208,6 +252,7 @@ fun WebDavScreen(
                         mainViewModel.settingsManager.setWebDavConfig(webDavUrl, webDavUser, webDavPassword)
                     }
                     currentUrl = webDavUrl
+                    searchQuery = ""
                     showSettings = false
                     load(webDavUrl, forceRefresh = true)
                     Toast.makeText(context, R.string.webdav_config_saved, Toast.LENGTH_SHORT).show()
@@ -219,6 +264,7 @@ fun WebDavScreen(
                     webDavPassword = ""
                     currentUrl = ""
                     items = emptyList()
+                    searchQuery = ""
                     error = null
                     testStatus = null
                     showSettings = false
@@ -256,11 +302,14 @@ fun WebDavScreen(
                         loading = loading,
                         error = error,
                         onGoParent = ::goParent,
-                        items = items,
+                        remoteItems = items,
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { searchQuery = it },
                         onRefresh = { load(currentUrl.ifBlank { webDavUrl }, forceRefresh = true) },
                         onItemClick = { item ->
                             if (item.isDirectory) {
                                 currentUrl = item.url
+                                searchQuery = ""
                                 scope.launch { mainViewModel.settingsManager.setWebDavLastUrl(item.url) }
                                 load(item.url)
                             } else {
@@ -278,6 +327,22 @@ fun WebDavScreen(
                                             context.getString(R.string.webdav_load_failed) + ": " + (it.localizedMessage ?: ""),
                                             Toast.LENGTH_LONG
                                         ).show()
+                                    }
+                                }
+                            }
+                        },
+                        onItemLongClick = { item ->
+                            if (item.isDirectory) {
+                                folderMenuTarget = item
+                            } else {
+                                scope.launch {
+                                    runCatching {
+                                        val resolvedSong = withContext(Dispatchers.IO) {
+                                            mainViewModel.resolveSongForPlayback(item.toRemoteSong())
+                                        }
+                                        playlistPickerSongs = listOf(resolvedSong)
+                                    }.onFailure {
+                                        logWebDavError("Collect remote item failed", it)
                                     }
                                 }
                             }
@@ -304,6 +369,139 @@ fun WebDavScreen(
                 }
             }
         }
+    }
+
+    folderMenuTarget?.let { folder ->
+        WebDavFolderActionSheet(
+            title = folder.name,
+            onDismiss = { folderMenuTarget = null },
+            onFavorite = {
+                val target = folder
+                folderMenuTarget = null
+                scope.launch {
+                    Toast.makeText(context, R.string.webdav_folder_collecting, Toast.LENGTH_SHORT).show()
+                    runCatching {
+                        val songs = collectFolderSongs(target)
+                        if (songs.isEmpty()) {
+                            Toast.makeText(context, R.string.webdav_folder_collect_empty, Toast.LENGTH_SHORT).show()
+                        } else {
+                            mainViewModel.addSongsToPlaylist(FAVORITES_PLAYLIST_ID, songs)
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.webdav_folder_favorited, songs.size),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }.onFailure {
+                        logWebDavError("Favorite folder failed", it)
+                        Toast.makeText(context, it.localizedMessage ?: context.getString(R.string.webdav_load_failed), Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onCreatePlaylist = {
+                val target = folder
+                folderMenuTarget = null
+                scope.launch {
+                    Toast.makeText(context, R.string.webdav_folder_collecting, Toast.LENGTH_SHORT).show()
+                    runCatching {
+                        val songs = collectFolderSongs(target)
+                        if (songs.isEmpty()) {
+                            Toast.makeText(context, R.string.webdav_folder_collect_empty, Toast.LENGTH_SHORT).show()
+                        } else {
+                            createPlaylistSongs = songs
+                        }
+                    }.onFailure {
+                        logWebDavError("Create playlist from folder failed", it)
+                        Toast.makeText(context, it.localizedMessage ?: context.getString(R.string.webdav_load_failed), Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onAddToPlaylist = {
+                val target = folder
+                folderMenuTarget = null
+                scope.launch {
+                    Toast.makeText(context, R.string.webdav_folder_collecting, Toast.LENGTH_SHORT).show()
+                    runCatching {
+                        val songs = collectFolderSongs(target)
+                        if (songs.isEmpty()) {
+                            Toast.makeText(context, R.string.webdav_folder_collect_empty, Toast.LENGTH_SHORT).show()
+                        } else {
+                            playlistPickerSongs = songs
+                        }
+                    }.onFailure {
+                        logWebDavError("Add folder to playlist failed", it)
+                        Toast.makeText(context, it.localizedMessage ?: context.getString(R.string.webdav_load_failed), Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onAddToQueue = {
+                val target = folder
+                folderMenuTarget = null
+                scope.launch {
+                    Toast.makeText(context, R.string.webdav_folder_collecting, Toast.LENGTH_SHORT).show()
+                    runCatching {
+                        val songs = collectFolderSongs(target)
+                        if (songs.isEmpty()) {
+                            Toast.makeText(context, R.string.webdav_folder_collect_empty, Toast.LENGTH_SHORT).show()
+                        } else {
+                            playerViewModel.addToPlaylist(songs)
+                            Toast.makeText(context, R.string.webdav_added_to_queue, Toast.LENGTH_SHORT).show()
+                        }
+                    }.onFailure {
+                        logWebDavError("Add folder to queue failed", it)
+                        Toast.makeText(context, it.localizedMessage ?: context.getString(R.string.webdav_load_failed), Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        )
+    }
+
+    playlistPickerSongs?.let { songsToAdd ->
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.song_more_add_to_playlist_title),
+            onDismissRequest = { playlistPickerSongs = null }
+        ) {
+            AddToPlaylistSheet(
+                playlists = playlists,
+                songsToAdd = songsToAdd,
+                songCount = songsToAdd.size,
+                onDismiss = { playlistPickerSongs = null },
+                onCreatePlaylist = {
+                    createPlaylistSongs = songsToAdd
+                    playlistPickerSongs = null
+                },
+                onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
+                    selectedPlaylists.forEach { playlist ->
+                        mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd, appendToEnd)
+                    }
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    playlistPickerSongs = null
+                }
+            )
+        }
+    }
+
+    createPlaylistSongs?.let { songsToAdd ->
+        CreatePlaylistAndAddSheet(
+            onDismiss = { createPlaylistSongs = null },
+            onCreate = { name ->
+                mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { playlist ->
+                    mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.webdav_folder_playlist_created, name, songsToAdd.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    createPlaylistSongs = null
+                }
+            }
+        )
     }
 }
 

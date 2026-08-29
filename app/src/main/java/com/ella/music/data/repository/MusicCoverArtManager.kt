@@ -93,12 +93,19 @@ internal class MusicCoverArtManager(
         usage: CoverUsage = CoverUsage.ListThumbnail
     ): Bitmap? {
         val targetSize = maxSize.coerceIn(64, 3000)
-        val cacheKey = "${song.coverDataCacheKey()}:${usage.name}:$targetSize"
+        val sidecar = song.folderSidecarCoverFile() ?: song.externalThumbnailCandidates()
+            .firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+        val sidecarStamp = sidecar?.let { "${it.absolutePath}:${it.lastModified()}:${it.length()}" } ?: "none"
+        val cacheKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:${usage.name}:$targetSize"
         coverBitmapCache.get(cacheKey)?.let { return it }
         return synchronized(coverArtLock) {
             coverBitmapCache.get(cacheKey)?.let { return it }
-            if (usage == CoverUsage.ListThumbnail) {
-                decodeExternalThumbnailBitmap(song, targetSize, cacheKey)?.let { return it }
+            if (sidecar != null) {
+                decodeBitmapFile(
+                    sidecar,
+                    targetSize,
+                    if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+                )?.also { coverBitmapCache.put(cacheKey, it) }?.let { return it }
             }
             if (usage == CoverUsage.ListThumbnail && !song.prefersEmbeddedArtworkForThumbnail()) {
                 decodeAlbumArtBitmap(song.albumId, targetSize, usage)?.let { return it }
@@ -135,8 +142,9 @@ internal class MusicCoverArtManager(
         // Online artwork is the actual source for remote songs. For local files prefer embedded
         // bytes, but do not let a stale embedded thumbnail replace an explicitly supplied cover.
         return song.coverUrl.takeIf { it.isNotBlank() }
+            ?: song.folderSidecarCoverFile()
             ?: getCoverArt(song)
-            ?: getAlbumArtUri(song.albumId)
+            ?: readableAlbumArtUri(song.albumId)
     }
 
     fun getAlbumArtUri(albumId: Long): Uri? {
@@ -144,6 +152,14 @@ internal class MusicCoverArtManager(
         return android.content.ContentUris.withAppendedId(
             android.provider.MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId
         )
+    }
+
+    private fun readableAlbumArtUri(albumId: Long): Uri? {
+        val uri = getAlbumArtUri(albumId) ?: return null
+        return runCatching {
+            context.contentResolver.openInputStream(uri)?.use { }
+            uri
+        }.getOrNull()
     }
 
     fun clearCache() {
@@ -185,19 +201,6 @@ internal class MusicCoverArtManager(
         }.getOrElse { error ->
             if (error is OutOfMemoryError) throw error
             Log.d("MusicRepo", "MediaMetadataRetriever embedded picture unavailable for $path", error)
-            null
-        }
-    }
-
-    private fun decodeExternalThumbnailBitmap(song: Song, targetSize: Int, cacheKey: String): Bitmap? {
-        val thumbnail = song.externalThumbnailCandidates()
-            .firstOrNull { it.exists() && it.isFile && it.length() > 0L } ?: return null
-        return runCatching {
-            decodeBitmapFile(thumbnail, targetSize, Bitmap.Config.RGB_565)
-                ?.also { coverBitmapCache.put(cacheKey, it) }
-        }.getOrElse { error ->
-            if (error is OutOfMemoryError) clearArtworkCachesAfterOom()
-            Log.d("MusicRepo", "Failed to decode external thumbnail ${thumbnail.absolutePath}", error)
             null
         }
     }
@@ -264,5 +267,38 @@ internal class MusicCoverArtManager(
                 extensions.map { ext -> File(dir, "$key.$ext") }
             }
         }
+    }
+
+    private fun Song.folderSidecarCoverFile(): File? =
+        folderSidecarCoverCandidates().firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+
+    private fun Song.folderSidecarCoverCandidates(): List<File> {
+        val metadataPath = effectiveLocalPathForMetadataBlocking(
+            settingsManager,
+            httpClient,
+            remoteAudioCacheDir,
+            remoteMetadataHeaderCacheDir
+        )
+        val directory = File(metadataPath).parentFile ?: return emptyList()
+        if (!directory.isDirectory) return emptyList()
+        val names = listOf(
+            "cover", "folder", "albumart", "albumartsmall", "front", "album", "artwork"
+        )
+        val extensions = listOf("jpg", "jpeg", "png", "webp")
+        val files = directory.listFiles() ?: return emptyList()
+        val named = files.filter { file ->
+            file.isFile && file.length() > 0L &&
+                file.name.substringBeforeLast('.').lowercase() in names &&
+                file.extension.lowercase() in extensions
+        }.sortedBy { file ->
+            val stem = file.name.substringBeforeLast('.').lowercase()
+            names.indexOf(stem).takeIf { it >= 0 } ?: names.size
+        }
+        if (named.isNotEmpty()) return named
+        return files.filter { file ->
+            file.isFile &&
+                file.length() >= 8_192L &&
+                file.extension.lowercase() in extensions
+        }.sortedByDescending { it.length() }
     }
 }

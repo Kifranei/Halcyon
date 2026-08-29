@@ -11,12 +11,14 @@ import com.ella.music.ui.listmodel.MusicSortKeyCache
 import java.io.File
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,12 +36,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
 import androidx.activity.viewModels
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
@@ -72,7 +80,27 @@ class MainActivity : ComponentActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { }
+    ) {
+        requestNotificationPermissionIfNeeded()
+    }
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        lifecycleScope.launch {
+            SettingsManager.getInstance(applicationContext).setNotificationPermissionPromptHandled(true)
+            if (!granted) {
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.notification_permission_denied_hint),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            notificationPermissionRequestInFlight = false
+        }
+    }
+
+    private var notificationPermissionRequestInFlight = false
 
     private var mainViewModel: MainViewModel? = null
     private var appliedLanguageTag: String? = null
@@ -286,6 +314,20 @@ class MainActivity : ComponentActivity() {
                 keyColor = coverSeed,
                 systemDarkOverride = systemDark
             ) {
+                val televisionDevice = remember { isTelevisionDevice() }
+                val televisionFocusRequester = remember { FocusRequester() }
+                val televisionFocusManager = LocalFocusManager.current
+                LaunchedEffect(televisionDevice) {
+                    if (televisionDevice) {
+                        televisionFocusRequester.requestFocus()
+                        // The outer focus target receives the first key event so media keys work
+                        // before a screen-specific control has focus.  Move into the nearest
+                        // content control after the first frame so a TV remote can immediately
+                        // use DPAD/OK without a touch screen gesture.
+                        delay(80L)
+                        televisionFocusManager.moveFocus(FocusDirection.Enter)
+                    }
+                }
                 val reservedHiddenBarInsets = if (systemBarsReserveSpace) {
                     when (systemBarsMode) {
                         SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS ->
@@ -304,6 +346,36 @@ class MainActivity : ComponentActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .then(
+                            if (televisionDevice) {
+                                Modifier
+                                    .focusRequester(televisionFocusRequester)
+                                    .focusable()
+                                    .onPreviewKeyEvent { keyEvent ->
+                                        val nativeEvent = keyEvent.nativeKeyEvent
+                                        val handled = when (nativeEvent.keyCode) {
+                                            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                                            android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+                                            android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
+                                            android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+                                            android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> true
+                                            else -> false
+                                        }
+                                        if (handled && nativeEvent.action == android.view.KeyEvent.ACTION_UP) {
+                                            when (nativeEvent.keyCode) {
+                                                android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> playerVm.skipToNext()
+                                                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> playerVm.skipToPrevious()
+                                                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> playerVm.pauseForMusicVideo()
+                                                android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> playerVm.resumeAfterMusicVideo()
+                                                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> playerVm.togglePlayPause()
+                                            }
+                                        }
+                                        handled
+                                    }
+                            } else {
+                                Modifier
+                            }
+                        )
                         .background(MiuixTheme.colorScheme.background)
                 ) {
                     Box(
@@ -332,13 +404,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) window.applyHalcyonSystemBars(appliedSystemBarsMode)
+        if (hasFocus) {
+            window.applyHalcyonSystemBars(appliedSystemBarsMode)
+            // Some OEM permission controllers ignore a launcher call made while the first
+            // Activity window is still losing focus. Retry from the first focused frame.
+            requestNotificationPermissionIfNeeded()
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         currentSystemNightMode = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
         window.applyHalcyonSystemBars(appliedSystemBarsMode)
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        requestNotificationPermissionIfNeeded()
     }
 
     private fun checkAndRequestPermissions(): Boolean {
@@ -352,6 +434,50 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(permission)
             false
         } else true
+    }
+
+    /**
+     * Runtime notification permission requests are Activity operations. Waiting until the
+     * Activity is resumed avoids launching from the first Compose frame, which is ignored by
+     * several Android/OEM permission controllers. The audio permission callback retries this
+     * after a competing permission dialog has finished.
+     */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            isFinishing ||
+            isDestroyed ||
+            !hasWindowFocus() ||
+            !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) ||
+            notificationPermissionRequestInFlight
+        ) return
+
+        notificationPermissionRequestInFlight = true
+        lifecycleScope.launch {
+            val settings = SettingsManager.getInstance(applicationContext)
+            val handled = withContext(Dispatchers.IO) {
+                settings.notificationPermissionPromptHandled.first()
+            }
+            if (handled || ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                if (!handled) settings.setNotificationPermissionPromptHandled(true)
+                notificationPermissionRequestInFlight = false
+                return@launch
+            }
+
+            delay(250L)
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) || isFinishing || isDestroyed) {
+                notificationPermissionRequestInFlight = false
+                return@launch
+            }
+            runCatching {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }.onFailure {
+                notificationPermissionRequestInFlight = false
+            }
+        }
     }
 
     private fun applyAppLanguage(languageTag: String): Boolean {
@@ -379,6 +505,11 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_PLAYER_FROM_NOTIFICATION = "open_player_from_notification"
         private var startupPlaybackHandled = false
     }
+
+    private fun isTelevisionDevice(): Boolean =
+        packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            (resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+            Configuration.UI_MODE_TYPE_TELEVISION
 
     private data class StartupAppearance(
         val themeMode: Int,

@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.R
 import com.ella.music.data.PlaybackStatsStore
-import com.ella.music.data.PlaylistStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
@@ -43,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -62,7 +62,6 @@ fun BackupSettingsScreen(
     val backupScope = remember(context, scope) { context.findComponentActivity()?.lifecycleScope ?: scope }
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val playbackStatsStore = remember { PlaybackStatsStore.getInstance(context) }
-    val playlistStore = remember { PlaylistStore.getInstance(context) }
     val librarySongs by mainViewModel?.songs?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
@@ -75,20 +74,11 @@ fun BackupSettingsScreen(
             output.flush()
         } ?: error(context.getString(R.string.settings_backup_open_failed))
     }
-    suspend fun buildApplicationBackupJson(selectedTypes: Set<BackupType> = BackupType.entries.toSet()): JSONObject = withContext(Dispatchers.IO) {
-        val filteredSettings = settingsManager.exportSettingsJson().filterBackupSettings(selectedTypes)
-        JSONObject()
-            .put("version", 1)
-            .put("exportedAt", System.currentTimeMillis())
-            .apply {
-                if (filteredSettings.length() > 0) put("settings", filteredSettings)
-                if (BackupType.Playlists in selectedTypes) put("playlists", playlistStore.exportJson())
-                if (BackupType.PlaybackStats in selectedTypes) put("playback", playbackStatsStore.exportJson(librarySongs))
-                if (BackupType.AiConfigAndChat in selectedTypes) put("aiChat", exportAiChatBackupJson(context))
-            }
-    }
-    suspend fun buildBackupJson(selectedTypes: Set<BackupType> = BackupType.entries.toSet()): String {
-        return buildApplicationBackupJson(selectedTypes).toString(2)
+    suspend fun writeBackupFile(uri: Uri, file: File) = withContext(Dispatchers.IO) {
+        context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+            file.inputStream().use { input -> input.copyTo(output) }
+            output.flush()
+        } ?: error(context.getString(R.string.settings_backup_open_failed))
     }
     var showExportTypeSheet by remember { mutableStateOf(false) }
     var showImportTypeSheet by remember { mutableStateOf(false) }
@@ -99,7 +89,7 @@ fun BackupSettingsScreen(
     var exportTypeSelection by remember { mutableStateOf(BackupType.entries.toSet()) }
     var importTypeSelection by remember { mutableStateOf(BackupType.entries.toSet()) }
     val settingsExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument(APPLICATION_BACKUP_ZIP_MIME)
     ) { uri ->
         if (uri == null) {
             pendingExportTypes = null
@@ -108,13 +98,17 @@ fun BackupSettingsScreen(
         val types = pendingExportTypes ?: BackupType.entries.toSet()
         pendingExportTypes = null
         backupScope.launch {
+            var archive: File? = null
             runCatching {
-                val backup = buildApplicationBackupJson(types)
-                writeBackupText(uri, backup.toString(2))
+                val createdArchive = buildApplicationBackupZipFile(context, types, librarySongs)
+                archive = createdArchive
+                writeBackupFile(uri, createdArchive)
             }.onSuccess {
                 Toast.makeText(context, context.getString(R.string.settings_backup_export_success), Toast.LENGTH_SHORT).show()
             }.onFailure {
                 Toast.makeText(context, context.getString(R.string.settings_backup_export_failed), Toast.LENGTH_SHORT).show()
+            }.also {
+                withContext(Dispatchers.IO) { archive?.delete() }
             }
         }
     }
@@ -141,17 +135,16 @@ fun BackupSettingsScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) {
+            pendingImportRoot?.let { cleanupApplicationBackupAssets(context, it) }
             pendingImportRoot = null
             return@rememberLauncherForActivityResult
         }
         backupScope.launch {
             runCatching {
-                val text = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.bufferedReader(Charsets.UTF_8).readText()
-                    } ?: error(context.getString(R.string.settings_backup_read_failed))
+                val root = withContext(Dispatchers.IO) {
+                    runCatching { readApplicationBackupUri(context, uri) }
+                        .getOrElse { error(context.getString(R.string.settings_backup_read_failed)) }
                 }
-                val root = JSONObject(text)
                 // Prism Music exports are listening-history only; app-data restore expects Halcyon JSON.
                 if (root.has("sessions") && !root.has("settings") && !root.has("playlists") && !root.has("playback")) {
                     withContext(Dispatchers.Main) {
@@ -161,7 +154,7 @@ fun BackupSettingsScreen(
                 }
                 pendingImportSource = BackupImportSource.LocalFile
                 pendingImportRoot = root
-                importTypeSelection = root.availableBackupTypes()
+                importTypeSelection = root.availableBackupTypes(root.hasPortableBackupAssets())
                 showImportTypeSheet = true
             }.onFailure {
                 Toast.makeText(context, context.getString(R.string.settings_backup_restore_failed), Toast.LENGTH_SHORT).show()
@@ -314,8 +307,9 @@ fun BackupSettingsScreen(
                         title = stringResource(R.string.settings_backup_restore_settings_title),
                         summary = stringResource(R.string.settings_backup_restore_settings_summary),
                         onClick = {
+                            pendingImportRoot?.let { cleanupApplicationBackupAssets(context, it) }
                             pendingImportRoot = null
-                            settingsImportLauncher.launch(arrayOf("application/json", "text/json", "text/*"))
+                            settingsImportLauncher.launch(arrayOf(APPLICATION_BACKUP_ZIP_MIME, "application/json", "text/json", "text/*"))
                         }
                     )
                 }
@@ -430,11 +424,17 @@ fun BackupSettingsScreen(
                                         password = effectivePassword
                                     )
                                     val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
-                                    val fileName = "halcyon_backup_${System.currentTimeMillis()}.json"
+                                    val fileName = "halcyon_backup_${System.currentTimeMillis()}.zip"
                                     val fullUrl = "${effectiveUrl.trimEnd('/')}/$path/$fileName"
-                                    val backupContent = withContext(Dispatchers.IO) { buildBackupJson() }
+                                    val archive = withContext(Dispatchers.IO) {
+                                        buildApplicationBackupZipFile(context, librarySongs = librarySongs)
+                                    }
                                     withContext(Dispatchers.IO) {
-                                        WebDavClient.uploadFileFromString(fullUrl, config, backupContent)
+                                        try {
+                                            WebDavClient.uploadFileFromFile(fullUrl, config, archive)
+                                        } finally {
+                                            archive.delete()
+                                        }
                                     }
                                 }.onSuccess {
                                     Toast.makeText(context, context.getString(R.string.settings_backup_webdav_upload_success), Toast.LENGTH_SHORT).show()
@@ -481,7 +481,11 @@ fun BackupSettingsScreen(
                                     }
                                     val backupFiles = items
                                         .filterNot { it.isDirectory }
-                                        .filter { it.name.endsWith(".json") && it.name.isHalcyonBackupFileName() }
+                                        .filter {
+                                            (it.name.endsWith(".zip", ignoreCase = true) ||
+                                                it.name.endsWith(".json", ignoreCase = true)) &&
+                                                it.name.isHalcyonBackupFileName()
+                                        }
                                         .sortedByDescending { it.name }
                                     if (backupFiles.isEmpty()) {
                                         throw IllegalStateException(context.getString(R.string.settings_backup_webdav_file_not_found))
@@ -518,16 +522,22 @@ fun BackupSettingsScreen(
                     backupScope.launch {
                         runCatching {
                             val tempFile = withContext(Dispatchers.IO) {
-                                val tmp = java.io.File(context.cacheDir, "webdav_restore.json")
+                                val suffix = if (selectedFile.name.endsWith(".zip", ignoreCase = true)) ".zip" else ".json"
+                                val tmp = File(
+                                    context.cacheDir,
+                                    "webdav_restore_${System.currentTimeMillis()}_${System.nanoTime()}$suffix"
+                                )
                                 WebDavClient.downloadToFile(selectedFile.url, config, tmp)
                                 tmp
                             }
-                            val text = withContext(Dispatchers.IO) {
-                                tempFile.readText(Charsets.UTF_8)
+                            val root = withContext(Dispatchers.IO) {
+                                try {
+                                    readApplicationBackupFile(context, tempFile)
+                                } finally {
+                                    tempFile.delete()
+                                }
                             }
-                            val root = JSONObject(text)
-                            withContext(Dispatchers.IO) { tempFile.delete() }
-                            val availableTypes = root.availableBackupTypes()
+                            val availableTypes = root.availableBackupTypes(root.hasPortableBackupAssets())
                             val defaults = savedWebDavRestoreDefaultTypes
                                 .toWebDavRestoreTypes()
                                 .intersect(availableTypes)
@@ -561,7 +571,7 @@ fun BackupSettingsScreen(
         onConfirm = { selectedTypes ->
             exportTypeSelection = selectedTypes
             pendingExportTypes = selectedTypes
-            settingsExportLauncher.launch("halcyon_settings_${System.currentTimeMillis()}.json")
+            settingsExportLauncher.launch("halcyon_settings_${System.currentTimeMillis()}.zip")
         }
     )
 
@@ -571,6 +581,7 @@ fun BackupSettingsScreen(
         confirmText = stringResource(R.string.common_import),
         onDismiss = {
             showImportTypeSheet = false
+            pendingImportRoot?.let { cleanupApplicationBackupAssets(context, it) }
             pendingImportRoot = null
             if (pendingImportSource == BackupImportSource.WebDav) {
                 webDavDownloading = false
@@ -578,7 +589,9 @@ fun BackupSettingsScreen(
             pendingImportSource = BackupImportSource.LocalFile
         },
         initialSelected = importTypeSelection,
-        availableTypes = pendingImportRoot?.availableBackupTypes().orEmpty(),
+        availableTypes = pendingImportRoot?.let { root ->
+            root.availableBackupTypes(root.hasPortableBackupAssets())
+        }.orEmpty(),
         onConfirm = { selectedTypes ->
             importTypeSelection = selectedTypes
             val root = pendingImportRoot

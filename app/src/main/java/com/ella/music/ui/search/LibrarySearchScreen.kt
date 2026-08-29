@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.decodeNeteaseKey
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.matchesArtistName
 import com.ella.music.data.model.hasLyricMetadata
 import com.ella.music.data.model.hasTtmlLyricMetadata
@@ -77,6 +78,7 @@ fun LibrarySearchScreen(
         initial = SettingsManager.DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
     )
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
+    val parseFeaturedArtists by settingsManager.parseFeaturedArtists.collectAsState(initial = false)
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val fullTagSearchEnabled by settingsManager.fullTagSearchEnabled.collectAsState(initial = true)
     val songRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
@@ -364,6 +366,7 @@ fun LibrarySearchScreen(
         duplicatesOnlyActive,
         contentFilters,
         showAlbumArtists,
+        parseFeaturedArtists,
         requestedCategoryTypes,
         songs,
         albums,
@@ -388,6 +391,7 @@ fun LibrarySearchScreen(
         duplicatesOnlyActive,
         contentFilters,
         showAlbumArtists,
+        parseFeaturedArtists,
         requestedCategoryTypes,
         songs,
         albums,
@@ -414,11 +418,11 @@ fun LibrarySearchScreen(
                 songs.asSequence()
                     .flatMap { song ->
                         val names = if (showAlbumArtists) {
-                            (com.ella.music.data.splitArtistNames(song.artist) +
+                            (artistNamesForSong(song, parseFeaturedArtists) +
                                 com.ella.music.data.splitArtistNames(song.albumArtist))
                                 .distinctBy { it.tagIdentityKey() }
                         } else {
-                            com.ella.music.data.splitArtistNames(song.artist)
+                            artistNamesForSong(song, parseFeaturedArtists)
                         }
                         names.asSequence()
                             .filter { it.isNotBlank() && it.contains(trimmedQuery, ignoreCase = true) }

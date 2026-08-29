@@ -45,4 +45,10 @@ internal fun CoroutineScope.launchNameSplitConfigObservers(
             onAlbumIdentityConfigChanged()
         }
     }
+    launch {
+        settingsManager.parseFeaturedArtists.distinctUntilChanged().collect {
+            NameSplitConfigStore.parseFeaturedArtists = it
+            onNameSplitConfigChanged()
+        }
+    }
 }

@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
@@ -55,7 +56,7 @@ class LxOnlineService(private val context: Context) {
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(context.getString(R.string.lx_service_import_failed_http, response.code))
-            val script = response.body?.string().orEmpty()
+            val script = unwrapImportedSource(url.trim(), response.body?.string().orEmpty())
             // Validate downloaded sources with the same QuickJS runtime used for playback.
             // This catches encrypted/obfuscated sources that fail during initialization instead
             // of accepting them and surfacing an opaque error only when a song is played.
@@ -65,6 +66,9 @@ class LxOnlineService(private val context: Context) {
 
     fun importSourceScript(script: String, allowRuntimeInspect: Boolean = true): Pair<String, String> {
         val normalized = script.trim()
+        if (looksLikeHtmlDocument(normalized)) {
+            error(context.getString(R.string.lx_service_source_html_page))
+        }
         if (normalized.length !in 50..9_000_000) error(context.getString(R.string.lx_service_source_script_abnormal))
         val name = extractSourceName(normalized)
         if (allowRuntimeInspect) {
@@ -641,6 +645,165 @@ class LxOnlineService(private val context: Context) {
         .replace(Regex("<[^>]+>"), "")
         .trim()
 
+    private fun unwrapImportedSource(requestUrl: String, body: String): String {
+        val trimmed = body.trim()
+        if (looksLikeSharePage(requestUrl) && !trimmed.contains("EVENT_NAMES")) {
+            val jsUrl = pickLxScriptUrl(trimmed, requestUrl)
+                ?: error(context.getString(R.string.lx_service_source_share_page))
+            return fetchImportedScript(jsUrl)
+        }
+        if (looksLikeHtmlDocument(trimmed)) {
+            val jsUrl = pickLxScriptUrl(trimmed, requestUrl)
+                ?: error(context.getString(R.string.lx_service_source_html_page))
+            return fetchImportedScript(jsUrl)
+        }
+        if (looksLikeJsonDocument(trimmed)) {
+            return unwrapJsonSource(requestUrl, trimmed)
+        }
+        return trimmed
+    }
+
+    private fun unwrapJsonSource(requestUrl: String, json: String): String {
+        val parsed = runCatching { JSONTokener(json).nextValue() }.getOrNull()
+            ?: return json
+        if (parsed is JSONObject && isQingMusicOrNonLxCatalog(parsed)) {
+            error(context.getString(R.string.lx_service_source_json_not_lx))
+        }
+        val embeddedScript = (parsed as? JSONObject)?.optString("script").orEmpty()
+            .ifBlank { (parsed as? JSONObject)?.optString("rawScript").orEmpty() }
+        if (embeddedScript.contains("EVENT_NAMES") || embeddedScript.contains("globalThis.lx")) {
+            return embeddedScript
+        }
+        val jsUrl = pickLxScriptUrl(json, requestUrl)
+            ?: collectJsonScriptUrls(parsed).firstOrNull()
+            ?: error(context.getString(R.string.lx_service_source_json_not_lx))
+        return fetchImportedScript(jsUrl)
+    }
+
+    private fun fetchImportedScript(jsUrl: String): String {
+        val request = Request.Builder()
+            .url(jsUrl)
+            .header("User-Agent", USER_AGENT)
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error(context.getString(R.string.lx_service_import_failed_http, response.code))
+            val script = response.body?.string().orEmpty().trim()
+            if (looksLikeHtmlDocument(script) ||
+                (looksLikeJsonDocument(script) && "EVENT_NAMES" !in script && "globalThis.lx" !in script)
+            ) {
+                error(context.getString(R.string.lx_service_source_html_page))
+            }
+            script
+        }
+    }
+
+    suspend fun fetchLyrics(item: LxOnlineSong, sourceScript: String = ""): String? = withContext(Dispatchers.IO) {
+        if (sourceScript.isNotBlank()) {
+            runCatching {
+                LxUserApiRuntime(context, client).use { runtime ->
+                    runtime.requestLyric(item, sourceScript, extractSourceName(sourceScript))
+                }
+            }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return@withContext it }
+        }
+        when (item.source) {
+            LxSearchPlatform.Kuwo.source -> fetchKuwoLyric(item.songmid)
+            LxSearchPlatform.Netease.source -> fetchNeteaseLyric(item.songmid)
+            else -> null
+        }
+    }
+
+    suspend fun downloadWithMetadata(
+        item: LxOnlineSong,
+        sourceScript: String,
+        targetFile: java.io.File
+    ) = withContext(Dispatchers.IO) {
+        val playable = resolvePlayableSong(item, sourceScript)
+        val request = Request.Builder()
+            .url(playable.path)
+            .header("User-Agent", USER_AGENT)
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error(context.getString(R.string.lx_service_resolve_url_failed_http, response.code))
+            targetFile.parentFile?.mkdirs()
+            response.body?.byteStream()?.use { input ->
+                targetFile.outputStream().use { output -> input.copyTo(output) }
+            } ?: error(context.getString(R.string.lx_online_download_failed))
+        }
+        val lyrics = runCatching { fetchLyrics(item, sourceScript) }.getOrNull()
+        val coverBytes = item.coverUrl.takeIf { it.startsWith("http") }?.let { url ->
+            runCatching {
+                client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
+                    .execute()
+                    .use { response ->
+                        if (!response.isSuccessful) null
+                        else response.body?.bytes()?.takeIf { it.isNotEmpty() }
+                    }
+            }.getOrNull()
+        }
+        val writer = com.ella.music.data.metadata.AudioTagRepository(
+            com.ella.music.data.metadata.LyricoAudioTagReaderWriter(context)
+        )
+        if (!lyrics.isNullOrBlank()) {
+            writer.writeTags(
+                targetFile.absolutePath,
+                com.ella.music.data.metadata.AudioTagInfo(
+                    title = item.song.title,
+                    artist = item.song.artist,
+                    album = item.song.album,
+                    lyrics = lyrics
+                )
+            )
+        }
+        if (coverBytes != null) {
+            writer.writeEmbeddedCover(
+                targetFile.absolutePath,
+                com.ella.music.data.metadata.AudioCoverInfo(coverBytes, "image/jpeg")
+            )
+        }
+    }
+
+    private fun fetchKuwoLyric(songmid: String): String? {
+        if (songmid.isBlank()) return null
+        val request = Request.Builder()
+            .url("https://www.kuwo.cn/newh5/singles/songinfoandlrc?musicId=$songmid")
+            .header("User-Agent", USER_AGENT)
+            .build()
+        return runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val list = JSONObject(response.body?.string().orEmpty())
+                    .optJSONObject("data")
+                    ?.optJSONArray("lrclist") ?: return@use null
+                List(list.length()) { index ->
+                    val item = list.getJSONObject(index)
+                    val time = item.optString("time").toDoubleOrNull() ?: 0.0
+                    val minutes = (time / 60).toInt()
+                    val seconds = time % 60.0
+                    val text = item.optString("lineLyric").trim()
+                    if (text.isBlank()) "" else String.format(java.util.Locale.US, "[%02d:%05.2f]%s", minutes, seconds, text)
+                }.filter { it.isNotBlank() }.joinToString("\n").takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+    }
+
+    private fun fetchNeteaseLyric(songmid: String): String? {
+        if (songmid.isBlank()) return null
+        val request = Request.Builder()
+            .url("https://music.163.com/api/song/lyric?id=$songmid&lv=-1&tv=-1")
+            .header("User-Agent", USER_AGENT)
+            .header("Referer", "https://music.163.com/")
+            .build()
+        return runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val root = JSONObject(response.body?.string().orEmpty())
+                val original = root.optJSONObject("lrc")?.optString("lyric").orEmpty()
+                val translation = root.optJSONObject("tlyric")?.optString("lyric").orEmpty()
+                listOf(original, translation).filter { it.isNotBlank() }.joinToString("\n").takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+    }
+
     companion object {
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Halcyon/1.0"
         private const val MIGU_DEVICE_ID = "963B7AA0D21511ED807EE5846EC87D20"
@@ -648,6 +811,99 @@ class LxOnlineService(private val context: Context) {
             "Mozilla/5.0 (Linux; U; Android 11.0.0; zh-cn; MI 11 Build/OPR1.170623.032) " +
                 "AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30"
     }
+}
+
+internal fun looksLikeHtmlDocument(script: String): Boolean {
+    val trimmed = script.trimStart().take(240).lowercase()
+    return trimmed.startsWith("<!doctype html") ||
+        trimmed.startsWith("<html") ||
+        trimmed.startsWith("<head") ||
+        (trimmed.startsWith("<") && ("<html" in trimmed || "<body" in trimmed || "<script" in trimmed))
+}
+
+internal fun looksLikeJsonDocument(script: String): Boolean {
+    val trimmed = script.trimStart()
+    return (trimmed.startsWith("{") || trimmed.startsWith("[")) && !looksLikeHtmlDocument(trimmed)
+}
+
+internal fun looksLikeSharePage(url: String): Boolean {
+    val lower = url.lowercase()
+    return "pan.quark.cn" in lower ||
+        "alipan.com" in lower ||
+        "aliyundrive.com" in lower ||
+        "lanzou" in lower ||
+        "/s/" in lower && ("quark" in lower || "pan." in lower)
+}
+
+internal fun isQingMusicOrNonLxCatalog(json: JSONObject): Boolean {
+    val lines = json.optJSONArray("lines")
+    if (lines != null && lines.length() > 0) {
+        val first = lines.optJSONObject(0)
+        if (first != null && (first.has("searchApi") || first.has("detailApi"))) return true
+    }
+    return false
+}
+
+internal fun pickLxScriptUrl(text: String, pageUrl: String = ""): String? {
+    val candidates = Regex(
+        """https?://[^\s"'<>\\]+?\.js(?:\?[^\s"'<>\\]*)?""",
+        RegexOption.IGNORE_CASE
+    ).findAll(text).map { it.value.trimEnd('.', ',', ';') }.toList()
+    val relative = Regex(
+        """(?:href|src)\s*=\s*['"]([^'"]+\.js(?:\?[^'"]*)?)['"]""",
+        RegexOption.IGNORE_CASE
+    ).findAll(text).map { it.groupValues[1] }.toList()
+    val resolved = (candidates + relative.map { candidate ->
+        runCatching { java.net.URI(pageUrl.ifBlank { "https://local.invalid/" }).resolve(candidate).toString() }
+            .getOrDefault(candidate)
+    }).distinct()
+    return resolved.maxByOrNull(::lxScriptUrlScore)?.takeIf { lxScriptUrlScore(it) > 0 }
+}
+
+internal fun lxScriptUrlScore(url: String): Int {
+    val lower = url.lowercase()
+    if (listOf(
+            "jquery", "bootstrap", "fancybox", "highlight", "analytics", "gtag",
+            "disqus", "chunk", "webpack", "baomitu", "alicdn", "cloudflare",
+            "comment", "main.css", "polyfill"
+        ).any { it in lower }
+    ) {
+        return -1
+    }
+    if (!lower.contains(".js")) return -1
+    var score = 1
+    if (listOf("latest.js", "script.js", "source.js", "user-api", "render_api").any { it in lower }) score += 50
+    if (listOf("juhe", "ikun", "sixyin", "huibq", "qdy", "lx-music").any { it in lower }) score += 20
+    if ("raw.githubusercontent.com" in lower || "jsdelivr" in lower || "ghproxy" in lower || "github" in lower) {
+        score += 10
+    }
+    return score
+}
+
+private fun collectJsonScriptUrls(parsed: Any): List<String> {
+    val urls = mutableListOf<String>()
+    fun walk(value: Any?) {
+        when (value) {
+            is JSONObject -> {
+                val keys = value.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val child = value.opt(key)
+                    if (child is String && (child.endsWith(".js", ignoreCase = true) || "http" in child && ".js" in child)) {
+                        if (lxScriptUrlScore(child) > 0) urls += child
+                    } else {
+                        walk(child)
+                    }
+                }
+            }
+            is JSONArray -> {
+                for (index in 0 until value.length()) walk(value.opt(index))
+            }
+            is String -> if (lxScriptUrlScore(value) > 0) urls += value
+        }
+    }
+    walk(parsed)
+    return urls.distinct()
 }
 
 private fun List<LxOnlineQuality>.bestQuality(): String = when {

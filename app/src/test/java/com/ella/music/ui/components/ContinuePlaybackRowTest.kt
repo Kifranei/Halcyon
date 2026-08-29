@@ -7,11 +7,11 @@ import org.junit.Test
 
 class ContinuePlaybackRowTest {
     @Test
-    fun currentSourceUsesTheCurrentSongInsteadOfAStaleStoredSong() {
+    fun currentSourceHidesTheRedundantContinueRow() {
         val first = song(1L, "First")
         val current = song(2L, "Current")
         assertEquals(
-            1,
+            -1,
             resolveContinuePlaybackIndex(
                 songs = listOf(first, current),
                 playbackSourceKey = "playlist:favorites",

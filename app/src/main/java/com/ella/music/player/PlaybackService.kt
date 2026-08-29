@@ -88,6 +88,9 @@ class PlaybackService : MediaLibraryService() {
         const val ACTION_WIDGET_PLAY_PAUSE = "com.ella.music.action.WIDGET_PLAY_PAUSE"
         const val ACTION_WIDGET_NEXT = "com.ella.music.action.WIDGET_NEXT"
         internal const val TIMING_TAG = "EllaPlaybackTiming"
+        private const val CROSSFADE_PROMOTION_SETTLE_CHECK_MS = 16L
+        private const val CROSSFADE_PROMOTION_STABLE_CHECKS = 3
+        private const val CROSSFADE_PROMOTION_SETTLE_MAX_CHECKS = 60
 
         val bluetoothConnectEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         // StateFlow retains the latest service state so a ViewModel recreated after a long
@@ -114,6 +117,7 @@ class PlaybackService : MediaLibraryService() {
     private var legacyArtworkPublishSequence = 0L
     private var sessionPresentationPlayer: SessionPresentationPlayer? = null
     private var crossfadePlaybackCoordinator: CrossfadePlaybackCoordinator? = null
+    private var crossfadePresentationSettlementJob: kotlinx.coroutines.Job? = null
     private var castMediaServer: LocalCastMediaServer? = null
     private lateinit var notificationProvider: NoArtworkMediaNotificationProvider
     private lateinit var settingsManager: SettingsManager
@@ -318,6 +322,10 @@ class PlaybackService : MediaLibraryService() {
                     else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                 }
             )
+            // Auto: system decoder first (including vendor Dolby). FFmpeg is only the
+            // fallback when MediaCodec has no usable decoder, so 6-channel Atmos stays
+            // on the hardware path instead of the quieter stereo FFmpeg mix.
+            setEnableDecoderFallback(decoderMode != 0)
         }
         equalizerAudioProcessor = EqualizerAudioProcessor()
         val secondaryEqualizerAudioProcessor = EqualizerAudioProcessor()
@@ -362,13 +370,14 @@ class PlaybackService : MediaLibraryService() {
         player.repeatMode = Player.REPEAT_MODE_ALL
         // Pre-buffer the next queue item so skipToNext is decode-ready instead of a cold open.
         player.setPreloadConfiguration(ExoPlayer.PreloadConfiguration(/* targetPreloadDurationUs= */ 5_000_000L))
+        val localPlayer = SwitchableLocalPlayer(player)
         val mediaServer = LocalCastMediaServer(this)
         val sessionPlayer: Player = runCatching {
             val remotePlayer = RemoteCastPlayer.Builder(this)
                 .setMediaItemConverter(HalcyonCastMediaItemConverter(mediaServer))
                 .build()
             CastPlayer.Builder(this)
-                .setLocalPlayer(player)
+                .setLocalPlayer(localPlayer)
                 .setRemotePlayer(remotePlayer)
                 .build()
         }.onSuccess {
@@ -377,7 +386,7 @@ class PlaybackService : MediaLibraryService() {
         }.getOrElse { error ->
             mediaServer.release()
             AppLogStore.warn(this, TAG, "Chromecast unavailable; using local player: ${error.message}")
-            player
+            localPlayer
         }
         serviceScope.launch {
             settingsManager.openPlayerFromNotification.collect { enabled ->
@@ -387,13 +396,13 @@ class PlaybackService : MediaLibraryService() {
         }
         crossfadePlaybackCoordinator = CrossfadePlaybackCoordinator(
             context = this,
-            primary = player,
+            initialPrimary = player,
             dataSourceFactory = dataSourceFactory,
             audioAttributes = mediaAudioAttributes,
-            primaryWaveformProbe = primaryWaveformProbe,
-            secondaryWaveformProbe = secondaryWaveformProbe,
-            primaryGainProcessor = primaryTransitionGain,
-            secondaryGainProcessor = secondaryTransitionGain,
+            initialPrimaryWaveformProbe = primaryWaveformProbe,
+            initialSecondaryWaveformProbe = secondaryWaveformProbe,
+            initialPrimaryGainProcessor = primaryTransitionGain,
+            initialSecondaryGainProcessor = secondaryTransitionGain,
             secondaryRenderersFactory = {
                 EllaRenderersFactory(this).apply {
                     setExtensionRendererMode(
@@ -403,12 +412,59 @@ class PlaybackService : MediaLibraryService() {
                             else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                         }
                     )
+                    setEnableDecoderFallback(decoderMode != 0)
                     // AudioProcessor instances are stateful and belong to exactly one AudioSink.
                     // Sharing the primary instances lets either player flush/reset the other's DSP.
                     setEqualizerAudioProcessor(secondaryEqualizerAudioProcessor)
                     setExtraAudioProcessors(listOf(secondaryKaraokeAccompanimentProcessor, secondaryWaveformProbe))
                     setTransitionGainAudioProcessor(secondaryTransitionGain)
                     setPlaybackOutputSettings(playbackOutputSettings)
+                }
+            },
+            onPrimaryPromoted = { promotedPlayer ->
+                val promotedMediaId = promotedPlayer.currentMediaItem?.mediaId
+                localPlayer.promote(promotedPlayer)
+                PlaybackAudioSession.update(promotedPlayer.audioSessionId)
+                audioEffectController.bind(promotedPlayer.audioSessionId)
+                crossfadePresentationSettlementJob?.cancel()
+                crossfadePresentationSettlementJob = serviceScope.launch {
+                    // ForwardingSimpleBasePlayer invalidates its delegate synchronously, while
+                    // CastPlayer -> RepeatOneLockingPlayer -> MediaSession clients receive that
+                    // invalidation on following main-loop turns. Keep the explicit incoming-song
+                    // presentation active until the complete forwarding chain has reported the
+                    // promoted media item for several consecutive frames. Clearing it immediately
+                    // lets a late callback from the retired player overwrite cover/title/lyrics
+                    // with the outgoing song even though audio and system metadata are already on
+                    // the target.
+                    var stableChecks = 0
+                    repeat(CROSSFADE_PROMOTION_SETTLE_MAX_CHECKS) {
+                        val activeMatches = promotedMediaId != null &&
+                            localPlayer.activePlayer.currentMediaItem?.mediaId == promotedMediaId
+                        val sessionMatches = promotedMediaId != null &&
+                            sessionPlayer.currentMediaItem?.mediaId == promotedMediaId
+                        stableChecks = if (activeMatches && sessionMatches) stableChecks + 1 else 0
+                        if (stableChecks >= CROSSFADE_PROMOTION_STABLE_CHECKS) {
+                            sessionPresentationPlayer?.clearCrossfadePresentation()
+                            val publishedPlayer = sessionPresentationPlayer ?: sessionPlayer
+                            publishExternalPlaybackSnapshot(publishedPlayer)
+                            PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, publishedPlayer)
+                            oplusLyricHandler.refreshCurrentOplusLyricInfo(sessionPlayer)
+                            Log.d(
+                                TIMING_TAG,
+                                "crossfade presentation committed mediaId=$promotedMediaId"
+                            )
+                            return@launch
+                        }
+                        delay(CROSSFADE_PROMOTION_SETTLE_CHECK_MS)
+                    }
+                    // The promoted decoder is authoritative. Do not expose the outgoing song on
+                    // timeout; retain the target presentation and leave a precise diagnostic for
+                    // vendor-specific forwarding chains that fail to settle.
+                    Log.w(
+                        TIMING_TAG,
+                        "crossfade presentation settle timed out mediaId=$promotedMediaId " +
+                            "sessionMediaId=${sessionPlayer.currentMediaItem?.mediaId}"
+                    )
                 }
             },
             onIncomingAudible = { targetIndex, positionMs, playbackSpeed ->
@@ -419,6 +475,8 @@ class PlaybackService : MediaLibraryService() {
                 )
             },
             onIncomingFinished = {
+                crossfadePresentationSettlementJob?.cancel()
+                crossfadePresentationSettlementJob = null
                 sessionPresentationPlayer?.clearCrossfadePresentation()
             },
             scope = serviceScope
@@ -460,7 +518,7 @@ class PlaybackService : MediaLibraryService() {
                 platformSpatialRequested = platformSpatial
                 if (attributesNeedUpdate) {
                     mediaAudioAttributes = resolvedAudioAttributes()
-                    player.setAudioAttributes(mediaAudioAttributes, handleAudioFocus)
+                    localPlayer.activePlayer.setAudioAttributes(mediaAudioAttributes, handleAudioFocus)
                     crossfadePlaybackCoordinator?.setAudioAttributes(mediaAudioAttributes)
                 }
                 audioEffectController.apply(settings)
@@ -520,7 +578,7 @@ class PlaybackService : MediaLibraryService() {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 PlaybackAudioSession.update(audioSessionId)
                 audioEffectController.bind(audioSessionId)
-                if (player.isPlaying) openAudioEffectSession(audioSessionId)
+                if (localPlayer.activePlayer.isPlaying) openAudioEffectSession(audioSessionId)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -528,13 +586,18 @@ class PlaybackService : MediaLibraryService() {
                 if (isPlaying && isLocalPlayback) {
                     // Retry attaching effects now that the audio track is live: some ROMs
                     // (e.g. ColorOS/OxygenOS) reject Equalizer creation before playback starts.
-                    audioEffectController.bind(player.audioSessionId)
-                    openAudioEffectSession(player.audioSessionId)
-                } else {
+                    val activeAudioSessionId = localPlayer.activePlayer.audioSessionId
+                    audioEffectController.bind(activeAudioSessionId)
+                    openAudioEffectSession(activeAudioSessionId)
+                } else if (crossfadePlaybackCoordinator?.isIncomingAudible() != true) {
+                    // The session player briefly stops its AudioTrack while seeking into the
+                    // already-audible incoming item. Keep the effects session and public playback
+                    // state alive until that PCM handoff has actually completed.
                     closeAudioEffectSession()
                 }
-                publishExternalPlaybackSnapshot(sessionPlayer)
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
+                val publishedPlayer = sessionPresentationPlayer ?: sessionPlayer
+                publishExternalPlaybackSnapshot(publishedPlayer)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, publishedPlayer)
             }
 
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
@@ -545,13 +608,16 @@ class PlaybackService : MediaLibraryService() {
 
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 updateMediaButtonPreferences()
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
+                PlaybackWidgetUpdater.updateFromPlayer(
+                    this@PlaybackService,
+                    sessionPresentationPlayer ?: sessionPlayer
+                )
                 scheduleLegacyArtworkCompat(mediaMetadata)
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Log.d(TIMING_TAG, "service media transition reason=$reason mediaId=${mediaItem?.mediaId}")
-                player.setWakeMode(
+                localPlayer.activePlayer.setWakeMode(
                     if (mediaItem?.localConfiguration?.uri?.scheme.equals("http", ignoreCase = true) ||
                         mediaItem?.localConfiguration?.uri?.scheme.equals("https", ignoreCase = true)
                     ) {
@@ -563,8 +629,9 @@ class PlaybackService : MediaLibraryService() {
                 sessionPresentationPlayer?.clearNotificationLyric()
                 updateMediaButtonPreferences()
                 oplusLyricHandler.refreshCurrentOplusLyricInfo(sessionPlayer)
-                publishExternalPlaybackSnapshot(sessionPlayer)
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
+                val publishedPlayer = sessionPresentationPlayer ?: sessionPlayer
+                publishExternalPlaybackSnapshot(publishedPlayer)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, publishedPlayer)
             }
 
             override fun onTracksChanged(tracks: Tracks) {
@@ -590,13 +657,14 @@ class PlaybackService : MediaLibraryService() {
                     Player.STATE_READY -> {
                         Log.d(TIMING_TAG, "player state READY mediaId=${sessionPlayer.currentMediaItem?.mediaId}")
                         if (sessionPlayer.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE) {
-                            audioEffectController.bind(player.audioSessionId)
+                            audioEffectController.bind(localPlayer.activePlayer.audioSessionId)
                         }
                     }
                     Player.STATE_ENDED -> Log.d(TIMING_TAG, "player state ENDED mediaId=${sessionPlayer.currentMediaItem?.mediaId}")
                 }
-                publishExternalPlaybackSnapshot(sessionPlayer)
-                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, sessionPlayer)
+                val publishedPlayer = sessionPresentationPlayer ?: sessionPlayer
+                publishExternalPlaybackSnapshot(publishedPlayer)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, publishedPlayer)
             }
 
             override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
@@ -608,7 +676,7 @@ class PlaybackService : MediaLibraryService() {
                     PlaybackAudioOutputState.updateBackend("Chromecast")
                     crossfadePlaybackCoordinator?.setDuration(0)
                 } else {
-                    PlaybackAudioSession.update(player.audioSessionId)
+                    PlaybackAudioSession.update(localPlayer.activePlayer.audioSessionId)
                     PlaybackAudioOutputState.updateBackend(localOutputBackend)
                     serviceScope.launch {
                         crossfadePlaybackCoordinator?.setDuration(settingsManager.crossfadeDurationMs.first())
@@ -624,7 +692,7 @@ class PlaybackService : MediaLibraryService() {
             override fun onRepeatModeChanged(repeatMode: Int) {
                 updateMediaButtonPreferences()
                 notificationProvider.refresh()
-                publishExternalPlaybackSnapshot(sessionPlayer)
+                publishExternalPlaybackSnapshot(sessionPresentationPlayer ?: sessionPlayer)
             }
         })
 
@@ -723,6 +791,8 @@ class PlaybackService : MediaLibraryService() {
         }
         audioEffectController.release()
         AudioEffectState.publish(null)
+        crossfadePresentationSettlementJob?.cancel()
+        crossfadePresentationSettlementJob = null
         crossfadePlaybackCoordinator?.release()
         crossfadePlaybackCoordinator = null
         mediaSession?.run {

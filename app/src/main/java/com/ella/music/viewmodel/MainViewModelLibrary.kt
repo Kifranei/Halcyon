@@ -3,6 +3,7 @@ package com.ella.music.viewmodel
 import com.ella.music.data.NameSplitConfigStore
 import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.SongPlaybackStats
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.matchesArtistName
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
@@ -17,13 +18,14 @@ import com.ella.music.ui.components.selectMetadataCategoryCoverSong
 internal fun buildArtists(
     songs: List<Song>,
     albums: List<Album>,
-    includeAlbumArtists: Boolean
+    includeAlbumArtists: Boolean,
+    includeFeaturedArtists: Boolean = NameSplitConfigStore.parseFeaturedArtists
 ): List<Artist> {
     val counts = linkedMapOf<String, ArtistAccumulator>()
     val albumIdsByArtist = mutableMapOf<String, MutableSet<Long>>()
 
     songs.forEach { song ->
-        splitArtistNames(song.artist).forEach { rawName ->
+        artistNamesForSong(song, includeFeaturedArtists).forEach { rawName ->
             val key = rawName.tagIdentityKey()
             val accumulator = counts.getOrPut(key) { ArtistAccumulator(rawName) }
             accumulator.songCount += 1
@@ -201,10 +203,13 @@ internal fun filterSongsForMetadataCategories(
 internal fun filterSongsForArtist(
     songs: List<Song>,
     artistName: String,
-    includeAlbumArtist: Boolean
+    includeAlbumArtist: Boolean,
+    includeFeaturedArtists: Boolean = NameSplitConfigStore.parseFeaturedArtists
 ): List<Song> {
     return songs.filter { song ->
-        song.artist.matchesArtistName(artistName) ||
+        artistNamesForSong(song, includeFeaturedArtists).any {
+            it.equals(artistName.trim(), ignoreCase = NameSplitConfigStore.tagIgnoreCase)
+        } ||
             (includeAlbumArtist && song.albumArtist.matchesArtistName(artistName))
     }
 }

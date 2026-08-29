@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.tagIdentityKey
-import com.ella.music.ui.artist.rememberArtistCoverUri
+import com.ella.music.ui.artist.rememberArtistCoverModel
 import com.ella.music.ui.artist.selectArtistCoverSong
 import com.ella.music.viewmodel.MainViewModel
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -125,25 +125,12 @@ private fun ArtistPickerRow(
     val representativeSong = remember(songs, artist) {
         selectArtistCoverSong(songs, artist)
     }
-    val albumArtUri = remember(representativeSong?.albumId) {
-        representativeSong
-            ?.albumId
-            ?.takeIf { it > 0L }
-            ?.let(mainViewModel::getAlbumArtUri)
-    }
-    val coverState = rememberSongArtworkState(
-        song = representativeSong,
-        albumArtUri = albumArtUri,
-        loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
-        usage = ArtworkUsage.ArtistImage,
-        showDefaultWhenMissing = false
-    )
-    val customArtistCoverUri = rememberArtistCoverUri(
+    val coverModel = rememberArtistCoverModel(
         artistName = artist,
+        representativeSong = representativeSong,
         folderLocation = artistCoverFolderUri,
         mainViewModel = mainViewModel
     )
-    val coverModel: Any? = customArtistCoverUri ?: coverState.model
 
     androidx.compose.foundation.layout.Row(
         modifier = Modifier

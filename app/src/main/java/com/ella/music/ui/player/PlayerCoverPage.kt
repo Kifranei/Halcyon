@@ -148,11 +148,13 @@ internal fun CoverPlayerPage(
     lyricPerspectiveEffect: Boolean,
     lyricPerspectiveYAngle: Int,
     lyricTextAlign: Int,
+    lyricPageVerticalAlignment: Int,
     playerTapSeekEnabled: Boolean,
     playerShowTotalDuration: Boolean,
     coverSwipeEnabled: Boolean,
     playerTitlePosition: Int,
     playerPageStyle: Int,
+    defaultAppleMusicShowLyrics: Boolean = false,
     showPlayerKeepScreenOnAction: Boolean,
     playerKeepScreenOn: Boolean,
     menuExpanded: Boolean,
@@ -248,9 +250,10 @@ internal fun CoverPlayerPage(
 ) {
     val playWhenReady by playerViewModel.playWhenReady.collectAsState()
     val isActuallyPaused = !isPlaying && !playWhenReady
-    // Seeking may briefly clear isPlaying while playWhenReady remains true. Keep the transport
-    // glyph stable during that buffering window instead of flashing from pause to play and back.
-    val visualIsPlaying = isPlaying || playWhenReady
+    // The transport glyph describes the action the button will perform. playWhenReady is the
+    // authoritative intent here: it stays true while buffering, but turns false immediately when
+    // the user pauses even if Media3's isPlaying callback is one frame late.
+    val visualIsPlaying = playWhenReady
     val staticCoverPreviewModel by produceState<Any?>(
         initialValue = resolveCoverPreviewModel(song, embeddedCover),
         song?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
@@ -343,7 +346,10 @@ internal fun CoverPlayerPage(
         onSwipePrevious = onSwipePrevious,
         onSwipeNext = onNext
     )
-    var appleMusicShowLyrics by remember { mutableStateOf(false) }
+    val defaultAppleMusicLyrics = defaultAppleMusicShowLyrics &&
+        com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle) ==
+        com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
+    var appleMusicShowLyrics by remember(defaultAppleMusicLyrics) { mutableStateOf(defaultAppleMusicLyrics) }
     var appleMusicChromeVisible by remember { mutableStateOf(true) }
     var appleMusicChromeGeneration by remember { mutableIntStateOf(0) }
     fun revealAppleMusicChrome() {
@@ -356,9 +362,11 @@ internal fun CoverPlayerPage(
         appleMusicChromeVisible = false
     }
     BackHandler(
-        enabled = appleMusicShowLyrics &&
-            com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle) ==
-            com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
+        enabled = shouldInterceptAppleMusicLyricsBack(
+            showLyrics = appleMusicShowLyrics,
+            playerPageStyle = playerPageStyle,
+            preserveLyricsOnBack = defaultAppleMusicLyrics
+        )
     ) {
         appleMusicShowLyrics = false
         revealAppleMusicChrome()
@@ -531,6 +539,7 @@ internal fun CoverPlayerPage(
                             text = stringResource(R.string.player_detail_music_video),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
+                            fontFamily = fontFamily,
                             color = pagePalette.onBackground.copy(alpha = 0.94f)
                         )
                     }
@@ -1266,7 +1275,7 @@ internal fun CoverPlayerPage(
                 paletteBitmap = paletteBitmap,
                 annotation = annotation,
                 dynamicCoverSource = displayedDynamicCover,
-                isPlaying = isPlaying,
+                isPlaying = visualIsPlaying,
                 currentPosition = currentPosition,
                 duration = duration,
                 shuffleEnabled = shuffleEnabled,
@@ -1300,6 +1309,7 @@ internal fun CoverPlayerPage(
                 lyricTextAlign = lyricTextAlign,
                 showTotalDuration = playerShowTotalDuration,
                 playerTapSeekEnabled = playerTapSeekEnabled,
+                playerTitlePosition = playerTitlePosition,
                 coverSwipeEnabled = coverSwipeEnabled,
                 coverLongPressPreviewEnabled = coverLongPressPreviewEnabled &&
                     resolvedStaticCoverPreviewModel != null,
@@ -1793,6 +1803,7 @@ internal fun CoverPlayerPage(
                                         text = stringResource(R.string.player_detail_music_video),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = fontFamily,
                                         color = pagePalette.onBackground.copy(alpha = 0.94f)
                                     )
                                 }
@@ -2029,6 +2040,15 @@ internal fun CoverPlayerPage(
     }
 }
 
+internal fun shouldInterceptAppleMusicLyricsBack(
+    showLyrics: Boolean,
+    playerPageStyle: Int,
+    preserveLyricsOnBack: Boolean
+): Boolean = showLyrics &&
+    !preserveLyricsOnBack &&
+    com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle) ==
+    com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
+
 private data class PlayerCoverPreview(
     val model: Any,
     val title: String,
@@ -2046,7 +2066,7 @@ private fun Song.coverPreviewSaveName(): String =
         .joinToString(" - ")
 
 @Composable
-private fun PlayerCoverTitleRow(
+internal fun PlayerCoverTitleRow(
     song: Song?,
     annotation: String,
     palette: PlayerPalette,
@@ -2054,6 +2074,7 @@ private fun PlayerCoverTitleRow(
     isFavorite: Boolean,
     onArtist: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onToggleMenu: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -2078,6 +2099,12 @@ private fun PlayerCoverTitleRow(
             selected = isFavorite,
             onClick = onToggleFavorite
         )
+        onToggleMenu?.let { onClick ->
+            PlayerHeaderAction(
+                kind = PlayerHeaderActionKind.More,
+                onClick = onClick
+            )
+        }
     }
 }
 

@@ -485,6 +485,7 @@ internal fun SettingsScanSection(
         initial = SettingsManager.DEFAULT_ARTIST_SEPARATORS
     )
     val artistProtectedNames by settingsManager.artistProtectedNames.collectAsState(initial = "")
+    val parseFeaturedArtists by settingsManager.parseFeaturedArtists.collectAsState(initial = false)
     val genreSeparators by settingsManager.genreSeparators.collectAsState(
         initial = SettingsManager.DEFAULT_GENRE_SEPARATORS
     )
@@ -567,6 +568,16 @@ internal fun SettingsScanSection(
                     summary = stringResource(R.string.settings_show_album_artists_summary),
                     checked = showAlbumArtists,
                     onCheckedChange = { scope.launch { settingsManager.setShowAlbumArtists(it) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "parse_featured_artists") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_parse_featured_artists),
+                    summary = stringResource(R.string.settings_parse_featured_artists_summary),
+                    checked = parseFeaturedArtists,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsManager.setParseFeaturedArtists(enabled) }
+                    }
                 )
             }
             SettingsFocusAnchor(active = highlightKey == "show_artist_introduction") {

@@ -50,6 +50,7 @@ import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.matchesArtistName
+import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.splitGenreNames
 import com.ella.music.ui.LibrarySortUiState
@@ -130,6 +131,7 @@ fun AlbumDetailScreen(
     val sortIndex by mainViewModel.settingsManager.albumDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.albumDetailSongSortIndex)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
+    val parseFeaturedArtists by mainViewModel.settingsManager.parseFeaturedArtists.collectAsState(initial = false)
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val sortMode = AlbumDetailSongSortMode.entries.getOrElse(sortIndex) { AlbumDetailSongSortMode.Track }
     val scope = rememberCoroutineScope()
@@ -236,9 +238,9 @@ fun AlbumDetailScreen(
             .flatMap { splitGenreNames(it.genre) }
             .distinctBy { it.lowercase(Locale.ROOT) }
     }
-    val participatingArtists = remember(albumSongs) {
+    val participatingArtists = remember(albumSongs, parseFeaturedArtists) {
         albumSongs
-            .flatMap { splitArtistNames(it.artist) }
+            .flatMap { artistNamesForSong(it, parseFeaturedArtists) }
             .distinctBy { it.lowercase(Locale.ROOT) }
     }
     val participatingComposers = remember(albumSongs) {
@@ -278,12 +280,16 @@ fun AlbumDetailScreen(
             )
         }
     }
-    val artistDisplayItems = remember(participatingArtists, albumSongs, librarySongs, showAlbumArtists) {
+    val artistDisplayItems = remember(participatingArtists, albumSongs, librarySongs, showAlbumArtists, parseFeaturedArtists) {
         participatingArtists.map { artist ->
             // The artist section on an album page describes the tracks actually
             // performed by this artist. Album-artist participation must not
             // inflate the song count shown for the current album.
-            val artistSongs = albumSongs.filter { it.artist.matchesArtistName(artist) }
+            val artistSongs = albumSongs.filter {
+                artistNamesForSong(it, parseFeaturedArtists).any { name ->
+                    name.equals(artist, ignoreCase = com.ella.music.data.NameSplitConfigStore.tagIgnoreCase)
+                }
+            }
             val artistAlbums = mainViewModel.getParticipatedAlbumsForArtist(artist) +
                 if (showAlbumArtists) mainViewModel.getReleaseAlbumsForArtist(artist) else emptyList()
             buildAlbumMetadataDisplayItem(
@@ -970,7 +976,9 @@ fun AlbumDetailScreen(
         if (coverPreviewVisible && albumPreviewModel != null) {
             CoverPreviewDialog(
                 model = albumPreviewModel!!,
-                title = album?.name.orEmpty(),
+                title = album?.name
+                    ?.takeUnless(com.ella.music.data.LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
+                    ?: stringResource(R.string.player_unknown_album),
                 onDismiss = { coverPreviewVisible = false }
             )
         }

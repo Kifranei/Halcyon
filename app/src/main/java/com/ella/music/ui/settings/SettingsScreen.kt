@@ -364,6 +364,11 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_artist_bio_download), stringResource(R.string.settings_artist_bio_download_summary), "艺术家 传记 Last.fm wiki 自动下载 Wi-Fi") { onNavigateToHighlightedLibrarySettings("artist_bio_download") },
         entry(stringResource(R.string.settings_artist_cover_folder), stringResource(R.string.settings_artist_cover_folder_summary), "艺术家 歌手 artist 封面 动态封面 视频封面 mp4 轮播 图片目录") { onNavigateToHighlightedCoverMediaSettings("artist_cover_folder") },
         entry(stringResource(R.string.settings_artist_cover_carousel), stringResource(R.string.settings_artist_cover_carousel_summary), "艺术家 歌手 artist 封面 动态封面 轮播") { onNavigateToHighlightedCoverMediaSettings("artist_cover_carousel") },
+          entry(stringResource(R.string.settings_artist_image_download), stringResource(R.string.settings_artist_image_download_summary), "艺术家 歌手 artist 图片 封面 自动下载 Last.fm Spotify 网易云 Wi-Fi") { onNavigateToHighlightedCoverMediaSettings("artist_image_download") },
+          entry(stringResource(R.string.settings_artist_image_region), stringResource(R.string.settings_artist_image_region_summary), "艺术家 歌手 artist 图片 封面 Last.fm Spotify 地区 区域 market") { onNavigateToHighlightedCoverMediaSettings("artist_image_region") },
+          entry(stringResource(R.string.settings_artist_image_sources), stringResource(R.string.settings_artist_image_sources_summary), "艺术家 歌手 artist 图片 封面 来源 优先级 顺序 Last.fm Spotify 网易云") { onNavigateToHighlightedCoverMediaSettings("artist_image_sources") },
+        entry(stringResource(R.string.settings_spotify_client_id), stringResource(R.string.settings_spotify_client_id_summary), "艺术家 图片 Spotify Client ID API") { onNavigateToHighlightedCoverMediaSettings("artist_image_sources") },
+        entry(stringResource(R.string.settings_spotify_client_secret), stringResource(R.string.settings_spotify_client_secret_summary), "艺术家 图片 Spotify Client Secret API") { onNavigateToHighlightedCoverMediaSettings("artist_image_sources") },
         entry(stringResource(R.string.settings_artist_separators), stringResource(R.string.settings_artist_separators_summary), "艺术家 歌手 artist 分隔符 feat 合作 作曲 作词") { onNavigateToHighlightedLibrarySettings("artist_separators") },
         entry(stringResource(R.string.settings_artist_protected_names), stringResource(R.string.settings_artist_protected_names_summary), "艺术家 歌手 artist 不拆分 分隔符 保护名称") { onNavigateToHighlightedLibrarySettings("artist_protected_names") },
         entry(stringResource(R.string.settings_search_all_song_match_types), stringResource(R.string.settings_search_all_song_match_types_summary), "搜索 所有 歌曲 艺术家 歌手 专辑 专辑艺术家 元数据 歌词") { onNavigateToHighlightedLibrarySettings("search_all_song_match_types") },
@@ -460,6 +465,7 @@ private fun settingsSearchFallbackEntries(
                     name.contains("resume_") || name.contains("startup_play") -> { { onAudio("audio_playback") } }
                 name.contains("dynamic_cover") || name.contains("music_video") ||
                     name.contains("artist_cover") || name.contains("cover_export") ||
+                    name.contains("artist_image") || name.contains("spotify_client") ||
                     name.contains("cover_media") -> { { onCoverMedia("cover_media") } }
                 name.contains("scan") || name.contains("library") || name.contains("metadata") ||
                     name.contains("tag_") || name.contains("artist_") || name.contains("genre_") ||

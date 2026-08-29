@@ -518,4 +518,5 @@ private fun SettingsPlayerLyricAlignmentPreference() {
             scope.launch { settingsManager.setPlayerLyricTextAlign(index) }
         }
     )
+
 }

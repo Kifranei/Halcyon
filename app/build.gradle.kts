@@ -17,6 +17,14 @@ plugins {
 }
 
 val appVersionName = "1.2.7"
+val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+val configuredAbis = providers.gradleProperty("ellaAbi")
+    .orNull
+    ?.split(",")
+    ?.map { it.trim() }
+    ?.filter { it.isNotEmpty() }
+    ?.ifEmpty { null }
+    ?: supportedAbis
 
 fun variantChannelMarker(variantName: String): String =
     when (variantName.lowercase(Locale.US)) {
@@ -51,6 +59,8 @@ abstract class CopyRenamedApksTask : DefaultTask() {
         val targetDir = outputDir.get().asFile
         targetDir.mkdirs()
 
+        // Keep this list local: Gradle task types declared in a Kotlin build script must not
+        // capture script-instance properties, otherwise Gradle cannot instantiate the task.
         val knownAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
         val marker = channelMarker.get()
         val variant = variantName.get()
@@ -128,17 +138,12 @@ android {
 
     splits {
         abi {
-            val abiIncludes = providers.gradleProperty("ellaAbi")
-                .orNull
-                ?.split(",")
-                ?.map { it.trim() }
-                ?.filter { it.isNotEmpty() }
-                ?: listOf("arm64-v8a")
-
             isEnable = true
             reset()
-            include(*abiIncludes.toTypedArray())
-            isUniversalApk = false
+            include(*configuredAbis.toTypedArray())
+            // A normal build produces four ABI-specific APKs plus one universal APK. Keep
+            // single-ABI overrides lean for CI/local iteration (for example -PellaAbi=arm64-v8a).
+            isUniversalApk = configuredAbis.toSet().containsAll(supportedAbis)
         }
     }
 

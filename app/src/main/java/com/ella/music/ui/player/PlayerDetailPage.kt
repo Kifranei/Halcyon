@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.NeteaseKeyInfo
 import com.ella.music.data.matchesGenreName
+import com.ella.music.data.artistNamesForSong
+import com.ella.music.data.extractFeaturedArtistNames
+import com.ella.music.data.NameSplitConfigStore
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.splitGenreNames
 import com.ella.music.data.model.Song
@@ -84,6 +87,7 @@ internal fun PlayerDetailPage(
 ) {
     val context = LocalContext.current
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
+    val parseFeaturedArtists by mainViewModel.settingsManager.parseFeaturedArtists.collectAsState(initial = false)
     val composerNames = remember(tagInfo?.composer, song?.composer) {
         splitArtistNames(tagInfo?.composer?.ifBlank { song?.composer.orEmpty() }.orEmpty())
     }
@@ -93,8 +97,13 @@ internal fun PlayerDetailPage(
     val lyricistNames = remember(tagInfo?.lyricist, song?.lyricist) {
         splitArtistNames(tagInfo?.lyricist?.ifBlank { song?.lyricist.orEmpty() }.orEmpty())
     }
-    val artistNames = remember(tagInfo?.artist, song?.artist) {
-        splitArtistNames(tagInfo?.artist?.ifBlank { song?.artist.orEmpty() }.orEmpty())
+    val artistNames = remember(tagInfo?.artist, song?.artist, song?.title, parseFeaturedArtists) {
+        val artistText = tagInfo?.artist?.ifBlank { song?.artist.orEmpty() }.orEmpty()
+        (splitArtistNames(artistText) + if (parseFeaturedArtists) {
+            extractFeaturedArtistNames(song?.title.orEmpty())
+        } else {
+            emptyList()
+        }).distinctBy { it.lowercase(java.util.Locale.ROOT) }
     }
     var showNeteaseArtistPicker by remember(neteaseInfo) { mutableStateOf(false) }
     val neteaseArtists = remember(neteaseInfo) {
@@ -110,12 +119,14 @@ internal fun PlayerDetailPage(
     val effectiveLibrarySongs = remember(librarySongs, song) {
         librarySongs.ifEmpty { song?.let(::listOf).orEmpty() }
     }
-    val artistDetails = remember(artistNames, effectiveLibrarySongs) {
+    val artistDetails = remember(artistNames, effectiveLibrarySongs, parseFeaturedArtists) {
         artistNames.map { name ->
             PlayerDetailEntity(
                 name = name,
                 songs = effectiveLibrarySongs.filter { candidate ->
-                    splitArtistNames(candidate.artist).any { it.equals(name, ignoreCase = true) }
+                    artistNamesForSong(candidate, parseFeaturedArtists).any {
+                        it.equals(name, ignoreCase = NameSplitConfigStore.tagIgnoreCase)
+                    }
                 }
             )
         }
@@ -304,10 +315,10 @@ internal fun PlayerDetailPage(
                                 folderLocation = artistCoverFolderUri,
                                 mainViewModel = mainViewModel
                             )
-                            val artistAlbumCount = remember(detail.name, effectiveLibrarySongs, showAlbumArtists) {
+                            val artistAlbumCount = remember(detail.name, effectiveLibrarySongs, showAlbumArtists, parseFeaturedArtists) {
                                 effectiveLibrarySongs
                                     .filter { candidate ->
-                                        splitArtistNames(candidate.artist).any {
+                                        artistNamesForSong(candidate, parseFeaturedArtists).any {
                                             it.equals(detail.name, ignoreCase = true)
                                         } || (showAlbumArtists && splitArtistNames(candidate.albumArtist).any {
                                             it.equals(detail.name, ignoreCase = true)

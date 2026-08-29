@@ -3,6 +3,7 @@ package com.ella.music.ui.player
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -37,7 +38,8 @@ internal fun rememberPlayerSongPresentationState(
 ): PlayerSongPresentationState {
     val paletteDefault = if (playerLight) PlayerPalette.LightDefault else PlayerPalette.Default
     val songKey = remember(song) { song?.presentationIdentityKey() }
-    val embeddedCover by produceState<Bitmap?>(initialValue = null, songKey) {
+    val artworkGeneration by com.ella.music.ui.components.artworkResolutionGeneration.collectAsState()
+    val embeddedCover by produceState<Bitmap?>(initialValue = null, songKey, artworkGeneration) {
         value = withContext(Dispatchers.IO) {
             runCatching {
                 CoverLoadLimiter.run { song?.takeIf { it.coverUrl.isBlank() }?.let(playerViewModel::getCoverArtBitmap) }
