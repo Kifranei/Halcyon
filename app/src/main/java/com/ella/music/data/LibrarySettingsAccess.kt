@@ -24,6 +24,10 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_REOPEN_BEHAVIOR
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_SEARCH_REOPEN_BEHAVIOR
 import com.ella.music.data.SettingsManager.Companion.KEY_CATEGORY_GRID_COLUMNS
 import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SONG_GRID
+import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SONG_GRID_COLUMNS_PHONE
+import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SONG_GRID_COLUMNS_TABLET
+import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SONG_TITLE_MARQUEE
+import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SONG_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_COVER_EXPORT_FOLDER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_EXCLUDE_SEARCH_RESULTS_FROM_PLAYLIST
 import com.ella.music.data.SettingsManager.Companion.KEY_SEARCH_CLICK_PLAYBACK_MODE
@@ -56,8 +60,10 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ALBUM_ARTISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ARTIST_INTRODUCTION
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_BIO_DOWNLOAD
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_BIO_LASTFM_LANG
+import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_BIO_SOURCE
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_IMAGE_DOWNLOAD
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_IMAGE_SOURCES
+import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_IMAGE_REGION
 import com.ella.music.data.SettingsManager.Companion.KEY_SPOTIFY_CLIENT_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_SPOTIFY_CLIENT_SECRET
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_ARTIST_BIO_DOWNLOAD
@@ -111,8 +117,10 @@ interface LibrarySettingsAccess {
     val showArtistIntroduction: Flow<Boolean>
     val artistBioDownload: Flow<Int>
     val artistBioLastFmLang: Flow<String>
+    val artistBioSource: Flow<String>
     val artistImageDownload: Flow<Int>
     val artistImageSourceOrder: Flow<List<String>>
+    val artistImageRegion: Flow<String>
     val spotifyClientId: Flow<String>
     val spotifyClientSecret: Flow<String>
     val metadataEditorId: Flow<String>
@@ -143,7 +151,11 @@ interface LibrarySettingsAccess {
     val folderPlaylistCustomOrder: Flow<List<String>>
     val addToPlaylistAppendToEnd: Flow<Boolean>
     val categoryGridColumns: Flow<Int>
+    val librarySongGridColumnsPhone: Flow<Int>
+    val librarySongGridColumnsTablet: Flow<Int>
     val librarySongGrid: Flow<Boolean>
+    val librarySongLayout: Flow<Int>
+    val librarySongTitleMarquee: Flow<Boolean>
     val folderPlaylists: Flow<List<FolderPlaylist>>
     suspend fun setAutoScan(enabled: Boolean)
     suspend fun setAutoScanLocalPlaylists(enabled: Boolean)
@@ -165,8 +177,10 @@ interface LibrarySettingsAccess {
     suspend fun setShowArtistIntroduction(enabled: Boolean)
     suspend fun setArtistBioDownload(mode: Int)
     suspend fun setArtistBioLastFmLang(lang: String)
+    suspend fun setArtistBioSource(source: String)
     suspend fun setArtistImageDownload(mode: Int)
     suspend fun setArtistImageSourceOrder(sources: List<String>)
+    suspend fun setArtistImageRegion(region: String)
     suspend fun setSpotifyClientId(value: String)
     suspend fun setSpotifyClientSecret(value: String)
     suspend fun setMetadataEditorId(id: String)
@@ -182,7 +196,11 @@ interface LibrarySettingsAccess {
     suspend fun pinKeysInOrder(namespace: String, keys: List<String>)
     suspend fun setAddToPlaylistAppendToEnd(appendToEnd: Boolean)
     suspend fun setCategoryGridColumns(columns: Int)
+    suspend fun setLibrarySongGridColumnsPhone(columns: Int)
+    suspend fun setLibrarySongGridColumnsTablet(columns: Int)
     suspend fun setLibrarySongGrid(enabled: Boolean)
+    suspend fun setLibrarySongLayout(layout: Int)
+    suspend fun setLibrarySongTitleMarquee(enabled: Boolean)
     suspend fun upsertFolderPlaylist(
         playlistId: String?,
         name: String,
@@ -271,6 +289,14 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     override val artistBioLastFmLang: Flow<String> =
         context.dataStore.data.map {
             normalizeLastFmWikiRegion(it[KEY_ARTIST_BIO_LASTFM_LANG] ?: DEFAULT_LAST_FM_WIKI_REGION)
+        }
+    override val artistBioSource: Flow<String> =
+        context.dataStore.data.map {
+            com.ella.music.data.lastfm.normalizeArtistBioSource(it[KEY_ARTIST_BIO_SOURCE]).id
+        }
+    override val artistImageRegion: Flow<String> =
+        context.dataStore.data.map {
+            normalizeLastFmWikiRegion(it[KEY_ARTIST_IMAGE_REGION] ?: DEFAULT_LAST_FM_WIKI_REGION)
         }
     override val artistImageDownload: Flow<Int> =
         context.dataStore.data.map {
@@ -374,8 +400,25 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
             (it[KEY_CATEGORY_GRID_COLUMNS] ?: 2).coerceIn(1, 4)
         }
     }
+    override val librarySongGridColumnsPhone: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_LIBRARY_SONG_GRID_COLUMNS_PHONE] ?: 2).coerceIn(1, 4)
+    }
+    override val librarySongGridColumnsTablet: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_LIBRARY_SONG_GRID_COLUMNS_TABLET] ?: 5).coerceIn(3, 8)
+    }
     override val librarySongGrid: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LIBRARY_SONG_GRID] ?: false }
+    override val librarySongTitleMarquee: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LIBRARY_SONG_TITLE_MARQUEE] ?: true }
+
+    override val librarySongLayout: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LIBRARY_SONG_LAYOUT]
+            ?: if (prefs[KEY_LIBRARY_SONG_GRID] == true) {
+                SettingsManager.LIBRARY_LAYOUT_GRID
+            } else {
+                SettingsManager.LIBRARY_LAYOUT_LIST
+            }
+    }.map { it.coerceIn(SettingsManager.LIBRARY_LAYOUT_LIST, SettingsManager.LIBRARY_LAYOUT_GRID) }
 
     override val folderPlaylists: Flow<List<FolderPlaylist>> =
         context.dataStore.data.map { it[KEY_FOLDER_PLAYLISTS].orEmpty().toFolderPlaylists() }
@@ -469,9 +512,21 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         }
     }
 
+    override suspend fun setArtistBioSource(source: String) {
+        context.dataStore.edit {
+            it[KEY_ARTIST_BIO_SOURCE] = com.ella.music.data.lastfm.normalizeArtistBioSource(source).id
+        }
+    }
+
     override suspend fun setArtistImageDownload(mode: Int) {
         context.dataStore.edit {
             it[KEY_ARTIST_IMAGE_DOWNLOAD] = SettingsManager.normalizeArtistImageDownload(mode)
+        }
+    }
+
+    override suspend fun setArtistImageRegion(region: String) {
+        context.dataStore.edit {
+            it[KEY_ARTIST_IMAGE_REGION] = normalizeLastFmWikiRegion(region)
         }
     }
 
@@ -641,8 +696,38 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.edit { it[KEY_CATEGORY_GRID_COLUMNS] = columns.coerceIn(if (tablet) 5 else 1, if (tablet) 8 else 4) }
     }
 
+    override suspend fun setLibrarySongGridColumnsPhone(columns: Int) {
+        context.dataStore.edit { it[KEY_LIBRARY_SONG_GRID_COLUMNS_PHONE] = columns.coerceIn(1, 4) }
+    }
+
+    override suspend fun setLibrarySongGridColumnsTablet(columns: Int) {
+        context.dataStore.edit { it[KEY_LIBRARY_SONG_GRID_COLUMNS_TABLET] = columns.coerceIn(3, 8) }
+    }
+
     override suspend fun setLibrarySongGrid(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_LIBRARY_SONG_GRID] = enabled }
+        context.dataStore.edit {
+            it[KEY_LIBRARY_SONG_GRID] = enabled
+            it[KEY_LIBRARY_SONG_LAYOUT] = if (enabled) {
+                SettingsManager.LIBRARY_LAYOUT_GRID
+            } else {
+                SettingsManager.LIBRARY_LAYOUT_LIST
+            }
+        }
+    }
+
+    override suspend fun setLibrarySongTitleMarquee(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LIBRARY_SONG_TITLE_MARQUEE] = enabled }
+    }
+
+    override suspend fun setLibrarySongLayout(layout: Int) {
+        val resolved = layout.coerceIn(
+            SettingsManager.LIBRARY_LAYOUT_LIST,
+            SettingsManager.LIBRARY_LAYOUT_GRID
+        )
+        context.dataStore.edit {
+            it[KEY_LIBRARY_SONG_LAYOUT] = resolved
+            it[KEY_LIBRARY_SONG_GRID] = resolved == SettingsManager.LIBRARY_LAYOUT_GRID
+        }
     }
 
     override suspend fun upsertFolderPlaylist(

@@ -17,6 +17,8 @@
     <string name="settings_search_placeholder">Search settings</string>
     <string name="settings_search_results">Search results</string>
     <string name="settings_search_no_results">No matching settings</string>
+    <string name="settings_search_history">Search history</string>
+    <string name="settings_search_history_clear">Clear search history</string>
     <string name="about">About</string>
     <string name="version">Version</string>
     <string name="app_description">A clean and elegant local music player</string>
@@ -170,7 +172,9 @@
     <string name="settings_status_lyric_x_offset_value">Status lyric horizontal offset %1$ddp</string>
     <string name="settings_status_lyric_x_offset_summary">Fine tune the lyric position after the left, center, or right anchor is applied</string>
     <string name="settings_status_bar_lyric_text_align">Status lyric text alignment</string>
+    <string name="settings_status_bar_lyric_text_align_summary">Choose status-bar lyric text alignment</string>
     <string name="settings_status_bar_lyric_vertical_align">Status lyric vertical alignment</string>
+    <string name="settings_status_bar_lyric_vertical_align_summary">Choose status-bar lyric vertical alignment</string>
     <string name="settings_status_lyric_secondary_opacity_value">Status secondary opacity %1$d%%</string>
     <string name="settings_status_lyric_secondary_opacity_summary">Adjust the opacity of status lyric translation or pronunciation text</string>
     <string name="settings_status_lyric_merge_secondary">Merge secondary into main line</string>
@@ -241,6 +245,14 @@
     <string name="settings_music_playback">Music and playback</string>
     <string name="settings_services">Services and data</string>
     <string name="settings_maintenance">Maintenance</string>
+    <string name="settings_maintenance_summary">Setup wizard, cache cleanup, and default configuration</string>
+    <string name="settings_clear_artist_image_cache">Clear artist image cache</string>
+    <string name="settings_clear_artist_image_cache_summary">Remove local images downloaded from artist image sources</string>
+    <string name="settings_clear_artist_image_cache_done">Artist image cache cleared</string>
+    <string name="settings_restore_defaults">Restore default configuration</string>
+    <string name="settings_restore_defaults_summary">Restore the app settings to their initial defaults without deleting music, playlists, or listening history</string>
+    <string name="settings_restore_defaults_confirm">Restore all default settings? Current preferences will be cleared, while music and user data remain.</string>
+    <string name="settings_restore_defaults_done">Default configuration restored</string>
     <string name="settings_appearance_home">Appearance and home</string>
     <string name="settings_appearance_home_summary">Theme, language, liquid glass, custom images, and home layout</string>
     <string name="settings_library_scan">Library and scanning</string>
@@ -255,6 +267,7 @@
     <string name="settings_lyrics">Lyrics</string>
     <string name="settings_lyrics_summary">Lyricon, desktop lyrics, status bar lyrics, and car lyrics</string>
     <string name="settings_player_lyric_text_align">Player lyric alignment</string>
+    <string name="settings_player_lyric_text_align_summary">Choose lyric horizontal alignment</string>
     <string name="player_output_bluetooth">Bluetooth device</string>
     <string name="player_output_headphones">Headphones</string>
     <string name="player_output_usb_audio">USB audio</string>
@@ -265,7 +278,7 @@
     <string name="settings_backup_summary">Back up and restore settings, playlists, history, stats, and sources</string>
     <string name="settings_other">Other</string>
     <string name="settings_clear_online_cache">Clear artwork and lyric cache</string>
-    <string name="settings_clear_online_cache_summary">Clear WebDAV and LX artwork, lyrics, and remote metadata cache</string>
+    <string name="settings_clear_online_cache_summary">Clear artwork, lyrics, and tag-data caches for local and remote sources</string>
     <string name="settings_clear_online_cache_done">Online artwork and lyric cache cleared</string>
     <string name="settings_clear_library_snapshot_cache">Clear library cache snapshot</string>
     <string name="settings_clear_library_snapshot_cache_summary">Clear library search and tag snapshots; they will be regenerated on the next search</string>
@@ -291,7 +304,7 @@
     <string name="logs_retention_days">%1$d days</string>
     <string name="logs_retention_removed">Removed %1$d old logs</string>
     <string name="logs_retention_set">Keeping logs for %1$d days</string>
-    <string name="logs_summary">%1$d logs, showing %2$d; errors %3$d, warnings %4$d. Reads this process logcat directly instead of a truncated 3000-entry snapshot.</string>
+    <string name="logs_summary">%1$d logs, showing %2$d; errors %3$d, warnings %4$d</string>
     <string name="logs_empty">No logs</string>
     <string name="logs_empty_filtered">No matching logs</string>
     <string name="logs_clear_message">This will clear the %1$d logcat lines currently shown. The system logcat buffer is still managed by Android.</string>
@@ -336,6 +349,9 @@
     <string name="settings_app_display_scale">Interface scale</string>
     <string name="settings_app_display_scale_summary">Scale buttons, spacing, and content throughout the app</string>
     <string name="settings_category_grid_columns">Category grid columns</string>
+    <string name="settings_library_song_grid_columns_phone">Phone song grid columns</string>
+    <string name="settings_library_song_grid_columns_tablet">Tablet song grid columns</string>
+    <string name="settings_library_song_grid_columns_summary">Show the library artwork grid in %1$d columns</string>
     <string name="settings_category_grid_columns_summary">Show albums, genres, years, and similar pages in %1$d columns</string>
     <string name="settings_category_grid_columns_option">%1$d columns</string>
     <string name="settings_category_grid_columns_option_summary_single">Large card list layout</string>
@@ -347,7 +363,22 @@
     <string name="settings_parse_featured_artists_summary">Add artists after feat., ft., or featuring in song titles and deduplicate them against the ARTIST tag</string>
     <string name="settings_show_artist_introduction">Show artist introduction</string>
     <string name="settings_show_artist_introduction_summary">Show the Introduction entry on artist pages</string>
-    <string name="artist_biography_region">Region</string>
+    <string name="artist_biography_region">Language</string>
+    <string name="artist_biography_language">Language</string>
+    <string name="artist_biography_lang_zh_cn">Simplified Chinese</string>
+    <string name="artist_biography_lang_zh_hk">Hong Kong Traditional</string>
+    <string name="artist_biography_lang_zh_tw">Taiwan Traditional</string>
+    <string name="artist_biography_lang_ko">한국어</string>
+    <string name="artist_biography_lang_en">English</string>
+    <string name="artist_biography_lang_ja">日本語</string>
+    <string name="artist_biography_source_wikipedia">Wikipedia</string>
+    <string name="artist_image_source_lastfm">Last.fm</string>
+    <string name="artist_image_source_spotify">Spotify</string>
+    <string name="artist_image_source_netease">NetEase</string>
+    <string name="song_more_detail_play_count">Play count</string>
+    <string name="song_more_detail_listened_duration">Total listen time</string>
+    <string name="song_more_detail_last_played">Last played</string>
+    <string name="player_clear_queue_confirm">Clear the entire play queue?</string>
     <string name="artist_biography_country_us">United States</string>
     <string name="artist_biography_country_cn">China</string>
     <string name="artist_biography_country_jp">Japan</string>
@@ -371,6 +402,8 @@
     <string name="settings_artist_bio_download_always">Always</string>
     <string name="settings_artist_bio_download_wifi">Wi-Fi only</string>
     <string name="settings_artist_bio_download_never">Never</string>
+    <string name="settings_library_song_title_marquee">Scroll long titles in double-column library</string>
+    <string name="settings_library_song_title_marquee_summary">Overlong titles and artists bounce back and forth in the two-column list; off keeps single-line truncation</string>
     <string name="settings_open_player_on_play">Open player after tapping play</string>
     <string name="settings_open_player_on_play_summary">Automatically open the player after starting local, WebDAV, or online songs</string>
     <string name="settings_open_player_from_notification">Open player from media notification</string>
@@ -694,11 +727,15 @@
     <string name="settings_resume_playback_position">Resume track position</string>
     <string name="settings_resume_playback_position_summary">When returning to a previously played song, continue from where you left</string>
     <string name="settings_shuffle_mode">Shuffle mode</string>
+    <string name="settings_shuffle_mode_summary">Choose how shuffle picks the next song</string>
     <string name="settings_play_next_mode">Play next mode</string>
+    <string name="settings_play_next_mode_summary">Choose how Play next inserts songs into the queue</string>
     <string name="settings_previous_button">Previous button</string>
+    <string name="settings_previous_button_summary">Choose whether Previous skips back or replays the current song</string>
     <string name="settings_disable_audio_focus">Disable audio focus</string>
     <string name="settings_disable_audio_focus_summary">When enabled, playback will no longer take audio focus from other apps</string>
     <string name="settings_decoder">Decoder</string>
+    <string name="settings_decoder_summary">Choose system decoding, FFmpeg, or automatic fallback</string>
     <string name="settings_startup_play_off">Off</string>
     <string name="settings_startup_play_random">Shuffle play</string>
     <string name="settings_startup_play_resume">Resume last session</string>
@@ -713,8 +750,11 @@
     <string name="settings_audio_decoder_auto_summary">Fallback to FFmpeg only when the system decoder cannot handle the format</string>
     <string name="settings_audio_output_section">Output</string>
     <string name="settings_audio_output_backend">Output channel</string>
+    <string name="settings_audio_output_backend_summary">Choose the Android audio output path</string>
     <string name="settings_audio_output_bit_depth">Output bit depth</string>
+    <string name="settings_audio_output_bit_depth_summary">Choose output PCM bit depth; Auto follows the source and system</string>
     <string name="settings_audio_output_sample_rate">Output sample rate</string>
+    <string name="settings_audio_output_sample_rate_summary">Choose output sample rate; Auto follows the source and system</string>
     <string name="settings_audio_output_auto">Auto</string>
     <string name="settings_audio_output_backend_auto">Auto</string>
     <string name="settings_audio_output_backend_opensles">OpenSL ES</string>
@@ -806,6 +846,7 @@
     <string name="settings_crossfade_duration_seconds">Duration (seconds)</string>
     <string name="settings_crossfade_duration_invalid">Enter a valid duration between 0 and 12</string>
     <string name="settings_crossfade_curve">Fade curve</string>
+    <string name="settings_crossfade_curve_summary">Choose how volume changes while two tracks overlap</string>
     <string name="settings_crossfade_curve_equal_power">Constant loudness</string>
     <string name="settings_crossfade_curve_equal_power_summary">Equal-power crossfade avoids a nearly silent start or a volume dip in the middle</string>
     <string name="settings_crossfade_curve_linear">Linear</string>
@@ -817,10 +858,12 @@
     <string name="settings_play_count_duration">Play-count duration</string>
     <string name="settings_play_count_duration_summary">Count once after the selected percentage or %1$s, whichever comes first</string>
     <string name="settings_startup_play">Autoplay on launch</string>
+    <string name="settings_startup_play_summary">Choose whether playback starts when the app launches</string>
     <string name="settings_bluetooth_auto_play">Bluetooth auto-play</string>
     <string name="settings_bluetooth_auto_play_summary">Automatically start playback when a Bluetooth audio device connects</string>
     <string name="settings_bluetooth_auto_play_permission_denied">Nearby devices permission was not granted, Bluetooth auto-play was disabled</string>
     <string name="settings_mini_player_right_button">Mini player right button</string>
+    <string name="settings_mini_player_right_button_summary">Choose the action of the mini player right-side button</string>
     <string name="settings_mini_player_right_next">Next track</string>
     <string name="settings_mini_player_right_queue">Playlist</string>
     <string name="settings_transport_button_outlines">Player button outlines</string>
@@ -903,6 +946,8 @@
     <string name="lyric_timing_editor_selected_line">Selected line: %1$d / %2$d</string>
     <string name="lyric_timing_editor_unset_lines">%1$d lines still need timing</string>
     <string name="lyric_timing_editor_saved">Lyric timing was written as embedded LRC</string>
+    <string name="lyric_timing_editor_saved_with_sidecar">Embedded lyrics saved and %1$s exported beside the song</string>
+    <string name="lyric_timing_editor_sidecar_failed">Embedded lyrics were saved, but the sidecar file could not be exported beside the song. Use Export to choose a location.</string>
     <string name="lyric_timing_editor_no_lines">Enter at least one lyric line first</string>
     <string name="lyric_timing_editor_complete_lines">Time every lyric line before saving</string>
     <string name="lyric_timing_editor_embed_format">Embed format</string>
@@ -1095,6 +1140,7 @@
     <string name="settings_player_cover_content_color">Use cover colors for content</string>
     <string name="settings_player_cover_content_color_summary">Tint player text and icons with a cover-derived accent color</string>
     <string name="settings_player_title_position">Non-immersive player title position</string>
+    <string name="settings_player_title_position_summary">Show the title above or below the cover on the non-immersive player</string>
     <string name="settings_player_title_position_below_cover">Below cover</string>
     <string name="settings_player_title_position_above_cover">Above cover</string>
     <string name="settings_player_page_style">Playback page</string>
@@ -1173,7 +1219,9 @@
     <string name="settings_lyric_share_custom_info_summary">Leave blank to show Halcyon; fill a name to show by @name</string>
     <string name="settings_tag_scraping">Music tag scraping</string>
     <string name="settings_metadata_editor">Metadata editor app</string>
+    <string name="settings_metadata_editor_summary">Choose the app used to edit song tags</string>
     <string name="settings_lyric_timing_editor">Lyric timing app</string>
+    <string name="settings_lyric_timing_editor_summary">Choose the app used to time lyrics</string>
     <string name="settings_desktop_shortcuts">Desktop shortcuts</string>
     <string name="settings_shortcut_library">Library</string>
     <string name="settings_shortcut_playlists">Search</string>
@@ -1206,18 +1254,20 @@
     <string name="settings_mini_player_lyrics_summary">Show the current lyric in the mini player while playing; disable it to show the song title and artist</string>
     <string name="settings_lyric_source_priority">Lyric source priority</string>
     <string name="settings_lyric_source_priority_summary">Open it, then long press and drag an item to adjust the loading order</string>
-    <string name="settings_lyric_source_embedded_ttml">TTML Lyrics embedded</string>
-    <string name="settings_lyric_source_embedded_ttml_summary">Read TTML LYRICS from audio tags first</string>
-    <string name="settings_lyric_source_embedded_plain">Lyrics embedded</string>
-    <string name="settings_lyric_source_embedded_plain_summary">Read LYRICS/SYNCEDLYRICS from audio tags</string>
-    <string name="settings_lyric_source_external_ttml">TTML external</string>
-    <string name="settings_lyric_source_external_ttml_summary">Read matching .ttml lyric files</string>
-    <string name="settings_lyric_source_external_plain">LRC external</string>
-    <string name="settings_lyric_source_external_plain_summary">Read matching .lrc/.elrc lyric files</string>
+    <string name="settings_lyric_source_embedded_ttml">Embedded TTMLLYRIC field</string>
+    <string name="settings_lyric_source_embedded_ttml_summary">Read the TTMLLYRIC field from audio tags</string>
+    <string name="settings_lyric_source_embedded_plain">Embedded LYRICS and SYNCEDLYRICS fields</string>
+    <string name="settings_lyric_source_embedded_plain_summary">Try LYRICS then SYNCEDLYRICS in audio tags</string>
+    <string name="settings_lyric_source_external_ttml">External TTML lyric file</string>
+    <string name="settings_lyric_source_external_ttml_summary">Read a sidecar .ttml file with the same name</string>
+    <string name="settings_lyric_source_external_plain">External LRC and ELRC lyric files</string>
+    <string name="settings_lyric_source_external_plain_summary">Try sidecar .lrc then .elrc files with the same name</string>
     <string name="settings_mini_player_translation">Show translation in mini player</string>
     <string name="settings_mini_player_translation_summary">Show lyric translation when the mini player is displaying lyrics</string>
     <string name="settings_mini_player_secondary">Mini player secondary line</string>
+    <string name="settings_mini_player_secondary_summary">Choose the secondary lyric line on the mini player</string>
     <string name="settings_secondary_delivery_content">Secondary line content</string>
+    <string name="settings_secondary_delivery_content_summary">Choose whether to also send translation or pronunciation</string>
     <string name="settings_mini_player_cover_rotation">Rotate mini player cover</string>
     <string name="settings_mini_player_cover_rotation_summary">Rotate the mini player cover during playback; disable it to keep a static cover</string>
     <string name="settings_enable_lyricon">Enable Lyricon</string>
@@ -1229,7 +1279,9 @@
     <string name="settings_enable_desktop_lyric">Enable desktop lyrics</string>
     <string name="settings_enable_desktop_lyric_summary">Show the current lyric above other apps using a floating window</string>
     <string name="settings_status_bar_lyric_position">Status bar lyric position</string>
+    <string name="settings_status_bar_lyric_position_summary">Choose the status-bar lyric horizontal position</string>
     <string name="settings_status_bar_lyric_secondary">Status bar lyric secondary line</string>
+    <string name="settings_status_bar_lyric_secondary_summary">Choose the status-bar lyric secondary line</string>
     <string name="settings_lock_desktop_lyric">Lock desktop lyrics</string>
     <string name="settings_lock_desktop_lyric_summary">Prevent the floating lyric window from being dragged; unlock it here or from the lock notification</string>
     <string name="settings_desktop_lyric_font_scale">Desktop lyric size %1$d%%</string>
@@ -1239,6 +1291,7 @@
     <string name="settings_desktop_lyric_opacity">Desktop lyric opacity %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">Reduce this to make the lyric lighter; the value is kept even when locked</string>
     <string name="settings_desktop_lyric_color">Desktop lyric color</string>
+    <string name="settings_desktop_lyric_color_summary">Choose desktop lyric text color</string>
     <string name="settings_status_lyric_font_scale">Status lyric size %1$d%%</string>
     <string name="settings_status_lyric_font_scale_summary">Adjust the main floating status lyric size independently</string>
     <string name="settings_status_lyric_translation_scale">Status secondary size %1$d%%</string>
@@ -1264,9 +1317,11 @@
     <string name="settings_status_bar_phonetic_secondary">Show pronunciation or secondary line in status bar</string>
     <string name="settings_status_bar_phonetic_secondary_summary">Send the pronunciation or translation secondary line as the second line of the status bar lyric.</string>
     <string name="settings_heads_up_lyric_secondary">Heads-up lyric secondary line</string>
+    <string name="settings_heads_up_lyric_secondary_summary">Choose the secondary line for heads-up lyrics</string>
     <string name="settings_enable_coloros_lock_screen_lyric">ColorOS Lock Screen Island lyrics</string>
-    <string name="settings_enable_coloros_lock_screen_lyric_summary">Sends full LRC both as MediaMetadata[&quot;lyricInfo&quot;] and as a ColorOS Live Lyrics Bridge v4 Provider broadcast (lyricprovider/halcyon). Module mode also sends word timing and a translation button. ColorOS 16.9+ may drop lyricInfo, so a Bridge build that admits Halcyon is required.</string>
+    <string name="settings_enable_coloros_lock_screen_lyric_summary">Publishes the full LRC through the current MediaItem MediaMetadata[&quot;lyricInfo&quot;] for ColorOS Live Lyrics Bridge 4.0; module mode also includes word timing and a translation button.</string>
     <string name="settings_coloros_lock_screen_lyric_mode">Lyric delivery mode</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_summary">Choose how ColorOS lock-screen lyrics are sent</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">System lyricInfo</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">Module rawLyric</string>
     <string name="settings_enable_bluetooth_lyric">Enable media notification lyrics</string>
@@ -1357,6 +1412,8 @@
     <string name="player_disable_playback_keep_screen_on">Disable player always-on</string>
     <string name="player_enable_playback_keep_screen_on">Enable player always-on</string>
     <string name="player_lyric_font_size">Lyric font size</string>
+
+
     <string name="player_lyric_style_settings">Lyric style</string>
     <string name="player_lyric_secondary_font_size">Translation/Romanization size</string>
     <string name="player_lyric_source">Lyric source</string>
@@ -1744,7 +1801,6 @@
     <string name="about_summary_coil">Kotlin image loading library (Apache-2.0)</string>
     <string name="about_summary_quickjs">LX Music API JavaScript runtime (Apache-2.0)</string>
     <string name="about_summary_lxmusic">Online music source and API adaptation reference (Apache-2.0)</string>
-    <string name="about_summary_accompanist_lyrics_core">Lyric parsing and TTML/LRC structure reference (Apache-2.0)</string>
     <string name="about_summary_raws_music">10-band equalizer, BiQuad parametric EQ, and DSP core reference (Apache-2.0)</string>
 
     <!-- i18n: Local audio tools -->
@@ -1940,6 +1996,7 @@
     <string name="lyric_match_write_ttml_tag">Write TTMLLYRIC tag</string>
     <string name="settings_lyric_plugin_config">Plugin settings</string>
     <string name="settings_player_bg_theme">Player background</string>
+    <string name="settings_player_bg_theme_summary">Choose the light or dark style of the player background</string>
     <string name="settings_apple_music_lyrics_page">Apple Music-style lyrics page</string>
     <string name="settings_apple_music_lyrics_page_summary">Use the built-in focused lyrics, spring transitions, and glow effects; turn this off to use the classic Lyricon lyrics page.</string>
     <string name="settings_wallpaper_opacity">Wallpaper opacity</string>
@@ -2025,7 +2082,7 @@
     <string name="settings_backup_type_equalizer">Equalizer</string>
     <string name="settings_backup_type_equalizer_summary">Equalizer, bass boost, virtualizer, and reverb settings</string>
     <string name="settings_backup_type_online_sources">Online sources</string>
-    <string name="settings_backup_type_online_sources_summary">Online source configs such as WebDAV, LX, Navidrome, and Emby</string>
+    <string name="settings_backup_type_online_sources_summary">Online source configs such as WebDAV, LX, Navidrome, and Emby, plus Lyrico lyric source plugins</string>
     <string name="settings_home_tile_gradient_enabled">Translucent gradient tiles</string>
     <string name="settings_home_tile_gradient_enabled_summary">When on, home tiles use a translucent gradient; when off they stay solid</string>
     <string name="settings_home_tile_gradient_start_color">Gradient start color</string>
@@ -2146,6 +2203,7 @@
     <string name="settings_music_video_capture_subtitles">Include captions in MV captures</string>
     <string name="settings_music_video_capture_subtitles_summary">Overlay the current external lyric caption in screenshots from the song-detail MV.</string>
     <string name="settings_music_video_orientation">Audible MV orientation</string>
+    <string name="settings_music_video_orientation_summary">Choose screen orientation while playing a music video</string>
     <string name="settings_music_video_orientation_system">System default</string>
     <string name="settings_music_video_orientation_video">Match video</string>
     <string name="settings_music_video_orientation_landscape">Landscape</string>
@@ -2262,6 +2320,7 @@
     <string name="lyric_timing_editor_redo_unavailable">Nothing to redo</string>
     <string name="player_replay_gain_badge">Gain %1$s</string>
     <string name="settings_spectrum_viewer">Spectrum viewer</string>
+    <string name="settings_spectrum_viewer_summary">Choose the app used to view the spectrum</string>
     <string name="settings_spectrum_builtin">Built-in spectrum</string>
     <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
     <string name="settings_spectrum_kaspek">Kaspek</string>
@@ -2303,18 +2362,23 @@
     <string name="settings_enable_xiaomi_super_island_lyric">Xiaomi Super Island lyrics</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">Show lyrics in the HyperOS Super Island; Shizuku permission is required to temporarily block XMSF networking</string>
     <string name="settings_live_update_lyric_content">Live Activity main lyric</string>
+    <string name="settings_live_update_lyric_content_summary">Choose the main lyric shown in live-update notifications</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
+    <string name="settings_xiaomi_super_island_lyric_content_summary">Choose the Super Island main lyric</string>
     <string name="settings_live_update_lyric_original">Original</string>
     <string name="settings_live_update_lyric_translation">Translation</string>
     <string name="settings_live_update_lyric_pronunciation">Pronunciation</string>
     <string name="settings_live_update_lyric_display">Live lyric display</string>
+    <string name="settings_live_update_lyric_display_summary">Show nearby lines or the full lyric in live-update notifications</string>
     <string name="settings_live_update_lyric_display_compact">Current word window</string>
     <string name="settings_live_update_lyric_display_full">Full lyric line</string>
     <string name="settings_live_update_lyric_secondary">Live Activity subtitle</string>
+    <string name="settings_live_update_lyric_secondary_summary">Choose the live-update notification subtitle</string>
     <string name="settings_live_update_lyric_secondary_song">Song title</string>
     <string name="settings_live_update_lyric_secondary_translation">Translation</string>
     <string name="settings_live_update_lyric_secondary_pronunciation">Pronunciation</string>
     <string name="settings_media_notification_buttons">Media notification buttons</string>
+    <string name="settings_media_notification_buttons_summary">Choose the two extra buttons on media notifications</string>
     <string name="settings_media_notification_buttons_playback_desktop">Playback mode, desktop lyrics</string>
     <string name="settings_media_notification_buttons_playback_favorite">Playback mode, favorite</string>
     <string name="settings_media_notification_buttons_desktop_favorite">Desktop lyrics, favorite</string>
@@ -2326,6 +2390,7 @@
     <string name="settings_xiaomi_super_island_notification_section">Notification and interaction</string>
     <string name="settings_xiaomi_super_island_compat_section">XMSF and dismissal</string>
     <string name="settings_xiaomi_super_island_lyric_mode">Lyric layout</string>
+    <string name="settings_xiaomi_super_island_lyric_mode_summary">Choose the Super Island lyric layout</string>
     <string name="settings_xiaomi_super_island_mode_standard">Standard: song details and current lyric</string>
     <string name="settings_xiaomi_super_island_mode_full">Full: split the complete lyric across columns</string>
     <string name="settings_xiaomi_super_island_left_cover">Show cover on the left</string>
@@ -2339,16 +2404,20 @@
     <string name="settings_xiaomi_super_island_colorize">Lyric accent color</string>
     <string name="settings_xiaomi_super_island_colorize_summary">Use album artwork or a custom color for Super Island text and progress</string>
     <string name="settings_xiaomi_super_island_color_source">Color source</string>
+    <string name="settings_xiaomi_super_island_color_source_summary">Choose Super Island color source</string>
     <string name="settings_xiaomi_super_island_color_album">Album artwork</string>
     <string name="settings_xiaomi_super_island_custom_color">Custom accent color</string>
     <string name="settings_xiaomi_super_island_progress_color">Use accent color for progress</string>
     <string name="settings_xiaomi_super_island_actions">Notification actions</string>
+    <string name="settings_xiaomi_super_island_actions_summary">Choose Super Island notification actions</string>
     <string name="settings_xiaomi_super_island_actions_off">Progress only</string>
     <string name="settings_xiaomi_super_island_actions_media">Media controls</string>
     <string name="settings_xiaomi_super_island_notification_style">Notification style</string>
+    <string name="settings_xiaomi_super_island_notification_style_summary">Choose Super Island notification style</string>
     <string name="settings_xiaomi_super_island_style_standard">Standard</string>
     <string name="settings_xiaomi_super_island_style_advanced">Enhanced (experimental)</string>
     <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
+    <string name="settings_xiaomi_super_island_button_layout_summary">Choose media button layout</string>
     <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
     <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
@@ -2365,6 +2434,7 @@
     <string name="settings_xiaomi_super_island_xmsf_duration">Network block duration</string>
     <string name="settings_xiaomi_super_island_xmsf_duration_summary">Too short may fail; too long may affect Xiaomi system services</string>
     <string name="settings_xiaomi_super_island_dismiss_delay">Dismiss after pause</string>
+    <string name="settings_xiaomi_super_island_dismiss_delay_summary">Delay before dismissing Super Island after pause</string>
     <string name="settings_xiaomi_super_island_dismiss_immediate">Immediately</string>
     <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
@@ -2409,6 +2479,10 @@
     <string name="settings_backup_webdav_restore_now">Restore now</string>
     <string name="settings_player_action_menu">Player action menu</string>
     <string name="settings_list_action_menu">List action menu</string>
+    <string name="settings_song_info_layout">Song info fields</string>
+    <string name="settings_queue_toolbar_layout">Queue toolbar</string>
+    <string name="song_more_modified_time_invalid">Use yyyy-MM-dd HH:mm:ss</string>
+    <string name="song_more_modified_time_failed">Could not change the file time</string>
     <string name="settings_action_menu_summary">Configure action order and visibility separately</string>
     <string name="settings_action_menu_position">Position: %1$d</string>
     <string name="settings_action_menu_remote_quality">Remote stream quality</string>
@@ -2417,6 +2491,7 @@
     <string name="settings_search_click_insert_next">Insert after current song and play</string>
     <string name="settings_search_click_append">Append to queue and play</string>
     <string name="settings_search_click_replace">Replace queue and play</string>
+    <string name="settings_search_click_playback_mode_summary">Choose how tapping a search result updates the play queue</string>
     <string name="settings_playlist_show_rating_filter">Show rating filter on playlist pages</string>
     <string name="settings_playlist_show_favorite_filter">Show favorite filter on playlist pages</string>
     <string name="settings_player_progress_show_quality">Show quality below progress bar</string>
@@ -2465,6 +2540,7 @@
     <string name="settings_immersive_lyric_swipe_summary">Swipe horizontally in the lower lyric area for previous or next track</string>
     <string name="library_layout_grid">Grid layout</string>
     <string name="library_layout_list">List layout</string>
+    <string name="library_layout_multi_row">Multi-row list</string>
     <string name="settings_artist_image_download">Automatically download artist images</string>
     <string name="settings_artist_image_download_summary">Fetch images from enabled artist sources according to the network policy; the artist cover folder always wins</string>
     <string name="settings_artist_image_download_always">Always</string>

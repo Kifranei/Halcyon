@@ -29,17 +29,47 @@ internal const val APPEARANCE_PAGE_PLAYER = "player"
 internal const val APPEARANCE_PAGE_LIST = "list"
 internal const val APPEARANCE_PAGE_PLAYER_ACTION_MENU = "player_action_menu"
 internal const val APPEARANCE_PAGE_LIST_ACTION_MENU = "list_action_menu"
+internal const val APPEARANCE_PAGE_SONG_INFO_LAYOUT = "song_info_layout"
+internal const val APPEARANCE_PAGE_QUEUE_TOOLBAR = "queue_toolbar"
 
-internal fun appearanceSubpageForHighlight(highlight: String?): String = when (highlight) {
-    "system_bars" -> APPEARANCE_PAGE_SYSTEM_BARS
-    "wallpaper", "beautiful_lyrics" -> APPEARANCE_PAGE_WALLPAPER
-    "player_immersive", "player_page", "player_landscape",
-    "transport_button_outlines", "player_tap_seek",
-    "player_show_total_duration", "player_show_song_annotation",
-    "player_cover_swipe", "player_title_position",
-    "player_cover_content_color" -> APPEARANCE_PAGE_PLAYER
-    "auto_show_search_keyboard", "search_reopen_behavior" -> APPEARANCE_PAGE_LIST
-    else -> APPEARANCE_PAGE_THEME
+/**
+ * Maps a settings-search highlight key onto an appearance tertiary page.
+ * Xiaomi Settings uses `:settings:fragment_args_key` the same way: the key
+ * identifies one preference, then the host fragment is opened and that row is
+ * scrolled/flashed — not the parent category hub.
+ */
+internal fun appearanceSubpageForHighlight(highlight: String?): String {
+    val key = highlight.orEmpty()
+    if (key.isEmpty() || key == "appearance") return APPEARANCE_PAGE_THEME
+    return when {
+        key.contains("system_bar") || key.contains("startup_poster") ->
+            APPEARANCE_PAGE_SYSTEM_BARS
+        key.contains("wallpaper") ||
+            key.contains("beautiful_lyric") ||
+            key.contains("apple_flow") ||
+            key.contains("dynamic_flow") ||
+            key.contains("now_playing_flow") ||
+            key.contains("player_background") ->
+            APPEARANCE_PAGE_WALLPAPER
+        key.contains("search") ||
+            key.contains("playlist") ||
+            key.contains("category_grid") ||
+            key.contains("list_action") ||
+            key.contains("song_info") ||
+            key.contains("queue_toolbar") ||
+            key.contains("play_next_in_list") ||
+            key.contains("remove_from_playlist") ||
+            key.contains("open_player_on_play") ||
+            key.contains("mini_player_long_press") ||
+            key.contains("exclude_search") ->
+            APPEARANCE_PAGE_LIST
+        key == "player_bg_theme" -> APPEARANCE_PAGE_THEME
+        key.contains("player_") ||
+            key.contains("hi_res") ||
+            key.contains("transport_button") ->
+            APPEARANCE_PAGE_PLAYER
+        else -> APPEARANCE_PAGE_THEME
+    }
 }
 
 @Composable
@@ -57,6 +87,8 @@ internal fun SettingsAppearanceSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val playerActionMenuLayout by settingsManager.playerActionMenuLayout.collectCachedAsState("playerActionMenuLayout", "")
     val listActionMenuLayout by settingsManager.listActionMenuLayout.collectCachedAsState("listActionMenuLayout", "")
+    val songInfoLayout by settingsManager.songInfoLayout.collectCachedAsState("songInfoLayout", "")
+    val queueToolbarLayout by settingsManager.queueToolbarLayout.collectCachedAsState("queueToolbarLayout", "")
 
     if (page == APPEARANCE_PAGE_PLAYER_ACTION_MENU) {
         SmallTitle(text = stringResource(R.string.settings_player_action_menu))
@@ -82,6 +114,36 @@ internal fun SettingsAppearanceSection(
             onSave = { value ->
                 scope.launch {
                     settingsManager.setListActionMenuLayout(value)
+                    onNavigateBack()
+                }
+            }
+        )
+        return
+    }
+    if (page == APPEARANCE_PAGE_SONG_INFO_LAYOUT) {
+        SmallTitle(text = stringResource(R.string.settings_song_info_layout))
+        ActionMenuLayoutPage(
+            savedLayout = songInfoLayout,
+            defaultOrder = ActionMenuIds.songInfoDefaults,
+            onCancel = onNavigateBack,
+            onSave = { value ->
+                scope.launch {
+                    settingsManager.setSongInfoLayout(value)
+                    onNavigateBack()
+                }
+            }
+        )
+        return
+    }
+    if (page == APPEARANCE_PAGE_QUEUE_TOOLBAR) {
+        SmallTitle(text = stringResource(R.string.settings_queue_toolbar_layout))
+        ActionMenuLayoutPage(
+            savedLayout = queueToolbarLayout,
+            defaultOrder = ActionMenuIds.queueToolbarDefaults,
+            onCancel = onNavigateBack,
+            onSave = { value ->
+                scope.launch {
+                    settingsManager.setQueueToolbarLayout(value)
                     onNavigateBack()
                 }
             }
@@ -221,6 +283,7 @@ internal fun SettingsAppearanceSection(
     )
     val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectCachedAsState("playlistSpecialEntriesVisible", false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectCachedAsState("showPlayNextInLists", false)
+    val librarySongTitleMarquee by settingsManager.librarySongTitleMarquee.collectCachedAsState("librarySongTitleMarquee", true)
     val showRemoveFromPlaylistButton by settingsManager.showRemoveFromPlaylistButton.collectCachedAsState("showRemoveFromPlaylistButton", true)
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectCachedAsState("excludeSearchResultsFromPlaylist", false)
     val searchClickPlaybackMode by settingsManager.searchClickPlaybackMode.collectCachedAsState(
@@ -241,6 +304,14 @@ internal fun SettingsAppearanceSection(
     )
     val miniPlayerLongPressSource by settingsManager.miniPlayerLongPressSource.collectCachedAsState("miniPlayerLongPressSource", false)
     val categoryGridColumns by settingsManager.categoryGridColumns.collectCachedAsState("categoryGridColumns", 2)
+    val librarySongGridColumnsPhone by settingsManager.librarySongGridColumnsPhone.collectCachedAsState(
+        "librarySongGridColumnsPhone",
+        2
+    )
+    val librarySongGridColumnsTablet by settingsManager.librarySongGridColumnsTablet.collectCachedAsState(
+        "librarySongGridColumnsTablet",
+        5
+    )
     val playerBgTheme by settingsManager.playerBackgroundTheme.collectCachedAsState(
         "playerBgTheme",
         SettingsManager.PLAYER_BG_THEME_DARK
@@ -428,6 +499,14 @@ internal fun SettingsAppearanceSection(
             )
         }
     }
+    val phoneSongGridRange = 1..4
+    val tabletSongGridRange = 3..8
+    val phoneSongGridEntries = remember(context) {
+        phoneSongGridRange.map { DropdownItem(title = context.getString(R.string.settings_category_grid_columns_option, it)) }
+    }
+    val tabletSongGridEntries = remember(context) {
+        tabletSongGridRange.map { DropdownItem(title = context.getString(R.string.settings_category_grid_columns_option, it)) }
+    }
 
     val startupPosterPicker = rememberAppearanceImagePicker(
         currentUri = startupPosterUri,
@@ -459,9 +538,6 @@ internal fun SettingsAppearanceSection(
         currentFolders = musicVideoCustomFolders,
         settingsManager = settingsManager
     )
-
-    fun isHighlighted(vararg keys: String): Boolean =
-        highlightKey == "appearance" || keys.any { it == highlightKey }
 
     if (page == APPEARANCE_PAGE_HUB) {
         SmallTitle(text = stringResource(R.string.settings_appearance))
@@ -517,38 +593,41 @@ internal fun SettingsAppearanceSection(
     if (page == APPEARANCE_PAGE_PLAYER) SmallTitle(text = stringResource(R.string.settings_appearance_player_page))
     if (page == APPEARANCE_PAGE_LIST) SmallTitle(text = stringResource(R.string.settings_appearance_list_page))
 
-    if (page == APPEARANCE_PAGE_THEME) SettingsCardGroup(highlight = isHighlighted("app_icon")) {
+    if (page == APPEARANCE_PAGE_THEME) SettingsCardGroup {
         Column {
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_theme_mode),
-                summary = stringResource(R.string.settings_theme_mode_summary),
-                items = themeEntries,
-                selectedIndex = selectedThemeMode,
-                onSelectedIndexChange = { index ->
-                    scope.launch { settingsManager.setThemeMode(index) }
-                }
-            )
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_monet_color),
-                summary = stringResource(R.string.settings_monet_color_summary),
-                items = monetEntries,
-                selectedIndex = selectedMonetMode,
-                onSelectedIndexChange = { index ->
-                    scope.launch { settingsManager.setMonetColorMode(index) }
-                }
-            )
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_player_bg_theme),
-                summary = stringResource(
-                    R.string.settings_current_value,
-                    themeLabels[playerBgTheme.coerceIn(themeLabels.indices)]
-                ),
-                items = themeEntries,
-                selectedIndex = playerBgTheme.coerceIn(themeLabels.indices),
-                onSelectedIndexChange = { index ->
-                    scope.launch { settingsManager.setPlayerBackgroundTheme(index) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "theme_mode") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_theme_mode),
+                    summary = stringResource(R.string.settings_theme_mode_summary),
+                    items = themeEntries,
+                    selectedIndex = selectedThemeMode,
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setThemeMode(index) }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "monet_color") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_monet_color),
+                    summary = stringResource(R.string.settings_monet_color_summary),
+                    items = monetEntries,
+                    selectedIndex = selectedMonetMode,
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setMonetColorMode(index) }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "player_bg_theme") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_player_bg_theme),
+                    summary = stringResource(R.string.settings_player_bg_theme_summary),
+                    items = themeEntries,
+                    selectedIndex = playerBgTheme.coerceIn(themeLabels.indices),
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setPlayerBackgroundTheme(index) }
+                    }
+                )
+            }
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_language),
                 summary = languageSummary,
@@ -629,7 +708,7 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    if (page == APPEARANCE_PAGE_SYSTEM_BARS) SettingsCardGroup(highlight = isHighlighted("system_bars")) {
+    if (page == APPEARANCE_PAGE_SYSTEM_BARS) SettingsCardGroup {
         Column {
             SettingsFocusAnchor(active = highlightKey == "system_bars") {
                 WindowSpinnerPreference(
@@ -645,15 +724,17 @@ internal fun SettingsAppearanceSection(
                     }
                 )
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_system_bars_reserve_space),
-                summary = stringResource(R.string.settings_system_bars_reserve_space_summary),
-                checked = systemBarsReserveSpace,
-                enabled = systemBarsMode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setSystemBarsReserveSpace(it) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "system_bars_reserve_space") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_system_bars_reserve_space),
+                    summary = stringResource(R.string.settings_system_bars_reserve_space_summary),
+                    checked = systemBarsReserveSpace,
+                    enabled = systemBarsMode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setSystemBarsReserveSpace(it) }
+                    }
+                )
+            }
             SwitchPreference(
                 title = stringResource(R.string.settings_startup_poster),
                 summary = stringResource(
@@ -702,7 +783,7 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    if (page == APPEARANCE_PAGE_WALLPAPER) SettingsCardGroup(highlight = isHighlighted("wallpaper", "beautiful_lyrics")) {
+    if (page == APPEARANCE_PAGE_WALLPAPER) SettingsCardGroup {
         Column {
             SettingsFocusAnchor(active = highlightKey == "wallpaper") {
                 SwitchPreference(
@@ -714,14 +795,16 @@ internal fun SettingsAppearanceSection(
                     }
                 )
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_app_now_playing_flow_background),
-                summary = stringResource(R.string.settings_app_now_playing_flow_background_summary),
-                checked = appNowPlayingFlowBackground,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setAppNowPlayingFlowBackground(it) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "app_now_playing_flow_background") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_app_now_playing_flow_background),
+                    summary = stringResource(R.string.settings_app_now_playing_flow_background_summary),
+                    checked = appNowPlayingFlowBackground,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setAppNowPlayingFlowBackground(it) }
+                    }
+                )
+            }
             ArrowPreference(
                 title = stringResource(R.string.settings_app_wallpaper_image),
                 summary = if (appWallpaperUri.isBlank()) {
@@ -828,61 +911,65 @@ internal fun SettingsAppearanceSection(
                     }
                 )
             }
-            if (!beautifulLyricsBackground) {
+            SettingsFocusAnchor(active = highlightKey == "player_dynamic_flow") {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_dynamic_flow),
                     summary = stringResource(R.string.settings_player_dynamic_flow_summary),
                     checked = playerDynamicFlowEnabled,
+                    enabled = !beautifulLyricsBackground,
                     onCheckedChange = {
                         scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
                     }
                 )
+            }
+            SettingsFocusAnchor(active = highlightKey == "apple_flow_speed") {
                 SettingsIntSliderPreference(
                     title = stringResource(R.string.settings_apple_flow_speed),
                     summary = stringResource(R.string.settings_apple_flow_speed_summary),
                     value = playerAppleFlowSpeed,
                     valueRange = 5..60,
                     valueText = playerAppleFlowSpeed.formatBeautifulLyricsSpeed(),
-                    enabled = playerDynamicFlowEnabled,
+                    enabled = !beautifulLyricsBackground && playerDynamicFlowEnabled,
                     onValueChange = { scope.launch { settingsManager.setPlayerAppleFlowSpeed(it) } }
                 )
             }
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_beautiful_lyrics_speed),
-                summary = stringResource(R.string.settings_beautiful_lyrics_speed_summary),
-                value = beautifulLyricsSpeed,
-                valueRange = 5..60,
-                valueText = beautifulLyricsSpeed.formatBeautifulLyricsSpeed(),
-                enabled = beautifulLyricsBackground,
-                onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsSpeed(it) } }
-            )
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_beautiful_lyrics_blur),
-                summary = stringResource(R.string.settings_beautiful_lyrics_blur_summary),
-                value = beautifulLyricsBlur,
-                valueRange = 0..80,
-                valueText = "${beautifulLyricsBlur}px",
-                enabled = beautifulLyricsBackground,
-                onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBlur(it) } }
-            )
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_beautiful_lyrics_brightness),
-                summary = stringResource(R.string.settings_beautiful_lyrics_brightness_summary),
-                value = beautifulLyricsBrightness,
-                valueRange = 30..120,
-                valueText = "$beautifulLyricsBrightness%",
-                enabled = beautifulLyricsBackground,
-                onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBrightness(it) } }
-            )
+            SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_speed") {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_beautiful_lyrics_speed),
+                    summary = stringResource(R.string.settings_beautiful_lyrics_speed_summary),
+                    value = beautifulLyricsSpeed,
+                    valueRange = 5..60,
+                    valueText = beautifulLyricsSpeed.formatBeautifulLyricsSpeed(),
+                    enabled = beautifulLyricsBackground,
+                    onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsSpeed(it) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_blur") {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_beautiful_lyrics_blur),
+                    summary = stringResource(R.string.settings_beautiful_lyrics_blur_summary),
+                    value = beautifulLyricsBlur,
+                    valueRange = 0..80,
+                    valueText = "${beautifulLyricsBlur}px",
+                    enabled = beautifulLyricsBackground,
+                    onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBlur(it) } }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_brightness") {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_beautiful_lyrics_brightness),
+                    summary = stringResource(R.string.settings_beautiful_lyrics_brightness_summary),
+                    value = beautifulLyricsBrightness,
+                    valueRange = 30..120,
+                    valueText = "$beautifulLyricsBrightness%",
+                    enabled = beautifulLyricsBackground,
+                    onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBrightness(it) } }
+                )
+            }
         }
     }
 
-    if (page == APPEARANCE_PAGE_LIST) SettingsCardGroup(
-        highlight = isHighlighted(
-            "auto_show_search_keyboard",
-            "search_reopen_behavior"
-        )
-    ) {
+    if (page == APPEARANCE_PAGE_LIST) SettingsCardGroup {
         Column {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_category_grid_columns),
@@ -894,6 +981,44 @@ internal fun SettingsAppearanceSection(
                 selectedIndex = (categoryGridColumns - categoryGridRange.first).coerceIn(categoryGridEntries.indices),
                 onSelectedIndexChange = { index ->
                     scope.launch { settingsManager.setCategoryGridColumns(categoryGridRange.first + index) }
+                }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_library_song_grid_columns_phone),
+                summary = stringResource(
+                    R.string.settings_library_song_grid_columns_summary,
+                    librarySongGridColumnsPhone
+                ),
+                items = phoneSongGridEntries,
+                selectedIndex = (librarySongGridColumnsPhone - phoneSongGridRange.first)
+                    .coerceIn(phoneSongGridEntries.indices),
+                onSelectedIndexChange = { index ->
+                    scope.launch {
+                        settingsManager.setLibrarySongGridColumnsPhone(phoneSongGridRange.first + index)
+                    }
+                }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_library_song_grid_columns_tablet),
+                summary = stringResource(
+                    R.string.settings_library_song_grid_columns_summary,
+                    librarySongGridColumnsTablet
+                ),
+                items = tabletSongGridEntries,
+                selectedIndex = (librarySongGridColumnsTablet - tabletSongGridRange.first)
+                    .coerceIn(tabletSongGridEntries.indices),
+                onSelectedIndexChange = { index ->
+                    scope.launch {
+                        settingsManager.setLibrarySongGridColumnsTablet(tabletSongGridRange.first + index)
+                    }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_library_song_title_marquee),
+                summary = stringResource(R.string.settings_library_song_title_marquee_summary),
+                checked = librarySongTitleMarquee,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setLibrarySongTitleMarquee(it) }
                 }
             )
             SwitchPreference(
@@ -925,6 +1050,16 @@ internal fun SettingsAppearanceSection(
                 summary = stringResource(R.string.settings_action_menu_summary),
                 onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_LIST_ACTION_MENU) }
             )
+            ArrowPreference(
+                title = stringResource(R.string.settings_song_info_layout),
+                summary = stringResource(R.string.settings_action_menu_summary),
+                onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_SONG_INFO_LAYOUT) }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.settings_queue_toolbar_layout),
+                summary = stringResource(R.string.settings_action_menu_summary),
+                onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_QUEUE_TOOLBAR) }
+            )
             SwitchPreference(
                 title = stringResource(R.string.settings_exclude_search_results_from_playlist),
                 summary = stringResource(R.string.settings_exclude_search_results_from_playlist_summary),
@@ -933,18 +1068,17 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setExcludeSearchResultsFromPlaylist(it) }
                 }
             )
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_search_click_playback_mode),
-                summary = stringResource(
-                    R.string.settings_current_value,
-                    searchClickPlaybackLabels[selectedSearchClickPlaybackMode]
-                ),
-                items = searchClickPlaybackEntries,
-                selectedIndex = selectedSearchClickPlaybackMode,
-                onSelectedIndexChange = { index ->
-                    scope.launch { settingsManager.setSearchClickPlaybackMode(index) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "search_click_playback_mode") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_search_click_playback_mode),
+                    summary = stringResource(R.string.settings_search_click_playback_mode_summary),
+                    items = searchClickPlaybackEntries,
+                    selectedIndex = selectedSearchClickPlaybackMode,
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setSearchClickPlaybackMode(index) }
+                    }
+                )
+            }
             SettingsFocusAnchor(active = highlightKey == "auto_show_search_keyboard") {
                 SwitchPreference(
                     title = stringResource(R.string.settings_auto_show_search_keyboard),
@@ -958,10 +1092,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "search_reopen_behavior") {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_search_reopen_behavior),
-                    summary = stringResource(
-                        R.string.settings_current_value,
-                        searchReopenBehaviorLabels[selectedSearchReopenBehavior]
-                    ),
+                    summary = stringResource(R.string.settings_search_reopen_behavior_summary),
                     items = searchReopenBehaviorEntries,
                     selectedIndex = selectedSearchReopenBehavior,
                     onSelectedIndexChange = { index ->
@@ -996,9 +1127,9 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup(highlight = highlightKey == "appearance") {
+    if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup {
         Column {
-            SettingsFocusAnchor(active = highlightKey == "appearance") {
+            SettingsFocusAnchor(active = highlightKey == "hi_res_logo") {
                 SwitchPreference(
                     title = stringResource(R.string.settings_hi_res_logo),
                     summary = stringResource(R.string.settings_hi_res_logo_summary),
@@ -1032,20 +1163,7 @@ internal fun SettingsAppearanceSection(
         }
     }
 
-    if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup(
-        highlight = isHighlighted(
-            "player_immersive",
-            "player_page",
-            "player_landscape",
-            "transport_button_outlines",
-            "player_tap_seek",
-            "player_show_total_duration",
-            "player_show_song_annotation",
-            "player_cover_swipe",
-            "player_title_position",
-            "player_cover_content_color"
-        )
-    ) {
+    if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup {
         Column {
             SwitchPreference(
                 title = stringResource(R.string.settings_open_player_from_notification),
@@ -1065,33 +1183,31 @@ internal fun SettingsAppearanceSection(
                     }
                 )
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_cover_content_color),
-                summary = stringResource(R.string.settings_player_cover_content_color_summary),
-                checked = playerCoverContentColor,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setPlayerCoverContentColor(it) }
-                }
-            )
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_player_title_position),
-                summary = stringResource(
-                    R.string.settings_current_value,
-                    playerTitlePositionLabels[selectedPlayerTitlePosition]
-                ),
-                items = playerTitlePositionEntries,
-                selectedIndex = selectedPlayerTitlePosition,
-                onSelectedIndexChange = { index ->
-                    scope.launch { settingsManager.setPlayerTitlePosition(index) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "player_cover_content_color") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_cover_content_color),
+                    summary = stringResource(R.string.settings_player_cover_content_color_summary),
+                    checked = playerCoverContentColor,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setPlayerCoverContentColor(it) }
+                    }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "player_title_position") {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_player_title_position),
+                    summary = stringResource(R.string.settings_player_title_position_summary),
+                    items = playerTitlePositionEntries,
+                    selectedIndex = selectedPlayerTitlePosition,
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setPlayerTitlePosition(index) }
+                    }
+                )
+            }
             SettingsFocusAnchor(active = highlightKey == "player_page") {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_player_page_style),
-                    summary = stringResource(
-                        R.string.settings_current_value,
-                        playerPageStyleOptions[selectedPlayerPageStyle].second
-                    ),
+                    summary = stringResource(R.string.settings_player_page_style_summary),
                     items = playerPageStyleEntries,
                     selectedIndex = selectedPlayerPageStyle,
                     onSelectedIndexChange = { index ->
@@ -1164,14 +1280,16 @@ internal fun SettingsAppearanceSection(
                 checked = playerProgressInfoSeparated,
                 onCheckedChange = { scope.launch { settingsManager.setPlayerProgressInfoSeparated(it) } }
             )
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_cover_swipe),
-                summary = stringResource(R.string.settings_player_cover_swipe_summary),
-                checked = playerCoverSwipeEnabled,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setPlayerCoverSwipeEnabled(it) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "player_cover_swipe") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_cover_swipe),
+                    summary = stringResource(R.string.settings_player_cover_swipe_summary),
+                    checked = playerCoverSwipeEnabled,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setPlayerCoverSwipeEnabled(it) }
+                    }
+                )
+            }
             SettingsFocusAnchor(active = highlightKey == "player_show_total_duration") {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_show_total_duration),
@@ -1182,14 +1300,16 @@ internal fun SettingsAppearanceSection(
                     }
                 )
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_show_song_annotation),
-                summary = stringResource(R.string.settings_player_show_song_annotation_summary),
-                checked = playerShowSongAnnotation,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setPlayerShowSongAnnotation(it) }
-                }
-            )
+            SettingsFocusAnchor(active = highlightKey == "player_show_song_annotation") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_show_song_annotation),
+                    summary = stringResource(R.string.settings_player_show_song_annotation_summary),
+                    checked = playerShowSongAnnotation,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setPlayerShowSongAnnotation(it) }
+                    }
+                )
+            }
             SwitchPreference(
                 title = stringResource(R.string.settings_player_cover_long_press_preview),
                 summary = stringResource(R.string.settings_player_cover_long_press_preview_summary),

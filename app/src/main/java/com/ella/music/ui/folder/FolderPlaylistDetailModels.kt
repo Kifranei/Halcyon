@@ -1,12 +1,12 @@
 package com.ella.music.ui.folder
 
 import android.content.Context
-import android.net.Uri
 import androidx.annotation.StringRes
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.repository.mediaStoreAlbumArtUri
 import com.ella.music.ui.listmodel.SortDirection
 import com.ella.music.ui.listmodel.sortedByReleaseDate
 import java.text.SimpleDateFormat
@@ -204,7 +204,7 @@ internal fun List<Song>.songsForFolderPlaylist(folders: List<String>): List<Song
 
 internal fun Song?.folderPlaylistCoverModel(): Any? =
     this?.coverUrl?.takeIf(String::isNotBlank)
-        ?: this?.albumId?.takeIf { it > 0L }?.let { Uri.parse("content://media/external/audio/albumart/$it") }
+        ?: this?.albumId?.let(::mediaStoreAlbumArtUri)
 
 internal fun Long.formatFolderPlaylistDateTime(context: Context): String {
     if (this <= 0L) return context.getString(R.string.folder_unknown_modified_time)

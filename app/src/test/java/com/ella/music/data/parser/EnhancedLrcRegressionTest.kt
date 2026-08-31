@@ -6,24 +6,18 @@ import org.junit.Test
 
 class EnhancedLrcRegressionTest {
     @Test
-    fun accompanistEnhancedLrcPreservesExplicitCjkLatinSpaces() {
-        val previousEngine = LrcParser.parserEngine
-        try {
-            LrcParser.parserEngine = LrcParser.PARSER_ENGINE_AUTO
-            val result = LrcParser.parse(
-                """
-                [00:12.829]<00:12.829>二<00:13.538>人を<00:14.198>近<00:15.009>付<00:15.306>け<00:15.720>る<00:16.024>よ<00:16.431> Day<00:17.144> by<00:17.857> day<00:18.591>
-                """.trimIndent()
-            )
+    fun enhancedLrcPreservesExplicitCjkLatinSpaces() {
+        val result = LrcParser.parse(
+            """
+            [00:12.829]<00:12.829>二<00:13.538>人を<00:14.198>近<00:15.009>付<00:15.306>け<00:15.720>る<00:16.024>よ<00:16.431> Day<00:17.144> by<00:17.857> day<00:18.591>
+            """.trimIndent()
+        )
 
-            assertEquals("二人を近付けるよ Day by day", result.lyrics.single().text)
-            assertEquals(
-                listOf("二", "人を", "近", "付", "け", "る", "よ", " Day", " by", " day"),
-                result.lyrics.single().words.map { it.text }
-            )
-        } finally {
-            LrcParser.parserEngine = previousEngine
-        }
+        assertEquals("二人を近付けるよ Day by day", result.lyrics.single().text)
+        assertEquals(
+            listOf("二", "人を", "近", "付", "け", "る", "よ", " Day", " by", " day"),
+            result.lyrics.single().words.map { it.text }
+        )
     }
 
     @Test

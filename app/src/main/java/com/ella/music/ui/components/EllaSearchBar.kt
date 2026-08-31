@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
@@ -57,6 +58,7 @@ fun EllaSearchBar(
     autoFocus: Boolean? = null,
     autoSelectAll: Boolean = false,
     onAutoSelectAllConsumed: () -> Unit = {},
+    onFocusChange: (Boolean) -> Unit = {},
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainerHigh
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -118,7 +120,8 @@ fun EllaSearchBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 2.dp)
-            .focusRequester(focusRequester),
+            .focusRequester(focusRequester)
+            .onFocusChanged { onFocusChange(it.isFocused) },
         decorationBox = { innerTextField ->
             Row(
                 modifier = Modifier

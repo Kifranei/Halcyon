@@ -80,6 +80,30 @@ private fun Uri.toHalcyonRoute(): String? {
     }
 }
 
+/**
+ * NavDestination.route is the composable pattern (`settings?fromDock={fromDock}`),
+ * not the filled request. Rebuild query flags from the back-stack arguments so dock
+ * Settings is treated as a first-level tab instead of a stacked secondary page.
+ */
+internal fun resolvedCurrentRoute(
+    destinationRoute: String?,
+    fromDock: Boolean? = null,
+    metadataCategoryType: String? = null,
+): String? {
+    if (destinationRoute.isNullOrBlank()) return null
+    return when {
+        destinationRoute.isTopLevelRoute(Screen.Settings.baseRoute) ->
+            Screen.Settings.createRoute(fromDock == true)
+        destinationRoute.isTopLevelRoute(Screen.ScanSettings.baseRoute) ->
+            Screen.ScanSettings.createRoute(fromDock = fromDock == true)
+        destinationRoute == Screen.MetadataCategory.route ->
+            metadataCategoryType?.takeIf { it.isNotBlank() }
+                ?.let { Screen.MetadataCategory.createRoute(it, fromDock == true) }
+                ?: destinationRoute
+        else -> destinationRoute
+    }
+}
+
 internal fun String?.toCurrentTabRoute(): String? {
     return when {
         this == null -> null
@@ -96,6 +120,28 @@ internal fun String?.toCurrentTabRoute(): String? {
         this.metadataCategoryType() != null -> Screen.MetadataCategory.createRoute(this.metadataCategoryType().orEmpty(), fromDock = true)
         else -> null
     }
+}
+
+internal fun String?.isSettingsGraphRoute(): Boolean {
+    val path = this?.substringBefore('?') ?: return false
+    return path.isTopLevelRoute(Screen.Settings.baseRoute) ||
+        path.isTopLevelRoute(Screen.ScanSettings.baseRoute) ||
+        path == "settings_detail" ||
+        path == "settings_home_display" ||
+        path == "settings_bottom_navigation" ||
+        path == "library_settings" ||
+        path == "integration_settings" ||
+        path == "lastfm_settings" ||
+        path == "lyric_settings" ||
+        path == "lyric_plugin_sources" ||
+        path == "lyric_font" ||
+        path == "audio_settings" ||
+        path == "equalizer" ||
+        path == "backup_settings" ||
+        path == "cover_media_settings" ||
+        path == "logs" ||
+        path == "appearance_subpage" ||
+        path.startsWith("appearance_subpage/")
 }
 
 internal fun String?.isSearchRoute(): Boolean {
@@ -216,6 +262,17 @@ internal fun navRouteIdentity(
     return if (extras.isBlank()) destinationRoute else "$destinationRoute|$extras"
 }
 
+/** Back from artist/album/etc. should restore the player overlay instead of revealing Home. */
+internal fun shouldRestorePlayerOnBack(
+    returnToPlayerRoute: String?,
+    previousRouteIdentity: String
+): Boolean = !returnToPlayerRoute.isNullOrBlank() && previousRouteIdentity == returnToPlayerRoute
+
+internal fun playerDismissBackEnabled(
+    playerVisible: Boolean,
+    restorePlayerOnBack: Boolean
+): Boolean = playerVisible && !restorePlayerOnBack
+
 internal fun playbackSourceRoutesMatch(left: String, right: String): Boolean {
     if (left == right) return true
     val decodedLeft = decodeNavComponent(decodeNavComponent(left))
@@ -246,6 +303,24 @@ internal fun NavHostController.navigateBottomDockRoute(
     navigate(route) {
         popUpTo(graph.findStartDestination().id) {
             saveState = currentRoute.isBottomDockRoute()
+        }
+        launchSingleTop = true
+        restoreState = route.isBottomDockRoute()
+    }
+}
+
+/** Leave Settings as a first-level tab instead of stacking the playback source on top of it. */
+internal fun NavHostController.navigatePlaybackSourceRoute(
+    route: String,
+    currentRoute: String?
+) {
+    if (!currentRoute.isSettingsGraphRoute()) {
+        navigate(route)
+        return
+    }
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
         }
         launchSingleTop = true
         restoreState = route.isBottomDockRoute()

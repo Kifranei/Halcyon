@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +38,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -254,6 +257,7 @@ internal fun AppleMusicLyricLine(
                                 fractionHandler((offset.x / width.coerceAtLeast(1f)).coerceIn(0f, 1f))
                             }
                         },
+                        onDragFraction = onTapFraction,
                         onDoubleTap = onDoubleClick,
                         onLongPress = onLongClick
                     )
@@ -457,6 +461,7 @@ internal fun Modifier.appleMusicTouchRipple(
     color: Color,
     feedbackEnabled: Boolean,
     onTap: (Offset, Float) -> Unit,
+    onDragFraction: ((Float) -> Unit)? = null,
     onDoubleTap: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null
 ): Modifier {
@@ -479,26 +484,64 @@ internal fun Modifier.appleMusicTouchRipple(
             }
         }
         drawContent()
-    }.pointerInput(key, feedbackEnabled, onTap, onDoubleTap, onLongPress) {
-        detectTapGestures(
-            onPress = { offset ->
-                if (feedbackEnabled) {
-                    origin = offset
-                    scope.launch {
-                        progress.stop()
-                        progress.snapTo(0f)
-                        progress.animateTo(
-                            targetValue = 1f,
-                            animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
-                        )
+    }.pointerInput(key, feedbackEnabled, onTap, onDragFraction, onDoubleTap, onLongPress) {
+        if (onDragFraction == null) {
+            detectTapGestures(
+                onPress = { offset ->
+                    if (feedbackEnabled) {
+                        origin = offset
+                        scope.launch {
+                            progress.stop()
+                            progress.snapTo(0f)
+                            progress.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+                            )
+                        }
                     }
+                    tryAwaitRelease()
+                },
+                onTap = { offset -> onTap(offset, size.width.toFloat()) },
+                onDoubleTap = onDoubleTap?.let { callback -> { callback() } },
+                onLongPress = onLongPress?.let { callback -> { callback() } }
+            )
+            return@pointerInput
+        }
+        val fractionHandler = onDragFraction
+        val touchSlop = viewConfiguration.touchSlop
+        awaitEachGesture {
+            val down = awaitFirstDown()
+            if (feedbackEnabled) {
+                origin = down.position
+                scope.launch {
+                    progress.stop()
+                    progress.snapTo(0f)
+                    progress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+                    )
                 }
-                tryAwaitRelease()
-            },
-            onTap = { offset -> onTap(offset, size.width.toFloat()) },
-            onDoubleTap = onDoubleTap?.let { callback -> { callback() } },
-            onLongPress = onLongPress?.let { callback -> { callback() } }
-        )
+            }
+            var dragging = false
+            val width = size.width.toFloat().coerceAtLeast(1f)
+            fun emitFraction(x: Float) {
+                fractionHandler((x / width).coerceIn(0f, 1f))
+            }
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    if (!dragging) onTap(change.position, width)
+                    break
+                }
+                val dx = change.position.x - down.position.x
+                if (!dragging && abs(dx) >= touchSlop) dragging = true
+                if (dragging) {
+                    emitFraction(change.position.x)
+                    change.consume()
+                }
+            }
+        }
     }
 }
 

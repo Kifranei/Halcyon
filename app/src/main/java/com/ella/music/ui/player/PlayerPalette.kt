@@ -4,10 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
-import android.net.Uri
 import android.util.LruCache
 import androidx.compose.ui.graphics.Color
 import com.ella.music.data.model.Song
+import com.ella.music.data.repository.mediaStoreAlbumArtUri
 import java.net.URL
 import kotlin.math.abs
 import kotlin.math.max
@@ -20,8 +20,9 @@ internal fun loadPaletteCoverBitmap(context: Context, song: Song): Bitmap? {
             song.coverUrl.isNotBlank() -> URL(song.coverUrl).openStream().use { input ->
                 BitmapFactory.decodeStream(input)
             }
-            song.albumId > 0L -> context.contentResolver
-                .openInputStream(Uri.parse("content://media/external/audio/albumart/${song.albumId}"))
+            song.albumId > 0L -> mediaStoreAlbumArtUri(song.albumId)?.let { uri ->
+                context.contentResolver.openInputStream(uri)
+            }
                 ?.use { input -> BitmapFactory.decodeStream(input) }
             else -> null
         }?.scaledForPalette()

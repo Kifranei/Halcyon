@@ -8,13 +8,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.ui.settings.SettingsCardGroup
 import kotlin.math.round
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.preference.SliderPreference
 
 @Composable
 internal fun LyricOffsetSheetContent(
@@ -24,24 +22,18 @@ internal fun LyricOffsetSheetContent(
 ) {
     HalfSheetTitle(title = stringResource(R.string.player_lyric_offset), onBack = onBack)
     Spacer(modifier = Modifier.height(20.dp))
-    Text(
-        text = stringResource(R.string.player_lyric_offset_summary),
-        fontSize = 13.sp,
-        lineHeight = 17.sp,
-        fontWeight = FontWeight.Medium,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-    )
-    Spacer(modifier = Modifier.height(14.dp))
-    DottedValueSlider(
-        value = offsetMs.toFloat(),
-        valueRange = -5000f..5000f,
-        steps = 100,
-        label = offsetMs.formatLyricOffset(),
-        onValueChange = { onOffsetChange(it.toLong().roundToStep(100L)) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(104.dp)
-    )
+    SettingsCardGroup {
+        SliderPreference(
+            title = stringResource(R.string.player_lyric_offset),
+            summary = stringResource(R.string.player_lyric_offset_summary),
+            value = offsetMs.toFloat(),
+            valueRange = -5000f..5000f,
+            steps = 100,
+            valueText = offsetMs.formatLyricOffset(),
+            onValueChange = { onOffsetChange(it.toLong().roundToStep(100L)) }
+        )
+    }
+    Spacer(modifier = Modifier.height(4.dp))
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth()

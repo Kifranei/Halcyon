@@ -40,6 +40,8 @@ fun AppearanceSubpageScreen(
         APPEARANCE_PAGE_LIST -> stringResource(R.string.settings_appearance_list_page)
         APPEARANCE_PAGE_PLAYER_ACTION_MENU -> stringResource(R.string.settings_player_action_menu)
         APPEARANCE_PAGE_LIST_ACTION_MENU -> stringResource(R.string.settings_list_action_menu)
+        APPEARANCE_PAGE_SONG_INFO_LAYOUT -> stringResource(R.string.settings_song_info_layout)
+        APPEARANCE_PAGE_QUEUE_TOOLBAR -> stringResource(R.string.settings_queue_toolbar_layout)
         else -> stringResource(R.string.settings_appearance_theme_page)
     }
     Column(

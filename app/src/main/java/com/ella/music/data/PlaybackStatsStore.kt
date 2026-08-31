@@ -636,7 +636,7 @@ class PlaybackStatsStore private constructor(context: Context) {
 
     private fun Song.statsCoverUri(): String =
         coverUrl.takeIf { it.isNotBlank() }
-            ?: albumId.takeIf { it > 0L }?.let { "content://media/external/audio/albumart/$it" }
+            ?: com.ella.music.data.repository.mediaStoreAlbumArtUri(albumId)?.toString()
             ?: ""
 
     private fun Song.statsFingerprint(): String =

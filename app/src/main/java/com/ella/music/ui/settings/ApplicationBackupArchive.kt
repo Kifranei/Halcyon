@@ -20,8 +20,10 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_WESTERN_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BACKGROUND_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_POSTER_URI
 import com.ella.music.data.model.Song
+import com.ella.music.plugin.source.PluginConfigStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -44,6 +46,14 @@ private const val PORTABLE_ASSETS_FIELD = "portableAssets"
 private const val ARCHIVE_REFERENCE_PREFIX = "archive://"
 private const val EXTRACTED_ASSET_FILES_FIELD = "_portableAssetFiles"
 private const val EXTRACTED_ASSET_DIR_FIELD = "_portableAssetDir"
+
+/** Names of the Lyrico lyric-source plugin directories carried by the archive. */
+internal const val BACKUP_LYRICO_PLUGINS_FIELD = "_lyricoPlugins"
+
+private const val LYRICO_PLUGINS_DIR = "lyrico_plugins"
+private const val LYRICO_PLUGIN_ZIP_PREFIX = "plugins/lyrico/"
+private const val LYRICO_PLUGIN_ZIP_DIR = "plugins/lyrico"
+private const val LYRICO_PLUGIN_CONFIG_ENTRY = "plugins/lyrico_plugin_config.json"
 private const val MAX_BACKUP_JSON_BYTES = 16L * 1024L * 1024L
 private const val MAX_PORTABLE_ASSET_BYTES = 64L * 1024L * 1024L
 private const val MAX_PORTABLE_ASSET_TOTAL_BYTES = 256L * 1024L * 1024L
@@ -104,6 +114,10 @@ internal suspend fun buildApplicationBackupZipFile(
             if (value.isBlank()) return@forEach
 
             val entryName = portableAssetEntryName(context, key, value)
+            if (key in portableFontSettingKeys && isKeepableUnpackedFontPath(value)) {
+                // System / default fonts exist on the target device. Keep the path as-is.
+                return@forEach
+            }
             val copied = when {
                 key in portableImageSettingKeys || key in portableFontSettingKeys ->
                     context.copySettingFileToZip(value, zip, entryName)
@@ -124,6 +138,8 @@ internal suspend fun buildApplicationBackupZipFile(
                 settings.remove(key)
             }
         }
+        packImportedFontDirectory(context, zip, manifest)
+        packLyricoPlugins(context, zip, selectedTypes)
 
         root.put("version", 2)
         if (manifest.length() > 0) {
@@ -173,6 +189,7 @@ private fun readApplicationBackupZip(context: Context, input: InputStream): JSON
     try {
         var backupJson: String? = null
         var extractedBytes = 0L
+        val pluginDirNames = sortedSetOf<String>()
         ZipInputStream(BufferedInputStream(input)).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
@@ -181,11 +198,13 @@ private fun readApplicationBackupZip(context: Context, input: InputStream): JSON
                     zip.closeEntry()
                     continue
                 }
+                val isLyricoPluginEntry = name.startsWith(LYRICO_PLUGIN_ZIP_PREFIX) ||
+                    name == LYRICO_PLUGIN_CONFIG_ENTRY
                 when {
                     name == BACKUP_JSON_ENTRY -> {
                         backupJson = readUtf8Bounded(zip, MAX_BACKUP_JSON_BYTES)
                     }
-                    name.startsWith("assets/") || name.startsWith("scripts/") -> {
+                    name.startsWith("assets/") || name.startsWith("scripts/") || isLyricoPluginEntry -> {
                         val target = safeExtractedFile(extractionDir, name)
                         target.parentFile?.mkdirs()
                         val written = target.outputStream().use { output ->
@@ -194,6 +213,12 @@ private fun readApplicationBackupZip(context: Context, input: InputStream): JSON
                         extractedBytes += written
                         require(extractedBytes <= MAX_PORTABLE_ASSET_TOTAL_BYTES) {
                             "Backup assets are too large"
+                        }
+                        if (name.startsWith(LYRICO_PLUGIN_ZIP_PREFIX)) {
+                            name.removePrefix(LYRICO_PLUGIN_ZIP_PREFIX)
+                                .substringBefore('/')
+                                .takeIf { it.isNotBlank() }
+                                ?.let { pluginDirNames.add(it) }
                         }
                     }
                     else -> skipZipEntry(zip)
@@ -204,24 +229,31 @@ private fun readApplicationBackupZip(context: Context, input: InputStream): JSON
 
         val root = JSONObject(backupJson ?: error("Backup archive is missing backup.json"))
         val manifest = root.optJSONObject(PORTABLE_ASSETS_FIELD)
-        if (manifest == null || manifest.length() == 0) {
+        val hasLyricoPlugins = pluginDirNames.isNotEmpty() ||
+            File(extractionDir, LYRICO_PLUGIN_CONFIG_ENTRY).isFile
+        if ((manifest == null || manifest.length() == 0) && !hasLyricoPlugins) {
             extractionDir.deleteRecursively()
             return root
         }
 
         val extractedFiles = JSONObject()
-        val keys = manifest.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val entryName = manifest.optString(key, "")
-            if (!isSafePortableEntryName(entryName)) continue
-            val extracted = safeExtractedFile(extractionDir, entryName)
-            if (extracted.isFile && extracted.canRead() && extracted.length() > 0L) {
-                extractedFiles.put(key, extracted.absolutePath)
+        if (manifest != null && manifest.length() > 0) {
+            val keys = manifest.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val entryName = manifest.optString(key, "")
+                if (!isSafePortableEntryName(entryName)) continue
+                val extracted = safeExtractedFile(extractionDir, entryName)
+                if (extracted.isFile && extracted.canRead() && extracted.length() > 0L) {
+                    extractedFiles.put(key, extracted.absolutePath)
+                }
             }
         }
         root.put(EXTRACTED_ASSET_FILES_FIELD, extractedFiles)
         root.put(EXTRACTED_ASSET_DIR_FIELD, extractionDir.absolutePath)
+        if (pluginDirNames.isNotEmpty()) {
+            root.put(BACKUP_LYRICO_PLUGINS_FIELD, JSONArray(pluginDirNames.toList()))
+        }
         keepExtraction = true
         return root
     } finally {
@@ -236,6 +268,7 @@ internal suspend fun materializeApplicationBackupAssets(
     selectedTypes: Set<BackupType>
 ) = withContext(Dispatchers.IO) {
     val extractedFiles = root.optJSONObject(EXTRACTED_ASSET_FILES_FIELD) ?: return@withContext
+    restoreLyricoPluginsFromArchive(context, root, selectedTypes)
     val manifest = root.optJSONObject(PORTABLE_ASSETS_FIELD) ?: return@withContext
     val settings = root.optJSONObject("settings") ?: root
     val keys = manifest.keys()
@@ -251,6 +284,11 @@ internal suspend fun materializeApplicationBackupAssets(
 
         runCatching {
             when {
+                key.startsWith("imported_font_") -> {
+                    val targetDir = File(context.filesDir, IMPORTED_FONTS_DIR).apply { mkdirs() }
+                    val target = File(targetDir, source.name)
+                    source.copyTo(target, overwrite = true)
+                }
                 key in portableImageSettingKeys -> {
                     val targetDir = File(context.filesDir, "custom_images").apply { mkdirs() }
                     val target = uniquePortableTarget(targetDir, "backup_$key", source.extension)
@@ -259,9 +297,13 @@ internal suspend fun materializeApplicationBackupAssets(
                 }
                 key in portableFontSettingKeys -> {
                     val targetDir = File(context.filesDir, "lyric_fonts").apply { mkdirs() }
-                    val target = uniquePortableTarget(targetDir, "backup_$key", source.extension)
+                    val preferredName = File(manifest.optString(key, "")).name
+                        .substringAfterLast('/')
+                        .ifBlank { source.name }
+                    val target = File(targetDir, preferredName).takeUnless { it.exists() }
+                        ?: uniquePortableTarget(targetDir, "backup_$key", source.extension)
                     source.copyTo(target, overwrite = true)
-                    settings.put(key, target.absolutePath)
+                    settings.put(key, remapRestoredFontPath(context, target.absolutePath))
                 }
                 key in portableTextSettingKeys -> {
                     settings.put(key, source.readText(Charsets.UTF_8))
@@ -270,6 +312,11 @@ internal suspend fun materializeApplicationBackupAssets(
         }.onFailure {
             settings.remove(key)
         }
+    }
+    portableFontSettingKeys.forEach { key ->
+        val current = settings.optString(key, "")
+        if (current.isBlank() || current.startsWith(ARCHIVE_REFERENCE_PREFIX)) return@forEach
+        settings.put(key, remapRestoredFontPath(context, current))
     }
 }
 
@@ -288,6 +335,7 @@ internal fun cleanupApplicationBackupAssets(context: Context, root: JSONObject) 
     }
     root.remove(EXTRACTED_ASSET_FILES_FIELD)
     root.remove(EXTRACTED_ASSET_DIR_FIELD)
+    root.remove(BACKUP_LYRICO_PLUGINS_FIELD)
 }
 
 internal fun JSONObject.hasPortableBackupAssets(): Boolean =
@@ -302,13 +350,19 @@ private fun Context.copySettingFileToZip(value: String, zip: ZipOutputStream, en
     }.getOrDefault(false)
 
 private fun Context.openSettingInput(value: String): InputStream? {
+    File(value).takeIf { it.isFile && it.canRead() }?.inputStream()?.let { return it }
     val uri = runCatching { Uri.parse(value) }.getOrNull()
     return when (uri?.scheme?.lowercase(Locale.ROOT)) {
         "file" -> uri.path?.let { File(it).takeIf(File::isFile)?.inputStream() }
         "content" -> contentResolver.openInputStream(uri)
-        null, "" -> File(value).takeIf(File::isFile)?.inputStream()
+        null, "" -> null
         else -> null
     }
+}
+
+internal fun isKeepableUnpackedFontPath(path: String): Boolean {
+    if (path.isBlank() || path == SYSTEM_FONT_PATH) return true
+    return path.startsWith("/system/") || path.startsWith("/product/")
 }
 
 private fun portableAssetEntryName(context: Context, key: String, value: String): String {
@@ -334,6 +388,117 @@ private fun sourceExtension(context: Context, value: String, fallback: String): 
         ?.lowercase(Locale.ROOT)
         ?.takeIf { it.matches(Regex("[a-z0-9]{1,8}")) }
     return fromMime ?: fallback
+}
+
+private const val IMPORTED_FONTS_DIR = "lyric_fonts"
+private const val BUNDLED_FONTS_DIR = "lyric_builtin_fonts"
+private const val IMPORTED_FONTS_ZIP_PREFIX = "assets/imported_fonts/"
+
+private fun packImportedFontDirectory(context: Context, zip: ZipOutputStream, manifest: JSONObject) {
+    val dir = File(context.filesDir, IMPORTED_FONTS_DIR)
+    val packedNames = buildSet {
+        val keys = manifest.keys()
+        while (keys.hasNext()) {
+            add(File(manifest.optString(keys.next(), "")).name)
+        }
+    }
+    dir.listFiles()
+        ?.asSequence()
+        ?.filter { it.isFile && it.canRead() && it.length() in 1..MAX_PORTABLE_ASSET_BYTES }
+        ?.forEach { file ->
+            if (file.name in packedNames) return@forEach
+            val entryName = "$IMPORTED_FONTS_ZIP_PREFIX${file.name}"
+            runCatching {
+                file.inputStream().use { input ->
+                    zip.writeEntry(entryName) { output -> input.copyTo(output) }
+                }
+                manifest.put("imported_font_${file.name}", entryName)
+            }
+        }
+}
+
+/**
+ * Packs every imported Lyrico lyric-source plugin directory plus its config values. Only bundled
+ * (first-party) plugins are skipped — the target device already ships those.
+ */
+private fun packLyricoPlugins(context: Context, zip: ZipOutputStream, selectedTypes: Set<BackupType>) {
+    if (BackupType.OnlineSources !in selectedTypes) return
+    val root = File(context.filesDir, LYRICO_PLUGINS_DIR)
+    root.listFiles { file -> file.isDirectory }?.forEach { pluginDir ->
+        pluginDir.walkTopDown()
+            .filter { it.isFile && it.canRead() && it.length() in 1..MAX_PORTABLE_ASSET_BYTES }
+            .forEach { file ->
+                val relative = file.relativeTo(pluginDir).path.replace(File.separatorChar, '/')
+                val entryName = "$LYRICO_PLUGIN_ZIP_PREFIX${pluginDir.name}/$relative"
+                runCatching {
+                    file.inputStream().use { input ->
+                        zip.writeEntry(entryName) { output -> input.copyTo(output) }
+                    }
+                }
+            }
+    }
+    val config = PluginConfigStore(context).exportAll()
+    if (config.isNotEmpty()) {
+        zip.writeEntry(LYRICO_PLUGIN_CONFIG_ENTRY) { output ->
+            output.write(JSONObject(config).toString().toByteArray(StandardCharsets.UTF_8))
+        }
+    }
+}
+
+/** Installs plugin directories and config carried by the archive into this installation. */
+private fun restoreLyricoPluginsFromArchive(
+    context: Context,
+    root: JSONObject,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.OnlineSources !in selectedTypes) return
+    val extractionPath = root.optString(EXTRACTED_ASSET_DIR_FIELD, "")
+    if (extractionPath.isBlank()) return
+    val extractionDir = File(extractionPath)
+    val pluginRoot = File(extractionDir, LYRICO_PLUGIN_ZIP_DIR)
+    val targetRoot = File(context.filesDir, LYRICO_PLUGINS_DIR)
+    pluginRoot.listFiles { file -> file.isDirectory }?.forEach { pluginDir ->
+        // Directories without a manifest cannot be loaded by the plugin manager; skip them so a
+        // half-written archive does not leave broken plugin folders behind.
+        if (!File(pluginDir, "manifest.json").isFile) return@forEach
+        runCatching {
+            val target = File(targetRoot, pluginDir.name)
+            target.deleteRecursively()
+            pluginDir.copyRecursively(target)
+        }
+    }
+    val configFile = File(extractionDir, LYRICO_PLUGIN_CONFIG_ENTRY)
+    if (configFile.isFile && configFile.canRead()) {
+        runCatching {
+            val values = JSONObject(configFile.readText(StandardCharsets.UTF_8))
+            val config = HashMap<String, String>()
+            val keys = values.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val value = values.opt(key)
+                if (value is String) config[key] = value
+            }
+            if (config.isNotEmpty()) PluginConfigStore(context).restoreAll(config)
+        }
+    }
+}
+
+internal fun remapRestoredFontPath(context: Context, path: String): String {
+    if (isKeepableUnpackedFontPath(path)) return path
+    val file = File(path)
+    if (file.isFile && file.canRead() && file.length() > 0L) return file.absolutePath
+    val fileName = file.name.ifBlank { return path }
+    val imported = File(File(context.filesDir, IMPORTED_FONTS_DIR), fileName)
+    if (imported.isFile && imported.canRead() && imported.length() > 0L) return imported.absolutePath
+    val bundled = File(File(context.filesDir, BUNDLED_FONTS_DIR), fileName)
+    if (bundled.isFile && bundled.canRead() && bundled.length() > 0L) return bundled.absolutePath
+    BUNDLED_FONT_SPECS.firstOrNull { it.fileName.equals(fileName, ignoreCase = true) }?.let { spec ->
+        val bundledMatch = File(File(context.filesDir, BUNDLED_FONTS_DIR), spec.fileName)
+        if (bundledMatch.isFile && bundledMatch.canRead() && bundledMatch.length() > 0L) {
+            return bundledMatch.absolutePath
+        }
+    }
+    return path
 }
 
 private fun uniquePortableTarget(dir: File, prefix: String, extension: String): File {

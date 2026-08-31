@@ -67,6 +67,7 @@ import com.ella.music.ui.components.toEmbeddedLrc
 import com.ella.music.ui.components.toEmbeddedTtml
 import com.ella.music.ui.components.toLyricTimingLine
 import com.ella.music.ui.components.toLyricTimingLines
+import com.ella.music.ui.components.writeLyricTimingSidecar
 import com.ella.music.ui.components.toTimingDisplay
 import com.ella.music.ui.components.withGeneratedWords
 import com.ella.music.viewmodel.MainViewModel
@@ -435,8 +436,24 @@ internal fun LyricTimingEditorScreen(
             // successful write so its player reloads the embedded lyric data when we return.
             TagEditorEditTracker.mark(song)
             if (isCurrentSong) playerViewModel.reloadCurrentLyrics()
-            Toast.makeText(context, R.string.lyric_timing_editor_saved, Toast.LENGTH_SHORT).show()
-            onBack()
+            val sidecar = writeLyricTimingSidecar(context, song, embedFormat, contentFor(embedFormat))
+            if (sidecar.isSuccess) {
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.lyric_timing_editor_saved_with_sidecar,
+                        sidecar.getOrThrow().displayName
+                    ),
+                    Toast.LENGTH_LONG
+                ).show()
+                onBack()
+            } else {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.lyric_timing_editor_sidecar_failed),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         } else {
             val error = result.exceptionOrNull()
             if (error is WritePermissionRequiredException) {

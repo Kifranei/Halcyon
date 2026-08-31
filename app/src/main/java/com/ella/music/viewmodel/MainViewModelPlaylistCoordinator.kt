@@ -13,27 +13,41 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.model.toSong
+import com.ella.music.data.repository.isWebDavRemoteSong
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.supervisorScope
 
 internal class MainViewModelPlaylistCoordinator(
     private val playlistStore: PlaylistStore,
     private val settingsManager: SettingsManager,
     private val scope: CoroutineScope,
-    private val currentSongs: () -> List<Song>
+    private val currentSongs: () -> List<Song>,
+    private val resolveSongForPlaylist: suspend (Song) -> Song
 ) {
     /**
      * A playlist-list drag can finish twice before the first disk write reaches the store.
      * Keep the writes ordered so an older drag cannot overwrite the final position.
      */
     private val playlistOrderMutex = Mutex()
+    private val playlistMetadataMutex = Mutex()
 
     fun playlistSongs(playlist: UserPlaylist): List<Song> {
         val libraryByKey = currentSongs().associateBy { it.playlistIdentityKey() }
-        return playlist.songs.map { item -> libraryByKey[item.key] ?: item.toSong() }
+        return playlist.songs.map { item ->
+            val storedSong = item.toSong()
+            // A WebDAV playlist record is the durable metadata source after hydration. The
+            // library cache can still contain the original filename-only placeholder when the
+            // app was opened with a different library source, and must not overwrite it here.
+            if (storedSong.isWebDavRemoteSong()) storedSong else libraryByKey[item.key] ?: storedSong
+        }
     }
 
     fun createPlaylist(name: String, onCreated: (UserPlaylist?) -> Unit = {}) {
@@ -78,7 +92,51 @@ internal class MainViewModelPlaylistCoordinator(
 
     fun addSongsToPlaylist(playlistId: String, songs: Collection<Song>, appendToEnd: Boolean = false) {
         if (songs.isEmpty()) return
-        scope.launch { playlistStore.addSongsToPlaylist(playlistId, songs, appendToEnd) }
+        scope.launch {
+            playlistStore.addSongsToPlaylist(playlistId, songs, appendToEnd)
+            hydrateWebDavPlaylistSongs(songs)
+        }
+    }
+
+    private suspend fun hydrateWebDavPlaylistSongs(songs: Collection<Song>) {
+        val targets = songs
+            .asSequence()
+            .filter { it.isWebDavRemoteSong() }
+            .distinctBy { it.path.trim().replace('\\', '/').lowercase() }
+            .toList()
+        if (targets.isEmpty()) return
+
+        playlistMetadataMutex.withLock {
+            val nextIndex = AtomicInteger(0)
+            val resolvedSongs = mutableListOf<Song>()
+            val resolvedMutex = Mutex()
+            supervisorScope {
+                val workers = List(minOf(2, targets.size)) {
+                    launch(Dispatchers.IO) {
+                        while (true) {
+                            val index = nextIndex.getAndIncrement()
+                            if (index >= targets.size) return@launch
+                            val target = targets[index]
+                            try {
+                                val resolved = resolveSongForPlaylist(target)
+                                if (resolved != target) {
+                                    resolvedMutex.withLock { resolvedSongs += resolved }
+                                }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Throwable) {
+                                // The entry is still playable by URL; a later refresh can retry
+                                // metadata without failing the playlist operation itself.
+                            }
+                        }
+                    }
+                }
+                workers.joinAll()
+            }
+            if (resolvedSongs.isNotEmpty()) {
+                playlistStore.updateSongsMetadata(resolvedSongs)
+            }
+        }
     }
 
     fun reorderPlaylistSongs(playlistId: String, orderedKeys: List<String>) {

@@ -48,10 +48,7 @@ internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_mini_player_secondary),
-        summary = stringResource(
-            R.string.settings_current_value,
-            statusLyricSecondaryLabels[miniPlayerLyricSecondary.coerceIn(0, 2)]
-        ),
+        summary = stringResource(R.string.settings_mini_player_secondary_summary),
         enabled = miniPlayerLyricsEnabled,
         items = statusLyricSecondaryEntries,
         selectedIndex = miniPlayerLyricSecondary.coerceIn(0, 2),
@@ -84,10 +81,7 @@ internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
     )
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_mini_player_right_button),
-        summary = stringResource(
-            R.string.settings_current_value,
-            miniPlayerRightButtonLabels.getOrElse(miniPlayerRightButton) { miniPlayerRightButtonLabels[0] }
-        ),
+        summary = stringResource(R.string.settings_mini_player_right_button_summary),
         items = miniPlayerRightButtonLabels.map { DropdownItem(title = it) },
         selectedIndex = miniPlayerRightButton.coerceIn(0, 1),
         onSelectedIndexChange = { index ->

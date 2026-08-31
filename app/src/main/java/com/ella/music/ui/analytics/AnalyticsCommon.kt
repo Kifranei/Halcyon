@@ -44,6 +44,7 @@ import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.CoverLoadLimiter
 import com.ella.music.ui.components.DefaultAlbumCover
+import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.EllaLoadingIndicator
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
@@ -338,8 +339,42 @@ internal fun AnalyticsSongCover(
     song: Song?,
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier,
-    coverSize: Int = 128
+    coverSize: Int = 128,
+    loadOriginal: Boolean = false
 ) {
+    val originalModel by produceState<Any?>(
+        initialValue = null,
+        song?.id,
+        song?.dateModified,
+        song?.fileSize,
+        loadOriginal
+    ) {
+        value = if (!loadOriginal) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { song?.let(mainViewModel::getOriginalCoverModel) }.getOrNull()
+            }
+        }
+    }
+    if (loadOriginal && originalModel != null) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(MiuixTheme.colorScheme.surfaceContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            SafeCoverImage(
+                model = originalModel,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                sizePx = 3000,
+                loadOriginal = true
+            )
+        }
+        return
+    }
     val coverBitmap by produceState<Bitmap?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
         value = withContext(Dispatchers.IO) {
             // Analytics 页同时渲染 40-50 个封面，不限流会并发解码大量 bitmap 触发 OOM，

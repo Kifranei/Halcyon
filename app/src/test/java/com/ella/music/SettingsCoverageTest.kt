@@ -101,9 +101,11 @@ class SettingsCoverageTest {
                 val strings = factory.newDocumentBuilder().parse(file).getElementsByTagName("string")
                 for (index in 0 until strings.length) {
                     val element = strings.item(index)
+                    val name = element.attributes.getNamedItem("name").nodeValue
                     val value = element.textContent
+                    if (name.startsWith("artist_biography_lang_")) continue
                     if (hanRegex.containsMatchIn(value)) {
-                        appendLine("$locale: ${element.attributes.getNamedItem("name").nodeValue} -> $value")
+                        appendLine("$locale: $name -> $value")
                     }
                 }
             }

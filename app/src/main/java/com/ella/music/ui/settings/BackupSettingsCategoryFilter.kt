@@ -45,6 +45,7 @@ internal fun JSONObject.availableBackupTypes(includeDeviceLocalAssets: Boolean =
     if (has("playlists")) available += BackupType.Playlists
     if (has("playback")) available += BackupType.PlaybackStats
     if (has("aiChat")) available += BackupType.AiConfigAndChat
+    if (has(BACKUP_LYRICO_PLUGINS_FIELD)) available += BackupType.OnlineSources
     return available
 }
 
@@ -64,9 +65,10 @@ private fun String.isOnlineSourceSettingKey(): Boolean =
     startsWith("webdav_") ||
         startsWith("lx_") ||
     startsWith("navidrome_") ||
-        startsWith("opensubsonic_") ||
-        startsWith("emby_") ||
-        this == "online_selected_provider"
+    startsWith("opensubsonic_") ||
+    startsWith("emby_") ||
+    startsWith("lyrico_plugin_") ||
+    this == "online_selected_provider"
 
 private fun String.isFolderPlaylistSettingKey(): Boolean =
     this == "folder_playlists" ||

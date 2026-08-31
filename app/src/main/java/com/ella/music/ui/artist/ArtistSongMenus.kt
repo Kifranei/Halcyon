@@ -224,6 +224,7 @@ internal fun ArtistSongInfoMenu(
             openSongWithMediaInfo(context, song)
         },
         onDismiss = onDismiss,
+        onUpdateModifiedTime = { mainViewModel.updateSongModifiedTime(song, it) },
         leadingContent = {
             SongMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
         }

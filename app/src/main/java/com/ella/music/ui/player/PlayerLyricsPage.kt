@@ -49,7 +49,6 @@ internal fun LyricsPlayerPage(
     lyricFormatAvailability: MusicRepository.LyricFormatAvailability,
     preferTtmlLyrics: Boolean?,
     lyricSourceMode: Int,
-    lyricParserEngine: Int,
     layoutProfile: PlayerLyricLayoutProfile,
     fontFamily: FontFamily?,
     translationFontFamily: FontFamily? = fontFamily,
@@ -93,7 +92,6 @@ internal fun LyricsPlayerPage(
     onSecondaryFontScale: (Float) -> Unit,
     onLyricSourceMode: (Int) -> Unit,
     onLyricFormatPreference: (Boolean) -> Unit,
-    onLyricParserEngine: (Int) -> Unit,
     onArtist: () -> Unit,
     onPrimaryTextSize: (Float) -> Unit,
     onSecondaryTextSize: (Float) -> Unit,
@@ -242,7 +240,6 @@ internal fun LyricsPlayerPage(
             lyricFormatAvailability = lyricFormatAvailability,
             preferTtmlLyrics = preferTtmlLyrics,
             lyricSourceMode = lyricSourceMode,
-            lyricParserEngine = lyricParserEngine,
             layoutProfile = layoutProfile,
             fontScale = fontScale,
             secondaryFontScale = secondaryFontScale,
@@ -272,10 +269,6 @@ internal fun LyricsPlayerPage(
             onLyricFormatPreference = { preferTtml ->
                 lyricMenuExpanded = false
                 onLyricFormatPreference(preferTtml)
-            },
-            onLyricParserEngine = { engine ->
-                lyricMenuExpanded = false
-                onLyricParserEngine(engine)
             },
             onFontScale = onFontScale,
             onSecondaryFontScale = onSecondaryFontScale,

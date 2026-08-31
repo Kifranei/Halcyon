@@ -3,6 +3,18 @@
 From `1.2.6` to `1.2.7`.
 
 中文更新日志
+- 设置下拉项不再用「当前：xxx」当说明，改为功能注释；「保留隐藏系统栏的占位」默认关闭。搜索跳转按条目键打开对应三级页并滚到那一行（如 Apple Music 流光速度），对齐小米设置的 preference key 定位。
+- 设置搜索会记下历史；点结果跳到那一条设置并高亮，不再滚到整张卡片或同页另一块。歌曲信息修改时间用系统 utime 写入（`#581`）。
+- 传记源菜单改为左右分栏：语言名（English / 日本語）左对齐，右侧用维基 / Last.fm / 网易云图标切换来源，不再按 VPN 自动换源（`#579`）。
+- 歌词来源优先级用右侧复选框开关，不再用滑动开关（`#580`）。
+- 从播放页进入艺术家 / 专辑后再返回，直接回到播放页，不再闪一下底下的列表（`#564`）。
+- 艺术家传记语言与艺术家图片地区分开保存，互不影响（`#578`）。
+- 底栏「设置」改为一级页：选中后保留底栏，不再当成叠在首页上的二级页。从设置长按迷你条跳回歌曲列表后，设置按钮仍可切换回去。
+- 歌曲信息条目和播放列表顶栏可在设置里排序、隐藏；点击修改时间可编辑文件时间。
+- 列表可在单行 / 多行 / 网格间切换。开头空白歌词支持拖动跳转。沉浸歌词标题下移，不再压在封面上。
+- ZIP 备份会打包自定义字体，恢复时写回本机并保留系统字体路径；播放页迷你歌词不再为未唱到的 x-bg 预留下空白行。
+- 艺术家封面：文件夹匹配跟随「标签忽略大小写」；下载源优先精确大小写并跳过占位图；长按预览当前显示的图，下载图标题带上来源。专辑分类进详情不再先转圈；听歌统计最爱专辑用原图。
+- 歌词来源可单独开关并修正文案；听歌统计阈值改为 0–100% / 0–6 分钟滑块；歌曲信息显示播放次数和听歌时长。
 - 日志页改为直接读取本进程 logcat（不再落盘 TSV、取消 3000 条上限）。导出完整 logcat，清空只清界面快照。
 - 播放页会读取歌曲目录里的 cover.jpg / folder.jpg 等封面。自动解码时系统有杜比解码器走系统，没有才回退 FFmpeg，避免 FFmpeg 音量偏小、放不出 6 声道。
 - LX 源导入会拒绝网页 HTML（提示用 .js 直链）；在线歌词覆盖更多平台；下载会写入封面和歌词。介绍页会抽取 latest.js，青听 JSON/网盘分享页给出明确错误；聚合 API 源的 303 跳转和请求体解析已对齐。
@@ -32,6 +44,18 @@ From `1.2.6` to `1.2.7`.
 - 修复「全部随机」只改队列未切换播放模式、继续播放来源判断、最近听过手动播放来源、液态玻璃高亮与底栏状态、封面网格清晰度和布局切换定位等问题（`#519`、`#520`、`#542`、`#550`）。
 
 English Changelog
+- Dropdown settings use descriptive summaries instead of “Current: …”, and hidden system-bar space reservation is off by default. Search opens the matching tertiary page and scrolls to that row (for example Apple Music flow speed), following Xiaomi Settings’ preference-key jump.
+- Settings search stores history and jumps to the matched preference instead of the whole card. Song-info modified time uses utime so saving no longer fails on scoped storage (`#581`).
+- The biography source sheet uses left-aligned language names with Wikipedia / Last.fm / NetEase icons, and source choice is manual instead of VPN-based (`#579`).
+- Lyric source priority uses checkboxes on the right instead of switches (`#580`).
+- Returning from the artist or album page opened from the player goes straight back to the player instead of flashing the page underneath (`#564`).
+- Artist biography language and artist-image region are stored separately and no longer affect each other (`#578`).
+- Dock Settings is now a first-level tab: the bottom bar stays selected on Settings instead of pushing it as a secondary page. Long-pressing the mini player from Settings still lets the Settings tab switch back from the song list.
+- Song-info fields and the queue toolbar can be reordered or hidden in Settings. Tapping Modified time edits the file timestamp.
+- Song lists cycle list / multi-row / grid. Opening lyrics can be dragged to seek. Immersive lyric titles sit below the cover.
+- ZIP backups pack custom fonts and restore them locally while keeping system font paths. Player mini lyrics no longer reserve empty x-bg rows.
+- Artist covers follow the library ignore-case setting, skip placeholder download images, preview the currently visible image, and show the download source. Album-category details no longer flash a spinner; analytics favorite albums use original artwork.
+- Lyric sources can be enabled independently. Play-count thresholds are 0–100% / 0–6 minute sliders. Song info shows play count and listen time.
 - The log screen now reads this process logcat directly (no TSV snapshot, no 3000-entry cap). Export dumps full logcat.
 - The player reads folder sidecar covers such as cover.jpg. Auto decoder uses the system Dolby decoder when present and falls back to FFmpeg only when the device has none, so 6-channel output is preserved.
 - LX source import rejects HTML pages, online lyrics cover more platforms, and downloads embed cover art and lyrics.
@@ -80,7 +104,7 @@ From `1.2.5` to `1.2.6`.
 - 专辑/艺术家/文件夹等列表在内容算完前显示加载，不再先闪「未找到」或点进去像卡住。
 - 开启 Apple Music 播放页后，平板横屏使用封面居中的 AM 布局，不再沿用左封面右歌词。
 - 设置增加向导；搜索命中后跳到整块开关卡片并闪两下（例如「播放页显示歌曲注释」）。
-- 按最新 ColorOS Live Lyrics Bridge 协议补回锁屏岛歌词：首曲首次发布前预埋 `lyricInfo`、800ms 兼容补交真正重发、开启锁屏歌词时 TITLE/ARTIST 保持歌曲身份；并新增应用内 v4 Provider 广播（`lyricprovider/halcyon`）作为 ColorOS 16.9 收紧后的第二通道（`#444`）。模块 rawLyric 在逐字原文后附加同时间戳翻译行。
+- 按最新 ColorOS Live Lyrics Bridge 4.0 播放器接入协议补回锁屏岛歌词：首曲首次发布前把完整 `lyricInfo` 写入当前 MediaItem，换曲立即清理旧歌词，800ms 仅做一次兼容性重发，开启锁屏歌词时 TITLE/ARTIST 保持歌曲身份。模块模式额外提供 `rawLyric` 逐字时间轴与同时间戳翻译行。
 - 隐藏状态栏/导航栏时 BottomSheet 不再把系统栏顶回来挡住滑块；横屏歌词样式表可滚动。歌词页右上角更多菜单始终提供歌词显示/样式设置，不再仅限平板沉浸横屏。
 - 修复约 392–393dp 宽屏上艺术家页 Tab 被挤扁（`#503`）；传记 Tab 隐藏多选/搜索/排序，地区列表将 English / 简体中文 / 日本語 置顶，并改用 Last.fm API + Wikipedia 以便国内无 VPN 加载（`#504`）。
 - Apple Music 播放页底部中间按钮由歌曲信息改为播放模式。
@@ -106,7 +130,7 @@ English Changelog
 - Album, artist, and folder screens show a spinner until their lists resolve instead of flashing “not found” or hanging on tap.
 - Apple Music player style now has a matching centered landscape tablet layout.
 - Settings gain a setup wizard, and search jumps to the whole switch card and flashes it twice.
-- Restored ColorOS Live Lyrics Bridge alignment: pre-seed `lyricInfo` before the first MediaItem publish, make the 800ms compat republish actually emit, and keep TITLE/ARTIST as song identity while lock-screen lyrics are on. Also send in-app v4 Provider broadcasts (`lyricprovider/halcyon`) as a second channel after ColorOS 16.9 tightened lyricInfo (`#444`).
+- Restored ColorOS Live Lyrics Bridge 4.0 alignment: pre-seed `lyricInfo` in the first MediaItem, clear it on track changes, keep TITLE/ARTIST as song identity while lock-screen lyrics are on, and retain one delayed compatibility republish (`#444`).
 - Stop artist tabs from being crushed on ~392–393dp widths (`#503`). Hide multi-select/search/sort on the biography tab, pin English / 简体中文 / 日本語 in the region list, and load bios via the Last.fm API plus Wikipedia without a VPN (`#504`).
 - Apple Music player footer center button is now playback mode instead of song info.
 - Artist pages gain a Last.fm biography tab between release albums and music videos (`#496`), with the official Last.fm language switcher (English, Deutsch, Español, Français, Italiano, 日本語, Polski, Português, Русский, Svenska, Türkçe, 简体中文).

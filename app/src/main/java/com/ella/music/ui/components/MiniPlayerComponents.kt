@@ -432,7 +432,10 @@ private fun AutoScrollingMiniText(
         val textWidth = textLayout.size.width.toFloat()
         val smoothPositionMs = smoothedPositionMs.value
         val timingProgress = lyricTiming?.progressAt(smoothPositionMs)
-        val safeProgress = if (highlightWithProgress && wordTiming.isNotEmpty() && lyricTiming != null) {
+        // Only real per-word timing drives the karaoke sweep; a line-level lyric stays plain
+        // instead of faking a word-by-word highlight out of the whole-line duration.
+        val hasWordTiming = wordTiming.isNotEmpty() && lyricTiming != null
+        val safeProgress = if (highlightWithProgress && hasWordTiming) {
             miniPlayerWordProgress(
                 text = text,
                 textLayout = textLayout,
@@ -445,12 +448,22 @@ private fun AutoScrollingMiniText(
         }.coerceIn(0f, 1f)
         val overflowPx = (textWidth - size.width).coerceAtLeast(0f)
         val scrollProgress = if (enabled && overflowPx > 0f) {
-            miniMarqueeProgress(
-                progress = safeProgress,
-                overflowPx = overflowPx,
-                viewportPx = viewportPx,
-                autoScrollElapsedMs = autoScrollElapsedMs
-            )
+            if (hasWordTiming) {
+                miniMarqueeProgress(
+                    progress = safeProgress,
+                    overflowPx = overflowPx,
+                    viewportPx = viewportPx,
+                    autoScrollElapsedMs = autoScrollElapsedMs
+                )
+            } else {
+                // Line-level lyrics scroll like a plain marquee: bounce back and forth over
+                // the overflow instead of tracking the (unseen) whole-line progress.
+                miniPingPongMarqueeProgress(
+                    autoScrollElapsedMs = autoScrollElapsedMs,
+                    overflowPx = overflowPx,
+                    viewportPx = viewportPx
+                )
+            }
         } else {
             0f
         }
@@ -464,7 +477,7 @@ private fun AutoScrollingMiniText(
             color = color,
             topLeft = topLeft
         )
-        if (enabled && highlightWithProgress && highlightRight > 0f) {
+        if (hasWordTiming && enabled && highlightWithProgress && highlightRight > 0f) {
             // Draw a solid sung section, then blend it into the dim copy.  The previous
             // rectangular clip made every word boundary snap hard in the mini player.
             // Once the last word is complete, do not leave the trailing feather visible:
@@ -677,6 +690,29 @@ private fun miniMarqueeProgress(
             overflowPx.coerceAtLeast(1f)
         ).coerceIn(0f, 1f)
     return maxOf(lyricDrivenProgress, autoDrivenProgress)
+}
+
+/**
+ * Time-driven back-and-forth marquee for lyrics without per-word timing: hold at the start,
+ * scroll to the end, hold, then scroll back. The offset is continuous and never jumps.
+ */
+private fun miniPingPongMarqueeProgress(
+    autoScrollElapsedMs: Float,
+    overflowPx: Float,
+    viewportPx: Int
+): Float {
+    val speedPxPerSecond = (viewportPx * 0.12f).coerceIn(22f, 42f)
+    val travelMs = overflowPx / speedPxPerSecond * 1000f
+    if (travelMs <= 0f) return 0f
+    val holdMs = 800f
+    val period = (travelMs + holdMs) * 2f
+    val t = autoScrollElapsedMs % period
+    return when {
+        t < holdMs -> 0f
+        t < holdMs + travelMs -> (t - holdMs) / travelMs
+        t < holdMs * 2f + travelMs -> 1f
+        else -> 1f - (t - holdMs * 2f - travelMs) / travelMs
+    }.coerceIn(0f, 1f)
 }
 
 internal data class MiniPlayerTextState(

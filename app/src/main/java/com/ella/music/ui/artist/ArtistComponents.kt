@@ -8,6 +8,7 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,13 +53,16 @@ import com.ella.music.data.ArtistCoverAsset
 import com.ella.music.data.ArtistCoverKind
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
-import com.ella.music.data.lastfm.LAST_FM_WIKI_REGIONS
+import com.ella.music.data.lastfm.ARTIST_BIO_LANGUAGES
+import com.ella.music.data.lastfm.ArtistBioMenuSource
+import com.ella.music.data.lastfm.artistBioSourcesForLanguage
+import com.ella.music.data.lastfm.normalizeArtistBioSource
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.data.lastfm.ArtistWikiSource
 import com.ella.music.data.lastfm.LastFmArtistWiki
 import com.ella.music.data.lastfm.LastFmSecureStore
 import com.ella.music.data.lastfm.artistBioDownloadAllowed
 import com.ella.music.data.lastfm.fetchLastFmArtistWiki
-import com.ella.music.data.lastfm.isVpnActive
 import com.ella.music.data.lastfm.isWifiConnected
 import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.data.model.Album
@@ -76,7 +82,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class ArtistTab(@param:StringRes val labelRes: Int) {
@@ -150,16 +155,23 @@ internal fun ArtistBiographyPanel(
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val lastFmApiKey by LastFmSecureStore.getInstance(context).credentials.collectAsState()
     val regionCode by settingsManager.artistBioLastFmLang.collectAsState(initial = DEFAULT_LAST_FM_WIKI_REGION)
+    val bioSourceId by settingsManager.artistBioSource.collectAsState(initial = ArtistBioMenuSource.Wikipedia.id)
     val selectedRegion = normalizeLastFmWikiRegion(regionCode)
-    val selectedIndex = LAST_FM_WIKI_REGIONS.indexOfFirst { it.code == selectedRegion }
-        .takeIf { it >= 0 } ?: 0
+    val selectedLanguage = ARTIST_BIO_LANGUAGES.firstOrNull { it.code == selectedRegion }
+        ?: ARTIST_BIO_LANGUAGES.first()
+    val selectedSource = run {
+        val source = normalizeArtistBioSource(bioSourceId)
+        val available = artistBioSourcesForLanguage(selectedLanguage.code)
+        if (source in available) source else available.first()
+    }
+    var languageSheetVisible by remember { mutableStateOf(false) }
     val allowed = remember(downloadMode) {
         artistBioDownloadAllowed(downloadMode, isWifiConnected(context))
     }
-    var wiki by remember(artistName, selectedRegion) { mutableStateOf<LastFmArtistWiki?>(null) }
-    var loading by remember(artistName, selectedRegion) { mutableStateOf(allowed) }
-    var failed by remember(artistName, selectedRegion) { mutableStateOf(false) }
-    LaunchedEffect(artistName, allowed, selectedRegion, lastFmApiKey.apiKey) {
+    var wiki by remember(artistName, selectedRegion, selectedSource) { mutableStateOf<LastFmArtistWiki?>(null) }
+    var loading by remember(artistName, selectedRegion, selectedSource) { mutableStateOf(allowed) }
+    var failed by remember(artistName, selectedRegion, selectedSource) { mutableStateOf(false) }
+    LaunchedEffect(artistName, allowed, selectedRegion, selectedSource, lastFmApiKey.apiKey) {
         if (!allowed) {
             loading = false
             failed = false
@@ -173,7 +185,7 @@ internal fun ArtistBiographyPanel(
                 artistName = artistName,
                 regionCode = selectedRegion,
                 apiKey = lastFmApiKey.apiKey,
-                vpnActive = isVpnActive(context)
+                preferredSource = selectedSource
             )
         }
             .onFailure { failed = true }
@@ -185,20 +197,126 @@ internal fun ArtistBiographyPanel(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
-        OverlayDropdownPreference(
-            items = LAST_FM_WIKI_REGIONS.map { stringResource(it.countryNameRes) },
-            selectedIndex = selectedIndex,
-            title = stringResource(R.string.artist_biography_region),
-            insideMargin = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
-            enabled = true,
-            showValue = true,
-            renderInRootScaffold = true,
-            onSelectedIndexChange = { index ->
-                LAST_FM_WIKI_REGIONS.getOrNull(index)?.let { region ->
-                    scope.launch { settingsManager.setArtistBioLastFmLang(region.code) }
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { languageSheetVisible = true }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.artist_biography_language),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = stringResource(selectedLanguage.countryNameRes),
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
             }
-        )
+        }
+        EllaMiuixBottomSheet(
+            show = languageSheetVisible,
+            title = stringResource(R.string.artist_biography_language),
+            onDismissRequest = { languageSheetVisible = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ARTIST_BIO_LANGUAGES.forEach { language ->
+                    val sources = artistBioSourcesForLanguage(language.code)
+                    val languageSelected = language.code == selectedLanguage.code
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .then(
+                                if (languageSelected) {
+                                    Modifier.border(
+                                        width = 1.5.dp,
+                                        color = MiuixTheme.colorScheme.primary,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .clickable {
+                                val nextSource = if (selectedSource in sources) selectedSource else sources.first()
+                                languageSheetVisible = false
+                                scope.launch {
+                                    settingsManager.setArtistBioLastFmLang(language.code)
+                                    settingsManager.setArtistBioSource(nextSource.id)
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = stringResource(language.countryNameRes),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.width(132.dp)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            sources.forEach { source ->
+                                val sourceSelected = languageSelected && source == selectedSource
+                                val outline = if (sourceSelected) {
+                                    MiuixTheme.colorScheme.primary
+                                } else {
+                                    MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(999.dp))
+                                        .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+                                        .border(1.5.dp, outline, RoundedCornerShape(999.dp))
+                                        .clickable {
+                                            languageSheetVisible = false
+                                            scope.launch {
+                                                settingsManager.setArtistBioLastFmLang(language.code)
+                                                settingsManager.setArtistBioSource(source.id)
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(source.iconRes),
+                                        contentDescription = stringResource(
+                                            when (source) {
+                                                ArtistBioMenuSource.Wikipedia ->
+                                                    R.string.artist_biography_source_wikipedia
+                                                ArtistBioMenuSource.LastFm ->
+                                                    R.string.artist_image_source_lastfm
+                                                ArtistBioMenuSource.Netease ->
+                                                    R.string.artist_image_source_netease
+                                            }
+                                        ),
+                                        tint = if (sourceSelected) {
+                                            MiuixTheme.colorScheme.primary
+                                        } else {
+                                            MiuixTheme.colorScheme.onSurface
+                                        },
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         when {
             !allowed -> Text(
@@ -295,7 +413,7 @@ internal fun ArtistHeader(
     onPlayAll: () -> Unit,
     onIntroductionClick: () -> Unit,
     showIntroductionEntry: Boolean = true,
-    onPreviewCover: (() -> Unit)? = null
+    onPreviewCover: ((Any?) -> Unit)? = null
 ) {
     val headerTextColor = Color.White
     val headerSubTextColor = Color.White.copy(alpha = 0.78f)
@@ -318,6 +436,12 @@ internal fun ArtistHeader(
         customCoverAssets.filter { it.kind == ArtistCoverKind.Image }.map { it.uri }
     }
     var videoFailed by remember(dynamicCoverSource?.failureKey) { mutableStateOf(false) }
+    var visibleCoverModel by remember(customCoverAssets, fallbackCoverModel) {
+        mutableStateOf<Any?>(
+            customCoverAssets.firstOrNull { it.kind == ArtistCoverKind.Image }?.uri
+                ?: fallbackCoverModel
+        )
+    }
     val coverInteractionModifier = if (onPreviewCover == null) {
         Modifier.fillMaxSize()
     } else {
@@ -325,7 +449,7 @@ internal fun ArtistHeader(
             .fillMaxSize()
             .combinedClickable(
                 onClick = {},
-                onLongClick = onPreviewCover
+                onLongClick = { onPreviewCover(visibleCoverModel) }
             )
     }
     Box(
@@ -347,6 +471,7 @@ internal fun ArtistHeader(
                 ArtistHeaderImageCover(
                     imageUris = imageUris,
                     carousel = carousel,
+                    onVisibleUriChange = { visibleCoverModel = it },
                     modifier = Modifier.fillMaxSize()
                 )
             } else if (fallbackCoverModel != null) {
@@ -450,11 +575,16 @@ internal fun ArtistHeader(
 private fun ArtistHeaderImageCover(
     imageUris: List<Uri>,
     carousel: Boolean,
+    onVisibleUriChange: (Uri) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (imageUris.size <= 1) {
+        val uri = imageUris.firstOrNull()
+        if (uri != null) {
+            LaunchedEffect(uri) { onVisibleUriChange(uri) }
+        }
         SafeCoverImage(
-            model = imageUris.firstOrNull(),
+            model = uri,
             contentDescription = null,
             modifier = modifier,
             contentScale = ContentScale.Crop,
@@ -466,6 +596,7 @@ private fun ArtistHeaderImageCover(
 
     if (!carousel) {
         val randomUri = remember(imageUris) { imageUris.random() }
+        LaunchedEffect(randomUri) { onVisibleUriChange(randomUri) }
         SafeCoverImage(
             model = randomUri,
             contentDescription = null,
@@ -478,6 +609,9 @@ private fun ArtistHeaderImageCover(
     }
 
     var index by remember(imageUris) { mutableStateOf(0) }
+    LaunchedEffect(imageUris, index) {
+        imageUris.getOrNull(index)?.let(onVisibleUriChange)
+    }
     LaunchedEffect(imageUris) {
         while (true) {
             kotlinx.coroutines.delay(ARTIST_COVER_CAROUSEL_INTERVAL_MS)

@@ -2,6 +2,7 @@ package com.ella.music.data
 
 import android.content.Context
 import android.net.Uri
+import com.ella.music.R
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
@@ -21,7 +22,13 @@ import okhttp3.Request
 import org.json.JSONObject
 import com.ella.music.data.lastfm.fetchLastFmArtistImage
 import com.ella.music.data.lastfm.fetchNeteaseArtistImage
+import com.ella.music.data.lastfm.isUsableArtistImageUrl
 import com.ella.music.data.lastfm.spotifyMarketForLastFmRegion
+
+internal data class ResolvedArtistImage(
+    val uri: Uri,
+    val source: String
+)
 
 /** Network-backed artist images with a small app-private disk cache. */
 internal object ArtistImageRepository {
@@ -42,6 +49,17 @@ internal object ArtistImageRepository {
     @Volatile
     private var spotifyAccessTokenExpiresAt: Long = 0L
 
+    suspend fun clearDownloadedCache(context: Context) = withContext(Dispatchers.IO) {
+        // Current downloads live in filesDir so they survive the platform cache eviction. Also
+        // remove the old cacheDir location for installations upgraded from the earlier build.
+        File(context.filesDir, CACHE_DIRECTORY).deleteRecursively()
+        File(context.cacheDir, CACHE_DIRECTORY).deleteRecursively()
+        artistLocks.clear()
+        failedLookups.clear()
+        spotifyAccessToken = null
+        spotifyAccessTokenExpiresAt = 0L
+    }
+
     suspend fun resolve(
         context: Context,
         artistName: String,
@@ -50,7 +68,25 @@ internal object ArtistImageRepository {
         lastFmRegion: String,
         spotifyClientId: String,
         spotifyClientSecret: String
-    ): Uri? = withContext(Dispatchers.IO) {
+    ): Uri? = resolveDetailed(
+        context,
+        artistName,
+        sourceOrder,
+        lastFmApiKey,
+        lastFmRegion,
+        spotifyClientId,
+        spotifyClientSecret
+    )?.uri
+
+    suspend fun resolveDetailed(
+        context: Context,
+        artistName: String,
+        sourceOrder: List<String>,
+        lastFmApiKey: String,
+        lastFmRegion: String,
+        spotifyClientId: String,
+        spotifyClientSecret: String
+    ): ResolvedArtistImage? = withContext(Dispatchers.IO) {
         val normalizedArtist = artistName.trim()
         if (normalizedArtist.isBlank()) return@withContext null
         val sources = SettingsManager.normalizeArtistImageSources(sourceOrder)
@@ -65,12 +101,14 @@ internal object ArtistImageRepository {
         val target = cacheFile(context, cacheKey)
         val lock = artistLocks.getOrPut(cacheKey) { Mutex() }
         lock.withLock {
-            cachedUri(target)?.let { return@withLock it }
+            cachedUri(target)?.let { uri ->
+                return@withLock ResolvedArtistImage(uri, readCachedSource(target) ?: "")
+            }
             val now = System.currentTimeMillis()
             if (now - (failedLookups[cacheKey] ?: 0L) < FAILED_LOOKUP_TTL_MS) {
                 return@withLock null
             }
-            var resolved: Uri? = null
+            var resolved: ResolvedArtistImage? = null
             for (source in sources) {
                 val imageUrl = try {
                     networkSlots.withPermit {
@@ -93,9 +131,10 @@ internal object ArtistImageRepository {
                 } catch (_: Throwable) {
                     null
                 }
-                val usableImageUrl = imageUrl?.takeIf(::isUsableImageUrl) ?: continue
+                val usableImageUrl = imageUrl?.takeIf(::isUsableArtistImageUrl) ?: continue
                 if (downloadImage(usableImageUrl, target)) {
-                    resolved = Uri.fromFile(target)
+                    writeCachedSource(target, source)
+                    resolved = ResolvedArtistImage(Uri.fromFile(target), source)
                     break
                 }
             }
@@ -109,6 +148,24 @@ internal object ArtistImageRepository {
 
     private fun cachedUri(file: File): Uri? =
         file.takeIf { it.isFile && it.length() > 0L }?.let(Uri::fromFile)
+
+    private fun sourceFile(imageFile: File): File = File(imageFile.parentFile, "${imageFile.name}.source")
+
+    private fun writeCachedSource(imageFile: File, source: String) {
+        runCatching { sourceFile(imageFile).writeText(source) }
+    }
+
+    private fun readCachedSource(imageFile: File): String? =
+        runCatching { sourceFile(imageFile).takeIf { it.isFile }?.readText()?.trim() }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+
+    internal fun sourceLabelRes(source: String): Int? = when (source) {
+        SettingsManager.ARTIST_IMAGE_SOURCE_LASTFM -> R.string.artist_image_source_lastfm
+        SettingsManager.ARTIST_IMAGE_SOURCE_SPOTIFY -> R.string.artist_image_source_spotify
+        SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE -> R.string.artist_image_source_netease
+        else -> null
+    }
 
     private fun downloadImage(url: String, target: File): Boolean {
         val parent = target.parentFile ?: return false
@@ -253,7 +310,7 @@ internal object ArtistImageRepository {
                     ?.optJSONObject(0)
                     ?.optString("url")
                     ?.trim()
-                    ?.takeIf(::isUsableImageUrl)
+                    ?.takeIf(::isUsableArtistImageUrl)
             }
             .firstOrNull()
     }
@@ -278,6 +335,4 @@ internal object ArtistImageRepository {
             .joinToString("") { byte -> "%02x".format(Locale.ROOT, byte) }
     }
 
-    private fun isUsableImageUrl(url: String): Boolean =
-        url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)
 }

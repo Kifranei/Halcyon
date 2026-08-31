@@ -25,6 +25,7 @@
     <string name="duration_format" formatted="false">%02d:%02d</string>
     <string name="no_lyrics">Aucune parole</string>
     <string name="settings_player_lyric_text_align">Player lyric alignment</string>
+    <string name="settings_player_lyric_text_align_summary">Choisir l’alignement horizontal des paroles</string>
     <string name="player_output_bluetooth">Bluetooth device</string>
     <string name="player_output_headphones">Headphones</string>
     <string name="player_output_usb_audio">USB audio</string>
@@ -194,6 +195,14 @@
     <string name="settings_music_playback">Musique et lecture</string>
     <string name="settings_services">Services et données</string>
     <string name="settings_maintenance">Maintenance</string>
+    <string name="settings_maintenance_summary">Assistant de configuration, nettoyage du cache et paramètres par défaut</string>
+    <string name="settings_clear_artist_image_cache">Vider le cache des images d’artistes</string>
+    <string name="settings_clear_artist_image_cache_summary">Supprimer les images locales téléchargées depuis les sources d’artistes</string>
+    <string name="settings_clear_artist_image_cache_done">Cache des images d’artistes vidé</string>
+    <string name="settings_restore_defaults">Restaurer la configuration par défaut</string>
+    <string name="settings_restore_defaults_summary">Restaurer les paramètres initiaux sans supprimer la musique, les playlists ni l’historique</string>
+    <string name="settings_restore_defaults_confirm">Restaurer tous les paramètres par défaut ? Les préférences actuelles seront effacées, mais la musique et les données utilisateur seront conservées.</string>
+    <string name="settings_restore_defaults_done">Configuration par défaut restaurée</string>
     <string name="settings_appearance_home">Apparence et accueil</string>
     <string name="settings_appearance_home_summary">Thème, langue, verre liquide, images personnalisées et disposition de l’accueil</string>
     <string name="settings_library_scan">Bibliothèque et analyse</string>
@@ -213,7 +222,7 @@
     <string name="settings_backup_summary">Exporter et restaurer les paramètres, l’historique d’écoute et les statistiques</string>
     <string name="settings_other">Autre</string>
     <string name="settings_clear_online_cache">Vider le cache des pochettes et paroles</string>
-    <string name="settings_clear_online_cache_summary">Vider le cache des pochettes WebDAV et LX, des paroles et des métadonnées distantes</string>
+    <string name="settings_clear_online_cache_summary">Vider les caches de pochettes, paroles et balises des sources locales et distantes</string>
     <string name="settings_clear_online_cache_done">Cache des pochettes et paroles en ligne vidé</string>
     <string name="settings_clear_library_snapshot_cache">Vider le cache instantané de la bibliothèque</string>
     <string name="settings_clear_library_snapshot_cache_summary">Effacer les instantanés de recherche et de tags de la bibliothèque ; ils seront régénérés à la prochaine recherche</string>
@@ -239,7 +248,7 @@
     <string name="logs_retention_days">%1$d jours</string>
     <string name="logs_retention_removed">%1$d anciens journaux supprimés</string>
     <string name="logs_retention_set">Conserver les journaux pendant %1$d jours</string>
-    <string name="logs_summary">%1$d journaux, %2$d affichés ; erreurs %3$d, avertissements %4$d. Lit le logcat du processus directement, sans limite de 3000 entrées.</string>
+    <string name="logs_summary">%1$d journaux, %2$d affichés ; erreurs %3$d, avertissements %4$d</string>
     <string name="logs_empty">Aucun journal</string>
     <string name="logs_empty_filtered">Aucun journal correspondant</string>
     <string name="logs_clear_message">Cela effacera les %1$d lignes logcat affichées. Le tampon logcat système reste géré par Android.</string>
@@ -284,6 +293,9 @@
     <string name="settings_app_display_scale">Échelle de l’interface</string>
     <string name="settings_app_display_scale_summary">Redimensionner les boutons, les espacements et le contenu de l’application</string>
     <string name="settings_category_grid_columns">Colonnes de la grille des catégories</string>
+    <string name="settings_library_song_grid_columns_phone">Colonnes de morceaux sur téléphone</string>
+    <string name="settings_library_song_grid_columns_tablet">Colonnes de morceaux sur tablette</string>
+    <string name="settings_library_song_grid_columns_summary">Afficher la grille des pochettes sur %1$d colonnes</string>
     <string name="settings_category_grid_columns_summary">Afficher les albums, genres, années et pages similaires sur %1$d colonnes</string>
     <string name="settings_category_grid_columns_option">%1$d colonnes</string>
     <string name="settings_category_grid_columns_option_summary_single">Grande liste de cartes</string>
@@ -293,6 +305,8 @@
     <string name="settings_show_album_artists_summary">Fusionner les artistes d’album dans la liste des artistes et afficher un onglet d’albums publiés sur les pages d’artiste</string>
     <string name="settings_show_artist_introduction">Afficher la présentation de l’artiste</string>
     <string name="settings_show_artist_introduction_summary">Afficher l’entrée Présentation sur les pages d’artiste</string>
+    <string name="settings_library_song_title_marquee">Défiler les longs titres en bibliothèque deux colonnes</string>
+    <string name="settings_library_song_title_marquee_summary">Les titres et artistes trop longs défilent en aller-retour dans la liste à deux colonnes ; désactivé, la coupure sur une ligne est conservée</string>
     <string name="settings_open_player_on_play">Ouvrir le lecteur après un appui sur Lire</string>
     <string name="settings_open_player_on_play_summary">Ouvrir automatiquement le lecteur après le démarrage de titres locaux, WebDAV ou en ligne</string>
     <string name="settings_open_player_from_notification">Ouvrir le lecteur depuis la notification multimédia</string>
@@ -580,11 +594,15 @@
     <string name="settings_resume_playback_position">Resume track position</string>
     <string name="settings_resume_playback_position_summary">When returning to a previously played song, continue from where you left</string>
     <string name="settings_shuffle_mode">Mode aléatoire</string>
+    <string name="settings_shuffle_mode_summary">Choisir comment le mode aléatoire sélectionne le morceau suivant</string>
     <string name="settings_play_next_mode">Mode Lire ensuite</string>
+    <string name="settings_play_next_mode_summary">Choisir comment « Lire ensuite » insère les morceaux</string>
     <string name="settings_previous_button">Bouton précédent</string>
+    <string name="settings_previous_button_summary">Choisir si Précédent passe au morceau d’avant ou relance le morceau actuel</string>
     <string name="settings_disable_audio_focus">Désactiver le focus audio</string>
     <string name="settings_disable_audio_focus_summary">Lorsque cette option est activée, la lecture ne prendra plus le focus audio aux autres applications</string>
     <string name="settings_decoder">Décodeur</string>
+    <string name="settings_decoder_summary">Choisir le décodage système, FFmpeg ou le repli automatique</string>
     <string name="settings_startup_play_off">Désactivé</string>
     <string name="settings_startup_play_random">Lecture aléatoire</string>
     <string name="settings_startup_play_resume">Reprendre la dernière session</string>
@@ -662,9 +680,11 @@
     <string name="settings_karaoke_accompaniment">Réduction vocale / accompagnement</string>
     <string name="settings_karaoke_accompaniment_summary">Atténue instantanément les voix centrées d’un mix stéréo. Ce n’est pas une séparation IA</string>
     <string name="settings_startup_play">Lecture automatique au démarrage</string>
+    <string name="settings_startup_play_summary">Choisir si la lecture démarre à l’ouverture de l’application</string>
     <string name="settings_bluetooth_auto_play">Lecture auto Bluetooth</string>
     <string name="settings_bluetooth_auto_play_summary">Démarrer automatiquement la lecture lorsqu’un appareil audio Bluetooth se connecte</string>
     <string name="settings_mini_player_right_button">Bouton droit du mini-lecteur</string>
+    <string name="settings_mini_player_right_button_summary">Choisir l’action du bouton droit du mini-lecteur</string>
     <string name="settings_mini_player_right_next">Titre suivant</string>
     <string name="settings_mini_player_right_queue">Playlist</string>
     <string name="settings_transport_button_outlines">Contours des boutons du lecteur</string>
@@ -932,7 +952,9 @@
     <string name="settings_lyric_share_custom_info_summary">Laissez vide pour afficher Halcyon ; saisissez un nom pour afficher par @nom</string>
     <string name="settings_tag_scraping">Extraction des tags musicaux</string>
     <string name="settings_metadata_editor">Application d’édition des métadonnées</string>
+    <string name="settings_metadata_editor_summary">Choisir l’application d’édition des étiquettes</string>
     <string name="settings_lyric_timing_editor">Application de synchronisation des paroles</string>
+    <string name="settings_lyric_timing_editor_summary">Choisir l’application de timing des paroles</string>
     <string name="settings_desktop_shortcuts">Raccourcis d’accueil</string>
     <string name="settings_shortcut_library">Bibliothèque</string>
     <string name="settings_shortcut_playlists">Recherche</string>
@@ -976,7 +998,9 @@
     <string name="settings_mini_player_translation">Afficher la traduction dans le mini-lecteur</string>
     <string name="settings_mini_player_translation_summary">Afficher la traduction des paroles lorsque le mini-lecteur affiche les paroles</string>
     <string name="settings_mini_player_secondary">Ligne secondaire du mini-lecteur</string>
+    <string name="settings_mini_player_secondary_summary">Choisir la ligne secondaire des paroles du mini-lecteur</string>
     <string name="settings_secondary_delivery_content">Contenu de la ligne secondaire</string>
+    <string name="settings_secondary_delivery_content_summary">Choisir d’envoyer aussi la traduction ou la prononciation</string>
     <string name="settings_mini_player_cover_rotation">Faire tourner la pochette du mini-lecteur</string>
     <string name="settings_mini_player_cover_rotation_summary">Faire tourner la pochette du mini-lecteur pendant la lecture ; désactivez pour garder une pochette fixe</string>
     <string name="settings_enable_lyricon">Activer Lyricon</string>
@@ -988,7 +1012,9 @@
     <string name="settings_enable_desktop_lyric">Activer les paroles flottantes</string>
     <string name="settings_enable_desktop_lyric_summary">Afficher la parole actuelle au-dessus des autres applications avec une fenêtre flottante</string>
     <string name="settings_status_bar_lyric_position">Position des paroles dans la barre d’état</string>
+    <string name="settings_status_bar_lyric_position_summary">Choisir la position horizontale des paroles dans la barre d’état</string>
     <string name="settings_status_bar_lyric_secondary">Ligne secondaire des paroles de barre d’état</string>
+    <string name="settings_status_bar_lyric_secondary_summary">Choisir la ligne secondaire des paroles dans la barre d’état</string>
     <string name="settings_lock_desktop_lyric">Verrouiller les paroles flottantes</string>
     <string name="settings_lock_desktop_lyric_summary">Empêcher le déplacement de la fenêtre flottante des paroles ; déverrouillez-la ici ou depuis la notification de verrouillage</string>
     <string name="settings_desktop_lyric_font_scale">Taille des paroles flottantes %1$d%%</string>
@@ -998,6 +1024,7 @@
     <string name="settings_desktop_lyric_opacity">Opacité des paroles flottantes %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">Réduisez cette valeur pour rendre les paroles plus légères ; la valeur est conservée même verrouillée</string>
     <string name="settings_desktop_lyric_color">Couleur des paroles flottantes</string>
+    <string name="settings_desktop_lyric_color_summary">Choisir la couleur du texte des paroles flottantes</string>
     <string name="settings_status_lyric_font_scale">Taille des paroles de la barre d’état %1$d%%</string>
     <string name="settings_status_lyric_font_scale_summary">Régler séparément la taille de la ligne principale des paroles flottantes</string>
     <string name="settings_status_lyric_translation_scale">Taille de la ligne secondaire %1$d%%</string>
@@ -1023,9 +1050,11 @@
     <string name="settings_status_bar_phonetic_secondary">Afficher la prononciation ou la ligne secondaire dans la barre d’état</string>
     <string name="settings_status_bar_phonetic_secondary_summary">Envoyer la prononciation ou la ligne secondaire de traduction comme seconde ligne des paroles de barre d’état.</string>
     <string name="settings_heads_up_lyric_secondary">Ligne secondaire des paroles en notification flottante</string>
+    <string name="settings_heads_up_lyric_secondary_summary">Choisir la ligne secondaire des paroles en bannière</string>
     <string name="settings_enable_coloros_lock_screen_lyric">Paroles de l’ilot d’écran verrouillé ColorOS</string>
     <string name="settings_enable_coloros_lock_screen_lyric_summary">Envoie les paroles LRC complètes à l’ilot d’écran verrouillé ColorOS via MediaMetadata[&quot;lyricInfo&quot;]. Certaines versions du système peuvent encore limiter les apps prises en charge.</string>
     <string name="settings_coloros_lock_screen_lyric_mode">Lyric delivery mode</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_summary">Choisir le mode d’envoi des paroles ColorOS sur l’écran de verrouillage</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">Use system</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">Use module</string>
     <string name="settings_enable_bluetooth_lyric">Activer les paroles dans la notification média</string>
@@ -1124,6 +1153,7 @@
     <string name="player_playback_mode_in_order">Dans l’ordre</string>
     <string name="player_locate_current_song">Localiser le titre en cours</string>
     <string name="player_clear_queue">Vider la file</string>
+    <string name="player_clear_queue_confirm">Vider toute la file de lecture ?</string>
     <string name="player_lock_queue">Verrouiller la file d\'attente</string>
     <string name="player_unlock_queue">Déverrouiller la file d\'attente</string>
     <string name="player_remove_from_queue">Retirer de la file</string>
@@ -1283,6 +1313,9 @@
     <string name="song_more_detail_size">Taille</string>
     <string name="song_more_detail_modified_time">Date de modification</string>
     <string name="song_more_detail_added_time">Date d’ajout</string>
+    <string name="song_more_detail_play_count">Lectures</string>
+    <string name="song_more_detail_listened_duration">Temps d’écoute</string>
+    <string name="song_more_detail_last_played">Dernière lecture</string>
     <string name="song_more_detail_file_name">Nom du fichier</string>
     <string name="song_more_detail_path">Chemin</string>
     <string name="song_more_detail_directory">Dossier</string>
@@ -1321,7 +1354,18 @@
     <string name="artist_tab_participated_albums">Albums avec participation</string>
     <string name="artist_tab_release_albums">Albums publiés</string>
     <string name="artist_tab_biography">Biographie</string>
-    <string name="artist_biography_region">Région</string>
+    <string name="artist_biography_region">Langue</string>
+    <string name="artist_biography_language">Langue</string>
+    <string name="artist_biography_lang_zh_cn">Chinois simplifié</string>
+    <string name="artist_biography_lang_zh_hk">Hong Kong (traditionnel)</string>
+    <string name="artist_biography_lang_zh_tw">Taïwan (traditionnel)</string>
+    <string name="artist_biography_lang_ko">한국어</string>
+    <string name="artist_biography_lang_en">English</string>
+    <string name="artist_biography_lang_ja">日本語</string>
+    <string name="artist_biography_source_wikipedia">Wikipedia</string>
+    <string name="artist_image_source_lastfm">Last.fm</string>
+    <string name="artist_image_source_spotify">Spotify</string>
+    <string name="artist_image_source_netease">NetEase</string>
     <string name="artist_song_count_sorted">%1$d titres · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d albums avec participation · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d albums publiés · %2$s</string>
@@ -1522,7 +1566,6 @@
     <string name="about_summary_coil">Bibliothèque Kotlin de chargement d’images (Apache-2.0)</string>
     <string name="about_summary_quickjs">Runtime JavaScript pour l’API LX Music (Apache-2.0)</string>
     <string name="about_summary_lxmusic">Référence pour les sources de musique en ligne et l’adaptation d’API (Apache-2.0)</string>
-    <string name="about_summary_accompanist_lyrics_core">Référence pour l’analyse des paroles et la structure TTML/LRC (Apache-2.0)</string>
 
     <!-- i18n : erreurs du service LX en ligne -->
     <string name="lx_service_import_failed_http">Échec de l’import : HTTP %1$d</string>
@@ -1646,6 +1689,7 @@
     <string name="settings_crossfade_duration_seconds">Durée (secondes)</string>
     <string name="settings_crossfade_duration_invalid">Saisissez une durée valide entre 0 et 12</string>
     <string name="settings_crossfade_curve">Courbe de fondu</string>
+    <string name="settings_crossfade_curve_summary">Choisir la courbe de volume lorsque deux morceaux se chevauchent</string>
     <string name="settings_crossfade_curve_equal_power">Volume perçu constant</string>
     <string name="settings_crossfade_curve_equal_power_summary">Le fondu à puissance égale évite un début presque silencieux ou une baisse de volume au milieu</string>
     <string name="settings_crossfade_curve_linear">Linéaire</string>
@@ -1677,6 +1721,7 @@
     <string name="lyric_match_write_ttml_tag">Écrire la balise TTMLLYRIC</string>
     <string name="settings_lyric_plugin_config">Paramètres des plug-ins</string>
     <string name="settings_player_bg_theme">Arrière-plan du lecteur</string>
+    <string name="settings_player_bg_theme_summary">Choisir le style clair ou sombre de l’arrière-plan du lecteur</string>
     <string name="settings_apple_music_lyrics_page">Page de paroles style Apple Music</string>
     <string name="settings_apple_music_lyrics_page_summary">Utilise les paroles focalisées intégrées, des transitions à ressort et des effets lumineux ; désactivez cette option pour utiliser la page Lyricon classique.</string>
     <string name="settings_wallpaper_opacity">Wallpaper opacity</string>
@@ -1804,11 +1849,15 @@
     <string name="settings_search_no_results">Aucun réglage correspondant</string>
     <string name="settings_search_placeholder">Rechercher dans les réglages</string>
     <string name="settings_search_results">Résultats de recherche</string>
+    <string name="settings_search_history">Historique de recherche</string>
+    <string name="settings_search_history_clear">Effacer l’historique</string>
     <string name="settings_status_align_center">Centré</string>
     <string name="settings_status_align_left">Aligné à gauche</string>
     <string name="settings_status_align_right">Aligné à droite</string>
     <string name="settings_status_bar_lyric_text_align">Alignement des paroles de la barre d’état</string>
+    <string name="settings_status_bar_lyric_text_align_summary">Choisir l’alignement du texte des paroles dans la barre d’état</string>
     <string name="settings_status_bar_lyric_vertical_align">Alignement vertical des paroles de la barre d’état</string>
+    <string name="settings_status_bar_lyric_vertical_align_summary">Choisir l’alignement vertical des paroles dans la barre d’état</string>
     <string name="settings_status_lyric_merge_secondary">Fusionner la ligne secondaire avec la ligne principale</string>
     <string name="settings_status_lyric_merge_secondary_summary">Afficher sur une même ligne l’original et la traduction/prononciation du même repère temporel</string>
     <string name="settings_status_lyric_secondary_opacity_summary">Régler l’opacité de la traduction ou de la prononciation dans la barre d’état</string>
@@ -1867,7 +1916,7 @@
     <string name="settings_backup_type_equalizer">Égaliseur</string>
     <string name="settings_backup_type_equalizer_summary">Réglages de l\'égaliseur, du renforcement des basses, de la virtualisation et de la réverbération</string>
     <string name="settings_backup_type_online_sources">Sources en ligne</string>
-    <string name="settings_backup_type_online_sources_summary">Configuration des sources en ligne comme WebDAV, LX, Navidrome et Emby</string>
+    <string name="settings_backup_type_online_sources_summary">Configuration des sources en ligne comme WebDAV, LX, Navidrome et Emby, plus les plugins de sources de paroles Lyrico</string>
     <string name="common_export">Exporter</string>
     <string name="common_import">Importer</string>
     <string name="settings_dynamic_cover_custom_folders">Dossiers personnalisés de pochettes dynamiques</string>
@@ -1878,6 +1927,7 @@
     <string name="settings_home_tile_gradient_enabled_summary">Une fois activé, les tuiles de l\'accueil utilisent un dégradé semi-transparent ; désactivé, elles restent unies</string>
     <string name="settings_home_tile_gradient_start_color">Couleur de début du dégradé</string>
     <string name="settings_player_title_position">Position du titre dans le lecteur non immersif</string>
+    <string name="settings_player_title_position_summary">Afficher le titre au-dessus ou sous la pochette du lecteur non immersif</string>
     <string name="settings_player_title_position_below_cover">Sous la pochette</string>
     <string name="settings_player_title_position_above_cover">Au-dessus de la pochette</string>
     <string name="settings_player_page_style">Page de lecture</string>
@@ -1941,12 +1991,15 @@
     <string name="folder_playlist_detail_summary_sorted">%1$d titres · %2$d dossiers associés · %3$s</string>
     <string name="folder_playlist_list_summary_sorted">%1$d playlists de dossiers · %2$s</string>
     <string name="folder_playlist_selected_playlists">%1$d playlists de dossiers sélectionnées</string>
+
+
     <string name="player_lyric_style_settings">Style des paroles</string>
     <string name="playlist_drag_selection_count">Éléments : %1$d</string>
     <string name="remote_playlist_favorites">Favoris %1$s</string>
     <string name="remote_source_opensubsonic">OpenSubsonic</string>
     <string name="settings_audio_output_auto">Auto</string>
     <string name="settings_audio_output_backend">Canal de sortie</string>
+    <string name="settings_audio_output_backend_summary">Choisir le chemin de sortie audio Android</string>
     <string name="settings_audio_output_backend_aaudio">AAudio</string>
     <string name="settings_audio_output_backend_audiotrack">AudioTrack</string>
     <string name="settings_audio_output_backend_audiotrack_summary">Utiliser la sortie Android AudioTrack et convertir au format sélectionné</string>
@@ -1957,11 +2010,13 @@
     <string name="settings_audio_output_backend_hires_summary">Privilégier une sortie PCM/flottante haute précision et convertir au format sélectionné</string>
     <string name="settings_audio_output_backend_opensles">OpenSL ES</string>
     <string name="settings_audio_output_bit_depth">Profondeur de sortie</string>
+    <string name="settings_audio_output_bit_depth_summary">Choisir la profondeur PCM ; Auto suit la source et le système</string>
     <string name="settings_audio_output_bit_depth_16">16-bit PCM</string>
     <string name="settings_audio_output_bit_depth_24">24-bit PCM</string>
     <string name="settings_audio_output_bit_depth_32">32-bit PCM</string>
     <string name="settings_audio_output_bit_depth_float32">Float32</string>
     <string name="settings_audio_output_sample_rate">Fréquence d’échantillonnage de sortie</string>
+    <string name="settings_audio_output_sample_rate_summary">Choisir la fréquence d’échantillonnage ; Auto suit la source et le système</string>
     <string name="settings_audio_output_sample_rate_khz">%.1f kHz</string>
     <string name="settings_audio_output_section">Sortie</string>
     <string name="settings_bluetooth_auto_play_permission_denied">L’autorisation Appareils à proximité n’a pas été accordée ; la lecture automatique Bluetooth a été désactivée</string>
@@ -2060,6 +2115,8 @@
     <string name="lyric_timing_editor_selected_line">Ligne sélectionnée : %1$d / %2$d</string>
     <string name="lyric_timing_editor_unset_lines">%1$d lignes restent à synchroniser</string>
     <string name="lyric_timing_editor_saved">La synchronisation a été enregistrée dans un LRC intégré</string>
+    <string name="lyric_timing_editor_saved_with_sidecar">Paroles intégrées enregistrées et %1$s exporté à côté du morceau</string>
+    <string name="lyric_timing_editor_sidecar_failed">Les paroles intégrées ont été enregistrées, mais le fichier associé n’a pas pu être exporté à côté du morceau. Utilisez Exporter pour choisir un emplacement.</string>
     <string name="lyric_timing_editor_no_lines">Saisissez d’abord au moins une ligne de paroles</string>
     <string name="lyric_timing_editor_complete_lines">Synchronisez toutes les lignes avant d’enregistrer</string>
     <string name="lyric_timing_editor_embed_format">Format intégré</string>
@@ -2196,6 +2253,7 @@
     <string name="equalizer_panoramic_360_elevation">Angle vertical</string>
     <string name="player_replay_gain_badge">Gain %1$s</string>
     <string name="settings_spectrum_viewer">Afficheur de spectre</string>
+    <string name="settings_spectrum_viewer_summary">Choisir l’application d’affichage du spectre</string>
     <string name="settings_spectrum_builtin">Spectre intégré</string>
     <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
     <string name="settings_spectrum_kaspek">Kaspek</string>
@@ -2237,17 +2295,21 @@
     <string name="settings_enable_xiaomi_super_island_lyric">Paroles Xiaomi Super Island</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">Afficher les paroles dans Super Island d’HyperOS ; l’autorisation Shizuku est requise pour bloquer temporairement le réseau XMSF</string>
     <string name="settings_live_update_lyric_content">Paroles principales de l’activité Live</string>
+    <string name="settings_live_update_lyric_content_summary">Choisir le texte principal des notifications en direct</string>
     <string name="settings_live_update_lyric_original">Original</string>
     <string name="settings_live_update_lyric_translation">Traduction</string>
     <string name="settings_live_update_lyric_pronunciation">Prononciation</string>
     <string name="settings_live_update_lyric_display">Affichage des paroles Live</string>
+    <string name="settings_live_update_lyric_display_summary">Afficher les lignes proches ou le texte complet dans les notifications en direct</string>
     <string name="settings_live_update_lyric_display_compact">Fenêtre autour du mot actuel</string>
     <string name="settings_live_update_lyric_display_full">Ligne complète</string>
     <string name="settings_live_update_lyric_secondary">Sous-titre de l’activité Live</string>
+    <string name="settings_live_update_lyric_secondary_summary">Choisir le sous-titre des notifications en direct</string>
     <string name="settings_live_update_lyric_secondary_song">Titre</string>
     <string name="settings_live_update_lyric_secondary_translation">Traduction</string>
     <string name="settings_live_update_lyric_secondary_pronunciation">Prononciation</string>
     <string name="settings_media_notification_buttons">Boutons de notification multimédia</string>
+    <string name="settings_media_notification_buttons_summary">Choisir les deux boutons supplémentaires des notifications média</string>
     <string name="settings_media_notification_buttons_playback_desktop">Mode de lecture, paroles flottantes</string>
     <string name="settings_media_notification_buttons_playback_favorite">Mode de lecture, favoris</string>
     <string name="settings_media_notification_buttons_desktop_favorite">Paroles flottantes, favoris</string>
@@ -2259,6 +2321,7 @@
     <string name="settings_xiaomi_super_island_notification_section">Notification and interaction</string>
     <string name="settings_xiaomi_super_island_compat_section">XMSF and dismissal</string>
     <string name="settings_xiaomi_super_island_lyric_mode">Lyric layout</string>
+    <string name="settings_xiaomi_super_island_lyric_mode_summary">Choisir la disposition des paroles Super Island</string>
     <string name="settings_xiaomi_super_island_mode_standard">Standard: song details and current lyric</string>
     <string name="settings_xiaomi_super_island_mode_full">Full: split the complete lyric across columns</string>
     <string name="settings_xiaomi_super_island_left_cover">Show cover on the left</string>
@@ -2272,16 +2335,20 @@
     <string name="settings_xiaomi_super_island_colorize">Lyric accent color</string>
     <string name="settings_xiaomi_super_island_colorize_summary">Use album artwork or a custom color for Super Island text and progress</string>
     <string name="settings_xiaomi_super_island_color_source">Color source</string>
+    <string name="settings_xiaomi_super_island_color_source_summary">Choisir la source de couleur Super Island</string>
     <string name="settings_xiaomi_super_island_color_album">Album artwork</string>
     <string name="settings_xiaomi_super_island_custom_color">Custom accent color</string>
     <string name="settings_xiaomi_super_island_progress_color">Use accent color for progress</string>
     <string name="settings_xiaomi_super_island_actions">Notification actions</string>
+    <string name="settings_xiaomi_super_island_actions_summary">Choisir les actions de notification Super Island</string>
     <string name="settings_xiaomi_super_island_actions_off">Progress only</string>
     <string name="settings_xiaomi_super_island_actions_media">Media controls</string>
     <string name="settings_xiaomi_super_island_notification_style">Notification style</string>
+    <string name="settings_xiaomi_super_island_notification_style_summary">Choisir le style de notification Super Island</string>
     <string name="settings_xiaomi_super_island_style_standard">Standard</string>
     <string name="settings_xiaomi_super_island_style_advanced">Enhanced (experimental)</string>
     <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
+    <string name="settings_xiaomi_super_island_button_layout_summary">Choisir la disposition des boutons média</string>
     <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
     <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
     <string name="settings_xiaomi_super_island_xmsf_mode">XMSF network bypass</string>
@@ -2296,6 +2363,7 @@
     <string name="settings_xiaomi_super_island_xmsf_duration">Network block duration</string>
     <string name="settings_xiaomi_super_island_xmsf_duration_summary">Too short may fail; too long may affect Xiaomi system services</string>
     <string name="settings_xiaomi_super_island_dismiss_delay">Dismiss after pause</string>
+    <string name="settings_xiaomi_super_island_dismiss_delay_summary">Délai avant de masquer Super Island après une pause</string>
     <string name="settings_xiaomi_super_island_dismiss_immediate">Immediately</string>
     <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
@@ -2306,6 +2374,7 @@
     <string name="settings_continue_playback_row_summary">Afficher le dernier morceau lu dans chaque catégorie et page de détail</string>
     <string name="folder_playlist_associate_multi_done">Associé à %1$d playlists de dossiers</string>
     <string name="settings_music_video_orientation">Orientation du MV sonore</string>
+    <string name="settings_music_video_orientation_summary">Choisir l’orientation de l’écran pendant un clip</string>
     <string name="settings_music_video_orientation_system">Valeur système</string>
     <string name="settings_music_video_orientation_video">Adapter à la vidéo</string>
     <string name="settings_music_video_orientation_landscape">Paysage</string>
@@ -2328,6 +2397,7 @@
     <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
+    <string name="settings_xiaomi_super_island_lyric_content_summary">Choisir le texte principal de Super Island</string>
     <string name="player_ab_repeat_record_b">Répétition A-B : définir B (A %1$s)</string>
     <string name="player_ab_repeat_active">Annuler la répétition A-B (%1$s-%2$s)</string>
     <string name="settings_music_video_stretch">Autoriser l’étirement des MV</string>
@@ -2367,6 +2437,10 @@
     <string name="settings_backup_webdav_restore_now">Restore now</string>
     <string name="settings_player_action_menu">Player action menu</string>
     <string name="settings_list_action_menu">List action menu</string>
+    <string name="settings_song_info_layout">Song info fields</string>
+    <string name="settings_queue_toolbar_layout">Queue toolbar</string>
+    <string name="song_more_modified_time_invalid">Use yyyy-MM-dd HH:mm:ss</string>
+    <string name="song_more_modified_time_failed">Could not change the file time</string>
     <string name="settings_action_menu_summary">Configure action order and visibility separately</string>
     <string name="settings_action_menu_position">Position: %1$d</string>
     <string name="settings_action_menu_remote_quality">Remote stream quality</string>
@@ -2413,6 +2487,7 @@
     <string name="settings_search_click_insert_next">Insérer après le titre actuel et lire</string>
     <string name="settings_search_click_append">Ajouter à la file et lire</string>
     <string name="settings_search_click_replace">Remplacer la file et lire</string>
+    <string name="settings_search_click_playback_mode_summary">Choisir comment un résultat de recherche est ajouté à la file</string>
     <string name="settings_playlist_show_rating_filter">Afficher le filtre de notes dans les playlists</string>
     <string name="settings_playlist_show_favorite_filter">Afficher le filtre des favoris dans les playlists</string>
     <string name="settings_player_progress_show_quality">Afficher la qualité sous la barre de progression</string>
@@ -2461,6 +2536,7 @@
     <string name="settings_immersive_lyric_swipe_summary">Balayez horizontalement la zone inférieure des paroles</string>
     <string name="library_layout_grid">Affichage en grille</string>
     <string name="library_layout_list">Affichage en liste</string>
+    <string name="library_layout_multi_row">Liste multiligne</string>
     <string name="settings_parse_featured_artists">Détecter les artistes invités dans les titres</string>
     <string name="settings_parse_featured_artists_summary">Ajouter les artistes après feat., ft. ou featuring et les dédupliquer avec le tag ARTIST</string>
     <string name="settings_artist_image_download">Télécharger automatiquement les images d’artistes</string>

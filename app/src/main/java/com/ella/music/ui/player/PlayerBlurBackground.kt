@@ -2,7 +2,6 @@ package com.ella.music.ui.player
 
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
-import android.net.Uri
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -344,10 +343,7 @@ internal fun PlayerBlurBackground(
     isPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val uri = if ((song?.albumId ?: 0L) > 0) {
-        Uri.parse("content://media/external/audio/albumart/${song?.albumId}")
-    } else null
-    val coverModel = embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
+    val coverModel = resolveCoverPreviewModel(song, embeddedCover)
     val movingScale = 2.90f
     val movingOffset = 0f
     // On a light player theme, wash the blurred cover toward white (dark lyrics on top) instead of

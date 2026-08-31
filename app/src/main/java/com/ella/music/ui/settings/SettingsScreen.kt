@@ -3,16 +3,25 @@ package com.ella.music.ui.settings
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,11 +30,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ella.music.BuildConfig
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
+import com.ella.music.ui.components.EllaMiuixChip
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.viewmodel.MainViewModel
@@ -35,11 +50,13 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onNavigateToAbout: () -> Unit,
@@ -67,6 +84,7 @@ fun SettingsScreen(
     onNavigateToCoverMediaSettings: () -> Unit = onNavigateToAppearanceSettings,
     onNavigateToHighlightedCoverMediaSettings: (String) -> Unit = { onNavigateToCoverMediaSettings() },
     onNavigateToSetupWizard: () -> Unit = {},
+    onNavigateToMaintenance: () -> Unit = {},
     onBack: () -> Unit = {},
     showBackButton: Boolean = true,
     mainViewModel: MainViewModel? = null,
@@ -74,7 +92,12 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val searchHistory by settingsManager.settingsSearchHistory.collectAsState(initial = emptyList())
     var searchQuery by remember { mutableStateOf("") }
+    var searchFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val inSearchMode = searchFocused || searchQuery.isNotBlank()
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
     val searchEntries = settingsSearchEntries(
@@ -148,48 +171,114 @@ fun SettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            EllaSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = {},
-                placeholder = stringResource(R.string.settings_search_placeholder),
-                autoFocus = false,
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                EllaSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onSearch = {
+                        if (searchQuery.isNotBlank()) {
+                            scope.launch { settingsManager.recordSettingsSearchQuery(searchQuery) }
+                        }
+                    },
+                    placeholder = stringResource(R.string.settings_search_placeholder),
+                    autoFocus = false,
+                    onFocusChange = { searchFocused = it },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp)
+                )
+                if (inSearchMode) {
+                    Text(
+                        text = stringResource(R.string.common_cancel),
+                        color = MiuixTheme.colorScheme.primary,
+                        fontSize = 16.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                            searchQuery = ""
+                            searchFocused = false
+                            focusManager.clearFocus()
+                            }
+                            .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)
+                    )
+                }
+            }
 
-            if (searchQuery.isNotBlank()) {
-                SmallTitle(text = stringResource(R.string.settings_search_results))
-                SettingsCardGroup {
-                    Column {
-                        if (searchResults.isEmpty()) {
-                            BasicComponent(
-                                title = stringResource(R.string.settings_search_no_results),
-                                summary = searchQuery
-                            )
-                        } else {
-                            searchResults.forEach { entry ->
+            if (inSearchMode) {
+                if (searchQuery.isNotBlank()) {
+                    SmallTitle(text = stringResource(R.string.settings_search_results))
+                    SettingsCardGroup {
+                        Column {
+                            if (searchResults.isEmpty()) {
                                 BasicComponent(
-                                    title = entry.title,
-                                    summary = entry.summary,
-                                    modifier = Modifier.clickable {
-                                        searchQuery = ""
-                                        entry.onClick()
-                                    }
+                                    title = stringResource(R.string.settings_search_no_results),
+                                    summary = searchQuery
                                 )
+                            } else {
+                                searchResults.forEach { entry ->
+                                    BasicComponent(
+                                        title = entry.title,
+                                        summary = entry.summary,
+                                        modifier = Modifier.clickable {
+                                            scope.launch { settingsManager.recordSettingsSearchQuery(searchQuery) }
+                                            searchQuery = ""
+                                            searchFocused = false
+                                            focusManager.clearFocus()
+                                            entry.onClick()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
+                } else if (searchHistory.isNotEmpty()) {
+                    SmallTitle(text = stringResource(R.string.settings_search_history))
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        searchHistory.forEach { query ->
+                            EllaMiuixChip(
+                                text = query,
+                                selected = false,
+                                onClick = { searchQuery = query },
+                                modifier = Modifier.widthIn(max = 220.dp),
+                                horizontalPadding = 16.dp,
+                                verticalPadding = 9.dp
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_search_history_clear),
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    scope.launch { settingsManager.clearSettingsSearchHistory() }
+                                }
+                                .padding(horizontal = 18.dp, vertical = 10.dp)
+                        )
+                    }
                 }
-            } else {
+            }
+            if (!inSearchMode) {
                 SmallTitle(text = stringResource(R.string.settings_customize))
 
                 SettingsCardGroup {
                     Column {
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_setup_wizard),
-                            summary = stringResource(R.string.settings_setup_wizard_summary),
-                            onClick = onNavigateToSetupWizard
-                        )
                         ArrowPreference(
                             title = stringResource(R.string.settings_appearance_home),
                             summary = stringResource(R.string.settings_appearance_home_summary),
@@ -247,23 +336,9 @@ fun SettingsScreen(
                 SettingsCardGroup {
                     Column {
                         ArrowPreference(
-                            title = stringResource(R.string.settings_clear_online_cache),
-                            summary = stringResource(R.string.settings_clear_online_cache_summary),
-                            onClick = {
-                                scope.launch {
-                                    mainViewModel?.clearOnlineMetadataCache()
-                                    playerViewModel?.clearOnlineMetadataCache()
-                                    Toast.makeText(context, context.getString(R.string.settings_clear_online_cache_done), Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        )
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_clear_library_snapshot_cache),
-                            summary = stringResource(R.string.settings_clear_library_snapshot_cache_summary),
-                            onClick = {
-                                mainViewModel?.clearLibrarySnapshotCache()
-                                Toast.makeText(context, context.getString(R.string.settings_clear_library_snapshot_cache_done), Toast.LENGTH_SHORT).show()
-                            }
+                            title = stringResource(R.string.settings_maintenance),
+                            summary = stringResource(R.string.settings_maintenance_summary),
+                            onClick = onNavigateToMaintenance
                         )
                         ArrowPreference(
                             title = stringResource(R.string.settings_logs),
@@ -342,7 +417,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 功能块 颜色 卡片 透明度") { onNavigateToHomeDisplaySettings("home_tile_colors") },
         entry(stringResource(R.string.settings_auto_show_search_keyboard), stringResource(R.string.settings_auto_show_search_keyboard_summary), "搜索 输入法 键盘 自动弹出") { onNavigateToHighlightedAppearanceSettings("auto_show_search_keyboard") },
         entry(stringResource(R.string.settings_search_reopen_behavior), stringResource(R.string.settings_search_reopen_behavior_summary), "搜索 搜索框 清空 保留 选择 上次") { onNavigateToHighlightedAppearanceSettings("search_reopen_behavior") },
-        entry(stringResource(R.string.settings_font_settings), stringResource(R.string.settings_lyric_font), "字体 歌词字体 三级页") { onNavigateToHighlightedAppearanceSettings("lyric_font") },
+        entry(stringResource(R.string.settings_font_settings), stringResource(R.string.settings_lyric_font), "字体 歌词字体 三级页") { onNavigateToLyricFont() },
         entry(stringResource(R.string.settings_cover_media), stringResource(R.string.settings_cover_media_summary), "封面 动态封面 MV 艺术家封面 影像") { onNavigateToHighlightedCoverMediaSettings("cover_media") },
         entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "视频封面 动态封面 mp4 MV 文件夹 相册权限") { onNavigateToHighlightedCoverMediaSettings("dynamic_cover") },
         entry(stringResource(R.string.settings_music_video_sync), stringResource(R.string.settings_music_video_sync_summary), "MV 音乐视频 同步 静音") { onNavigateToHighlightedCoverMediaSettings("music_video") },
@@ -355,6 +430,13 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_system_bars_mode), stringResource(R.string.settings_system_bars_mode_summary, ""), "沉浸模式 全屏 状态栏 导航栏 隐藏 显示 车机") { onNavigateToHighlightedAppearanceSettings("system_bars") },
         entry(stringResource(R.string.settings_player_landscape_style), stringResource(R.string.settings_player_landscape_style_summary, ""), "横屏播放 宽屏 歌词 CoverFlow MV 流光") { onNavigateToHighlightedAppearanceSettings("player_landscape") },
         entry(stringResource(R.string.settings_beautiful_lyrics_background), stringResource(R.string.settings_beautiful_lyrics_background_summary), "Apple Music 动态背景 歌词页 流光 取色") { onNavigateToHighlightedAppearanceSettings("beautiful_lyrics") },
+        entry(stringResource(R.string.settings_player_dynamic_flow), stringResource(R.string.settings_player_dynamic_flow_summary), "Apple Music 流光 动态 背景 流动") { onNavigateToHighlightedAppearanceSettings("player_dynamic_flow") },
+        entry(stringResource(R.string.settings_apple_flow_speed), stringResource(R.string.settings_apple_flow_speed_summary), "Apple Music 流光速度 动态背景 封面") { onNavigateToHighlightedAppearanceSettings("apple_flow_speed") },
+        entry(stringResource(R.string.settings_beautiful_lyrics_speed), stringResource(R.string.settings_beautiful_lyrics_speed_summary), "Beautiful Lyrics 流光速度 动态背景") { onNavigateToHighlightedAppearanceSettings("beautiful_lyrics_speed") },
+        entry(stringResource(R.string.settings_beautiful_lyrics_blur), stringResource(R.string.settings_beautiful_lyrics_blur_summary), "Beautiful Lyrics 模糊 动态背景") { onNavigateToHighlightedAppearanceSettings("beautiful_lyrics_blur") },
+        entry(stringResource(R.string.settings_beautiful_lyrics_brightness), stringResource(R.string.settings_beautiful_lyrics_brightness_summary), "Beautiful Lyrics 亮度 动态背景") { onNavigateToHighlightedAppearanceSettings("beautiful_lyrics_brightness") },
+        entry(stringResource(R.string.settings_player_title_position), stringResource(R.string.settings_player_title_position_summary), "播放页 标题 封面 位置") { onNavigateToHighlightedAppearanceSettings("player_title_position") },
+        entry(stringResource(R.string.settings_search_click_playback_mode), stringResource(R.string.settings_search_click_playback_mode_summary), "搜索 点击 下一首 队列 替换") { onNavigateToHighlightedAppearanceSettings("search_click_playback_mode") },
         entry(stringResource(R.string.settings_library_source), stringResource(R.string.settings_library_source_summary), "音乐来源 音乐库来源 本地 Navidrome Emby 远程 曲库") { onNavigateToHighlightedLibrarySettings("library_source") },
         entry(stringResource(R.string.settings_library_scan), stringResource(R.string.settings_library_scan_summary), "音乐库 扫描 标签 全标签 搜索 分隔符 艺术家 歌手") { onNavigateToHighlightedLibrarySettings("scan") },
         entry(stringResource(R.string.settings_scan_folders), stringResource(R.string.settings_scan_folders_summary), "文件夹 USB 隐藏目录 三级页") { onNavigateToHighlightedScanFolders("scan_folders") },
@@ -448,11 +530,35 @@ private fun settingsSearchFallbackEntries(
             val id = runCatching { field.getInt(null) }.getOrNull() ?: return@mapNotNull null
             val title = runCatching { resources.getString(id) }.getOrNull()?.trim().orEmpty()
             if (title.isBlank() || title.contains("%")) return@mapNotNull null
+            val appearanceKey = name.removePrefix("settings_")
             val route = when {
                 name == "settings_enable_live_update_lyric" -> { { onLyrics("live_update_lyric") } }
                 name == "settings_live_update_lyric_content" -> { { onLyrics("live_update_lyric_content") } }
                 name == "settings_live_update_lyric_display" -> { { onLyrics("live_update_lyric_display") } }
                 name == "settings_live_update_lyric_secondary" -> { { onLyrics("live_update_lyric_secondary") } }
+                name.contains("beautiful_lyrics") || name.contains("apple_flow") ||
+                    name.contains("player_dynamic_flow") || name.contains("app_wallpaper") ||
+                    name.contains("now_playing_flow") || name.contains("player_background") ||
+                    name.contains("system_bars") || name.contains("startup_poster") ||
+                    name.contains("player_bg_theme") -> { { onAppearance(appearanceKey) } }
+                name.contains("category_grid") || name.contains("search_click") ||
+                    name.contains("search_reopen") || name.contains("auto_show_search") ||
+                    name.contains("playlist_special") || name.contains("playlist_show_") ||
+                    name.contains("mini_player_long_press") || name.contains("open_player_on_play") ||
+                    name.contains("song_info_layout") || name.contains("queue_toolbar") ||
+                    name.contains("list_action") || name.contains("exclude_search") ||
+                    name.contains("play_next_in_lists") || name.contains("remove_from_playlist") -> {
+                    { onAppearance(appearanceKey) }
+                }
+                (name.contains("player_") && !name.contains("lyric") && !name.contains("mini_player")) ||
+                    name.contains("hi_res") || name.contains("transport_button") ||
+                    name.contains("open_player_from_notification") -> {
+                    { onAppearance(appearanceKey) }
+                }
+                name.contains("theme_mode") || name.contains("monet") || name.contains("app_icon") ||
+                    name.contains("font_scale") || name.contains("display_scale") ||
+                    name.contains("widget_safe") || name.contains("bottom_bar_glass") ||
+                    name == "settings_language" -> { { onAppearance(appearanceKey) } }
                 name.contains("backup") -> { { onBackup("backup_settings") } }
                 name.contains("openai") || name.contains("mcp") || name.contains("lastfm") ||
                     name.contains("ai_") -> { { onIntegration("ai") } }
@@ -470,11 +576,10 @@ private fun settingsSearchFallbackEntries(
                 name.contains("scan") || name.contains("library") || name.contains("metadata") ||
                     name.contains("tag_") || name.contains("artist_") || name.contains("genre_") ||
                     name.contains("full_tag") -> { { onLibrary("scan") } }
-                name.contains("player_show_song_annotation") -> { { onAppearance("player_show_song_annotation") } }
-                name.contains("home_") || name.contains("bottom_dock") || name.contains("category_grid") -> {
+                name.contains("home_") || name.contains("bottom_dock") -> {
                     { onHome("home_sections") }
                 }
-                else -> { { onAppearance("appearance") } }
+                else -> { { onAppearance(appearanceKey) } }
             }
             val summaryId = resources.getIdentifier("${name}_summary", "string", resources.getResourcePackageName(id))
             val summary = if (summaryId != 0) resources.getString(summaryId) else ""
@@ -508,7 +613,7 @@ private fun settingsSearchAliases(
     entry(stringResource(R.string.settings_search_reopen_behavior), stringResource(R.string.settings_search_reopen_behavior_summary), "搜索 搜索框 清空 保留 选择 上次") { onAppearance("search_reopen_behavior") },
     entry(stringResource(R.string.settings_karaoke_accompaniment), stringResource(R.string.settings_karaoke_accompaniment_summary), "伴奏 人声 原曲 karaoke 跟唱") { onAudio("audio_playback") },
     entry(stringResource(R.string.settings_system_bars_mode), stringResource(R.string.settings_system_bars_mode_summary, ""), "沉浸模式 全屏 状态栏 导航栏 隐藏 显示 车机") { onAppearance("system_bars") },
-    entry(stringResource(R.string.settings_player_landscape_style), stringResource(R.string.settings_player_landscape_style_summary, ""), "横屏播放 宽屏 歌词 CoverFlow MV 流光") { onAppearance("player_immersive") },
+    entry(stringResource(R.string.settings_player_landscape_style), stringResource(R.string.settings_player_landscape_style_summary, ""), "横屏播放 宽屏 歌词 CoverFlow MV 流光") { onAppearance("player_landscape") },
     entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "动态封面 视频封面 MV mp4") { onCoverMedia("dynamic_cover") },
     entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 显示 项目 排序 隐藏 宫格") { onHome("home_sections") },
     entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 卡片 颜色 渐变 置顶") { onHome("home_tile_colors") },

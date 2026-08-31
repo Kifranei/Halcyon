@@ -3,6 +3,7 @@ package com.ella.music.player
 import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.Song
 
 private const val EXTRA_ID = "ella_song_id"
@@ -30,6 +31,7 @@ private const val EXTRA_ONLINE_SOURCE = "ella_song_online_source"
 private const val EXTRA_ONLINE_ID = "ella_song_online_id"
 private const val EXTRA_ONLINE_LYRICS = "ella_song_online_lyrics"
 private const val EXTRA_ONLINE_LYRIC_TRANSLATION = "ella_song_online_lyric_translation"
+internal const val EXTRA_PLAYBACK_SOURCE = "ella_song_playback_source"
 
 internal const val EXTRA_METADATA_PATCH_REASON = "com.ella.music.extra.METADATA_PATCH_REASON"
 internal const val PATCH_REASON_NOTIFICATION_ARTWORK = "notification_artwork"
@@ -77,11 +79,18 @@ internal fun Song.toMediaItemExtras(): Bundle = Bundle().apply {
     putString(EXTRA_COMPOSER, composer)
     putString(EXTRA_ARRANGER, arranger)
     putString(EXTRA_LYRICIST, lyricist)
-    putString(EXTRA_COVER_URL, coverUrl)
+    // MediaStore album-art URIs are provider fallbacks, not stable song artwork. Persisting one
+    // in the media item makes the player restore an unreadable URI instead of re-reading the
+    // local file's embedded/sidecar cover.
+    putString(
+        EXTRA_COVER_URL,
+        coverUrl.takeUnless { it.isMediaStoreAlbumArtworkUri() }.orEmpty()
+    )
     putString(EXTRA_ONLINE_SOURCE, onlineSource)
     putString(EXTRA_ONLINE_ID, onlineId)
     putString(EXTRA_ONLINE_LYRICS, onlineLyrics)
     putString(EXTRA_ONLINE_LYRIC_TRANSLATION, onlineLyricTranslation)
+    playbackSourceKey?.let { putString(EXTRA_PLAYBACK_SOURCE, it) }
 }
 
 internal fun MediaItem.toSongFromMediaItemExtras(): Song? {
@@ -117,6 +126,11 @@ internal fun MediaItem.toSongFromMediaItemExtras(): Song? {
         onlineSource = extras.getString(EXTRA_ONLINE_SOURCE).orEmpty(),
         onlineId = extras.getString(EXTRA_ONLINE_ID).orEmpty(),
         onlineLyrics = extras.getString(EXTRA_ONLINE_LYRICS).orEmpty(),
-        onlineLyricTranslation = extras.getString(EXTRA_ONLINE_LYRIC_TRANSLATION).orEmpty()
+        onlineLyricTranslation = extras.getString(EXTRA_ONLINE_LYRIC_TRANSLATION).orEmpty(),
+        playbackSourceKey = if (extras.containsKey(EXTRA_PLAYBACK_SOURCE)) {
+            extras.getString(EXTRA_PLAYBACK_SOURCE).orEmpty()
+        } else {
+            null
+        }
     )
 }

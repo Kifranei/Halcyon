@@ -385,17 +385,26 @@ fun ArtistScreen(
         folderLocation = artistCoverFolderUri,
         mainViewModel = mainViewModel
     )
-    val artistDownloadedCoverModel = rememberArtistCoverModel(
+    val artistDownloadedCover = rememberArtistCoverResolution(
         artistName = artistName,
         representativeSong = representativeCoverSong,
         folderLocation = artistCoverFolderUri,
-        mainViewModel = mainViewModel
+        mainViewModel = mainViewModel,
+        includeLibraryArtwork = false
     )
-    val artistHeaderCoverModel = artistDownloadedCoverModel ?: artistOriginalCoverModel
-    val artistPreviewModel = customArtistCoverAssets
-        .firstOrNull { it.kind == ArtistCoverKind.Image }
-        ?.uri
-        ?: artistHeaderCoverModel
+    val artistHeaderCoverModel = artistDownloadedCover.model ?: artistOriginalCoverModel
+    var artistPreviewModel by remember(artistHeaderCoverModel) {
+        mutableStateOf<Any?>(artistHeaderCoverModel)
+    }
+    val artistPreviewTitle = run {
+        val sourceRes = artistDownloadedCover.downloadSource
+            ?.let { com.ella.music.data.ArtistImageRepository.sourceLabelRes(it) }
+        if (sourceRes != null && artistDownloadedCover.model != null) {
+            "$artistName (${stringResource(sourceRes)})"
+        } else {
+            artistName
+        }
+    }
     val artistCoverCarousel by mainViewModel.settingsManager.artistCoverCarousel.collectAsState(initial = true)
     val librarySongsByAlbumId = remember(songs) {
         songs.groupBy { it.albumIdentityId() }
@@ -584,7 +593,8 @@ fun ArtistScreen(
                     },
                     onIntroductionClick = { showIntroduction = true },
                     showIntroductionEntry = showArtistIntroduction,
-                    onPreviewCover = {
+                    onPreviewCover = { model ->
+                        artistPreviewModel = model ?: artistHeaderCoverModel
                         if (artistPreviewModel != null) artistCoverPreviewVisible = true
                     },
                     onPlayAll = {
@@ -1301,7 +1311,7 @@ fun ArtistScreen(
             artistPreviewModel?.let { model ->
                 CoverPreviewDialog(
                     model = model,
-                    title = artistName,
+                    title = artistPreviewTitle,
                     saveName = artistName,
                     onDismiss = { artistCoverPreviewVisible = false }
                 )

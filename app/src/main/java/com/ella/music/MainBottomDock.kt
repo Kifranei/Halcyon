@@ -135,6 +135,7 @@ internal fun FloatingBottomControls(
     val shuffleEnabled by playerViewModel.shuffleEnabled.collectAsState()
     val queueLocked by playerViewModel.queueLocked.collectAsState()
     val repeatMode by playerViewModel.repeatMode.collectAsState()
+    val currentQueueIndex by playerViewModel.currentQueueIndex.collectAsState()
     val userPlaylists by mainViewModel.playlists.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
@@ -354,6 +355,8 @@ internal fun FloatingBottomControls(
             com.ella.music.ui.player.PlayerQueueMenu(
                 playlist = playlist,
                 currentSongKey = currentSongKey,
+                currentSongSourceKey = currentSong?.playbackSourceKey,
+                currentQueueIndexHint = currentQueueIndex,
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
                 queueLocked = queueLocked,

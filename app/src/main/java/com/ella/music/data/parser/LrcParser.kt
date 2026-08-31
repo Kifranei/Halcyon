@@ -10,13 +10,6 @@ import java.nio.charset.CodingErrorAction
 
 object LrcParser {
 
-    /** Lyric parser engine selector — switchable at runtime from UI. */
-    const val PARSER_ENGINE_AUTO = 0   // AccompanistLyricsParser first, then EllaLyricsParser fallback
-    const val PARSER_ENGINE_ELLA = 1   // EllaLyricsParser only (project's own parser)
-
-    @Volatile
-    var parserEngine: Int = PARSER_ENGINE_ELLA
-
     data class LrcResult(
         val lyrics: List<com.ella.music.data.model.LyricLine>,
         val title: String? = null,
@@ -26,28 +19,13 @@ object LrcParser {
     )
 
     fun parse(lrcContent: String, ignoreHeaderTags: Boolean = false): LrcResult {
-        // KRC is not part of LRC/TTML and the Ella parser intentionally has no KRC decoder.
-        // Always use the bundled KRC parser for this format, even when Ella is the preferred
-        // engine, instead of silently turning the KRC timing syntax into plain text.
-        val raw = if (lrcContent.looksLikeKugouKrc()) {
-            AccompanistLyricsParser.parse(lrcContent)
-                ?: EllaLyricsParser.parse(lrcContent, ignoreHeaderTags)
-        } else {
-            when (parserEngine) {
-                PARSER_ENGINE_ELLA -> EllaLyricsParser.parse(lrcContent, ignoreHeaderTags)
-                else -> AccompanistLyricsParser.parse(lrcContent)
-                    ?: EllaLyricsParser.parse(lrcContent, ignoreHeaderTags)
-            }
-        }
+        val raw = EllaLyricsParser.parse(lrcContent, ignoreHeaderTags)
         // Post-process: fix x-bg/accompaniment text that appears as a concatenated
         // Latin blob (e.g. "Andthere'salotofcoolchicksoutthere"). This runs for BOTH
-        // parser engines so behavior is consistent regardless of which engine is active.
+        // lyric inputs so display behavior stays consistent.
         val fixedLyrics = raw.lyrics.map(::fixBackgroundLineSpacing)
         return raw.copy(lyrics = fixedLyrics)
     }
-
-    private fun String.looksLikeKugouKrc(): Boolean =
-        lineSequence().any { line -> Regex("""^\s*\[\d+,\d+]<(?:\d+,){2}\d+>""").containsMatchIn(line) }
 
     /**
      * Fixes background/accompaniment line text that appears as a concatenated Latin blob.

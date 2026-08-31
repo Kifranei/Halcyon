@@ -28,7 +28,16 @@ data class Song(
     val onlineSource: String = "",
     val onlineId: String = "",
     val onlineLyrics: String = "",
-    val onlineLyricTranslation: String = ""
+    val onlineLyricTranslation: String = "",
+    /**
+     * Category that supplied this particular queue occurrence.
+     *
+     * This is intentionally nullable: null means that an old/unclassified song has no source,
+     * while an empty string explicitly means "do not offer source navigation". Keeping it on the
+     * queue item, rather than in a map keyed by the song identity, lets the same song be queued
+     * from two different categories without one occurrence overwriting the other.
+     */
+    val playbackSourceKey: String? = null
 ) {
     val durationText: String
         get() = duration.formatPlaybackDuration()

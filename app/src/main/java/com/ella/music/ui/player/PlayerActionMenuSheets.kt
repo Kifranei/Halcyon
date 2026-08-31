@@ -205,8 +205,6 @@ private fun PlayerActionShortcut(
     Column(
         modifier = modifier
             .heightIn(min = 82.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
             .clickable(onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -233,14 +231,7 @@ private fun PlayerActionShortcut(
 
 @Composable
 internal fun PlayerActionMenuGroup(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.60f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        content = content
-    )
+    com.ella.music.ui.components.EllaMiuixActionMenuGroup(content = content)
 }
 
 @Composable
@@ -407,7 +398,8 @@ internal fun DottedValueSlider(
 internal fun PlayerActionMenuItem(
     text: String,
     onClick: () -> Unit,
-    danger: Boolean = false
+    danger: Boolean = false,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
-    EllaMiuixMenuItem(text = text, onClick = onClick, danger = danger)
+    EllaMiuixMenuItem(text = text, onClick = onClick, danger = danger, icon = icon)
 }

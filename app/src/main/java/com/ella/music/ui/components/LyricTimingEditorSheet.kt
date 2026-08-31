@@ -198,8 +198,24 @@ internal fun LyricTimingEditorSheet(
         val result = mainViewModel.writeSongMetadata(song, tags)
         if (result.isSuccess) {
             if (isCurrentSong) playerViewModel.reloadCurrentLyrics()
-            Toast.makeText(context, R.string.lyric_timing_editor_saved, Toast.LENGTH_SHORT).show()
-            onDismiss()
+            val sidecar = writeLyricTimingSidecar(context, song, embedFormat, content)
+            if (sidecar.isSuccess) {
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.lyric_timing_editor_saved_with_sidecar,
+                        sidecar.getOrThrow().displayName
+                    ),
+                    Toast.LENGTH_LONG
+                ).show()
+                onDismiss()
+            } else {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.lyric_timing_editor_sidecar_failed),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             return
         }
         val error = result.exceptionOrNull()

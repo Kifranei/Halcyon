@@ -120,7 +120,7 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
         "spotifyClientSecret",
         ""
     )
-    val imageRegion by settingsManager.artistBioLastFmLang.collectCachedAsState(
+    val imageRegion by settingsManager.artistImageRegion.collectCachedAsState(
         "artistImageRegion",
         DEFAULT_LAST_FM_WIKI_REGION
     )
@@ -157,21 +157,13 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
 
     SmallTitle(text = stringResource(R.string.settings_artist_image_download))
     SettingsCardGroup(
-        highlight = highlightKey in setOf(
-            "artist_image_download",
-            "artist_image_region",
-            "artist_image_sources",
-            "cover_media"
-        )
+        highlight = highlightKey == "cover_media"
     ) {
         Column {
             SettingsFocusAnchor(active = highlightKey == "artist_image_download") {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_artist_image_download),
-                    summary = stringResource(
-                        R.string.settings_current_value,
-                        downloadOptions[selectedDownloadMode].second
-                    ),
+                    summary = stringResource(R.string.settings_artist_image_download_summary),
                     items = downloadOptions.map { DropdownItem(title = it.second) },
                     selectedIndex = selectedDownloadMode,
                     onSelectedIndexChange = { index ->
@@ -184,17 +176,14 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
             SettingsFocusAnchor(active = highlightKey == "artist_image_region") {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_artist_image_region),
-                    summary = stringResource(
-                        R.string.settings_current_value,
-                        stringResource(LAST_FM_WIKI_REGIONS[selectedImageRegionIndex].countryNameRes)
-                    ),
+                    summary = stringResource(R.string.settings_artist_image_region_summary),
                     items = LAST_FM_WIKI_REGIONS.map {
                         DropdownItem(title = stringResource(it.countryNameRes))
                     },
                     selectedIndex = selectedImageRegionIndex,
                     onSelectedIndexChange = { index ->
                         LAST_FM_WIKI_REGIONS.getOrNull(index)?.let { region ->
-                            scope.launch { settingsManager.setArtistBioLastFmLang(region.code) }
+                            scope.launch { settingsManager.setArtistImageRegion(region.code) }
                         }
                     }
                 )
@@ -594,10 +583,7 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
             )
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_music_video_orientation),
-                summary = stringResource(
-                    R.string.settings_current_value,
-                    musicVideoOrientationOptions[selectedMusicVideoOrientation].second
-                ),
+                summary = stringResource(R.string.settings_music_video_orientation_summary),
                 items = musicVideoOrientationEntries,
                 selectedIndex = selectedMusicVideoOrientation,
                 onSelectedIndexChange = { index ->

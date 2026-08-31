@@ -25,6 +25,7 @@
     <string name="duration_format" formatted="false">%02d:%02d</string>
     <string name="no_lyrics">가사 없음</string>
     <string name="settings_player_lyric_text_align">Player lyric alignment</string>
+    <string name="settings_player_lyric_text_align_summary">가사의 가로 정렬을 선택합니다</string>
     <string name="player_output_bluetooth">Bluetooth device</string>
     <string name="player_output_headphones">Headphones</string>
     <string name="player_output_usb_audio">USB audio</string>
@@ -194,6 +195,14 @@
     <string name="settings_music_playback">음악 및 재생</string>
     <string name="settings_services">서비스 및 데이터</string>
     <string name="settings_maintenance">유지 관리</string>
+    <string name="settings_maintenance_summary">설정 마법사, 캐시 정리 및 기본 구성 복원</string>
+    <string name="settings_clear_artist_image_cache">아티스트 이미지 캐시 지우기</string>
+    <string name="settings_clear_artist_image_cache_summary">아티스트 이미지 소스에서 저장한 로컬 이미지를 삭제합니다</string>
+    <string name="settings_clear_artist_image_cache_done">아티스트 이미지 캐시를 지웠습니다</string>
+    <string name="settings_restore_defaults">기본 구성 복원</string>
+    <string name="settings_restore_defaults_summary">음악, 재생목록 또는 감상 기록을 삭제하지 않고 앱 설정을 초기값으로 복원합니다</string>
+    <string name="settings_restore_defaults_confirm">모든 설정을 기본값으로 복원할까요? 현재 설정은 지워지지만 음악과 사용자 데이터는 유지됩니다.</string>
+    <string name="settings_restore_defaults_done">기본 구성을 복원했습니다</string>
     <string name="settings_appearance_home">외관과 홈</string>
     <string name="settings_appearance_home_summary">테마, 언어, Liquid Glass, 사용자 지정 이미지, 홈 레이아웃</string>
     <string name="settings_library_scan">라이브러리 및 스캔</string>
@@ -213,7 +222,7 @@
     <string name="settings_backup_summary">설정, 청취 기록, 통계 내보내기 및 복원</string>
     <string name="settings_other">기타</string>
     <string name="settings_clear_online_cache">아트워크 및 가사 캐시 지우기</string>
-    <string name="settings_clear_online_cache_summary">WebDAV 및 LX 아트워크, 가사, 원격 메타데이터 캐시 지우기</string>
+    <string name="settings_clear_online_cache_summary">로컬 및 원격 소스의 아트워크, 가사, 태그 데이터 캐시 지우기</string>
     <string name="settings_clear_online_cache_done">온라인 아트워크 및 가사 캐시가 삭제되었습니다</string>
     <string name="settings_clear_library_snapshot_cache">라이브러리 캐시 스냅샷 지우기</string>
     <string name="settings_clear_library_snapshot_cache_summary">라이브러리 검색 및 태그 스냅샷을 지웁니다. 다음 검색에서 다시 생성됩니다.</string>
@@ -239,7 +248,7 @@
     <string name="logs_retention_days">%1$d일</string>
     <string name="logs_retention_removed">%1$d 오래된 로그를 제거했습니다</string>
     <string name="logs_retention_set">%1$d일 동안 로그 보관</string>
-    <string name="logs_summary">%1$d개 로그 중 %2$d개 표시 중; 오류 %3$d개, 경고 %4$d개. 이 프로세스 logcat을 직접 읽으며 3000개 제한이 없습니다.</string>
+    <string name="logs_summary">%1$d개 로그 중 %2$d개 표시 중; 오류 %3$d개, 경고 %4$d개</string>
     <string name="logs_empty">로그 없음</string>
     <string name="logs_empty_filtered">일치하는 로그가 없습니다</string>
     <string name="logs_clear_message">화면에 표시된 %1$d개의 logcat 줄을 지웁니다. 시스템 logcat 버퍼는 Android가 관리합니다.</string>
@@ -284,6 +293,9 @@
     <string name="settings_app_display_scale">화면 배율</string>
     <string name="settings_app_display_scale_summary">앱의 버튼, 여백 및 콘텐츠 크기를 함께 조절합니다</string>
     <string name="settings_category_grid_columns">카테고리 그리드 열</string>
+    <string name="settings_library_song_grid_columns_phone">휴대전화 곡 그리드 열</string>
+    <string name="settings_library_song_grid_columns_tablet">태블릿 곡 그리드 열</string>
+    <string name="settings_library_song_grid_columns_summary">보관함 커버 그리드를 %1$d열로 표시</string>
     <string name="settings_category_grid_columns_summary">%1$d 열에 앨범, 장르, 연도 및 유사한 페이지 표시</string>
     <string name="settings_category_grid_columns_option">%1$d 열</string>
     <string name="settings_category_grid_columns_option_summary_single">대형 카드 목록 레이아웃</string>
@@ -293,6 +305,8 @@
     <string name="settings_show_album_artists_summary">앨범 아티스트를 아티스트 목록에 병합하고 아티스트 페이지에 발매 앨범 탭을 표시합니다.</string>
     <string name="settings_show_artist_introduction">아티스트 소개 표시</string>
     <string name="settings_show_artist_introduction_summary">아티스트 페이지에 소개 항목을 표시합니다</string>
+    <string name="settings_library_song_title_marquee">두 컬럼 라이브러리 긴 제목 스크롤</string>
+    <string name="settings_library_song_title_marquee_summary">두 컬럼 목록에서 넘치는 곡 제목과 아티스트 이름을 좌우 왕복 스크롤로 표시; 끄면 한 줄에서 잘립니다</string>
     <string name="settings_open_player_on_play">재생을 탭한 후 플레이어 열기</string>
     <string name="settings_open_player_on_play_summary">로컬, WebDAV 또는 온라인 곡을 시작한 후 자동으로 플레이어 열기</string>
     <string name="settings_open_player_from_notification">미디어 알림에서 플레이어 열기</string>
@@ -580,11 +594,15 @@
     <string name="settings_resume_playback_position">Resume track position</string>
     <string name="settings_resume_playback_position_summary">When returning to a previously played song, continue from where you left</string>
     <string name="settings_shuffle_mode">셔플 모드</string>
+    <string name="settings_shuffle_mode_summary">셔플에서 다음 곡을 고르는 방식을 선택합니다</string>
     <string name="settings_play_next_mode">다음 재생 모드</string>
+    <string name="settings_play_next_mode_summary">다음에 재생을 대기열에 넣는 방식을 선택합니다</string>
     <string name="settings_previous_button">이전 버튼</string>
+    <string name="settings_previous_button_summary">이전 버튼이 이전 곡으로 갈지, 현재 곡을 다시 재생할지 선택합니다</string>
     <string name="settings_disable_audio_focus">오디오 포커스 비활성화</string>
     <string name="settings_disable_audio_focus_summary">활성화되면 재생 시 더 이상 다른 앱의 오디오 포커스를 가져오지 않습니다.</string>
     <string name="settings_decoder">디코더</string>
+    <string name="settings_decoder_summary">시스템 디코딩, FFmpeg 또는 자동 전환을 선택합니다</string>
     <string name="settings_startup_play_off">끄기</string>
     <string name="settings_startup_play_random">셔플 재생</string>
     <string name="settings_startup_play_resume">마지막 세션 재개</string>
@@ -662,9 +680,11 @@
     <string name="settings_karaoke_accompaniment">보컬 감소 / 반주</string>
     <string name="settings_karaoke_accompaniment_summary">스테레오 중앙 보컬을 실시간으로 줄입니다. AI 스템 분리는 아닙니다</string>
     <string name="settings_startup_play">실행 시 자동 재생</string>
+    <string name="settings_startup_play_summary">앱을 열었을 때 자동 재생할지 선택합니다</string>
     <string name="settings_bluetooth_auto_play">블루투스 자동 재생</string>
     <string name="settings_bluetooth_auto_play_summary">Bluetooth 오디오 장치가 연결되면 자동으로 재생을 시작합니다.</string>
     <string name="settings_mini_player_right_button">미니 플레이어 오른쪽 버튼</string>
+    <string name="settings_mini_player_right_button_summary">미니 플레이어 오른쪽 버튼 기능을 선택합니다</string>
     <string name="settings_mini_player_right_next">다음 트랙</string>
     <string name="settings_mini_player_right_queue">재생목록</string>
     <string name="settings_transport_button_outlines">플레이어 버튼 윤곽선</string>
@@ -932,7 +952,9 @@
     <string name="settings_lyric_share_custom_info_summary">Halcyon를 표시하려면 비워 두세요. @name으로 표시할 이름을 입력하세요.</string>
     <string name="settings_tag_scraping">음악 태그 스크래핑</string>
     <string name="settings_metadata_editor">메타데이터 편집기 앱</string>
+    <string name="settings_metadata_editor_summary">노래 태그를 편집할 앱을 선택합니다</string>
     <string name="settings_lyric_timing_editor">가사 타이밍 앱</string>
+    <string name="settings_lyric_timing_editor_summary">가사 타이밍 편집에 사용할 앱을 선택합니다</string>
     <string name="settings_desktop_shortcuts">데스크톱 바로가기</string>
     <string name="settings_shortcut_library">라이브러리</string>
     <string name="settings_shortcut_playlists">검색</string>
@@ -976,7 +998,9 @@
     <string name="settings_mini_player_translation">미니 플레이어에 번역 표시</string>
     <string name="settings_mini_player_translation_summary">미니 플레이어에 가사가 표시될 때 가사 번역 표시</string>
     <string name="settings_mini_player_secondary">미니 플레이어 보조 줄</string>
+    <string name="settings_mini_player_secondary_summary">미니 플레이어 가사의 보조 줄을 선택합니다</string>
     <string name="settings_secondary_delivery_content">보조줄 내용</string>
+    <string name="settings_secondary_delivery_content_summary">번역 또는 발음을 함께 보낼지 선택합니다</string>
     <string name="settings_mini_player_cover_rotation">미니 플레이어 커버 회전</string>
     <string name="settings_mini_player_cover_rotation_summary">재생 중에 미니 플레이어 커버를 회전하세요. 정적 덮개를 유지하려면 비활성화하십시오.</string>
     <string name="settings_enable_lyricon">Lyricon 활성화</string>
@@ -988,7 +1012,9 @@
     <string name="settings_enable_desktop_lyric">데스크톱 가사 활성화</string>
     <string name="settings_enable_desktop_lyric_summary">부동 창을 사용하여 다른 앱 위에 현재 가사 표시</string>
     <string name="settings_status_bar_lyric_position">상태 표시줄 가사 위치</string>
+    <string name="settings_status_bar_lyric_position_summary">상태 표시줄 가사의 가로 위치를 선택합니다</string>
     <string name="settings_status_bar_lyric_secondary">상태 표시줄 가사 보조 줄</string>
+    <string name="settings_status_bar_lyric_secondary_summary">상태 표시줄 가사의 보조 줄을 선택합니다</string>
     <string name="settings_lock_desktop_lyric">데스크톱 가사 잠금</string>
     <string name="settings_lock_desktop_lyric_summary">플로팅 가사창이 드래그되는 것을 방지합니다. 여기에서 잠금을 해제하거나 잠금 알림을 통해 잠금을 해제하세요.</string>
     <string name="settings_desktop_lyric_font_scale">데스크톱 가사 크기 %1$d%%</string>
@@ -998,6 +1024,7 @@
     <string name="settings_desktop_lyric_opacity">데스크톱 가사 불투명도 %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">가사를 더 가볍게 만들려면 이 값을 줄이세요. 잠겨 있어도 값은 유지됩니다.</string>
     <string name="settings_desktop_lyric_color">데스크톱 가사 색상</string>
+    <string name="settings_desktop_lyric_color_summary">데스크톱 가사 글자색을 선택합니다</string>
     <string name="settings_status_lyric_font_scale">상태 표시줄 가사 크기 %1$d%%</string>
     <string name="settings_status_lyric_font_scale_summary">플로팅 상태 표시줄 가사의 기본 줄 크기를 별도로 조절합니다</string>
     <string name="settings_status_lyric_translation_scale">상태 표시줄 보조 줄 크기 %1$d%%</string>
@@ -1023,9 +1050,11 @@
     <string name="settings_status_bar_phonetic_secondary">상태 표시줄에 발음 또는 보조 줄 표시</string>
     <string name="settings_status_bar_phonetic_secondary_summary">상태 표시줄 가사의 두 번째 줄에 발음이나 번역 보조 줄을 보냅니다.</string>
     <string name="settings_heads_up_lyric_secondary">헤드업 가사 보조 줄</string>
+    <string name="settings_heads_up_lyric_secondary_summary">헤드업 가사의 보조 줄을 선택합니다</string>
     <string name="settings_enable_coloros_lock_screen_lyric">ColorOS 잠금 화면 아일랜드 가사</string>
     <string name="settings_enable_coloros_lock_screen_lyric_summary">MediaMetadata[&quot;lyricInfo&quot;]를 통해 전체 LRC 가사를 ColorOS 잠금 화면 아일랜드로 보냅니다. 일부 시스템 버전에서는 지원 앱이 계속 제한될 수 있습니다.</string>
     <string name="settings_coloros_lock_screen_lyric_mode">Lyric delivery mode</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_summary">ColorOS 잠금 화면 가사 전송 방식을 선택합니다</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">Use system</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">Use module</string>
     <string name="settings_enable_bluetooth_lyric">미디어 알림 가사 활성화</string>
@@ -1124,6 +1153,7 @@
     <string name="player_playback_mode_in_order">순서대로</string>
     <string name="player_locate_current_song">현재 곡 찾기</string>
     <string name="player_clear_queue">재생 대기열 지우기</string>
+    <string name="player_clear_queue_confirm">재생 대기열을 모두 지울까요?</string>
     <string name="player_lock_queue">재생 대기열 잠금</string>
     <string name="player_unlock_queue">재생 대기열 잠금 해제</string>
     <string name="player_remove_from_queue">재생 대기열에서 제거</string>
@@ -1283,6 +1313,9 @@
     <string name="song_more_detail_size">크기</string>
     <string name="song_more_detail_modified_time">수정된 시간</string>
     <string name="song_more_detail_added_time">추가된 시간</string>
+    <string name="song_more_detail_play_count">재생 횟수</string>
+    <string name="song_more_detail_listened_duration">총 청취 시간</string>
+    <string name="song_more_detail_last_played">마지막 재생</string>
     <string name="song_more_detail_file_name">파일 이름</string>
     <string name="song_more_detail_path">경로</string>
     <string name="song_more_detail_directory">디렉터리</string>
@@ -1321,7 +1354,18 @@
     <string name="artist_tab_participated_albums">참여 앨범</string>
     <string name="artist_tab_release_albums">발매 앨범</string>
     <string name="artist_tab_biography">전기</string>
-    <string name="artist_biography_region">지역</string>
+    <string name="artist_biography_region">언어</string>
+    <string name="artist_biography_language">언어</string>
+    <string name="artist_biography_lang_zh_cn">중국어 간체</string>
+    <string name="artist_biography_lang_zh_hk">홍콩 번체</string>
+    <string name="artist_biography_lang_zh_tw">대만 번체</string>
+    <string name="artist_biography_lang_ko">한국어</string>
+    <string name="artist_biography_lang_en">English</string>
+    <string name="artist_biography_lang_ja">日本語</string>
+    <string name="artist_biography_source_wikipedia">위키백과</string>
+    <string name="artist_image_source_lastfm">Last.fm</string>
+    <string name="artist_image_source_spotify">Spotify</string>
+    <string name="artist_image_source_netease">NetEase</string>
     <string name="artist_song_count_sorted">%1$d 곡 · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d 참여 앨범 · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d 발매 앨범 · %2$s</string>
@@ -1522,7 +1566,6 @@
     <string name="about_summary_coil">Kotlin 이미지 로딩 라이브러리(Apache-2.0)</string>
     <string name="about_summary_quickjs">LX Music API JavaScript 런타임(Apache-2.0)</string>
     <string name="about_summary_lxmusic">온라인 음악 소스 및 API 연동 참고(Apache-2.0)</string>
-    <string name="about_summary_accompanist_lyrics_core">가사 분석 및 TTML/LRC 구조 참조(Apache-2.0)</string>
 
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">가져오기 실패: HTTP %1$d</string>
@@ -1646,6 +1689,7 @@
     <string name="settings_crossfade_duration_seconds">시간(초)</string>
     <string name="settings_crossfade_duration_invalid">0~12 사이의 올바른 시간을 입력하세요</string>
     <string name="settings_crossfade_curve">페이드 곡선</string>
+    <string name="settings_crossfade_curve_summary">두 곡이 겹칠 때의 볼륨 변화 곡선을 선택합니다</string>
     <string name="settings_crossfade_curve_equal_power">일정한 체감 음량</string>
     <string name="settings_crossfade_curve_equal_power_summary">등전력 크로스페이드로 초반이 거의 무음이 되거나 중간 음량이 꺼지는 현상을 줄입니다</string>
     <string name="settings_crossfade_curve_linear">선형</string>
@@ -1677,6 +1721,7 @@
     <string name="lyric_match_write_ttml_tag">TTMLLYRIC 태그 기록</string>
     <string name="settings_lyric_plugin_config">플러그인 설정</string>
     <string name="settings_player_bg_theme">플레이어 배경</string>
+    <string name="settings_player_bg_theme_summary">플레이어 배경의 밝기 스타일을 선택합니다</string>
     <string name="settings_apple_music_lyrics_page">Apple Music 스타일 가사 페이지</string>
     <string name="settings_apple_music_lyrics_page_summary">내장 포커스 가사, 스프링 전환 및 발광 효과를 사용합니다. 끄면 기존 Lyricon 가사 페이지를 사용합니다.</string>
     <string name="settings_wallpaper_opacity">Wallpaper opacity</string>
@@ -1804,11 +1849,15 @@
     <string name="settings_search_no_results">일치하는 설정이 없습니다</string>
     <string name="settings_search_placeholder">설정 검색</string>
     <string name="settings_search_results">검색 결과</string>
+    <string name="settings_search_history">검색 기록</string>
+    <string name="settings_search_history_clear">검색 기록 지우기</string>
     <string name="settings_status_align_center">가운데 정렬</string>
     <string name="settings_status_align_left">왼쪽 정렬</string>
     <string name="settings_status_align_right">오른쪽 정렬</string>
     <string name="settings_status_bar_lyric_text_align">상태 표시줄 가사 정렬</string>
+    <string name="settings_status_bar_lyric_text_align_summary">상태 표시줄 가사 정렬을 선택합니다</string>
     <string name="settings_status_bar_lyric_vertical_align">상태 표시줄 가사 세로 정렬</string>
+    <string name="settings_status_bar_lyric_vertical_align_summary">상태 표시줄 가사의 세로 정렬을 선택합니다</string>
     <string name="settings_status_lyric_merge_secondary">보조 줄을 기본 줄에 합치기</string>
     <string name="settings_status_lyric_merge_secondary_summary">같은 타임라인의 원문과 번역/발음을 한 줄에 표시합니다</string>
     <string name="settings_status_lyric_secondary_opacity_summary">상태 표시줄 가사에서 번역 또는 발음의 불투명도를 조절합니다</string>
@@ -1867,7 +1916,7 @@
     <string name="settings_backup_type_equalizer">이퀄라이저</string>
     <string name="settings_backup_type_equalizer_summary">이퀄라이저, 베이스 부스트, 가상화, 리버브 설정</string>
     <string name="settings_backup_type_online_sources">온라인 소스</string>
-    <string name="settings_backup_type_online_sources_summary">WebDAV, LX, Navidrome, Emby 등 온라인 소스 설정</string>
+    <string name="settings_backup_type_online_sources_summary">WebDAV, LX, Navidrome, Emby 등 온라인 소스 설정 및 Lyrico 가사 소스 플러그인</string>
     <string name="common_export">내보내기</string>
     <string name="common_import">가져오기</string>
     <string name="settings_dynamic_cover_custom_folders">다이내믹 커버 사용자 지정 폴더</string>
@@ -1878,6 +1927,7 @@
     <string name="settings_home_tile_gradient_enabled_summary">켜면 홈 타일이 반투명 그라데이션을 사용하고, 끄면 단색으로 유지됩니다</string>
     <string name="settings_home_tile_gradient_start_color">그라데이션 시작 색상</string>
     <string name="settings_player_title_position">비몰입 플레이어 제목 위치</string>
+    <string name="settings_player_title_position_summary">비몰입 플레이어에서 제목을 커버 위 또는 아래에 표시합니다</string>
     <string name="settings_player_title_position_below_cover">커버 아래</string>
     <string name="settings_player_title_position_above_cover">커버 위</string>
     <string name="settings_player_page_style">재생 화면</string>
@@ -1941,12 +1991,15 @@
     <string name="folder_playlist_detail_summary_sorted">곡 %1$d개 · 연결된 폴더 %2$d개 · %3$s</string>
     <string name="folder_playlist_list_summary_sorted">폴더 재생목록 %1$d개 · %2$s</string>
     <string name="folder_playlist_selected_playlists">폴더 재생목록 %1$d개 선택됨</string>
+
+
     <string name="player_lyric_style_settings">가사 스타일</string>
     <string name="playlist_drag_selection_count">항목: %1$d</string>
     <string name="remote_playlist_favorites">%1$s 즐겨찾기</string>
     <string name="remote_source_opensubsonic">OpenSubsonic</string>
     <string name="settings_audio_output_auto">Auto</string>
     <string name="settings_audio_output_backend">출력 경로</string>
+    <string name="settings_audio_output_backend_summary">Android 오디오 출력 경로를 선택합니다</string>
     <string name="settings_audio_output_backend_aaudio">AAudio</string>
     <string name="settings_audio_output_backend_audiotrack">AudioTrack</string>
     <string name="settings_audio_output_backend_audiotrack_summary">Android AudioTrack으로 출력하고 선택한 형식으로 변환합니다</string>
@@ -1957,11 +2010,13 @@
     <string name="settings_audio_output_backend_hires_summary">고정밀 PCM/Float 출력을 우선하고 선택한 형식으로 변환합니다</string>
     <string name="settings_audio_output_backend_opensles">OpenSL ES</string>
     <string name="settings_audio_output_bit_depth">출력 비트 심도</string>
+    <string name="settings_audio_output_bit_depth_summary">출력 PCM 비트 깊이를 지정합니다. 자동은 음원과 시스템을 따릅니다</string>
     <string name="settings_audio_output_bit_depth_16">16-bit PCM</string>
     <string name="settings_audio_output_bit_depth_24">24-bit PCM</string>
     <string name="settings_audio_output_bit_depth_32">32-bit PCM</string>
     <string name="settings_audio_output_bit_depth_float32">Float32</string>
     <string name="settings_audio_output_sample_rate">출력 샘플 레이트</string>
+    <string name="settings_audio_output_sample_rate_summary">출력 샘플링 레이트를 지정합니다. 자동은 음원과 시스템을 따릅니다</string>
     <string name="settings_audio_output_sample_rate_khz">%.1f kHz</string>
     <string name="settings_audio_output_section">출력</string>
     <string name="settings_bluetooth_auto_play_permission_denied">근처 기기 권한이 허용되지 않아 Bluetooth 자동 재생을 껐습니다</string>
@@ -2060,6 +2115,8 @@
     <string name="lyric_timing_editor_selected_line">선택한 줄: %1$d / %2$d</string>
     <string name="lyric_timing_editor_unset_lines">타이밍이 필요한 줄이 %1$d개 남았습니다</string>
     <string name="lyric_timing_editor_saved">가사 타이밍을 내장 LRC로 저장했습니다</string>
+    <string name="lyric_timing_editor_saved_with_sidecar">내장 가사를 저장하고 곡 폴더에 %1$s 파일을 내보냈습니다</string>
+    <string name="lyric_timing_editor_sidecar_failed">내장 가사는 저장했지만 곡 폴더에 파일을 내보내지 못했습니다. 내보내기에서 위치를 직접 선택하세요.</string>
     <string name="lyric_timing_editor_no_lines">먼저 가사를 한 줄 이상 입력하세요</string>
     <string name="lyric_timing_editor_complete_lines">저장하기 전에 모든 가사 줄의 타이밍을 지정하세요</string>
     <string name="lyric_timing_editor_embed_format">내장 형식</string>
@@ -2196,6 +2253,7 @@
     <string name="equalizer_panoramic_360_elevation">수직 각도</string>
     <string name="player_replay_gain_badge">게인 %1$s</string>
     <string name="settings_spectrum_viewer">스펙트럼 뷰어</string>
+    <string name="settings_spectrum_viewer_summary">스펙트럼을 볼 앱을 선택합니다</string>
     <string name="settings_spectrum_builtin">내장 스펙트럼</string>
     <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
     <string name="settings_spectrum_kaspek">Kaspek</string>
@@ -2237,17 +2295,21 @@
     <string name="settings_enable_xiaomi_super_island_lyric">Xiaomi Super Island 가사</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">HyperOS Super Island에 가사를 표시합니다. XMSF 네트워크를 잠시 차단하려면 Shizuku 권한이 필요합니다</string>
     <string name="settings_live_update_lyric_content">Live 활동 기본 가사</string>
+    <string name="settings_live_update_lyric_content_summary">실시간 알림에 표시할 주 가사를 선택합니다</string>
     <string name="settings_live_update_lyric_original">원문</string>
     <string name="settings_live_update_lyric_translation">번역</string>
     <string name="settings_live_update_lyric_pronunciation">발음</string>
     <string name="settings_live_update_lyric_display">Live 가사 표시</string>
+    <string name="settings_live_update_lyric_display_summary">실시간 알림에 근처 소절 또는 전체 가사를 표시합니다</string>
     <string name="settings_live_update_lyric_display_compact">현재 단어 주변</string>
     <string name="settings_live_update_lyric_display_full">전체 가사</string>
     <string name="settings_live_update_lyric_secondary">Live 활동 부제목</string>
+    <string name="settings_live_update_lyric_secondary_summary">실시간 알림 부제를 선택합니다</string>
     <string name="settings_live_update_lyric_secondary_song">곡 제목</string>
     <string name="settings_live_update_lyric_secondary_translation">번역</string>
     <string name="settings_live_update_lyric_secondary_pronunciation">발음</string>
     <string name="settings_media_notification_buttons">미디어 알림 버튼</string>
+    <string name="settings_media_notification_buttons_summary">미디어 알림에 표시할 두 개의 추가 버튼을 선택합니다</string>
     <string name="settings_media_notification_buttons_playback_desktop">재생 모드, 데스크톱 가사</string>
     <string name="settings_media_notification_buttons_playback_favorite">재생 모드, 즐겨찾기</string>
     <string name="settings_media_notification_buttons_desktop_favorite">데스크톱 가사, 즐겨찾기</string>
@@ -2259,6 +2321,7 @@
     <string name="settings_xiaomi_super_island_notification_section">Notification and interaction</string>
     <string name="settings_xiaomi_super_island_compat_section">XMSF and dismissal</string>
     <string name="settings_xiaomi_super_island_lyric_mode">Lyric layout</string>
+    <string name="settings_xiaomi_super_island_lyric_mode_summary">슈퍼 아일랜드 가사 레이아웃을 선택합니다</string>
     <string name="settings_xiaomi_super_island_mode_standard">Standard: song details and current lyric</string>
     <string name="settings_xiaomi_super_island_mode_full">Full: split the complete lyric across columns</string>
     <string name="settings_xiaomi_super_island_left_cover">Show cover on the left</string>
@@ -2272,16 +2335,20 @@
     <string name="settings_xiaomi_super_island_colorize">Lyric accent color</string>
     <string name="settings_xiaomi_super_island_colorize_summary">Use album artwork or a custom color for Super Island text and progress</string>
     <string name="settings_xiaomi_super_island_color_source">Color source</string>
+    <string name="settings_xiaomi_super_island_color_source_summary">슈퍼 아일랜드 색상 출처를 선택합니다</string>
     <string name="settings_xiaomi_super_island_color_album">Album artwork</string>
     <string name="settings_xiaomi_super_island_custom_color">Custom accent color</string>
     <string name="settings_xiaomi_super_island_progress_color">Use accent color for progress</string>
     <string name="settings_xiaomi_super_island_actions">Notification actions</string>
+    <string name="settings_xiaomi_super_island_actions_summary">슈퍼 아일랜드 알림 동작을 선택합니다</string>
     <string name="settings_xiaomi_super_island_actions_off">Progress only</string>
     <string name="settings_xiaomi_super_island_actions_media">Media controls</string>
     <string name="settings_xiaomi_super_island_notification_style">Notification style</string>
+    <string name="settings_xiaomi_super_island_notification_style_summary">슈퍼 아일랜드 알림 스타일을 선택합니다</string>
     <string name="settings_xiaomi_super_island_style_standard">Standard</string>
     <string name="settings_xiaomi_super_island_style_advanced">Enhanced (experimental)</string>
     <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
+    <string name="settings_xiaomi_super_island_button_layout_summary">미디어 버튼 배치를 선택합니다</string>
     <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
     <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
     <string name="settings_xiaomi_super_island_xmsf_mode">XMSF network bypass</string>
@@ -2296,6 +2363,7 @@
     <string name="settings_xiaomi_super_island_xmsf_duration">Network block duration</string>
     <string name="settings_xiaomi_super_island_xmsf_duration_summary">Too short may fail; too long may affect Xiaomi system services</string>
     <string name="settings_xiaomi_super_island_dismiss_delay">Dismiss after pause</string>
+    <string name="settings_xiaomi_super_island_dismiss_delay_summary">일시정지 후 슈퍼 아일랜드를 닫기까지의 지연</string>
     <string name="settings_xiaomi_super_island_dismiss_immediate">Immediately</string>
     <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
@@ -2306,6 +2374,7 @@
     <string name="settings_continue_playback_row_summary">각 라이브러리 분류와 상세 페이지에 최근 재생 곡 표시</string>
     <string name="folder_playlist_associate_multi_done">폴더 재생목록 %1$d개에 연결됨</string>
     <string name="settings_music_video_orientation">소리 있는 MV 화면 방향</string>
+    <string name="settings_music_video_orientation_summary">뮤직비디오 재생 시 화면 방향을 선택합니다</string>
     <string name="settings_music_video_orientation_system">시스템 기본값</string>
     <string name="settings_music_video_orientation_video">동영상에 맞춤</string>
     <string name="settings_music_video_orientation_landscape">가로</string>
@@ -2328,6 +2397,7 @@
     <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
+    <string name="settings_xiaomi_super_island_lyric_content_summary">슈퍼 아일랜드 주 가사를 선택합니다</string>
     <string name="player_ab_repeat_record_b">A-B 반복: B 설정 (A %1$s)</string>
     <string name="player_ab_repeat_active">A-B 반복 취소 (%1$s-%2$s)</string>
     <string name="settings_music_video_stretch">MV 늘이기 허용</string>
@@ -2367,6 +2437,10 @@
     <string name="settings_backup_webdav_restore_now">Restore now</string>
     <string name="settings_player_action_menu">Player action menu</string>
     <string name="settings_list_action_menu">List action menu</string>
+    <string name="settings_song_info_layout">Song info fields</string>
+    <string name="settings_queue_toolbar_layout">Queue toolbar</string>
+    <string name="song_more_modified_time_invalid">Use yyyy-MM-dd HH:mm:ss</string>
+    <string name="song_more_modified_time_failed">Could not change the file time</string>
     <string name="settings_action_menu_summary">Configure action order and visibility separately</string>
     <string name="settings_action_menu_position">Position: %1$d</string>
     <string name="settings_action_menu_remote_quality">Remote stream quality</string>
@@ -2413,6 +2487,7 @@
     <string name="settings_search_click_insert_next">현재 곡 뒤에 삽입하고 재생</string>
     <string name="settings_search_click_append">대기열 끝에 추가하고 재생</string>
     <string name="settings_search_click_replace">대기열을 교체하고 재생</string>
+    <string name="settings_search_click_playback_mode_summary">검색 결과를 탭했을 때 대기열에 넣는 방식을 선택합니다</string>
     <string name="settings_playlist_show_rating_filter">재생목록에 별점 필터 표시</string>
     <string name="settings_playlist_show_favorite_filter">재생목록에 즐겨찾기 필터 표시</string>
     <string name="settings_player_progress_show_quality">진행 표시줄 아래에 음질 표시</string>
@@ -2461,6 +2536,7 @@
     <string name="settings_immersive_lyric_swipe_summary">아래 가사 영역을 좌우로 밀어 이전 또는 다음 곡으로 이동합니다</string>
     <string name="library_layout_grid">격자 보기</string>
     <string name="library_layout_list">목록 보기</string>
+    <string name="library_layout_multi_row">여러 줄 목록</string>
     <string name="settings_parse_featured_artists">곡 제목에서 피처링 아티스트 인식</string>
     <string name="settings_parse_featured_artists_summary">곡 제목의 feat., ft. 또는 featuring 뒤 아티스트를 추가하고 ARTIST 태그와 중복을 제거합니다</string>
     <string name="settings_artist_image_download">아티스트 이미지 자동 다운로드</string>

@@ -12,8 +12,6 @@ import com.ella.music.data.SettingsManager.Companion.LYRIC_COMPACT_SECONDARY_TEX
 import com.ella.music.data.SettingsManager.Companion.LYRIC_COMPACT_SECONDARY_TEXT_SIZE_MIN_SP
 import com.ella.music.data.SettingsManager.Companion.LYRIC_FONT_SCALE_MIN
 import com.ella.music.data.SettingsManager.Companion.LYRIC_FONT_SCALE_ULTRA_WIDE_MAX
-import com.ella.music.data.SettingsManager.Companion.LYRIC_PARSER_ENGINE_AUTO
-import com.ella.music.data.SettingsManager.Companion.LYRIC_PARSER_ENGINE_ELLA
 import com.ella.music.data.SettingsManager.Companion.LYRIC_SECONDARY_FONT_SCALE_MIN
 import com.ella.music.data.SettingsManager.Companion.LYRIC_SECONDARY_FONT_SCALE_ULTRA_WIDE_MAX
 import com.ella.music.data.SettingsManager.Companion.LYRIC_SOURCE_AUTO
@@ -55,7 +53,6 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_KEEP_SCREEN_ON
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_TRANSLATION
-import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PARSER_ENGINE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_EFFECT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_Y_ANGLE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PRONUNCIATION_BELOW
@@ -105,7 +102,6 @@ interface LyricSettingsAccess {
     val appleMusicLyricsWordLift: Flow<Boolean>
     val appleMusicLyricsSustainThresholdMs: Flow<Int>
     val lyricOpeningTemplate: Flow<String>
-    val lyricParserEngine: Flow<Int>
     val lyricShareCustomInfo: Flow<String>
     val lyricFontName: Flow<String>
     val lyricFontPath: Flow<String>
@@ -176,7 +172,6 @@ interface LyricSettingsAccess {
     suspend fun setLyricFontItalic(enabled: Boolean)
     suspend fun setLyricFontApplyToPage(enabled: Boolean)
     suspend fun setLyricFontApplyToDesktop(enabled: Boolean)
-    suspend fun setLyricParserEngine(engine: Int)
 }
 
 internal class LyricSettingsAccessImpl(private val context: Context) : LyricSettingsAccess {
@@ -231,9 +226,6 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         }
     override val lyricOpeningTemplate: Flow<String> =
         context.dataStore.data.map { it[KEY_LYRIC_OPENING_TEMPLATE] ?: "" }
-
-    override val lyricParserEngine: Flow<Int> =
-        context.dataStore.data.map { it[KEY_LYRIC_PARSER_ENGINE] ?: LYRIC_PARSER_ENGINE_ELLA }
 
     override val lyricShareCustomInfo: Flow<String> =
         context.dataStore.data.map { it[KEY_LYRIC_SHARE_CUSTOM_INFO] ?: "" }
@@ -390,6 +382,7 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         context.dataStore.edit { it[KEY_LYRIC_PERSPECTIVE_Y_ANGLE] = angle.coerceIn(0, 45) }
     }
 
+
     override suspend fun setLyricShareCustomInfo(info: String) {
         context.dataStore.edit {
             val trimmed = info.trim().removePrefix("@").trim()
@@ -529,12 +522,6 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
 
     override suspend fun setLyricFontApplyToDesktop(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LYRIC_FONT_APPLY_TO_DESKTOP] = enabled }
-    }
-
-    override suspend fun setLyricParserEngine(engine: Int) {
-        context.dataStore.edit {
-            it[KEY_LYRIC_PARSER_ENGINE] = engine.coerceIn(LYRIC_PARSER_ENGINE_AUTO, LYRIC_PARSER_ENGINE_ELLA)
-        }
     }
 
     private fun parseLyricOffsetOverrides(json: String?): Map<String, Long> {

@@ -9,16 +9,28 @@ import android.util.Log
 import android.util.LruCache
 import com.ella.music.data.isContentAudioSource
 import com.ella.music.data.isHttpAudioSource
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.Song
 import com.ella.music.data.metadata.AudioTagRepository
 import com.ella.music.data.SettingsManager
 import okhttp3.OkHttpClient
 import java.io.File
+import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 
 private val embeddedArtworkThumbnailExtensions = setOf(
-    "m4a", "mp4", "alac", "flac", "wav", "wave", "aif", "aiff"
+    "m4a", "m4b", "m4r", "m4p", "mp4", "alac", "flac", "wav", "wave", "aif", "aiff", "aifc", "afc",
+    "ape", "dsf", "dff", "dsdiff", "wv", "tta", "mpc", "shn", "mka",
+    "spx", "wma", "asf"
 )
+
+/**
+ * Library surfaces (list rows, two-column rows, grid cards) all render at or below this size, so
+ * a single decoded "master" bitmap per song can serve every layout: grid-sized requests decode
+ * once at this size and smaller rows derive from the master with [Bitmap.createScaledBitmap].
+ * Switching library display modes therefore never re-reads the artwork source.
+ */
+private const val MASTER_COVER_SIZE = 512
 
 internal class MusicCoverArtManager(
     private val context: Context,
@@ -37,8 +49,23 @@ internal class MusicCoverArtManager(
     private val coverArtCache = object : LruCache<String, ByteArray>(8 * 1024) {
         override fun sizeOf(key: String, value: ByteArray): Int = value.size / 1024
     }
-    private val coverBitmapCache = object : LruCache<String, Bitmap>(16 * 1024) {
+    // Large enough to keep per-song master covers plus the derived list thumbnails alive while
+    // the user flips between library layouts; without the headroom grid decoding evicted every
+    // list entry and each layout switch reloaded the same covers.
+    private val coverBitmapCache = object : LruCache<String, Bitmap>(64 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
+    }
+    // Sidecar discovery walks directories and stats many candidate files; memoizing it per song
+    // keeps repeated bitmap-cache hits free of disk IO.
+    private val sidecarFileMemo = ConcurrentHashMap<String, Optional<File>>()
+
+    private fun songSidecarFile(song: Song): File? {
+        val memoKey = song.coverDataCacheKey()
+        sidecarFileMemo[memoKey]?.let { return it.orElse(null) }
+        val file = song.folderSidecarCoverFile()
+            ?: song.externalThumbnailCandidates().firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+        sidecarFileMemo[memoKey] = Optional.ofNullable(file)
+        return file
     }
     private val coverArtLock = Any()
     private val coverDataStates = ConcurrentHashMap<String, CoverDataState>()
@@ -93,45 +120,126 @@ internal class MusicCoverArtManager(
         usage: CoverUsage = CoverUsage.ListThumbnail
     ): Bitmap? {
         val targetSize = maxSize.coerceIn(64, 3000)
-        val sidecar = song.folderSidecarCoverFile() ?: song.externalThumbnailCandidates()
-            .firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+        val sidecar = songSidecarFile(song)
         val sidecarStamp = sidecar?.let { "${it.absolutePath}:${it.lastModified()}:${it.length()}" } ?: "none"
-        val cacheKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:${usage.name}:$targetSize"
-        coverBitmapCache.get(cacheKey)?.let { return it }
+        val exactKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:${usage.name}:$targetSize"
+        coverBitmapCache.get(exactKey)?.let { return it }
         return synchronized(coverArtLock) {
-            coverBitmapCache.get(cacheKey)?.let { return it }
-            if (sidecar != null) {
-                decodeBitmapFile(
-                    sidecar,
-                    targetSize,
-                    if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
-                )?.also { coverBitmapCache.put(cacheKey, it) }?.let { return it }
-            }
-            if (usage == CoverUsage.ListThumbnail && !song.prefersEmbeddedArtworkForThumbnail()) {
-                decodeAlbumArtBitmap(song.albumId, targetSize, usage)?.let { return it }
-            }
-            val data = getCoverArt(song)
-            if (data == null) return decodeAlbumArtBitmap(song.albumId, targetSize, usage)
-            runCatching {
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
-                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-                var sampleSize = 1
-                while ((bounds.outWidth / sampleSize) > targetSize || (bounds.outHeight / sampleSize) > targetSize) sampleSize *= 2
-                val options = BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize.coerceAtLeast(1)
-                    inPreferredConfig = if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+            coverBitmapCache.get(exactKey)?.let { return it }
+            if (targetSize <= MASTER_COVER_SIZE) {
+                // Library covers share one master bitmap per song: any layout at or below the
+                // master size derives from it, so switching layouts never decodes the same
+                // artwork twice.
+                val masterKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:m"
+                var master = coverBitmapCache.get(masterKey)
+                if (master == null) {
+                    master = decodeCoverMaster(song, sidecar, usage)
+                    if (master != null) coverBitmapCache.put(masterKey, master)
                 }
-                BitmapFactory.decodeByteArray(data, 0, data.size, options)
-                    ?.also { coverBitmapCache.put(cacheKey, it) }
-            }.getOrElse { error ->
-                if (error is OutOfMemoryError) {
-                    clearArtworkCachesAfterOom()
-                }
-                Log.w("MusicRepo", "Failed to decode cover bitmap for ${song.path}", error)
-                null
+                if (master == null) return null
+                if (targetSize == MASTER_COVER_SIZE) return master
+                val scaled = scaleCoverBitmap(master, targetSize)
+                if (scaled !== master) coverBitmapCache.put(exactKey, scaled)
+                return scaled
             }
+            decodeCoverBitmapDirect(song, sidecar, targetSize, usage, exactKey)
         }
+    }
+
+    /** Decodes the song's artwork once at [MASTER_COVER_SIZE] for reuse by every library layout. */
+    private fun decodeCoverMaster(song: Song, sidecar: File?, usage: CoverUsage): Bitmap? {
+        if (sidecar != null) {
+            decodeBitmapFile(sidecar, MASTER_COVER_SIZE, Bitmap.Config.ARGB_8888)?.let { return it }
+        }
+        if (usage == CoverUsage.ListThumbnail && !song.prefersEmbeddedArtworkForThumbnail()) {
+            getSharedAlbumArtBitmap(song.albumId)?.let { return it }
+        }
+        val data = getCoverArt(song)
+        if (data != null) {
+            decodeCoverDataToBitmap(data, MASTER_COVER_SIZE)?.let { return it }
+        }
+        return getSharedAlbumArtBitmap(song.albumId)
+    }
+
+    /** Full-size decode for surfaces above master size (player, metadata editor, notification). */
+    private fun decodeCoverBitmapDirect(
+        song: Song,
+        sidecar: File?,
+        targetSize: Int,
+        usage: CoverUsage,
+        exactKey: String
+    ): Bitmap? {
+        if (sidecar != null) {
+            decodeBitmapFile(
+                sidecar,
+                targetSize,
+                if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+            )?.also { coverBitmapCache.put(exactKey, it) }?.let { return it }
+        }
+        if (usage == CoverUsage.ListThumbnail && !song.prefersEmbeddedArtworkForThumbnail()) {
+            decodeAlbumArtBitmap(song.albumId, targetSize, usage)?.let { return it }
+        }
+        val data = getCoverArt(song)
+        if (data == null) return decodeAlbumArtBitmap(song.albumId, targetSize, usage)
+        return decodeCoverDataToBitmap(data, targetSize)
+            ?.also { coverBitmapCache.put(exactKey, it) }
+    }
+
+    private fun decodeCoverDataToBitmap(data: ByteArray, targetSize: Int): Bitmap? {
+        return runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            var sampleSize = 1
+            while ((bounds.outWidth / sampleSize) > targetSize || (bounds.outHeight / sampleSize) > targetSize) sampleSize *= 2
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize.coerceAtLeast(1)
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        }.getOrElse { error ->
+            if (error is OutOfMemoryError) {
+                clearArtworkCachesAfterOom()
+            }
+            Log.w("MusicRepo", "Failed to decode cover bitmap", error)
+            null
+        }
+    }
+
+    /** Downscales a master cover proportionally; returns the source when already small enough. */
+    private fun scaleCoverBitmap(source: Bitmap, targetSize: Int): Bitmap {
+        val maxSide = maxOf(source.width, source.height)
+        if (targetSize <= 0 || maxSide <= targetSize) return source
+        val scale = targetSize.toFloat() / maxSide
+        val width = (source.width * scale).toInt().coerceAtLeast(1)
+        val height = (source.height * scale).toInt().coerceAtLeast(1)
+        return runCatching { Bitmap.createScaledBitmap(source, width, height, true) }.getOrDefault(source)
+    }
+
+    /** Album-level artwork decoded once at master size and shared by every song in the album. */
+    private fun getSharedAlbumArtBitmap(albumId: Long): Bitmap? {
+        if (albumId <= 0L) return null
+        val albumCacheKey = "album:$albumId:m"
+        coverBitmapCache.get(albumCacheKey)?.let { return it }
+        val albumArtUri = getAlbumArtUri(albumId) ?: return null
+        val decoded = runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(albumArtUri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            var sampleSize = 1
+            while ((bounds.outWidth / sampleSize) > MASTER_COVER_SIZE || (bounds.outHeight / sampleSize) > MASTER_COVER_SIZE) sampleSize *= 2
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize.coerceAtLeast(1)
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            context.contentResolver.openInputStream(albumArtUri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        }.getOrElse { error ->
+            if (error is OutOfMemoryError) clearArtworkCachesAfterOom()
+            Log.d("MusicRepo", "Failed to decode album art bitmap for albumId=$albumId", error)
+            null
+        }
+        if (decoded != null) coverBitmapCache.put(albumCacheKey, decoded)
+        return decoded
     }
 
     /**
@@ -141,17 +249,16 @@ internal class MusicCoverArtManager(
     fun getOriginalCoverModel(song: Song): Any? {
         // Online artwork is the actual source for remote songs. For local files prefer embedded
         // bytes, but do not let a stale embedded thumbnail replace an explicitly supplied cover.
-        return song.coverUrl.takeIf { it.isNotBlank() }
-            ?: song.folderSidecarCoverFile()
+        return song.coverUrl.takeIf {
+            it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
+        }
+            ?: songSidecarFile(song)
             ?: getCoverArt(song)
             ?: readableAlbumArtUri(song.albumId)
     }
 
     fun getAlbumArtUri(albumId: Long): Uri? {
-        if (albumId <= 0L) return null
-        return android.content.ContentUris.withAppendedId(
-            android.provider.MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId
-        )
+        return mediaStoreAlbumArtUri(albumId)
     }
 
     private fun readableAlbumArtUri(albumId: Long): Uri? {
@@ -166,6 +273,7 @@ internal class MusicCoverArtManager(
         coverArtCache.evictAll()
         coverBitmapCache.evictAll()
         coverDataStates.clear()
+        sidecarFileMemo.clear()
     }
 
     private fun clearArtworkCachesAfterOom() {
@@ -173,6 +281,7 @@ internal class MusicCoverArtManager(
         coverBitmapCache.evictAll()
         // OOM is a transient decode failure. Never leave permanent Missing/Error sentinels.
         coverDataStates.clear()
+        sidecarFileMemo.clear()
     }
 
     fun clearMetadataCache(song: Song) {

@@ -3,6 +3,7 @@ package com.ella.music.player
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService.LibraryParams
@@ -30,8 +31,25 @@ internal class EllaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC, Bundle.EMPTY))
             .build()
+        // Media3 intentionally gives untrusted controllers read-only player commands by
+        // default. That prevents external widgets from sending the normal transport commands
+        // even though this service is explicitly a music playback service. Keep the read-only
+        // surface intact, but expose only the transport controls a widget needs.
+        val playerCommands = if (controller.isTrusted) {
+            MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+        } else {
+            Player.Commands.Builder()
+                .addAllReadOnlyCommands()
+                .add(Player.COMMAND_PLAY_PAUSE)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_TO_NEXT)
+                .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .build()
+        }
         return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
             .setAvailableSessionCommands(sessionCommands)
+            .setAvailablePlayerCommands(playerCommands)
             .build()
     }
 

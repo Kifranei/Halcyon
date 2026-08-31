@@ -86,7 +86,8 @@ internal fun SongMoreInfoActionSheets(
                     onInfoSongChange(null)
                     openSongWithMediaInfo(context, song)
                 },
-                onDismiss = { onInfoSongChange(null) }
+                onDismiss = { onInfoSongChange(null) },
+                onUpdateModifiedTime = { mainViewModel.updateSongModifiedTime(song, it) }
             )
         }
     }

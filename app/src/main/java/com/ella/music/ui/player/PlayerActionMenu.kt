@@ -27,6 +27,7 @@ import com.ella.music.data.ActionMenuLayout
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.ui.components.actionMenuIcon
 import com.ella.music.viewmodel.AbRepeatPhase
 import com.ella.music.viewmodel.AbRepeatState
 
@@ -47,7 +48,6 @@ internal fun PlayerActionMenu(
     lyricFormatAvailability: MusicRepository.LyricFormatAvailability,
     preferTtmlLyrics: Boolean?,
     lyricSourceMode: Int,
-    lyricParserEngine: Int,
     lyricLayoutProfile: PlayerLyricLayoutProfile,
     lyricFontScale: Float,
     lyricSecondaryFontScale: Float,
@@ -100,7 +100,6 @@ internal fun PlayerActionMenu(
     onLyricPerspectiveYAngle: (Int) -> Unit,
     onLyricSourceMode: (Int) -> Unit,
     onLyricFormatPreference: (Boolean) -> Unit,
-    onLyricParserEngine: (Int) -> Unit,
     onLyricFontScale: (Float) -> Unit,
     onLyricSecondaryFontScale: (Float) -> Unit,
     onLyricPrimaryTextSize: (Float) -> Unit,
@@ -154,61 +153,118 @@ internal fun PlayerActionMenu(
                     onPreviewCover = onPreviewCover
                 )
                 Spacer(modifier = Modifier.height(14.dp))
-                PlayerActionShortcutRow(
-                    onAddToPlaylist = onAddToPlaylist,
-                    onPlayNext = onPlayNext,
-                    onTimer = { page = PlayerActionSheetPage.Timer },
-                    onSpeed = { page = PlayerActionSheetPage.Speed },
-                    onOpenEqualizer = onOpenEqualizer,
-                )
+                PlayerActionMenuGroup {
+                    PlayerActionShortcutRow(
+                        onAddToPlaylist = onAddToPlaylist,
+                        onPlayNext = onPlayNext,
+                        onTimer = { page = PlayerActionSheetPage.Timer },
+                        onSpeed = { page = PlayerActionSheetPage.Speed },
+                        onOpenEqualizer = onOpenEqualizer,
+                    )
+                }
                 Spacer(modifier = Modifier.height(14.dp))
                 PlayerActionMenuGroup {
                     visibleActions.forEach { actionId ->
+                        val icon = actionMenuIcon(actionId)
                         when (actionId) {
-                            ActionMenuIds.ADD_TO_QUEUE -> PlayerActionMenuItem(stringResource(R.string.common_add_to_queue), onAddToQueue)
-                            ActionMenuIds.SHARE -> PlayerActionMenuItem(stringResource(R.string.common_share), onShare)
-                            ActionMenuIds.AI -> PlayerActionMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
-                            ActionMenuIds.INFO -> PlayerActionMenuItem(stringResource(R.string.player_song_info), onSongInfo)
+                            ActionMenuIds.ADD_TO_QUEUE -> PlayerActionMenuItem(
+                                stringResource(R.string.common_add_to_queue),
+                                onAddToQueue,
+                                icon = icon
+                            )
+                            ActionMenuIds.SHARE -> PlayerActionMenuItem(
+                                stringResource(R.string.common_share),
+                                onShare,
+                                icon = icon
+                            )
+                            ActionMenuIds.AI -> PlayerActionMenuItem(
+                                stringResource(R.string.song_more_ai_title),
+                                onAiInterpret,
+                                icon = icon
+                            )
+                            ActionMenuIds.INFO -> PlayerActionMenuItem(
+                                stringResource(R.string.player_song_info),
+                                onSongInfo,
+                                icon = icon
+                            )
                             ActionMenuIds.AUDIO_OUTPUT -> PlayerActionMenuItem(
                                 text = stringResource(R.string.player_audio_output_info),
-                                onClick = { page = PlayerActionSheetPage.AudioOutput }
+                                onClick = { page = PlayerActionSheetPage.AudioOutput },
+                                icon = icon
                             )
                             ActionMenuIds.CASTING -> PlayerActionMenuItem(
                                 text = stringResource(R.string.casting_devices_title),
-                                onClick = { openSystemOutputSwitcher(context) }
+                                onClick = { openSystemOutputSwitcher(context) },
+                                icon = icon
                             )
-                            ActionMenuIds.AB_REPEAT -> PlayerActionMenuItem(abRepeatLabel, onAbRepeat)
+                            ActionMenuIds.AB_REPEAT -> PlayerActionMenuItem(
+                                abRepeatLabel,
+                                onAbRepeat,
+                                icon = icon
+                            )
                             ActionMenuIds.REMOTE_QUALITY -> remoteStreamMaxBitRate?.let { bitRate ->
                                 PlayerActionMenuItem(
                                     stringResource(
                                         R.string.player_remote_stream_quality,
                                         if (bitRate == 0) stringResource(R.string.player_remote_stream_original) else "$bitRate kbps"
                                     ),
-                                    onCycleRemoteStreamQuality
+                                    onCycleRemoteStreamQuality,
+                                    icon = icon
                                 )
                             }
-                            ActionMenuIds.LANDSCAPE -> PlayerActionMenuItem(stringResource(R.string.player_landscape_lyrics), onLandscape)
+                            ActionMenuIds.LANDSCAPE -> PlayerActionMenuItem(
+                                stringResource(R.string.player_landscape_lyrics),
+                                onLandscape,
+                                icon = icon
+                            )
                             ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) {
                                 PlayerActionMenuItem(
                                     text = stringResource(R.string.player_lyrics_display),
-                                    onClick = { page = PlayerActionSheetPage.LyricDisplay }
+                                    onClick = { page = PlayerActionSheetPage.LyricDisplay },
+                                    icon = icon
                                 )
                             }
-                            ActionMenuIds.SPECTRUM -> PlayerActionMenuItem(stringResource(R.string.song_more_view_spectrum), onSpectrum)
-                            ActionMenuIds.RATING -> PlayerActionMenuItem(stringResource(R.string.song_more_set_rating), onSetRating)
-                            ActionMenuIds.DYNAMIC_COVER -> PlayerActionMenuItem(stringResource(R.string.player_match_dynamic_cover), onMatchDynamicCover)
+                            ActionMenuIds.SPECTRUM -> PlayerActionMenuItem(
+                                stringResource(R.string.song_more_view_spectrum),
+                                onSpectrum,
+                                icon = icon
+                            )
+                            ActionMenuIds.RATING -> PlayerActionMenuItem(
+                                stringResource(R.string.song_more_set_rating),
+                                onSetRating,
+                                icon = icon
+                            )
+                            ActionMenuIds.DYNAMIC_COVER -> PlayerActionMenuItem(
+                                stringResource(R.string.player_match_dynamic_cover),
+                                onMatchDynamicCover,
+                                icon = icon
+                            )
                             ActionMenuIds.VISUALIZER -> if (visualizerAvailable) {
                                 PlayerActionMenuItem(
                                     text = stringResource(R.string.player_visualizer_settings),
-                                    onClick = { page = PlayerActionSheetPage.Visualizer }
+                                    onClick = { page = PlayerActionSheetPage.Visualizer },
+                                    icon = icon
                                 )
                             }
-                            ActionMenuIds.EDIT_TAGS -> PlayerActionMenuItem(stringResource(R.string.player_edit_metadata), onEditMetadata)
-                            ActionMenuIds.LYRIC_TIMING -> PlayerActionMenuItem(stringResource(R.string.player_lyric_timing), onLyricTiming)
-                            ActionMenuIds.ONLINE_LYRICS -> PlayerActionMenuItem(stringResource(R.string.player_match_online_lyrics), onMatchOnlineLyrics)
+                            ActionMenuIds.EDIT_TAGS -> PlayerActionMenuItem(
+                                stringResource(R.string.player_edit_metadata),
+                                onEditMetadata,
+                                icon = icon
+                            )
+                            ActionMenuIds.LYRIC_TIMING -> PlayerActionMenuItem(
+                                stringResource(R.string.player_lyric_timing),
+                                onLyricTiming,
+                                icon = icon
+                            )
+                            ActionMenuIds.ONLINE_LYRICS -> PlayerActionMenuItem(
+                                stringResource(R.string.player_match_online_lyrics),
+                                onMatchOnlineLyrics,
+                                icon = icon
+                            )
                             ActionMenuIds.LYRIC_OFFSET -> PlayerActionMenuItem(
                                 text = stringResource(R.string.player_lyric_offset),
-                                onClick = { page = PlayerActionSheetPage.LyricOffset }
+                                onClick = { page = PlayerActionSheetPage.LyricOffset },
+                                icon = icon
                             )
                             ActionMenuIds.KEEP_SCREEN_ON -> if (showPlayerKeepScreenOnAction) {
                                 PlayerActionMenuItem(
@@ -216,17 +272,27 @@ internal fun PlayerActionMenu(
                                         if (playerKeepScreenOn) R.string.player_disable_playback_keep_screen_on
                                         else R.string.player_enable_playback_keep_screen_on
                                     ),
-                                    { onPlayerKeepScreenOnChange(!playerKeepScreenOn) }
+                                    { onPlayerKeepScreenOnChange(!playerKeepScreenOn) },
+                                    icon = icon
                                 )
                             }
                             ActionMenuIds.DOWNLOAD -> if (song?.onlineSource == "kw" && song.path.startsWith("http")) {
-                                PlayerActionMenuItem(stringResource(R.string.player_download_lx_song), onDownload)
+                                PlayerActionMenuItem(
+                                    stringResource(R.string.player_download_lx_song),
+                                    onDownload,
+                                    icon = icon
+                                )
                             }
                             ActionMenuIds.DELETE -> if (
                                 song != null && !song.path.startsWith("http://", ignoreCase = true) &&
                                 !song.path.startsWith("https://", ignoreCase = true)
                             ) {
-                                PlayerActionMenuItem(stringResource(R.string.song_more_delete_permanently), onDeleteSong, danger = true)
+                                PlayerActionMenuItem(
+                                    stringResource(R.string.song_more_delete_permanently),
+                                    onDeleteSong,
+                                    danger = true,
+                                    icon = icon
+                                )
                             }
                         }
                     }
@@ -278,7 +344,6 @@ internal fun PlayerActionMenu(
                     lyricFormatAvailability = lyricFormatAvailability,
                     preferTtmlLyrics = preferTtmlLyrics,
                     lyricSourceMode = lyricSourceMode,
-                    lyricParserEngine = lyricParserEngine,
                     layoutProfile = lyricLayoutProfile,
                     fontScale = lyricFontScale,
                     secondaryFontScale = lyricSecondaryFontScale,
@@ -293,7 +358,6 @@ internal fun PlayerActionMenu(
                     onPerspectiveYAngle = onLyricPerspectiveYAngle,
                     onLyricSourceMode = onLyricSourceMode,
                     onLyricFormatPreference = onLyricFormatPreference,
-                    onLyricParserEngine = onLyricParserEngine,
                     onFontScale = onLyricFontScale,
                     onSecondaryFontScale = onLyricSecondaryFontScale,
                     onPrimaryTextSize = onLyricPrimaryTextSize,

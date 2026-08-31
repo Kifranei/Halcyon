@@ -1,11 +1,11 @@
 package com.ella.music.ui.playlist
 
-import android.net.Uri
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.data.repository.mediaStoreAlbumArtUri
 import com.ella.music.ui.listmodel.LibraryListSorter
 import com.ella.music.ui.listmodel.SongDisplaySpec
 import com.ella.music.ui.listmodel.SongSortField
@@ -226,7 +226,7 @@ internal fun Long.formatPlaylistDuration(): String {
 internal fun Song?.playlistCoverModel(): Any? {
     val song = this ?: return null
     return song.coverUrl.takeIf { it.isNotBlank() }
-        ?: song.albumId.takeIf { it > 0L }?.let { Uri.parse("content://media/external/audio/albumart/$it") }
+        ?: mediaStoreAlbumArtUri(song.albumId)
 }
 
 internal fun String.safePlaylistFileName(): String =

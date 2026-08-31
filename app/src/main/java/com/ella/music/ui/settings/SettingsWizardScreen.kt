@@ -164,10 +164,7 @@ fun SettingsWizardScreen(
                         Column {
                             WindowSpinnerPreference(
                                 title = stringResource(R.string.settings_player_page_style),
-                                summary = stringResource(
-                                    R.string.settings_current_value,
-                                    playerPageStyleOptions[selectedPlayerPageStyle].second
-                                ),
+                                summary = stringResource(R.string.settings_player_page_style_summary),
                                 items = playerPageStyleOptions.map { DropdownItem(title = it.second) },
                                 selectedIndex = selectedPlayerPageStyle,
                                 onSelectedIndexChange = { index ->

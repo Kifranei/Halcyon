@@ -108,9 +108,11 @@ internal class PlayerPlaybackStatsTracker(
 
 /** Counts a play after either configured condition is met, matching issue #419. */
 internal fun playbackCountThresholdMs(songDurationMs: Long, percent: Int, durationMs: Long): Long {
-    val safePercent = percent.coerceIn(30, 95)
-    val safeDurationMs = durationMs.coerceIn(30_000L, 360_000L)
-    val percentageThresholdMs = if (songDurationMs > 0L) {
+    val safePercent = percent.coerceIn(0, 100)
+    val safeDurationMs = durationMs.coerceIn(0L, 360_000L)
+    val percentageThresholdMs = if (safePercent == 0) {
+        0L
+    } else if (songDurationMs > 0L) {
         (songDurationMs * safePercent / 100L).coerceAtLeast(1L)
     } else {
         Long.MAX_VALUE

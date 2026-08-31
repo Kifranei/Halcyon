@@ -358,7 +358,8 @@ private fun FavoriteInsightCard(
                 song = insight.song,
                 mainViewModel = mainViewModel,
                 modifier = Modifier.fillMaxSize(),
-                coverSize = 512
+                coverSize = 512,
+                loadOriginal = insight.labelRes == R.string.analytics_month_favorite_album
             )
             Box(
                 modifier = Modifier

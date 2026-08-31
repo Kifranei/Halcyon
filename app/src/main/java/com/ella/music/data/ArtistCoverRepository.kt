@@ -12,6 +12,8 @@ class ArtistCoverRepository private constructor(
     @Volatile
     private var cachedFolderLocation: String? = null
     @Volatile
+    private var cachedIgnoreCase: Boolean? = null
+    @Volatile
     private var cachedIndex: Map<String, List<ArtistCoverAsset>> = emptyMap()
     private val indexLock = Any()
 
@@ -39,41 +41,52 @@ class ArtistCoverRepository private constructor(
         artistName: String,
         folderLocation: String
     ): List<ArtistCoverAsset> {
-        val artistKey = normalizeArtistCoverKey(artistName)
+        val ignoreCase = NameSplitConfigStore.tagIgnoreCase
+        val artistKey = normalizeArtistCoverKey(artistName, ignoreCase)
         val safeFolderLocation = folderLocation.trim()
         if (artistKey.isBlank() || safeFolderLocation.isBlank()) return emptyList()
-        return ensureIndex(safeFolderLocation)[artistKey].orEmpty()
+        return ensureIndex(safeFolderLocation, ignoreCase)[artistKey].orEmpty()
     }
 
-    private fun ensureIndex(folderLocation: String): Map<String, List<ArtistCoverAsset>> {
+    private fun ensureIndex(
+        folderLocation: String,
+        ignoreCase: Boolean
+    ): Map<String, List<ArtistCoverAsset>> {
         cachedFolderLocation
-            ?.takeIf { it == folderLocation }
+            ?.takeIf { it == folderLocation && cachedIgnoreCase == ignoreCase }
             ?.let { return cachedIndex }
 
         synchronized(indexLock) {
             cachedFolderLocation
-                ?.takeIf { it == folderLocation }
+                ?.takeIf { it == folderLocation && cachedIgnoreCase == ignoreCase }
                 ?.let { return cachedIndex }
 
-            val built = buildIndex(folderLocation)
+            val built = buildIndex(folderLocation, ignoreCase)
             cachedFolderLocation = folderLocation
+            cachedIgnoreCase = ignoreCase
             cachedIndex = built
             return built
         }
     }
 
-    private fun buildIndex(folderLocation: String): Map<String, List<ArtistCoverAsset>> {
+    private fun buildIndex(
+        folderLocation: String,
+        ignoreCase: Boolean
+    ): Map<String, List<ArtistCoverAsset>> {
         return when {
             folderLocation.startsWith("content://", ignoreCase = true) -> {
                 val root = DocumentFile.fromTreeUri(context, Uri.parse(folderLocation)) ?: return emptyMap()
-                buildTreeIndex(root)
+                buildTreeIndex(root, ignoreCase)
             }
 
-            else -> buildLocalFolderIndex(File(folderLocation))
+            else -> buildLocalFolderIndex(File(folderLocation), ignoreCase)
         }
     }
 
-    private fun buildTreeIndex(root: DocumentFile): Map<String, List<ArtistCoverAsset>> {
+    private fun buildTreeIndex(
+        root: DocumentFile,
+        ignoreCase: Boolean
+    ): Map<String, List<ArtistCoverAsset>> {
         val accumulator = ArtistCoverAccumulator()
 
         fun visit(node: DocumentFile) {
@@ -82,7 +95,8 @@ class ArtistCoverRepository private constructor(
                 when {
                     child.isDirectory -> visit(child)
                     child.isFile -> {
-                        val match = artistCoverMatch(child.name.orEmpty(), child.type) ?: return@forEach
+                        val match = artistCoverMatch(child.name.orEmpty(), child.type, ignoreCase)
+                            ?: return@forEach
                         accumulator.add(match, child.uri)
                     }
                 }
@@ -93,13 +107,16 @@ class ArtistCoverRepository private constructor(
         return accumulator.build()
     }
 
-    private fun buildLocalFolderIndex(root: File): Map<String, List<ArtistCoverAsset>> {
+    private fun buildLocalFolderIndex(
+        root: File,
+        ignoreCase: Boolean
+    ): Map<String, List<ArtistCoverAsset>> {
         if (!root.exists() || !root.isDirectory) return emptyMap()
         val accumulator = ArtistCoverAccumulator()
         runCatching {
             root.walkTopDown().forEach { file ->
                 if (!file.isFile) return@forEach
-                val match = artistCoverMatch(file.name) ?: return@forEach
+                val match = artistCoverMatch(file.name, ignoreCase = ignoreCase) ?: return@forEach
                 accumulator.add(match, Uri.fromFile(file))
             }
         }
@@ -183,14 +200,16 @@ private fun List<ArtistCoverAsset>.preferredCover(): ArtistCoverAsset? =
 
 internal fun artistCoverMatchKey(
     fileName: String,
-    mimeType: String? = null
+    mimeType: String? = null,
+    ignoreCase: Boolean = true
 ): String? {
-    return artistCoverMatch(fileName, mimeType)?.key
+    return artistCoverMatch(fileName, mimeType, ignoreCase)?.key
 }
 
 internal fun artistCoverMatch(
     fileName: String,
-    mimeType: String? = null
+    mimeType: String? = null,
+    ignoreCase: Boolean = true
 ): ArtistCoverMatch? {
     val trimmedName = fileName.trim()
     if (trimmedName.isBlank()) return null
@@ -210,13 +229,16 @@ internal fun artistCoverMatch(
     } else {
         baseName
     }
-    val key = normalizeArtistCoverKey(coreName).takeIf { it.isNotBlank() } ?: return null
+    val key = normalizeArtistCoverKey(coreName, ignoreCase).takeIf { it.isNotBlank() } ?: return null
     return ArtistCoverMatch(key = key, kind = kind, order = order)
 }
 
-internal fun normalizeArtistCoverKey(value: String): String {
-    return LibraryNormalizer.cleanedArtistText(value)
+internal fun normalizeArtistCoverKey(
+    value: String,
+    ignoreCase: Boolean = true
+): String {
+    val cleaned = LibraryNormalizer.cleanedArtistText(value)
         .replace(Regex("""\s+"""), " ")
         .trim()
-        .lowercase(Locale.ROOT)
+    return if (ignoreCase) cleaned.lowercase(Locale.ROOT) else cleaned
 }

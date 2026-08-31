@@ -135,7 +135,6 @@ internal fun CoverPlayerPage(
     lyricFormatAvailability: MusicRepository.LyricFormatAvailability,
     preferTtmlLyrics: Boolean?,
     lyricSourceMode: Int,
-    lyricParserEngine: Int,
     lyricLayoutProfile: PlayerLyricLayoutProfile,
     fontFamily: FontFamily?,
     translationFontFamily: FontFamily? = fontFamily,
@@ -160,6 +159,7 @@ internal fun CoverPlayerPage(
     menuExpanded: Boolean,
     queueExpanded: Boolean,
     playlist: List<Song>,
+    currentQueueIndexHint: Int = -1,
     favoriteSongKeys: Set<String> = emptySet(),
     loadSongRating: (Song) -> Int = { 0 },
     ratingRevision: Int = 0,
@@ -199,7 +199,6 @@ internal fun CoverPlayerPage(
     onLyricPerspectiveYAngle: (Int) -> Unit,
     onLyricSourceMode: (Int) -> Unit,
     onLyricFormatPreference: (Boolean) -> Unit,
-    onLyricParserEngine: (Int) -> Unit,
     onLyricFontScale: (Float) -> Unit,
     onLyricSecondaryFontScale: (Float) -> Unit,
     onLyricPrimaryTextSize: (Float) -> Unit,
@@ -255,15 +254,20 @@ internal fun CoverPlayerPage(
     // the user pauses even if Media3's isPlaying callback is one frame late.
     val visualIsPlaying = playWhenReady
     val staticCoverPreviewModel by produceState<Any?>(
-        initialValue = resolveCoverPreviewModel(song, embeddedCover),
-        song?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
+        initialValue = embeddedCover ?: resolveCoverPreviewModel(song, null),
+        song?.let {
+            listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize, it.coverUrl).joinToString("|")
+        },
+        embeddedCover
     ) {
-        value = withContext(Dispatchers.IO) {
+        value = embeddedCover ?: withContext(Dispatchers.IO) {
             song?.let(playerViewModel::getOriginalCoverModel)
-                ?: resolveCoverPreviewModel(song, embeddedCover)
+                ?: resolveCoverPreviewModel(song, null)
         }
     }
-    val resolvedStaticCoverPreviewModel = staticCoverPreviewModel
+    // The bitmap extracted from the local file always wins over a stale Media3/MediaStore URI
+    // that may have been present in the first composition of the page.
+    val resolvedStaticCoverPreviewModel = embeddedCover ?: staticCoverPreviewModel
     // Keep an opened preview as a snapshot.  Changing tracks must update the player behind the
     // dialog, not dismiss or replace the artwork the user is currently inspecting.
     var previewCover by remember { mutableStateOf<PlayerCoverPreview?>(null) }
@@ -344,7 +348,8 @@ internal fun CoverPlayerPage(
     val immersiveLyricSwipeModifier = rememberCoverSwipeModifier(
         swipeEnabled = immersiveLyricSwipeEnabled,
         onSwipePrevious = onSwipePrevious,
-        onSwipeNext = onNext
+        onSwipeNext = onNext,
+        dismissEnabled = false
     )
     val defaultAppleMusicLyrics = defaultAppleMusicShowLyrics &&
         com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle) ==
@@ -593,6 +598,7 @@ internal fun CoverPlayerPage(
                         show = queueExpanded,
                         playlist = playlist,
                         currentSongKey = song?.playlistIdentityKey(),
+                        currentQueueIndexHint = currentQueueIndexHint,
                         shuffleEnabled = shuffleEnabled,
                         repeatMode = repeatMode,
                         queueLocked = queueLocked,
@@ -844,7 +850,6 @@ internal fun CoverPlayerPage(
                 lyricFormatAvailability = lyricFormatAvailability,
                 preferTtmlLyrics = preferTtmlLyrics,
                 lyricSourceMode = lyricSourceMode,
-                lyricParserEngine = lyricParserEngine,
                 layoutProfile = lyricLayoutProfile,
                 fontScale = fontScale,
                 secondaryFontScale = secondaryFontScale,
@@ -872,10 +877,6 @@ internal fun CoverPlayerPage(
                 onLyricFormatPreference = { preferTtml ->
                     lyricMenuExpanded = false
                     onLyricFormatPreference(preferTtml)
-                },
-                onLyricParserEngine = { engine ->
-                    lyricMenuExpanded = false
-                    onLyricParserEngine(engine)
                 },
                 onFontScale = onLyricFontScale,
                 onSecondaryFontScale = onLyricSecondaryFontScale,
@@ -957,8 +958,7 @@ internal fun CoverPlayerPage(
                                     brush = Brush.verticalGradient(
                                         colorStops = arrayOf(
                                             0.00f to Color.White,
-                                            0.70f to Color.White,
-                                            0.88f to Color.White.copy(alpha = 0.62f),
+                                            0.78f to Color.White,
                                             1.00f to Color.Transparent
                                         )
                                     ),
@@ -966,54 +966,53 @@ internal fun CoverPlayerPage(
                                 )
                             }
                     )
-                    CompositionLocalProvider(LocalPlayerContentColor provides pagePalette.onBackground) {
-                        Row(
+                }
+                CompositionLocalProvider(LocalPlayerContentColor provides pagePalette.onBackground) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 24.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        PlayerSongMetaText(
+                            song = song,
+                            annotation = annotation,
+                            titleFontSize = 22.sp,
+                            artistFontSize = 15.sp,
+                            artistAlpha = 0.72f,
+                            showArtistWithAnnotation = true,
+                            contentColor = pagePalette.onBackground,
+                            fontFamily = fontFamily,
+                            onArtistClick = onArtist,
+                            titleMarqueeEnabled = true,
+                            artistMarqueeEnabled = true,
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .padding(start = 24.dp, end = 16.dp, bottom = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .weight(1f)
+                                .widthIn(min = 0.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(pagePalette.onBackground.copy(alpha = 0.20f))
+                                .playerNoIndicationClick(onPlayPause),
+                            contentAlignment = Alignment.Center
                         ) {
-                            PlayerSongMetaText(
-                                song = song,
-                                annotation = annotation,
-                                titleFontSize = 22.sp,
-                                artistFontSize = 15.sp,
-                                artistAlpha = 0.72f,
-                                showArtistWithAnnotation = true,
-                                contentColor = pagePalette.onBackground,
-                                fontFamily = fontFamily,
-                                onArtistClick = onArtist,
-                                titleMarqueeEnabled = true,
-                                artistMarqueeEnabled = true,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .widthIn(min = 0.dp)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(pagePalette.onBackground.copy(alpha = 0.20f))
-                                    .playerNoIndicationClick(onPlayPause),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CenteredPlayPauseGlyph(
-                                    isPlaying = visualIsPlaying,
-                                    tint = pagePalette.onBackground,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            PlayerHeaderAction(
-                                kind = PlayerHeaderActionKind.Favorite,
-                                selected = isFavorite,
-                                onClick = onToggleFavorite
-                            )
-                            PlayerHeaderAction(
-                                kind = PlayerHeaderActionKind.More,
-                                onClick = onToggleMenu
+                            CenteredPlayPauseGlyph(
+                                isPlaying = visualIsPlaying,
+                                tint = pagePalette.onBackground,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.Favorite,
+                            selected = isFavorite,
+                            onClick = onToggleFavorite
+                        )
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.More,
+                            onClick = onToggleMenu
+                        )
                     }
                 }
                 Box(
@@ -1315,6 +1314,7 @@ internal fun CoverPlayerPage(
                     resolvedStaticCoverPreviewModel != null,
                 queueExpanded = queueExpanded,
                 playlist = playlist,
+                currentQueueIndexHint = currentQueueIndexHint,
                 queueLocked = queueLocked,
                 favoriteSongKeys = favoriteSongKeys,
                 loadSongRating = loadSongRating,
@@ -1632,6 +1632,7 @@ internal fun CoverPlayerPage(
                             palette = pagePalette,
                             queueExpanded = queueExpanded,
                             playlist = playlist,
+                            currentQueueIndexHint = currentQueueIndexHint,
                             favoriteSongKeys = favoriteSongKeys,
                             loadSongRating = loadSongRating,
                             ratingRevision = ratingRevision,
@@ -1908,6 +1909,7 @@ internal fun CoverPlayerPage(
                             palette = pagePalette,
                             queueExpanded = queueExpanded,
                             playlist = playlist,
+                            currentQueueIndexHint = currentQueueIndexHint,
                             favoriteSongKeys = favoriteSongKeys,
                             loadSongRating = loadSongRating,
                             ratingRevision = ratingRevision,
@@ -1956,7 +1958,6 @@ internal fun CoverPlayerPage(
             lyricFormatAvailability = lyricFormatAvailability,
             preferTtmlLyrics = preferTtmlLyrics,
             lyricSourceMode = lyricSourceMode,
-            lyricParserEngine = lyricParserEngine,
             lyricLayoutProfile = lyricLayoutProfile,
             lyricFontScale = fontScale,
             lyricSecondaryFontScale = secondaryFontScale,
@@ -2009,7 +2010,6 @@ internal fun CoverPlayerPage(
             onLyricPerspectiveYAngle = onLyricPerspectiveYAngle,
             onLyricSourceMode = onLyricSourceMode,
             onLyricFormatPreference = onLyricFormatPreference,
-            onLyricParserEngine = onLyricParserEngine,
             onLyricFontScale = onLyricFontScale,
             onLyricSecondaryFontScale = onLyricSecondaryFontScale,
             onLyricPrimaryTextSize = onLyricPrimaryTextSize,
@@ -2112,9 +2112,10 @@ internal fun PlayerCoverTitleRow(
 private fun rememberCoverSwipeModifier(
     swipeEnabled: Boolean,
     onSwipePrevious: () -> Unit,
-    onSwipeNext: () -> Unit
+    onSwipeNext: () -> Unit,
+    dismissEnabled: Boolean = true
 ): Modifier {
-    val dismissHandle = LocalPlayerCoverDismiss.current
+    val dismissHandle = LocalPlayerCoverDismiss.current.takeIf { dismissEnabled }
     return Modifier.playerCoverGestures(
         swipeEnabled = swipeEnabled,
         onSwipePrevious = onSwipePrevious,

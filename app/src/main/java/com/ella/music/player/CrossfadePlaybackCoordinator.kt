@@ -557,6 +557,7 @@ internal class WaveformLevelAudioProcessor : BaseAudioProcessor() {
         private set
 
     private var encoding: Int = C.ENCODING_INVALID
+    private var aliasCopyBuffer = ByteArray(0)
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         encoding = inputAudioFormat.encoding
@@ -564,9 +565,26 @@ internal class WaveformLevelAudioProcessor : BaseAudioProcessor() {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        level = level * 0.68f + measurePeak(inputBuffer, encoding) * 0.32f
-        val output = replaceOutputBuffer(inputBuffer.remaining())
-        output.put(inputBuffer).flip()
+        // BaseAudioProcessor is allowed to hand a processor back the same ByteBuffer instance
+        // that it returned previously. ByteBuffer.put(ByteBuffer) rejects that exact alias with
+        // "The source buffer is this buffer". It is especially easy to hit while an E-AC-3
+        // decoder is being prepared or flushed, which used to surface as a playback error and
+        // made the crossfade coordinator repeatedly restart the current song.
+        val input = inputBuffer.duplicate()
+        val byteCount = input.remaining()
+        level = level * 0.68f + measurePeak(input, encoding) * 0.32f
+        val output = replaceOutputBuffer(byteCount)
+        if (output === inputBuffer) {
+            if (aliasCopyBuffer.size < byteCount) {
+                aliasCopyBuffer = ByteArray(byteCount)
+            }
+            input.get(aliasCopyBuffer, 0, byteCount)
+            output.put(aliasCopyBuffer, 0, byteCount)
+        } else {
+            output.put(input)
+        }
+        inputBuffer.position(inputBuffer.limit())
+        output.flip()
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
@@ -577,6 +595,7 @@ internal class WaveformLevelAudioProcessor : BaseAudioProcessor() {
     override fun onReset() {
         level = 0f
         encoding = C.ENCODING_INVALID
+        aliasCopyBuffer = ByteArray(0)
     }
 
     private fun measurePeak(buffer: ByteBuffer, encoding: Int): Float {

@@ -9,6 +9,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import com.ella.music.data.ArtistCoverAsset
 import com.ella.music.data.ArtistImageRepository
+import com.ella.music.data.ResolvedArtistImage
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
 import com.ella.music.data.lastfm.LastFmSecureStore
@@ -53,9 +54,34 @@ internal fun rememberArtistCoverModel(
     representativeSong: Song?,
     folderLocation: String,
     mainViewModel: MainViewModel,
-    coversEnabled: Boolean = true
+    coversEnabled: Boolean = true,
+    includeLibraryArtwork: Boolean = true
 ): Any? {
-    if (!coversEnabled) return null
+    return rememberArtistCoverResolution(
+        artistName = artistName,
+        representativeSong = representativeSong,
+        folderLocation = folderLocation,
+        mainViewModel = mainViewModel,
+        coversEnabled = coversEnabled,
+        includeLibraryArtwork = includeLibraryArtwork
+    ).model
+}
+
+internal data class ArtistCoverResolution(
+    val model: Any?,
+    val downloadSource: String? = null
+)
+
+@Composable
+internal fun rememberArtistCoverResolution(
+    artistName: String,
+    representativeSong: Song?,
+    folderLocation: String,
+    mainViewModel: MainViewModel,
+    coversEnabled: Boolean = true,
+    includeLibraryArtwork: Boolean = true
+): ArtistCoverResolution {
+    if (!coversEnabled) return ArtistCoverResolution(null)
     val context = LocalContext.current
     val settingsManager = mainViewModel.settingsManager
     val artistImageDownload by settingsManager.artistImageDownload.collectAsState(
@@ -65,7 +91,7 @@ internal fun rememberArtistCoverModel(
         initial = SettingsManager.DEFAULT_ARTIST_IMAGE_SOURCES
     )
     val lastFmCredentials by LastFmSecureStore.getInstance(context).credentials.collectAsState()
-    val lastFmRegion by settingsManager.artistBioLastFmLang.collectAsState(
+    val lastFmRegion by settingsManager.artistImageRegion.collectAsState(
         initial = DEFAULT_LAST_FM_WIKI_REGION
     )
     val spotifyClientId by settingsManager.spotifyClientId.collectAsState(initial = "")
@@ -93,7 +119,7 @@ internal fun rememberArtistCoverModel(
         folderLocation = if (coversEnabled) folderLocation else "",
         mainViewModel = mainViewModel
     )
-    val downloadedArtistCoverUri by produceState<Uri?>(
+    val downloadedArtistCover by produceState<ResolvedArtistImage?>(
         initialValue = null,
         artistName,
         artistImageDownload,
@@ -107,7 +133,7 @@ internal fun rememberArtistCoverModel(
         value = if (!networkDownloadAllowed) {
             null
         } else {
-            ArtistImageRepository.resolve(
+            ArtistImageRepository.resolveDetailed(
                 context = context.applicationContext,
                 artistName = artistName,
                 sourceOrder = artistImageSourceOrder,
@@ -120,7 +146,11 @@ internal fun rememberArtistCoverModel(
     }
     // The order mirrors issue #567: local artist assets, downloaded artist art, then the
     // representative song's carefully ranked embedded/album artwork.
-    return customArtistCoverUri ?: downloadedArtistCoverUri ?: artworkState.model
+    val libraryArtwork = if (includeLibraryArtwork) artworkState.model else null
+    return ArtistCoverResolution(
+        model = customArtistCoverUri ?: downloadedArtistCover?.uri ?: libraryArtwork,
+        downloadSource = downloadedArtistCover?.source?.takeIf { customArtistCoverUri == null }
+    )
 }
 
 @Composable

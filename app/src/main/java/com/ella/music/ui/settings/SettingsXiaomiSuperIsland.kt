@@ -52,6 +52,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
     )
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_lyric_content),
+        summary = stringResource(R.string.settings_xiaomi_super_island_lyric_content_summary),
         labels = contentLabels,
         selectedIndex = settings.lyricTextMode,
         onSelected = { update(settings.copy(lyricTextMode = it)) }
@@ -63,6 +64,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
     )
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_lyric_mode),
+        summary = stringResource(R.string.settings_xiaomi_super_island_lyric_mode_summary),
         labels = lyricModeLabels,
         selectedIndex = settings.lyricMode,
         onSelected = { update(settings.copy(lyricMode = it)) }
@@ -132,6 +134,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
         )
         SuperIslandSpinner(
             title = stringResource(R.string.settings_xiaomi_super_island_color_source),
+            summary = stringResource(R.string.settings_xiaomi_super_island_color_source_summary),
             labels = colorSourceLabels,
             selectedIndex = settings.colorSource,
             onSelected = { update(settings.copy(colorSource = it)) }
@@ -172,6 +175,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
     )
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_actions),
+        summary = stringResource(R.string.settings_xiaomi_super_island_actions_summary),
         labels = actionLabels,
         selectedIndex = settings.actionStyle,
         onSelected = { update(settings.copy(actionStyle = it)) }
@@ -183,6 +187,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
         )
         SuperIslandSpinner(
             title = stringResource(R.string.settings_xiaomi_super_island_notification_style),
+            summary = stringResource(R.string.settings_xiaomi_super_island_notification_style_summary),
             labels = notificationStyleLabels,
             selectedIndex = settings.notificationStyle,
             onSelected = { update(settings.copy(notificationStyle = it)) }
@@ -194,6 +199,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
             )
             SuperIslandSpinner(
                 title = stringResource(R.string.settings_xiaomi_super_island_button_layout),
+                summary = stringResource(R.string.settings_xiaomi_super_island_button_layout_summary),
                 labels = mediaLayoutLabels,
                 selectedIndex = settings.mediaButtonLayout,
                 onSelected = { update(settings.copy(mediaButtonLayout = it)) }
@@ -247,6 +253,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
     )
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_dismiss_delay),
+        summary = stringResource(R.string.settings_xiaomi_super_island_dismiss_delay_summary),
         labels = dismissLabels,
         selectedIndex = dismissValues.indexOf(settings.dismissDelayMs).coerceAtLeast(0),
         onSelected = { index -> update(settings.copy(dismissDelayMs = dismissValues[index])) }
@@ -256,6 +263,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
 @Composable
 private fun SuperIslandSpinner(
     title: String,
+    summary: String,
     labels: List<String>,
     selectedIndex: Int,
     onSelected: (Int) -> Unit
@@ -264,7 +272,7 @@ private fun SuperIslandSpinner(
     val entries = remember(labels) { labels.map { DropdownItem(title = it) } }
     WindowSpinnerPreference(
         title = title,
-        summary = stringResource(R.string.settings_current_value, labels[safeIndex]),
+        summary = summary,
         items = entries,
         selectedIndex = safeIndex,
         onSelectedIndexChange = onSelected

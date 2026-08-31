@@ -51,6 +51,7 @@ import com.ella.music.ui.settings.AppearanceSubpageScreen
 import com.ella.music.ui.settings.CoverMediaSettingsScreen
 import com.ella.music.ui.settings.LyricFontScreen
 import com.ella.music.ui.settings.SettingsWizardScreen
+import com.ella.music.ui.settings.SettingsMaintenanceScreen
 import com.ella.music.ui.settings.appearanceSubpageForHighlight
 import com.ella.music.ui.settings.LyricPluginSourceSettingsScreen
 import com.ella.music.ui.settings.LogScreen
@@ -181,6 +182,7 @@ sealed class Screen(val route: String) {
         fun createRoute(highlight: String = "") = "cover_media_settings?highlight=${java.net.URLEncoder.encode(highlight, "UTF-8")}"
     }
     data object SettingsWizard : Screen("settings_wizard")
+    data object SettingsMaintenance : Screen("settings_maintenance")
     data object AppearanceSubpage : Screen("appearance_subpage/{page}?highlight={highlight}") {
         fun createRoute(page: String, highlight: String = ""): String {
             val encodedPage = java.net.URLEncoder.encode(page, "UTF-8")
@@ -260,7 +262,13 @@ fun AppNavigation(
                 onNavigateToAiChat = { navController.navigate(Screen.AiChat.route) },
                 onNavigateToMetadataCategory = { type -> navigateRestorableTopLevel(Screen.MetadataCategory.createRoute(type)) },
                 onNavigateToPlayer = onNavigateToPlayer,
-                onNavigateToSettings = { navController.navigate(Screen.Settings.createRoute()) }
+                onNavigateToSettings = {
+                    if (isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS)) {
+                        navigateRestorableTopLevel(Screen.Settings.createRoute(fromDock = true))
+                    } else {
+                        navController.navigate(Screen.Settings.createRoute())
+                    }
+                }
             )
         }
 
@@ -644,15 +652,21 @@ fun AppNavigation(
                     navController.navigate(Screen.LyricSettings.createRoute(highlight))
                 },
                 onNavigateToHighlightedAppearanceSettings = { highlight ->
-                    if (highlight.isBlank() || highlight == "appearance" || highlight == "lyric_font") {
-                        navController.navigate(Screen.SettingsDetail.createRoute(highlight))
-                    } else {
-                        navController.navigate(
-                            Screen.AppearanceSubpage.createRoute(
-                                appearanceSubpageForHighlight(highlight),
-                                highlight
+                    when {
+                        highlight.isBlank() || highlight == "appearance" -> {
+                            navController.navigate(Screen.SettingsDetail.createRoute(highlight))
+                        }
+                        highlight == "lyric_font" || highlight == "font_settings" -> {
+                            navController.navigate(Screen.LyricFont.route)
+                        }
+                        else -> {
+                            navController.navigate(
+                                Screen.AppearanceSubpage.createRoute(
+                                    appearanceSubpageForHighlight(highlight),
+                                    highlight
+                                )
                             )
-                        )
+                        }
                     }
                 },
                 onNavigateToHighlightedLibrarySettings = { highlight ->
@@ -676,6 +690,7 @@ fun AppNavigation(
                     navController.navigate(Screen.CoverMediaSettings.createRoute(highlight))
                 },
                 onNavigateToSetupWizard = { navController.navigate(Screen.SettingsWizard.route) },
+                onNavigateToMaintenance = { navController.navigate(Screen.SettingsMaintenance.route) },
                 onBack = { navController.popBackStack() },
                 showBackButton = !(fromDock && isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS)),
                 mainViewModel = mainViewModel,
@@ -732,6 +747,15 @@ fun AppNavigation(
                 onOpenScanFolders = { navController.navigate(Screen.ScanSettings.createRoute()) },
                 onOpenCoverMedia = { navController.navigate(Screen.CoverMediaSettings.createRoute()) },
                 onFinish = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.SettingsMaintenance.route) {
+            SettingsMaintenanceScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToSetupWizard = { navController.navigate(Screen.SettingsWizard.route) },
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel
             )
         }
 

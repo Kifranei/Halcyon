@@ -214,6 +214,48 @@ class PlaylistStore private constructor(context: Context) {
         }
     }
 
+    /**
+     * Replace the lightweight records initially stored for remote songs with their resolved
+     * tags.  Keep the playlist key and insertion timestamp stable so this is a metadata-only
+     * update and never changes order or duplicate filtering.
+     */
+    suspend fun updateSongsMetadata(songs: Collection<Song>): Int = withContext(Dispatchers.IO) {
+        if (songs.isEmpty()) return@withContext 0
+        val updatesByKey = songs.associateBy { it.playlistIdentityKey() }
+        val updatesByPath = songs
+            .filter { it.path.isNotBlank() }
+            .associateBy { it.path.trim().replace('\\', '/').lowercase() }
+        synchronized(lock) {
+            var changed = 0
+            val next = playlists.value.map { playlist ->
+                val updatedSongs = playlist.songs.map { existing ->
+                    val resolved = updatesByKey[existing.key]
+                        ?: updatesByPath[existing.path.trim().replace('\\', '/').lowercase()]
+                    if (resolved == null) {
+                        existing
+                    } else {
+                        val replacement = resolved.toPlaylistSong(existing.addedAt).copy(key = existing.key)
+                        if (replacement != existing) changed++
+                        replacement
+                    }
+                }
+                if (updatedSongs == playlist.songs) {
+                    playlist
+                } else {
+                    playlist.copy(
+                        songs = updatedSongs,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                }
+            }
+            if (changed > 0) {
+                _playlists.value = next
+                saveLocked(next)
+            }
+            changed
+        }
+    }
+
     suspend fun importSaltPlayerPlaylist(uri: Uri, librarySongs: List<Song>): PlaylistImportResult =
         importLocalPlaylist(uri, librarySongs, PlaylistImportMode.MergeKeepExisting)
 

@@ -55,6 +55,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PAGE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRICS_CORNER_ACTIONS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_ACTION_MENU_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_LIST_ACTION_MENU_LAYOUT
+import com.ella.music.data.SettingsManager.Companion.KEY_SONG_INFO_LAYOUT
+import com.ella.music.data.SettingsManager.Companion.KEY_QUEUE_TOOLBAR_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_INDEX
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_QUALITY
@@ -126,6 +128,8 @@ interface PlayerUiSettingsAccess {
     val playerLyricsCornerActionsEnabled: Flow<Boolean>
     val playerActionMenuLayout: Flow<String>
     val listActionMenuLayout: Flow<String>
+    val songInfoLayout: Flow<String>
+    val queueToolbarLayout: Flow<String>
     val playerLandscapeStyle: Flow<Int>
     val playerKeepScreenOn: Flow<Boolean>
     val playerHdrGlow: Flow<Boolean>
@@ -220,6 +224,8 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerLyricsCornerActionsEnabled(enabled: Boolean)
     suspend fun setPlayerActionMenuLayout(layout: String)
     suspend fun setListActionMenuLayout(layout: String)
+    suspend fun setSongInfoLayout(layout: String)
+    suspend fun setQueueToolbarLayout(layout: String)
     suspend fun setPlayerLandscapeStyle(style: Int)
     suspend fun setPlayerKeepScreenOn(enabled: Boolean)
 }
@@ -316,6 +322,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_PLAYER_ACTION_MENU_LAYOUT].orEmpty() }
     override val listActionMenuLayout: Flow<String> =
         context.dataStore.data.map { it[KEY_LIST_ACTION_MENU_LAYOUT].orEmpty() }
+    override val songInfoLayout: Flow<String> =
+        context.dataStore.data.map { it[KEY_SONG_INFO_LAYOUT].orEmpty() }
+    override val queueToolbarLayout: Flow<String> =
+        context.dataStore.data.map { it[KEY_QUEUE_TOOLBAR_LAYOUT].orEmpty() }
     override val playerLandscapeStyle: Flow<Int> =
         context.dataStore.data.map { SettingsManager.normalizePlayerLandscapeStyle(it[KEY_PLAYER_LANDSCAPE_STYLE]) }
     override val playerKeepScreenOn: Flow<Boolean> =
@@ -701,6 +711,14 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setListActionMenuLayout(layout: String) {
         context.dataStore.edit { it[KEY_LIST_ACTION_MENU_LAYOUT] = layout }
+    }
+
+    override suspend fun setSongInfoLayout(layout: String) {
+        context.dataStore.edit { it[KEY_SONG_INFO_LAYOUT] = layout }
+    }
+
+    override suspend fun setQueueToolbarLayout(layout: String) {
+        context.dataStore.edit { it[KEY_QUEUE_TOOLBAR_LAYOUT] = layout }
     }
 
     override suspend fun setPlayerLandscapeStyle(style: Int) {

@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -67,8 +68,10 @@ import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.MusicScanSummary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -118,14 +121,13 @@ fun EllaApp(
     val activity = context as? Activity
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = when (val route = navBackStackEntry?.destination?.route) {
-        Screen.MetadataCategory.route -> navBackStackEntry
-            ?.arguments
-            ?.getString("type")
-            ?.let(Screen.MetadataCategory::createRoute)
-            ?: route
-        else -> route
-    }
+    val currentRoute = resolvedCurrentRoute(
+        destinationRoute = navBackStackEntry?.destination?.route,
+        fromDock = navBackStackEntry?.arguments?.let { args ->
+            if (args.containsKey("fromDock")) args.getBoolean("fromDock") else null
+        },
+        metadataCategoryType = navBackStackEntry?.arguments?.getString("type")
+    )
     val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val settingsManager = remember { SettingsManager.getInstance(context) }
@@ -169,8 +171,10 @@ fun EllaApp(
     var playerOverlayOpenToken by remember { mutableIntStateOf(0) }
     var snapPlayerOverlay by remember { mutableStateOf(false) }
     suspend fun openPlaybackSource() {
-        val songKey = playerViewModel.currentSong.value?.playlistIdentityKey()
-        val source = com.ella.music.data.PlaybackSourceNavigation.resolvedSourceKey(songKey)
+        // The current queue occurrence already pushed its source into the navigation bridge.
+        // Do not look up a source by song identity: duplicate queue entries can have different
+        // category origins.
+        val source = com.ella.music.data.PlaybackSourceNavigation.resolvedSourceKey()
             ?: playerViewModel.playbackSourceKey.value
         val route = playbackSourceRoute(source) ?: return
         val entry = navController.currentBackStackEntry
@@ -179,7 +183,18 @@ fun EllaApp(
             argument = { name -> entry?.arguments.navArgument(name) },
             target = route
         )
-        if (!alreadyThere) navController.navigate(route)
+        if (!alreadyThere) {
+            navController.navigatePlaybackSourceRoute(
+                route = route,
+                currentRoute = resolvedCurrentRoute(
+                    destinationRoute = entry?.destination?.route,
+                    fromDock = entry?.arguments?.let { args ->
+                        if (args.containsKey("fromDock")) args.getBoolean("fromDock") else null
+                    },
+                    metadataCategoryType = entry?.arguments?.getString("type")
+                )
+            )
+        }
         withTimeoutOrNull(1_200L) {
             snapshotFlow { navController.currentBackStackEntry }.first { current ->
                 isAtPlaybackSourceRoute(
@@ -207,6 +222,27 @@ fun EllaApp(
         argument = { name -> navBackStackEntry?.arguments.navArgument(name) }
     )
     var returnToPlayerRoute by remember { mutableStateOf<String?>(null) }
+    val previousRouteIdentity = remember(navBackStackEntry) {
+        val previous = navController.previousBackStackEntry
+        navRouteIdentity(
+            destinationRoute = previous?.destination?.route,
+            argument = { name -> previous?.arguments.navArgument(name) }
+        )
+    }
+    val restorePlayerOnBack = shouldRestorePlayerOnBack(returnToPlayerRoute, previousRouteIdentity)
+    PredictiveBackHandler(enabled = restorePlayerOnBack) { progress ->
+        snapPlayerOverlay = true
+        showPlayerOverlay = true
+        playerDismissProgress = 0f
+        try {
+            progress.collect { }
+        } catch (cancelled: CancellationException) {
+            snapPlayerOverlay = true
+            showPlayerOverlay = false
+            throw cancelled
+        }
+        navController.popBackStack()
+    }
     LaunchedEffect(currentRouteIdentity) {
         val saved = returnToPlayerRoute ?: return@LaunchedEffect
         if (currentRouteIdentity == saved) {
@@ -217,8 +253,10 @@ fun EllaApp(
             snapPlayerOverlay = true
             showPlayerOverlay = true
         } else if (showPlayerOverlay) {
-            // Keep the player covering the previous page until the destination is on-screen,
-            // then drop it. Hiding first flashes Home under the overlay (#495).
+            // Wait until the destination has painted. Hiding on the same frame as the
+            // route change flashes Home under the overlay (#495, #564).
+            androidx.compose.runtime.withFrameNanos { }
+            androidx.compose.runtime.withFrameNanos { }
             snapPlayerOverlay = true
             showPlayerOverlay = false
             playerDismissProgress = 0f
@@ -880,6 +918,7 @@ fun EllaApp(
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,
                     playerVisible = showPlayerOverlay,
+                    restorePlayerOnBack = restorePlayerOnBack,
                     onBack = {
                         playerViewModel.setShowLyrics(false)
                         // The dismiss host already slid the player off-screen. Don't run a second

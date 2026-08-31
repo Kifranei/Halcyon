@@ -18,6 +18,7 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
 import com.google.common.util.concurrent.FutureCallback
@@ -51,6 +52,12 @@ class ExoPlayerManager(private val context: Context) {
 
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
+
+    // A Song is not a unique queue occurrence: the same path can intentionally be queued more
+    // than once. Keep the actual queue slot beside the current Song so the UI and transport
+    // controls do not have to rediscover it by identity (which always picks the first duplicate).
+    private val _currentQueueIndex = MutableStateFlow(-1)
+    val currentQueueIndex: StateFlow<Int> = _currentQueueIndex.asStateFlow()
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
@@ -204,6 +211,7 @@ class ExoPlayerManager(private val context: Context) {
             context.stopService(Intent(context, PlaybackService::class.java))
             playlist.clear()
             _playlist.value = emptyList()
+            _currentQueueIndex.value = -1
             notificationArtworkJob?.cancel()
             notificationArtworkJob = null
             sessionMetadataSongKey = null
@@ -466,6 +474,7 @@ class ExoPlayerManager(private val context: Context) {
                 resetQueueLock = resetQueueLock
             )
             _currentSong.value = queueSongs.getOrNull(safeIndex)
+            _currentQueueIndex.value = safeIndex
             _duration.value = queueSongs.getOrNull(safeIndex)?.duration ?: 0L
             _repeatMode.value = Player.REPEAT_MODE_ALL
             savePlaybackQueue(force = true)
@@ -529,7 +538,13 @@ class ExoPlayerManager(private val context: Context) {
         val safeIndex = currentIndex.coerceIn(songs.indices)
         externalSnapshotGuard = null
         suppressExternalSnapshotsUntilMs = 0L
-        AppLogStore.debug(context, "PlayerQueue", "playResolvedVirtual size=${songs.size} index=$currentIndex title=${resolvedSong.title}")
+        val queueSong = songs[safeIndex]
+        val sourceAwareResolvedSong = if (resolvedSong.playbackSourceKey == null) {
+            resolvedSong.copy(playbackSourceKey = queueSong.playbackSourceKey)
+        } else {
+            resolvedSong
+        }
+        AppLogStore.debug(context, "PlayerQueue", "playResolvedVirtual size=${songs.size} index=$currentIndex title=${sourceAwareResolvedSong.title}")
         virtualPlaylistCurrentIndex = safeIndex
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
@@ -540,17 +555,18 @@ class ExoPlayerManager(private val context: Context) {
         clearBluetoothMetadataPatchState()
         rememberCurrentSongResumePosition()
         playlist.clear()
-        playlist.addAll(songs.mapIndexed { index, song -> if (index == safeIndex) resolvedSong else song })
+        playlist.addAll(songs.mapIndexed { index, song -> if (index == safeIndex) sourceAwareResolvedSong else song })
         _playlist.value = playlist.toList()
+        _currentQueueIndex.value = safeIndex
 
         mediaController?.apply {
             playWhenReady = shouldPlay
-            setMediaItems(listOf(songToMediaItem(resolvedSong)), 0, resumePositionFor(resolvedSong))
+            setMediaItems(listOf(songToMediaItem(sourceAwareResolvedSong)), 0, resumePositionFor(sourceAwareResolvedSong))
             prepare()
             if (shouldPlay) play()
         }
-        _currentSong.value = resolvedSong
-        _duration.value = resolvedSong.duration
+        _currentSong.value = sourceAwareResolvedSong
+        _duration.value = sourceAwareResolvedSong.duration
         savePlaybackQueue(force = true)
     }
 
@@ -625,8 +641,12 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     private fun currentQueueIndex(controller: MediaController?): Int {
+        val virtualIndex = virtualPlaylistCurrentIndex
+        virtualIndex?.takeIf { it in playlist.indices }?.let { return it }
         val controllerIndex = controller?.currentMediaItemIndex ?: C.INDEX_UNSET
         if (controllerIndex in playlist.indices) return controllerIndex
+        val publishedIndex = _currentQueueIndex.value
+        if (publishedIndex in playlist.indices) return publishedIndex
         val currentSong = _currentSong.value
         val currentSongIndex = playlist.indexOfFirst { it.isSamePlaybackIdentity(currentSong) }
         return if (currentSongIndex >= 0) currentSongIndex else -1
@@ -707,6 +727,7 @@ class ExoPlayerManager(private val context: Context) {
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = false)
         rememberCurrentSongResumePosition()
         val resumePosition = resumePositionFor(playlist[index])
+        _currentQueueIndex.value = index
         mediaController?.seekTo(index, resumePosition)
         mediaController?.play()
         updateCurrentSong()
@@ -736,6 +757,7 @@ class ExoPlayerManager(private val context: Context) {
             updateCurrentSong()
         } ?: run {
             _currentSong.value = playlist.firstOrNull()
+            _currentQueueIndex.value = playlist.firstOrNull()?.let { 0 } ?: -1
             _duration.value = _currentSong.value?.duration ?: 0L
         }
         savePlaybackQueue(force = true)
@@ -746,6 +768,7 @@ class ExoPlayerManager(private val context: Context) {
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
+        val currentIndexBeforeMove = currentQueueIndex(null)
         val movedSong = playlist.removeAt(fromIndex)
         playlist.add(toIndex, movedSong)
         _playlist.value = playlist.toList()
@@ -755,7 +778,18 @@ class ExoPlayerManager(private val context: Context) {
             }
             updateCurrentSong()
         } ?: run {
-            _currentSong.value = playlist.firstOrNull()
+            val currentIndexAfterMove = adjustedQueueIndexAfterMove(
+                currentIndex = currentIndexBeforeMove,
+                fromIndex = fromIndex,
+                toIndex = toIndex,
+                queueSize = playlist.size
+            ).takeIf { it in playlist.indices }
+            val fallbackIndex = currentIndexAfterMove
+                ?: playlist.indexOfFirst { it.isSamePlaybackIdentity(_currentSong.value) }
+                    .takeIf { it >= 0 }
+                ?: playlist.indices.firstOrNull()
+            _currentQueueIndex.value = fallbackIndex ?: -1
+            _currentSong.value = fallbackIndex?.let(playlist::get)
             _duration.value = _currentSong.value?.duration ?: 0L
         }
         savePlaybackQueue(force = true)
@@ -768,21 +802,31 @@ class ExoPlayerManager(private val context: Context) {
     fun randomizePlaylistOrder(): Boolean {
         if (_queueLocked.value || playlist.size < 2 || virtualPlaylistCurrentIndex != null) return false
         val controller = activeController() ?: return false
-        val current = resolveCurrentPlaybackSong(controller) ?: return false
-        val shuffled = playlist.toMutableList()
+        val currentIndexBeforeShuffle = currentQueueIndex(controller)
+            .takeIf { it in playlist.indices }
+            ?: return false
+        // Keep the original occurrence index alongside each Song. Two queue entries can have
+        // identical identities; carrying the index is what prevents the first duplicate from
+        // becoming the new current item after a materialized shuffle.
+        val indexedPlaylist = playlist.withIndex().toMutableList()
+        val shuffled = mutableListOf<Song>()
         // A new seed on each invocation avoids pseudo-shuffle returning the same list twice.
         val random = Random(SystemClock.elapsedRealtimeNanos())
         var attempts = 0
         do {
-            shuffled.shuffle(random)
+            indexedPlaylist.shuffle(random)
+            shuffled.clear()
+            shuffled.addAll(indexedPlaylist.map { it.value })
             attempts++
         } while (shuffled == playlist && attempts < 8)
         // A two-item queue has a 50% chance of returning unchanged. Guarantee a visible reorder
         // whenever there is more than one item, including duplicate Song identities.
         if (shuffled == playlist) {
-            Collections.rotate(shuffled, 1)
+            Collections.rotate(indexedPlaylist, 1)
+            shuffled.clear()
+            shuffled.addAll(indexedPlaylist.map { it.value })
         }
-        val currentIndex = shuffled.indexOfFirst { it.isSamePlaybackIdentity(current) }
+        val currentIndex = indexedPlaylist.indexOfFirst { it.index == currentIndexBeforeShuffle }
         if (currentIndex < 0) return false
         val positionMs = controller.currentPosition.coerceAtLeast(0L)
         val wasPlaying = controller.isPlaying
@@ -818,6 +862,7 @@ class ExoPlayerManager(private val context: Context) {
         playlist.clear()
         _playlist.value = emptyList()
         _currentSong.value = null
+        _currentQueueIndex.value = -1
         notificationArtworkJob?.cancel()
         notificationArtworkJob = null
         sessionMetadataSongKey = null
@@ -856,7 +901,14 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun playSong(song: Song) {
-        val index = playlist.indexOfFirst { it.isSamePlaybackIdentity(song) }
+        // A direct play request for the already-playing identity must keep its actual queue
+        // occurrence.  Searching by identity alone would jump from the second duplicate back to
+        // the first one.
+        val index = if (song.isSamePlaybackIdentity(_currentSong.value)) {
+            currentQueueIndex(mediaController)
+        } else {
+            playlist.indexOfFirst { it.isSamePlaybackIdentity(song) }
+        }
         if (index >= 0) {
             playQueueIndex(index)
         } else {
@@ -925,9 +977,9 @@ class ExoPlayerManager(private val context: Context) {
     ): Boolean {
         if (virtualPlaylistCurrentIndex != null) return false
         val wrap = controller.repeatMode != Player.REPEAT_MODE_OFF
-        val fromIndex = playlist.indexOfFirst { it.isSamePlaybackIdentity(_currentSong.value) }
-            .takeIf { it >= 0 }
-            ?: currentQueueIndex(controller).takeIf { it in playlist.indices }
+        val fromIndex = currentQueueIndex(controller).takeIf { it in playlist.indices }
+            ?: playlist.indexOfFirst { it.isSamePlaybackIdentity(_currentSong.value) }
+                .takeIf { it >= 0 }
             ?: controller.currentMediaItemIndex
         val targetIndex = adjacentPlaylistIndex(
             currentIndex = fromIndex,
@@ -937,15 +989,16 @@ class ExoPlayerManager(private val context: Context) {
         ) ?: return false
         val target = playlist[targetIndex]
         val positionMs = startPositionMs(target)
-        applyOptimisticSong(target, positionMs)
+        applyOptimisticSong(target, positionMs, targetIndex)
         controller.seekTo(targetIndex, positionMs)
         return true
     }
 
-    private fun applyOptimisticSong(song: Song, positionMs: Long) {
+    private fun applyOptimisticSong(song: Song, positionMs: Long, queueIndex: Int? = null) {
         currentSongRefreshJob?.cancel()
         pendingOptimisticSongKey = song.playbackStackKey()
         _currentSong.value = song
+        queueIndex?.takeIf { it in playlist.indices }?.let { _currentQueueIndex.value = it }
         _currentPosition.value = positionMs.coerceAtLeast(0L)
         _duration.value = song.duration.coerceAtLeast(0L)
     }
@@ -965,11 +1018,14 @@ class ExoPlayerManager(private val context: Context) {
         val controller = mediaController ?: return
         cancelPendingSeekCommand()
         val target = song ?: _currentSong.value
-        val targetIndex = target?.let { current ->
-            playlist.indexOfFirst { it.isSamePlaybackIdentity(current) }
-        } ?: -1
+        val targetIndex = if (target != null && target.isSamePlaybackIdentity(_currentSong.value)) {
+            currentQueueIndex(controller)
+        } else {
+            target?.let { current -> playlist.indexOfFirst { it.isSamePlaybackIdentity(current) } } ?: -1
+        }
         val safeIndex = targetIndex.takeIf { it >= 0 } ?: controller.currentMediaItemIndex
         if (safeIndex < 0) return
+        _currentQueueIndex.value = safeIndex
         controller.seekToDefaultPosition(safeIndex)
         controller.play()
         _currentPosition.value = 0L
@@ -1240,6 +1296,7 @@ class ExoPlayerManager(private val context: Context) {
     }
     fun refreshStateFromController() {
         val controller = mediaController ?: return
+        hydratePlaylistFromController(controller)
         if (shouldIgnoreStaleControllerSong(controller)) return
 
         _isPlaying.value = controller.isPlaying
@@ -1251,26 +1308,34 @@ class ExoPlayerManager(private val context: Context) {
         _currentPosition.value = controller.currentPosition.coerceAtLeast(0)
         _duration.value = controller.duration.coerceAtLeast(0)
 
+        reconcileNativeShuffleState(controller)
+        updateCurrentSong()
+    }
+
+    private fun hydratePlaylistFromController(controller: MediaController) {
         val mediaItemCount = controller.mediaItemCount
-        if (mediaItemCount > 0 && playlist.isEmpty()) {
-            val saved = loadSavedQueue()
-            val currentItemSong = controller.currentMediaItem?.toSongFromMediaItemExtras()
-                ?: controller.currentMediaItem?.toSong()
-            val savedCurrentIndex = currentItemSong?.let { song ->
-                saved?.songs?.indexOfFirst { it.isSamePlaybackIdentity(song) }
-            } ?: -1
-            if (saved != null && saved.songs.isNotEmpty() && (saved.songs.size == mediaItemCount || savedCurrentIndex >= 0)) {
-                playlist.addAll(saved.songs)
-                virtualPlaylistCurrentIndex = savedCurrentIndex.takeIf { mediaItemCount == 1 && it >= 0 }
-            } else {
-                for (index in 0 until mediaItemCount) {
-                    playlist += controller.getMediaItemAt(index).toSong()
-                }
+        if (mediaItemCount <= 0 || playlist.isNotEmpty()) {
+            if (_playlist.value != playlist) _playlist.value = playlist.toList()
+            return
+        }
+        val saved = loadSavedQueue()
+        val currentItemSong = controller.currentMediaItem?.toSongFromMediaItemExtras()
+            ?: controller.currentMediaItem?.toSong()
+        val savedCurrentIndex = saved?.indexForCurrentSong(currentItemSong) ?: -1
+        if (saved != null && shouldHydrateSavedQueue(
+                savedSongCount = saved.songs.size,
+                controllerMediaItemCount = mediaItemCount,
+                savedCurrentIndex = savedCurrentIndex
+            )
+        ) {
+            playlist.addAll(saved.songs)
+            virtualPlaylistCurrentIndex = savedCurrentIndex.takeIf { mediaItemCount == 1 && it >= 0 }
+        } else {
+            for (index in 0 until mediaItemCount) {
+                playlist += controller.getMediaItemAt(index).toSong()
             }
         }
         _playlist.value = playlist.toList()
-        reconcileNativeShuffleState(controller)
-        updateCurrentSong()
     }
 
     fun applyExternalPlaybackSnapshot(snapshot: PlaybackExternalSnapshot) {
@@ -1309,6 +1374,7 @@ class ExoPlayerManager(private val context: Context) {
                 playlist.clear()
                 _playlist.value = emptyList()
                 _currentSong.value = null
+                _currentQueueIndex.value = -1
                 _duration.value = 0L
                 return
             }
@@ -1321,56 +1387,105 @@ class ExoPlayerManager(private val context: Context) {
             song = snapshotSong
         )
 
-        val index = snapshot.mediaItemIndex
-        if (index in playlist.indices && !playlist[index].isSamePlaybackIdentity(snapshotSong)) {
-            playlist[index] = snapshotSong
+        if (playlist.isEmpty() && snapshot.mediaItemCount > 0) {
+            val saved = loadSavedQueue()
+            val savedCurrentIndex = saved?.indexForCurrentSong(snapshotSong) ?: -1
+            if (saved != null && shouldHydrateSavedQueue(
+                    savedSongCount = saved.songs.size,
+                    controllerMediaItemCount = snapshot.mediaItemCount,
+                    savedCurrentIndex = savedCurrentIndex
+                )
+            ) {
+                playlist.addAll(saved.songs)
+                virtualPlaylistCurrentIndex = savedCurrentIndex.takeIf {
+                    snapshot.mediaItemCount == 1 && it >= 0
+                }
+            } else {
+                playlist.add(snapshotSong)
+            }
             _playlist.value = playlist.toList()
-        } else if (playlist.isEmpty() && snapshot.mediaItemCount == 1) {
-            playlist.add(snapshotSong)
+        }
+
+        val index = virtualPlaylistCurrentIndex?.takeIf { it in playlist.indices }
+            ?: snapshot.mediaItemIndex
+        _currentQueueIndex.value = index.takeIf { it in playlist.indices } ?: -1
+        // External session snapshots do not always carry our private queue extras. When the
+        // controller reports the same queue occurrence, keep the source attached to that slot;
+        // otherwise a metadata refresh can silently turn a category-origin song into an
+        // unclassified one and the queue's source button routes nowhere.
+        val sourceAwareSnapshotSong = if (snapshotSong.playbackSourceKey == null) {
+            playlist.getOrNull(index)
+                ?.takeIf { it.isSamePlaybackIdentity(snapshotSong) }
+                ?.let { snapshotSong.copy(playbackSourceKey = it.playbackSourceKey) }
+                ?: _currentSong.value
+                    ?.takeIf { it.isSamePlaybackIdentity(snapshotSong) }
+                    ?.let { snapshotSong.copy(playbackSourceKey = it.playbackSourceKey) }
+                ?: snapshotSong
+        } else {
+            snapshotSong
+        }
+        if (index in playlist.indices && !playlist[index].isSamePlaybackIdentity(sourceAwareSnapshotSong)) {
+            playlist[index] = sourceAwareSnapshotSong
             _playlist.value = playlist.toList()
         }
 
         val previousSong = _currentSong.value
-        _currentSong.value = snapshotSong
+        _currentSong.value = sourceAwareSnapshotSong
         _duration.value = snapshot.durationMs.takeIf { it > 0L }
-            ?: snapshotSong.duration.coerceAtLeast(0L)
+            ?: sourceAwareSnapshotSong.duration.coerceAtLeast(0L)
 
-        if (!previousSong.isSamePlaybackIdentity(snapshotSong)) {
+        if (!previousSong.isSamePlaybackIdentity(sourceAwareSnapshotSong)) {
             resetPlayNextForwardStack()
             notificationArtworkJob?.cancel()
             notificationArtworkJob = null
             artworkAppliedSongKey = null
             sessionMetadataSongKey = null
-            resetBluetoothMetadataPatchStateForSong(snapshotSong)
+            resetBluetoothMetadataPatchStateForSong(sourceAwareSnapshotSong)
         }
 
-        refreshCurrentNotificationArtwork(snapshotSong)
+        refreshCurrentNotificationArtwork(sourceAwareSnapshotSong)
     }
 
     fun updateCurrentSongMetadata(updatedSong: Song) {
         val controller = mediaController
         val current = _currentSong.value ?: return
         if (!current.isSamePlaybackIdentity(updatedSong)) return
-
-        val playlistIndex = playlist.indexOfFirst { it.isSamePlaybackIdentity(current) }
-        if (playlistIndex >= 0) {
-            playlist[playlistIndex] = updatedSong
-            _playlist.value = playlist.toList()
+        val sourceAwareUpdatedSong = if (updatedSong.playbackSourceKey == null) {
+            updatedSong.copy(playbackSourceKey = current.playbackSourceKey)
+        } else {
+            updatedSong
         }
 
-        _currentSong.value = updatedSong
+        val playlistIndex = listOfNotNull(
+            _currentQueueIndex.value.takeIf { it in playlist.indices },
+            virtualPlaylistCurrentIndex?.takeIf { it in playlist.indices },
+            controller?.currentMediaItemIndex?.takeIf { it in playlist.indices }
+        ).firstOrNull { index -> playlist[index].isSamePlaybackIdentity(current) }
+            ?: playlist.indexOfFirst {
+                it.isSamePlaybackIdentity(current) &&
+                    (current.playbackSourceKey == null || it.playbackSourceKey == current.playbackSourceKey)
+            }
+            .takeIf { it >= 0 }
+            ?: playlist.indexOfFirst { it.isSamePlaybackIdentity(current) }
+        if (playlistIndex >= 0) {
+            playlist[playlistIndex] = sourceAwareUpdatedSong
+            _playlist.value = playlist.toList()
+            _currentQueueIndex.value = playlistIndex
+        }
+
+        _currentSong.value = sourceAwareUpdatedSong
         notificationArtworkCache.remove(current.notificationArtworkKey())
-        notificationArtworkCache.remove(updatedSong.notificationArtworkKey())
+        notificationArtworkCache.remove(sourceAwareUpdatedSong.notificationArtworkKey())
         missingNotificationArtworkKeys.remove(current.notificationArtworkKey())
-        missingNotificationArtworkKeys.remove(updatedSong.notificationArtworkKey())
+        missingNotificationArtworkKeys.remove(sourceAwareUpdatedSong.notificationArtworkKey())
         notificationArtworkJob?.cancel()
         notificationArtworkJob = null
         artworkAppliedSongKey = null
         sessionMetadataSongKey = null
 
         if (controller != null && controller.currentMediaItemIndex >= 0) {
-            refreshCurrentSessionMetadata(controller, updatedSong)
-            refreshCurrentNotificationArtwork(updatedSong)
+            refreshCurrentSessionMetadata(controller, sourceAwareUpdatedSong)
+            refreshCurrentNotificationArtwork(sourceAwareUpdatedSong)
         }
         savePlaybackQueue(force = true)
     }
@@ -1479,6 +1594,7 @@ class ExoPlayerManager(private val context: Context) {
             _duration.value = controller.duration.coerceAtLeast(0)
             return
         }
+        _currentQueueIndex.value = playlistIndex.takeIf { it in playlist.indices } ?: -1
         _currentSong.value = restoredSong
         _duration.value = controller.duration.coerceAtLeast(0)
         if (!previousSong.isSamePlaybackIdentity(restoredSong)) {
@@ -1645,9 +1761,21 @@ class ExoPlayerManager(private val context: Context) {
         }
         if (reorderingPlaylistForShuffle) return
 
-        val current = resolveCurrentPlaybackSong(controller)
-        val targetIndex = original.indexOfFirst { it.isSamePlaybackIdentity(current) }
-            .takeIf { it >= 0 }
+        val currentIndex = currentQueueIndex(controller)
+        val currentOccurrence = playlist.getOrNull(currentIndex)
+        val targetIndex = if (currentOccurrence != null) {
+            val occurrenceOrdinal = playlist
+                .take(currentIndex + 1)
+                .count { it.isSamePlaybackIdentity(currentOccurrence) } - 1
+            original.withIndex()
+                .filter { it.value.isSamePlaybackIdentity(currentOccurrence) }
+                .getOrNull(occurrenceOrdinal)
+                ?.index
+        } else {
+            null
+        } ?: original.indexOfFirst {
+            it.isSamePlaybackIdentity(resolveCurrentPlaybackSong(controller))
+        }.takeIf { it >= 0 }
             ?: controller.currentMediaItemIndex.coerceIn(0, original.lastIndex)
         val positionMs = controller.currentPosition.coerceAtLeast(0L)
         val wasPlaying = controller.isPlaying
@@ -1672,7 +1800,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     private fun resolveCurrentPlaybackSong(controller: MediaController): Song? {
-        val controllerIndex = controller.currentMediaItemIndex
+        val controllerIndex = currentQueueIndex(controller)
         val itemSong = controller.currentMediaItem?.toSongFromMediaItemExtras()
             ?: controller.currentMediaItem?.toSong()
         if (controllerIndex in playlist.indices) {
@@ -1738,11 +1866,9 @@ class ExoPlayerManager(private val context: Context) {
         val index = controller.currentMediaItemIndex
         val songKey = song?.notificationArtworkKey()
         if (song == null || index < 0 || artworkAppliedSongKey == songKey) return
-        if (song.coverUrl.isNotBlank() || song.albumId > 0L) {
-            if (song.coverUrl.isNotBlank()) {
-                artworkAppliedSongKey = songKey
-                return
-            }
+        if (song.coverUrl.isNotBlank() && !song.coverUrl.isMediaStoreAlbumArtworkUri()) {
+            artworkAppliedSongKey = songKey
+            return
         }
         if (!currentItem.matchesSong(song)) return
 
@@ -1868,6 +1994,7 @@ class ExoPlayerManager(private val context: Context) {
         controller.prepare()
 
         _currentSong.value = playlist.getOrNull(safeIndex)
+        _currentQueueIndex.value = safeIndex
         _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
         _repeatMode.value = saved.repeatMode
         _shuffleEnabled.value = saved.shuffle
@@ -1883,7 +2010,11 @@ class ExoPlayerManager(private val context: Context) {
         val saved = loadSavedQueue() ?: return
         val index = saved.index.takeIf { it in saved.songs.indices } ?: return
         val current = saved.songs[index]
+        playlist.clear()
+        playlist.addAll(saved.songs)
+        _playlist.value = playlist.toList()
         _currentSong.value = current
+        _currentQueueIndex.value = index
         _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
         _duration.value = current.duration.coerceAtLeast(0L)
         _repeatMode.value = saved.repeatMode
@@ -1980,11 +2111,7 @@ class ExoPlayerManager(private val context: Context) {
 
     private fun capturePlaybackState(positionOverrideMs: Long? = null): PlaybackStateSnapshot {
         val controller = mediaController
-        val index = controller?.currentMediaItemIndex?.takeIf { it >= 0 }
-            ?: _currentSong.value?.let { current ->
-                playlist.indexOfFirst { it.isSamePlaybackIdentity(current) }
-            }
-            ?: -1
+        val index = currentQueueIndex(controller).takeIf { it >= 0 } ?: -1
         return PlaybackStateSnapshot(
             index = index.coerceAtLeast(0),
             positionMs = positionOverrideMs ?: controller?.currentPosition?.coerceAtLeast(0) ?: _currentPosition.value,
@@ -2055,7 +2182,9 @@ class ExoPlayerManager(private val context: Context) {
             path = path,
             fileName = fileName,
             mimeType = localConfiguration?.mimeType.orEmpty(),
-            coverUrl = metadata.artworkUri?.toString().orEmpty(),
+            coverUrl = metadata.artworkUri?.toString()
+                ?.takeUnless { it.isMediaStoreAlbumArtworkUri() }
+                .orEmpty(),
             onlineSource = metadata.extras?.getString(EXTRA_ONLINE_SOURCE).orEmpty(),
             onlineId = metadata.extras?.getString(EXTRA_ONLINE_ID).orEmpty()
         )

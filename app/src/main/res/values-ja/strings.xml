@@ -25,6 +25,7 @@
     <string name="duration_format" formatted="false">%02d:%02d</string>
     <string name="no_lyrics">歌詞なし</string>
     <string name="settings_player_lyric_text_align">Player lyric alignment</string>
+    <string name="settings_player_lyric_text_align_summary">歌詞の水平方向の揃えを選びます</string>
     <string name="player_output_bluetooth">Bluetooth device</string>
     <string name="player_output_headphones">Headphones</string>
     <string name="player_output_usb_audio">USB audio</string>
@@ -194,6 +195,14 @@
     <string name="settings_music_playback">音楽と再生</string>
     <string name="settings_services">サービスとデータ</string>
     <string name="settings_maintenance">メンテナンス</string>
+    <string name="settings_maintenance_summary">セットアップ、キャッシュ削除、既定設定の復元</string>
+    <string name="settings_clear_artist_image_cache">アーティスト画像キャッシュを消去</string>
+    <string name="settings_clear_artist_image_cache_summary">アーティスト画像ソースから保存したローカル画像を削除します</string>
+    <string name="settings_clear_artist_image_cache_done">アーティスト画像キャッシュを消去しました</string>
+    <string name="settings_restore_defaults">既定の設定に戻す</string>
+    <string name="settings_restore_defaults_summary">音楽、プレイリスト、再生履歴を削除せずにアプリ設定を初期値へ戻します</string>
+    <string name="settings_restore_defaults_confirm">すべての設定を初期値へ戻しますか？現在の設定は消去されますが、音楽とユーザーデータは保持されます。</string>
+    <string name="settings_restore_defaults_done">既定の設定に戻しました</string>
     <string name="settings_appearance_home">外観とホーム</string>
     <string name="settings_appearance_home_summary">テーマ、言語、リキッドグラス、カスタム画像、ホームレイアウト</string>
     <string name="settings_library_scan">ライブラリとスキャン</string>
@@ -213,7 +222,7 @@
     <string name="settings_backup_summary">設定、再生履歴、統計データのエクスポートと復元</string>
     <string name="settings_other">その他</string>
     <string name="settings_clear_online_cache">カバー・歌詞キャッシュを削除</string>
-    <string name="settings_clear_online_cache_summary">WebDAV と LX のカバー、歌詞、リモートメタデータのキャッシュを削除します</string>
+    <string name="settings_clear_online_cache_summary">ローカルおよびリモート音源のカバー、歌詞、タグデータのキャッシュを削除します</string>
     <string name="settings_clear_online_cache_done">オンラインカバー・歌詞キャッシュを削除しました</string>
     <string name="settings_clear_library_snapshot_cache">ライブラリスナップショットキャッシュを削除</string>
     <string name="settings_clear_library_snapshot_cache_summary">ライブラリ検索とタグのスナップショットを削除し、次回検索時に再生成します</string>
@@ -239,7 +248,7 @@
     <string name="logs_retention_days">%1$d 日</string>
     <string name="logs_retention_removed">%1$d 件の古いログを削除しました</string>
     <string name="logs_retention_set">%1$d 日間保持に設定しました</string>
-    <string name="logs_summary">合計 %1$d 件、現在 %2$d 件を表示中。エラー %3$d 件、警告 %4$d 件。本プロセスの logcat を直接読み取り、3000 件の上限はありません。</string>
+    <string name="logs_summary">合計 %1$d 件、現在 %2$d 件を表示中。エラー %3$d 件、警告 %4$d 件</string>
     <string name="logs_empty">ログがありません</string>
     <string name="logs_empty_filtered">一致するログがありません</string>
     <string name="logs_clear_message">画面上の %1$d 件の logcat をクリアします。システムの logcat バッファは Android が管理します。</string>
@@ -284,6 +293,9 @@
     <string name="settings_app_display_scale">画面表示サイズ</string>
     <string name="settings_app_display_scale_summary">アプリ内のボタン、余白、コンテンツをまとめて拡大・縮小します</string>
     <string name="settings_category_grid_columns">カテゴリグリッド列数</string>
+    <string name="settings_library_song_grid_columns_phone">スマートフォンの曲グリッド列数</string>
+    <string name="settings_library_song_grid_columns_tablet">タブレットの曲グリッド列数</string>
+    <string name="settings_library_song_grid_columns_summary">ライブラリのカバーグリッドを %1$d 列で表示</string>
     <string name="settings_category_grid_columns_summary">アルバム、ジャンル、年などのページを %1$d 列で表示</string>
     <string name="settings_category_grid_columns_option">%1$d 列</string>
     <string name="settings_category_grid_columns_option_summary_single">大きなカードのリスト表示</string>
@@ -293,6 +305,8 @@
     <string name="settings_show_album_artists_summary">オンにすると、アルバムアーティストをアーティスト一覧に統合し、アーティストページにリリースアルバムタブを表示します</string>
     <string name="settings_show_artist_introduction">アーティスト紹介を表示</string>
     <string name="settings_show_artist_introduction_summary">アーティストページに「紹介」入口を表示します</string>
+    <string name="settings_library_song_title_marquee">2列ライブラリの長いタイトルをスクロール</string>
+    <string name="settings_library_song_title_marquee_summary">2列リストではみ出した曲名とアーティスト名を往復スクロールで表示；オフの場合は1行で切り詰めます</string>
     <string name="settings_open_player_on_play">再生後にプレーヤー画面を開く</string>
     <string name="settings_open_player_on_play_summary">ローカル、WebDAV、オンライン曲の再生を開始すると、自動でプレーヤー画面を開きます</string>
     <string name="settings_open_player_from_notification">メディア通知からプレーヤーを開く</string>
@@ -580,11 +594,15 @@
     <string name="settings_resume_playback_position">Resume track position</string>
     <string name="settings_resume_playback_position_summary">When returning to a previously played song, continue from where you left</string>
     <string name="settings_shuffle_mode">シャッフルモード</string>
+    <string name="settings_shuffle_mode_summary">シャッフル時の次曲の選び方を設定します</string>
     <string name="settings_play_next_mode">次に再生モード</string>
+    <string name="settings_play_next_mode_summary">「次に再生」のキュー挿入方法を選びます</string>
     <string name="settings_previous_button">前の曲ボタン</string>
+    <string name="settings_previous_button_summary">前へボタンで前の曲に戻るか、現在の曲を再生し直すかを選びます</string>
     <string name="settings_disable_audio_focus">オーディオフォーカスを無効化</string>
     <string name="settings_disable_audio_focus_summary">有効にすると再生時に他のアプリのオーディオフォーカスを奪いません</string>
     <string name="settings_decoder">デコーダー</string>
+    <string name="settings_decoder_summary">システムデコード、FFmpeg、自動フォールバックから選びます</string>
     <string name="settings_startup_play_off">オフ</string>
     <string name="settings_startup_play_random">シャッフル再生</string>
     <string name="settings_startup_play_resume">前回を継続</string>
@@ -664,9 +682,11 @@
     <string name="settings_karaoke_accompaniment">ボーカル抑制 / 伴奏</string>
     <string name="settings_karaoke_accompaniment_summary">ステレオ中央のボーカルをリアルタイムで弱めます。AI によるステム分離ではありません</string>
     <string name="settings_startup_play">起動後に自動再生</string>
+    <string name="settings_startup_play_summary">アプリ起動後に自動再生するかを選びます</string>
     <string name="settings_bluetooth_auto_play">Bluetooth 接続時に自動再生</string>
     <string name="settings_bluetooth_auto_play_summary">Bluetoothオーディオデバイス接続後に自動的に再生を開始</string>
     <string name="settings_mini_player_right_button">ミニプレーヤー右ボタン</string>
+    <string name="settings_mini_player_right_button_summary">ミニプレーヤー右側ボタンの機能を選びます</string>
     <string name="settings_mini_player_right_next">次の曲</string>
     <string name="settings_mini_player_right_queue">再生キュー</string>
     <string name="settings_transport_button_outlines">プレーヤーボタンアウトライン</string>
@@ -932,7 +952,9 @@
     <string name="settings_lyric_share_custom_info_summary">空白にすると Halcyon と表示。名前を入力すると by @名前 と表示</string>
     <string name="settings_tag_scraping">音楽タグ取得</string>
     <string name="settings_metadata_editor">メタデータ編集ソフト</string>
+    <string name="settings_metadata_editor_summary">曲タグの編集に使うアプリを選びます</string>
     <string name="settings_lyric_timing_editor">歌詞タイミング調整ソフト</string>
+    <string name="settings_lyric_timing_editor_summary">歌詞のタイミング編集に使うアプリを選びます</string>
     <string name="settings_desktop_shortcuts">デスクトップショートカット</string>
     <string name="settings_shortcut_library">ライブラリ</string>
     <string name="settings_shortcut_playlists">検索</string>
@@ -976,7 +998,9 @@
     <string name="settings_mini_player_translation">ミニプレーヤーに翻訳を表示</string>
     <string name="settings_mini_player_translation_summary">再生バーで歌詞を表示する際に翻訳も同時に表示</string>
     <string name="settings_mini_player_secondary">ミニプレーヤーサブ行の内容</string>
+    <string name="settings_mini_player_secondary_summary">ミニプレーヤー歌詞の副行内容を選びます</string>
     <string name="settings_secondary_delivery_content">サブ行の送信内容</string>
+    <string name="settings_secondary_delivery_content_summary">翻訳または読み仮名も一緒に送るかを選びます</string>
     <string name="settings_mini_player_cover_rotation">ミニプレーヤーカバーの回転</string>
     <string name="settings_mini_player_cover_rotation_summary">再生時にミニプレーヤーカバーを回転。オフでは静止カバーを維持</string>
     <string name="settings_enable_lyricon">Lyricon を有効化</string>
@@ -988,7 +1012,9 @@
     <string name="settings_enable_desktop_lyric">デスクトップ歌詞を有効化</string>
     <string name="settings_enable_desktop_lyric_summary">フローティングウィンドウで他のアプリの上に現在の歌詞を表示</string>
     <string name="settings_status_bar_lyric_position">ステータスバー歌詞の位置</string>
+    <string name="settings_status_bar_lyric_position_summary">ステータスバー歌詞の水平位置を選びます</string>
     <string name="settings_status_bar_lyric_secondary">ステータスバー歌詞のサブ行</string>
+    <string name="settings_status_bar_lyric_secondary_summary">ステータスバー歌詞の副行内容を選びます</string>
     <string name="settings_lock_desktop_lyric">デスクトップ歌詞をロック</string>
     <string name="settings_lock_desktop_lyric_summary">ロック後はフローティング歌詞がドラッグ不可。ここでロック通知から解除可能</string>
     <string name="settings_desktop_lyric_font_scale">デスクトップ歌詞サイズ %1$d%%</string>
@@ -998,6 +1024,7 @@
     <string name="settings_desktop_lyric_opacity">デスクトップ歌詞の透明度 %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">低くすると歌詞が薄くなりますが、ロック状態でも維持されます</string>
     <string name="settings_desktop_lyric_color">デスクトップ歌詞の色</string>
+    <string name="settings_desktop_lyric_color_summary">デスクトップ歌詞の文字色を選びます</string>
     <string name="settings_status_lyric_font_scale">ステータスバー歌詞サイズ %1$d%%</string>
     <string name="settings_status_lyric_font_scale_summary">フローティングステータスバー歌詞のメイン行サイズを個別に調整します</string>
     <string name="settings_status_lyric_translation_scale">ステータスバー副行サイズ %1$d%%</string>
@@ -1023,9 +1050,11 @@
     <string name="settings_status_bar_phonetic_secondary">ステータスバーに読み仮名/サブ行を表示</string>
     <string name="settings_status_bar_phonetic_secondary_summary">有効にすると、読み仮名または翻訳サブ行をステータスバー歌詞の 2 行目として送信します。</string>
     <string name="settings_heads_up_lyric_secondary">ヘッドアップ歌詞通知のサブ行内容</string>
+    <string name="settings_heads_up_lyric_secondary_summary">ヘッドアップ歌詞の副行内容を選びます</string>
     <string name="settings_enable_coloros_lock_screen_lyric">ColorOS ロック画面アイランド歌詞</string>
     <string name="settings_enable_coloros_lock_screen_lyric_summary">MediaMetadata[&quot;lyricInfo&quot;] 経由で ColorOS ロック画面アイランドへ完全な LRC 歌詞を送信します。一部のシステムでは対応アプリが制限される場合があります。</string>
     <string name="settings_coloros_lock_screen_lyric_mode">Lyric delivery mode</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_summary">ColorOS ロック画面歌詞の送信方法を選びます</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">Use system</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">Use module</string>
     <string name="settings_enable_bluetooth_lyric">メディア通知歌詞を有効化</string>
@@ -1124,6 +1153,7 @@
     <string name="player_playback_mode_in_order">通常再生</string>
     <string name="player_locate_current_song">現在の曲を表示</string>
     <string name="player_clear_queue">再生キューをクリア</string>
+    <string name="player_clear_queue_confirm">再生キューをすべて削除しますか？</string>
     <string name="player_lock_queue">再生キューをロック</string>
     <string name="player_unlock_queue">再生キューのロックを解除</string>
     <string name="player_remove_from_queue">再生キューから削除</string>
@@ -1283,6 +1313,9 @@
     <string name="song_more_detail_size">ファイルサイズ</string>
     <string name="song_more_detail_modified_time">更新日</string>
     <string name="song_more_detail_added_time">追加日</string>
+    <string name="song_more_detail_play_count">再生回数</string>
+    <string name="song_more_detail_listened_duration">累計再生時間</string>
+    <string name="song_more_detail_last_played">最終再生</string>
     <string name="song_more_detail_file_name">ファイル名</string>
     <string name="song_more_detail_path">パス</string>
     <string name="song_more_detail_directory">ディレクトリ</string>
@@ -1321,7 +1354,18 @@
     <string name="artist_tab_participated_albums">参加アルバム</string>
     <string name="artist_tab_release_albums">リリースアルバム</string>
     <string name="artist_tab_biography">伝記</string>
-    <string name="artist_biography_region">地域</string>
+    <string name="artist_biography_region">言語</string>
+    <string name="artist_biography_language">言語</string>
+    <string name="artist_biography_lang_zh_cn">簡体字中国語</string>
+    <string name="artist_biography_lang_zh_hk">香港繁体字</string>
+    <string name="artist_biography_lang_zh_tw">台湾繁体字</string>
+    <string name="artist_biography_lang_ko">한국어</string>
+    <string name="artist_biography_lang_en">English</string>
+    <string name="artist_biography_lang_ja">日本語</string>
+    <string name="artist_biography_source_wikipedia">Wikipedia</string>
+    <string name="artist_image_source_lastfm">Last.fm</string>
+    <string name="artist_image_source_spotify">Spotify</string>
+    <string name="artist_image_source_netease">NetEase</string>
     <string name="artist_song_count_sorted">%1$d 曲 · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d 枚の参加アルバム · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d 枚のリリースアルバム · %2$s</string>
@@ -1522,7 +1566,6 @@
     <string name="about_summary_coil">Kotlin 画像読み込みライブラリ（Apache-2.0）</string>
     <string name="about_summary_quickjs">LX Music API JavaScript ランタイム（Apache-2.0）</string>
     <string name="about_summary_lxmusic">オンライン音楽ソースと API 適配の参考（Apache-2.0）</string>
-    <string name="about_summary_accompanist_lyrics_core">歌詞解析と TTML/LRC 構造の参考（Apache-2.0）</string>
 
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">インポート失敗: HTTP %1$d</string>
@@ -1646,6 +1689,7 @@
     <string name="settings_crossfade_duration_seconds">時間（秒）</string>
     <string name="settings_crossfade_duration_invalid">0～12 の有効な時間を入力してください</string>
     <string name="settings_crossfade_curve">フェードカーブ</string>
+    <string name="settings_crossfade_curve_summary">2曲が重なるときの音量変化カーブを選びます</string>
     <string name="settings_crossfade_curve_equal_power">一定の音量感</string>
     <string name="settings_crossfade_curve_equal_power_summary">等電力クロスフェードで、冒頭がほぼ無音になったり中央で音量が落ちたりするのを防ぎます</string>
     <string name="settings_crossfade_curve_linear">リニア</string>
@@ -1677,6 +1721,7 @@
     <string name="lyric_match_write_ttml_tag">TTMLLYRIC タグに書き込む</string>
     <string name="settings_lyric_plugin_config">プラグイン設定</string>
     <string name="settings_player_bg_theme">プレーヤーの背景</string>
+    <string name="settings_player_bg_theme_summary">プレーヤー背景の明暗スタイルを選びます</string>
     <string name="settings_apple_music_lyrics_page">Apple Music 風歌詞ページ</string>
     <string name="settings_apple_music_lyrics_page_summary">内蔵のフォーカス歌詞、スプリング遷移、発光効果を使用します。オフにすると従来の Lyricon 歌詞ページを使用します。</string>
     <string name="settings_wallpaper_opacity">Wallpaper opacity</string>
@@ -1804,11 +1849,15 @@
     <string name="settings_search_no_results">一致する設定がありません</string>
     <string name="settings_search_placeholder">設定を検索</string>
     <string name="settings_search_results">検索結果</string>
+    <string name="settings_search_history">検索履歴</string>
+    <string name="settings_search_history_clear">検索履歴を消去</string>
     <string name="settings_status_align_center">中央揃え</string>
     <string name="settings_status_align_left">左揃え</string>
     <string name="settings_status_align_right">右揃え</string>
     <string name="settings_status_bar_lyric_text_align">ステータスバー歌詞の文字揃え</string>
+    <string name="settings_status_bar_lyric_text_align_summary">ステータスバー歌詞の文字揃えを選びます</string>
     <string name="settings_status_bar_lyric_vertical_align">ステータスバー歌詞の縦位置</string>
+    <string name="settings_status_bar_lyric_vertical_align_summary">ステータスバー歌詞の垂直方向の揃えを選びます</string>
     <string name="settings_status_lyric_merge_secondary">副行を主行に結合</string>
     <string name="settings_status_lyric_merge_secondary_summary">同じ時間軸の原文と翻訳/読みを 1 行で表示します</string>
     <string name="settings_status_lyric_secondary_opacity_summary">ステータスバー歌詞の翻訳または読みの不透明度を調整します</string>
@@ -1867,7 +1916,7 @@
     <string name="settings_backup_type_equalizer">イコライザー</string>
     <string name="settings_backup_type_equalizer_summary">イコライザー、低音増強、バーチャライザー、リバーブの設定</string>
     <string name="settings_backup_type_online_sources">オンラインソース</string>
-    <string name="settings_backup_type_online_sources_summary">WebDAV、LX、Navidrome、Emby などのオンラインソース設定</string>
+    <string name="settings_backup_type_online_sources_summary">WebDAV、LX、Navidrome、Emby などのオンラインソース設定と Lyrico 歌詞ソースプラグイン</string>
     <string name="common_export">エクスポート</string>
     <string name="common_import">インポート</string>
     <string name="settings_dynamic_cover_custom_folders">ダイナミックカバーのカスタムフォルダ</string>
@@ -1878,6 +1927,7 @@
     <string name="settings_home_tile_gradient_enabled_summary">オンにするとホームのタイルが半透明のグラデーションになり、オフでは単色になります</string>
     <string name="settings_home_tile_gradient_start_color">グラデーションの開始色</string>
     <string name="settings_player_title_position">非没入プレーヤーのタイトル位置</string>
+    <string name="settings_player_title_position_summary">非没入プレーヤーでタイトルをカバーの上か下に表示します</string>
     <string name="settings_player_title_position_below_cover">カバーの下</string>
     <string name="settings_player_title_position_above_cover">カバーの上</string>
     <string name="settings_player_page_style">再生ページ</string>
@@ -1941,12 +1991,15 @@
     <string name="folder_playlist_detail_summary_sorted">%1$d 曲 · 関連フォルダ %2$d 個 · %3$s</string>
     <string name="folder_playlist_list_summary_sorted">フォルダプレイリスト %1$d 件 · %2$s</string>
     <string name="folder_playlist_selected_playlists">フォルダプレイリストを %1$d 件選択済み</string>
+
+
     <string name="player_lyric_style_settings">歌詞スタイル</string>
     <string name="playlist_drag_selection_count">項目：%1$d</string>
     <string name="remote_playlist_favorites">%1$s のお気に入り</string>
     <string name="remote_source_opensubsonic">OpenSubsonic</string>
     <string name="settings_audio_output_auto">Auto</string>
     <string name="settings_audio_output_backend">出力経路</string>
+    <string name="settings_audio_output_backend_summary">Android の音声出力経路を選びます</string>
     <string name="settings_audio_output_backend_aaudio">AAudio</string>
     <string name="settings_audio_output_backend_audiotrack">AudioTrack</string>
     <string name="settings_audio_output_backend_audiotrack_summary">Android AudioTrack で出力し、選択した形式へ変換します</string>
@@ -1957,11 +2010,13 @@
     <string name="settings_audio_output_backend_hires_summary">高精度 PCM/Float 出力を優先し、選択した形式へ変換します</string>
     <string name="settings_audio_output_backend_opensles">OpenSL ES</string>
     <string name="settings_audio_output_bit_depth">出力ビット深度</string>
+    <string name="settings_audio_output_bit_depth_summary">出力 PCM ビット深度を指定します。自動は音源とシステムに従います</string>
     <string name="settings_audio_output_bit_depth_16">16-bit PCM</string>
     <string name="settings_audio_output_bit_depth_24">24-bit PCM</string>
     <string name="settings_audio_output_bit_depth_32">32-bit PCM</string>
     <string name="settings_audio_output_bit_depth_float32">Float32</string>
     <string name="settings_audio_output_sample_rate">出力サンプルレート</string>
+    <string name="settings_audio_output_sample_rate_summary">出力サンプリングレートを指定します。自動は音源とシステムに従います</string>
     <string name="settings_audio_output_sample_rate_khz">%.1f kHz</string>
     <string name="settings_audio_output_section">出力</string>
     <string name="settings_bluetooth_auto_play_permission_denied">付近のデバイス権限が許可されなかったため、Bluetooth 自動再生を無効にしました</string>
@@ -2060,6 +2115,8 @@
     <string name="lyric_timing_editor_selected_line">選択中の行：%1$d / %2$d</string>
     <string name="lyric_timing_editor_unset_lines">未設定の行が %1$d 行あります</string>
     <string name="lyric_timing_editor_saved">歌詞タイミングを埋め込み LRC として保存しました</string>
+    <string name="lyric_timing_editor_saved_with_sidecar">埋め込み歌詞を保存し、曲と同じ場所に %1$s を書き出しました</string>
+    <string name="lyric_timing_editor_sidecar_failed">埋め込み歌詞は保存しましたが、曲と同じ場所にファイルを書き出せませんでした。「書き出し」で保存先を選択してください。</string>
     <string name="lyric_timing_editor_no_lines">先に歌詞を 1 行以上入力してください</string>
     <string name="lyric_timing_editor_complete_lines">保存する前にすべての歌詞行をタイミング設定してください</string>
     <string name="lyric_timing_editor_embed_format">埋め込み形式</string>
@@ -2196,6 +2253,7 @@
     <string name="equalizer_panoramic_360_elevation">垂直角度</string>
     <string name="player_replay_gain_badge">ゲイン %1$s</string>
     <string name="settings_spectrum_viewer">スペクトラム表示アプリ</string>
+    <string name="settings_spectrum_viewer_summary">スペクトラム表示に使うアプリを選びます</string>
     <string name="settings_spectrum_builtin">内蔵スペクトラム</string>
     <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
     <string name="settings_spectrum_kaspek">Kaspek</string>
@@ -2237,17 +2295,21 @@
     <string name="settings_enable_xiaomi_super_island_lyric">Xiaomi Super Island の歌詞</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">HyperOS Super Island に歌詞を表示します。XMSF の通信を一時的に遮断するため Shizuku 権限が必要です</string>
     <string name="settings_live_update_lyric_content">Live アクティビティの主歌詞</string>
+    <string name="settings_live_update_lyric_content_summary">リアルタイム通知に表示する主歌詞を選びます</string>
     <string name="settings_live_update_lyric_original">原文</string>
     <string name="settings_live_update_lyric_translation">翻訳</string>
     <string name="settings_live_update_lyric_pronunciation">発音</string>
     <string name="settings_live_update_lyric_display">Live 歌詞の表示</string>
+    <string name="settings_live_update_lyric_display_summary">リアルタイム通知で近傍行か全文かを選びます</string>
     <string name="settings_live_update_lyric_display_compact">現在の単語周辺</string>
     <string name="settings_live_update_lyric_display_full">歌詞全体</string>
     <string name="settings_live_update_lyric_secondary">Live アクティビティのサブタイトル</string>
+    <string name="settings_live_update_lyric_secondary_summary">リアルタイム通知のサブタイトルを選びます</string>
     <string name="settings_live_update_lyric_secondary_song">曲名</string>
     <string name="settings_live_update_lyric_secondary_translation">翻訳</string>
     <string name="settings_live_update_lyric_secondary_pronunciation">発音</string>
     <string name="settings_media_notification_buttons">メディア通知ボタン</string>
+    <string name="settings_media_notification_buttons_summary">メディア通知に表示する2つの追加ボタンを選びます</string>
     <string name="settings_media_notification_buttons_playback_desktop">再生モード、デスクトップ歌詞</string>
     <string name="settings_media_notification_buttons_playback_favorite">再生モード、お気に入り</string>
     <string name="settings_media_notification_buttons_desktop_favorite">デスクトップ歌詞、お気に入り</string>
@@ -2259,6 +2321,7 @@
     <string name="settings_xiaomi_super_island_notification_section">Notification and interaction</string>
     <string name="settings_xiaomi_super_island_compat_section">XMSF and dismissal</string>
     <string name="settings_xiaomi_super_island_lyric_mode">Lyric layout</string>
+    <string name="settings_xiaomi_super_island_lyric_mode_summary">スーパーアイランド歌詞の表示レイアウトを選びます</string>
     <string name="settings_xiaomi_super_island_mode_standard">Standard: song details and current lyric</string>
     <string name="settings_xiaomi_super_island_mode_full">Full: split the complete lyric across columns</string>
     <string name="settings_xiaomi_super_island_left_cover">Show cover on the left</string>
@@ -2272,16 +2335,20 @@
     <string name="settings_xiaomi_super_island_colorize">Lyric accent color</string>
     <string name="settings_xiaomi_super_island_colorize_summary">Use album artwork or a custom color for Super Island text and progress</string>
     <string name="settings_xiaomi_super_island_color_source">Color source</string>
+    <string name="settings_xiaomi_super_island_color_source_summary">スーパーアイランドの色の取得元を選びます</string>
     <string name="settings_xiaomi_super_island_color_album">Album artwork</string>
     <string name="settings_xiaomi_super_island_custom_color">Custom accent color</string>
     <string name="settings_xiaomi_super_island_progress_color">Use accent color for progress</string>
     <string name="settings_xiaomi_super_island_actions">Notification actions</string>
+    <string name="settings_xiaomi_super_island_actions_summary">スーパーアイランド通知の操作ボタンを選びます</string>
     <string name="settings_xiaomi_super_island_actions_off">Progress only</string>
     <string name="settings_xiaomi_super_island_actions_media">Media controls</string>
     <string name="settings_xiaomi_super_island_notification_style">Notification style</string>
+    <string name="settings_xiaomi_super_island_notification_style_summary">スーパーアイランド通知のスタイルを選びます</string>
     <string name="settings_xiaomi_super_island_style_standard">Standard</string>
     <string name="settings_xiaomi_super_island_style_advanced">Enhanced (experimental)</string>
     <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
+    <string name="settings_xiaomi_super_island_button_layout_summary">メディアボタンの配置を選びます</string>
     <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
     <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
     <string name="settings_xiaomi_super_island_xmsf_mode">XMSF network bypass</string>
@@ -2296,6 +2363,7 @@
     <string name="settings_xiaomi_super_island_xmsf_duration">Network block duration</string>
     <string name="settings_xiaomi_super_island_xmsf_duration_summary">Too short may fail; too long may affect Xiaomi system services</string>
     <string name="settings_xiaomi_super_island_dismiss_delay">Dismiss after pause</string>
+    <string name="settings_xiaomi_super_island_dismiss_delay_summary">一時停止後にスーパーアイランドを閉じるまでの待ち時間</string>
     <string name="settings_xiaomi_super_island_dismiss_immediate">Immediately</string>
     <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
@@ -2306,6 +2374,7 @@
     <string name="settings_continue_playback_row_summary">各ライブラリ分類と詳細ページに最後に再生した曲を表示します</string>
     <string name="folder_playlist_associate_multi_done">%1$d 件のフォルダプレイリストに関連付けました</string>
     <string name="settings_music_video_orientation">音声付き MV の画面方向</string>
+    <string name="settings_music_video_orientation_summary">ミュージックビデオ再生時の画面向きを選びます</string>
     <string name="settings_music_video_orientation_system">システム設定</string>
     <string name="settings_music_video_orientation_video">動画に合わせる</string>
     <string name="settings_music_video_orientation_landscape">横向き</string>
@@ -2328,6 +2397,7 @@
     <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
+    <string name="settings_xiaomi_super_island_lyric_content_summary">スーパーアイランドの主歌詞を選びます</string>
     <string name="player_ab_repeat_record_b">A-Bリピート：Bを設定（A %1$s）</string>
     <string name="player_ab_repeat_active">A-Bリピートを解除（%1$s-%2$s）</string>
     <string name="settings_music_video_stretch">MVの引き伸ばしを許可</string>
@@ -2367,6 +2437,10 @@
     <string name="settings_backup_webdav_restore_now">Restore now</string>
     <string name="settings_player_action_menu">Player action menu</string>
     <string name="settings_list_action_menu">List action menu</string>
+    <string name="settings_song_info_layout">Song info fields</string>
+    <string name="settings_queue_toolbar_layout">Queue toolbar</string>
+    <string name="song_more_modified_time_invalid">Use yyyy-MM-dd HH:mm:ss</string>
+    <string name="song_more_modified_time_failed">Could not change the file time</string>
     <string name="settings_action_menu_summary">Configure action order and visibility separately</string>
     <string name="settings_action_menu_position">Position: %1$d</string>
     <string name="settings_action_menu_remote_quality">Remote stream quality</string>
@@ -2413,6 +2487,7 @@
     <string name="settings_search_click_insert_next">現在の曲の後に挿入して再生</string>
     <string name="settings_search_click_append">キューの末尾に追加して再生</string>
     <string name="settings_search_click_replace">キューを置き換えて再生</string>
+    <string name="settings_search_click_playback_mode_summary">検索結果をタップしたときのキューへの入れ方を選びます</string>
     <string name="settings_playlist_show_rating_filter">プレイリストに評価フィルターを表示</string>
     <string name="settings_playlist_show_favorite_filter">プレイリストにお気に入りフィルターを表示</string>
     <string name="settings_player_progress_show_quality">プログレスバーの下に音質を表示</string>
@@ -2461,6 +2536,7 @@
     <string name="settings_immersive_lyric_swipe_summary">下部の歌詞領域を左右にスワイプして前後の曲に切り替えます</string>
     <string name="library_layout_grid">グリッド表示</string>
     <string name="library_layout_list">リスト表示</string>
+    <string name="library_layout_multi_row">複数行リスト</string>
     <string name="settings_parse_featured_artists">曲名からフィーチャリングアーティストを認識</string>
     <string name="settings_parse_featured_artists_summary">曲名の feat.、ft.、featuring の後にあるアーティストを追加し、ARTIST タグと重複排除します</string>
     <string name="settings_artist_image_download">アーティスト画像を自動ダウンロード</string>

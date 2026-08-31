@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,19 @@ enum class ArtworkUsage {
     ArtistImage,
     MiniPlayer
 }
+
+/**
+ * Library layouts are different presentations of the same song artwork.  Keep them in one
+ * cache family so a list -> two-column -> grid transition can reuse the already-resolved model
+ * instead of briefly falling back to a placeholder while the new presentation resolves it again.
+ */
+private val ArtworkUsage.cacheFamily: String
+    get() = when (this) {
+        ArtworkUsage.ListThumbnail,
+        ArtworkUsage.LibraryGrid -> "library"
+        ArtworkUsage.ArtistImage -> "artist"
+        ArtworkUsage.MiniPlayer -> "mini-player"
+    }
 
 data class SongArtworkState(
     val model: Any?,
@@ -35,20 +49,27 @@ fun rememberSongArtworkState(
     usage: ArtworkUsage,
     showDefaultWhenMissing: Boolean = true
 ): SongArtworkState {
-    val coverUrl = song?.coverUrl?.takeIf { it.isNotBlank() }
+    val coverUrl = song?.coverUrl?.takeIf {
+        it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
+    }
     val preferEmbedded = song?.prefersEmbeddedArtwork() == true
+    val cacheFamily = usage.cacheFamily
     val cacheKey = remember(
         song?.id,
         song?.path,
+        song?.title,
+        song?.artist,
+        song?.album,
+        song?.albumArtist,
         song?.dateModified,
         song?.fileSize,
         coverUrl,
         albumArtUri,
-        usage
+        cacheFamily
     ) {
         song?.let { current ->
             listOf(
-                usage.name,
+                cacheFamily,
                 current.id.toString(),
                 current.path,
                 current.dateModified.toString(),
@@ -92,12 +113,15 @@ fun rememberSongArtworkState(
         ),
         song?.id,
         song?.path,
+        song?.title,
+        song?.artist,
+        song?.album,
+        song?.albumArtist,
         song?.dateModified,
         song?.fileSize,
         coverUrl,
         albumArtUri,
-        loadCoverArt,
-        usage,
+        cacheFamily,
         shouldTryEmbedded,
         resolutionGeneration
     ) {
@@ -112,8 +136,11 @@ fun rememberSongArtworkState(
                     CoverLoadLimiter.run { loadCoverArt.invoke(currentSong) }
                 }.getOrNull()
             }
-            val resolved: Any? = coverUrl ?: embeddedCover
-            if (resolved != null && cacheKey != null && resolved is android.net.Uri) {
+            val resolved: Any? = coverUrl ?: embeddedCover ?: albumArtUri
+            // Bitmap models are cached too: keeping them alive lets a layout switch (list /
+            // two-column / grid) display instantly instead of flashing placeholders and
+            // re-running the async cover load.
+            if (resolved != null && cacheKey != null) {
                 ArtworkModelMemoryCache.put(cacheKey, resolved)
             }
             SongArtworkState(
@@ -141,10 +168,15 @@ private val embeddedArtworkExtensions = setOf(
 )
 
 private object ArtworkModelMemoryCache {
-    // Larger cache so that browsing a long playback-history list (which loads many covers via
-    // produceState) does not evict the artwork models resolved for the main library grid, which
-    // would make every library cell briefly fall back to DefaultAlbumCover on return.
-    private val cache = LruCache<String, Any>(256)
+    // Budgeted by bytes so cached Bitmap models (covers resolved from embedded artwork) cannot
+    // balloon while still keeping recent artwork alive across layout switches and long lists,
+    // so library cells do not fall back to DefaultAlbumCover on return.
+    private val cache = object : LruCache<String, Any>(32 * 1024) {
+        override fun sizeOf(key: String, value: Any): Int = when (value) {
+            is Bitmap -> value.byteCount / 1024
+            else -> 1
+        }
+    }
 
     @Synchronized
     fun get(key: String): Any? = cache.get(key)

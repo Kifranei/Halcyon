@@ -3,16 +3,14 @@ package com.ella.music.ui.player
 import android.graphics.Bitmap
 import android.graphics.Typeface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
-import com.ella.music.ui.components.ArtistPickerSheet
+import com.ella.music.ui.components.ArtistPickerContent
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.LyricSharePicker
 import com.ella.music.ui.components.SongAiInterpretationSheet
 import com.ella.music.ui.components.SongInfoSheet
@@ -68,12 +66,13 @@ internal fun PlayerScreenSheetHost(
     onCreatePlaylistSongsChange: (List<Song>?) -> Unit
 ) {
     if (artistChoices.isNotEmpty()) {
-        Popup(
-            alignment = Alignment.BottomCenter,
-            onDismissRequest = { onArtistChoicesChange(emptyList()) },
-            properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true)
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.song_more_select_artist),
+            onDismissRequest = { onArtistChoicesChange(emptyList()) }
         ) {
-            ArtistPickerSheet(
+            ArtistPickerContent(
                 artists = artistChoices,
                 mainViewModel = mainViewModel,
                 onArtistSelected = { artist ->
@@ -100,7 +99,10 @@ internal fun PlayerScreenSheetHost(
                     onSongInfoExpandedChange(false)
                     openSongWithMediaInfo(context, song)
                 },
-                onDismiss = { onSongInfoExpandedChange(false) }
+                onDismiss = { onSongInfoExpandedChange(false) },
+                onUpdateModifiedTime = { millis ->
+                    song?.let { mainViewModel.updateSongModifiedTime(it, millis) } ?: false
+                }
             )
         }
     }

@@ -8,8 +8,10 @@ import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.isUriAudioSource
 import com.ella.music.data.model.Song
+import com.ella.music.data.repository.mediaStoreAlbumArtUriString
 import java.io.File
 
 /**
@@ -43,6 +45,31 @@ internal fun List<Song>.windowedForController(index: Int): Pair<List<Song>, Int>
     return subList(from, from + LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE).toList() to (index - from)
 }
 
+/**
+ * Keeps the currently playing occurrence at the same queue entry when an item is moved while
+ * the MediaController is disconnected.  Identity lookup is not enough here because duplicate
+ * songs intentionally share the same path and metadata.
+ */
+internal fun adjustedQueueIndexAfterMove(
+    currentIndex: Int,
+    fromIndex: Int,
+    toIndex: Int,
+    queueSize: Int
+): Int {
+    if (
+        currentIndex !in 0 until queueSize ||
+        fromIndex !in 0 until queueSize ||
+        toIndex !in 0 until queueSize ||
+        fromIndex == toIndex
+    ) return currentIndex
+    return when {
+        currentIndex == fromIndex -> toIndex
+        fromIndex < toIndex && currentIndex in (fromIndex + 1)..toIndex -> currentIndex - 1
+        fromIndex > toIndex && currentIndex in toIndex until fromIndex -> currentIndex + 1
+        else -> currentIndex
+    }
+}
+
 internal fun buildPseudoShuffleSeed(sourceOrder: List<Song>, current: Song): Long {
     var seed = 0x9E3779B97F4A7C15uL.toLong()
     sourceOrder.forEachIndexed { index, song ->
@@ -68,11 +95,11 @@ internal fun Song.artworkUriForMediaCenter(includeAlbumFallback: Boolean = true)
 }
 
 internal fun Song.artworkUriStringForMediaCenter(includeAlbumFallback: Boolean = true): String? {
-    coverUrl.takeIf { it.isNotBlank() }?.let { return it }
-    if (includeAlbumFallback && albumId > 0L) {
-        return "content://media/external/audio/albumart/$albumId"
-    }
-    return null
+    coverUrl.takeIf {
+        it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
+    }?.let { return it }
+    return mediaStoreAlbumArtUriString(albumId)
+        ?.takeIf { includeAlbumFallback }
 }
 
 internal fun MediaItem.matchesSong(song: Song): Boolean {
@@ -129,5 +156,3 @@ internal fun Song.isM4aOrAppleLosslessOrAACOrApe(): Boolean {
         else -> false
     }
 }
-
-

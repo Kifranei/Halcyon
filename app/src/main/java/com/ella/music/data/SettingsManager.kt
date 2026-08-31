@@ -49,6 +49,10 @@ class SettingsManager(private val context: Context) :
     SortSettingsAccess by SortSettingsAccessImpl(context),
     RemoteSourceSettingsAccess by RemoteSourceSettingsAccessImpl(context) {
 
+    suspend fun resetToDefaults() {
+        context.dataStore.edit { preferences -> preferences.clear() }
+    }
+
     companion object {
         @Volatile
         private var instance: SettingsManager? = null
@@ -184,12 +188,13 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN = intPreferencesKey("player_mini_lyric_text_align")
         val KEY_LYRIC_PAUSE_CURRENT_ONLY = booleanPreferencesKey("lyric_pause_current_only")
         val KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE = booleanPreferencesKey("player_immersive_lyric_swipe")
-        val KEY_LYRIC_PARSER_ENGINE = intPreferencesKey("lyric_parser_engine")
         val KEY_PLAYER_TITLE_POSITION = intPreferencesKey("player_title_position")
         val KEY_PLAYER_PAGE_STYLE = intPreferencesKey("player_page_style")
         val KEY_PLAYER_LYRICS_CORNER_ACTIONS = booleanPreferencesKey("player_lyrics_corner_actions")
         val KEY_PLAYER_ACTION_MENU_LAYOUT = stringPreferencesKey("player_action_menu_layout")
         val KEY_LIST_ACTION_MENU_LAYOUT = stringPreferencesKey("list_action_menu_layout")
+        val KEY_SONG_INFO_LAYOUT = stringPreferencesKey("song_info_layout")
+        val KEY_QUEUE_TOOLBAR_LAYOUT = stringPreferencesKey("queue_toolbar_layout")
         val KEY_PLAYER_LANDSCAPE_STYLE = intPreferencesKey("player_landscape_style")
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
@@ -271,6 +276,7 @@ class SettingsManager(private val context: Context) :
         val KEY_ARTIST_COVER_CAROUSEL = booleanPreferencesKey("artist_cover_carousel")
         val KEY_ARTIST_IMAGE_DOWNLOAD = intPreferencesKey("artist_image_download")
         val KEY_ARTIST_IMAGE_SOURCES = stringPreferencesKey("artist_image_sources")
+        val KEY_ARTIST_IMAGE_REGION = stringPreferencesKey("artist_image_region")
         val KEY_SPOTIFY_CLIENT_ID = stringPreferencesKey("spotify_client_id")
         val KEY_SPOTIFY_CLIENT_SECRET = stringPreferencesKey("spotify_client_secret")
         val KEY_STARTUP_POSTER_ENABLED = booleanPreferencesKey("startup_poster_enabled")
@@ -310,6 +316,7 @@ class SettingsManager(private val context: Context) :
         val KEY_SEARCH_CLICK_PLAYBACK_MODE = intPreferencesKey("search_click_playback_mode")
         val KEY_AUTO_SHOW_SEARCH_KEYBOARD = booleanPreferencesKey("auto_show_search_keyboard")
         val KEY_SEARCH_REOPEN_BEHAVIOR = intPreferencesKey("search_reopen_behavior")
+        val KEY_SETTINGS_SEARCH_HISTORY = stringPreferencesKey("settings_search_history")
         val KEY_PLAY_NEXT_MODE = intPreferencesKey("play_next_mode")
         val KEY_ADD_TO_PLAYLIST_APPEND_TO_END = booleanPreferencesKey("add_to_playlist_append_to_end")
         val KEY_LYRIC_SHARE_CUSTOM_INFO = stringPreferencesKey("lyric_share_custom_info")
@@ -318,6 +325,7 @@ class SettingsManager(private val context: Context) :
         val KEY_SHOW_ARTIST_INTRODUCTION = booleanPreferencesKey("show_artist_introduction")
         val KEY_ARTIST_BIO_DOWNLOAD = intPreferencesKey("artist_bio_download")
         val KEY_ARTIST_BIO_LASTFM_LANG = stringPreferencesKey("artist_bio_lastfm_lang")
+        val KEY_ARTIST_BIO_SOURCE = stringPreferencesKey("artist_bio_source")
         val KEY_METADATA_EDITOR_ID = stringPreferencesKey("metadata_editor_id")
         val KEY_LYRIC_TIMING_EDITOR_ID = stringPreferencesKey("lyric_timing_editor_id")
         val KEY_SPECTRUM_VIEWER_ID = stringPreferencesKey("spectrum_viewer_id")
@@ -436,7 +444,11 @@ class SettingsManager(private val context: Context) :
         val KEY_SORT_PLAYLIST_LIST = intPreferencesKey("sort_playlist_list")
         val KEY_SORT_PLAYLIST_DETAIL_SONG = intPreferencesKey("sort_playlist_detail_song")
         val KEY_CATEGORY_GRID_COLUMNS = intPreferencesKey("category_grid_columns")
+        val KEY_LIBRARY_SONG_GRID_COLUMNS_PHONE = intPreferencesKey("library_song_grid_columns_phone")
+        val KEY_LIBRARY_SONG_GRID_COLUMNS_TABLET = intPreferencesKey("library_song_grid_columns_tablet")
         val KEY_LIBRARY_SONG_GRID = booleanPreferencesKey("library_song_grid")
+        val KEY_LIBRARY_SONG_LAYOUT = intPreferencesKey("library_song_layout")
+        val KEY_LIBRARY_SONG_TITLE_MARQUEE = booleanPreferencesKey("library_song_title_marquee")
         // 0 = only the on-device log, 1 = only Last.fm, 2 = merge both timelines.
         val KEY_LISTENING_HISTORY_SOURCE = intPreferencesKey("listening_history_source")
         val KEY_HOME_DAILY_MIX_VISIBLE = booleanPreferencesKey("home_daily_mix_visible")
@@ -605,7 +617,7 @@ class SettingsManager(private val context: Context) :
         const val SYSTEM_BARS_MODE_HIDE_STATUS = 1
         const val SYSTEM_BARS_MODE_HIDE_NAVIGATION = 2
         const val SYSTEM_BARS_MODE_HIDE_BOTH = 3
-        const val DEFAULT_SYSTEM_BARS_RESERVE_SPACE = true
+        const val DEFAULT_SYSTEM_BARS_RESERVE_SPACE = false
 
         const val DEFAULT_APP_FONT_SCALE_PERCENT = 100
         const val APP_FONT_SCALE_MIN_PERCENT = 75
@@ -629,10 +641,10 @@ class SettingsManager(private val context: Context) :
         const val CROSSFADE_CURVE_SMOOTH = 2
         const val CROSSFADE_CURVE_FLAT = 3
         const val DEFAULT_PLAY_COUNT_THRESHOLD_PERCENT = 50
-        const val MIN_PLAY_COUNT_THRESHOLD_PERCENT = 30
-        const val MAX_PLAY_COUNT_THRESHOLD_PERCENT = 95
+        const val MIN_PLAY_COUNT_THRESHOLD_PERCENT = 0
+        const val MAX_PLAY_COUNT_THRESHOLD_PERCENT = 100
         const val DEFAULT_PLAY_COUNT_THRESHOLD_DURATION_MS = 180_000
-        const val MIN_PLAY_COUNT_THRESHOLD_DURATION_MS = 30_000
+        const val MIN_PLAY_COUNT_THRESHOLD_DURATION_MS = 0
         const val MAX_PLAY_COUNT_THRESHOLD_DURATION_MS = 360_000
         const val PREVIOUS_REPLAY_THRESHOLD_MS = 20_000L
 
@@ -705,8 +717,6 @@ class SettingsManager(private val context: Context) :
         const val LYRIC_SOURCE_EMBEDDED = 2
 
         // Lyric parser engine selection
-        const val LYRIC_PARSER_ENGINE_AUTO = 0
-        const val LYRIC_PARSER_ENGINE_ELLA = 1
 
         const val LYRIC_SOURCE_EMBEDDED_TTML = "embedded_ttml"
         const val LYRIC_SOURCE_EMBEDDED_PLAIN = "embedded_plain"
@@ -794,6 +804,9 @@ class SettingsManager(private val context: Context) :
         const val DEFAULT_STARTUP_POSTER_DURATION_MS = 1_000
         const val SONG_RATING_DISPLAY_STAR_NUMBER = 0
         const val SONG_RATING_DISPLAY_STARS = 1
+        const val LIBRARY_LAYOUT_LIST = 0
+        const val LIBRARY_LAYOUT_MULTI_ROW = 1
+        const val LIBRARY_LAYOUT_GRID = 2
         const val MEDIA_NOTIFICATION_BUTTON_PLAYBACK_MODE = "playback_mode"
         const val MEDIA_NOTIFICATION_BUTTON_DESKTOP_LYRIC = "desktop_lyric"
         const val MEDIA_NOTIFICATION_BUTTON_FAVORITE = "favorite"
@@ -935,9 +948,9 @@ class SettingsManager(private val context: Context) :
                 .split(',', '，', ';', '；')
                 .map { it.trim().lowercase(Locale.ROOT) }
                 .filter { it in LYRIC_SOURCE_PRIORITY_IDS }
-            return (requested + LYRIC_SOURCE_PRIORITY_IDS)
                 .distinct()
-                .joinToString(",")
+            // An empty list means every source is disabled. Do not re-expand to the defaults.
+            return requested.joinToString(",")
         }
 
         fun normalizeBottomDockItems(value: String): String {
@@ -1164,6 +1177,10 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_LYRIC_PAUSE_CURRENT_ONLY)
             setBoolean(KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE)
             setBoolean(KEY_LIBRARY_SONG_GRID)
+            setInt(KEY_LIBRARY_SONG_LAYOUT)
+            setInt(KEY_LIBRARY_SONG_GRID_COLUMNS_PHONE)
+            setInt(KEY_LIBRARY_SONG_GRID_COLUMNS_TABLET)
+            setBoolean(KEY_LIBRARY_SONG_TITLE_MARQUEE)
             setBoolean(KEY_PLAYER_LYRICS_CORNER_ACTIONS)
             setBoolean(KEY_PLAYER_KEEP_SCREEN_ON)
             setBoolean(KEY_PLAYER_HDR_GLOW)
@@ -1202,8 +1219,10 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_SHOW_ARTIST_INTRODUCTION)
             setInt(KEY_ARTIST_BIO_DOWNLOAD)
             setString(KEY_ARTIST_BIO_LASTFM_LANG)
+            setString(KEY_ARTIST_BIO_SOURCE)
             setInt(KEY_ARTIST_IMAGE_DOWNLOAD)
             setString(KEY_ARTIST_IMAGE_SOURCES)
+            setString(KEY_ARTIST_IMAGE_REGION)
             setString(KEY_SPOTIFY_CLIENT_ID)
             setString(KEY_SPOTIFY_CLIENT_SECRET)
             setBoolean(KEY_HOME_TILE_PIN_BUTTONS_VISIBLE)
@@ -1296,7 +1315,6 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_LIVE_UPDATE_LYRIC_DISPLAY_MODE)
             setInt(KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE)
             setInt(KEY_LYRIC_SOURCE_MODE)
-            setInt(KEY_LYRIC_PARSER_ENGINE)
             setInt(KEY_PLAYER_TITLE_POSITION)
             setInt(KEY_PLAYER_PAGE_STYLE)
             setInt(KEY_PLAYER_LANDSCAPE_STYLE)
@@ -1410,6 +1428,8 @@ class SettingsManager(private val context: Context) :
             setString(KEY_MEDIA_NOTIFICATION_BUTTONS)
             setString(KEY_PLAYER_ACTION_MENU_LAYOUT)
             setString(KEY_LIST_ACTION_MENU_LAYOUT)
+            setString(KEY_SONG_INFO_LAYOUT)
+            setString(KEY_QUEUE_TOOLBAR_LAYOUT)
             setString(KEY_LX_SOURCE_URL)
             setString(KEY_LX_SOURCE_NAME)
             setString(KEY_LX_SOURCE_SCRIPT)
@@ -1436,23 +1456,23 @@ class SettingsManager(private val context: Context) :
             setString(KEY_LYRIC_SOURCE_PRIORITY)
             setString(KEY_LYRIC_LINE_BLACKLIST)
             setString(KEY_LYRIC_FONT_NAME)
-            setString(KEY_LYRIC_FONT_PATH)
+            restoreFontPath(prefs, KEY_LYRIC_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_LYRIC_WESTERN_FONT_NAME)
-            setString(KEY_LYRIC_WESTERN_FONT_PATH)
+            restoreFontPath(prefs, KEY_LYRIC_WESTERN_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_LYRIC_CJK_FONT_NAME)
-            setString(KEY_LYRIC_CJK_FONT_PATH)
+            restoreFontPath(prefs, KEY_LYRIC_CJK_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_GLOBAL_WESTERN_FONT_NAME)
-            setString(KEY_GLOBAL_WESTERN_FONT_PATH)
+            restoreFontPath(prefs, KEY_GLOBAL_WESTERN_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_GLOBAL_CJK_FONT_NAME)
-            setString(KEY_GLOBAL_CJK_FONT_PATH)
+            restoreFontPath(prefs, KEY_GLOBAL_CJK_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_LYRIC_ORIGINAL_WESTERN_FONT_NAME)
-            setString(KEY_LYRIC_ORIGINAL_WESTERN_FONT_PATH)
+            restoreFontPath(prefs, KEY_LYRIC_ORIGINAL_WESTERN_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_LYRIC_ORIGINAL_CJK_FONT_NAME)
-            setString(KEY_LYRIC_ORIGINAL_CJK_FONT_PATH)
+            restoreFontPath(prefs, KEY_LYRIC_ORIGINAL_CJK_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_LYRIC_TRANSLATION_WESTERN_FONT_NAME)
-            setString(KEY_LYRIC_TRANSLATION_WESTERN_FONT_PATH)
+            restoreFontPath(prefs, KEY_LYRIC_TRANSLATION_WESTERN_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_LYRIC_TRANSLATION_CJK_FONT_NAME)
-            setString(KEY_LYRIC_TRANSLATION_CJK_FONT_PATH)
+            restoreFontPath(prefs, KEY_LYRIC_TRANSLATION_CJK_FONT_PATH, payload, restoreDeviceLocalAssets)
             setString(KEY_LYRIC_SHARE_CUSTOM_INFO)
             setString(KEY_STARTUP_POSTER_URI)
             setString(KEY_APP_WALLPAPER_URI)
@@ -1479,6 +1499,7 @@ class SettingsManager(private val context: Context) :
             setString(KEY_HOME_LIBRARY_TILE_ORDER)
             setString(KEY_HOME_HIDDEN_LIBRARY_TILES)
             setString(KEY_APP_LANGUAGE)
+            setString(KEY_SETTINGS_SEARCH_HISTORY)
             setString(KEY_APP_ICON_STYLE)
             setString(KEY_BOTTOM_BAR_GLASS_EFFECT)
             setString(KEY_BOTTOM_DOCK_ITEMS)
@@ -1519,6 +1540,41 @@ class SettingsManager(private val context: Context) :
                 }
             }
         }
+    }
+
+    private fun restoreFontPath(
+        prefs: androidx.datastore.preferences.core.MutablePreferences,
+        key: Preferences.Key<String>,
+        payload: JSONObject,
+        restoreDeviceLocalAssets: Boolean
+    ) {
+        if (!payload.has(key.name) || payload.isNull(key.name)) return
+        val path = payload.optString(key.name)
+        if (path.isBlank()) {
+            prefs.remove(key)
+            return
+        }
+        val keepable = path == "__system_default__" ||
+            path.startsWith("/system/") ||
+            path.startsWith("/product/")
+        if (!restoreDeviceLocalAssets && !keepable) return
+        prefs[key] = remapLocalFontPath(path)
+    }
+
+    private fun remapLocalFontPath(path: String): String {
+        if (path == "__system_default__" || path.startsWith("/system/") || path.startsWith("/product/")) {
+            return path
+        }
+        val file = File(path)
+        if (file.isFile && file.canRead() && file.length() > 0L) return file.absolutePath
+        val fileName = file.name.ifBlank { return path }
+        listOf("lyric_fonts", "lyric_builtin_fonts").forEach { directory ->
+            val candidate = File(File(context.filesDir, directory), fileName)
+            if (candidate.isFile && candidate.canRead() && candidate.length() > 0L) {
+                return candidate.absolutePath
+            }
+        }
+        return path
     }
 
     private fun isRestoredCustomImageAvailable(uriString: String): Boolean {

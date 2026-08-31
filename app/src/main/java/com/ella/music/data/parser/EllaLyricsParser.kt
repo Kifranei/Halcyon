@@ -3,7 +3,13 @@ package com.ella.music.data.parser
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.shiftedBy
+import java.util.Base64
 import kotlin.math.abs
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 internal object EllaLyricsParser {
     private val lrcTimePattern = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,6}))?]""")
@@ -13,13 +19,100 @@ internal object EllaLyricsParser {
     private val lyricifySyllablePattern = Regex("""(.*?)\((\d+),(\d+)\)""")
     private val lyricifyAttributePattern = Regex("""^\[(\d+)]""")
     private val timestampOnlyPattern = Regex("""\d+(?::\d{1,2}){1,2}(?:[.:]\d{1,6})?""")
+    private val krcLinePattern = Regex("""^\[(\d+),(\d+)](.*)$""")
+    private val krcWordPattern = Regex("""<(\d+),(\d+),\d+>""")
+    private const val krcLanguagePrefix = "[language:"
 
     fun parse(content: String, ignoreHeaderTags: Boolean = false): LrcParser.LrcResult {
         parseTtml(content)?.let { return it }
+        if (content.lineSequence().any { krcLinePattern.matches(it.trim()) }) {
+            return parseKrc(content)
+        }
         if (lyricifySyllablePattern.containsMatchIn(content)) {
             parseLyricify(content)?.let { return it }
         }
         return parseLrc(content, ignoreHeaderTags)
+    }
+
+    private data class KrcMetadata(
+        val translations: List<String> = emptyList(),
+        val pronunciations: List<List<String>> = emptyList()
+    )
+
+    private fun parseKrc(content: String): LrcParser.LrcResult {
+        val rawLines = content.lines().map(String::trim)
+        val metadata = decodeKrcMetadata(rawLines.firstOrNull { it.startsWith(krcLanguagePrefix) })
+        var lyricIndex = 0
+        val lyrics = rawLines.mapNotNull { line ->
+            val match = krcLinePattern.matchEntire(line) ?: return@mapNotNull null
+            val lineStart = match.groupValues[1].toLongOrNull() ?: return@mapNotNull null
+            val lineDuration = match.groupValues[2].toLongOrNull() ?: 0L
+            val rawContent = match.groupValues[3]
+            val markers = krcWordPattern.findAll(rawContent).toList()
+            if (markers.isEmpty()) return@mapNotNull null
+            val words = markers.mapIndexedNotNull { index, marker ->
+                val textStart = marker.range.last + 1
+                val textEnd = markers.getOrNull(index + 1)?.range?.first ?: rawContent.length
+                val text = rawContent.substring(textStart, textEnd)
+                if (text.isEmpty()) return@mapIndexedNotNull null
+                val offset = marker.groupValues[1].toLongOrNull() ?: 0L
+                val duration = marker.groupValues[2].toLongOrNull() ?: 0L
+                LyricWord(
+                    text = text,
+                    startMs = lineStart + offset,
+                    endMs = lineStart + offset + duration.coerceAtLeast(1L)
+                )
+            }
+            if (words.isEmpty()) return@mapNotNull null
+            val currentIndex = lyricIndex++
+            val pronunciationTokens = metadata.pronunciations.getOrNull(currentIndex).orEmpty()
+            val pronunciationWords = if (pronunciationTokens.size == words.size) {
+                words.mapIndexedNotNull { index, word ->
+                    pronunciationTokens[index].takeIf(String::isNotBlank)?.let { pronunciation ->
+                        LyricWord(pronunciation, word.startMs, word.endMs)
+                    }
+                }
+            } else {
+                emptyList()
+            }
+            LyricLine(
+                timeMs = words.first().startMs,
+                text = words.joinToString("") { it.text },
+                words = words,
+                translation = metadata.translations.getOrNull(currentIndex)?.takeIf(String::isNotBlank),
+                pronunciation = pronunciationWords.joinToString(" ") { it.text }.takeIf(String::isNotBlank),
+                pronunciationWords = pronunciationWords,
+                endMs = maxOf(lineStart + lineDuration, words.last().endMs)
+            )
+        }
+        return LrcParser.LrcResult(lyrics = lyrics)
+    }
+
+    private fun decodeKrcMetadata(languageHeader: String?): KrcMetadata {
+        if (languageHeader.isNullOrBlank()) return KrcMetadata()
+        return runCatching {
+            val encoded = languageHeader.substringAfter(krcLanguagePrefix).substringBeforeLast(']').trim()
+            val root = Json.parseToJsonElement(
+                Base64.getDecoder().decode(encoded).decodeToString()
+            ).jsonObject
+            val translations = mutableListOf<String>()
+            val pronunciations = mutableListOf<List<String>>()
+            root["content"]?.jsonArray?.forEach { element ->
+                val item = element.jsonObject
+                val rows = item["lyricContent"]?.jsonArray ?: return@forEach
+                when (item["type"]?.jsonPrimitive?.intOrNull) {
+                    1 -> rows.forEach { row ->
+                        translations += row.jsonArray.joinToString("") { it.jsonPrimitive.content }
+                    }
+                    0 -> rows.forEach { row ->
+                        pronunciations += row.jsonArray.map { syllable ->
+                            syllable.jsonArray.joinToString("") { it.jsonPrimitive.content }
+                        }
+                    }
+                }
+            }
+            KrcMetadata(translations, pronunciations)
+        }.getOrDefault(KrcMetadata())
     }
 
     private fun parseLrc(content: String, ignoreHeaderTags: Boolean = false): LrcParser.LrcResult {

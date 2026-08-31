@@ -59,7 +59,7 @@ internal fun SettingsLiveUpdateLyricControls(
     SettingsFocusAnchor(active = highlightKey == "live_update_lyric_content") {
         WindowSpinnerPreference(
             title = stringResource(R.string.settings_live_update_lyric_content),
-            summary = stringResource(R.string.settings_current_value, labels[selectedMode]),
+            summary = stringResource(R.string.settings_live_update_lyric_content_summary),
             enabled = enabled,
             items = entries,
             selectedIndex = selectedMode,
@@ -79,7 +79,7 @@ internal fun SettingsLiveUpdateLyricControls(
     SettingsFocusAnchor(active = highlightKey == "live_update_lyric_display") {
         WindowSpinnerPreference(
             title = stringResource(R.string.settings_live_update_lyric_display),
-            summary = stringResource(R.string.settings_current_value, displayLabels[selectedDisplayMode]),
+            summary = stringResource(R.string.settings_live_update_lyric_display_summary),
             enabled = enabled,
             items = displayEntries,
             selectedIndex = selectedDisplayMode,
@@ -100,7 +100,7 @@ internal fun SettingsLiveUpdateLyricControls(
     SettingsFocusAnchor(active = highlightKey == "live_update_lyric_secondary") {
         WindowSpinnerPreference(
             title = stringResource(R.string.settings_live_update_lyric_secondary),
-            summary = stringResource(R.string.settings_current_value, secondaryLabels[selectedSecondaryMode]),
+            summary = stringResource(R.string.settings_live_update_lyric_secondary_summary),
             enabled = enabled,
             items = secondaryEntries,
             selectedIndex = selectedSecondaryMode,
@@ -156,10 +156,7 @@ internal fun SettingsLyriconControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_secondary_delivery_content),
-        summary = stringResource(
-            R.string.settings_current_value,
-            labels[lyricSecondaryIndex(lyriconTranslation, lyriconPronunciation)]
-        ),
+        summary = stringResource(R.string.settings_secondary_delivery_content_summary),
         enabled = lyriconEnabled,
         items = entries,
         selectedIndex = lyricSecondaryIndex(lyriconTranslation, lyriconPronunciation),
@@ -243,10 +240,7 @@ internal fun SettingsLyricOutputControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_secondary_delivery_content),
-        summary = stringResource(
-            R.string.settings_current_value,
-            labels[lyricSecondaryIndex(superLyricTranslation, superLyricPronunciation)]
-        ),
+        summary = stringResource(R.string.settings_secondary_delivery_content_summary),
         enabled = superLyricEnabled,
         items = entries,
         selectedIndex = lyricSecondaryIndex(superLyricTranslation, superLyricPronunciation),
@@ -317,10 +311,7 @@ internal fun SettingsLyricOutputControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_heads_up_lyric_secondary),
-        summary = stringResource(
-            R.string.settings_current_value,
-            labels[lyricSecondaryIndex(samsungFloatingLyricTranslation, statusBarAllowPhonetic)]
-        ),
+        summary = stringResource(R.string.settings_heads_up_lyric_secondary_summary),
         enabled = tickerEnabled && tickerHeadsUpLyrics && !isFlymeDevice,
         items = entries,
         selectedIndex = lyricSecondaryIndex(samsungFloatingLyricTranslation, statusBarAllowPhonetic),
@@ -366,10 +357,7 @@ internal fun SettingsLyricOutputControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_coloros_lock_screen_lyric_mode),
-        summary = stringResource(
-            R.string.settings_current_value,
-            oplusModeLabels[colorOsLockScreenLyricMode.coerceIn(0, oplusModeLabels.lastIndex)]
-        ),
+        summary = stringResource(R.string.settings_coloros_lock_screen_lyric_mode_summary),
         enabled = colorOsLockScreenLyricEnabled,
         items = oplusModeEntries,
         selectedIndex = colorOsLockScreenLyricMode.coerceIn(0, oplusModeLabels.lastIndex),
@@ -398,10 +386,7 @@ internal fun SettingsLyricOutputControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_secondary_delivery_content),
-        summary = stringResource(
-            R.string.settings_current_value,
-            labels[lyricSecondaryIndex(bluetoothLyricTranslation, bluetoothLyricPronunciation)]
-        ),
+        summary = stringResource(R.string.settings_secondary_delivery_content_summary),
         enabled = bluetoothLyricEnabled,
         items = entries,
         selectedIndex = lyricSecondaryIndex(bluetoothLyricTranslation, bluetoothLyricPronunciation),
@@ -467,10 +452,7 @@ internal fun SettingsLyricOutputControls(
         ?: 1
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_media_notification_buttons),
-        summary = stringResource(
-            R.string.settings_current_value,
-            mediaNotificationButtonLabels[selectedMediaNotificationButtonPair]
-        ),
+        summary = stringResource(R.string.settings_media_notification_buttons_summary),
         items = mediaNotificationButtonEntries,
         selectedIndex = selectedMediaNotificationButtonPair,
         onSelectedIndexChange = { index ->

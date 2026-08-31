@@ -10,6 +10,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,6 +37,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,9 +52,11 @@ import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -193,12 +197,19 @@ fun RowScope.FloatingBottomBarItem(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val scale = LocalFloatingBottomBarTabScale.current
+    var focused by remember { mutableStateOf(false) }
     // Read the dynamic color from the bottom bar layer
     val contentColor = LocalFloatingBottomBarContentColor.current
 
     Column(
         modifier
             .clip(CircleShape)
+            .onFocusChanged { focused = it.hasFocus }
+            .border(
+                width = if (focused) 3.dp else 0.dp,
+                color = if (focused) MiuixTheme.colorScheme.primary else Color.Transparent,
+                shape = CircleShape
+            )
             .clickable(
                 interactionSource = null,
                 indication = null,
@@ -209,8 +220,9 @@ fun RowScope.FloatingBottomBarItem(
             .weight(1f)
             .graphicsLayer {
                 val s = scale()
-                scaleX = s
-                scaleY = s
+                val focusScale = if (focused) 1.06f else 1f
+                scaleX = s * focusScale
+                scaleY = s * focusScale
             },
         verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -236,14 +248,25 @@ fun FloatingBottomBar(
     colors: FloatingBottomBarColors = FloatingBottomBarDefaults.colors(),
     content: @Composable RowScope.() -> Unit
 ) {
+    val context = LocalContext.current
+    val televisionDevice = remember(context) {
+        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+            (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
+            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+    }
     val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val isInDark = !isLight
     val pillShape = remember { CircleShape }
-    val isLiquidGlassMode = mode == FloatingBottomBarMode.LiquidGlass
-    val isBlurMode = mode == FloatingBottomBarMode.Blur
+    // TV renderers frequently lack the RuntimeShader path used by the refractive lens. Keep the
+    // same backdrop capture but use the simpler Gaussian blur path there; it also avoids the
+    // continuously animated refraction work that can saturate low-power TV CPUs.
+    val isLiquidGlassMode = mode == FloatingBottomBarMode.LiquidGlass && !televisionDevice
+    val isBlurMode = mode == FloatingBottomBarMode.Blur || televisionDevice
     val useLayeredSelection = isLiquidGlassMode && backdrop != null && !disableRefraction
     val containerColor =
-        if (isLiquidGlassMode) colors.containerColor.copy(0.4f) else colors.containerColor
+        if (isLiquidGlassMode) colors.containerColor.copy(0.4f)
+        else if (televisionDevice) colors.containerColor.copy(alpha = 0.72f)
+        else colors.containerColor
 
     val tabsBackdrop = rememberLayerBackdrop()
     val density = LocalDensity.current
@@ -362,8 +385,10 @@ fun FloatingBottomBar(
             null
         }
 
-    val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
-    val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
+    val baseHighlight = if (televisionDevice) iosIndicatorSpecular
+        else rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
+    val pillHighlight = if (televisionDevice) iosIndicatorSpecular
+        else rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
     val combinedBackdrop = if (useLayeredSelection) {
         rememberCombinedBackdrop(backdrop, tabsBackdrop)

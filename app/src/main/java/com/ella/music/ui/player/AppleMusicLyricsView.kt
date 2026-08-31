@@ -446,11 +446,17 @@ internal fun lyricLineDoubleTapEnabled(wordSeekEnabled: Boolean): Boolean = !wor
 private fun LyricLine.openingSeekHandler(
     onLineClick: (LyricLine) -> Unit
 ): ((Float) -> Unit)? {
-    val openingEndMs = endMs?.takeIf { isOpeningMetadata && it > timeMs } ?: return null
+    if (resolveOpeningLyricSeekPosition(this, 0f) == null) return null
     return { fraction ->
-        val positionMs = timeMs + ((openingEndMs - timeMs) * fraction.coerceIn(0f, 1f)).toLong()
-        onLineClick(copy(timeMs = positionMs))
+        resolveOpeningLyricSeekPosition(this, fraction)?.let { positionMs ->
+            onLineClick(copy(timeMs = positionMs))
+        }
     }
+}
+
+internal fun resolveOpeningLyricSeekPosition(line: LyricLine, fraction: Float): Long? {
+    val endMs = line.endMs?.takeIf { line.isOpeningMetadata && it > line.timeMs } ?: return null
+    return line.timeMs + ((endMs - line.timeMs) * fraction.coerceIn(0f, 1f)).toLong()
 }
 
 internal fun resolveAppleMusicLyricsLeadingPadding(

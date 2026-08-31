@@ -62,4 +62,19 @@ class ArtistCoverRepositoryTest {
             normalizeArtistCoverKey("  Lana   Del Rey  ")
         )
     }
+
+    @Test
+    fun folderCoverKeysHonorCaseSensitivity() {
+        assertEquals("LiSA", normalizeArtistCoverKey("LiSA", ignoreCase = false))
+        assertEquals("LISA", normalizeArtistCoverKey("LISA", ignoreCase = false))
+        assertEquals("lisa", normalizeArtistCoverKey("LiSA", ignoreCase = true))
+        assertEquals(
+            "LiSA",
+            artistCoverMatchKey("LiSA_01.jpg", ignoreCase = false)
+        )
+        assertEquals(
+            "LISA",
+            artistCoverMatchKey("LISA.jpg", ignoreCase = false)
+        )
+    }
 }

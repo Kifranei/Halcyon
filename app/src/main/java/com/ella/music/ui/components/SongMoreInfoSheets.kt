@@ -10,14 +10,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,12 +30,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.ActionMenuIds
+import com.ella.music.data.ActionMenuLayout
+import com.ella.music.data.PlaybackStatsStore
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.detailedAudioInfo
 import com.ella.music.data.formatBitRate
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
+import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.neteaseAlbumUrl
 import com.ella.music.data.neteaseArtistUrl
 import com.ella.music.data.neteaseMvUrl
@@ -42,6 +50,7 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.extractYear
 import com.ella.music.viewmodel.parentFolderPath
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -56,11 +65,22 @@ fun SongInfoSheet(
     tagInfoLoader: (Song) -> SongTagInfo,
     onOpenMediaInfo: () -> Unit = {},
     onDismiss: () -> Unit,
+    onUpdateModifiedTime: (suspend (Long) -> Boolean)? = null,
     leadingContent: @Composable ColumnScope.() -> Unit = {}
 ) {
     val context = LocalContext.current
     val navigateTo = LocalAppNavigator.current
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val songInfoLayout by settingsManager.songInfoLayout.collectAsState(initial = "")
+    val visibleInfoFields = remember(songInfoLayout) {
+        ActionMenuLayout.parse(songInfoLayout, ActionMenuIds.songInfoDefaults)
+            .visibleIds(ActionMenuIds.songInfoDefaults)
+    }
+    val scope = rememberCoroutineScope()
     var showNeteaseKeyInfo by remember(song.id) { mutableStateOf(false) }
+    var editingModifiedTime by remember { mutableStateOf(false) }
+    var modifiedTimeDraft by remember { mutableStateOf("") }
+    var displayedModifiedMs by remember(song.id, song.dateModified) { mutableStateOf(song.dateModified) }
     var showNeteaseArtistPicker by remember(song.id) { mutableStateOf(false) }
     var namePicker by remember(song.id) { mutableStateOf<SongInfoNamePicker?>(null) }
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
@@ -208,60 +228,162 @@ fun SongInfoSheet(
     val pathLabel = stringResource(R.string.song_more_detail_path)
     val directoryLabel = stringResource(R.string.song_more_detail_directory)
 
+    val playbackStats = remember(song.id) {
+        PlaybackStatsStore.getInstance(context).stats.value.firstOrNull { it.songId == song.id }
+    }
+    val modifiedLabel = stringResource(R.string.song_more_detail_modified_time)
     SongSheetColumn {
         leadingContent()
-        SongInfoRow(stringResource(R.string.player_detail_song), tagInfo?.title?.ifBlank { song.title } ?: song.title)
-        SongInfoRow(artistLabel, artistValue, onClick = { jumpField(SongInfoJump.Artist, artistLabel, artistValue) })
-        SongInfoRow(albumLabel, albumValue, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Album, song)) })
-        SongInfoRow(albumArtistLabel, albumArtistValue, onClick = {
-            jumpField(SongInfoJump.AlbumArtist, albumArtistLabel, albumArtistValue)
-        })
-        SongInfoRow(genreLabel, genreValue, onClick = { jumpField(SongInfoJump.Genre, genreLabel, genreValue) })
-        SongInfoRow(
-            yearLabel,
-            yearValue,
-            onClick = yearValue.extractYear()?.let { { jumpField(SongInfoJump.Year, yearLabel, yearValue) } }
-        )
-        SongInfoRow(composerLabel, composerValue, onClick = {
-            jumpField(SongInfoJump.Composer, composerLabel, composerValue)
-        })
-        SongInfoRow(arrangerLabel, arrangerValue, onClick = {
-            jumpField(SongInfoJump.Arranger, arrangerLabel, arrangerValue)
-        })
-        SongInfoRow(lyricistLabel, lyricistValue, onClick = {
-            jumpField(SongInfoJump.Lyricist, lyricistLabel, lyricistValue)
-        })
-        SongInfoRow(stringResource(R.string.player_detail_comment), tagInfo?.displayComment.orEmpty())
-        if (!tagInfo?.neteaseKey.isNullOrBlank()) {
-            SongInfoActionRow(
-                label = stringResource(R.string.song_more_netease_key),
-                value = neteaseInfo?.musicName?.ifBlank { null }
-                    ?: neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let {
-                        context.getString(R.string.song_more_netease_song_id, it)
-                    }
-                    ?: stringResource(R.string.song_more_view_netease_info),
-                onClick = { showNeteaseKeyInfo = true }
-            )
+        for (fieldId in visibleInfoFields) {
+            when (fieldId) {
+                ActionMenuIds.SONG_INFO_TITLE ->
+                    SongInfoRow(stringResource(R.string.player_detail_song), tagInfo?.title?.ifBlank { song.title } ?: song.title)
+                ActionMenuIds.SONG_INFO_ARTIST ->
+                    SongInfoRow(artistLabel, artistValue, onClick = { jumpField(SongInfoJump.Artist, artistLabel, artistValue) })
+                ActionMenuIds.SONG_INFO_ALBUM ->
+                    SongInfoRow(albumLabel, albumValue, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Album, song)) })
+                ActionMenuIds.SONG_INFO_ALBUM_ARTIST ->
+                    SongInfoRow(albumArtistLabel, albumArtistValue, onClick = {
+                        jumpField(SongInfoJump.AlbumArtist, albumArtistLabel, albumArtistValue)
+                    })
+                ActionMenuIds.SONG_INFO_GENRE ->
+                    SongInfoRow(genreLabel, genreValue, onClick = { jumpField(SongInfoJump.Genre, genreLabel, genreValue) })
+                ActionMenuIds.SONG_INFO_YEAR ->
+                    SongInfoRow(
+                        yearLabel,
+                        yearValue,
+                        onClick = yearValue.extractYear()?.let { { jumpField(SongInfoJump.Year, yearLabel, yearValue) } }
+                    )
+                ActionMenuIds.SONG_INFO_COMPOSER ->
+                    SongInfoRow(composerLabel, composerValue, onClick = {
+                        jumpField(SongInfoJump.Composer, composerLabel, composerValue)
+                    })
+                ActionMenuIds.SONG_INFO_ARRANGER ->
+                    SongInfoRow(arrangerLabel, arrangerValue, onClick = {
+                        jumpField(SongInfoJump.Arranger, arrangerLabel, arrangerValue)
+                    })
+                ActionMenuIds.SONG_INFO_LYRICIST ->
+                    SongInfoRow(lyricistLabel, lyricistValue, onClick = {
+                        jumpField(SongInfoJump.Lyricist, lyricistLabel, lyricistValue)
+                    })
+                ActionMenuIds.SONG_INFO_COMMENT ->
+                    SongInfoRow(stringResource(R.string.player_detail_comment), tagInfo?.displayComment.orEmpty())
+                ActionMenuIds.SONG_INFO_NETEASE -> if (!tagInfo?.neteaseKey.isNullOrBlank()) {
+                    SongInfoActionRow(
+                        label = stringResource(R.string.song_more_netease_key),
+                        value = neteaseInfo?.musicName?.ifBlank { null }
+                            ?: neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let {
+                                context.getString(R.string.song_more_netease_song_id, it)
+                            }
+                            ?: stringResource(R.string.song_more_view_netease_info),
+                        onClick = { showNeteaseKeyInfo = true }
+                    )
+                }
+                ActionMenuIds.SONG_INFO_FORMAT -> SongInfoRow(
+                    formatLabelText,
+                    audioInfo?.let { detailedAudioInfo(it) }.orEmpty(),
+                    onClick = audioInfo?.let { { jumpTo(songInfoJumpRoute(SongInfoJump.Format, song, it)) } }
+                )
+                ActionMenuIds.SONG_INFO_BITRATE -> SongInfoRow(
+                    bitrateLabel,
+                    audioInfo?.let { formatBitRate(it.bitRate) }.orEmpty(),
+                    onClick = audioInfo?.let { { jumpTo(songInfoJumpRoute(SongInfoJump.Bitrate, song, it)) } }
+                )
+                ActionMenuIds.SONG_INFO_DURATION ->
+                    SongInfoRow(stringResource(R.string.song_more_detail_duration), song.durationText)
+                ActionMenuIds.SONG_INFO_PLAY_COUNT ->
+                    SongInfoRow(
+                        stringResource(R.string.song_more_detail_play_count),
+                        (playbackStats?.playCount ?: 0).toString()
+                    )
+                ActionMenuIds.SONG_INFO_LISTENED ->
+                    SongInfoRow(
+                        stringResource(R.string.song_more_detail_listened_duration),
+                        (playbackStats?.listenedMs ?: 0L).formatPlaybackDuration()
+                    )
+                ActionMenuIds.SONG_INFO_LAST_PLAYED ->
+                    SongInfoRow(
+                        stringResource(R.string.song_more_detail_last_played),
+                        playbackStats?.lastPlayedAt?.takeIf { it > 0L }?.formatSongDateTime().orEmpty()
+                    )
+                ActionMenuIds.SONG_INFO_SIZE ->
+                    SongInfoRow(stringResource(R.string.song_more_detail_size), formatFileSize(song.fileSize))
+                ActionMenuIds.SONG_INFO_MODIFIED ->
+                    SongInfoRow(
+                        modifiedLabel,
+                        displayedModifiedMs.formatSongDateTime(),
+                        onClick = {
+                            modifiedTimeDraft = displayedModifiedMs.formatSongDateTime()
+                            editingModifiedTime = true
+                        }
+                    )
+                ActionMenuIds.SONG_INFO_ADDED ->
+                    SongInfoRow(stringResource(R.string.song_more_detail_added_time), song.dateAdded.formatSongDateTime())
+                ActionMenuIds.SONG_INFO_FILE_NAME ->
+                    SongInfoRow(
+                        stringResource(R.string.song_more_detail_file_name),
+                        song.fileName.ifBlank { song.path.substringAfterLast('/') }
+                    )
+                ActionMenuIds.SONG_INFO_PATH ->
+                    SongInfoRow(pathLabel, song.path, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Path, song)) })
+                ActionMenuIds.SONG_INFO_DIRECTORY ->
+                    SongInfoRow(directoryLabel, directoryValue, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Directory, song)) })
+                ActionMenuIds.SONG_INFO_MEDIA_INFO ->
+                    SongMenuItem(stringResource(R.string.song_more_open_media_info), onOpenMediaInfo)
+            }
         }
-        SongInfoRow(
-            formatLabelText,
-            audioInfo?.let { detailedAudioInfo(it) }.orEmpty(),
-            onClick = audioInfo?.let { { jumpTo(songInfoJumpRoute(SongInfoJump.Format, song, it)) } }
-        )
-        SongInfoRow(
-            bitrateLabel,
-            audioInfo?.let { formatBitRate(it.bitRate) }.orEmpty(),
-            onClick = audioInfo?.let { { jumpTo(songInfoJumpRoute(SongInfoJump.Bitrate, song, it)) } }
-        )
-        SongInfoRow(stringResource(R.string.song_more_detail_duration), song.durationText)
-        SongInfoRow(stringResource(R.string.song_more_detail_size), formatFileSize(song.fileSize))
-        SongInfoRow(stringResource(R.string.song_more_detail_modified_time), song.dateModified.formatSongDateTime())
-        SongInfoRow(stringResource(R.string.song_more_detail_added_time), song.dateAdded.formatSongDateTime())
-        SongInfoRow(stringResource(R.string.song_more_detail_file_name), song.fileName.ifBlank { song.path.substringAfterLast('/') })
-        SongInfoRow(pathLabel, song.path, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Path, song)) })
-        SongInfoRow(directoryLabel, directoryValue, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Directory, song)) })
-        SongMenuItem(stringResource(R.string.song_more_open_media_info), onOpenMediaInfo)
     }
+    val modifiedFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    EllaMiuixDialog(
+        show = editingModifiedTime,
+        title = modifiedLabel,
+        onDismissRequest = { editingModifiedTime = false }
+    ) {
+        androidx.compose.runtime.LaunchedEffect(editingModifiedTime) {
+            if (editingModifiedTime) {
+                kotlinx.coroutines.delay(80)
+                runCatching { modifiedFocus.requestFocus() }
+            }
+        }
+        EllaMiuixTextField(
+            value = modifiedTimeDraft,
+            onValueChange = { modifiedTimeDraft = it },
+            label = "yyyy-MM-dd HH:mm:ss",
+            selectAllOnStart = true,
+            focusRequester = modifiedFocus,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                imeAction = androidx.compose.ui.text.input.ImeAction.Done
+            )
+        )
+        Spacer(modifier = Modifier.padding(top = 12.dp))
+        EllaMiuixDialogActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.common_save),
+            onCancel = { editingModifiedTime = false },
+            onConfirm = {
+                val parsed = parseSongDateTime(modifiedTimeDraft)
+                if (parsed == null) {
+                    Toast.makeText(context, context.getString(R.string.song_more_modified_time_invalid), Toast.LENGTH_SHORT).show()
+                    return@EllaMiuixDialogActions
+                }
+                scope.launch {
+                    val ok = onUpdateModifiedTime?.invoke(parsed) ?: java.io.File(song.path).setLastModified(parsed)
+                    if (ok) {
+                        displayedModifiedMs = parsed
+                        editingModifiedTime = false
+                    } else {
+                        Toast.makeText(context, context.getString(R.string.song_more_modified_time_failed), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+}
+
+internal fun parseSongDateTime(text: String): Long? {
+    return runCatching {
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).parse(text.trim())?.time
+    }.getOrNull()
 }
 
 @Composable

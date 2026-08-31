@@ -1,6 +1,7 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,7 +63,8 @@ internal data class HomePreferenceItem(
 internal data class LyricSourcePreferenceItem(
     val id: String,
     val title: String,
-    val summary: String
+    val summary: String,
+    val enabled: Boolean = true
 )
 
 @Composable
@@ -504,7 +506,7 @@ internal fun LyricSourcePriorityBlock(
                 onSettle = { fromIndex, toIndex ->
                     if (fromIndex !in manualItems.indices || toIndex !in manualItems.indices || fromIndex == toIndex) return@ReorderableColumn
                     manualItems = manualItems.moveItem(fromIndex, toIndex)
-                    onOrderChange(manualItems.joinToString(",") { it.id })
+                    onOrderChange(manualItems.filter { it.enabled }.joinToString(",") { it.id })
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { _, item, isDragging ->
@@ -528,6 +530,15 @@ internal fun LyricSourcePriorityBlock(
                                     MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 }
                             )
+                            LyricSourceEnabledCheckbox(
+                                checked = item.enabled,
+                                onCheckedChange = { checked ->
+                                    manualItems = manualItems.map {
+                                        if (it.id == item.id) it.copy(enabled = checked) else it
+                                    }
+                                    onOrderChange(manualItems.filter { it.enabled }.joinToString(",") { it.id })
+                                }
+                            )
                         }
                     )
                 }
@@ -548,6 +559,39 @@ internal fun LyricSourcePriorityBlock(
     }
 }
 
+@Composable
+private fun LyricSourceEnabledCheckbox(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (checked) MiuixTheme.colorScheme.primary else Color.Transparent)
+            .border(
+                width = 1.5.dp,
+                color = if (checked) {
+                    MiuixTheme.colorScheme.primary
+                } else {
+                    MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f)
+                },
+                shape = RoundedCornerShape(6.dp)
+            )
+            .clickable { onCheckedChange(!checked) },
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Icon(
+                imageVector = MiuixIcons.Basic.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
 private fun <T> List<T>.moveItem(from: Int, to: Int): List<T> {
     if (from !in indices || to !in indices || from == to) return this
     return toMutableList().apply {
@@ -563,8 +607,13 @@ private fun List<HomePreferenceItem>.orderedByCsv(order: String, defaultOrder: S
 
 internal fun List<LyricSourcePreferenceItem>.orderedByLyricPriority(priority: String): List<LyricSourcePreferenceItem> {
     val byId = associateBy { it.id }
-    val ids = SettingsManager.normalizeLyricSourcePriority(priority).split(',')
-    return (ids.mapNotNull { byId[it] } + filterNot { it.id in ids }).distinctBy { it.id }
+    val enabledIds = SettingsManager.normalizeLyricSourcePriority(priority)
+        .split(',')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+    val enabled = enabledIds.mapNotNull { id -> byId[id]?.copy(enabled = true) }
+    val disabled = filterNot { it.id in enabledIds }.map { it.copy(enabled = false) }
+    return enabled + disabled
 }
 
 private fun String.csvIdSet(): Set<String> =

@@ -195,18 +195,12 @@ fun AudioSettingsScreen(
             summary = stringResource(R.string.settings_crossfade_curve_flat_summary)
         )
     )
-    val playCountPercentValues = (SettingsManager.MIN_PLAY_COUNT_THRESHOLD_PERCENT..
-        SettingsManager.MAX_PLAY_COUNT_THRESHOLD_PERCENT step 5).toList()
-    val selectedPlayCountPercentIndex = playCountPercentValues.indexOf(playCountThresholdPercent)
-        .takeIf { it >= 0 } ?: playCountPercentValues.indexOf(SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_PERCENT)
-    val playCountDurationValues = (SettingsManager.MIN_PLAY_COUNT_THRESHOLD_DURATION_MS..
-        SettingsManager.MAX_PLAY_COUNT_THRESHOLD_DURATION_MS step 30_000).toList()
-    val playCountDurationLabels = playCountDurationValues.map { durationMs ->
-        val totalSeconds = durationMs / 1_000
-        "%d:%02d".format(java.util.Locale.ROOT, totalSeconds / 60, totalSeconds % 60)
-    }
-    val selectedPlayCountDurationIndex = playCountDurationValues.indexOf(playCountThresholdDurationMs)
-        .takeIf { it >= 0 } ?: playCountDurationValues.indexOf(SettingsManager.DEFAULT_PLAY_COUNT_THRESHOLD_DURATION_MS)
+    val playCountDurationSeconds = playCountThresholdDurationMs / 1_000
+    val playCountDurationLabel = "%d:%02d".format(
+        java.util.Locale.ROOT,
+        playCountDurationSeconds / 60,
+        playCountDurationSeconds % 60
+    )
     val startupPlayLabels = listOf(
         stringResource(R.string.settings_startup_play_off),
         stringResource(R.string.settings_startup_play_random),
@@ -361,10 +355,7 @@ fun AudioSettingsScreen(
                     SettingsFocusAnchor(active = highlightKey == "audio_output") {
                         WindowSpinnerPreference(
                             title = stringResource(R.string.settings_audio_output_backend),
-                            summary = stringResource(
-                                R.string.settings_current_value,
-                                audioOutputBackendLabels[selectedAudioOutputBackendIndex]
-                            ),
+                            summary = stringResource(R.string.settings_audio_output_backend_summary),
                             items = audioOutputBackendEntries,
                             selectedIndex = selectedAudioOutputBackendIndex,
                             onSelectedIndexChange = { index ->
@@ -376,10 +367,7 @@ fun AudioSettingsScreen(
                     }
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_audio_output_bit_depth),
-                        summary = stringResource(
-                            R.string.settings_current_value,
-                            audioOutputBitDepthLabels[selectedAudioOutputBitDepthIndex]
-                        ),
+                        summary = stringResource(R.string.settings_audio_output_bit_depth_summary),
                         items = audioOutputBitDepthEntries,
                         selectedIndex = selectedAudioOutputBitDepthIndex,
                         onSelectedIndexChange = { index ->
@@ -390,10 +378,7 @@ fun AudioSettingsScreen(
                     )
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_audio_output_sample_rate),
-                        summary = stringResource(
-                            R.string.settings_current_value,
-                            audioOutputSampleRateLabels[selectedAudioOutputSampleRateIndex]
-                        ),
+                        summary = stringResource(R.string.settings_audio_output_sample_rate_summary),
                         items = audioOutputSampleRateEntries,
                         selectedIndex = selectedAudioOutputSampleRateIndex,
                         onSelectedIndexChange = { index ->
@@ -458,10 +443,7 @@ fun AudioSettingsScreen(
                     )
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_crossfade_curve),
-                        summary = stringResource(
-                            R.string.settings_current_value,
-                            crossfadeCurveLabels[selectedCrossfadeCurve]
-                        ),
+                        summary = stringResource(R.string.settings_crossfade_curve_summary),
                         items = crossfadeCurveEntries,
                         selectedIndex = selectedCrossfadeCurve,
                         enabled = crossfadeDurationMs > 0,
@@ -469,37 +451,38 @@ fun AudioSettingsScreen(
                             scope.launch { settingsManager.setCrossfadeCurve(curve) }
                         }
                     )
-                    WindowSpinnerPreference(
+                    SettingsIntSliderPreference(
                         title = stringResource(R.string.settings_play_count_percent),
                         summary = stringResource(
                             R.string.settings_play_count_percent_summary,
-                            playCountPercentValues[selectedPlayCountPercentIndex]
+                            playCountThresholdPercent
                         ),
-                        items = playCountPercentValues.map { DropdownItem(title = "$it%") },
-                        selectedIndex = selectedPlayCountPercentIndex,
-                        onSelectedIndexChange = { index ->
-                            scope.launch {
-                                settingsManager.setPlayCountThresholdPercent(playCountPercentValues[index])
-                            }
+                        value = playCountThresholdPercent,
+                        valueRange = SettingsManager.MIN_PLAY_COUNT_THRESHOLD_PERCENT..
+                            SettingsManager.MAX_PLAY_COUNT_THRESHOLD_PERCENT,
+                        valueText = "$playCountThresholdPercent%",
+                        onValueChange = { percent ->
+                            scope.launch { settingsManager.setPlayCountThresholdPercent(percent) }
                         }
                     )
-                    WindowSpinnerPreference(
+                    SettingsIntSliderPreference(
                         title = stringResource(R.string.settings_play_count_duration),
                         summary = stringResource(
                             R.string.settings_play_count_duration_summary,
-                            playCountDurationLabels[selectedPlayCountDurationIndex]
+                            playCountDurationLabel
                         ),
-                        items = playCountDurationLabels.map { DropdownItem(title = it) },
-                        selectedIndex = selectedPlayCountDurationIndex,
-                        onSelectedIndexChange = { index ->
+                        value = playCountDurationSeconds,
+                        valueRange = 0..360,
+                        valueText = playCountDurationLabel,
+                        onValueChange = { seconds ->
                             scope.launch {
-                                settingsManager.setPlayCountThresholdDurationMs(playCountDurationValues[index])
+                                settingsManager.setPlayCountThresholdDurationMs(seconds * 1_000)
                             }
                         }
                     )
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_replay_gain),
-                        summary = stringResource(R.string.settings_current_value, replayGainLabels[selectedReplayGainMode]),
+                        summary = stringResource(R.string.settings_replay_gain_summary),
                         items = replayGainEntries,
                         selectedIndex = selectedReplayGainMode,
                         onSelectedIndexChange = { index ->
@@ -517,7 +500,7 @@ fun AudioSettingsScreen(
                     )
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_startup_play),
-                        summary = stringResource(R.string.settings_current_value, startupPlayLabels[selectedStartupPlayMode]),
+                        summary = stringResource(R.string.settings_startup_play_summary),
                         items = startupPlayEntries,
                         selectedIndex = selectedStartupPlayMode,
                         onSelectedIndexChange = { index ->
@@ -543,7 +526,7 @@ fun AudioSettingsScreen(
                     )
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_shuffle_mode),
-                        summary = stringResource(R.string.settings_current_value, shuffleModeLabels[selectedShuffleMode]),
+                        summary = stringResource(R.string.settings_shuffle_mode_summary),
                         items = shuffleModeEntries,
                         selectedIndex = selectedShuffleMode,
                         onSelectedIndexChange = { index ->
@@ -553,7 +536,7 @@ fun AudioSettingsScreen(
                     )
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_play_next_mode),
-                        summary = stringResource(R.string.settings_current_value, playNextModeLabels[selectedPlayNextMode]),
+                        summary = stringResource(R.string.settings_play_next_mode_summary),
                         items = playNextModeEntries,
                         selectedIndex = selectedPlayNextMode,
                         onSelectedIndexChange = { index ->
@@ -563,7 +546,7 @@ fun AudioSettingsScreen(
                     )
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_previous_button),
-                        summary = stringResource(R.string.settings_current_value, previousButtonLabels[selectedPreviousButtonAction]),
+                        summary = stringResource(R.string.settings_previous_button_summary),
                         items = previousButtonEntries,
                         selectedIndex = selectedPreviousButtonAction,
                         onSelectedIndexChange = { index ->
@@ -590,7 +573,7 @@ fun AudioSettingsScreen(
                     }
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_decoder),
-                        summary = stringResource(R.string.settings_current_value, decoderLabels[selectedDecoderMode]),
+                        summary = stringResource(R.string.settings_decoder_summary),
                         items = decoderEntries,
                         selectedIndex = selectedDecoderMode,
                         onSelectedIndexChange = { index ->

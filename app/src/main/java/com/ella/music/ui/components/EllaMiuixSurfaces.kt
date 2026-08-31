@@ -38,6 +38,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
@@ -53,7 +54,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -175,6 +179,7 @@ fun EllaMiuixTextField(
     label: String,
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
+    selectAllOnStart: Boolean = false,
     focusRequester: FocusRequester? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -191,7 +196,12 @@ fun EllaMiuixTextField(
     }
     // Drive the field through a TextFieldValue so a pre-filled value (e.g. rename) starts with the
     // caret at the end instead of position 0. External value changes also reset the caret to the end.
-    var fieldValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    val initialSelection = if (selectAllOnStart && value.isNotEmpty()) {
+        TextRange(0, value.length)
+    } else {
+        TextRange(value.length)
+    }
+    var fieldValue by remember { mutableStateOf(TextFieldValue(value, initialSelection)) }
     if (value != fieldValue.text) {
         fieldValue = TextFieldValue(value, TextRange(value.length))
     }
@@ -484,33 +494,38 @@ fun EllaMiuixMenuItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    danger: Boolean = false
+    danger: Boolean = false,
+    icon: ImageVector? = null
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.78f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = if (subtitle == null) 13.dp else 11.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (danger) Color(0xFFE5484D) else MiuixTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (subtitle != null) {
-            Text(
-                text = subtitle,
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+    val titleColor = if (danger) Color(0xFFE5484D) else MiuixTheme.colorScheme.onSurface
+    val iconTint = if (danger) Color(0xFFE5484D) else MiuixTheme.colorScheme.onSurfaceVariantActions
+    BasicComponent(
+        title = text,
+        titleColor = BasicComponentDefaults.titleColor(color = titleColor),
+        summary = subtitle,
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        startAction = icon?.let { image ->
+            {
+                Icon(
+                    imageVector = image,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
-    }
+    )
+}
+
+@Composable
+fun EllaMiuixActionMenuGroup(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer),
+        content = content
+    )
 }

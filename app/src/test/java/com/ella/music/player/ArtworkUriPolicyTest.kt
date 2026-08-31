@@ -27,6 +27,20 @@ class ArtworkUriPolicyTest {
         )
     }
 
+    @Test
+    fun providerAlbumArtworkUriIsNotTreatedAsExplicitSongArtwork() {
+        val song = testSong(
+            albumId = 47L,
+            coverUrl = "content://media/external/audio/albums/999"
+        )
+
+        assertNull(song.artworkUriStringForMediaCenter(includeAlbumFallback = false))
+        assertEquals(
+            "content://media/external/audio/albumart/47",
+            song.artworkUriStringForMediaCenter(includeAlbumFallback = true)
+        )
+    }
+
     private fun testSong(albumId: Long, coverUrl: String = "") = Song(
         id = 1L,
         title = "Track",

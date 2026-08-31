@@ -56,7 +56,7 @@ import com.ella.music.data.splitGenreNames
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.artist.selectArtistCoverSong
 import com.ella.music.ui.components.AddToPlaylistSheet
-import com.ella.music.ui.components.ArtistPickerSheet
+import com.ella.music.ui.components.ArtistPickerContent
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CoverPreviewDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
@@ -147,13 +147,10 @@ fun AlbumDetailScreen(
     var showIntroduction by rememberSaveable(albumId) { mutableStateOf(false) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val album = albums.find { it.id == albumId }
-    val albumSongsState by produceState<List<Song>?>(null, albumId, librarySongs) {
-        value = withContext(kotlinx.coroutines.Dispatchers.Default) {
-            mainViewModel.getSongsForAlbum(albumId)
-        }
+    val albumSongs = remember(albumId, librarySongs) {
+        mainViewModel.getSongsForAlbum(albumId)
     }
-    val albumSongs = albumSongsState.orEmpty()
-    val albumSongsResolved = albumSongsState != null
+    val albumSongsResolved = true
     val filteredAlbumSongs = remember(albumSongs, searchQuery) {
         val query = searchQuery.trim()
         if (query.isBlank()) {
@@ -182,9 +179,14 @@ fun AlbumDetailScreen(
             emptyList()
         }
     }
-    val albumArtUri = mainViewModel.getAlbumArtUri(album?.artAlbumId ?: albumSongs.firstOrNull()?.albumId ?: 0L)
+    val albumArtUri = mainViewModel.getAlbumArtUri(
+        album?.artAlbumId?.takeIf { it > 0L }
+            ?: albumSongs.firstOrNull()?.albumId?.takeIf { it > 0L }
+            ?: 0L
+    )
     val albumPreviewModel by produceState<Any?>(
         initialValue = albumArtUri,
+        albumArtUri,
         albumSongs.firstOrNull()?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
     ) {
         value = withContext(Dispatchers.IO) {
@@ -903,10 +905,10 @@ fun AlbumDetailScreen(
             EllaMiuixBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = stringResource(R.string.common_select_artist),
+                title = stringResource(R.string.song_more_select_artist),
                 onDismissRequest = { albumArtistChoices = emptyList() }
             ) {
-                ArtistPickerSheet(
+                ArtistPickerContent(
                     artists = albumArtistChoices,
                     mainViewModel = mainViewModel,
                     onArtistSelected = { artist ->

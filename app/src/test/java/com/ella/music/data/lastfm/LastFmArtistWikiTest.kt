@@ -46,6 +46,34 @@ class LastFmArtistWikiTest {
     }
 
     @Test
+    fun artistImageParsersRejectPlaceholderCovers() {
+        val lastFm = """{"artist":{"name":"Muse","image":[{"#text":"https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png","size":"mega"}]}}"""
+        val netease = """{"result":{"artists":[{"name":"Muse","picUrl":"https://p1.music.126.net/6y-UleORITEGyl-Rd-In-A==/5639395138885805.jpg"}]}}"""
+
+        assertEquals(null, parseLastFmArtistImageUrl(lastFm, requestedArtistName = "Muse"))
+        assertEquals(null, parseNeteaseArtistImageUrl(netease, "Muse"))
+    }
+
+    @Test
+    fun imageRegionAndBiographyLanguageCanBeChosenIndependently() {
+        assertEquals("zh", normalizeLastFmWikiRegion("zh"))
+        assertEquals("ja", normalizeLastFmWikiRegion("ja"))
+        assertEquals("JP", spotifyMarketForLastFmRegion("ja"))
+        assertEquals("US", spotifyMarketForLastFmRegion("en"))
+        assertTrue(ARTIST_BIO_LANGUAGES.any { it.code == "zh" })
+        assertTrue(LAST_FM_WIKI_REGIONS.any { it.code == "ja" })
+        assertTrue(ARTIST_BIO_LANGUAGES.none { it.code == "de" })
+        assertTrue(LAST_FM_WIKI_REGIONS.any { it.code == "de" })
+    }
+
+    @Test
+    fun wikipediaLanguageUsesChineseVariants() {
+        assertEquals("zh", wikipediaLanguage("zh-hk"))
+        assertEquals("zh-hk", wikipediaVariant("zh-hk"))
+        assertEquals("ko", wikipediaLanguage("ko"))
+    }
+
+    @Test
     fun lastFmArtistImagePrefersLargestMatchingImage() {
         val json = """
             {"artist":{"name":"Muse","image":[
@@ -71,35 +99,44 @@ class LastFmArtistWikiTest {
     }
 
     @Test
-    fun chineseFallbackDoesNotOverrideOtherSelectedRegions() {
+    fun defaultBiographySourceDoesNotFallBackToAnotherProvider() {
         assertEquals(
-            listOf(
-                ArtistWikiSource.Netease,
-                ArtistWikiSource.LastFmHtml,
-                ArtistWikiSource.WikipediaSelected,
-                ArtistWikiSource.WikipediaEnglish
-            ),
+            listOf(ArtistWikiSource.LastFmHtml),
             artistWikiSourceOrder("zh", hasApiKey = false)
         )
         assertEquals(
-            listOf(
-                ArtistWikiSource.LastFmHtml,
-                ArtistWikiSource.WikipediaSelected,
-                ArtistWikiSource.WikipediaEnglish
-            ),
+            listOf(ArtistWikiSource.LastFmHtml),
             artistWikiSourceOrder("ja", hasApiKey = false)
         )
         assertEquals(
             ArtistWikiSource.LastFmApi,
             artistWikiSourceOrder("de", hasApiKey = true).first()
         )
+    }
+
+    @Test
+    fun preferredBiographySourceDoesNotFallBackToAnotherProvider() {
+        assertEquals(
+            listOf(ArtistWikiSource.Netease),
+            artistWikiSourceOrder("zh", hasApiKey = false, preferred = ArtistBioMenuSource.Netease)
+        )
+        assertEquals(
+            listOf(ArtistWikiSource.LastFmHtml),
+            artistWikiSourceOrder("ja", hasApiKey = false, preferred = ArtistBioMenuSource.LastFm)
+        )
+        assertEquals(
+            listOf(ArtistWikiSource.LastFmApi, ArtistWikiSource.LastFmHtml),
+            artistWikiSourceOrder("en", hasApiKey = true, preferred = ArtistBioMenuSource.LastFm)
+        )
         assertEquals(
             listOf(
-                ArtistWikiSource.LastFmHtml,
-                ArtistWikiSource.WikipediaSelected,
-                ArtistWikiSource.WikipediaEnglish
+                ArtistWikiSource.LastFmHtml
             ),
-            artistWikiSourceOrder("zh", hasApiKey = false, vpnActive = true)
+            artistWikiSourceOrder("zh", hasApiKey = false, preferred = ArtistBioMenuSource.LastFm)
+        )
+        assertEquals(
+            listOf(ArtistWikiSource.WikipediaSelected, ArtistWikiSource.WikipediaEnglish),
+            artistWikiSourceOrder("ja", hasApiKey = false, preferred = ArtistBioMenuSource.Wikipedia)
         )
     }
 }

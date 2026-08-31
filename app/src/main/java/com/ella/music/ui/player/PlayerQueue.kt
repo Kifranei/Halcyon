@@ -52,10 +52,11 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.ExplicitSongTitle
-import com.ella.music.ui.components.RatingStarIcon
+import com.ella.music.ui.components.SongRatingIndicator
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.launch
@@ -108,6 +109,8 @@ private fun buildQueueEntries(items: List<Song>): List<QueueEntry> {
 internal fun PlayerQueueMenu(
     playlist: List<Song>,
     currentSongKey: String?,
+    currentSongSourceKey: String? = null,
+    currentQueueIndexHint: Int = -1,
     shuffleEnabled: Boolean,
     repeatMode: Int,
     queueLocked: Boolean,
@@ -126,15 +129,72 @@ internal fun PlayerQueueMenu(
     modifier: Modifier = Modifier
 ) {
     val playbackSourceKey by com.ella.music.data.PlaybackSourceNavigation.sourceKey.collectAsState()
-    val navigateToPlaybackSource = onNavigateToPlaybackSource
-        ?: playbackSourceKey?.let { { com.ella.music.data.PlaybackSourceNavigation.request() } }
+    // The Song carried by the current player is authoritative, including an explicit empty
+    // source. The bridge is retained as a compatibility fallback for callers that do not have
+    // the full current Song instance.
+    val effectiveCurrentSourceKey = currentSongSourceKey ?: playbackSourceKey
+    val navigateToPlaybackSource = onNavigateToPlaybackSource ?: {
+        com.ella.music.data.PlaybackSourceNavigation.request()
+    }
+    var confirmClearQueue by remember { mutableStateOf(false) }
+    val queueContext = LocalContext.current
+    val settingsManager = remember { com.ella.music.data.SettingsManager.getInstance(queueContext) }
+    val queueToolbarLayout by settingsManager.queueToolbarLayout.collectAsState(initial = "")
+    val ratingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
+        initial = com.ella.music.data.SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
+    )
+    val queueActions = remember(queueToolbarLayout) {
+        com.ella.music.data.ActionMenuLayout.parse(
+            queueToolbarLayout,
+            com.ella.music.data.ActionMenuIds.queueToolbarDefaults
+        ).visibleIds(com.ella.music.data.ActionMenuIds.queueToolbarDefaults)
+    }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var manualPlaylist by remember(playlist) { mutableStateOf(buildQueueEntries(playlist)) }
     var pendingMoveStart by remember(playlist) { mutableStateOf<Int?>(null) }
     var pendingMoveTarget by remember(playlist) { mutableStateOf<Int?>(null) }
-    val currentIndex = remember(manualPlaylist, currentSongKey) {
-        manualPlaylist.indexOfFirst { it.song.playlistIdentityKey() == currentSongKey }
+    // Keep the actual queue occurrence selected while a drag is still local. A raw song identity
+    // points to the first duplicate as soon as the reordered list is recomposed.
+    var trackedCurrentEntryKey by remember(playlist) { mutableStateOf<String?>(null) }
+    LaunchedEffect(playlist, currentSongKey, effectiveCurrentSourceKey, currentQueueIndexHint) {
+        val incomingEntries = buildQueueEntries(playlist)
+        trackedCurrentEntryKey = currentQueueIndexHint.takeIf {
+            it in incomingEntries.indices &&
+                incomingEntries[it].song.playlistIdentityKey() == currentSongKey &&
+                (effectiveCurrentSourceKey == null ||
+                    incomingEntries[it].song.playbackSourceKey == effectiveCurrentSourceKey)
+        }?.let(incomingEntries::get)?.stableKey
+            ?: incomingEntries.firstOrNull {
+                it.song.playlistIdentityKey() == currentSongKey &&
+                    (effectiveCurrentSourceKey == null ||
+                        it.song.playbackSourceKey == effectiveCurrentSourceKey)
+            }?.stableKey
+            ?: incomingEntries.firstOrNull {
+                it.song.playlistIdentityKey() == currentSongKey
+            }?.stableKey
+    }
+    val currentIndex = remember(
+        manualPlaylist,
+        currentSongKey,
+        effectiveCurrentSourceKey,
+        currentQueueIndexHint,
+        trackedCurrentEntryKey
+    ) {
+        trackedCurrentEntryKey?.let { key ->
+            manualPlaylist.indexOfFirst { it.stableKey == key }
+        }?.takeIf { it >= 0 }
+            ?: currentQueueIndexHint.takeIf {
+            it in manualPlaylist.indices &&
+                manualPlaylist[it].song.playlistIdentityKey() == currentSongKey &&
+                (effectiveCurrentSourceKey == null ||
+                    manualPlaylist[it].song.playbackSourceKey == effectiveCurrentSourceKey)
+            }
+                ?: manualPlaylist.indexOfFirst {
+                    it.song.playlistIdentityKey() == currentSongKey &&
+                        (effectiveCurrentSourceKey == null || it.song.playbackSourceKey == effectiveCurrentSourceKey)
+                }.takeIf { it >= 0 }
+                ?: manualPlaylist.indexOfFirst { it.song.playlistIdentityKey() == currentSongKey }
     }
     LaunchedEffect(currentIndex) {
         if (currentIndex >= 0) {
@@ -152,6 +212,9 @@ internal fun PlayerQueueMenu(
         onMove = { from, to ->
             if (queueLocked) return@rememberReorderableLazyListState
             if (from.index !in manualPlaylist.indices || to.index !in manualPlaylist.indices) return@rememberReorderableLazyListState
+            if (trackedCurrentEntryKey == null && currentIndex >= 0) {
+                trackedCurrentEntryKey = manualPlaylist[currentIndex].stableKey
+            }
             manualPlaylist = manualPlaylist.toMutableList().apply {
                 add(to.index, removeAt(from.index))
             }
@@ -196,87 +259,91 @@ internal fun PlayerQueueMenu(
             }
             Spacer(modifier = Modifier.weight(1f))
             if (playlist.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .playerNoIndicationClick(onToggleQueueLock),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (queueLocked) MiuixIcons.Regular.Lock else MiuixIcons.Regular.Unlock,
-                        contentDescription = stringResource(
-                            if (queueLocked) R.string.player_unlock_queue else R.string.player_lock_queue
-                        ),
-                        tint = if (queueLocked) {
-                            MiuixTheme.colorScheme.primary
-                        } else {
-                            MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        },
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                if (!queueLocked && playlist.size > 1) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .playerNoIndicationClick(onRandomizeQueue),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_shuffle),
-                            contentDescription = stringResource(R.string.player_randomize_queue),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .playerNoIndicationClick(onAddQueueToPlaylist),
-                    contentAlignment = Alignment.Center
-                ) {
-                    com.ella.music.ui.components.AddToPlaylistActionIcon(
-                        contentDescription = stringResource(R.string.player_add_to_playlist),
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .playerNoIndicationClick {
-                            if (currentIndex >= 0) {
-                                scope.launch { listState.animateScrollToItem(currentIndex) }
+                for (actionId in queueActions) {
+                    when (actionId) {
+                        com.ella.music.data.ActionMenuIds.QUEUE_LOCK -> Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .playerNoIndicationClick(onToggleQueueLock),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (queueLocked) MiuixIcons.Regular.Lock else MiuixIcons.Regular.Unlock,
+                                contentDescription = stringResource(
+                                    if (queueLocked) R.string.player_unlock_queue else R.string.player_lock_queue
+                                ),
+                                tint = if (queueLocked) {
+                                    MiuixTheme.colorScheme.primary
+                                } else {
+                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                },
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        com.ella.music.data.ActionMenuIds.QUEUE_SHUFFLE -> if (!queueLocked && playlist.size > 1) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .playerNoIndicationClick(onRandomizeQueue),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_shuffle),
+                                    contentDescription = stringResource(R.string.player_randomize_queue),
+                                    tint = MiuixTheme.colorScheme.primary,
+                                    modifier = Modifier.size(30.dp)
+                                )
                             }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_my_location),
-                        contentDescription = stringResource(R.string.player_locate_current_song),
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                if (!queueLocked) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .playerNoIndicationClick(onClearQueue),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_delete),
-                            contentDescription = stringResource(R.string.player_clear_queue),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        }
+                        com.ella.music.data.ActionMenuIds.QUEUE_ADD_PLAYLIST -> Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .playerNoIndicationClick(onAddQueueToPlaylist),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
+                                contentDescription = stringResource(R.string.player_add_to_playlist),
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        com.ella.music.data.ActionMenuIds.QUEUE_LOCATE -> Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .playerNoIndicationClick {
+                                    if (currentIndex >= 0) {
+                                        scope.launch { listState.animateScrollToItem(currentIndex) }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_my_location),
+                                contentDescription = stringResource(R.string.player_locate_current_song),
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        com.ella.music.data.ActionMenuIds.QUEUE_CLEAR -> if (!queueLocked) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .playerNoIndicationClick { confirmClearQueue = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_delete),
+                                    contentDescription = stringResource(R.string.player_clear_queue),
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -318,7 +385,13 @@ internal fun PlayerQueueMenu(
                             )
                         }
                         val queueSong = item.song
-                        val isCurrentSong = queueSong.playlistIdentityKey() == currentSongKey
+                        val isCurrentSong = index == currentIndex
+                        val rowSource = queueSong.playbackSourceKey
+                        val rowCanNavigate = isCurrentSong && (
+                            com.ella.music.data.PlaybackSourceNavigation.isNavigableSourceKey(rowSource) ||
+                                (rowSource == null &&
+                                    com.ella.music.data.PlaybackSourceNavigation.isNavigableSourceKey(effectiveCurrentSourceKey))
+                            )
                         val isFavorite = queueSong.playlistIdentityKey() in favoriteSongKeys
                         val rating by androidx.compose.runtime.produceState(
                             initialValue = 0,
@@ -373,34 +446,38 @@ internal fun PlayerQueueMenu(
                                     }
                                     if (rating > 0) {
                                         Spacer(modifier = Modifier.width(5.dp))
-                                        RatingStarIcon(
-                                            filled = true,
-                                            tint = Color(0xFFFFB703),
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(2.dp))
-                                        Text(
-                                            text = rating.toString(),
-                                            fontSize = 11.sp,
-                                            color = Color(0xFFFFB703)
+                                        SongRatingIndicator(
+                                            rating = rating,
+                                            displayMode = ratingDisplayMode,
+                                            iconSize = 13.dp,
+                                            numberSize = 11.sp
                                         )
                                     }
                                 }
                                 Text(
-                                    text = queueSong.artist,
+                                    text = listOf(queueSong.artist, queueSong.album)
+                                        .map { it.trim() }
+                                        .filter { it.isNotBlank() }
+                                        .joinToString(" · ")
+                                        .ifBlank { queueSong.artist },
                                     fontSize = 11.sp,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            if (isCurrentSong && navigateToPlaybackSource != null) {
+                            if (rowCanNavigate) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Box(
                                     modifier = Modifier
                                         .size(32.dp)
                                         .clip(CircleShape)
-                                        .playerNoIndicationClick(navigateToPlaybackSource)
+                                        .playerNoIndicationClick {
+                                            rowSource?.let {
+                                                com.ella.music.data.PlaybackSourceNavigation.updateSource(it)
+                                            }
+                                            navigateToPlaybackSource()
+                                        }
                                         .padding(5.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -457,6 +534,16 @@ internal fun PlayerQueueMenu(
             }
         }
     }
+    ConfirmDangerDialog(
+        show = confirmClearQueue,
+        title = stringResource(R.string.player_clear_queue),
+        message = stringResource(R.string.player_clear_queue_confirm),
+        onDismiss = { confirmClearQueue = false },
+        onConfirm = {
+            confirmClearQueue = false
+            onClearQueue()
+        }
+    )
 }
 
 private object LongPressDragHandleGestureDetector : DragGestureDetector {
@@ -501,9 +588,7 @@ private fun QueueAlbumArtView(
 ) {
     val context = LocalContext.current
     val repository = remember(context) { MusicRepository.getInstance(context) }
-    val albumArtUri = remember(song.albumId) {
-        if (song.albumId > 0L) android.net.Uri.parse("content://media/external/audio/albumart/${song.albumId}") else null
-    }
+    val albumArtUri = remember(song.albumId) { repository.getAlbumArtUri(song.albumId) }
     val artworkState = rememberSongArtworkState(
         song = song,
         albumArtUri = albumArtUri,

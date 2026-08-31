@@ -133,7 +133,8 @@ internal fun PlaylistDetailTopBar(
                             else R.drawable.ic_notification_favorite
                         ),
                         contentDescription = stringResource(R.string.favorite_filter),
-                        tint = if (favoriteFilterActive) Color(0xFFFF4D6D) else MiuixTheme.colorScheme.onSurface,
+                        tint = if (favoriteFilterActive) Color(0xFFFF4D6D)
+                        else MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }

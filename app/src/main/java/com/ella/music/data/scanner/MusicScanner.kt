@@ -33,10 +33,7 @@ class MusicScanner(private val context: Context) {
         private val DEFAULT_EXCLUDE_FOLDERS = listOf(
             "/storage/emulated/0/Music/Recordings"
         )
-        private val AUDIO_EXTENSIONS = setOf(
-            "mp3", "flac", "ogg", "oga", "opus", "aac", "m4a", "mp4",
-            "wav", "wave", "wma", "aiff", "aif", "ape", "alac"
-        )
+        private val AUDIO_EXTENSIONS = supportedAudioFileExtensions
     }
 
     suspend fun enumerateAudioFiles(
@@ -825,7 +822,8 @@ class MusicScanner(private val context: Context) {
     }
 
     fun getAlbumArtUri(albumId: Long): Uri =
-        ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId)
+        com.ella.music.data.repository.mediaStoreAlbumArtUri(albumId)
+            ?: Uri.EMPTY
 
     private fun readTagsBlocking(path: String): AudioTagInfo? =
         runBlocking(Dispatchers.IO) {

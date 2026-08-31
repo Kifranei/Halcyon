@@ -400,7 +400,7 @@ internal fun SettingsTagScrapingSection(
             SettingsFocusAnchor(active = highlightKey == "tag_scraping") {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_metadata_editor),
-                    summary = stringResource(R.string.settings_current_value, metadataEditorOptions.getOrNull(metadataEditorIndex)?.second.orEmpty()),
+                    summary = stringResource(R.string.settings_metadata_editor_summary),
                     items = metadataEditorEntries,
                     selectedIndex = metadataEditorIndex,
                     onSelectedIndexChange = { index ->
@@ -414,7 +414,7 @@ internal fun SettingsTagScrapingSection(
             }
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_lyric_timing_editor),
-                summary = stringResource(R.string.settings_current_value, lyricTimingEditorOptions.getOrNull(lyricTimingEditorIndex)?.second.orEmpty()),
+                summary = stringResource(R.string.settings_lyric_timing_editor_summary),
                 items = lyricTimingEditorEntries,
                 selectedIndex = lyricTimingEditorIndex,
                 onSelectedIndexChange = { index ->
@@ -427,7 +427,7 @@ internal fun SettingsTagScrapingSection(
             )
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_spectrum_viewer),
-                summary = stringResource(R.string.settings_current_value, spectrumViewerOptions[spectrumViewerIndex].second),
+                summary = stringResource(R.string.settings_spectrum_viewer_summary),
                 items = spectrumViewerEntries,
                 selectedIndex = spectrumViewerIndex,
                 onSelectedIndexChange = { index ->
@@ -598,10 +598,7 @@ internal fun SettingsScanSection(
                     .coerceIn(bioLabels.indices)
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_artist_bio_download),
-                    summary = stringResource(
-                        R.string.settings_current_value,
-                        bioLabels[selectedBio]
-                    ),
+                    summary = stringResource(R.string.settings_artist_bio_download_summary),
                     items = bioLabels.map { DropdownItem(title = it) },
                     selectedIndex = selectedBio,
                     onSelectedIndexChange = { index ->
@@ -651,7 +648,7 @@ internal fun SettingsScanSection(
         )
     }
 
-    SettingsCardGroup(highlight = highlightKey == "scan") {
+    SettingsCardGroup {
         Column {
             SettingsFocusAnchor(active = highlightKey == "artist_separators") {
                 ArrowPreference(

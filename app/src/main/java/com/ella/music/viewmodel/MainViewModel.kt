@@ -20,6 +20,7 @@ import com.ella.music.data.lastfm.LastFmHistoryStore
 import com.ella.music.data.lastfm.ListeningHistorySource
 import com.ella.music.data.ArtistCoverRepository
 import com.ella.music.data.ArtistCoverAsset
+import com.ella.music.data.ArtistImageRepository
 import com.ella.music.data.matchesArtistName
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
@@ -34,6 +35,7 @@ import com.ella.music.data.remote.OpenSubsonicCollectionsStore
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.analytics.prewarmLibraryAnalysisCache
+import com.ella.music.ui.components.clearArtworkModelMemoryCache
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -72,7 +74,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         playlistStore = playlistStore,
         settingsManager = settingsManager,
         scope = viewModelScope,
-        currentSongs = { songs.value }
+        currentSongs = { songs.value },
+        resolveSongForPlaylist = { song -> repository.resolveSongForPlayback(song) }
     )
 
     val albums: StateFlow<List<Album>> = repository.albums
@@ -163,6 +166,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var scanJob: Job? = null
     private var cachedLibraryLoadJob: Job? = null
     private var searchSnapshotPrewarmJob: Job? = null
+    private var webDavMetadataHydrationJob: Job? = null
     private var autoScanRequested = false
     private val metadataCategoryItemsCache = ConcurrentHashMap<String, MetadataCategoryItemsCacheEntry>()
 
@@ -208,6 +212,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             settingsManager.setLibrarySource(requestedSource)
             val activeSource = settingsManager.librarySource.first()
             scanJob?.cancel()
+            webDavMetadataHydrationJob?.cancel()
+            webDavMetadataHydrationJob = null
             // The prior source's cache restore must not finish after this source switch and put
             // an obsolete library back into the repository while the new source is scanning.
             cachedLibraryLoadJob?.cancel()
@@ -227,6 +233,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadRemoteLibrarySource(source: String, forceRefresh: Boolean) {
+        webDavMetadataHydrationJob?.cancel()
+        webDavMetadataHydrationJob = null
         val ownerJob = currentCoroutineContext()[Job]
         repository.startScanning()
         val summary = try {
@@ -241,6 +249,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.emitScanSummary(summary)
         _libraryCacheLoaded.value = true
         preloadLibrarySearchSnapshot()
+        startWebDavMetadataHydrationIfNeeded(source)
+    }
+
+    private fun startWebDavMetadataHydrationIfNeeded(source: String) {
+        webDavMetadataHydrationJob?.cancel()
+        webDavMetadataHydrationJob = null
+        if (source != SettingsManager.LIBRARY_SOURCE_WEBDAV) return
+        val initialSongs = repository.songs.value
+        if (initialSongs.isEmpty()) return
+        webDavMetadataHydrationJob = viewModelScope.launch {
+            repository.hydrateWebDavMetadata(initialSongs)
+            // Hydration can create the remote cache without changing filename-derived Song
+            // fields. Invalidate artwork models so embedded covers are resolved immediately.
+            clearArtworkModelMemoryCache()
+        }
     }
 
     fun fullRescanMusic() {
@@ -431,6 +454,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Load the cached remote library instantly on startup (network refresh happens via
                 // scanMusicIfAutoEnabled / the refresh button).
                 repository.loadRemoteLibrary(source, forceRefresh = false)
+                startWebDavMetadataHydrationIfNeeded(source)
             } else {
                 repository.loadCachedLibrary()
             }
@@ -448,7 +472,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Prewarm a cheap base snapshot immediately so the first search can hit cached
             // normalized song fields. Deeper tag fields are enriched in a second pass.
             repository.preloadLibrarySearchSnapshot(currentSongs)
-            delay(1200)
             repository.preloadSongRatings(currentSongs)
             if (settingsManager.fullTagSearchEnabled.first()) {
                 repository.preloadSongTagInfos(currentSongs)
@@ -456,6 +479,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    suspend fun updateSongModifiedTime(song: Song, modifiedAtMs: Long): Boolean =
+        repository.updateSongModifiedTime(song, modifiedAtMs)
 
     fun getSongsForAlbum(albumId: Long): List<Song> {
         return repository.getSongsForAlbum(albumId)
@@ -640,6 +666,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearOnlineMetadataCache() {
         repository.clearRemoteMetadataCache()
+    }
+
+    suspend fun clearDownloadedArtistImageCache() {
+        ArtistImageRepository.clearDownloadedCache(getApplication())
     }
 
     suspend fun prefetchWebDavMetadataHeaders(songs: List<Song>, maxItems: Int = 80) {

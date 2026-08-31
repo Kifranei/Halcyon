@@ -357,11 +357,6 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://github.com/lyswhut/lx-music-mobile") },
                     )
                     BasicComponent(
-                        title = "accompanist-lyrics-core",
-                        summary = stringResource(R.string.about_summary_accompanist_lyrics_core),
-                        onClick = { uriHandler.openUri("https://github.com/6xingyv/accompanist-lyrics-core") },
-                    )
-                    BasicComponent(
                         title = "Reorderable",
                         summary = stringResource(R.string.about_summary_reorderable),
                         onClick = { uriHandler.openUri("https://github.com/Calvin-LL/Reorderable") },

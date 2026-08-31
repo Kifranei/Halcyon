@@ -9,6 +9,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import com.ella.music.data.NeteaseKeyInfo
 import com.ella.music.data.decodeNeteaseKey
+import com.ella.music.data.isHttpAudioSource
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
@@ -39,10 +41,27 @@ internal fun rememberPlayerSongPresentationState(
     val paletteDefault = if (playerLight) PlayerPalette.LightDefault else PlayerPalette.Default
     val songKey = remember(song) { song?.presentationIdentityKey() }
     val artworkGeneration by com.ella.music.ui.components.artworkResolutionGeneration.collectAsState()
-    val embeddedCover by produceState<Bitmap?>(initialValue = null, songKey, artworkGeneration) {
+    // A local file may still carry a Media3/MediaStore artwork URI in coverUrl. That URI is only
+    // an album-level hint and is not reliable on vendor providers; always give the local file's
+    // embedded/sidecar artwork a chance before using that hint as a player fallback.
+    val shouldResolveLocalArtwork = song?.let {
+        it.onlineSource.isBlank() && !it.path.isHttpAudioSource()
+    } == true
+    val embeddedCover by produceState<Bitmap?>(
+        initialValue = null,
+        songKey,
+        shouldResolveLocalArtwork,
+        artworkGeneration
+    ) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                CoverLoadLimiter.run { song?.takeIf { it.coverUrl.isBlank() }?.let(playerViewModel::getCoverArtBitmap) }
+                CoverLoadLimiter.run {
+                    song?.takeIf {
+                        shouldResolveLocalArtwork ||
+                            it.coverUrl.isBlank() ||
+                            it.coverUrl.isMediaStoreAlbumArtworkUri()
+                    }?.let(playerViewModel::getCoverArtBitmap)
+                }
             }.getOrNull()
         }
     }

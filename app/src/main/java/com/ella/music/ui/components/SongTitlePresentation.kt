@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.data.SettingsManager
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.StarRate
@@ -104,7 +105,8 @@ internal fun ExplicitSongTitle(
     overflow: TextOverflow = TextOverflow.Ellipsis,
     textAlign: TextAlign = TextAlign.Start,
     softWrap: Boolean = true,
-    titleModifier: Modifier = Modifier
+    titleModifier: Modifier = Modifier,
+    titleFillMaxWidth: Boolean = false
 ) {
     val presentation = remember(title) { title.toSongTitlePresentation() }
     Row(
@@ -123,7 +125,9 @@ internal fun ExplicitSongTitle(
             softWrap = softWrap,
             // Leave only the title's measured width before the badge, rather than pushing E
             // to the far edge of every row.
-            modifier = titleModifier.weight(1f, fill = false)
+            modifier = Modifier
+                .weight(1f, fill = titleFillMaxWidth)
+                .then(titleModifier)
         )
         if (presentation.isExplicit) {
             Spacer(modifier = Modifier.width(2.dp))
@@ -144,4 +148,40 @@ internal fun RatingStarIcon(
         tint = tint,
         modifier = modifier
     )
+}
+
+@Composable
+internal fun SongRatingIndicator(
+    rating: Int,
+    displayMode: Int,
+    modifier: Modifier = Modifier,
+    iconSize: Dp = 15.dp,
+    numberSize: TextUnit = 14.sp
+) {
+    val safeRating = rating.coerceIn(0, 5)
+    if (safeRating <= 0) return
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        if (displayMode == SettingsManager.SONG_RATING_DISPLAY_STARS) {
+            repeat(safeRating) {
+                RatingStarIcon(
+                    filled = true,
+                    tint = Color(0xFFFFB703),
+                    modifier = Modifier.height(iconSize).width(iconSize)
+                )
+            }
+        } else {
+            RatingStarIcon(
+                filled = true,
+                tint = Color(0xFFFFB703),
+                modifier = Modifier.height(iconSize).width(iconSize)
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+            Text(
+                text = safeRating.toString(),
+                fontSize = numberSize,
+                color = Color(0xFFFFB703),
+                maxLines = 1
+            )
+        }
+    }
 }

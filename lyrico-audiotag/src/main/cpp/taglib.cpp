@@ -1,5 +1,6 @@
 #include "tfilestream.h"
 #include "utils.h"
+#include "taglib_config.h"
 
 #include <mpegfile.h>
 #include <vorbisfile.h>
@@ -7,6 +8,34 @@
 #include <opusfile.h>
 #include <mp4file.h>
 #include <wavfile.h>
+#ifdef TAGLIB_WITH_VORBIS
+#include <oggflacfile.h>
+#include <speexfile.h>
+#endif
+#ifdef TAGLIB_WITH_APE
+#include <apefile.h>
+#include <mpcfile.h>
+#include <wavpackfile.h>
+#endif
+#ifdef TAGLIB_WITH_ASF
+#include <asffile.h>
+#endif
+#ifdef TAGLIB_WITH_RIFF
+#include <aifffile.h>
+#endif
+#ifdef TAGLIB_WITH_TRUEAUDIO
+#include <trueaudiofile.h>
+#endif
+#ifdef TAGLIB_WITH_DSF
+#include <dsffile.h>
+#include <dsdifffile.h>
+#endif
+#ifdef TAGLIB_WITH_SHORTEN
+#include <shortenfile.h>
+#endif
+#ifdef TAGLIB_WITH_MATROSKA
+#include <matroskafile.h>
+#endif
 
 #include <memory>
 #include <stdexcept>
@@ -18,18 +47,61 @@ TagLib::File* createFileFromContent(TagLib::IOStream *stream,
     stream->seek(0);
     TagLib::File *file = nullptr;
 
-    if (TagLib::MPEG::File::isSupported(stream))
-        file = new TagLib::MPEG::File(stream, readAudioProperties, audioPropertiesStyle);
+    if (false);
+#ifdef TAGLIB_WITH_VORBIS
     else if (TagLib::Ogg::Vorbis::File::isSupported(stream))
         file = new TagLib::Ogg::Vorbis::File(stream, readAudioProperties, audioPropertiesStyle);
+    else if (TagLib::Ogg::FLAC::File::isSupported(stream))
+        file = new TagLib::Ogg::FLAC::File(stream, readAudioProperties, audioPropertiesStyle);
     else if (TagLib::FLAC::File::isSupported(stream))
         file = new TagLib::FLAC::File(stream, readAudioProperties, audioPropertiesStyle);
+    else if (TagLib::Ogg::Speex::File::isSupported(stream))
+        file = new TagLib::Ogg::Speex::File(stream, readAudioProperties, audioPropertiesStyle);
     else if (TagLib::Ogg::Opus::File::isSupported(stream))
         file = new TagLib::Ogg::Opus::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_APE
+    else if (TagLib::MPC::File::isSupported(stream))
+        file = new TagLib::MPC::File(stream, readAudioProperties, audioPropertiesStyle);
+    else if (TagLib::WavPack::File::isSupported(stream))
+        file = new TagLib::WavPack::File(stream, readAudioProperties, audioPropertiesStyle);
+    else if (TagLib::APE::File::isSupported(stream))
+        file = new TagLib::APE::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_TRUEAUDIO
+    else if (TagLib::TrueAudio::File::isSupported(stream))
+        file = new TagLib::TrueAudio::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_MP4
     else if (TagLib::MP4::File::isSupported(stream))
         file = new TagLib::MP4::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_ASF
+    else if (TagLib::ASF::File::isSupported(stream))
+        file = new TagLib::ASF::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_RIFF
+    else if (TagLib::RIFF::AIFF::File::isSupported(stream))
+        file = new TagLib::RIFF::AIFF::File(stream, readAudioProperties, audioPropertiesStyle);
     else if (TagLib::RIFF::WAV::File::isSupported(stream))
         file = new TagLib::RIFF::WAV::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_DSF
+    else if (TagLib::DSF::File::isSupported(stream))
+        file = new TagLib::DSF::File(stream, readAudioProperties, audioPropertiesStyle);
+    else if (TagLib::DSDIFF::File::isSupported(stream))
+        file = new TagLib::DSDIFF::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_SHORTEN
+    else if (TagLib::Shorten::File::isSupported(stream))
+        file = new TagLib::Shorten::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+#ifdef TAGLIB_WITH_MATROSKA
+    else if (TagLib::Matroska::File::isSupported(stream))
+        file = new TagLib::Matroska::File(stream, readAudioProperties, audioPropertiesStyle);
+#endif
+    else if (TagLib::MPEG::File::isSupported(stream))
+        file = new TagLib::MPEG::File(stream, readAudioProperties, audioPropertiesStyle);
 
     if (!file) {
         stream->seek(0);

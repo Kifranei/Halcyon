@@ -42,7 +42,8 @@ internal fun ActionMenuLayoutPage(
     savedLayout: String,
     defaultOrder: List<String>,
     onCancel: () -> Unit,
-    onSave: (String) -> Unit
+    onSave: (String) -> Unit,
+    labelFor: @Composable (String) -> String = { actionMenuLabel(it) }
 ) {
     var layout by remember(savedLayout, defaultOrder) {
         mutableStateOf(ActionMenuLayout.parse(savedLayout, defaultOrder))
@@ -80,7 +81,7 @@ internal fun ActionMenuLayoutPage(
                 val visible = id !in layout.hidden
                 ReorderableItem {
                     BasicComponent(
-                        title = actionMenuLabel(id),
+                        title = labelFor(id),
                         summary = stringResource(R.string.settings_action_menu_position, index + 1),
                         modifier = Modifier
                             .background(
@@ -173,6 +174,36 @@ private fun actionMenuLabel(id: String): String = stringResource(
         ActionMenuIds.LYRIC_OFFSET -> R.string.player_lyric_offset
         ActionMenuIds.KEEP_SCREEN_ON -> R.string.settings_action_menu_keep_screen_on
         ActionMenuIds.DOWNLOAD -> R.string.player_download_lx_song
+        ActionMenuIds.SONG_INFO_TITLE -> R.string.player_detail_song
+        ActionMenuIds.SONG_INFO_ARTIST -> R.string.player_detail_artist
+        ActionMenuIds.SONG_INFO_ALBUM -> R.string.player_detail_album
+        ActionMenuIds.SONG_INFO_ALBUM_ARTIST -> R.string.song_more_detail_album_artist
+        ActionMenuIds.SONG_INFO_GENRE -> R.string.song_more_detail_genre
+        ActionMenuIds.SONG_INFO_YEAR -> R.string.song_more_detail_year
+        ActionMenuIds.SONG_INFO_COMPOSER -> R.string.player_detail_composer
+        ActionMenuIds.SONG_INFO_ARRANGER -> R.string.player_detail_arranger
+        ActionMenuIds.SONG_INFO_LYRICIST -> R.string.player_detail_lyricist
+        ActionMenuIds.SONG_INFO_COMMENT -> R.string.player_detail_comment
+        ActionMenuIds.SONG_INFO_NETEASE -> R.string.song_more_netease_key
+        ActionMenuIds.SONG_INFO_FORMAT -> R.string.song_more_detail_format
+        ActionMenuIds.SONG_INFO_BITRATE -> R.string.song_more_detail_bitrate
+        ActionMenuIds.SONG_INFO_DURATION -> R.string.song_more_detail_duration
+        ActionMenuIds.SONG_INFO_PLAY_COUNT -> R.string.song_more_detail_play_count
+        ActionMenuIds.SONG_INFO_LISTENED -> R.string.song_more_detail_listened_duration
+        ActionMenuIds.SONG_INFO_LAST_PLAYED -> R.string.song_more_detail_last_played
+        ActionMenuIds.SONG_INFO_SIZE -> R.string.song_more_detail_size
+        ActionMenuIds.SONG_INFO_MODIFIED -> R.string.song_more_detail_modified_time
+        ActionMenuIds.SONG_INFO_ADDED -> R.string.song_more_detail_added_time
+        ActionMenuIds.SONG_INFO_FILE_NAME -> R.string.song_more_detail_file_name
+        ActionMenuIds.SONG_INFO_PATH -> R.string.song_more_detail_path
+        ActionMenuIds.SONG_INFO_DIRECTORY -> R.string.song_more_detail_directory
+        ActionMenuIds.SONG_INFO_MEDIA_INFO -> R.string.song_more_open_media_info
+        ActionMenuIds.QUEUE_LOCK -> R.string.player_lock_queue
+        ActionMenuIds.QUEUE_SHUFFLE -> R.string.player_randomize_queue
+        ActionMenuIds.QUEUE_ADD_PLAYLIST -> R.string.player_add_to_playlist
+        ActionMenuIds.QUEUE_LOCATE -> R.string.player_locate_current_song
+        ActionMenuIds.QUEUE_LIBRARY_SOURCE -> R.string.player_queue_source
+        ActionMenuIds.QUEUE_CLEAR -> R.string.player_clear_queue
         else -> R.string.player_more_actions
     }
 )

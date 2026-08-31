@@ -1,6 +1,7 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -71,42 +72,27 @@ internal fun SettingsCardGroup(
 ) {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val cardColor = if (isDark) Color(0xFF1D1D21) else Color(0xFFFFFFFF)
-    val highlightColor = if (isDark) {
-        MiuixTheme.colorScheme.primary.copy(alpha = 0.28f)
-    } else {
-        MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-    }
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    var lit by remember(highlight) { mutableStateOf(false) }
-    LaunchedEffect(highlight) {
-        if (!highlight) return@LaunchedEffect
-        bringIntoViewRequester.bringIntoView()
-        repeat(2) {
-            lit = true
-            delay(280)
-            lit = false
-            delay(180)
-        }
-    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .bringIntoViewRequester(bringIntoViewRequester)
             .padding(bottom = 14.dp),
         cornerRadius = 16.dp,
         insideMargin = PaddingValues(0.dp),
-        colors = CardDefaults.defaultColors(
-            color = if (lit) highlightColor else cardColor
-        )
+        colors = CardDefaults.defaultColors(color = cardColor)
     ) {
-        content()
+        // Search jumps target [SettingsFocusAnchor] so a match lands on the preference
+        // itself instead of flashing/scrolling the whole surrounding card (#410).
+        if (highlight) {
+            SettingsFocusAnchor(active = true, content = content)
+        } else {
+            content()
+        }
     }
 }
 
 /**
- * Gives a search result an anchor inside a large settings card or sheet. The card-level
- * bring-into-view behavior is still useful for the section header, but this smaller anchor keeps
- * the selected preference itself on screen when a result points into a dense group (#410).
+ * Gives a search result an anchor inside a large settings card or sheet. The selected
+ * preference is scrolled into view and flashed, without lighting sibling items.
  */
 @Composable
 internal fun SettingsFocusAnchor(
@@ -115,15 +101,34 @@ internal fun SettingsFocusAnchor(
     content: @Composable () -> Unit
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val highlightColor = if (MiuixTheme.colorScheme.background.luminance() < 0.5f) {
+        MiuixTheme.colorScheme.primary.copy(alpha = 0.28f)
+    } else {
+        MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+    }
+    var lit by remember(active) { mutableStateOf(false) }
     LaunchedEffect(active) {
-        if (active) bringIntoViewRequester.bringIntoView()
+        if (!active) return@LaunchedEffect
+        delay(180)
+        bringIntoViewRequester.bringIntoView()
+        repeat(2) {
+            lit = true
+            delay(280)
+            lit = false
+            delay(180)
+        }
+        bringIntoViewRequester.bringIntoView()
     }
     Column(
-        modifier = modifier.bringIntoViewRequester(bringIntoViewRequester)
+        modifier = modifier
+            .background(if (lit) highlightColor else Color.Transparent)
+            .bringIntoViewRequester(bringIntoViewRequester)
     ) {
         content()
     }
 }
+
+
 
 @Composable
 internal fun SplitSettingTextField(

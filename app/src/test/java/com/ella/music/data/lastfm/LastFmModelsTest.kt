@@ -62,7 +62,10 @@ class LastFmModelsTest {
     @Test
     fun officialWikiRegionsMatchLastFmLanguageSwitcher() {
         assertEquals(
-            listOf("en", "zh", "ja", "de", "es", "fr", "it", "pl", "pt", "ru", "sv", "tr"),
+            listOf(
+                "en", "zh", "zh-hk", "zh-tw", "ja", "ko",
+                "de", "es", "fr", "it", "pl", "pt", "ru", "sv", "tr"
+            ),
             LAST_FM_WIKI_REGIONS.map { it.code }
         )
         assertEquals("", lastFmWikiHostPrefix("en"))

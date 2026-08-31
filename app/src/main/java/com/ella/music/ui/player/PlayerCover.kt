@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player as Media3Player
 import coil3.compose.AsyncImage
 import coil3.size.Size
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.DefaultAlbumCover
 import top.yukonga.miuix.kmp.basic.Text
@@ -212,12 +213,9 @@ internal fun AlbumArtView(
 }
 
 internal fun resolveCoverPreviewModel(song: Song?, embeddedCover: Bitmap?): Any? {
-    val uri = if ((song?.albumId ?: 0L) > 0) {
-        Uri.parse("content://media/external/audio/albumart/${song?.albumId}")
-    } else {
-        null
+    return embeddedCover ?: song?.coverUrl?.takeIf {
+        it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
     }
-    return embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
 }
 
 @Composable

@@ -1,5 +1,7 @@
 package com.ella.music.data
 
+import com.ella.music.ui.components.parseSongDateTime
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -27,6 +29,32 @@ class ActionMenuLayoutTest {
     fun `layout serialization round trips`() {
         val original = ActionMenuLayout(listOf("c", "a", "b"), setOf("a", "c"))
         assertEquals(original, ActionMenuLayout.parse(original.serialize(), defaults))
+    }
+
+    @Test
+    fun songInfoAndQueueLayoutsKeepHiddenFields() {
+        val info = ActionMenuLayout.parse(
+            "${ActionMenuIds.SONG_INFO_TITLE},${ActionMenuIds.SONG_INFO_ARTIST};${ActionMenuIds.SONG_INFO_PATH}",
+            ActionMenuIds.songInfoDefaults
+        )
+        assertEquals(ActionMenuIds.SONG_INFO_TITLE, info.order.first())
+        assertTrue(ActionMenuIds.SONG_INFO_PATH in info.hidden)
+        assertTrue(ActionMenuIds.SONG_INFO_TITLE in info.visibleIds(ActionMenuIds.songInfoDefaults))
+        assertFalse(ActionMenuIds.SONG_INFO_PATH in info.visibleIds(ActionMenuIds.songInfoDefaults))
+
+        val queue = ActionMenuLayout.parse(
+            "${ActionMenuIds.QUEUE_CLEAR},${ActionMenuIds.QUEUE_LOCK};${ActionMenuIds.QUEUE_SHUFFLE}",
+            ActionMenuIds.queueToolbarDefaults
+        )
+        assertEquals(ActionMenuIds.QUEUE_CLEAR, queue.order.first())
+        assertTrue(ActionMenuIds.QUEUE_SHUFFLE in queue.hidden)
+    }
+
+    @Test
+    fun songModifiedTimeParsesTheDisplayedFormat() {
+        val parsed = parseSongDateTime("2026-08-26 06:30:15")
+        assertTrue(parsed != null && parsed > 0L)
+        assertEquals(null, parseSongDateTime("not-a-date"))
     }
 
     @Test

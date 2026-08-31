@@ -25,6 +25,7 @@
     <string name="duration_format" formatted="false">%02d:%02d</string>
     <string name="no_lyrics">Нет текстов</string>
     <string name="settings_player_lyric_text_align">Player lyric alignment</string>
+    <string name="settings_player_lyric_text_align_summary">Выберите горизонтальное выравнивание текста</string>
     <string name="player_output_bluetooth">Bluetooth device</string>
     <string name="player_output_headphones">Headphones</string>
     <string name="player_output_usb_audio">USB audio</string>
@@ -194,6 +195,14 @@
     <string name="settings_music_playback">Музыка и воспроизведение</string>
     <string name="settings_services">Услуги и данные</string>
     <string name="settings_maintenance">Техническое обслуживание</string>
+    <string name="settings_maintenance_summary">Мастер настройки, очистка кэша и восстановление настроек</string>
+    <string name="settings_clear_artist_image_cache">Очистить кэш изображений исполнителей</string>
+    <string name="settings_clear_artist_image_cache_summary">Удалить локальные изображения, загруженные из источников исполнителей</string>
+    <string name="settings_clear_artist_image_cache_done">Кэш изображений исполнителей очищен</string>
+    <string name="settings_restore_defaults">Восстановить настройки по умолчанию</string>
+    <string name="settings_restore_defaults_summary">Вернуть исходные настройки без удаления музыки, плейлистов и истории прослушивания</string>
+    <string name="settings_restore_defaults_confirm">Восстановить все настройки по умолчанию? Текущие параметры будут удалены, но музыка и пользовательские данные сохранятся.</string>
+    <string name="settings_restore_defaults_done">Настройки по умолчанию восстановлены</string>
     <string name="settings_appearance_home">Внешний вид и дом</string>
     <string name="settings_appearance_home_summary">Тема, язык, жидкое стекло, пользовательские изображения и макет дома.</string>
     <string name="settings_library_scan">Библиотека и сканирование</string>
@@ -213,7 +222,7 @@
     <string name="settings_backup_summary">Экспорт и восстановление настроек, истории прослушивания и статистики.</string>
     <string name="settings_other">Другое</string>
     <string name="settings_clear_online_cache">Очистить кэш иллюстраций и текстов песен.</string>
-    <string name="settings_clear_online_cache_summary">Очистите обложку, тексты песен и удаленный кеш метаданных WebDAV и LX.</string>
+    <string name="settings_clear_online_cache_summary">Очистить кэш обложек, текстов и тегов локальных и удалённых источников</string>
     <string name="settings_clear_online_cache_done">Кэш онлайн-иллюстраций и текстов песен очищен.</string>
     <string name="settings_clear_library_snapshot_cache">Очистить снимок кэша библиотеки</string>
     <string name="settings_clear_library_snapshot_cache_summary">Очистить поиск по библиотеке и пометить снимки; они будут восстановлены при следующем поиске</string>
@@ -239,7 +248,7 @@
     <string name="logs_retention_days">%1$d дней</string>
     <string name="logs_retention_removed">Удалены старые логи %1$d.</string>
     <string name="logs_retention_set">Ведение логов за %1$d дней</string>
-    <string name="logs_summary">Журналы %1$d, показано %2$d; ошибки %3$d, предупреждения %4$d. Читает logcat процесса напрямую, без лимита в 3000 записей.</string>
+    <string name="logs_summary">Журналы %1$d, показано %2$d; ошибки %3$d, предупреждения %4$d</string>
     <string name="logs_empty">Нет журналов</string>
     <string name="logs_empty_filtered">Нет соответствующих журналов</string>
     <string name="logs_clear_message">Будут очищены %1$d строк logcat на экране. Системный буфер logcat по-прежнему управляется Android.</string>
@@ -284,6 +293,9 @@
     <string name="settings_app_display_scale">Масштаб интерфейса</string>
     <string name="settings_app_display_scale_summary">Изменяйте размер кнопок, отступов и содержимого приложения</string>
     <string name="settings_category_grid_columns">Столбцы сетки категорий</string>
+    <string name="settings_library_song_grid_columns_phone">Столбцы сетки песен на телефоне</string>
+    <string name="settings_library_song_grid_columns_tablet">Столбцы сетки песен на планшете</string>
+    <string name="settings_library_song_grid_columns_summary">Показывать обложки медиатеки в %1$d столбцах</string>
     <string name="settings_category_grid_columns_summary">Показывать альбомы, жанры, годы и подобные страницы в столбцах %1$d.</string>
     <string name="settings_category_grid_columns_option">Столбцы %1$d</string>
     <string name="settings_category_grid_columns_option_summary_single">Большой макет списка карточек</string>
@@ -293,6 +305,8 @@
     <string name="settings_show_album_artists_summary">Объединить исполнителей альбомов в список исполнителей и отобразить вкладку релизных альбомов на страницах исполнителей.</string>
     <string name="settings_show_artist_introduction">Показать описание исполнителя</string>
     <string name="settings_show_artist_introduction_summary">Показывать пункт «Описание» на страницах исполнителей</string>
+    <string name="settings_library_song_title_marquee">Прокрутка длинных названий в двухколоночной библиотеке</string>
+    <string name="settings_library_song_title_marquee_summary">Слишком длинные названия и исполнители плавно прокручиваются туда-обратно в двухколоночном списке; при выключении строка обрезается</string>
     <string name="settings_open_player_on_play">Открыть плеер после нажатия кнопки воспроизведения</string>
     <string name="settings_open_player_on_play_summary">Автоматически открывать плеер после запуска локальных, WebDAV или онлайн-песен.</string>
     <string name="settings_open_player_from_notification">Открывать плеер из медиауведомления</string>
@@ -578,11 +592,15 @@
     <string name="settings_resume_playback_position">Resume track position</string>
     <string name="settings_resume_playback_position_summary">When returning to a previously played song, continue from where you left</string>
     <string name="settings_shuffle_mode">Режим перемешивания</string>
+    <string name="settings_shuffle_mode_summary">Выберите, как случайный режим выбирает следующий трек</string>
     <string name="settings_play_next_mode">Воспроизвести следующий режим</string>
+    <string name="settings_play_next_mode_summary">Выберите, как «Играть следующим» вставляет треки в очередь</string>
     <string name="settings_previous_button">Предыдущая кнопка</string>
+    <string name="settings_previous_button_summary">Выберите, переключает ли «Назад» на предыдущий трек или повторяет текущий</string>
     <string name="settings_disable_audio_focus">Отключить аудиофокус</string>
     <string name="settings_disable_audio_focus_summary">Если эта функция включена, воспроизведение больше не будет отвлекать звук от других приложений.</string>
     <string name="settings_decoder">Декодер</string>
+    <string name="settings_decoder_summary">Выберите системный декодер, FFmpeg или автоматический запасной вариант</string>
     <string name="settings_startup_play_off">Выкл.</string>
     <string name="settings_startup_play_random">Случайное воспроизведение</string>
     <string name="settings_startup_play_resume">Возобновить последний сеанс</string>
@@ -660,9 +678,11 @@
     <string name="settings_karaoke_accompaniment">Ослабление вокала / минус</string>
     <string name="settings_karaoke_accompaniment_summary">Мгновенно ослабляет центральный вокал в стереомиксе. Это не ИИ-разделение стемов</string>
     <string name="settings_startup_play">Автозапуск при запуске</string>
+    <string name="settings_startup_play_summary">Выберите, начинать ли воспроизведение при запуске приложения</string>
     <string name="settings_bluetooth_auto_play">Bluetooth автовоспроизведение</string>
     <string name="settings_bluetooth_auto_play_summary">Автоматически начинать воспроизведение при подключении аудиоустройства Bluetooth</string>
     <string name="settings_mini_player_right_button">Правая кнопка мини-плеера</string>
+    <string name="settings_mini_player_right_button_summary">Выберите действие правой кнопки мини-плеера</string>
     <string name="settings_mini_player_right_next">Следующий трек</string>
     <string name="settings_mini_player_right_queue">Плейлист</string>
     <string name="settings_transport_button_outlines">Контуры кнопок проигрывателя</string>
@@ -930,7 +950,9 @@
     <string name="settings_lyric_share_custom_info_summary">Оставьте пустым, чтобы отобразить Halcyon; введите имя, которое будет отображаться по @name</string>
     <string name="settings_tag_scraping">Парсинг музыкальных тегов</string>
     <string name="settings_metadata_editor">Приложение для редактирования метаданных</string>
+    <string name="settings_metadata_editor_summary">Выберите приложение для правки тегов песен</string>
     <string name="settings_lyric_timing_editor">Приложение для синхронизации лирики</string>
+    <string name="settings_lyric_timing_editor_summary">Выберите приложение для разметки тайминга текста</string>
     <string name="settings_desktop_shortcuts">Ярлыки на рабочем столе</string>
     <string name="settings_shortcut_library">Библиотека</string>
     <string name="settings_shortcut_playlists">Поиск</string>
@@ -974,7 +996,9 @@
     <string name="settings_mini_player_translation">Показать перевод в миниплеере</string>
     <string name="settings_mini_player_translation_summary">Показывать перевод текста, когда мини-плеер отображает текст песни</string>
     <string name="settings_mini_player_secondary">Вторичная линия мини-плеера</string>
+    <string name="settings_mini_player_secondary_summary">Выберите вторую строку текста на мини-плеере</string>
     <string name="settings_secondary_delivery_content">Содержимое вторичной строки</string>
+    <string name="settings_secondary_delivery_content_summary">Выберите, передавать ли также перевод или произношение</string>
     <string name="settings_mini_player_cover_rotation">Повернуть крышку мини-плеера</string>
     <string name="settings_mini_player_cover_rotation_summary">Поворачивайте крышку мини-плеера во время воспроизведения; отключите его, чтобы сохранить статическое укрытие</string>
     <string name="settings_enable_lyricon">Включить Lyricon</string>
@@ -986,7 +1010,9 @@
     <string name="settings_enable_desktop_lyric">Включить тексты песен на рабочем столе</string>
     <string name="settings_enable_desktop_lyric_summary">Показывать текущий текст поверх других приложений с помощью плавающего окна.</string>
     <string name="settings_status_bar_lyric_position">Положение текста в строке состояния</string>
+    <string name="settings_status_bar_lyric_position_summary">Выберите горизонтальное положение текста в строке состояния</string>
     <string name="settings_status_bar_lyric_secondary">Лирическая дополнительная строка строки состояния</string>
+    <string name="settings_status_bar_lyric_secondary_summary">Выберите вторую строку текста в строке состояния</string>
     <string name="settings_lock_desktop_lyric">Заблокировать тексты песен на рабочем столе</string>
     <string name="settings_lock_desktop_lyric_summary">Предотвратите перетаскивание плавающего окна текста; разблокируйте его здесь или из уведомления о блокировке</string>
     <string name="settings_desktop_lyric_font_scale">Размер настольной лирики %1$d%%</string>
@@ -996,6 +1022,7 @@
     <string name="settings_desktop_lyric_opacity">Непрозрачность текста на рабочем столе %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">Уменьшите это значение, чтобы текст стал светлее; значение сохраняется даже при блокировке</string>
     <string name="settings_desktop_lyric_color">Настольный лирический цвет</string>
+    <string name="settings_desktop_lyric_color_summary">Выберите цвет текста плавающих слов</string>
     <string name="settings_status_lyric_font_scale">Размер текста в строке состояния %1$d%%</string>
     <string name="settings_status_lyric_font_scale_summary">Отдельно настроить размер основной строки плавающего текста</string>
     <string name="settings_status_lyric_translation_scale">Размер дополнительной строки %1$d%%</string>
@@ -1021,9 +1048,11 @@
     <string name="settings_status_bar_phonetic_secondary">Показывать произношение или дополнительную строку в строке состояния</string>
     <string name="settings_status_bar_phonetic_secondary_summary">Отправьте второстепенную строку произношения или перевода в качестве второй строки текста строки состояния.</string>
     <string name="settings_heads_up_lyric_secondary">Лирическая второстепенная линия хедз-ап</string>
+    <string name="settings_heads_up_lyric_secondary_summary">Выберите вторую строку всплывающих слов</string>
     <string name="settings_enable_coloros_lock_screen_lyric">Тексты Lock Screen Island ColorOS</string>
     <string name="settings_enable_coloros_lock_screen_lyric_summary">Отправляет полный LRC-текст в Lock Screen Island ColorOS через MediaMetadata[&quot;lyricInfo&quot;]. Некоторые версии системы могут по-прежнему ограничивать поддерживаемые приложения.</string>
     <string name="settings_coloros_lock_screen_lyric_mode">Lyric delivery mode</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_summary">Выберите способ отправки текста ColorOS на экран блокировки</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">Use system</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">Use module</string>
     <string name="settings_enable_bluetooth_lyric">Включить тексты медиа-уведомлений</string>
@@ -1122,6 +1151,7 @@
     <string name="player_playback_mode_in_order">В порядке</string>
     <string name="player_locate_current_song">Найти текущую песню</string>
     <string name="player_clear_queue">Очистить очередь</string>
+    <string name="player_clear_queue_confirm">Очистить всю очередь воспроизведения?</string>
     <string name="player_lock_queue">Заблокировать очередь</string>
     <string name="player_unlock_queue">Разблокировать очередь</string>
     <string name="player_remove_from_queue">Удалить из очереди</string>
@@ -1281,6 +1311,9 @@
     <string name="song_more_detail_size">Размер</string>
     <string name="song_more_detail_modified_time">Измененное время</string>
     <string name="song_more_detail_added_time">Добавлено время</string>
+    <string name="song_more_detail_play_count">Число прослушиваний</string>
+    <string name="song_more_detail_listened_duration">Общее время прослушивания</string>
+    <string name="song_more_detail_last_played">Последнее прослушивание</string>
     <string name="song_more_detail_file_name">Имя файла</string>
     <string name="song_more_detail_path">Путь</string>
     <string name="song_more_detail_directory">Каталог</string>
@@ -1318,7 +1351,18 @@
     <string name="artist_tab_participated_albums">Участвующие альбомы</string>
     <string name="artist_tab_release_albums">Выпуск альбомов</string>
     <string name="artist_tab_biography">Биография</string>
-    <string name="artist_biography_region">Регион</string>
+    <string name="artist_biography_region">Язык</string>
+    <string name="artist_biography_language">Язык</string>
+    <string name="artist_biography_lang_zh_cn">Упрощённый китайский</string>
+    <string name="artist_biography_lang_zh_hk">Гонконг (трад.)</string>
+    <string name="artist_biography_lang_zh_tw">Тайвань (трад.)</string>
+    <string name="artist_biography_lang_ko">한국어</string>
+    <string name="artist_biography_lang_en">English</string>
+    <string name="artist_biography_lang_ja">日本語</string>
+    <string name="artist_biography_source_wikipedia">Wikipedia</string>
+    <string name="artist_image_source_lastfm">Last.fm</string>
+    <string name="artist_image_source_spotify">Spotify</string>
+    <string name="artist_image_source_netease">NetEase</string>
     <string name="artist_song_count_sorted">Песни %1$d · %2$s</string>
     <string name="artist_participated_album_count_sorted">%1$d альбомы участников · %2$s</string>
     <string name="artist_release_album_count_sorted">%1$d выпускает альбомы · %2$s</string>
@@ -1511,7 +1555,6 @@
     <string name="about_summary_coil">Библиотека загрузки изображений Kotlin (Apache-2.0)</string>
     <string name="about_summary_quickjs">LX Music API Среда выполнения JavaScript (Apache-2.0)</string>
     <string name="about_summary_lxmusic">Интернет-источник музыки и справочник по адаптации API (Apache-2.0)</string>
-    <string name="about_summary_accompanist_lyrics_core">Анализ текста и справочник по структуре TTML/LRC (Apache-2.0)</string>
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">Не удалось импортировать: HTTP %1$d.</string>
     <string name="lx_service_source_script_abnormal">Содержимое исходного скрипта недействительно.</string>
@@ -1633,6 +1676,7 @@
     <string name="settings_crossfade_duration_seconds">Длительность (секунды)</string>
     <string name="settings_crossfade_duration_invalid">Введите допустимую длительность от 0 до 12</string>
     <string name="settings_crossfade_curve">Кривая затухания</string>
+    <string name="settings_crossfade_curve_summary">Выберите, как меняется громкость при наложении двух треков</string>
     <string name="settings_crossfade_curve_equal_power">Постоянная воспринимаемая громкость</string>
     <string name="settings_crossfade_curve_equal_power_summary">Равномощный переход устраняет почти беззвучное начало и провал громкости в середине</string>
     <string name="settings_crossfade_curve_linear">Линейная</string>
@@ -1664,6 +1708,7 @@
     <string name="lyric_match_write_ttml_tag">Записать тег TTMLLYRIC</string>
     <string name="settings_lyric_plugin_config">Настройки плагинов</string>
     <string name="settings_player_bg_theme">Фон плеера</string>
+    <string name="settings_player_bg_theme_summary">Выберите светлый или тёмный стиль фона плеера</string>
     <string name="settings_apple_music_lyrics_page">Страница текста в стиле Apple Music</string>
     <string name="settings_apple_music_lyrics_page_summary">Использует встроенный сфокусированный текст, пружинные переходы и эффекты свечения; выключите, чтобы использовать классическую страницу Lyricon.</string>
     <string name="settings_wallpaper_opacity">Wallpaper opacity</string>
@@ -1791,11 +1836,15 @@
     <string name="settings_search_no_results">Подходящие настройки не найдены</string>
     <string name="settings_search_placeholder">Поиск настроек</string>
     <string name="settings_search_results">Результаты поиска</string>
+    <string name="settings_search_history">История поиска</string>
+    <string name="settings_search_history_clear">Очистить историю</string>
     <string name="settings_status_align_center">По центру</string>
     <string name="settings_status_align_left">По левому краю</string>
     <string name="settings_status_align_right">По правому краю</string>
     <string name="settings_status_bar_lyric_text_align">Выравнивание текста в строке состояния</string>
+    <string name="settings_status_bar_lyric_text_align_summary">Выберите выравнивание текста в строке состояния</string>
     <string name="settings_status_bar_lyric_vertical_align">Вертикальное выравнивание текста в строке состояния</string>
+    <string name="settings_status_bar_lyric_vertical_align_summary">Выберите вертикальное выравнивание текста в строке состояния</string>
     <string name="settings_status_lyric_merge_secondary">Объединять дополнительную строку с основной</string>
     <string name="settings_status_lyric_merge_secondary_summary">Показывать оригинал и перевод/произношение одной временной метки в одной строке</string>
     <string name="settings_status_lyric_secondary_opacity_summary">Настроить непрозрачность перевода или произношения в строке состояния</string>
@@ -1854,7 +1903,7 @@
     <string name="settings_backup_type_equalizer">Эквалайзер</string>
     <string name="settings_backup_type_equalizer_summary">Настройки эквалайзера, усиления басов, виртуализатора и реверберации</string>
     <string name="settings_backup_type_online_sources">Онлайн-источники</string>
-    <string name="settings_backup_type_online_sources_summary">Настройки онлайн-источников: WebDAV, LX, Navidrome, Emby и др.</string>
+    <string name="settings_backup_type_online_sources_summary">Настройки онлайн-источников: WebDAV, LX, Navidrome, Emby и др., а также плагины источников текстов Lyrico</string>
     <string name="common_export">Экспорт</string>
     <string name="common_import">Импорт</string>
     <string name="settings_dynamic_cover_custom_folders">Пользовательские папки динамических обложек</string>
@@ -1865,6 +1914,7 @@
     <string name="settings_home_tile_gradient_enabled_summary">Когда включено, плитки на главном экране используют полупрозрачный градиент; когда выключено — остаются однотонными</string>
     <string name="settings_home_tile_gradient_start_color">Начальный цвет градиента</string>
     <string name="settings_player_title_position">Положение заголовка в неиммерсивном плеере</string>
+    <string name="settings_player_title_position_summary">Показывать заголовок над или под обложкой в неиммерсивном плеере</string>
     <string name="settings_player_title_position_below_cover">Под обложкой</string>
     <string name="settings_player_title_position_above_cover">Над обложкой</string>
     <string name="settings_player_page_style">Страница воспроизведения</string>
@@ -1928,12 +1978,15 @@
     <string name="folder_playlist_detail_summary_sorted">Треков: %1$d · связанных папок: %2$d · %3$s</string>
     <string name="folder_playlist_list_summary_sorted">Плейлистов папок: %1$d · %2$s</string>
     <string name="folder_playlist_selected_playlists">Выбрано плейлистов папок: %1$d</string>
+
+
     <string name="player_lyric_style_settings">Стиль текста</string>
     <string name="playlist_drag_selection_count">Элементов: %1$d</string>
     <string name="remote_playlist_favorites">Избранное %1$s</string>
     <string name="remote_source_opensubsonic">OpenSubsonic</string>
     <string name="settings_audio_output_auto">Auto</string>
     <string name="settings_audio_output_backend">Канал вывода</string>
+    <string name="settings_audio_output_backend_summary">Выберите путь вывода звука Android</string>
     <string name="settings_audio_output_backend_aaudio">AAudio</string>
     <string name="settings_audio_output_backend_audiotrack">AudioTrack</string>
     <string name="settings_audio_output_backend_audiotrack_summary">Использовать Android AudioTrack и преобразовывать в выбранный формат</string>
@@ -1944,11 +1997,13 @@
     <string name="settings_audio_output_backend_hires_summary">Предпочитать высокоточную выдачу PCM/Float и преобразовывать в выбранный формат</string>
     <string name="settings_audio_output_backend_opensles">OpenSL ES</string>
     <string name="settings_audio_output_bit_depth">Разрядность вывода</string>
+    <string name="settings_audio_output_bit_depth_summary">Выберите разрядность PCM; «Авто» следует источнику и системе</string>
     <string name="settings_audio_output_bit_depth_16">16-bit PCM</string>
     <string name="settings_audio_output_bit_depth_24">24-bit PCM</string>
     <string name="settings_audio_output_bit_depth_32">32-bit PCM</string>
     <string name="settings_audio_output_bit_depth_float32">Float32</string>
     <string name="settings_audio_output_sample_rate">Частота дискретизации вывода</string>
+    <string name="settings_audio_output_sample_rate_summary">Выберите частоту дискретизации; «Авто» следует источнику и системе</string>
     <string name="settings_audio_output_sample_rate_khz">%.1f kHz</string>
     <string name="settings_audio_output_section">Вывод</string>
     <string name="settings_bluetooth_auto_play_permission_denied">Разрешение на устройства поблизости не предоставлено; автовоспроизведение Bluetooth отключено</string>
@@ -2047,6 +2102,8 @@
     <string name="lyric_timing_editor_selected_line">Выбранная строка: %1$d / %2$d</string>
     <string name="lyric_timing_editor_unset_lines">Осталось синхронизировать строк: %1$d</string>
     <string name="lyric_timing_editor_saved">Синхронизация текста записана во встроенный LRC</string>
+    <string name="lyric_timing_editor_saved_with_sidecar">Встроенный текст сохранён, файл %1$s экспортирован рядом с композицией</string>
+    <string name="lyric_timing_editor_sidecar_failed">Встроенный текст сохранён, но сопутствующий файл не удалось экспортировать рядом с композицией. Выберите место через «Экспорт».</string>
     <string name="lyric_timing_editor_no_lines">Сначала введите хотя бы одну строку текста</string>
     <string name="lyric_timing_editor_complete_lines">Перед сохранением синхронизируйте все строки</string>
     <string name="lyric_timing_editor_embed_format">Формат встраивания</string>
@@ -2183,6 +2240,7 @@
     <string name="equalizer_panoramic_360_elevation">Вертикальный угол</string>
     <string name="player_replay_gain_badge">Усиление %1$s</string>
     <string name="settings_spectrum_viewer">Просмотр спектра</string>
+    <string name="settings_spectrum_viewer_summary">Выберите приложение для просмотра спектра</string>
     <string name="settings_spectrum_builtin">Встроенный спектр</string>
     <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
     <string name="settings_spectrum_kaspek">Kaspek</string>
@@ -2224,17 +2282,21 @@
     <string name="settings_enable_xiaomi_super_island_lyric">Текст для Xiaomi Super Island</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">Показывать текст в Super Island HyperOS; требуется разрешение Shizuku для временной блокировки сети XMSF</string>
     <string name="settings_live_update_lyric_content">Основной текст Live Activity</string>
+    <string name="settings_live_update_lyric_content_summary">Выберите основной текст в уведомлениях Live Update</string>
     <string name="settings_live_update_lyric_original">Оригинал</string>
     <string name="settings_live_update_lyric_translation">Перевод</string>
     <string name="settings_live_update_lyric_pronunciation">Произношение</string>
     <string name="settings_live_update_lyric_display">Отображение текста Live</string>
+    <string name="settings_live_update_lyric_display_summary">Показывать соседние строки или полный текст в уведомлениях Live Update</string>
     <string name="settings_live_update_lyric_display_compact">Фрагмент вокруг текущего слова</string>
     <string name="settings_live_update_lyric_display_full">Полная строка</string>
     <string name="settings_live_update_lyric_secondary">Подзаголовок Live Activity</string>
+    <string name="settings_live_update_lyric_secondary_summary">Выберите подзаголовок уведомления Live Update</string>
     <string name="settings_live_update_lyric_secondary_song">Название песни</string>
     <string name="settings_live_update_lyric_secondary_translation">Перевод</string>
     <string name="settings_live_update_lyric_secondary_pronunciation">Произношение</string>
     <string name="settings_media_notification_buttons">Кнопки уведомления мультимедиа</string>
+    <string name="settings_media_notification_buttons_summary">Выберите две дополнительные кнопки в медиауведомлении</string>
     <string name="settings_media_notification_buttons_playback_desktop">Режим воспроизведения, текст на рабочем столе</string>
     <string name="settings_media_notification_buttons_playback_favorite">Режим воспроизведения, избранное</string>
     <string name="settings_media_notification_buttons_desktop_favorite">Текст на рабочем столе, избранное</string>
@@ -2246,6 +2308,7 @@
     <string name="settings_xiaomi_super_island_notification_section">Notification and interaction</string>
     <string name="settings_xiaomi_super_island_compat_section">XMSF and dismissal</string>
     <string name="settings_xiaomi_super_island_lyric_mode">Lyric layout</string>
+    <string name="settings_xiaomi_super_island_lyric_mode_summary">Выберите макет текста Super Island</string>
     <string name="settings_xiaomi_super_island_mode_standard">Standard: song details and current lyric</string>
     <string name="settings_xiaomi_super_island_mode_full">Full: split the complete lyric across columns</string>
     <string name="settings_xiaomi_super_island_left_cover">Show cover on the left</string>
@@ -2259,16 +2322,20 @@
     <string name="settings_xiaomi_super_island_colorize">Lyric accent color</string>
     <string name="settings_xiaomi_super_island_colorize_summary">Use album artwork or a custom color for Super Island text and progress</string>
     <string name="settings_xiaomi_super_island_color_source">Color source</string>
+    <string name="settings_xiaomi_super_island_color_source_summary">Выберите источник цвета Super Island</string>
     <string name="settings_xiaomi_super_island_color_album">Album artwork</string>
     <string name="settings_xiaomi_super_island_custom_color">Custom accent color</string>
     <string name="settings_xiaomi_super_island_progress_color">Use accent color for progress</string>
     <string name="settings_xiaomi_super_island_actions">Notification actions</string>
+    <string name="settings_xiaomi_super_island_actions_summary">Выберите действия уведомления Super Island</string>
     <string name="settings_xiaomi_super_island_actions_off">Progress only</string>
     <string name="settings_xiaomi_super_island_actions_media">Media controls</string>
     <string name="settings_xiaomi_super_island_notification_style">Notification style</string>
+    <string name="settings_xiaomi_super_island_notification_style_summary">Выберите стиль уведомления Super Island</string>
     <string name="settings_xiaomi_super_island_style_standard">Standard</string>
     <string name="settings_xiaomi_super_island_style_advanced">Enhanced (experimental)</string>
     <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
+    <string name="settings_xiaomi_super_island_button_layout_summary">Выберите расположение кнопок медиа</string>
     <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
     <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
     <string name="settings_xiaomi_super_island_xmsf_mode">XMSF network bypass</string>
@@ -2283,6 +2350,7 @@
     <string name="settings_xiaomi_super_island_xmsf_duration">Network block duration</string>
     <string name="settings_xiaomi_super_island_xmsf_duration_summary">Too short may fail; too long may affect Xiaomi system services</string>
     <string name="settings_xiaomi_super_island_dismiss_delay">Dismiss after pause</string>
+    <string name="settings_xiaomi_super_island_dismiss_delay_summary">Задержка перед скрытием Super Island после паузы</string>
     <string name="settings_xiaomi_super_island_dismiss_immediate">Immediately</string>
     <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
@@ -2293,6 +2361,7 @@
     <string name="settings_continue_playback_row_summary">Показывать последний воспроизведённый трек в каждой категории и на странице сведений</string>
     <string name="folder_playlist_associate_multi_done">Связано с плейлистами папок: %1$d</string>
     <string name="settings_music_video_orientation">Ориентация MV со звуком</string>
+    <string name="settings_music_video_orientation_summary">Выберите ориентацию экрана при воспроизведении клипа</string>
     <string name="settings_music_video_orientation_system">Системная</string>
     <string name="settings_music_video_orientation_video">По видео</string>
     <string name="settings_music_video_orientation_landscape">Альбомная</string>
@@ -2315,6 +2384,7 @@
     <string name="settings_show_online_mv_in_lists_summary">Show an online MV action when the song has NetEase MV metadata.</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>
+    <string name="settings_xiaomi_super_island_lyric_content_summary">Выберите основной текст Super Island</string>
     <string name="player_ab_repeat_record_b">Повтор A-B: установить B (A %1$s)</string>
     <string name="player_ab_repeat_active">Отменить повтор A-B (%1$s-%2$s)</string>
     <string name="settings_music_video_stretch">Разрешить растяжение MV</string>
@@ -2354,6 +2424,10 @@
     <string name="settings_backup_webdav_restore_now">Restore now</string>
     <string name="settings_player_action_menu">Player action menu</string>
     <string name="settings_list_action_menu">List action menu</string>
+    <string name="settings_song_info_layout">Song info fields</string>
+    <string name="settings_queue_toolbar_layout">Queue toolbar</string>
+    <string name="song_more_modified_time_invalid">Use yyyy-MM-dd HH:mm:ss</string>
+    <string name="song_more_modified_time_failed">Could not change the file time</string>
     <string name="settings_action_menu_summary">Configure action order and visibility separately</string>
     <string name="settings_action_menu_position">Position: %1$d</string>
     <string name="settings_action_menu_remote_quality">Remote stream quality</string>
@@ -2400,6 +2474,7 @@
     <string name="settings_search_click_insert_next">Вставить после текущего трека и воспроизвести</string>
     <string name="settings_search_click_append">Добавить в конец очереди и воспроизвести</string>
     <string name="settings_search_click_replace">Заменить очередь и воспроизвести</string>
+    <string name="settings_search_click_playback_mode_summary">Выберите, как результат поиска попадает в очередь</string>
     <string name="settings_playlist_show_rating_filter">Показывать фильтр рейтинга в плейлистах</string>
     <string name="settings_playlist_show_favorite_filter">Показывать фильтр избранного в плейлистах</string>
     <string name="settings_player_progress_show_quality">Показывать качество под индикатором</string>
@@ -2448,6 +2523,7 @@
     <string name="settings_immersive_lyric_swipe_summary">Проведите горизонтально в нижней области текста</string>
     <string name="library_layout_grid">Сетка</string>
     <string name="library_layout_list">Список</string>
+    <string name="library_layout_multi_row">Многострочный список</string>
     <string name="settings_parse_featured_artists">Распознавать приглашённых исполнителей в названиях</string>
     <string name="settings_parse_featured_artists_summary">Добавлять исполнителей после feat., ft. или featuring и устранять дубликаты с тегом ARTIST</string>
     <string name="settings_artist_image_download">Автоматически загружать изображения исполнителей</string>

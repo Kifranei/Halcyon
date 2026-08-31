@@ -38,48 +38,54 @@ internal fun Modifier.playerCoverGestures(
             var dismissActive = false
             val velocityTracker = VelocityTracker()
             velocityTracker.addPosition(down.uptimeMillis, down.position)
-            do {
-                // Observe the raw motion before lyric rows consume it for tap/long-press
-                // detection. Horizontal switching is still gated by swipeEnabled below.
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if (!change.pressed) {
-                    if (lockedHorizontal) {
-                        when {
-                            totalDx <= -swipeThresholdPx -> onSwipeNext()
-                            totalDx >= swipeThresholdPx -> onSwipePrevious()
-                        }
-                    } else if (dismissActive) {
-                        dismissHandle?.onDragEnd(velocityTracker.calculateVelocity().y)
+            fun finishIfUp(pressed: Boolean): Boolean {
+                if (pressed) return false
+                if (lockedHorizontal) {
+                    when {
+                        totalDx <= -swipeThresholdPx -> onSwipeNext()
+                        totalDx >= swipeThresholdPx -> onSwipePrevious()
                     }
-                    break
+                } else if (dismissActive) {
+                    dismissHandle?.onDragEnd(velocityTracker.calculateVelocity().y)
                 }
-                val delta = change.position - change.previousPosition
+                return true
+            }
+            do {
+                val initial = awaitPointerEvent(PointerEventPass.Initial)
+                val initialChange = initial.changes.firstOrNull { it.id == down.id } ?: break
+                if (finishIfUp(initialChange.pressed)) break
+                val delta = initialChange.position - initialChange.previousPosition
                 totalDx += delta.x
                 totalDy += delta.y
-                velocityTracker.addPosition(change.uptimeMillis, change.position)
+                velocityTracker.addPosition(initialChange.uptimeMillis, initialChange.position)
                 if (!lockedHorizontal && !lockedVertical) {
                     val absX = abs(totalDx)
                     val absY = abs(totalDy)
-                    when {
-                        absX > touchSlop && absX > absY && swipeEnabled -> {
-                            lockedHorizontal = true
-                            change.consume()
-                        }
-                        absY > touchSlop && absY > absX && totalDy > 0f && dismissHandle != null -> {
-                            lockedVertical = true
-                            dismissActive = dismissHandle.begin()
-                            if (dismissActive) {
-                                dismissHandle.onVerticalDrag(totalDy)
-                                change.consume()
-                            }
+                    if (absY > touchSlop && absY > absX && totalDy > 0f && dismissHandle != null) {
+                        lockedVertical = true
+                        dismissActive = dismissHandle.begin()
+                        if (dismissActive) {
+                            dismissHandle.onVerticalDrag(totalDy)
+                            initialChange.consume()
                         }
                     }
-                } else if (lockedHorizontal) {
-                    change.consume()
                 } else if (dismissActive) {
                     dismissHandle?.onVerticalDrag(delta.y)
-                    change.consume()
+                    initialChange.consume()
+                }
+                if (lockedVertical || !swipeEnabled) continue
+                val main = awaitPointerEvent(PointerEventPass.Main)
+                val mainChange = main.changes.firstOrNull { it.id == down.id } ?: break
+                if (finishIfUp(mainChange.pressed)) break
+                if (lockedHorizontal) {
+                    mainChange.consume()
+                } else if (!mainChange.isConsumed) {
+                    val absX = abs(totalDx)
+                    val absY = abs(totalDy)
+                    if (absX > touchSlop && absX > absY) {
+                        lockedHorizontal = true
+                        mainChange.consume()
+                    }
                 }
             } while (true)
         }

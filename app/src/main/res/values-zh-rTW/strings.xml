@@ -215,6 +215,14 @@
     <string name="settings_music_playback">音樂與播放</string>
     <string name="settings_services">服務與資料</string>
     <string name="settings_maintenance">維護</string>
+    <string name="settings_maintenance_summary">設定嚮導、快取清理與還原預設設定</string>
+    <string name="settings_clear_artist_image_cache">清除演出者圖片快取</string>
+    <string name="settings_clear_artist_image_cache_summary">清除演出者圖片下載來源儲存的本機圖片</string>
+    <string name="settings_clear_artist_image_cache_done">已清除演出者圖片快取</string>
+    <string name="settings_restore_defaults">還原預設設定</string>
+    <string name="settings_restore_defaults_summary">將應用程式設定還原為初始預設值，不刪除歌曲、播放清單或聆聽記錄</string>
+    <string name="settings_restore_defaults_confirm">確定還原全部預設設定嗎？目前設定將被清除，但音樂與使用者資料會保留。</string>
+    <string name="settings_restore_defaults_done">已還原預設設定</string>
     <string name="settings_appearance_home">外觀與首頁</string>
     <string name="settings_appearance_home_summary">主題、語言、液態玻璃、自訂圖片和首頁版面</string>
     <string name="settings_library_scan">音樂庫與掃描</string>
@@ -229,6 +237,7 @@
     <string name="settings_lyrics">歌詞</string>
     <string name="settings_lyrics_summary">字幕、桌面歌詞、狀態列歌詞與車用歌詞</string>
     <string name="settings_player_lyric_text_align">播放頁歌詞對齊</string>
+    <string name="settings_player_lyric_text_align_summary">選擇歌詞水平對齊方式</string>
     <string name="player_output_bluetooth">藍牙裝置</string>
     <string name="player_output_headphones">耳機</string>
     <string name="player_output_usb_audio">USB 音訊</string>
@@ -239,7 +248,7 @@
     <string name="settings_backup_summary">匯出與還原設定、播放紀錄與統計資料</string>
     <string name="settings_other">其他</string>
     <string name="settings_clear_online_cache">清除封面與歌詞快取</string>
-    <string name="settings_clear_online_cache_summary">清除 WebDAV 和 LX 的封面、歌詞與遠端中繼資料快取</string>
+    <string name="settings_clear_online_cache_summary">清除本機與遠端來源的封面、歌詞與標籤資料快取</string>
     <string name="settings_clear_online_cache_done">已清除線上封面與歌詞快取</string>
     <string name="settings_clear_library_snapshot_cache">清除音樂庫快照快取</string>
     <string name="settings_clear_library_snapshot_cache_summary">清除音樂庫搜尋和標籤快照，下次搜尋時重新產生</string>
@@ -265,7 +274,7 @@
     <string name="logs_retention_days">%1$d 天</string>
     <string name="logs_retention_removed">已清除 %1$d 筆舊記錄</string>
     <string name="logs_retention_set">已設為保留 %1$d 天</string>
-    <string name="logs_summary">共 %1$d 筆，目前顯示 %2$d 筆；錯誤 %3$d 筆，警告 %4$d 筆。直接讀取本程序 logcat，不再另外落盤，也不再截成 3000 筆</string>
+    <string name="logs_summary">共 %1$d 筆，目前顯示 %2$d 筆；錯誤 %3$d 筆，警告 %4$d 筆</string>
     <string name="logs_empty">沒有記錄</string>
     <string name="logs_empty_filtered">沒有符合的日誌</string>
     <string name="logs_clear_message">將清空目前畫面上的 %1$d 條 logcat 記錄。系統 logcat 緩衝仍由 Android 管理。</string>
@@ -310,6 +319,9 @@
     <string name="settings_app_display_scale">介面縮放</string>
     <string name="settings_app_display_scale_summary">整體放大或縮小按鈕、間距與內容</string>
     <string name="settings_category_grid_columns">分類格線欄數</string>
+    <string name="settings_library_song_grid_columns_phone">手機歌曲格線欄數</string>
+    <string name="settings_library_song_grid_columns_tablet">平板歌曲格線欄數</string>
+    <string name="settings_library_song_grid_columns_summary">音樂庫封面格線顯示為 %1$d 欄</string>
     <string name="settings_category_grid_columns_summary">專輯、曲風、年份等頁面顯示為 %1$d 欄</string>
     <string name="settings_category_grid_columns_option">%1$d 欄</string>
     <string name="settings_category_grid_columns_option_summary_single">列表式大卡片</string>
@@ -319,6 +331,8 @@
     <string name="settings_show_album_artists_summary">開啟後將專輯藝人併入藝人列表，並在藝人頁顯示發行專輯分頁</string>
     <string name="settings_show_artist_introduction">顯示藝人介紹</string>
     <string name="settings_show_artist_introduction_summary">在藝人詳情頁顯示「介紹」入口</string>
+    <string name="settings_library_song_title_marquee">音樂庫雙列標題滾動</string>
+    <string name="settings_library_song_title_marquee_summary">雙列列表中過長的歌名與歌手名來回滾動顯示；關閉時單行截斷</string>
     <string name="settings_open_player_on_play">點選播放後開啟播放頁</string>
     <string name="settings_open_player_on_play_summary">本機、WebDAV 與線上歌曲開始播放後，自動開啟播放頁</string>
     <string name="settings_open_player_from_notification">點選媒體通知進入播放頁</string>
@@ -606,11 +620,15 @@
     <string name="settings_resume_playback_position">Resume track position</string>
     <string name="settings_resume_playback_position_summary">When returning to a previously played song, continue from where you left</string>
     <string name="settings_shuffle_mode">隨機播放模式</string>
+    <string name="settings_shuffle_mode_summary">選擇隨機播放如何挑選下一首</string>
     <string name="settings_play_next_mode">下一首播放模式</string>
+    <string name="settings_play_next_mode_summary">選擇「下一首播放」插入佇列的方式</string>
     <string name="settings_previous_button">上一首按鈕</string>
+    <string name="settings_previous_button_summary">選擇上一曲按鈕是切到上一首還是重播目前歌曲</string>
     <string name="settings_disable_audio_focus">停用音訊焦點</string>
     <string name="settings_disable_audio_focus_summary">開啟後播放時不再搶佔其他應用程式的音訊焦點</string>
     <string name="settings_decoder">解碼器</string>
+    <string name="settings_decoder_summary">選擇系統解碼、FFmpeg 或自動回退</string>
     <string name="settings_startup_play_off">關閉</string>
     <string name="settings_startup_play_random">隨機播放</string>
     <string name="settings_startup_play_resume">接續上次播放</string>
@@ -625,8 +643,11 @@
     <string name="settings_audio_decoder_auto_summary">系統不支援時才退回 FFmpeg</string>
     <string name="settings_audio_output_section">輸出</string>
     <string name="settings_audio_output_backend">輸出通道</string>
+    <string name="settings_audio_output_backend_summary">選擇 Android 音訊輸出通路</string>
     <string name="settings_audio_output_bit_depth">輸出位深</string>
+    <string name="settings_audio_output_bit_depth_summary">指定輸出 PCM 位元深度；自動則跟隨音源和系統</string>
     <string name="settings_audio_output_sample_rate">輸出取樣率</string>
+    <string name="settings_audio_output_sample_rate_summary">指定輸出取樣率；自動則跟隨音源和系統</string>
     <string name="settings_audio_output_auto">自動</string>
     <string name="settings_audio_output_backend_auto">自動</string>
     <string name="settings_audio_output_backend_opensles">OpenSL ES</string>
@@ -709,10 +730,12 @@
     <string name="settings_karaoke_accompaniment">人聲減弱 / 伴奏</string>
     <string name="settings_karaoke_accompaniment_summary">即時減弱立體聲裡置中的人聲，方便跟唱。不是 AI 分軌，切換立即生效</string>
     <string name="settings_startup_play">啟動後自動播放</string>
+    <string name="settings_startup_play_summary">選擇開啟應用程式後是否自動開始播放</string>
     <string name="settings_bluetooth_auto_play">藍牙連線後自動播放</string>
     <string name="settings_bluetooth_auto_play_summary">藍牙音訊裝置連線後自動開始播放</string>
     <string name="settings_bluetooth_auto_play_permission_denied">尚未授予附近裝置權限，藍牙自動播放已關閉</string>
     <string name="settings_mini_player_right_button">迷你播放列右側按鈕</string>
+    <string name="settings_mini_player_right_button_summary">選擇迷你播放列右側按鈕的功能</string>
     <string name="settings_mini_player_right_next">下一首</string>
     <string name="settings_mini_player_right_queue">播放佇列</string>
     <string name="settings_transport_button_outlines">播放頁按鈕外框</string>
@@ -881,8 +904,8 @@
     <string name="library_search_song_count_unit">首歌</string>
     <string name="library_search_artist_summary">%1$d 首歌 · %2$d 張專輯</string>
     <string name="library_search_lyric_prefix">歌詞：</string>
-    <string name="rating_filter_all">全部星級</string>
-    <string name="rating_filter_rated">全部已評分</string>
+    <string name="rating_filter_all">全部評分</string>
+    <string name="rating_filter_rated">全部星級</string>
     <string name="rating_filter_unrated">未評分</string>
     <string name="rating_filter_star">%1$d 星</string>
     <string name="favorite_filter">喜歡的歌曲</string>
@@ -978,7 +1001,9 @@
     <string name="settings_lyric_share_custom_info_summary">留空顯示 Halcyon；填寫名稱後顯示為 by @名稱</string>
     <string name="settings_tag_scraping">音樂標籤擷取</string>
     <string name="settings_metadata_editor">中繼資料編輯軟體</string>
+    <string name="settings_metadata_editor_summary">選擇用於編輯歌曲標籤的應用程式</string>
     <string name="settings_lyric_timing_editor">歌詞時間軸軟體</string>
+    <string name="settings_lyric_timing_editor_summary">選擇用於歌詞打軸的應用程式</string>
     <string name="settings_desktop_shortcuts">桌面捷徑</string>
     <string name="settings_shortcut_library">音樂庫</string>
     <string name="settings_shortcut_playlists">搜尋</string>
@@ -1022,7 +1047,9 @@
     <string name="settings_mini_player_translation">迷你播放列顯示翻譯</string>
     <string name="settings_mini_player_translation_summary">播放列顯示歌詞時同時顯示翻譯</string>
     <string name="settings_mini_player_secondary">迷你播放列副行內容</string>
+    <string name="settings_mini_player_secondary_summary">選擇迷你播放列歌詞的副行內容</string>
     <string name="settings_secondary_delivery_content">副行傳遞內容</string>
+    <string name="settings_secondary_delivery_content_summary">選擇一併傳遞的翻譯或注音</string>
     <string name="settings_mini_player_cover_rotation">迷你播放列封面旋轉</string>
     <string name="settings_mini_player_cover_rotation_summary">播放時旋轉迷你播放列封面；關閉後保持靜態封面</string>
     <string name="settings_enable_lyricon">啟用 Lyricon</string>
@@ -1034,7 +1061,9 @@
     <string name="settings_enable_desktop_lyric">啟用桌面歌詞</string>
     <string name="settings_enable_desktop_lyric_summary">透過懸浮視窗在其他應用上方顯示目前歌詞</string>
     <string name="settings_status_bar_lyric_position">狀態列歌詞位置</string>
+    <string name="settings_status_bar_lyric_position_summary">選擇狀態列歌詞的水平位置</string>
     <string name="settings_status_bar_lyric_secondary">狀態列歌詞副行</string>
+    <string name="settings_status_bar_lyric_secondary_summary">選擇狀態列歌詞的副行內容</string>
     <string name="settings_lock_desktop_lyric">鎖定桌面歌詞</string>
     <string name="settings_lock_desktop_lyric_summary">鎖定後懸浮歌詞不可拖曳；可在這裡或鎖定通知中解除</string>
     <string name="settings_desktop_lyric_font_scale">桌面歌詞大小 %1$d%%</string>
@@ -1044,6 +1073,7 @@
     <string name="settings_desktop_lyric_opacity">桌面歌詞透明度 %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">調低後歌詞會更淡，鎖定狀態也會保留</string>
     <string name="settings_desktop_lyric_color">桌面歌詞顏色</string>
+    <string name="settings_desktop_lyric_color_summary">選擇桌面歌詞文字顏色</string>
     <string name="settings_status_lyric_font_scale">狀態列歌詞大小 %1$d%%</string>
     <string name="settings_status_lyric_font_scale_summary">單獨調整懸浮狀態列歌詞的主行尺寸</string>
     <string name="settings_status_lyric_translation_scale">狀態列副行大小 %1$d%%</string>
@@ -1069,9 +1099,11 @@
     <string name="settings_status_bar_phonetic_secondary">狀態列顯示發音/副行</string>
     <string name="settings_status_bar_phonetic_secondary_summary">開啟後將發音或翻譯副行作為狀態列歌詞的第二行傳送。</string>
     <string name="settings_heads_up_lyric_secondary">橫幅歌詞通知副行內容</string>
+    <string name="settings_heads_up_lyric_secondary_summary">選擇橫幅歌詞的副行內容</string>
     <string name="settings_enable_coloros_lock_screen_lyric">ColorOS 鎖屏島歌詞</string>
     <string name="settings_enable_coloros_lock_screen_lyric_summary">透過 MediaMetadata[&quot;lyricInfo&quot;] 向 ColorOS 鎖屏島傳送整首 LRC 歌詞，部分系統版本可能仍受白名單限制。</string>
     <string name="settings_coloros_lock_screen_lyric_mode">歌詞傳遞模式</string>
+    <string name="settings_coloros_lock_screen_lyric_mode_summary">選擇 ColorOS 鎖屏歌詞的傳送方式</string>
     <string name="settings_coloros_lock_screen_lyric_mode_system">使用系統</string>
     <string name="settings_coloros_lock_screen_lyric_mode_module">使用模組</string>
     <string name="settings_enable_bluetooth_lyric">啟用媒體通知歌詞</string>
@@ -1170,6 +1202,7 @@
     <string name="player_playback_mode_in_order">依序播放</string>
     <string name="player_locate_current_song">定位目前歌曲</string>
     <string name="player_clear_queue">清空播放佇列</string>
+    <string name="player_clear_queue_confirm">確定刪除整個播放列表？</string>
     <string name="player_lock_queue">鎖定播放佇列</string>
     <string name="player_unlock_queue">解除播放佇列鎖定</string>
     <string name="player_remove_from_queue">從播放佇列移除</string>
@@ -1329,6 +1362,9 @@
     <string name="song_more_detail_size">大小</string>
     <string name="song_more_detail_modified_time">修改時間</string>
     <string name="song_more_detail_added_time">新增時間</string>
+    <string name="song_more_detail_play_count">播放次數</string>
+    <string name="song_more_detail_listened_duration">累計聆聽時長</string>
+    <string name="song_more_detail_last_played">最後播放時間</string>
     <string name="song_more_detail_file_name">檔案名稱</string>
     <string name="song_more_detail_path">路徑</string>
     <string name="song_more_detail_directory">目錄</string>
@@ -1367,7 +1403,18 @@
     <string name="artist_tab_participated_albums">參與專輯</string>
     <string name="artist_tab_release_albums">發行專輯</string>
     <string name="artist_tab_biography">傳記</string>
-    <string name="artist_biography_region">地區</string>
+    <string name="artist_biography_region">語言</string>
+    <string name="artist_biography_language">語言</string>
+    <string name="artist_biography_lang_zh_cn">大陸簡體</string>
+    <string name="artist_biography_lang_zh_hk">香港繁體</string>
+    <string name="artist_biography_lang_zh_tw">臺灣正體</string>
+    <string name="artist_biography_lang_ko">한국어</string>
+    <string name="artist_biography_lang_en">English</string>
+    <string name="artist_biography_lang_ja">日本語</string>
+    <string name="artist_biography_source_wikipedia">維基百科</string>
+    <string name="artist_image_source_lastfm">Last.fm</string>
+    <string name="artist_image_source_spotify">Spotify</string>
+    <string name="artist_image_source_netease">網易雲</string>
     <string name="artist_biography_country_us">美國</string>
     <string name="artist_biography_country_cn">中國</string>
     <string name="artist_biography_country_jp">日本</string>
@@ -1580,7 +1627,6 @@
     <string name="about_summary_coil">Kotlin 圖片載入函式庫（Apache-2.0）</string>
     <string name="about_summary_quickjs">LX Music API JavaScript 執行環境（Apache-2.0）</string>
     <string name="about_summary_lxmusic">線上音樂來源與 API 適配參考（Apache-2.0）</string>
-    <string name="about_summary_accompanist_lyrics_core">歌詞解析與 TTML/LRC 結構參考（Apache-2.0）</string>
     <string name="about_summary_raws_music">10 段等化器、BiQuad 參數等化與 DSP 核心參考（Apache-2.0）</string>
 
     <!-- i18n: LX online service errors -->
@@ -1705,6 +1751,7 @@
     <string name="settings_crossfade_duration_seconds">時長（秒）</string>
     <string name="settings_crossfade_duration_invalid">請輸入 0 到 12 之間的有效時長</string>
     <string name="settings_crossfade_curve">淡入淡出曲線</string>
+    <string name="settings_crossfade_curve_summary">選擇兩首歌重疊時的音量變化曲線</string>
     <string name="settings_crossfade_curve_equal_power">恆定響度</string>
     <string name="settings_crossfade_curve_equal_power_summary">等功率交叉漸變，避免前半段幾乎無聲或中段音量下降</string>
     <string name="settings_crossfade_curve_linear">線性</string>
@@ -1736,6 +1783,7 @@
     <string name="lyric_match_write_ttml_tag">寫入 TTMLLYRIC 標籤</string>
     <string name="settings_lyric_plugin_config">外掛設定</string>
     <string name="settings_player_bg_theme">播放頁背景</string>
+    <string name="settings_player_bg_theme_summary">選擇播放頁背景的明暗風格</string>
     <string name="settings_apple_music_lyrics_page">Apple Music 風格歌詞頁</string>
     <string name="settings_apple_music_lyrics_page_summary">使用內建焦點歌詞、彈簧過渡和光暈效果；關閉後使用原有的 Lyricon 歌詞頁。</string>
     <string name="settings_wallpaper_opacity">Wallpaper opacity</string>
@@ -1866,11 +1914,15 @@
     <string name="settings_search_no_results">找不到相關設定</string>
     <string name="settings_search_placeholder">搜尋設定項目</string>
     <string name="settings_search_results">搜尋結果</string>
+    <string name="settings_search_history">搜尋紀錄</string>
+    <string name="settings_search_history_clear">清除搜尋紀錄</string>
     <string name="settings_status_align_center">置中對齊</string>
     <string name="settings_status_align_left">靠左對齊</string>
     <string name="settings_status_align_right">靠右對齊</string>
     <string name="settings_status_bar_lyric_text_align">狀態列歌詞文字對齊</string>
+    <string name="settings_status_bar_lyric_text_align_summary">選擇狀態列歌詞的文字對齊</string>
     <string name="settings_status_bar_lyric_vertical_align">狀態列歌詞垂直對齊</string>
+    <string name="settings_status_bar_lyric_vertical_align_summary">選擇狀態列歌詞的垂直對齊</string>
     <string name="settings_status_lyric_merge_secondary">副行合併至主行</string>
     <string name="settings_status_lyric_merge_secondary_summary">將相同時間軸的原詞和翻譯/注音顯示在同一行</string>
     <string name="settings_status_lyric_secondary_opacity_summary">調整狀態列歌詞翻譯或注音的顯示透明度</string>
@@ -1929,7 +1981,7 @@
     <string name="settings_backup_type_equalizer">等化器</string>
     <string name="settings_backup_type_equalizer_summary">等化器、重低音、虛擬環繞與殘響設定</string>
     <string name="settings_backup_type_online_sources">線上來源</string>
-    <string name="settings_backup_type_online_sources_summary">WebDAV、LX、Navidrome、Emby 等線上來源設定</string>
+    <string name="settings_backup_type_online_sources_summary">WebDAV、LX、Navidrome、Emby 等線上來源設定及 Lyrico 歌詞來源插件</string>
     <string name="common_export">匯出</string>
     <string name="common_import">匯入</string>
     <string name="settings_dynamic_cover_custom_folders">自訂動態封面資料夾</string>
@@ -1941,6 +1993,7 @@
     <string name="settings_beautiful_lyrics_background_static">Apple Music</string>
     <string name="settings_beautiful_lyrics_background_dynamic">Beautiful Lyrics</string>
     <string name="settings_player_title_position">非沉浸播放頁標題位置</string>
+    <string name="settings_player_title_position_summary">非沉浸播放頁中，歌曲標題顯示在封面上方還是下方</string>
     <string name="settings_player_title_position_below_cover">封面下方</string>
     <string name="settings_player_title_position_above_cover">封面上方</string>
     <string name="settings_player_page_style">播放頁</string>
@@ -1992,6 +2045,8 @@
     <string name="folder_playlist_detail_summary_sorted">%1$d 首歌曲 · %2$d 個關聯資料夾 · %3$s</string>
     <string name="folder_playlist_list_summary_sorted">%1$d 個資料夾播放清單 · %2$s</string>
     <string name="folder_playlist_selected_playlists">已選擇 %1$d 個資料夾播放清單</string>
+
+
     <string name="player_lyric_style_settings">歌詞樣式</string>
     <string name="playlist_drag_selection_count">項目：%1$d</string>
     <string name="remote_playlist_favorites">%1$s 收藏</string>
@@ -2087,6 +2142,8 @@
     <string name="lyric_timing_editor_selected_line">目前句：%1$d / %2$d</string>
     <string name="lyric_timing_editor_unset_lines">還有 %1$d 句未打軸</string>
     <string name="lyric_timing_editor_saved">歌詞打軸已寫入歌曲內嵌 LRC</string>
+    <string name="lyric_timing_editor_saved_with_sidecar">已寫入內嵌歌詞，並在歌曲目錄匯出 %1$s</string>
+    <string name="lyric_timing_editor_sidecar_failed">內嵌歌詞已儲存，但無法在歌曲目錄匯出檔案；請使用「匯出」手動選擇位置</string>
     <string name="lyric_timing_editor_no_lines">請先輸入至少一行歌詞</string>
     <string name="lyric_timing_editor_complete_lines">請先為全部歌詞打軸</string>
     <string name="lyric_timing_editor_embed_format">內嵌格式</string>
@@ -2223,6 +2280,7 @@
     <string name="equalizer_panoramic_360_elevation">垂直角度</string>
     <string name="player_replay_gain_badge">增益 %1$s</string>
     <string name="settings_spectrum_viewer">查看頻譜軟體</string>
+    <string name="settings_spectrum_viewer_summary">選擇用於查看頻譜的應用程式</string>
     <string name="settings_spectrum_builtin">內建頻譜</string>
     <string name="settings_spectrum_aspect_pro">Aspect Pro</string>
     <string name="settings_spectrum_kaspek">Kaspek</string>
@@ -2264,17 +2322,21 @@
     <string name="settings_enable_xiaomi_super_island_lyric">小米超級島歌詞</string>
     <string name="settings_enable_xiaomi_super_island_lyric_summary">透過 HyperOS 超級島顯示歌詞；需要 Shizuku 權限暫時阻斷小米服務框架網路後才能傳送</string>
     <string name="settings_live_update_lyric_content">即時活動通知主歌詞</string>
+    <string name="settings_live_update_lyric_content_summary">選擇即時動態通知中顯示的主歌詞內容</string>
     <string name="settings_live_update_lyric_original">原文</string>
     <string name="settings_live_update_lyric_translation">翻譯</string>
     <string name="settings_live_update_lyric_pronunciation">注音</string>
     <string name="settings_live_update_lyric_display">即時活動歌詞顯示</string>
+    <string name="settings_live_update_lyric_display_summary">選擇即時動態通知顯示目前詞附近還是完整歌詞</string>
     <string name="settings_live_update_lyric_display_compact">目前單詞附近</string>
     <string name="settings_live_update_lyric_display_full">完整歌詞</string>
     <string name="settings_live_update_lyric_secondary">即時活動通知副標題</string>
+    <string name="settings_live_update_lyric_secondary_summary">選擇即時動態通知副標題內容</string>
     <string name="settings_live_update_lyric_secondary_song">歌曲名稱</string>
     <string name="settings_live_update_lyric_secondary_translation">翻譯</string>
     <string name="settings_live_update_lyric_secondary_pronunciation">注音</string>
     <string name="settings_media_notification_buttons">媒體通知按鈕</string>
+    <string name="settings_media_notification_buttons_summary">選擇媒體通知上顯示的兩個自訂按鈕</string>
     <string name="settings_media_notification_buttons_playback_desktop">播放模式、桌面歌詞</string>
     <string name="settings_media_notification_buttons_playback_favorite">播放模式、最愛</string>
     <string name="settings_media_notification_buttons_desktop_favorite">桌面歌詞、最愛</string>
@@ -2286,6 +2348,7 @@
     <string name="settings_xiaomi_super_island_notification_section">Notification and interaction</string>
     <string name="settings_xiaomi_super_island_compat_section">XMSF and dismissal</string>
     <string name="settings_xiaomi_super_island_lyric_mode">Lyric layout</string>
+    <string name="settings_xiaomi_super_island_lyric_mode_summary">選擇超級島歌詞的展示樣式</string>
     <string name="settings_xiaomi_super_island_mode_standard">Standard: song details and current lyric</string>
     <string name="settings_xiaomi_super_island_mode_full">Full: split the complete lyric across columns</string>
     <string name="settings_xiaomi_super_island_left_cover">Show cover on the left</string>
@@ -2299,16 +2362,20 @@
     <string name="settings_xiaomi_super_island_colorize">Lyric accent color</string>
     <string name="settings_xiaomi_super_island_colorize_summary">Use album artwork or a custom color for Super Island text and progress</string>
     <string name="settings_xiaomi_super_island_color_source">Color source</string>
+    <string name="settings_xiaomi_super_island_color_source_summary">選擇超級島取色來源</string>
     <string name="settings_xiaomi_super_island_color_album">Album artwork</string>
     <string name="settings_xiaomi_super_island_custom_color">Custom accent color</string>
     <string name="settings_xiaomi_super_island_progress_color">Use accent color for progress</string>
     <string name="settings_xiaomi_super_island_actions">Notification actions</string>
+    <string name="settings_xiaomi_super_island_actions_summary">選擇超級島操作按鈕樣式</string>
     <string name="settings_xiaomi_super_island_actions_off">Progress only</string>
     <string name="settings_xiaomi_super_island_actions_media">Media controls</string>
     <string name="settings_xiaomi_super_island_notification_style">Notification style</string>
+    <string name="settings_xiaomi_super_island_notification_style_summary">選擇超級島通知樣式</string>
     <string name="settings_xiaomi_super_island_style_standard">Standard</string>
     <string name="settings_xiaomi_super_island_style_advanced">Enhanced (experimental)</string>
     <string name="settings_xiaomi_super_island_button_layout">Media button layout</string>
+    <string name="settings_xiaomi_super_island_button_layout_summary">選擇媒體按鈕排列</string>
     <string name="settings_xiaomi_super_island_buttons_two">Play or pause, next</string>
     <string name="settings_xiaomi_super_island_buttons_three">Previous, play or pause, next</string>
     <string name="settings_xiaomi_super_island_xmsf_mode">XMSF network bypass</string>
@@ -2323,6 +2390,7 @@
     <string name="settings_xiaomi_super_island_xmsf_duration">Network block duration</string>
     <string name="settings_xiaomi_super_island_xmsf_duration_summary">Too short may fail; too long may affect Xiaomi system services</string>
     <string name="settings_xiaomi_super_island_dismiss_delay">Dismiss after pause</string>
+    <string name="settings_xiaomi_super_island_dismiss_delay_summary">歌詞結束後延遲多久收起超級島</string>
     <string name="settings_xiaomi_super_island_dismiss_immediate">Immediately</string>
     <string name="settings_xiaomi_super_island_dismiss_one">1 second</string>
     <string name="settings_xiaomi_super_island_dismiss_three">3 seconds</string>
@@ -2333,6 +2401,7 @@
     <string name="settings_continue_playback_row_summary">在音樂庫分類與詳細頁顯示該分類最近播放的歌曲</string>
     <string name="folder_playlist_associate_multi_done">已關聯到 %1$d 個資料夾播放清單</string>
     <string name="settings_music_video_orientation">有聲 MV 螢幕方向</string>
+    <string name="settings_music_video_orientation_summary">選擇播放有聲 MV 時的螢幕方向</string>
     <string name="settings_music_video_orientation_system">跟隨系統</string>
     <string name="settings_music_video_orientation_video">跟隨影片方向</string>
     <string name="settings_music_video_orientation_landscape">橫向</string>
@@ -2355,6 +2424,7 @@
     <string name="settings_show_online_mv_in_lists_summary">歌曲有網易雲 MV 資訊時，在歌曲列表顯示線上 MV 入口</string>
     <string name="settings_spectrum_hearusy">Hearusy Spectrum 1.5.0</string>
     <string name="settings_xiaomi_super_island_lyric_content">超級島通知主歌詞</string>
+    <string name="settings_xiaomi_super_island_lyric_content_summary">選擇超級島主歌詞內容</string>
     <string name="player_ab_repeat_record_b">A-B 重複播放：設定 B（A %1$s）</string>
     <string name="player_ab_repeat_active">取消 A-B 重複播放（%1$s-%2$s）</string>
     <string name="settings_music_video_stretch">允許拉伸 MV</string>
@@ -2394,6 +2464,10 @@
     <string name="settings_backup_webdav_restore_now">立即還原</string>
     <string name="settings_player_action_menu">播放頁操作選單</string>
     <string name="settings_list_action_menu">列表操作選單</string>
+    <string name="settings_song_info_layout">歌曲資訊條目</string>
+    <string name="settings_queue_toolbar_layout">播放列表頂欄</string>
+    <string name="song_more_modified_time_invalid">請輸入 yyyy-MM-dd HH:mm:ss</string>
+    <string name="song_more_modified_time_failed">無法修改檔案時間</string>
     <string name="settings_action_menu_summary">分別調整操作順序與顯示項目</string>
     <string name="settings_action_menu_position">順序：%1$d</string>
     <string name="settings_action_menu_remote_quality">遠端播放音質</string>
@@ -2413,6 +2487,7 @@
     <string name="settings_search_click_insert_next">插入目前歌曲後並播放</string>
     <string name="settings_search_click_append">加入佇列尾端並播放</string>
     <string name="settings_search_click_replace">取代播放佇列並播放</string>
+    <string name="settings_search_click_playback_mode_summary">選擇點選搜尋結果後如何加入播放佇列</string>
     <string name="settings_playlist_show_rating_filter">播放列表頁顯示星級篩選</string>
     <string name="settings_playlist_show_favorite_filter">播放列表頁顯示喜愛篩選</string>
     <string name="settings_player_progress_show_quality">進度列下方顯示音質</string>
@@ -2461,6 +2536,7 @@
     <string name="settings_immersive_lyric_swipe_summary">在下方歌詞區域左右橫滑切換上一首或下一首</string>
     <string name="library_layout_grid">網格排列</string>
     <string name="library_layout_list">列表排列</string>
+    <string name="library_layout_multi_row">多行列表</string>
     <string name="settings_parse_featured_artists">從歌曲名稱辨識客串藝人</string>
     <string name="settings_parse_featured_artists_summary">加入歌曲名稱中 feat.、ft. 或 featuring 後的藝人，並與 ARTIST 標籤去重</string>
     <string name="settings_artist_image_download">自動下載藝人圖片</string>

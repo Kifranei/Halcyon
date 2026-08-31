@@ -101,17 +101,26 @@ internal fun File.toFallbackAudioItem(): MediaStoreAudioItem {
     val path = absolutePath
     val extension = extension.lowercase()
     val mime = when (extension) {
-        "mp3" -> "audio/mpeg"
+        "mp3", "mp2" -> "audio/mpeg"
         "flac" -> "audio/flac"
-        "ogg", "oga" -> "audio/ogg"
+        "ogg", "oga", "spx" -> "audio/ogg"
         "opus" -> "audio/opus"
         "aac" -> "audio/aac"
-        "m4a", "mp4" -> "audio/mp4"
+        "m4a", "m4b", "m4r", "m4p", "mp4" -> "audio/mp4"
         "wav", "wave" -> "audio/wav"
-        "wma" -> "audio/x-ms-wma"
-        "aiff", "aif" -> "audio/aiff"
+        "wma", "asf" -> "audio/x-ms-wma"
+        "aiff", "aif", "aifc", "afc" -> "audio/aiff"
         "ape" -> "audio/ape"
         "alac" -> "audio/alac"
+        "dsf" -> "audio/x-dsf"
+        "dff", "dsdiff" -> "audio/x-dff"
+        "dts" -> "audio/vnd.dts"
+        "dtshd" -> "audio/vnd.dts.hd"
+        "wv" -> "audio/x-wavpack"
+        "tta" -> "audio/x-tta"
+        "mpc" -> "audio/x-musepack"
+        "shn" -> "audio/x-shorten"
+        "mka" -> "audio/x-matroska"
         else -> "audio/$extension"
     }
     val stableId = -kotlin.math.abs(path.normalizedAudioPathKey().hashCode().toLong()).coerceAtLeast(1L)

@@ -191,11 +191,11 @@ class PlaybackService : MediaLibraryService() {
                     lyricInfoJson = lyricInfoJson,
                     forceRepublish = forceRepublish
                 )
+                sessionPresentationPlayer?.replaceCurrentOplusLyricInfo(song, lyricInfoJson)
                 if (!forceRepublish) {
                     updateMediaButtonPreferences()
                 }
-            },
-            externalLyricSender = OPlusExternalLyricSender(this)
+            }
         )
         var webDavConfig = currentWebDavConfig(settingsManager)
         appShuffleEnabled = loadAppShuffleEnabled()
@@ -1029,9 +1029,10 @@ class PlaybackService : MediaLibraryService() {
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
         val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
         val job = serviceScope.launch {
+            var preparedMediaItems = mediaItems
             try {
                 withTimeoutOrNull(OPlusLyricPublishPolicy.INITIAL_PREPARE_TIMEOUT_MS) {
-                    oplusLyricHandler.prepareInitialOplusLyricInfo(mediaItems, startIndex)
+                    preparedMediaItems = oplusLyricHandler.prepareInitialOplusLyricInfo(mediaItems, startIndex)
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -1041,7 +1042,7 @@ class PlaybackService : MediaLibraryService() {
             if (!result.isDone) {
                 result.set(
                     MediaSession.MediaItemsWithStartPosition(
-                        mediaItems,
+                        preparedMediaItems,
                         startIndex,
                         startPositionMs
                     )

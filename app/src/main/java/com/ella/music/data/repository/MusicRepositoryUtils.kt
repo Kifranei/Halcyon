@@ -11,9 +11,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -63,6 +61,23 @@ internal fun Song.isLikelyWavAudio(): Boolean =
         mimeType.contains("wav", ignoreCase = true) ||
         mimeType.contains("wave", ignoreCase = true)
 
+internal fun Song.isLikelyFlacAudio(): Boolean =
+    webDavCacheExtension().equals("flac", ignoreCase = true) ||
+        mimeType.contains("flac", ignoreCase = true)
+
+/**
+ * Formats for which a head/tail WebDAV cache can be handed to TagLib. Formats whose metadata
+ * needs a different layout (for example block-addressed files) are deliberately excluded: a
+ * sparse file with a zero-filled middle can make their native parsers seek into fabricated data
+ * and was a plausible source of the intermittent WebDAV crashes. FLAC has its own contiguous-
+ * prefix validation path.
+ */
+internal fun Song.supportsSparseWebDavMetadataWindow(): Boolean =
+    webDavCacheExtension().lowercase() in setOf(
+        "mp3", "mp2", "aac", "ogg", "oga", "opus", "spx",
+        "m4a", "m4b", "m4r", "m4p", "mp4", "wma", "asf"
+    )
+
 internal fun Song.webDavFullCacheFile(cacheDir: File): File =
     File(cacheDir, "${path.sha256()}.${webDavCacheExtension()}")
 
@@ -81,24 +96,50 @@ internal fun Song.effectiveLocalPathForMetadataBlocking(
     val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
     if (fullCache.exists() && fullCache.length() > 0L) return fullCache.absolutePath
     val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
-    if (headerCache.exists() && headerCache.length() > 0L) return headerCache.absolutePath
+    if (headerCache.exists() && headerCache.length() > 0L) {
+        val usable = when {
+            !isWebDavRemoteSong() -> true
+            isLikelyFlacAudio() -> WebDavClient.isFlacMetadataCacheUsable(headerCache, fileSize)
+            supportsSparseWebDavMetadataWindow() -> fileSize <= 0L || headerCache.length() >= fileSize
+            else -> false
+        }
+        if (usable) return headerCache.absolutePath
+    }
     if (isWebDavRemoteSong()) {
-        val config = runBlocking(Dispatchers.IO) { loadWebDavConfig(settingsManager) } ?: return path
-        downloadWebDavMetadataHeader(this, config, remoteMetadataHeaderCacheDir)?.let { return it.absolutePath }
+        // Synchronous UI/tag readers must never start WebDAV network work. The cancellable
+        // prefetch/playback path populates the cache in the background.
+        return path
     } else {
         downloadHttpMetadataHeader(this, httpClient, remoteMetadataHeaderCacheDir)?.let { return it.absolutePath }
     }
     if (!allowFullDownload) return path
     return runCatching {
         if (isWebDavRemoteSong()) {
-            val config = runBlocking(Dispatchers.IO) { loadWebDavConfig(settingsManager) } ?: return path
-            WebDavClient.downloadToFile(path, config, fullCache).absolutePath
+            path
         } else {
             downloadHttpToFile(path, httpClient, fullCache)?.absolutePath ?: path
         }
     }.getOrElse {
         android.util.Log.w("MusicRepo", "Failed to cache remote metadata file for $path", it)
         path
+    }
+}
+
+internal fun Song.hasUsableWebDavMetadataCache(
+    remoteAudioCacheDir: File,
+    remoteMetadataHeaderCacheDir: File
+): Boolean {
+    if (!isWebDavRemoteSong()) return false
+    val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
+    if (fullCache.exists() && fullCache.length() > 0L &&
+        (fileSize <= 0L || fullCache.length() == fileSize)
+    ) return true
+    val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
+    if (!headerCache.exists() || headerCache.length() <= 0L) return false
+    return when {
+        isLikelyFlacAudio() -> WebDavClient.isFlacMetadataCacheUsable(headerCache, fileSize)
+        supportsSparseWebDavMetadataWindow() -> fileSize <= 0L || headerCache.length() >= fileSize
+        else -> false
     }
 }
 
@@ -114,7 +155,14 @@ internal suspend fun loadWebDavConfig(settingsManager: SettingsManager): WebDavC
 
 internal fun downloadWebDavMetadataHeader(song: Song, config: WebDavConfig, cacheDir: File): File? {
     val target = song.webDavHeaderCacheFile(cacheDir)
-    if (target.exists() && target.length() > 0L) return target
+    if (target.exists() && target.length() > 0L) {
+        val usable = when {
+            song.isLikelyFlacAudio() -> WebDavClient.isFlacMetadataCacheUsable(target, song.fileSize)
+            song.supportsSparseWebDavMetadataWindow() -> song.fileSize <= 0L || target.length() >= song.fileSize
+            else -> false
+        }
+        if (usable) return target
+    }
     return WebDavClient.downloadHeaderToFile(song.path, config, target)
 }
 

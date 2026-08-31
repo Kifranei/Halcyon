@@ -13,6 +13,8 @@ internal fun PlayerQueueSheet(
     show: Boolean,
     playlist: List<Song>,
     currentSongKey: String?,
+    currentSongSourceKey: String? = null,
+    currentQueueIndexHint: Int = -1,
     shuffleEnabled: Boolean,
     repeatMode: Int,
     queueLocked: Boolean,
@@ -40,6 +42,8 @@ internal fun PlayerQueueSheet(
         PlayerQueueMenu(
             playlist = playlist,
             currentSongKey = currentSongKey,
+            currentSongSourceKey = currentSongSourceKey,
+            currentQueueIndexHint = currentQueueIndexHint,
             shuffleEnabled = shuffleEnabled,
             repeatMode = repeatMode,
             queueLocked = queueLocked,

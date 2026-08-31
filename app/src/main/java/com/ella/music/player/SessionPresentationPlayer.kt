@@ -7,10 +7,12 @@ import androidx.media3.common.ForwardingSimpleBasePlayer
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
+import com.ella.music.data.model.Song
 
 /**
  * Publishes notification/lock-screen metadata and the audible crossfade item without mutating the
- * wrapped playback timeline.
+ * wrapped playback position or queue ordering. Bridge 4.0 lyric metadata is written to the real
+ * current MediaItem so external clients can read its extras directly.
  *
  * The wrapped player remains the single source of truth for queue, position and duration. This
  * layer changes only the state snapshot observed by MediaSession clients.
@@ -116,6 +118,48 @@ internal class SessionPresentationPlayer(
             publishSequence = ++oplusPublishSequence
         )
         invalidateState()
+    }
+
+    /**
+     * Writes the Bridge 4.0 payload to the real current MediaItem. The presentation overlay still
+     * makes the session snapshot immediate, but the item itself must also carry lyricInfo so the
+     * MediaSession and notification clients receive the same metadata contract.
+     */
+    fun replaceCurrentOplusLyricInfo(song: Song?, lyricInfoJson: String?): Boolean {
+        val player = getPlayer()
+        val index = player.currentMediaItemIndex
+        val currentItem = player.currentMediaItem ?: return false
+        if (index !in 0 until player.mediaItemCount) return false
+        val currentSong = currentItem.toSongFromMediaItemExtras() ?: return false
+        if (song != null && !currentSong.isSamePlaybackIdentity(song)) return false
+
+        val currentExtras = currentItem.mediaMetadata.extras ?: Bundle.EMPTY
+        val currentJson = currentExtras.getString(OPlusLyricHandler.OPLUS_LYRIC_INFO_KEY)
+        val currentRaw = currentExtras.getString(OPlusLyricHandler.OPLUS_RAW_LYRIC_KEY)
+        val targetJson = lyricInfoJson?.takeIf { it.isNotBlank() }
+        val action = OPlusLyricPublishPolicy.actionFor(
+            currentLyricInfo = currentJson,
+            currentRawLyric = currentRaw,
+            targetLyricInfo = targetJson,
+            targetRawLyric = targetJson?.let(OPlusLyricPayload::rawLyric)
+        )
+        if (action == OPlusLyricPublishAction.None) return false
+
+        val extras = Bundle(currentExtras).apply {
+            remove(OPlusLyricHandler.OPLUS_LYRIC_INFO_KEY)
+            remove(OPlusLyricHandler.OPLUS_RAW_LYRIC_KEY)
+            remove(OPLUS_LYRIC_PUBLISH_SEQUENCE_KEY)
+            markMetadataOnlyPatch(PATCH_REASON_SESSION_PRESENTATION)
+            if (targetJson != null) {
+                putString(OPlusLyricHandler.OPLUS_LYRIC_INFO_KEY, targetJson)
+                OPlusLyricPayload.rawLyric(targetJson)?.let { putString(OPlusLyricHandler.OPLUS_RAW_LYRIC_KEY, it) }
+            }
+        }
+        val updatedItem = currentItem.buildUpon()
+            .setMediaMetadata(currentItem.mediaMetadata.buildUpon().setExtras(extras).build())
+            .build()
+        player.replaceMediaItem(index, updatedItem)
+        return true
     }
 
     override fun getState(): SimpleBasePlayer.State {

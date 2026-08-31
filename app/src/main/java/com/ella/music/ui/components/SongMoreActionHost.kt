@@ -104,6 +104,17 @@ fun SongMoreActionHost(
     var dangerConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingWriteRetry by remember { mutableStateOf<(suspend () -> Unit)?>(null) }
     val writePermissionNeeded = stringResource(R.string.song_more_metadata_write_permission_needed)
+    val actionArtworkState = rememberSongArtworkState(
+        song = actionSong,
+        albumArtUri = actionSong?.albumId
+            ?.takeIf { it > 0L }
+            ?.let(mainViewModel::getAlbumArtUri),
+        // Resolve a concrete Bitmap for the header.  Passing the raw embedded ByteArray directly
+        // to Coil is provider-dependent and made local covers disappear in this sheet.
+        loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
+        usage = ArtworkUsage.LibraryGrid,
+        showDefaultWhenMissing = false
+    )
     val actionCoverModel by produceState<Any?>(
         initialValue = null,
         actionSong?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
@@ -177,8 +188,12 @@ fun SongMoreActionHost(
                 extraTopContent = {
                     SongMoreCoverPreview(
                         song = song,
-                        coverModel = actionCoverModel,
-                        onPreview = { coverPreviewSong = song },
+                        // Prefer the resolved Bitmap for reliable rendering, while retaining the
+                        // original model for the full-resolution long-press preview when it exists.
+                        coverModel = actionArtworkState.model ?: actionCoverModel,
+                        onPreview = {
+                            if (actionCoverModel != null) coverPreviewSong = song
+                        },
                         onArtist = {
                             val artists = artistNamesForSong(song)
                                 .distinctBy { it.tagIdentityKey() }

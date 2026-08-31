@@ -1,5 +1,6 @@
 package com.ella.music.player
 
+import android.os.Bundle
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -26,8 +27,7 @@ internal class OPlusLyricHandler(
     private val musicRepository: MusicRepository,
     private val serviceScope: CoroutineScope,
     private val playerProvider: () -> Player?,
-    private val onLyricInfoChanged: (Song?, String?, Boolean) -> Unit,
-    private val externalLyricSender: OPlusExternalLyricSender? = null
+    private val onLyricInfoChanged: (Song?, String?, Boolean) -> Unit
 ) {
     companion object {
         private const val TAG = "PlaybackService"
@@ -53,16 +53,16 @@ internal class OPlusLyricHandler(
     var colorOsLockScreenLyricMode = SettingsManager.OPLUS_LYRIC_MODE_SYSTEM
 
     /**
-     * Seeds the presentation overlay (and cache) for the first MediaItem before MediaSession
-     * publishes it. Does not mutate the playback-queue items.
+     * Seeds the presentation overlay/cache and returns a copy of the initial MediaItem carrying
+     * the complete Bridge 4.0 payload before MediaSession publishes the playback queue.
      */
     suspend fun prepareInitialOplusLyricInfo(
         mediaItems: List<MediaItem>,
         startIndex: Int
-    ) {
-        if (!colorOsLockScreenLyricEnabled || startIndex !in mediaItems.indices) return
+    ): List<MediaItem> {
+        if (!colorOsLockScreenLyricEnabled || startIndex !in mediaItems.indices) return mediaItems
         val item = mediaItems[startIndex]
-        val song = item.toSongFromMediaItemExtras() ?: return
+        val song = item.toSongFromMediaItemExtras() ?: return mediaItems
         val deliveryMode = colorOsLockScreenLyricMode
         val songKey = song.oplusLyricCacheKey(deliveryMode)
         val lyricInfoJson = if (lyricInfoCache.containsKey(songKey)) {
@@ -86,6 +86,9 @@ internal class OPlusLyricHandler(
         if (!lyricInfoJson.isNullOrBlank()) {
             Log.d(TIMING_TAG, "OPlus lyricInfo attached before initial publish mediaId=${song.id}")
             scheduleOplusLyricInfoReapply(songKey)
+        }
+        return mediaItems.toMutableList().apply {
+            this[startIndex] = withOplusLyricInfo(item, lyricInfoJson)
         }
     }
 
@@ -115,20 +118,25 @@ internal class OPlusLyricHandler(
             prefetchAdjacentOplusLyricInfo(currentPlayer)
             return
         }
-        externalLyricSender?.notifyTrackChanged(song)
+
+        // Remove the previous track's lyricInfo from the real MediaItem immediately. Bridge 4.0
+        // reads the current item directly and must never see the previous song while the new
+        // lyric is being loaded asynchronously.
+        lyricInfoJob?.cancel()
+        lyricInfoReapplyJob?.cancel()
+        pendingSongKey = songKey
+        currentSongKey = songKey
+        currentLyricInfoJson = null
+        publishLyricInfo(song, null)
 
         if (lyricInfoCache.containsKey(songKey)) {
-            currentSongKey = songKey
             currentLyricInfoJson = lyricInfoCache[songKey]
+            pendingSongKey = null
             publishLyricInfo(song, currentLyricInfoJson)
             scheduleOplusLyricInfoReapply(songKey)
             prefetchAdjacentOplusLyricInfo(currentPlayer)
             return
         }
-        if (pendingSongKey == songKey) return
-
-        lyricInfoJob?.cancel()
-        pendingSongKey = songKey
         lyricInfoJob = serviceScope.launch {
             try {
                 val lyricInfoJson = runCatching {
@@ -167,9 +175,6 @@ internal class OPlusLyricHandler(
         forceRepublish: Boolean = false
     ) {
         onLyricInfoChanged(song, lyricInfoJson, forceRepublish)
-        if (song != null && !lyricInfoJson.isNullOrBlank()) {
-            externalLyricSender?.publishLyric(song, lyricInfoJson, forceRepublish)
-        }
     }
 
     private fun scheduleOplusLyricInfoReapply(songKey: String) {
@@ -195,7 +200,20 @@ internal class OPlusLyricHandler(
         pendingSongKey = null
         currentSongKey = null
         currentLyricInfoJson = null
-        externalLyricSender?.clear()
+    }
+
+    private fun withOplusLyricInfo(item: MediaItem, lyricInfoJson: String?): MediaItem {
+        val extras = Bundle(item.mediaMetadata.extras ?: Bundle.EMPTY).apply {
+            remove(OPLUS_LYRIC_INFO_KEY)
+            remove(OPLUS_RAW_LYRIC_KEY)
+            if (!lyricInfoJson.isNullOrBlank()) {
+                putString(OPLUS_LYRIC_INFO_KEY, lyricInfoJson)
+                OPlusLyricPayload.rawLyric(lyricInfoJson)?.let { putString(OPLUS_RAW_LYRIC_KEY, it) }
+            }
+        }
+        return item.buildUpon()
+            .setMediaMetadata(item.mediaMetadata.buildUpon().setExtras(extras).build())
+            .build()
     }
 
     private fun cancelPrefetchJobs() {

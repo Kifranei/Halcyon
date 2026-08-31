@@ -84,7 +84,6 @@ internal fun CoverPageContent(
     lyricFormatAvailability: MusicRepository.LyricFormatAvailability,
     preferTtmlLyrics: Boolean?,
     lyricSourceMode: Int,
-    lyricParserEngine: Int,
     lyricLayoutProfile: PlayerLyricLayoutProfile,
     lyricFontFamily: FontFamily?,
     lyricTranslationFontFamily: FontFamily? = lyricFontFamily,
@@ -155,6 +154,7 @@ internal fun CoverPageContent(
 ) {
     var actionMenuInitialPage by remember { mutableStateOf(PlayerActionSheetPage.Main) }
     val abRepeatState by playerViewModel.abRepeatState.collectAsState()
+    val currentQueueIndex by playerViewModel.currentQueueIndex.collectAsState()
     fun openTagEditor(kind: TagEditorOptionKind) {
         val current = song
         when {
@@ -225,7 +225,6 @@ internal fun CoverPageContent(
         lyricFormatAvailability = lyricFormatAvailability,
         preferTtmlLyrics = preferTtmlLyrics,
         lyricSourceMode = lyricSourceMode,
-        lyricParserEngine = lyricParserEngine,
         lyricLayoutProfile = lyricLayoutProfile,
         fontFamily = lyricFontFamily,
         translationFontFamily = lyricTranslationFontFamily,
@@ -250,6 +249,7 @@ internal fun CoverPageContent(
         menuExpanded = menuExpanded,
         queueExpanded = queueExpanded,
         playlist = playlist,
+        currentQueueIndexHint = currentQueueIndex,
         favoriteSongKeys = favoriteSongKeys,
         loadSongRating = loadSongRating,
         ratingRevision = ratingRevision,
@@ -293,9 +293,6 @@ internal fun CoverPageContent(
         },
         onLyricFormatPreference = { preferTtml ->
             playerViewModel.setLyricFormatPreference(preferTtml)
-        },
-        onLyricParserEngine = { engine ->
-            scope.launch { settingsManager.setLyricParserEngine(engine) }
         },
         onLyricFontScale = { scale ->
             scope.launch { settingsManager.setLyricFontScale((scale * 100f).roundToInt()) }
@@ -540,7 +537,6 @@ internal fun LyricsPageContent(
     lyricFormatAvailability: MusicRepository.LyricFormatAvailability,
     preferTtmlLyrics: Boolean?,
     lyricSourceMode: Int,
-    lyricParserEngine: Int,
     lyricLayoutProfile: PlayerLyricLayoutProfile,
     lyricFontFamily: FontFamily?,
     lyricTranslationFontFamily: FontFamily? = lyricFontFamily,
@@ -597,7 +593,6 @@ internal fun LyricsPageContent(
         lyricFormatAvailability = lyricFormatAvailability,
         preferTtmlLyrics = preferTtmlLyrics,
         lyricSourceMode = lyricSourceMode,
-        lyricParserEngine = lyricParserEngine,
         layoutProfile = lyricLayoutProfile,
         fontFamily = lyricFontFamily,
         translationFontFamily = lyricTranslationFontFamily,
@@ -678,9 +673,6 @@ internal fun LyricsPageContent(
         },
         onLyricFormatPreference = { preferTtml ->
             playerViewModel.setLyricFormatPreference(preferTtml)
-        },
-        onLyricParserEngine = { engine ->
-            scope.launch { settingsManager.setLyricParserEngine(engine) }
         },
         onArtist = {
             navigateToArtistOrChoose(song?.artist.orEmpty())

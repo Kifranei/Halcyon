@@ -68,4 +68,48 @@ object ActionMenuIds {
         LYRICS_DISPLAY, SPECTRUM, RATING, DYNAMIC_COVER, VISUALIZER, EDIT_TAGS,
         LYRIC_TIMING, ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, DELETE
     )
+
+    const val SONG_INFO_TITLE = "song_info_title"
+    const val SONG_INFO_ARTIST = "song_info_artist"
+    const val SONG_INFO_ALBUM = "song_info_album"
+    const val SONG_INFO_ALBUM_ARTIST = "song_info_album_artist"
+    const val SONG_INFO_GENRE = "song_info_genre"
+    const val SONG_INFO_YEAR = "song_info_year"
+    const val SONG_INFO_COMPOSER = "song_info_composer"
+    const val SONG_INFO_ARRANGER = "song_info_arranger"
+    const val SONG_INFO_LYRICIST = "song_info_lyricist"
+    const val SONG_INFO_COMMENT = "song_info_comment"
+    const val SONG_INFO_NETEASE = "song_info_netease"
+    const val SONG_INFO_FORMAT = "song_info_format"
+    const val SONG_INFO_BITRATE = "song_info_bitrate"
+    const val SONG_INFO_DURATION = "song_info_duration"
+    const val SONG_INFO_PLAY_COUNT = "song_info_play_count"
+    const val SONG_INFO_LISTENED = "song_info_listened"
+    const val SONG_INFO_LAST_PLAYED = "song_info_last_played"
+    const val SONG_INFO_SIZE = "song_info_size"
+    const val SONG_INFO_MODIFIED = "song_info_modified"
+    const val SONG_INFO_ADDED = "song_info_added"
+    const val SONG_INFO_FILE_NAME = "song_info_file_name"
+    const val SONG_INFO_PATH = "song_info_path"
+    const val SONG_INFO_DIRECTORY = "song_info_directory"
+    const val SONG_INFO_MEDIA_INFO = "song_info_media_info"
+
+    val songInfoDefaults = listOf(
+        SONG_INFO_TITLE, SONG_INFO_ARTIST, SONG_INFO_ALBUM, SONG_INFO_ALBUM_ARTIST, SONG_INFO_GENRE,
+        SONG_INFO_YEAR, SONG_INFO_COMPOSER, SONG_INFO_ARRANGER, SONG_INFO_LYRICIST, SONG_INFO_COMMENT,
+        SONG_INFO_NETEASE, SONG_INFO_FORMAT, SONG_INFO_BITRATE, SONG_INFO_DURATION, SONG_INFO_PLAY_COUNT,
+        SONG_INFO_LISTENED, SONG_INFO_LAST_PLAYED, SONG_INFO_SIZE, SONG_INFO_MODIFIED, SONG_INFO_ADDED,
+        SONG_INFO_FILE_NAME, SONG_INFO_PATH, SONG_INFO_DIRECTORY, SONG_INFO_MEDIA_INFO
+    )
+
+    const val QUEUE_LOCK = "queue_lock"
+    const val QUEUE_SHUFFLE = "queue_shuffle"
+    const val QUEUE_ADD_PLAYLIST = "queue_add_playlist"
+    const val QUEUE_LOCATE = "queue_locate"
+    const val QUEUE_LIBRARY_SOURCE = "queue_library_source"
+    const val QUEUE_CLEAR = "queue_clear"
+
+    val queueToolbarDefaults = listOf(
+        QUEUE_LOCK, QUEUE_SHUFFLE, QUEUE_ADD_PLAYLIST, QUEUE_LOCATE, QUEUE_CLEAR
+    )
 }

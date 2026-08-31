@@ -31,10 +31,43 @@ internal data class LastFmWikiRegion(
     val countryNameRes: Int
 )
 
+internal enum class ArtistBioMenuSource(val id: String, val iconRes: Int) {
+    Wikipedia("wikipedia", com.ella.music.R.drawable.ic_source_wikipedia),
+    LastFm("lastfm", com.ella.music.R.drawable.ic_source_lastfm),
+    Netease("netease", com.ella.music.R.drawable.ic_source_netease)
+}
+
+internal fun normalizeArtistBioSource(value: String?): ArtistBioMenuSource =
+    ArtistBioMenuSource.entries.firstOrNull { it.id.equals(value?.trim(), ignoreCase = true) }
+        ?: ArtistBioMenuSource.Wikipedia
+
+internal fun artistBioSourcesForLanguage(code: String): List<ArtistBioMenuSource> = when (
+    code.trim().lowercase(Locale.ROOT)
+) {
+    "zh", "zh-cn" -> listOf(
+        ArtistBioMenuSource.Wikipedia,
+        ArtistBioMenuSource.LastFm,
+        ArtistBioMenuSource.Netease
+    )
+    else -> listOf(ArtistBioMenuSource.Wikipedia, ArtistBioMenuSource.LastFm)
+}
+
+internal val ARTIST_BIO_LANGUAGES: List<LastFmWikiRegion> = listOf(
+    LastFmWikiRegion("zh", com.ella.music.R.string.artist_biography_lang_zh_cn),
+    LastFmWikiRegion("zh-hk", com.ella.music.R.string.artist_biography_lang_zh_hk),
+    LastFmWikiRegion("zh-tw", com.ella.music.R.string.artist_biography_lang_zh_tw),
+    LastFmWikiRegion("en", com.ella.music.R.string.artist_biography_lang_en),
+    LastFmWikiRegion("ja", com.ella.music.R.string.artist_biography_lang_ja),
+    LastFmWikiRegion("ko", com.ella.music.R.string.artist_biography_lang_ko)
+)
+
 internal val LAST_FM_WIKI_REGIONS: List<LastFmWikiRegion> = listOf(
     LastFmWikiRegion("en", com.ella.music.R.string.artist_biography_country_us),
     LastFmWikiRegion("zh", com.ella.music.R.string.artist_biography_country_cn),
+    LastFmWikiRegion("zh-hk", com.ella.music.R.string.artist_biography_lang_zh_hk),
+    LastFmWikiRegion("zh-tw", com.ella.music.R.string.artist_biography_lang_zh_tw),
     LastFmWikiRegion("ja", com.ella.music.R.string.artist_biography_country_jp),
+    LastFmWikiRegion("ko", com.ella.music.R.string.artist_biography_lang_ko),
     LastFmWikiRegion("de", com.ella.music.R.string.artist_biography_country_de),
     LastFmWikiRegion("es", com.ella.music.R.string.artist_biography_country_es),
     LastFmWikiRegion("fr", com.ella.music.R.string.artist_biography_country_fr),
@@ -59,17 +92,26 @@ internal enum class ArtistWikiSource {
 internal fun artistWikiSourceOrder(
     regionCode: String,
     hasApiKey: Boolean,
-    vpnActive: Boolean = false
+    preferred: ArtistBioMenuSource? = null
 ): List<ArtistWikiSource> {
     val region = normalizeLastFmWikiRegion(regionCode)
-    return buildList {
-        if (hasApiKey) add(ArtistWikiSource.LastFmApi)
-        // NetEase is the mainland-reachable Chinese provider. It must not win for every selected
-        // region, otherwise changing the region just reloads the same Chinese biography (#505).
-        if (region == "zh" && !vpnActive) add(ArtistWikiSource.Netease)
-        add(ArtistWikiSource.LastFmHtml)
-        add(ArtistWikiSource.WikipediaSelected)
-        if (region != DEFAULT_LAST_FM_WIKI_REGION) add(ArtistWikiSource.WikipediaEnglish)
+    return when (preferred) {
+        ArtistBioMenuSource.LastFm -> buildList {
+            if (hasApiKey) add(ArtistWikiSource.LastFmApi)
+            add(ArtistWikiSource.LastFmHtml)
+        }
+        ArtistBioMenuSource.Netease -> listOf(ArtistWikiSource.Netease)
+        ArtistBioMenuSource.Wikipedia -> buildList {
+            add(ArtistWikiSource.WikipediaSelected)
+            if (region != DEFAULT_LAST_FM_WIKI_REGION) add(ArtistWikiSource.WikipediaEnglish)
+        }
+        null -> buildList {
+            // Keep the legacy overload Last.fm-only. Provider selection is explicit in the UI;
+            // a failed/unreachable provider must not silently replace the requested biography
+            // with NetEase or Wikipedia (#586).
+            if (hasApiKey) add(ArtistWikiSource.LastFmApi)
+            add(ArtistWikiSource.LastFmHtml)
+        }
     }
 }
 
@@ -234,8 +276,18 @@ internal fun parseLastFmArtistImageUrl(
     return null
 }
 
-internal fun wikipediaLanguage(regionCode: String): String =
-    normalizeLastFmWikiRegion(regionCode)
+internal fun wikipediaLanguage(regionCode: String): String = when (regionCode.trim().lowercase(Locale.ROOT)) {
+    "zh", "zh-cn", "zh-hk", "zh-tw" -> "zh"
+    "ko" -> "ko"
+    else -> normalizeLastFmWikiRegion(regionCode)
+}
+
+internal fun wikipediaVariant(regionCode: String): String? = when (regionCode.trim().lowercase(Locale.ROOT)) {
+    "zh", "zh-cn" -> "zh-cn"
+    "zh-hk" -> "zh-hk"
+    "zh-tw" -> "zh-tw"
+    else -> null
+}
 
 internal fun parseWikipediaSearchTitle(raw: String, artistName: String): String? {
     val search = runCatching {
@@ -388,7 +440,7 @@ internal suspend fun fetchLastFmArtistWiki(
     artistName: String,
     regionCode: String,
     apiKey: String? = null,
-    vpnActive: Boolean = false
+    preferredSource: ArtistBioMenuSource? = null
 ): LastFmArtistWiki = withContext(Dispatchers.IO) {
     val region = normalizeLastFmWikiRegion(regionCode)
     val client = wikiHttpClient()
@@ -397,7 +449,7 @@ internal suspend fun fetchLastFmArtistWiki(
     for (source in artistWikiSourceOrder(
         region,
         hasApiKey = !apiKey.isNullOrBlank(),
-        vpnActive = vpnActive
+        preferred = preferredSource
     )) {
         val result = runCatching {
             when (source) {
@@ -439,17 +491,15 @@ internal suspend fun fetchLastFmArtistImage(
             .addQueryParameter("method", "artist.getinfo")
             .addQueryParameter("artist", artistName)
             .addQueryParameter("api_key", apiKey)
-            .addQueryParameter("lang", normalizeLastFmWikiRegion(regionCode))
+            .addQueryParameter("lang", lastFmApiLanguage(regionCode))
             .addQueryParameter("autocorrect", "1")
             .addQueryParameter("format", "json")
             .build()
             .toString()
         runCatching {
-            parseLastFmArtistImageUrl(
-                raw = client.executeText(apiUrl),
-                requestedArtistName = artistName,
-                ignoreCase = true
-            )
+            val raw = client.executeText(apiUrl)
+            parseLastFmArtistImageUrl(raw, requestedArtistName = artistName, ignoreCase = false)
+                ?: parseLastFmArtistImageUrl(raw, requestedArtistName = artistName, ignoreCase = true)
         }.getOrNull()?.let { return@withContext it }
     }
     runCatching {
@@ -539,7 +589,8 @@ private fun fetchLastFmArtistWikiFromHtml(
     region: String,
     client: OkHttpClient
 ): LastFmArtistWiki {
-    // www.last.fm is often blocked in mainland China; fail fast so Wikipedia can take over.
+    // Keep the selected provider explicit. A blocked Last.fm endpoint should not silently switch
+    // the biography to another provider.
     val htmlClient = client.newBuilder()
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
@@ -563,6 +614,7 @@ private fun fetchWikipediaArtistWiki(
     client: OkHttpClient
 ): LastFmArtistWiki? {
     val language = wikipediaLanguage(regionCode)
+    val variant = wikipediaVariant(regionCode)
     val apiRoot = "https://$language.wikipedia.org/w/api.php"
     val searchUrl = apiRoot.toHttpUrl().newBuilder()
         .addQueryParameter("action", "query")
@@ -571,6 +623,7 @@ private fun fetchWikipediaArtistWiki(
         .addQueryParameter("srlimit", "10")
         .addQueryParameter("format", "json")
         .addQueryParameter("utf8", "1")
+        .apply { variant?.let { addQueryParameter("variant", it) } }
         .build()
         .toString()
     val title = parseWikipediaSearchTitle(client.executeText(searchUrl), artistName) ?: artistName
@@ -583,11 +636,17 @@ private fun fetchWikipediaArtistWiki(
         .addQueryParameter("titles", title)
         .addQueryParameter("format", "json")
         .addQueryParameter("utf8", "1")
+        .apply { variant?.let { addQueryParameter("variant", it) } }
         .build()
         .toString()
     val (extract, pageTitle) = parseWikipediaExtract(client.executeText(extractUrl)) ?: return null
     val page = pageTitle.ifBlank { title }
-    val pageUrl = "https://$language.wikipedia.org/wiki/${page.replace(" ", "_")}"
+    val encodedPage = page.replace(" ", "_")
+    val pageUrl = if (variant != null && language == "zh") {
+        "https://zh.wikipedia.org/$variant/$encodedPage"
+    } else {
+        "https://$language.wikipedia.org/wiki/$encodedPage"
+    }
     return LastFmArtistWiki(
         text = extract,
         artistUrl = pageUrl,
@@ -635,11 +694,40 @@ private fun parseArtistOpenGraphImageUrl(html: String): String? {
         .firstOrNull(::isUsableArtistImageUrl)
 }
 
-private fun isUsableArtistImageUrl(url: String): Boolean =
-    url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)
+internal fun isUsableArtistImageUrl(url: String): Boolean {
+    if (!url.startsWith("https://", ignoreCase = true) && !url.startsWith("http://", ignoreCase = true)) {
+        return false
+    }
+    val normalized = url.lowercase(Locale.ROOT)
+    return PLACEHOLDER_ARTIST_IMAGE_MARKERS.none { marker -> normalized.contains(marker) }
+}
+
+private val PLACEHOLDER_ARTIST_IMAGE_MARKERS = listOf(
+    "2a96cbd8b46e442fc41c2b86b821562f", // Last.fm empty star
+    "4128a6af4f3f309acc450ee652117ac4",
+    "c6f59c1e5e7240a4c0d427abd71f3dbb",
+    "5639395138885805", // NetEase default avatar
+    "109951162844139717",
+    "default_avatar",
+    "/default/",
+    "no-image",
+    "noimage"
+)
+
+internal fun lastFmApiLanguage(regionCode: String): String {
+    val region = normalizeLastFmWikiRegion(regionCode)
+    return when {
+        region.startsWith("zh") -> "zh"
+        region == "ko" -> "en"
+        else -> region
+    }
+}
 
 internal fun lastFmAcceptLanguage(regionCode: String): String = when (normalizeLastFmWikiRegion(regionCode)) {
     "en" -> "en-US,en;q=0.9"
+    "zh-hk" -> "zh-HK,zh;q=0.9"
+    "zh-tw" -> "zh-TW,zh;q=0.9"
+    "ko" -> "ko-KR,ko;q=0.9"
     "de" -> "de-DE,de;q=0.9"
     "es" -> "es-ES,es;q=0.9"
     "fr" -> "fr-FR,fr;q=0.9"

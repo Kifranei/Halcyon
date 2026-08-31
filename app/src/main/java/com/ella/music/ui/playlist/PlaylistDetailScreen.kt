@@ -205,7 +205,9 @@ fun PlaylistDetailScreen(
             }
         }
     }
-    val songListHeaderCount = 2
+    // Hero + play-all bar + continue-playback row all sit above the song items; the drag
+    // mapper and the locate-current-song index must skip every one of them (#584 drag).
+    val songListHeaderCount = 3
     val showSongSideIndex = !selection.selectionMode &&
         searchQuery.isBlank() &&
         sortMode in setOf(
@@ -288,7 +290,7 @@ fun PlaylistDetailScreen(
     val currentSongItemIndex = remember(displayedSongIndexByKey, currentSong?.playlistIdentityKey()) {
         (currentSong?.playlistIdentityKey()?.let { displayedSongIndexByKey[it] } ?: -1)
             .takeIf { it >= 0 }
-            ?.plus(2)
+            ?.plus(songListHeaderCount)
             ?: -1
     }
     val playlistCoverModel = remember(sortedSongs) {

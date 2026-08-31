@@ -1,6 +1,5 @@
 package com.ella.music.ui.player
 
-import android.net.Uri
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -106,6 +105,7 @@ internal fun LandscapeCoverPlayerPage(
     coverLongPressPreviewEnabled: Boolean,
     queueExpanded: Boolean,
     playlist: List<Song>,
+    currentQueueIndexHint: Int = -1,
     queueLocked: Boolean,
     favoriteSongKeys: Set<String> = emptySet(),
     loadSongRating: (Song) -> Int = { 0 },
@@ -293,9 +293,10 @@ internal fun LandscapeCoverPlayerPage(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = if (ultraWideLandscape) 24.dp else 32.dp)
                 .padding(
-                    horizontal = if (ultraWideLandscape) 24.dp else 32.dp,
-                    vertical = if (ultraWideLandscape) 14.dp else 22.dp
+                    top = if (ultraWideLandscape) 6.dp else 22.dp,
+                    bottom = if (ultraWideLandscape) 14.dp else 22.dp
                 ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (showLyricsPane) Arrangement.Start else Arrangement.Center
@@ -309,99 +310,94 @@ internal fun LandscapeCoverPlayerPage(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                if (titleAboveCover) {
+                    PlayerCoverTitleRow(
+                        song = song,
+                        annotation = annotation,
+                        palette = palette,
+                        fontFamily = fontFamily,
+                        isFavorite = isFavorite,
+                        onArtist = onArtist,
+                        onToggleFavorite = onToggleFavorite,
+                        onToggleMenu = onToggleMenu,
+                        modifier = Modifier
+                            .fillMaxWidth(coverWidthFraction)
+                            .widthIn(max = coverMaxSize)
+                    )
+                    Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (titleAboveCover) {
-                            PlayerCoverTitleRow(
-                                song = song,
-                                annotation = annotation,
-                                palette = palette,
-                                fontFamily = fontFamily,
-                                isFavorite = isFavorite,
-                                onArtist = onArtist,
-                                onToggleFavorite = onToggleFavorite,
-                                onToggleMenu = onToggleMenu,
-                                modifier = Modifier
-                                    .fillMaxWidth(coverWidthFraction)
-                                    .widthIn(max = coverMaxSize)
-                            )
-                            Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(coverWidthFraction)
-                                .widthIn(max = coverMaxSize)
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(14.dp))
-                                .then(
-                                    if (coverLongPressPreviewEnabled) {
-                                        Modifier.combinedClickable(
-                                            onClick = {},
-                                            onLongClick = onPreviewCover
-                                        )
-                                    } else Modifier
-                                )
-                                .then(
-                                    Modifier.playerCoverGestures(
-                                        swipeEnabled = coverSwipeEnabled,
-                                        onSwipePrevious = onSwipePrevious,
-                                        onSwipeNext = onNext,
-                                        dismissHandle = LocalPlayerCoverDismiss.current
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(coverWidthFraction)
+                            .widthIn(max = coverMaxSize)
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .then(
+                                if (coverLongPressPreviewEnabled) {
+                                    Modifier.combinedClickable(
+                                        onClick = {},
+                                        onLongClick = onPreviewCover
                                     )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (foregroundDynamicCoverSource != null) {
-                                DynamicCoverVideo(
-                                    source = foregroundDynamicCoverSource,
-                                    isPlaying = isPlaying,
-                                    onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
-                                    modifier = Modifier.fillMaxSize(),
-                                    cornerRadiusDp = 14f
+                                } else Modifier
+                            )
+                            .then(
+                                Modifier.playerCoverGestures(
+                                    swipeEnabled = coverSwipeEnabled,
+                                    onSwipePrevious = onSwipePrevious,
+                                    onSwipeNext = onNext,
+                                    dismissHandle = LocalPlayerCoverDismiss.current
                                 )
-                            } else {
-                                AlbumArtView(
-                                    song = song,
-                                    embeddedCover = embeddedCover,
-                                    showHiResLogo = showHiResLogo,
-                                    hiResLogoUri = hiResLogoUri,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            if (showHiResLogo) {
-                                HiResLogoBadge(
-                                    logoUri = hiResLogoUri,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(10.dp)
-                                )
-                            }
-                        }
-                        if (!titleAboveCover) {
-                            Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
-                            PlayerCoverTitleRow(
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (foregroundDynamicCoverSource != null) {
+                            DynamicCoverVideo(
+                                source = foregroundDynamicCoverSource,
+                                isPlaying = isPlaying,
+                                onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
+                                modifier = Modifier.fillMaxSize(),
+                                cornerRadiusDp = 14f
+                            )
+                        } else {
+                            AlbumArtView(
                                 song = song,
-                                annotation = annotation,
-                                palette = palette,
-                                fontFamily = fontFamily,
-                                isFavorite = isFavorite,
-                                onArtist = onArtist,
-                                onToggleFavorite = onToggleFavorite,
-                                onToggleMenu = onToggleMenu,
+                                embeddedCover = embeddedCover,
+                                showHiResLogo = showHiResLogo,
+                                hiResLogoUri = hiResLogoUri,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        if (showHiResLogo) {
+                            HiResLogoBadge(
+                                logoUri = hiResLogoUri,
                                 modifier = Modifier
-                                    .fillMaxWidth(coverWidthFraction)
-                                    .widthIn(max = coverMaxSize)
+                                    .align(Alignment.BottomEnd)
+                                    .padding(10.dp)
                             )
                         }
                     }
+                }
+                if (!titleAboveCover) {
+                    Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
+                    PlayerCoverTitleRow(
+                        song = song,
+                        annotation = annotation,
+                        palette = palette,
+                        fontFamily = fontFamily,
+                        isFavorite = isFavorite,
+                        onArtist = onArtist,
+                        onToggleFavorite = onToggleFavorite,
+                        onToggleMenu = onToggleMenu,
+                        modifier = Modifier
+                            .fillMaxWidth(coverWidthFraction)
+                            .widthIn(max = coverMaxSize)
+                    )
                 }
                 Spacer(modifier = Modifier.height(if (ultraWideLandscape) 6.dp else 10.dp))
                 PlayerProgressBlock(
@@ -425,6 +421,7 @@ internal fun LandscapeCoverPlayerPage(
                     queueExpanded = queueExpanded,
                     playlist = playlist,
                     currentSongKey = song?.playlistIdentityKey(),
+                    currentQueueIndexHint = currentQueueIndexHint,
                     queueLocked = queueLocked,
                     favoriteSongKeys = favoriteSongKeys,
                     loadSongRating = loadSongRating,
@@ -484,9 +481,9 @@ internal fun LandscapeCoverPlayerPage(
                                 bottomContentPadding = if (ultraWideLandscape) 32.dp else 44.dp,
                                 lineSpacing = if (ultraWideLandscape) 18.dp else 21.dp,
                                 focusOffsetRatio = if (ultraWideLandscape) 0.20f else 0.22f,
-                                // A custom wallpaper is a busy background; blurring far lines makes
-                                // them unreadable, so keep all lines sharp when one is set.
-                                nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
+                                // Perspective already supplies its own depth cue. A custom player
+                                // background must not disable the user's non-current-line blur.
+                                nonCurrentLineBlurEnabled = !lyricPerspectiveEffect,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .fillMaxHeight()
@@ -787,7 +784,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                                 bottomContentPadding = 28.dp,
                                 lineSpacing = 18.dp,
                                 focusOffsetRatio = 0.18f,
-                                nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
+                                nonCurrentLineBlurEnabled = !lyricPerspectiveEffect,
                                 modifier = Modifier.fillMaxSize()
                         )
                     } else if (!lyricsLoading) {
@@ -833,11 +830,7 @@ private fun PhoneLandscapeCoverImage(
     hiResLogoUri: String,
     modifier: Modifier = Modifier
 ) {
-    val coverModel = embeddedCover
-        ?: song?.coverUrl?.takeIf { it.isNotBlank() }
-        ?: song?.albumId
-            ?.takeIf { it > 0L }
-            ?.let { Uri.parse("content://media/external/audio/albumart/$it") }
+    val coverModel = resolveCoverPreviewModel(song, embeddedCover)
 
     Box(
         modifier = modifier.background(MiuixTheme.colorScheme.surfaceContainer),

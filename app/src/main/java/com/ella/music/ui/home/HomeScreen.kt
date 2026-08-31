@@ -41,11 +41,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -66,9 +70,10 @@ import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.LibrarySelectionState
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
-import com.ella.music.ui.components.ArtistPickerSheet
+import com.ella.music.ui.components.ArtistPickerContent
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.DirectionalSortField
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -150,7 +155,20 @@ fun LibraryScreen(
     val searchClickPlaybackMode by settingsManager.searchClickPlaybackMode.collectAsState(
         initial = SettingsManager.DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
     )
-    val librarySongGrid by settingsManager.librarySongGrid.collectAsState(initial = false)
+    val librarySongLayout by settingsManager.librarySongLayout.collectAsState(
+        initial = SettingsManager.LIBRARY_LAYOUT_LIST
+    )
+    val librarySongGridColumnsPhone by settingsManager.librarySongGridColumnsPhone.collectAsState(initial = 2)
+    val librarySongGridColumnsTablet by settingsManager.librarySongGridColumnsTablet.collectAsState(initial = 5)
+    val libraryConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
+    val libraryIsTablet = libraryConfiguration.smallestScreenWidthDp >= 600
+    val librarySongGridColumns = if (libraryIsTablet) {
+        librarySongGridColumnsTablet
+    } else {
+        librarySongGridColumnsPhone
+    }
+    val librarySongGrid = librarySongLayout == SettingsManager.LIBRARY_LAYOUT_GRID
+    val librarySongMultiRow = librarySongLayout == SettingsManager.LIBRARY_LAYOUT_MULTI_ROW
     val pageBackground = ellaPageBackground()
     val wallpaperVisible = isAppWallpaperVisible()
     val libraryPageBackground = pageBackground
@@ -508,10 +526,42 @@ fun LibraryScreen(
                 )
             }
         } else {
-            val listState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
+            // Two interchangeable list states: the settled list renders through one of them while
+            // the other is pre-positioned as the pinch transition target, so a committed pinch
+            // can swap their roles without any visible scroll jump.
+            val listStateA = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
                 androidx.compose.foundation.lazy.LazyListState()
             }
+            val listStateB = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
+                androidx.compose.foundation.lazy.LazyListState()
+            }
+            var settledListStateUsesA by rememberSaveable { mutableStateOf(true) }
+            val listState = if (settledListStateUsesA) listStateA else listStateB
+            val pinchTargetListState = if (settledListStateUsesA) listStateB else listStateA
+            val libraryLandscape = libraryConfiguration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
             var pendingLayoutAnchor by remember { mutableStateOf<LibraryLayoutAnchor?>(null) }
+            val libraryPinch = remember { LibraryPinchState(librarySongLayout) }
+            val settledLayout = libraryPinch.currentLayout
+            var pinchTargetReady by remember { mutableStateOf(false) }
+
+            fun switchLibraryLayout(nextLayout: Int) {
+                if (nextLayout == librarySongLayout || sortedSongs.isEmpty()) return
+                pendingLayoutAnchor = LibraryLayoutAnchor(
+                    songIndex = libraryLayoutAnchorSongIndex(
+                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                        columns = libraryLayoutColumnCount(
+                            multiRow = librarySongMultiRow,
+                            grid = librarySongGrid,
+                            landscape = libraryLandscape,
+                            gridColumns = librarySongGridColumns
+                        )
+                    ).coerceIn(0, sortedSongs.lastIndex),
+                    targetLayout = nextLayout
+                )
+                libraryPinch.onExternalLayout(nextLayout)
+                scope.launch { settingsManager.setLibrarySongLayout(nextLayout) }
+            }
             RestoreListScrollAfterSearch(
                 searchExpanded = searchExpanded,
                 query = searchQuery,
@@ -524,8 +574,13 @@ fun LibraryScreen(
                 currentSongKey ?: return@remember -1
                 sortedSongs.indexOfFirst { it.playlistIdentityKey() == currentSongKey }
             }
-            val currentVisibleItemIndex = if (librarySongGrid && currentSongIndex >= 0) {
-                currentSongIndex / 2
+            val currentVisibleItemIndex = if ((librarySongGrid || librarySongMultiRow) && currentSongIndex >= 0) {
+                currentSongIndex / libraryLayoutColumnCount(
+                    multiRow = librarySongMultiRow,
+                    grid = librarySongGrid,
+                    landscape = libraryLandscape,
+                    gridColumns = librarySongGridColumns
+                )
             } else {
                 currentSongIndex
             }
@@ -555,23 +610,68 @@ fun LibraryScreen(
                 if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
             }
 
-            LaunchedEffect(librarySongGrid, pendingLayoutAnchor, sortedSongs.size) {
+            LaunchedEffect(librarySongLayout, pendingLayoutAnchor, sortedSongs.size) {
                 val anchor = pendingLayoutAnchor ?: return@LaunchedEffect
-                if (anchor.targetGrid != librarySongGrid || sortedSongs.isEmpty()) {
+                if (anchor.targetLayout != librarySongLayout || sortedSongs.isEmpty()) {
                     return@LaunchedEffect
                 }
-                val lastItemIndex = if (librarySongGrid) {
-                    (sortedSongs.lastIndex / LIBRARY_GRID_COLUMN_COUNT).coerceAtLeast(0)
+                val columns = libraryLayoutColumnCount(
+                    multiRow = librarySongMultiRow,
+                    grid = librarySongGrid,
+                    landscape = libraryLandscape,
+                    gridColumns = librarySongGridColumns
+                )
+                val lastItemIndex = if (columns > 1) {
+                    (sortedSongs.lastIndex / columns).coerceAtLeast(0)
                 } else {
                     sortedSongs.lastIndex
                 }
                 listState.scrollToItem(
                     libraryLayoutItemIndexForSong(
                         songIndex = anchor.songIndex,
-                        grid = librarySongGrid
+                        columns = columns
                     ).coerceIn(0, lastItemIndex)
                 )
                 pendingLayoutAnchor = null
+            }
+
+            LaunchedEffect(librarySongLayout) {
+                libraryPinch.onExternalLayout(librarySongLayout)
+            }
+
+            // Pre-position the transition-target list to the song anchoring the settled list's
+            // first visible row so the cross-fade starts from the same on-screen song.
+            LaunchedEffect(libraryPinch.isTransitioning) {
+                if (libraryPinch.isTransitioning && sortedSongs.isNotEmpty()) {
+                    val sourceColumns = libraryLayoutColumnCount(
+                        multiRow = libraryPinch.sourceLayout == SettingsManager.LIBRARY_LAYOUT_MULTI_ROW,
+                        grid = libraryPinch.sourceLayout == SettingsManager.LIBRARY_LAYOUT_GRID,
+                        landscape = libraryLandscape,
+                        gridColumns = librarySongGridColumns
+                    )
+                    val targetColumns = libraryLayoutColumnCount(
+                        multiRow = libraryPinch.targetLayout == SettingsManager.LIBRARY_LAYOUT_MULTI_ROW,
+                        grid = libraryPinch.targetLayout == SettingsManager.LIBRARY_LAYOUT_GRID,
+                        landscape = libraryLandscape,
+                        gridColumns = librarySongGridColumns
+                    )
+                    val songIndex = libraryLayoutAnchorSongIndex(
+                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                        columns = sourceColumns
+                    ).coerceIn(0, sortedSongs.lastIndex)
+                    val lastTargetItemIndex = if (targetColumns > 1) {
+                        sortedSongs.lastIndex / targetColumns
+                    } else {
+                        sortedSongs.lastIndex
+                    }
+                    pinchTargetListState.scrollToItem(
+                        libraryLayoutItemIndexForSong(songIndex, targetColumns)
+                            .coerceIn(0, lastTargetItemIndex)
+                    )
+                    pinchTargetReady = true
+                } else if (!libraryPinch.isTransitioning) {
+                    pinchTargetReady = false
+                }
             }
 
             // Compute the per-song index letter once and reuse it for both the bar labels and the
@@ -589,7 +689,19 @@ fun LibraryScreen(
                         } else {
                             sortKeysBySongId[song.id]
                         }
-                        targets.putIfAbsent(song.indexLetter(indexKey), if (librarySongGrid) index / 2 else index)
+                        targets.putIfAbsent(
+                            song.indexLetter(indexKey),
+                            if (librarySongGrid || librarySongMultiRow) {
+                                index / libraryLayoutColumnCount(
+                                    multiRow = librarySongMultiRow,
+                                    grid = librarySongGrid,
+                                    landscape = libraryLandscape,
+                                    gridColumns = librarySongGridColumns
+                                )
+                            } else {
+                                index
+                            }
+                        )
                     }
                     FastIndexData(
                         letters = targets.keys.toList(),
@@ -646,29 +758,32 @@ fun LibraryScreen(
                             trailingContent = {
                                 IconButton(
                                     onClick = {
-                                        val targetGrid = !librarySongGrid
-                                        pendingLayoutAnchor = LibraryLayoutAnchor(
-                                            songIndex = libraryLayoutAnchorSongIndex(
-                                                firstVisibleItemIndex = listState.firstVisibleItemIndex,
-                                                grid = librarySongGrid
-                                            ).coerceIn(0, sortedSongs.lastIndex),
-                                            targetGrid = targetGrid
-                                        )
-                                        scope.launch { settingsManager.setLibrarySongGrid(targetGrid) }
+                                        val nextLayout = when (librarySongLayout) {
+                                            SettingsManager.LIBRARY_LAYOUT_LIST ->
+                                                SettingsManager.LIBRARY_LAYOUT_MULTI_ROW
+                                            SettingsManager.LIBRARY_LAYOUT_MULTI_ROW ->
+                                                SettingsManager.LIBRARY_LAYOUT_GRID
+                                            else -> SettingsManager.LIBRARY_LAYOUT_LIST
+                                        }
+                                        switchLibraryLayout(nextLayout)
                                     },
                                     modifier = Modifier.size(40.dp)
                                 ) {
                                     Icon(
-                                        imageVector = if (librarySongGrid) {
-                                            Icons.AutoMirrored.Rounded.ViewList
-                                        } else {
-                                            Icons.Rounded.GridView
+                                        imageVector = when (librarySongLayout) {
+                                            SettingsManager.LIBRARY_LAYOUT_GRID ->
+                                                Icons.AutoMirrored.Rounded.ViewList
+                                            SettingsManager.LIBRARY_LAYOUT_MULTI_ROW ->
+                                                Icons.Rounded.GridView
+                                            else -> Icons.AutoMirrored.Rounded.ViewList
                                         },
                                         contentDescription = stringResource(
-                                            if (librarySongGrid) {
-                                                R.string.library_layout_list
-                                            } else {
-                                                R.string.library_layout_grid
+                                            when (librarySongLayout) {
+                                                SettingsManager.LIBRARY_LAYOUT_GRID ->
+                                                    R.string.library_layout_list
+                                                SettingsManager.LIBRARY_LAYOUT_MULTI_ROW ->
+                                                    R.string.library_layout_grid
+                                                else -> R.string.library_layout_multi_row
                                             }
                                         ),
                                         tint = MiuixTheme.colorScheme.onSurface,
@@ -694,137 +809,129 @@ fun LibraryScreen(
                         }
                     )
 
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(end = listEndInset, bottom = 160.dp)
-                    ) {
-                        if (librarySongGrid) {
-                            itemsIndexed(
-                                items = sortedSongs.chunked(LIBRARY_GRID_COLUMN_COUNT),
-                                key = { _, row -> row.first().playlistIdentityKey() }
-                            ) { rowIndex, rowSongs ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp)
-                                ) {
-                                    rowSongs.forEachIndexed { columnIndex, song ->
-                                        val index = rowIndex * LIBRARY_GRID_COLUMN_COUNT + columnIndex
-                                        val selected = song.id in selection.selectedIds
-                                        val albumArtUri = remember(listCoversEnabled, song.albumId) {
-                                            song.albumId
-                                                .takeIf { listCoversEnabled && it > 0L }
-                                                ?.let(mainViewModel::getAlbumArtUri)
-                                        }
-                                        LibrarySongGridCard(
-                                            song = song,
-                                            title = sortMode.songDisplaySpec().displayTitleFor(song),
-                                            albumArtUri = albumArtUri,
-                                            loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
-                                            current = song.playlistIdentityKey() == currentSongKey,
-                                            selectionMode = selection.selectionMode,
-                                            selected = selected,
-                                            onLongClick = {
-                                                selection.selectionMode = true
-                                                if (song.id !in selection.selectedIds) {
-                                                    selection.selectedIds = selection.selectedIds + song.id
-                                                    selection.updateRangeAnchorsForManualSelection(song.id, selectedNow = true)
-                                                }
-                                            },
-                                            onClick = {
-                                                if (selection.selectionMode) {
-                                                    selection.toggleSelection(song.id)
-                                                } else {
-                                                    val playback = searchPlaybackSelection(
-                                                        resultSongs = sortedSongs,
-                                                        selectedIndex = index,
-                                                        excludeResultsFromPlaylist =
-                                                            searchQuery.isNotBlank() && excludeSearchResultsFromPlaylist,
-                                                        playbackMode = if (searchQuery.isNotBlank()) {
-                                                            searchClickPlaybackMode
-                                                        } else {
-                                                            SettingsManager.SEARCH_CLICK_REPLACE
-                                                        },
-                                                        currentQueue = playerViewModel.playlist.value,
-                                                        currentSong = currentSong
-                                                    )
-                                                    playerViewModel.setPlaylist(
-                                                        playback.songs,
-                                                        playback.startIndex,
-                                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
-                                                    )
-                                                    if (openPlayerOnPlay) onNavigateToPlayer()
-                                                }
-                                            },
-                                            onMore = { actionSong = song },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    if (rowSongs.size == 1) Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        } else itemsIndexed(
-                            items = sortedSongs,
-                            key = { _, song -> song.playlistIdentityKey() }
-                        ) { index, song ->
-                            val selected = song.id in selection.selectedIds
-                            val albumArtUri = remember(listCoversEnabled, song.albumId) {
-                                song.albumId
-                                    .takeIf { listCoversEnabled && it > 0L }
-                                    ?.let(mainViewModel::getAlbumArtUri)
-                            }
+                    // Shared interaction handlers reused by every library layout below.
+                    val onLibrarySongClick: (Int) -> Unit = { index ->
+                        val playback = searchPlaybackSelection(
+                            resultSongs = sortedSongs,
+                            selectedIndex = index,
+                            excludeResultsFromPlaylist =
+                                searchQuery.isNotBlank() && excludeSearchResultsFromPlaylist,
+                            playbackMode = if (searchQuery.isNotBlank()) {
+                                searchClickPlaybackMode
+                            } else {
+                                SettingsManager.SEARCH_CLICK_REPLACE
+                            },
+                            currentQueue = playerViewModel.playlist.value,
+                            currentSong = currentSong
+                        )
+                        playerViewModel.setPlaylist(
+                            playback.songs,
+                            playback.startIndex,
+                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
+                        )
+                        if (openPlayerOnPlay) onNavigateToPlayer()
+                    }
+                    val onLibrarySongLongClick: (Song) -> Unit = { song ->
+                        selection.selectionMode = true
+                        if (song.id !in selection.selectedIds) {
+                            selection.selectedIds = selection.selectedIds + song.id
+                            selection.updateRangeAnchorsForManualSelection(song.id, selectedNow = true)
+                        }
+                    }
+                    val onLibrarySongPlayNext: (Song) -> Unit = { song ->
+                        playerViewModel.playNext(song)
+                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    }
+                    val onLibrarySongMore: (Song) -> Unit = { song ->
+                        actionSong = song
+                    }
 
-                            SongItem(
-                                song = song,
-                                titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
-                                isCurrent = song.playlistIdentityKey() == currentSongKey,
-                                albumArtUri = albumArtUri,
-                                loadCoverArt = mainViewModel::getCoverArtBitmap,
-                                loadAudioInfo = mainViewModel::getAudioInfo,
-                                loadSongTagInfo = mainViewModel::getSongTagInfo,
-                                isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
-                                loadSongRating = mainViewModel::getSongRating,
+                    // Pinch transition visuals: the settled list keeps rendering the source
+                    // layout while it fades out, and the target layout cross-fades in on top
+                    // with a slight counter-scale, mirroring RawS-Music's power list.
+                    val pinchTransitionActive = libraryPinch.isTransitioning
+                    val pinchProgress = libraryPinch.transitionProgress.coerceIn(0f, 1f)
+                    val pinchZoomIn = libraryPinch.isZoomInTransition
+                    val pinchOverpullScale = libraryPinch.transitionScaleFactor
+                    val pinchSourceAlpha = if (pinchTransitionActive && pinchTargetReady) 1f - pinchProgress else 1f
+                    val pinchSourceScale = (
+                        if (pinchTransitionActive) {
+                            if (pinchZoomIn) 1f + 0.06f * pinchProgress else 1f - 0.06f * pinchProgress
+                        } else {
+                            libraryPinch.boundaryElasticScale
+                        }
+                        ) * pinchOverpullScale
+                    val pinchTargetScale = (
+                        if (pinchZoomIn) 1f - 0.06f * (1f - pinchProgress) else 1f + 0.06f * (1f - pinchProgress)
+                        ) * pinchOverpullScale
+                    val pinchListContentPadding = PaddingValues(end = listEndInset, bottom = 160.dp)
+                    val onPinchCommitted: () -> Unit = {
+                        // Swap the two list states so the freshly committed layout keeps the
+                        // target state's already-correct scroll position, then persist it.
+                        settledListStateUsesA = !settledListStateUsesA
+                        pinchTargetReady = false
+                        val committedLayout = libraryPinch.currentLayout
+                        scope.launch { settingsManager.setLibrarySongLayout(committedLayout) }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .libraryPinchGesture(
+                                enabled = !selection.selectionMode,
+                                state = libraryPinch,
+                                onCommitted = onPinchCommitted
+                            )
+                    ) {
+                        LibrarySongsList(
+                            songs = sortedSongs,
+                            layout = if (pinchTransitionActive) libraryPinch.sourceLayout else settledLayout,
+                            listState = listState,
+                            selection = selection,
+                            sortMode = sortMode,
+                            currentSongKey = currentSongKey,
+                            favoriteSongKeys = favoriteSongKeys,
+                            listCoversEnabled = listCoversEnabled,
+                            showPlayNextInLists = showPlayNextInLists,
+                            selectedSongsForDrag = selectedSongsForDrag,
+                            libraryLandscape = libraryLandscape,
+                            gridColumns = librarySongGridColumns,
+                            mainViewModel = mainViewModel,
+                            contentPadding = pinchListContentPadding,
+                            userScrollEnabled = !pinchTransitionActive && !libraryPinch.isPinching,
+                            alpha = pinchSourceAlpha,
+                            scale = pinchSourceScale,
+                            onSongClick = onLibrarySongClick,
+                            onSongLongClick = onLibrarySongLongClick,
+                            onPlayNext = onLibrarySongPlayNext,
+                            onSongMore = onLibrarySongMore,
+                            modifier = Modifier.matchParentSize()
+                        )
+                        if (pinchTransitionActive && pinchTargetReady) {
+                            LibrarySongsList(
+                                songs = sortedSongs,
+                                layout = libraryPinch.targetLayout,
+                                listState = pinchTargetListState,
+                                selection = selection,
+                                sortMode = sortMode,
+                                currentSongKey = currentSongKey,
+                                favoriteSongKeys = favoriteSongKeys,
+                                listCoversEnabled = listCoversEnabled,
                                 showPlayNextInLists = showPlayNextInLists,
-                                selectionMode = selection.selectionMode,
-                                selected = selected,
-                                dragSelectedSongs = selectedSongsForDrag,
-                                onLongClick = {
-                                    selection.selectionMode = true
-                                    if (song.id !in selection.selectedIds) {
-                                        selection.selectedIds = selection.selectedIds + song.id
-                                        selection.updateRangeAnchorsForManualSelection(song.id, selectedNow = true)
-                                    }
-                                },
-                                onClick = {
-                                    if (selection.selectionMode) {
-                                        selection.toggleSelection(song.id)
-                                    } else {
-                                        val playback = searchPlaybackSelection(
-                                            resultSongs = sortedSongs,
-                                            selectedIndex = index,
-                                            excludeResultsFromPlaylist =
-                                                searchQuery.isNotBlank() && excludeSearchResultsFromPlaylist,
-                                            playbackMode = if (searchQuery.isNotBlank()) {
-                                                searchClickPlaybackMode
-                                            } else {
-                                                SettingsManager.SEARCH_CLICK_REPLACE
-                                            },
-                                            currentQueue = playerViewModel.playlist.value,
-                                            currentSong = currentSong
-                                        )
-                                        playerViewModel.setPlaylist(
-                                            playback.songs,
-                                            playback.startIndex,
-                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
-                                        )
-                                        if (openPlayerOnPlay) onNavigateToPlayer()
-                                    }
-                                },
-                                onPlayNext = {
-                                    playerViewModel.playNext(song)
-                                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                                },
-                                onMore = { actionSong = song }
+                                selectedSongsForDrag = selectedSongsForDrag,
+                                libraryLandscape = libraryLandscape,
+                                gridColumns = librarySongGridColumns,
+                                mainViewModel = mainViewModel,
+                                contentPadding = pinchListContentPadding,
+                                userScrollEnabled = false,
+                                alpha = pinchProgress,
+                                scale = pinchTargetScale,
+                                onSongClick = onLibrarySongClick,
+                                onSongLongClick = onLibrarySongLongClick,
+                                onPlayNext = onLibrarySongPlayNext,
+                                onSongMore = onLibrarySongMore,
+                                modifier = Modifier.matchParentSize()
                             )
                         }
                     }
@@ -898,7 +1005,7 @@ fun LibraryScreen(
                 title = stringResource(R.string.song_more_select_artist),
                 onDismissRequest = { artistChoices = emptyList() }
             ) {
-                ArtistPickerSheet(
+                ArtistPickerContent(
                     artists = artistChoices,
                     mainViewModel = mainViewModel,
                     onArtistSelected = { artist ->
@@ -1026,6 +1133,162 @@ fun LibraryScreen(
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
+private fun LibrarySongsList(
+    songs: List<Song>,
+    layout: Int,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    selection: LibrarySelectionState<Long>,
+    sortMode: HomeSortMode,
+    currentSongKey: String?,
+    favoriteSongKeys: Set<String>,
+    listCoversEnabled: Boolean,
+    showPlayNextInLists: Boolean,
+    selectedSongsForDrag: List<Song>,
+    libraryLandscape: Boolean,
+    gridColumns: Int,
+    mainViewModel: MainViewModel,
+    contentPadding: PaddingValues,
+    userScrollEnabled: Boolean,
+    alpha: Float,
+    scale: Float,
+    onSongClick: (Int) -> Unit,
+    onSongLongClick: (Song) -> Unit,
+    onPlayNext: (Song) -> Unit,
+    onSongMore: (Song) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val multiRow = layout == SettingsManager.LIBRARY_LAYOUT_MULTI_ROW
+    val grid = layout == SettingsManager.LIBRARY_LAYOUT_GRID
+    LazyColumn(
+        state = listState,
+        userScrollEnabled = userScrollEnabled,
+        modifier = modifier.graphicsLayer {
+            this.alpha = alpha
+            scaleX = scale
+            scaleY = scale
+        },
+        contentPadding = contentPadding
+    ) {
+        if (grid || multiRow) {
+            val columnCount = libraryLayoutColumnCount(
+                multiRow = multiRow,
+                grid = grid,
+                landscape = libraryLandscape,
+                gridColumns = gridColumns
+            )
+            itemsIndexed(
+                items = songs.chunked(columnCount),
+                key = { _, row -> row.first().playlistIdentityKey() }
+            ) { rowIndex, rowSongs ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                ) {
+                    rowSongs.forEachIndexed { columnIndex, song ->
+                        val index = rowIndex * columnCount + columnIndex
+                        val selected = song.id in selection.selectedIds
+                        val albumArtUri = remember(listCoversEnabled, song.albumId) {
+                            song.albumId
+                                .takeIf { listCoversEnabled && it > 0L }
+                                ?.let(mainViewModel::getAlbumArtUri)
+                        }
+                        if (multiRow) {
+                            SongItem(
+                                song = song,
+                                titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
+                                isCurrent = song.playlistIdentityKey() == currentSongKey,
+                                albumArtUri = albumArtUri,
+                                loadCoverArt = mainViewModel::getCoverArtBitmap,
+                                loadAudioInfo = mainViewModel::getAudioInfo,
+                                loadSongTagInfo = mainViewModel::getSongTagInfo,
+                                isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                                loadSongRating = mainViewModel::getSongRating,
+                                showPlayNextInLists = showPlayNextInLists,
+                                compactMultiRow = true,
+                                selectionMode = selection.selectionMode,
+                                selected = selected,
+                                dragSelectedSongs = selectedSongsForDrag,
+                                onLongClick = { onSongLongClick(song) },
+                                onClick = {
+                                    if (selection.selectionMode) {
+                                        selection.toggleSelection(song.id)
+                                    } else {
+                                        onSongClick(index)
+                                    }
+                                },
+                                onPlayNext = { onPlayNext(song) },
+                                onMore = { onSongMore(song) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            LibrarySongGridCard(
+                                song = song,
+                                title = sortMode.songDisplaySpec().displayTitleFor(song),
+                                albumArtUri = albumArtUri,
+                                loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
+                                current = song.playlistIdentityKey() == currentSongKey,
+                                selectionMode = selection.selectionMode,
+                                selected = selected,
+                                onLongClick = { onSongLongClick(song) },
+                                onClick = {
+                                    if (selection.selectionMode) {
+                                        selection.toggleSelection(song.id)
+                                    } else {
+                                        onSongClick(index)
+                                    }
+                                },
+                                onMore = { onSongMore(song) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    if (rowSongs.size == 1) Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        } else {
+            itemsIndexed(
+                items = songs,
+                key = { _, song -> song.playlistIdentityKey() }
+            ) { index, song ->
+                val selected = song.id in selection.selectedIds
+                val albumArtUri = remember(listCoversEnabled, song.albumId) {
+                    song.albumId
+                        .takeIf { listCoversEnabled && it > 0L }
+                        ?.let(mainViewModel::getAlbumArtUri)
+                }
+                SongItem(
+                    song = song,
+                    titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
+                    isCurrent = song.playlistIdentityKey() == currentSongKey,
+                    albumArtUri = albumArtUri,
+                    loadCoverArt = mainViewModel::getCoverArtBitmap,
+                    loadAudioInfo = mainViewModel::getAudioInfo,
+                    loadSongTagInfo = mainViewModel::getSongTagInfo,
+                    isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                    loadSongRating = mainViewModel::getSongRating,
+                    showPlayNextInLists = showPlayNextInLists,
+                    selectionMode = selection.selectionMode,
+                    selected = selected,
+                    dragSelectedSongs = selectedSongsForDrag,
+                    onLongClick = { onSongLongClick(song) },
+                    onClick = {
+                        if (selection.selectionMode) {
+                            selection.toggleSelection(song.id)
+                        } else {
+                            onSongClick(index)
+                        }
+                    },
+                    onPlayNext = { onPlayNext(song) },
+                    onMore = { onSongMore(song) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun LibrarySongGridCard(
     song: Song,
     title: String,
@@ -1131,17 +1394,113 @@ private data class FastIndexData(
     }
 }
 
-private const val LIBRARY_GRID_COLUMN_COUNT = 2
-
 private data class LibraryLayoutAnchor(
     val songIndex: Int,
-    val targetGrid: Boolean
+    val targetLayout: Int
 )
 
-internal fun libraryLayoutAnchorSongIndex(firstVisibleItemIndex: Int, grid: Boolean): Int =
-    if (grid) firstVisibleItemIndex.coerceAtLeast(0) * LIBRARY_GRID_COLUMN_COUNT
+internal fun libraryLayoutColumnCount(
+    multiRow: Boolean,
+    grid: Boolean,
+    landscape: Boolean,
+    gridColumns: Int = 2
+): Int = when {
+    multiRow && landscape -> 3
+    multiRow -> 2
+    grid -> gridColumns.coerceIn(1, 8)
+    else -> 1
+}
+
+internal fun libraryLayoutAnchorSongIndex(firstVisibleItemIndex: Int, columns: Int): Int =
+    if (columns > 1) firstVisibleItemIndex.coerceAtLeast(0) * columns
     else firstVisibleItemIndex.coerceAtLeast(0)
 
-internal fun libraryLayoutItemIndexForSong(songIndex: Int, grid: Boolean): Int =
-    if (grid) songIndex.coerceAtLeast(0) / LIBRARY_GRID_COLUMN_COUNT
+internal fun libraryLayoutItemIndexForSong(songIndex: Int, columns: Int): Int =
+    if (columns > 1) songIndex.coerceAtLeast(0) / columns
     else songIndex.coerceAtLeast(0)
+
+internal fun libraryLayoutAfterPinch(
+    currentLayout: Int,
+    scaleDelta: Float,
+    threshold: Float = 0.2f
+): Int = when {
+    scaleDelta >= threshold -> (currentLayout - 1).coerceAtLeast(SettingsManager.LIBRARY_LAYOUT_LIST)
+    scaleDelta <= -threshold -> (currentLayout + 1).coerceAtMost(SettingsManager.LIBRARY_LAYOUT_GRID)
+    else -> currentLayout
+}
+
+// Converts pinch-ratio velocity (per second) into the dp/s-like scale the pinch state machine
+// expects; a quick flick lands well above its 500 threshold while a slow pinch stays below it.
+private const val PINCH_VELOCITY_UNIT = 1000f
+
+@Composable
+private fun Modifier.libraryPinchGesture(
+    enabled: Boolean,
+    state: LibraryPinchState,
+    onCommitted: () -> Unit
+): Modifier {
+    val currentOnCommitted by rememberUpdatedState(onCommitted)
+    return if (!enabled) {
+        this
+    } else {
+        pointerInput(state) {
+            try {
+                while (true) {
+                    // Restricted suspension scope: only track the gesture here and hand the
+                    // final velocity back so the settling animation can run as a normal suspend.
+                    val velocity = awaitPointerEventScope<Float> {
+                        while (true) {
+                            val initialEvent = awaitPointerEvent()
+                            val pressed = initialEvent.changes.filter { it.pressed }
+                            if (pressed.size < 2) continue
+
+                            val baseDistance = libraryPointerDistance(
+                                pressed[0].position,
+                                pressed[1].position
+                            ).coerceAtLeast(1f)
+                            state.beginPinch()
+                            initialEvent.changes.forEach { it.consume() }
+
+                            var lastDelta = 0f
+                            var lastTimestamp = pressed[0].uptimeMillis
+                            var velocity = 0f
+                            while (true) {
+                                val moveEvent = awaitPointerEvent()
+                                moveEvent.changes.forEach { it.consume() }
+                                val active = moveEvent.changes.filter { it.pressed }
+                                if (active.size < 2) return@awaitPointerEventScope velocity
+                                val delta = (
+                                    libraryPointerDistance(active[0].position, active[1].position) /
+                                        baseDistance
+                                    ) - 1f
+                                val timestamp = active[0].uptimeMillis
+                                val dtSeconds = (timestamp - lastTimestamp) / 1000f
+                                if (dtSeconds > 0.008f) {
+                                    val instantaneous = (delta - lastDelta) / dtSeconds
+                                    velocity = velocity * 0.6f + instantaneous * 0.4f
+                                    lastDelta = delta
+                                    lastTimestamp = timestamp
+                                }
+                                state.updatePinch(delta, velocity * PINCH_VELOCITY_UNIT)
+                            }
+                        }
+                        // Unreachable: the outer loop only exits via return@awaitPointerEventScope.
+                        error("library pinch gesture loop must not exit")
+                    }
+                    val committed = state.finishPinch(velocity * PINCH_VELOCITY_UNIT)
+                    if (committed) currentOnCommitted()
+                }
+            } finally {
+                // Covers coroutine cancellation mid-gesture (e.g. leaving the screen): snap back
+                // to the source layout so the settled list stays consistent with its state.
+                state.cancelPinch()
+            }
+        }
+    }
+}
+
+private fun libraryPointerDistance(first: Offset, second: Offset): Float {
+    val x = second.x - first.x
+    val y = second.y - first.y
+    return kotlin.math.sqrt(x * x + y * y)
+}

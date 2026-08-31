@@ -41,9 +41,12 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URI
+import java.util.concurrent.atomic.AtomicReference
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -81,6 +84,8 @@ fun WebDavScreen(
     var testStatus by remember { mutableStateOf<String?>(null) }
     var loadedKey by remember { mutableStateOf("") }
     var loadRequestId by remember { mutableStateOf(0) }
+    var loadJob by remember { mutableStateOf<Job?>(null) }
+    val batchPublishJob = remember { AtomicReference<Job?>(null) }
     var folderMenuTarget by remember { mutableStateOf<WebDavItem?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
@@ -96,53 +101,77 @@ fun WebDavScreen(
         )
     }
 
+    fun activeWebDavConfig(): WebDavConfig = WebDavConfig(
+        url = webDavUrl.ifBlank { savedUrl },
+        username = webDavUser.ifBlank { savedUser },
+        password = webDavPassword.ifBlank { savedPassword }
+    )
+
     fun load(url: String, forceRefresh: Boolean = false) {
+        loadJob?.cancel()
+        batchPublishJob.getAndSet(null)?.cancel()
         val requestId = ++loadRequestId
-        scope.launch {
-            val config = WebDavConfig(webDavUrl, webDavUser, webDavPassword)
-            loading = true
-            error = null
-            items = emptyList()
-            if (forceRefresh) WebDavClient.clearListCache()
-            runCatching {
-                withContext(Dispatchers.IO) {
+        val config = activeWebDavConfig()
+        loading = true
+        error = null
+        items = emptyList()
+        if (forceRefresh) WebDavClient.clearListCache()
+        loadJob = scope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
                     WebDavClient.listBatched(
                         config = config,
                         url = url,
                         forceRefresh = forceRefresh,
                         onBatch = { batch ->
-                            // listBatched parses on IO. Hop back to the Compose scope before
-                            // publishing each cumulative snapshot, and ignore an older refresh
-                            // if the user has already navigated or refreshed again.
-                            scope.launch {
+                            // Only keep the newest cumulative snapshot.  A large directory can
+                            // produce many callbacks; launching one UI coroutine for every
+                            // callback left stale work alive after refresh/navigation and could
+                            // retrigger remote metadata prefetch repeatedly.
+                            val publish = scope.launch {
                                 if (requestId == loadRequestId) items = batch
                             }
+                            batchPublishJob.getAndSet(publish)?.cancel()
                         }
                     )
                 }
-            }.onSuccess {
-                if (requestId == loadRequestId) items = it
-            }.onFailure {
+                if (requestId == loadRequestId) items = result
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (loadError: Throwable) {
                 if (requestId == loadRequestId) {
                     items = emptyList()
-                    error = it.localizedMessage ?: context.getString(R.string.webdav_load_failed)
-                    logWebDavError("Load failed", it)
+                    error = loadError.localizedMessage ?: context.getString(R.string.webdav_load_failed)
+                    logWebDavError("Load failed", loadError)
                 }
-            }
-            if (requestId == loadRequestId) {
-                loading = false
+            } finally {
+                if (requestId == loadRequestId) {
+                    loading = false
+                    loadJob = null
+                    batchPublishJob.getAndSet(null)?.cancel()
+                }
             }
         }
     }
 
     suspend fun collectFolderSongs(folder: WebDavItem): List<Song> {
-        val config = WebDavConfig(webDavUrl, webDavUser, webDavPassword)
+        val config = activeWebDavConfig()
+        check(config.isConfigured) { context.getString(R.string.webdav_configure_first) }
         val items = withContext(Dispatchers.IO) {
             WebDavClient.listAudioRecursive(config, folder.url)
         }
-        return withContext(Dispatchers.IO) {
-            items.map { item -> mainViewModel.resolveSongForPlayback(item.toRemoteSong()) }
-        }
+        // A folder action must not resolve every song's tags before the playlist sheet can be
+        // shown.  That made a large WebDAV folder look like the action was ignored because each
+        // item performed a serial metadata request.  Persist the stable remote URLs immediately;
+        // the library/playback metadata hydrator will fill tags, covers and lyrics in background.
+        // Recursive listing also contains sidecar files (LRC/TTML, artwork, etc.). Only audio
+        // entries are valid playlist members.
+        return items
+            .asSequence()
+            .filterNot(WebDavItem::isDirectory)
+            .filter { WebDavClient.isAudioFile(it.name) }
+            .map(WebDavItem::toRemoteSong)
+            .toList()
     }
 
     fun goParent() {
@@ -174,7 +203,7 @@ fun WebDavScreen(
         load(startUrl)
     }
 
-    LaunchedEffect(currentUrl, items, savedUrl, savedUser, savedPassword) {
+    LaunchedEffect(currentUrl, savedUrl, savedUser, savedPassword, loading) {
         if (loading || savedUrl.isBlank() || items.isEmpty()) return@LaunchedEffect
         val songsToPrefetch = items
             .asSequence()

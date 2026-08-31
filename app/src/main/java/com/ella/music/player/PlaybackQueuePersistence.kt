@@ -19,6 +19,35 @@ internal data class SavedQueue(
     val queueLocked: Boolean
 )
 
+/**
+ * Resolve the saved queue occurrence that was actually playing.
+ *
+ * A queue may contain the same playback identity more than once, so an
+ * identity-only indexOfFirst() would incorrectly restore or highlight the first
+ * duplicate instead of the persisted occurrence.
+ */
+internal fun SavedQueue.indexForCurrentSong(song: Song?): Int {
+    val persistedIndex = index.takeIf { it in songs.indices }
+    if (song == null) return persistedIndex ?: -1
+
+    val persistedSong = persistedIndex?.let(songs::get)
+    if (persistedSong != null &&
+        persistedSong.isSamePlaybackIdentity(song) &&
+        (song.playbackSourceKey == null || persistedSong.playbackSourceKey == song.playbackSourceKey)
+    ) {
+        return persistedIndex
+    }
+
+    val sourceMatch = songs.indexOfFirst {
+        it.isSamePlaybackIdentity(song) &&
+            (song.playbackSourceKey == null || it.playbackSourceKey == song.playbackSourceKey)
+    }
+    return sourceMatch.takeIf { it >= 0 }
+        ?: songs.indexOfFirst { it.isSamePlaybackIdentity(song) }.takeIf { it >= 0 }
+        ?: persistedIndex
+        ?: -1
+}
+
 internal data class PlaybackStateSnapshot(
     val index: Int,
     val positionMs: Long,
@@ -44,6 +73,14 @@ internal data class PendingPlaylist(
     val honorShuffle: Boolean = true,
     val resetQueueLock: Boolean = true
 )
+
+internal fun shouldHydrateSavedQueue(
+    savedSongCount: Int,
+    controllerMediaItemCount: Int,
+    savedCurrentIndex: Int
+): Boolean = savedSongCount > 0 &&
+    controllerMediaItemCount > 0 &&
+    (savedSongCount == controllerMediaItemCount || savedCurrentIndex >= 0)
 
 internal fun playbackQueueJson(snapshot: PlaybackStateSnapshot, songs: List<Song>): JSONObject =
     JSONObject()
@@ -133,6 +170,9 @@ internal fun Song.toPlaybackQueueJson(): JSONObject = JSONObject()
     .put("coverUrl", coverUrl)
     .put("onlineSource", onlineSource)
     .put("onlineId", onlineId)
+    .apply {
+        playbackSourceKey?.let { put("playbackSourceKey", it) }
+    }
 
 internal fun JSONObject.toPlaybackQueueSongOrNull(): Song? {
     val path = optString("path").takeIf { it.isNotBlank() } ?: return null
@@ -159,7 +199,12 @@ internal fun JSONObject.toPlaybackQueueSongOrNull(): Song? {
         lyricist = optString("lyricist"),
         coverUrl = optString("coverUrl"),
         onlineSource = optString("onlineSource"),
-        onlineId = optString("onlineId")
+        onlineId = optString("onlineId"),
+        playbackSourceKey = if (has("playbackSourceKey")) {
+            optString("playbackSourceKey")
+        } else {
+            null
+        }
     )
 }
 
@@ -238,6 +283,8 @@ private fun JsonReader.readPlaybackQueueSongOrNull(): Song? {
     var coverUrl = ""
     var onlineSource = ""
     var onlineId = ""
+    var playbackSourceKey: String? = null
+    var hasPlaybackSourceKey = false
 
     beginObject()
     while (hasNext()) {
@@ -265,6 +312,10 @@ private fun JsonReader.readPlaybackQueueSongOrNull(): Song? {
             "coverUrl" -> coverUrl = nextStringOrEmpty()
             "onlineSource" -> onlineSource = nextStringOrEmpty()
             "onlineId" -> onlineId = nextStringOrEmpty()
+            "playbackSourceKey" -> {
+                hasPlaybackSourceKey = true
+                playbackSourceKey = nextStringOrNull()
+            }
             else -> skipValue()
         }
     }
@@ -295,7 +346,8 @@ private fun JsonReader.readPlaybackQueueSongOrNull(): Song? {
         lyricist = lyricist,
         coverUrl = coverUrl,
         onlineSource = onlineSource,
-        onlineId = onlineId
+        onlineId = onlineId,
+        playbackSourceKey = if (hasPlaybackSourceKey) playbackSourceKey else null
     )
 }
 
@@ -305,6 +357,14 @@ private fun JsonReader.nextStringOrEmpty(): String {
         return ""
     }
     return runCatching { nextString() }.getOrDefault("")
+}
+
+private fun JsonReader.nextStringOrNull(): String? {
+    if (peek() == JsonToken.NULL) {
+        nextNull()
+        return null
+    }
+    return runCatching { nextString() }.getOrNull()
 }
 
 private fun JsonReader.nextIntSafe(default: Int = 0): Int =

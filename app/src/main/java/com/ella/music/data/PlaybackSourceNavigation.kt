@@ -27,11 +27,24 @@ internal object PlaybackSourceNavigation {
     private var prefsReady = false
     private var appContext: Context? = null
 
+    /** Only category routes can provide a meaningful "jump to source" destination. */
+    fun isNavigableSourceKey(sourceKey: String?): Boolean {
+        val source = sourceKey?.trim().orEmpty()
+        return source.startsWith("album:") ||
+            source.startsWith("playlist:") ||
+            source.startsWith("folder:") ||
+            source.startsWith("folderPlaylist:") ||
+            source.startsWith("artist:") ||
+            source.startsWith("category:") ||
+            source.startsWith("analysis:")
+    }
+
     fun attach(context: Context) {
         if (prefsReady) return
         appContext = context.applicationContext
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         _sourceKey.value = prefs.getString(KEY_QUEUE_SOURCE, null)
+            ?.takeIf(::isNavigableSourceKey)
         activeScreenKey = prefs.getString(KEY_ACTIVE_SCREEN, null)
         prefs.getString(KEY_SONG_SOURCES, null)
             ?.takeIf { it.isNotBlank() }
@@ -47,7 +60,7 @@ internal object PlaybackSourceNavigation {
     }
 
     fun updateSource(key: String?) {
-        _sourceKey.value = key
+        _sourceKey.value = key?.takeIf(::isNavigableSourceKey)
         persist()
     }
 
@@ -66,7 +79,9 @@ internal object PlaybackSourceNavigation {
     fun activeScreen(): String? = activeScreenKey
 
     fun recordSongSource(songKey: String, sourceKey: String?) {
-        val resolved = sourceKey?.takeIf { it.isNotBlank() } ?: activeScreenKey ?: return
+        val resolved = sourceKey?.takeIf(::isNavigableSourceKey)
+            ?: activeScreenKey?.takeIf(::isNavigableSourceKey)
+            ?: return
         if (songKey.isBlank()) return
         songSources.remove(songKey)
         songSources[songKey] = resolved
@@ -77,7 +92,7 @@ internal object PlaybackSourceNavigation {
     fun recordSongSources(sources: Map<String, String>) {
         if (sources.isEmpty()) return
         sources.forEach { (songKey, sourceKey) ->
-            if (songKey.isBlank() || sourceKey.isBlank()) return@forEach
+            if (songKey.isBlank() || !isNavigableSourceKey(sourceKey)) return@forEach
             songSources.remove(songKey)
             songSources[songKey] = sourceKey
         }
@@ -90,18 +105,17 @@ internal object PlaybackSourceNavigation {
         if (songSources.remove(songKey) != null) persist()
     }
 
-    fun sourceForSong(songKey: String): String? =
-        songSources[songKey] ?: _sourceKey.value
+    fun sourceForSong(songKey: String): String? = resolvedSourceKey(songKey)
 
     fun request() {
-        if (resolvedSourceKey() != null) _requests.tryEmit(Unit)
+        if (isNavigableSourceKey(resolvedSourceKey())) _requests.tryEmit(Unit)
     }
 
     fun resolvedSourceKey(songKey: String? = null): String? {
         if (!songKey.isNullOrBlank()) {
-            songSources[songKey]?.let { return it }
+            songSources[songKey]?.takeIf(::isNavigableSourceKey)?.let { return it }
         }
-        return _sourceKey.value
+        return _sourceKey.value?.takeIf(::isNavigableSourceKey)
     }
 
     private fun persist() {

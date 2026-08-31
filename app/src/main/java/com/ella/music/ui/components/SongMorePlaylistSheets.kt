@@ -1,6 +1,5 @@
 package com.ella.music.ui.components
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +40,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.repository.mediaStoreAlbumArtUri
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -308,7 +308,7 @@ private fun AddToPlaylistRow(
 private fun UserPlaylist.coverModel(): Any? {
     val song = songs.firstOrNull() ?: return null
     return song.coverUrl.takeIf { it.isNotBlank() }
-        ?: song.albumId.takeIf { it > 0L }?.let { Uri.parse("content://media/external/audio/albumart/$it") }
+        ?: mediaStoreAlbumArtUri(song.albumId)
 }
 
 @Composable

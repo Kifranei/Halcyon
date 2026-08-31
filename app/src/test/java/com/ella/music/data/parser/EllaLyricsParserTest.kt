@@ -243,7 +243,7 @@ class EllaLyricsParserTest {
     }
 
     @Test
-    fun accompanistTtmlPreservesLatinWordSpacesAndDropsPlaceholders() {
+    fun ttmlPreservesLatinWordSpacesAndDropsPlaceholders() {
         val result = LrcParser.parse(
             """
             <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
@@ -270,7 +270,7 @@ class EllaLyricsParserTest {
     }
 
     @Test
-    fun accompanistTtmlKeepsSplitLatinSyllablesInsideWordsJoined() {
+    fun ttmlKeepsSplitLatinSyllablesInsideWordsJoined() {
         val result = LrcParser.parse(
             """
             <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
@@ -305,7 +305,7 @@ class EllaLyricsParserTest {
     }
 
     @Test
-    fun accompanistTtmlPreservesLeadingSpacesEmbeddedInTimedSpans() {
+    fun ttmlPreservesLeadingSpacesEmbeddedInTimedSpans() {
         val result = LrcParser.parse(
             """
             <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
@@ -339,7 +339,7 @@ class EllaLyricsParserTest {
     }
 
     @Test
-    fun accompanistElrcAgentPrefixesAreHiddenAndKeptAsAlignment() {
+    fun elrcAgentPrefixesAreHiddenAndKeptAsAlignment() {
         val result = LrcParser.parse(
             """
             [00:01.000]<00:01.000>v1:<00:01.100>Hello <00:01.600>again
@@ -353,7 +353,7 @@ class EllaLyricsParserTest {
     }
 
     @Test
-    fun accompanistElrcStandaloneSpaceTokensBecomeDisplaySpaces() {
+    fun elrcStandaloneSpaceTokensBecomeDisplaySpaces() {
         val result = LrcParser.parse(
             """
             [00:04.722]Love[00:05.201] [00:05.201]hits[00:05.838] [00:05.838]hard[00:06.297] [00:06.297]I[00:06.716] [00:06.716]know[00:07.511]

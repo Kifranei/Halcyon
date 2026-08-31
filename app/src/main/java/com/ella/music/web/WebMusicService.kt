@@ -220,7 +220,7 @@ class WebMusicService : Service() {
 
     private fun readMediaStoreAlbumArt(albumId: Long): ByteArray? {
         if (albumId <= 0L) return null
-        val uri = Uri.parse("content://media/external/audio/albumart/$albumId")
+        val uri = com.ella.music.data.repository.mediaStoreAlbumArtUri(albumId) ?: return null
         return runCatching {
             contentResolver.openInputStream(uri)?.use { it.readBytes() }
         }.getOrNull()

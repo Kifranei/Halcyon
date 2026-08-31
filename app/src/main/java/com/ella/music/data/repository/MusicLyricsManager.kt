@@ -10,6 +10,8 @@ import com.ella.music.data.parser.EllaLyricsParser
 import com.ella.music.data.parser.LrcParser
 import com.ella.music.data.remote.NavidromeService
 import com.ella.music.data.remote.RemoteMusicProvider
+import com.ella.music.data.webdav.WebDavClient
+import com.ella.music.data.webdav.WebDavItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -17,6 +19,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 
 internal class MusicLyricsManager(
@@ -29,6 +32,7 @@ internal class MusicLyricsManager(
 ) {
     private val lyricsCache = ConcurrentHashMap<String, List<LyricLine>>()
     private val lyricFormatAvailabilityCache = ConcurrentHashMap<String, MusicRepository.LyricFormatAvailability>()
+    private val remoteSidecarLyricsDir = File(remoteMetadataHeaderCacheDir, "sidecar_lyrics")
 
     suspend fun getLyrics(
         song: Song,
@@ -38,7 +42,14 @@ internal class MusicLyricsManager(
         val sourcePriority = settingsManager.lyricSourcePriority.first()
         val ignoreHeaderTags = settingsManager.ignoreLyricHeaderTags.first()
         val cacheKey = "${song.metadataCacheKey()}:lyrics:$safeMode:$sourcePriority:$ignoreHeaderTags"
-        lyricsCache[cacheKey]?.let { return@withContext it }
+        lyricsCache[cacheKey]?.let { cached ->
+            // A WebDAV song can be requested before its cancellable metadata window arrives. Do
+            // not let that transient empty result suppress the later retry after hydration.
+            if (cached.isNotEmpty() || !song.isWebDavRemoteSong() || song.hasWebDavMetadataCache()) {
+                return@withContext cached
+            }
+            lyricsCache.remove(cacheKey)
+        }
 
         if (safeMode == SettingsManager.LYRIC_SOURCE_AUTO) {
             fetchOnlineLyrics(song, ignoreHeaderTags)?.let { onlineLyrics ->
@@ -55,7 +66,9 @@ internal class MusicLyricsManager(
             }
         }
 
-        lyricsCache[cacheKey] = emptyList()
+        if (!song.isWebDavRemoteSong() || song.hasWebDavMetadataCache()) {
+            lyricsCache[cacheKey] = emptyList()
+        }
         emptyList()
     }
 
@@ -69,7 +82,14 @@ internal class MusicLyricsManager(
 
     suspend fun getLyricFormatAvailability(song: Song): MusicRepository.LyricFormatAvailability = withContext(Dispatchers.IO) {
         val cacheKey = "${song.metadataCacheKey()}:availability"
-        lyricFormatAvailabilityCache[cacheKey]?.let { return@withContext it }
+        lyricFormatAvailabilityCache[cacheKey]?.let { cached ->
+            // Do not retain a temporary "no lyrics" result for a WebDAV song while its
+            // cancellable metadata header is still being hydrated.
+            if (cached.hasAnyFormat() || !song.isWebDavRemoteSong() || song.hasWebDavMetadataCache()) {
+                return@withContext cached
+            }
+            lyricFormatAvailabilityCache.remove(cacheKey)
+        }
         val effectivePath = song.effectiveLocalPathForMetadataBlocking(settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
         val ignoreHeaderTags = settingsManager.ignoreLyricHeaderTags.first()
         val ttml = loadExternalLyricsByFormat(song, effectivePath, preferTtml = true)
@@ -77,7 +97,11 @@ internal class MusicLyricsManager(
         val plain = loadExternalLyricsByFormat(song, effectivePath, preferTtml = false)
             ?: loadEmbeddedLyricsByFormat(song, effectivePath, preferTtml = false, ignoreHeaderTags = ignoreHeaderTags)
         MusicRepository.LyricFormatAvailability(hasTtml = !ttml.isNullOrEmpty(), hasPlain = !plain.isNullOrEmpty())
-            .also { lyricFormatAvailabilityCache[cacheKey] = it }
+            .also { availability ->
+                if (!song.isWebDavRemoteSong() || availability.hasAnyFormat() || song.hasWebDavMetadataCache()) {
+                    lyricFormatAvailabilityCache[cacheKey] = availability
+                }
+            }
     }
 
     suspend fun reloadLyricsByFormat(song: Song, preferTtml: Boolean): List<LyricLine> = withContext(Dispatchers.IO) {
@@ -87,18 +111,23 @@ internal class MusicLyricsManager(
         lyricsCache.remove(cacheKey)
         lyricFormatAvailabilityCache.removeKeysMatching { it.startsWith("${song.metadataCachePrefix()}:") }
         val effectivePath = song.effectiveLocalPathForMetadataBlocking(settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
-        val lyrics = orderedLyricSourceIds(sourcePriority, SettingsManager.LYRIC_SOURCE_AUTO)
-            .filter { id ->
+        var lyrics: List<LyricLine>? = null
+        for (sourceId in orderedLyricSourceIds(sourcePriority, SettingsManager.LYRIC_SOURCE_AUTO).filter { id ->
                 if (preferTtml) {
                     id == SettingsManager.LYRIC_SOURCE_EMBEDDED_TTML || id == SettingsManager.LYRIC_SOURCE_EXTERNAL_TTML
                 } else {
                     id == SettingsManager.LYRIC_SOURCE_EMBEDDED_PLAIN || id == SettingsManager.LYRIC_SOURCE_EXTERNAL_PLAIN
                 }
+            }) {
+            if (lyrics == null) {
+                lyrics = loadLyricsBySourceId(song, effectivePath, sourceId, ignoreHeaderTags)
             }
-            .firstNotNullOfOrNull { sourceId -> loadLyricsBySourceId(song, effectivePath, sourceId, ignoreHeaderTags) }
-            ?: emptyList()
-        lyricsCache[cacheKey] = lyrics
-        lyrics
+        }
+        val resolvedLyrics = lyrics ?: emptyList()
+        if (!song.isWebDavRemoteSong() || resolvedLyrics.isNotEmpty() || song.hasWebDavMetadataCache()) {
+            lyricsCache[cacheKey] = resolvedLyrics
+        }
+        resolvedLyrics
     }
 
     fun clearCache() {
@@ -113,7 +142,10 @@ internal class MusicLyricsManager(
     }
 
     private fun orderedLyricSourceIds(priority: String, sourceMode: Int): List<String> {
-        val ordered = SettingsManager.normalizeLyricSourcePriority(priority).split(',')
+        val ordered = SettingsManager.normalizeLyricSourcePriority(priority)
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
         return when (sourceMode) {
             SettingsManager.LYRIC_SOURCE_EXTERNAL -> ordered.filter {
                 it == SettingsManager.LYRIC_SOURCE_EXTERNAL_TTML || it == SettingsManager.LYRIC_SOURCE_EXTERNAL_PLAIN
@@ -125,7 +157,7 @@ internal class MusicLyricsManager(
         }
     }
 
-    private fun loadLyricsBySourceId(
+    private suspend fun loadLyricsBySourceId(
         song: Song, effectivePath: String, sourceId: String, ignoreHeaderTags: Boolean
     ): List<LyricLine>? {
         return when (sourceId) {
@@ -141,12 +173,47 @@ internal class MusicLyricsManager(
         }
     }
 
-    private fun loadExternalLyricsByFormat(song: Song, effectivePath: String, preferTtml: Boolean, ignoreHeaderTags: Boolean = false): List<LyricLine>? {
-        val content = findExternalLyricContentByFormat(effectivePath, preferTtml) ?: return null
+    private suspend fun loadExternalLyricsByFormat(song: Song, effectivePath: String, preferTtml: Boolean, ignoreHeaderTags: Boolean = false): List<LyricLine>? {
+        val content = findExternalLyricContentByFormat(effectivePath, preferTtml)
+            ?: findWebDavExternalLyricContent(song, preferTtml)
+            ?: return null
         val parsed = LrcParser.parse(content, ignoreHeaderTags)
         val lyrics = parsed.lyrics.takeIf { it.isNotEmpty() } ?: return null
         return lyrics.takeIf { lines -> lines.any { it.isTtml } == preferTtml }
     }
+
+    private suspend fun findWebDavExternalLyricContent(song: Song, preferTtml: Boolean): String? =
+        withContext(Dispatchers.IO) {
+            if (!song.isWebDavRemoteSong()) return@withContext null
+            val config = loadWebDavConfig(settingsManager) ?: return@withContext null
+            val parentUrl = runCatching {
+                val uri = URI(song.path)
+                val parentPath = uri.path.orEmpty().substringBeforeLast('/', missingDelimiterValue = "")
+                URI(uri.scheme, uri.userInfo, uri.host, uri.port, "$parentPath/", null, null).toString()
+            }.getOrNull() ?: return@withContext null
+            val extensions = if (preferTtml) listOf("ttml") else listOf("lrc", "elrc")
+            val songName = song.fileName.substringBeforeLast('.').ifBlank {
+                URI(song.path).path.orEmpty().substringAfterLast('/').substringBeforeLast('.')
+            }
+            val sidecar = runCatching {
+                WebDavClient.list(config, parentUrl, includeNonAudioFiles = true)
+                    .asSequence()
+                    .filter { !it.isDirectory && it.name.substringAfterLast('.', "").lowercase() in extensions }
+                    .sortedWith(compareBy<WebDavItem> { extensions.indexOf(it.name.substringAfterLast('.', "").lowercase()) }.thenBy { it.name })
+                    .firstOrNull {
+                        val sidecarStem = it.name.substringBeforeLast('.')
+                        sidecarStem.equals(songName, ignoreCase = true) ||
+                            sidecarStem.startsWith(songName, ignoreCase = true) ||
+                            songName.startsWith(sidecarStem, ignoreCase = true)
+                    }
+            }.getOrNull() ?: return@withContext null
+            val extension = sidecar.name.substringAfterLast('.', "txt").lowercase()
+            val cacheFile = File(remoteSidecarLyricsDir, "${song.path.sha256()}_${sidecar.url.sha256()}.$extension")
+            if (!cacheFile.exists() || cacheFile.length() <= 0L) {
+                runCatching { WebDavClient.downloadToFile(sidecar.url, config, cacheFile) }.getOrNull() ?: return@withContext null
+            }
+            readTextIfExists(cacheFile.absolutePath)
+        }
 
     private fun loadEmbeddedLyricsByFormat(
         song: Song, effectivePath: String, preferTtml: Boolean, ignoreHeaderTags: Boolean
@@ -244,4 +311,9 @@ internal class MusicLyricsManager(
             .toList()
             .takeIf(List<LyricLine>::isNotEmpty)
     }
+
+    private fun Song.hasWebDavMetadataCache(): Boolean =
+        hasUsableWebDavMetadataCache(remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
+
+    private fun MusicRepository.LyricFormatAvailability.hasAnyFormat(): Boolean = hasTtml || hasPlain
 }

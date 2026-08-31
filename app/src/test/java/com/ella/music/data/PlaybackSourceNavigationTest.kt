@@ -8,6 +8,16 @@ import org.junit.Test
 
 class PlaybackSourceNavigationTest {
     @Test
+    fun onlyCategoryKeysCanNavigateToASource() {
+        assertEquals(true, PlaybackSourceNavigation.isNavigableSourceKey(CategoryResumeKeys.album(7L)))
+        assertEquals(true, PlaybackSourceNavigation.isNavigableSourceKey(CategoryResumeKeys.playlist("mix")))
+        assertEquals(false, PlaybackSourceNavigation.isNavigableSourceKey(CategoryResumeKeys.HOME))
+        assertEquals(false, PlaybackSourceNavigation.isNavigableSourceKey(CategoryResumeKeys.DASHBOARD))
+        assertEquals(false, PlaybackSourceNavigation.isNavigableSourceKey("search:night"))
+        assertEquals(false, PlaybackSourceNavigation.isNavigableSourceKey(null))
+    }
+
+    @Test
     fun firstGroupKeepsSourceWhenSongsOverlap() {
         val songA = song(1L, "A")
         val songB = song(2L, "B")

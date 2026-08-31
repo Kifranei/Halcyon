@@ -4,6 +4,9 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.MarqueeAnimationMode
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -23,9 +26,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
@@ -82,6 +88,7 @@ fun SongItem(
     ratingRevision: Int = 0,
     ratingDisplayMode: Int? = null,
     showPlayNextInLists: Boolean = false,
+    compactMultiRow: Boolean = false,
     dragSelectedSongs: List<Song> = emptyList(),
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
     showTrailingContentInSelectionMode: Boolean = false,
@@ -92,11 +99,18 @@ fun SongItem(
     val localMusicVideoDescription = stringResource(R.string.local_mv)
     val onlineMusicVideoDescription = stringResource(R.string.online_mv)
     val context = androidx.compose.ui.platform.LocalContext.current
+    val televisionDevice = remember(context) {
+        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+            (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
+            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+    }
     val sourceView = LocalView.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val preferredRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
+    val titleMarqueeEnabled by settingsManager.librarySongTitleMarquee.collectAsState(initial = true)
+    val compactTitleMarquee = compactMultiRow && titleMarqueeEnabled
     val effectiveRatingDisplayMode = ratingDisplayMode ?: preferredRatingDisplayMode
     val coverState = rememberSongArtworkState(
         song = song,
@@ -116,11 +130,33 @@ fun SongItem(
         value = withContext(Dispatchers.IO) { loadSongRating?.invoke(song) ?: 0 }
     }
     val coverModel = coverState.model
+    var focused by remember { mutableStateOf(false) }
+    val itemShape = remember { RoundedCornerShape(14.dp) }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent)
+            .then(
+                if (televisionDevice) {
+                    Modifier
+                        .clip(itemShape)
+                        .onFocusChanged { focused = it.hasFocus }
+                        .border(
+                            width = if (focused) 3.dp else 0.dp,
+                            color = if (focused) MiuixTheme.colorScheme.primary else Color.Transparent,
+                            shape = itemShape
+                        )
+                } else {
+                    Modifier
+                }
+            )
+            .background(
+                when {
+                    televisionDevice && focused -> MiuixTheme.colorScheme.primary.copy(alpha = 0.20f)
+                    selected -> MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
+                    else -> Color.Transparent
+                }
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {
@@ -132,7 +168,10 @@ fun SongItem(
                     if (!dragStarted) onLongClick()
                 }
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(
+                horizontal = if (compactMultiRow) 10.dp else 16.dp,
+                vertical = if (compactMultiRow) 8.dp else 10.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (selectionMode) {
@@ -154,9 +193,10 @@ fun SongItem(
             Spacer(modifier = Modifier.width(10.dp))
         }
 
+        val coverSize = if (compactMultiRow) 64.dp else 48.dp
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(coverSize)
                 .clip(RoundedCornerShape(8.dp))
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
@@ -165,13 +205,13 @@ fun SongItem(
                 SafeCoverImage(
                     model = coverModel,
                     contentDescription = null,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(coverSize),
                     contentScale = ContentScale.Crop,
-                    sizePx = 384,
+                    sizePx = if (compactMultiRow) 512 else 384,
                     showDefaultPlaceholder = false
                 )
             } else {
-                DefaultAlbumCover(modifier = Modifier.size(48.dp))
+                DefaultAlbumCover(modifier = Modifier.size(coverSize))
             }
         }
 
@@ -189,16 +229,29 @@ fun SongItem(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 ExplicitSongTitle(
-                    title = titleOverride ?: song.title,
+                    title = titleOverride?.takeIf { it.isNotBlank() } ?: song.title,
                     fontSize = 15.sp,
                     fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold else null,
                     color = if (isCurrent) MiuixTheme.colorScheme.primary
                     else MiuixTheme.colorScheme.onBackground,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    overflow = if (compactTitleMarquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    softWrap = false,
+                    modifier = Modifier.weight(1f),
+                    titleModifier = if (compactTitleMarquee) {
+                        Modifier.basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            animationMode = MarqueeAnimationMode.Immediately
+                        )
+                    } else {
+                        Modifier
+                    },
+                    titleFillMaxWidth = compactTitleMarquee
                 )
                 if (isFavorite) {
                     Spacer(modifier = Modifier.width(5.dp))
@@ -211,32 +264,17 @@ fun SongItem(
                 }
                 if (rating > 0) {
                     Spacer(modifier = Modifier.width(5.dp))
-                    if (effectiveRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS) {
-                        repeat(rating) {
-                            RatingStarIcon(
-                                filled = true,
-                                tint = Color(0xFFFFB703),
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    } else {
-                        RatingStarIcon(
-                            filled = true,
-                            tint = Color(0xFFFFB703),
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = rating.toString(),
-                            fontSize = 14.sp,
-                            color = Color(0xFFFFB703),
-                            maxLines = 1
-                        )
-                    }
+                    SongRatingIndicator(
+                        rating = rating,
+                        displayMode = effectiveRatingDisplayMode
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 if (qualityTag != null) {
                     AudioQualityListBadge(qualityTag)
                     Spacer(modifier = Modifier.width(6.dp))
@@ -252,13 +290,56 @@ fun SongItem(
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    overflow = if (compactTitleMarquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    softWrap = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (compactTitleMarquee) {
+                                Modifier.basicMarquee(
+                                    iterations = Int.MAX_VALUE,
+                                    animationMode = MarqueeAnimationMode.Immediately
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
                 )
+            }
+            if (compactMultiRow) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = song.durationText,
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (!selectionMode && showPlayNextInLists && onPlayNext != null) {
+                        PlayNextQuickButton(onClick = onPlayNext)
+                    }
+                    if (!selectionMode && onMore != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable(onClick = onMore),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.More,
+                                contentDescription = stringResource(R.string.player_quick_more),
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        if (!compactMultiRow) Spacer(modifier = Modifier.width(8.dp))
 
         if (!selectionMode) {
             localMusicVideoSource?.let { source ->
@@ -290,12 +371,12 @@ fun SongItem(
             }
         }
 
-        Text(
+        if (!compactMultiRow) Text(
             text = song.durationText,
             fontSize = 12.sp,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
-        if (!selectionMode && showPlayNextInLists && onPlayNext != null) {
+        if (!compactMultiRow && !selectionMode && showPlayNextInLists && onPlayNext != null) {
             Spacer(modifier = Modifier.width(8.dp))
             PlayNextQuickButton(onClick = onPlayNext)
         }
@@ -334,7 +415,7 @@ fun SongItem(
                 )
             }
         }
-        if (!selectionMode && onMore != null) {
+        if (!compactMultiRow && !selectionMode && onMore != null) {
             Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier

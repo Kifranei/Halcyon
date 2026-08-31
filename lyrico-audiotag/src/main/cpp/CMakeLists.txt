@@ -16,12 +16,14 @@ set(BUILD_TESTING OFF)
 add_subdirectory(taglib)
 
 include_directories(
+        ${CMAKE_CURRENT_BINARY_DIR}/taglib
         taglib/taglib
         taglib/taglib/toolkit
         taglib/taglib/asf
         taglib/taglib/mpeg
         taglib/taglib/ogg
         taglib/taglib/ogg/flac
+        taglib/taglib/ogg/speex
         taglib/taglib/flac
         taglib/taglib/mp4
         taglib/taglib/ogg/vorbis
@@ -29,13 +31,18 @@ include_directories(
         taglib/taglib/mpeg/id3v2
         taglib/taglib/mpeg/id3v2/frames
         taglib/taglib/mpeg/id3v1
+        taglib/taglib/mpc
         taglib/taglib/ape
         taglib/taglib/wavpack
+        taglib/taglib/trueaudio
         taglib/taglib/riff
         taglib/taglib/riff/aiff
         taglib/taglib/riff/wav
         taglib/taglib/dsf
-        taglib/taglib/dsdiff)
+        taglib/taglib/dsdiff
+        taglib/taglib/shorten
+        taglib/taglib/matroska
+        taglib/taglib/matroska/ebml)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
         taglib.cpp

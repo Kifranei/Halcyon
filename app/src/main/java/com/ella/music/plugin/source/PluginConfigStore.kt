@@ -24,6 +24,20 @@ class PluginConfigStore(context: Context) {
         prefs.edit().putString(prefKey(pluginId, key), value).apply()
     }
 
+    /** Snapshot of every stored plugin config entry, keyed by the raw "<pluginId>:<key>" pref key. */
+    fun exportAll(): Map<String, String> =
+        prefs.all.entries.mapNotNull { (key, value) ->
+            (value as? String)?.let { key to it }
+        }.toMap()
+
+    /** Restores a backup snapshot on top of the current values; unrelated entries are kept. */
+    fun restoreAll(values: Map<String, String>) {
+        if (values.isEmpty()) return
+        prefs.edit().apply {
+            values.forEach { (key, value) -> putString(key, value) }
+        }.apply()
+    }
+
     fun deleteConfig(pluginId: String) {
         val prefix = "$pluginId:"
         val keys = prefs.all.keys.filter { it.startsWith(prefix) }

@@ -37,6 +37,7 @@ import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,16 +49,17 @@ import com.ella.music.data.remote.EmbyService
 import com.ella.music.data.remote.NavidromeService
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.supervisorScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 enum class CoverUsage {
@@ -80,6 +82,9 @@ data class MusicScanSummary(
 class MusicRepository(private val context: Context) {
     companion object {
         private const val WEBDAV_EAGER_METADATA_LIMIT = 300
+        private const val WEBDAV_BACKGROUND_METADATA_LIMIT = 300
+        private const val WEBDAV_MAX_LIBRARY_DIRECTORIES = 10_000
+        private const val WEBDAV_MAX_LIBRARY_SONGS = 20_000
 
         @Volatile
         private var instance: MusicRepository? = null
@@ -116,6 +121,8 @@ class MusicRepository(private val context: Context) {
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
+    private val _webDavMetadataRevision = MutableStateFlow(0L)
+    val webDavMetadataRevision: StateFlow<Long> = _webDavMetadataRevision.asStateFlow()
 
     private val _albums = MutableStateFlow<List<Album>>(emptyList())
     val albums: StateFlow<List<Album>> = _albums.asStateFlow()
@@ -147,6 +154,8 @@ class MusicRepository(private val context: Context) {
 
     private val remoteAudioCacheDir = File(context.cacheDir, "webdav_audio")
     private val remoteMetadataHeaderCacheDir = File(context.cacheDir, "webdav_metadata_headers")
+    private val webDavMetadataLocks = ConcurrentHashMap<String, Mutex>()
+    private val webDavMetadataWindowAttempts = ConcurrentHashMap.newKeySet<String>()
     private val lyricsManager = MusicLyricsManager(context, settingsManager, audioTagRepository, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
     private val coverArtManager = MusicCoverArtManager(context, audioTagRepository, settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
     private val snapshotManager: MusicSnapshotManager = MusicSnapshotManager(
@@ -689,24 +698,37 @@ class MusicRepository(private val context: Context) {
         val visited = LinkedHashSet<String>()
         val songs = ArrayList<Song>()
 
-        while (pending.isNotEmpty()) {
+        while (
+            pending.isNotEmpty() &&
+                visited.size < WEBDAV_MAX_LIBRARY_DIRECTORIES &&
+                songs.size < WEBDAV_MAX_LIBRARY_SONGS
+        ) {
             val currentUrl = pending.removeFirst()
             val visitKey = WebDavClient.normalizeFileUrl(currentUrl).trimEnd('/')
             if (!visited.add(visitKey)) continue
             val items = WebDavClient.list(config, currentUrl, forceRefresh = forceRefresh)
-            items.forEach { item ->
+            for (item in items) {
                 if (item.isDirectory) {
-                    pending.add(item.url)
+                    if (visited.size + pending.size < WEBDAV_MAX_LIBRARY_DIRECTORIES) {
+                        pending.add(item.url)
+                    }
                 } else if (WebDavClient.isAudioFile(item.name)) {
                     songs += item.toWebDavLibrarySong()
+                    if (songs.size >= WEBDAV_MAX_LIBRARY_SONGS) break
                 }
             }
+        }
+        if (pending.isNotEmpty()) {
+            Log.w(
+                "MusicRepo",
+                "WebDAV library scan capped directories=$WEBDAV_MAX_LIBRARY_DIRECTORIES songs=$WEBDAV_MAX_LIBRARY_SONGS"
+            )
         }
         return if (songs.size <= WEBDAV_EAGER_METADATA_LIMIT) {
             songs.map { it.withRepositoryTags(allowFullDownload = false) }
         } else {
             songs.map { song ->
-                if (song.webDavHeaderCacheFile(remoteMetadataHeaderCacheDir).let { it.exists() && it.length() > 0L }) {
+                if (song.hasUsableWebDavMetadataCache(remoteAudioCacheDir, remoteMetadataHeaderCacheDir)) {
                     song.withRepositoryTags(allowFullDownload = false)
                 } else {
                     song.withFinalLibraryFallbacks()
@@ -775,7 +797,11 @@ class MusicRepository(private val context: Context) {
             Log.w("MusicRepo", "Failed to read tag info for ${song.path}", it)
             SongTagInfo()
         }
-        tagInfoCache[cacheKey] = info
+        // A WebDAV song may be inspected before its metadata window arrives. Do not pin an empty
+        // tag result under the stable song key; the later background hydration must be observable.
+        if (!song.isWebDavRemoteSong() || song.effectiveLocalPathForMetadata() != song.path || info != SongTagInfo()) {
+            tagInfoCache[cacheKey] = info
+        }
         return info
     }
 
@@ -908,6 +934,72 @@ class MusicRepository(private val context: Context) {
             refreshSongAfterExternalEdit(immediate) ?: immediate
         }
     }
+
+    suspend fun updateSongModifiedTime(song: Song, modifiedAtMs: Long): Boolean = withContext(Dispatchers.IO) {
+        val file = File(song.path)
+        if (!file.isFile) return@withContext false
+        val applied = applyFileLastModified(file, modifiedAtMs) ||
+            updateMediaStoreDateModified(song, modifiedAtMs)
+        if (!applied) return@withContext false
+        val fileMs = file.lastModified()
+        val resolvedMs = if (fileLastModifiedMatches(fileMs, modifiedAtMs)) fileMs else modifiedAtMs
+        val updated = song.copy(dateModified = resolvedMs)
+        val currentSongs = _songs.value
+        if (currentSongs.isNotEmpty()) {
+            val nextSongs = currentSongs.map { existing ->
+                if (existing.id == song.id || existing.path == song.path) updated else existing
+            }
+            _songs.value = nextSongs
+            _albums.value = nextSongs.toAlbums()
+            libraryCacheStore.saveLibraryCache(nextSongs, _albums.value)
+        }
+        true
+    }
+
+    private fun applyFileLastModified(file: File, modifiedAtMs: Long): Boolean {
+        runCatching { invokeOsUtimes(file.absolutePath, modifiedAtMs) }
+        if (fileLastModifiedMatches(file.lastModified(), modifiedAtMs)) return true
+        runCatching { file.setLastModified(modifiedAtMs) }
+        return fileLastModifiedMatches(file.lastModified(), modifiedAtMs)
+    }
+
+    private fun invokeOsUtimes(path: String, modifiedAtMs: Long) {
+        val timevalClass = Class.forName("android.system.StructTimeval")
+        val timeval = timevalClass
+            .getMethod("fromMillis", Long::class.javaPrimitiveType)
+            .invoke(null, modifiedAtMs)
+        val times = java.lang.reflect.Array.newInstance(timevalClass, 2)
+        java.lang.reflect.Array.set(times, 0, timeval)
+        java.lang.reflect.Array.set(times, 1, timeval)
+        Class.forName("android.system.Os")
+            .getMethod("utimes", String::class.java, times.javaClass)
+            .invoke(null, path, times)
+    }
+
+    private fun updateMediaStoreDateModified(song: Song, modifiedAtMs: Long): Boolean {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DATE_MODIFIED, modifiedAtMs / 1000L)
+        }
+        val byId = runCatching {
+            val uri = android.content.ContentUris.withAppendedId(
+                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                song.id
+            )
+            context.contentResolver.update(uri, values, null, null)
+        }.getOrDefault(0)
+        if (byId > 0) return true
+        return runCatching {
+            context.contentResolver.update(
+                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                values,
+                "${android.provider.MediaStore.MediaColumns.DATA}=?",
+                arrayOf(song.path)
+            )
+        }.getOrDefault(0) > 0
+    }
+
+    private fun fileLastModifiedMatches(actualMs: Long, expectedMs: Long): Boolean =
+        kotlin.math.abs(actualMs - expectedMs) < 2_000L
 
     private suspend fun updateSongAfterLocalTagWrite(song: Song): Song = withContext(Dispatchers.IO) {
         clearMetadataCache(song)
@@ -1068,6 +1160,7 @@ class MusicRepository(private val context: Context) {
         audioTagRepository.clearCache()
         audioInfoProvider.clearCache()
         tagInfoCache.clear()
+        webDavMetadataWindowAttempts.clear()
     }
 
     private fun clearScanMetadataCaches() {
@@ -1087,13 +1180,16 @@ class MusicRepository(private val context: Context) {
         tagInfoCache.removeKeysMatching { it.startsWith(metadataPrefix) || it.startsWith("${song.id}:") }
         audioTagRepository.clear(song.effectiveLocalPathForMetadataBlocking(settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir))
         if (song.isWebDavRemoteSong()) {
-            song.webDavHeaderCacheFile(remoteMetadataHeaderCacheDir).delete()
+            val headerCache = song.webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
+            headerCache.delete()
+            WebDavClient.clearFlacMetadataCacheMarker(headerCache)
             song.webDavFullCacheFile(remoteAudioCacheDir).delete()
         }
     }
 
     fun clearRemoteMetadataCache() {
         clearCache()
+        webDavMetadataWindowAttempts.clear()
         runCatching {
             if (remoteAudioCacheDir.exists()) {
                 remoteAudioCacheDir.deleteRecursively()
@@ -1107,9 +1203,15 @@ class MusicRepository(private val context: Context) {
     }
 
     suspend fun resolveSongForPlayback(song: Song): Song = withContext(Dispatchers.IO) {
-        runCatching {
-            song.withRepositoryTags(allowFullDownload = song.isWebDavRemoteSong() && song.isLikelyWavAudio())
-        }.getOrElse { error ->
+        try {
+            song.ensureWebDavMetadataCached(
+                allowFullDownload = song.isWebDavRemoteSong() &&
+                    (song.isLikelyWavAudio() || song.isLikelyFlacAudio())
+            )
+            song.withRepositoryTags()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
             Log.w("MusicRepo", "Failed to resolve playback song for ${song.path}", error)
             song
         }
@@ -1124,35 +1226,135 @@ class MusicRepository(private val context: Context) {
             .toList()
         if (targets.isEmpty()) return@supervisorScope
         val config = loadWebDavConfig(settingsManager) ?: return@supervisorScope
-        val semaphore = Semaphore(3)
-        targets.forEach { song ->
+        val workerCount = minOf(2, targets.size)
+        repeat(workerCount) { workerIndex ->
             launch(Dispatchers.IO) {
-                runCatching {
-                    semaphore.withPermit {
-                        val headerFile = song.webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
-                        if (headerFile.exists() && headerFile.length() > 0L) {
+                for (targetIndex in workerIndex until targets.size step workerCount) {
+                        ensureActive()
+                        val song = targets[targetIndex]
+                        try {
+                        if (song.hasUsableWebDavMetadataCache(remoteAudioCacheDir, remoteMetadataHeaderCacheDir)) {
                             Log.d("MusicRepo", "WebDAV header prefetch hit cache url=${song.path.webDavSafeLogUrl()}")
-                            return@withPermit
+                            continue
                         }
                         Log.d("MusicRepo", "WebDAV header prefetch start url=${song.path.webDavSafeLogUrl()}")
-                        val cached = downloadWebDavMetadataHeader(song, config, remoteMetadataHeaderCacheDir)
-                        if (cached != null) {
-                            Log.d("MusicRepo", "WebDAV header prefetch success url=${song.path.webDavSafeLogUrl()} bytes=${headerFile.length()}")
+                        // Use the same per-song lock and format policy as hydration/playback. The
+                        // old direct download raced with hydration and could leave a partial file
+                        // which the native tag reader then saw as a complete remote track.
+                        song.ensureWebDavMetadataCached(allowFullDownload = false)
+                        if (song.hasUsableWebDavMetadataCache(remoteAudioCacheDir, remoteMetadataHeaderCacheDir)) {
+                            val cacheFile = if (song.isLikelyFlacAudio()) {
+                                song.webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
+                            } else {
+                                song.webDavFullCacheFile(remoteAudioCacheDir)
+                            }
+                            Log.d("MusicRepo", "WebDAV header prefetch success url=${song.path.webDavSafeLogUrl()} bytes=${cacheFile.length()}")
                         } else {
                             Log.d("MusicRepo", "WebDAV header prefetch skipped url=${song.path.webDavSafeLogUrl()}")
                         }
-                    }
-                }.onFailure { error ->
-                    AppLogStore.warn(
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Throwable) {
+                        AppLogStore.warn(
                         context,
                         "MusicRepoWebDav",
                         "WebDAV header prefetch failed url=${song.path.webDavSafeLogUrl()}",
                         error,
                         AppLogType.NETWORK
-                    )
+                        )
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Fills the remote library from its cached metadata windows without holding up the initial
+     * WebDAV scan.  The old flow only prefetched the directory currently visible in WebDAV
+     * browsing, so a library with hundreds of remote songs kept filename-only records forever.
+     * A small fixed worker pool avoids opening one request per song while publishing completed
+     * records in bounded groups to the library and its remote snapshot.
+     */
+    suspend fun hydrateWebDavMetadata(
+        songs: List<Song>,
+        maxItems: Int = WEBDAV_BACKGROUND_METADATA_LIMIT
+    ) = supervisorScope {
+        val targets = songs
+            .asSequence()
+            .filter { it.isWebDavRemoteSong() }
+            .distinctBy { it.path }
+            .take(maxItems.coerceAtLeast(1))
+            .toList()
+        if (targets.isEmpty()) return@supervisorScope
+        if (loadWebDavConfig(settingsManager) == null) return@supervisorScope
+        val nextIndex = AtomicInteger(0)
+        val publishMutex = Mutex()
+        val remoteCacheFile = libraryCacheStore.remoteLibraryCacheFile(SettingsManager.LIBRARY_SOURCE_WEBDAV)
+        var changedCount = 0
+
+        suspend fun publishResolvedSong(resolved: Song) {
+            var snapshotSongs: List<Song>? = null
+            var snapshotAlbums: List<Album>? = null
+            publishMutex.withLock {
+                val currentSongs = _songs.value
+                val index = currentSongs.indexOfFirst { current ->
+                    current.isWebDavRemoteSong() && current.path == resolved.path
+                }
+                if (index < 0) return@withLock
+                val nextSongs = currentSongs.toMutableList()
+                if (nextSongs[index] == resolved) return@withLock
+                nextSongs[index] = resolved
+                _songs.value = nextSongs
+                changedCount++
+                if (changedCount % 32 == 0) {
+                    val albums = nextSongs.toAlbums()
+                    _albums.value = albums
+                    snapshotSongs = nextSongs.toList()
+                    snapshotAlbums = albums
+                }
+            }
+            val songsToSave = snapshotSongs
+            val albumsToSave = snapshotAlbums
+            if (songsToSave != null && albumsToSave != null) {
+                libraryCacheStore.saveLibraryCacheTo(remoteCacheFile, songsToSave, albumsToSave)
+            }
+        }
+
+        val workerCount = minOf(2, targets.size)
+        val workers = List(workerCount) {
+            launch(Dispatchers.IO) {
+                while (true) {
+                    ensureActive()
+                    val index = nextIndex.getAndIncrement()
+                    if (index >= targets.size) return@launch
+                    val song = targets[index]
+                    try {
+                        song.ensureWebDavMetadataCached(allowFullDownload = false)
+                        if (!song.hasUsableWebDavMetadataCache(remoteAudioCacheDir, remoteMetadataHeaderCacheDir)) {
+                            continue
+                        }
+                        publishResolvedSong(song.withRepositoryTags(allowFullDownload = false))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Throwable) {
+                        Log.w("MusicRepo", "Failed to hydrate WebDAV metadata for ${song.path.webDavSafeLogUrl()}", error)
+                    }
+                }
+            }
+        }
+        workers.forEach { it.join() }
+
+        if (changedCount > 0) {
+            publishMutex.withLock {
+                val currentSongs = _songs.value
+                val albums = currentSongs.toAlbums()
+                _albums.value = albums
+                libraryCacheStore.saveLibraryCacheTo(remoteCacheFile, currentSongs, albums)
+            }
+        }
+        // The metadata window itself is also a state change. Some files keep the same
+        // filename-derived fields after hydration, so emit a revision to reload artwork/lyrics.
+        _webDavMetadataRevision.value += 1L
     }
 
     private fun Song.effectiveLocalPathForMetadata(allowFullDownload: Boolean = false): String {
@@ -1161,15 +1363,93 @@ class MusicRepository(private val context: Context) {
         val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
         if (fullCache.exists() && fullCache.length() > 0L) return fullCache.absolutePath
         val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
-        if (headerCache.exists() && headerCache.length() > 0L) return headerCache.absolutePath
-        val config = runBlocking(Dispatchers.IO) { loadWebDavConfig(settingsManager) } ?: return path
-        downloadWebDavMetadataHeader(this, config, remoteMetadataHeaderCacheDir)?.let { return it.absolutePath }
-        if (!allowFullDownload) return path
-        return runCatching {
-            WebDavClient.downloadToFile(path, config, fullCache).absolutePath
-        }.getOrElse {
-            Log.w("MusicRepo", "Failed to cache remote metadata file for $path", it)
-            path
+        if (headerCache.exists() && headerCache.length() > 0L) {
+            val usable = when {
+                isLikelyFlacAudio() -> WebDavClient.isFlacMetadataCacheUsable(headerCache, fileSize)
+                supportsSparseWebDavMetadataWindow() -> fileSize <= 0L || headerCache.length() >= fileSize
+                else -> false
+            }
+            if (usable) return headerCache.absolutePath
+        }
+        return path
+    }
+
+    private suspend fun Song.ensureWebDavMetadataCached(allowFullDownload: Boolean) {
+        if (!isWebDavRemoteSong()) return
+        val lock = webDavMetadataLocks.getOrPut(path) { Mutex() }
+        lock.withLock {
+            val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
+            val fullCacheIsUsable = fullCache.exists() && fullCache.length() > 0L &&
+                (fileSize <= 0L || fullCache.length() == fileSize)
+            if (fullCacheIsUsable) return@withLock
+
+            val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
+            val flacAudio = isLikelyFlacAudio()
+            val sparseWindowSupported = supportsSparseWebDavMetadataWindow()
+            if (!flacAudio && !sparseWindowSupported && headerCache.exists()) {
+                // Never pass an old partial/sparse cache for DSF/APE/DTS/etc. to native TagLib.
+                // These formats need a complete file for reliable parsing.
+                headerCache.delete()
+                WebDavClient.clearFlacMetadataCacheMarker(headerCache)
+                if (!allowFullDownload) return@withLock
+            }
+            val headerCacheIsUsable = headerCache.exists() && headerCache.length() > 0L &&
+                if (flacAudio) {
+                    WebDavClient.isFlacMetadataCacheUsable(headerCache, fileSize)
+                } else if (sparseWindowSupported) {
+                    fileSize <= 0L || headerCache.length() >= fileSize
+                } else {
+                    false
+                }
+            if (headerCacheIsUsable) return@withLock
+
+            val config = loadWebDavConfig(settingsManager) ?: return@withLock
+            val attemptKey = "$path:$fileSize"
+            if (fileSize > 0L && (flacAudio || sparseWindowSupported) && webDavMetadataWindowAttempts.add(attemptKey)) {
+                val window = try {
+                    if (flacAudio) {
+                        WebDavClient.downloadFlacMetadataPrefixToFileCancellable(
+                            url = path,
+                            config = config,
+                            target = headerCache,
+                            remoteSize = fileSize
+                        )
+                    } else {
+                        WebDavClient.downloadMetadataWindowToFileCancellable(
+                            url = path,
+                            config = config,
+                            target = headerCache,
+                            remoteSize = fileSize
+                        )
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Throwable) {
+                    Log.w("MusicRepo", "Failed to cache WebDAV metadata window for ${path.webDavSafeLogUrl()}", error)
+                    null
+                }
+                if (window != null) return@withLock
+            }
+
+            if (!flacAudio && !sparseWindowSupported) {
+                if (!allowFullDownload) return@withLock
+                WebDavClient.downloadToFile(path, config, fullCache)
+                return@withLock
+            }
+
+            // A partial head cache is still useful for non-FLAC tags when the server has no Range
+            // support. FLAC must keep the contiguous-prefix marker, otherwise an old sparse or
+            // truncated cache would be handed to the tag reader as if it were complete.
+            if (!flacAudio && headerCache.exists() && headerCache.length() > 0L) return@withLock
+            val header = WebDavClient.downloadHeaderToFileCancellable(path, config, headerCache)
+            if (!flacAudio) {
+                if (header != null || !allowFullDownload) return@withLock
+                WebDavClient.downloadToFile(path, config, fullCache)
+            } else {
+                if (header != null && WebDavClient.isFlacMetadataCacheUsable(header, fileSize)) return@withLock
+                if (!allowFullDownload) return@withLock
+                WebDavClient.downloadToFile(path, config, fullCache)
+            }
         }
     }
 

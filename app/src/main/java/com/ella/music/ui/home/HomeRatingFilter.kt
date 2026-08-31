@@ -199,7 +199,7 @@ internal data class HomeRatingFilterSelection(
         }
         val selectedStars = (1..5).filter { modeFor(it) != RatingFilterBucketMode.Excluded }
         if (selectedStars.size == 5) {
-            return context.getString(R.string.rating_filter_all)
+            return context.getString(R.string.rating_filter_rated)
         }
         if (isAllStarsScope() && globalScopeMode() == RatingFilterBucketMode.All) {
             return null

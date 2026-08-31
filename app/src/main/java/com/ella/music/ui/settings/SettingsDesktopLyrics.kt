@@ -304,10 +304,7 @@ internal fun SettingsDesktopLyricControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_status_bar_lyric_position),
-        summary = stringResource(
-            R.string.settings_current_value,
-            statusLyricPositionLabels[desktopLyricStatusBarPosition.coerceIn(0, 2)]
-        ),
+        summary = stringResource(R.string.settings_status_bar_lyric_position_summary),
         enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
         items = statusLyricPositionEntries,
         selectedIndex = desktopLyricStatusBarPosition.coerceIn(0, 2),
@@ -351,10 +348,7 @@ internal fun SettingsDesktopLyricControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_status_bar_lyric_text_align),
-        summary = stringResource(
-            R.string.settings_current_value,
-            statusLyricTextAlignLabels[desktopLyricStatusBarTextAlign.coerceIn(0, 2)]
-        ),
+        summary = stringResource(R.string.settings_status_bar_lyric_text_align_summary),
         enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
         items = statusLyricTextAlignEntries,
         selectedIndex = desktopLyricStatusBarTextAlign.coerceIn(0, 2),
@@ -368,10 +362,7 @@ internal fun SettingsDesktopLyricControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_status_bar_lyric_vertical_align),
-        summary = stringResource(
-            R.string.settings_current_value,
-            statusLyricVerticalAlignLabels[desktopLyricStatusBarVerticalAlign.coerceIn(0, 2)]
-        ),
+        summary = stringResource(R.string.settings_status_bar_lyric_vertical_align_summary),
         enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
         items = statusLyricVerticalAlignEntries,
         selectedIndex = desktopLyricStatusBarVerticalAlign.coerceIn(0, 2),
@@ -385,10 +376,7 @@ internal fun SettingsDesktopLyricControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_status_bar_lyric_secondary),
-        summary = stringResource(
-            R.string.settings_current_value,
-            statusLyricSecondaryLabels[desktopLyricStatusBarSecondary.coerceIn(0, 2)]
-        ),
+        summary = stringResource(R.string.settings_status_bar_lyric_secondary_summary),
         enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
         items = statusLyricSecondaryEntries,
         selectedIndex = desktopLyricStatusBarSecondary.coerceIn(0, 2),
@@ -533,10 +521,7 @@ internal fun SettingsDesktopLyricControls(
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_desktop_lyric_color),
-        summary = stringResource(
-            R.string.settings_current_value,
-            desktopLyricColorPresets[selectedDesktopLyricColorIndex].first
-        ),
+        summary = stringResource(R.string.settings_desktop_lyric_color_summary),
         enabled = desktopLyricEnabled && !desktopLyricSyncCoverContentColor,
         items = desktopLyricColorEntries,
         selectedIndex = selectedDesktopLyricColorIndex,

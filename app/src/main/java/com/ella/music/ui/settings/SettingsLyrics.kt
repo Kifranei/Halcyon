@@ -450,7 +450,7 @@ private fun SettingsPlayerMiniLyricControls() {
     )
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
-        summary = stringResource(R.string.settings_current_value, alignLabels[textAlign.coerceIn(0, 2)]),
+        summary = stringResource(R.string.settings_player_lyric_text_align_summary),
         items = alignLabels.map { DropdownItem(title = it) },
         selectedIndex = textAlign.coerceIn(0, 2),
         onSelectedIndexChange = { value ->
@@ -508,10 +508,7 @@ private fun SettingsPlayerLyricAlignmentPreference() {
 
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
-        summary = stringResource(
-            R.string.settings_current_value,
-            labels[playerLyricTextAlign.coerceIn(0, 2)]
-        ),
+        summary = stringResource(R.string.settings_player_lyric_text_align_summary),
         items = entries,
         selectedIndex = playerLyricTextAlign.coerceIn(0, 2),
         onSelectedIndexChange = { index ->

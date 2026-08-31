@@ -65,6 +65,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_PIN_BUTTONS_V
 import com.ella.music.data.SettingsManager.Companion.KEY_MONET_COLOR_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_SHORTCUT_FOLDER_LABEL
 import com.ella.music.data.SettingsManager.Companion.KEY_SHORTCUT_LIBRARY_LABEL
+import com.ella.music.data.SettingsManager.Companion.KEY_SETTINGS_SEARCH_HISTORY
 import com.ella.music.data.SettingsManager.Companion.KEY_SHORTCUT_PLAYLISTS_LABEL
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_POSTER_DURATION_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_POSTER_ENABLED
@@ -117,6 +118,7 @@ interface AppearanceSettingsAccess {
     val shortcutPlaylistsLabel: Flow<String>
     val shortcutFolderLabel: Flow<String>
     val appShortcutOrder: Flow<List<String>>
+    val settingsSearchHistory: Flow<List<String>>
     val homeDailyMixVisible: Flow<Boolean>
     val homeFeatureWallpaperUri: Flow<String>
     val homeAiMixVisible: Flow<Boolean>
@@ -160,6 +162,8 @@ interface AppearanceSettingsAccess {
     suspend fun setShortcutPlaylistsLabel(label: String)
     suspend fun setShortcutFolderLabel(label: String)
     suspend fun setAppShortcutOrder(shortcutIds: List<String>)
+    suspend fun recordSettingsSearchQuery(query: String)
+    suspend fun clearSettingsSearchHistory()
     suspend fun setHomeDailyMixVisible(visible: Boolean)
     suspend fun setHomeFeatureWallpaperUri(uri: String)
     suspend fun setHomeAiMixVisible(visible: Boolean)
@@ -213,6 +217,11 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
             normalizeBottomDockItems(it[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS)
                 .split(',')
                 .filter(String::isNotBlank)
+        }
+
+    override val settingsSearchHistory: Flow<List<String>> =
+        context.dataStore.data.map {
+            SettingsSearchHistory.decode(it[KEY_SETTINGS_SEARCH_HISTORY])
         }
 
     override val artistCoverFolderUri: Flow<String> =
@@ -473,6 +482,20 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setShortcutFolderLabel(label: String) {
         setShortcutLabel(KEY_SHORTCUT_FOLDER_LABEL, label, DEFAULT_SHORTCUT_FOLDER_LABEL)
+    }
+
+    override suspend fun recordSettingsSearchQuery(query: String) {
+        context.dataStore.edit { prefs ->
+            val next = SettingsSearchHistory.record(
+                current = SettingsSearchHistory.decode(prefs[KEY_SETTINGS_SEARCH_HISTORY]),
+                query = query
+            )
+            prefs[KEY_SETTINGS_SEARCH_HISTORY] = SettingsSearchHistory.encode(next)
+        }
+    }
+
+    override suspend fun clearSettingsSearchHistory() {
+        context.dataStore.edit { it.remove(KEY_SETTINGS_SEARCH_HISTORY) }
     }
 
     override suspend fun setAppShortcutOrder(shortcutIds: List<String>) {

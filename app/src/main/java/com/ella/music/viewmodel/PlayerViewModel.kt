@@ -24,6 +24,7 @@ import com.ella.music.data.remote.SavedRemoteServer
 import com.ella.music.data.remote.isSubsonicLike
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.data.repository.isWebDavRemoteSong
 import com.ella.music.player.DesktopLyricBridge
 import com.ella.music.player.ExoPlayerManager
 import com.ella.music.player.LyricGetterBridge
@@ -158,6 +159,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val playbackSpeed: StateFlow<Float> = playerManager.playbackSpeed
     val playbackPitch: StateFlow<Float> = playerManager.playbackPitch
     val playlist: StateFlow<List<Song>> = playerManager.playlistFlow
+    val currentQueueIndex: StateFlow<Int> = playerManager.currentQueueIndex
     private val _abRepeatState = MutableStateFlow(AbRepeatState())
     internal val abRepeatState: StateFlow<AbRepeatState> = _abRepeatState.asStateFlow()
     val userPlaylists: StateFlow<List<UserPlaylist>> = playlistStore.playlists
@@ -313,6 +315,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playerManager.connect()
         startPositionUpdates()
         observeCurrentSong()
+        observeWebDavMetadataRevision()
         observePlayState()
         initLyricon()
         initTicker()
@@ -848,11 +851,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun observeCurrentSong() {
         viewModelScope.launch {
             playerManager.currentSong.collectLatest { song ->
-                val songKey = song?.lyricIdentityKey()
-                if (songKey == null || _abRepeatState.value.songKey != songKey) {
-                    _abRepeatState.value = AbRepeatState()
-                }
                 if (song == null) {
+                    _abRepeatState.value = AbRepeatState()
                     // Queue reorder / repeat-mode changes can emit a transient null. Wait before
                     // wiping lyrics so a flicker does not blank the player and lyric page.
                     delay(280L)
@@ -869,19 +869,43 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     clearExternalLyrics(clearLyricon = true, clearSuperLyricSong = true)
                     return@collectLatest
                 }
-                recordCategoryResume(song)
-                val songSource = com.ella.music.data.PlaybackSourceNavigation.sourceForSong(song.playlistIdentityKey())
-                if (songSource != null) {
-                    _playbackSourceKey.value = songSource
-                    com.ella.music.data.PlaybackSourceNavigation.updateSource(songSource)
+                // Playlist records created before WebDAV metadata hydration may still contain
+                // only the remote filename. Direct playback resolves the same URL before it
+                // enters the player, but an old playlist can bypass that path. Resolve the
+                // active occurrence here as well so its embedded cover/lyrics cache is ready
+                // before the first lyric and artwork lookup.
+                val activeSong = if (song.isWebDavRemoteSong()) {
+                    val resolved = withContext(Dispatchers.IO) {
+                        repository.resolveSongForPlayback(song)
+                    }
+                    if (playerManager.currentSong.value?.path != song.path) {
+                        return@collectLatest
+                    }
+                    if (resolved != song) {
+                        playerManager.updateCurrentSongMetadata(resolved)
+                    }
+                    resolved
+                } else {
+                    song
                 }
+                val songKey = activeSong.lyricIdentityKey()
+                if (_abRepeatState.value.songKey != songKey) {
+                    _abRepeatState.value = AbRepeatState()
+                }
+                recordCategoryResume(activeSong)
+                // The source belongs to this queue occurrence. Looking it up by playlist identity
+                // made duplicate entries overwrite each other (e.g. the same song queued from a
+                // playlist and then from an album) and sent navigation to the wrong page.
+                val songSource = activeSong.playbackSourceKey
+                _playbackSourceKey.value = songSource
+                com.ella.music.data.PlaybackSourceNavigation.updateSource(songSource)
                 viewModelScope.launch(Dispatchers.IO) {
                     val source = ListeningHistorySource.fromPreference(settingsManager.listeningHistorySource.first())
                     if (source.usesLastFm) {
-                        lastFmHistoryStore.updateNowPlaying(song)
+                        lastFmHistoryStore.updateNowPlaying(activeSong)
                     }
                 }
-                val loadedKey = song.lyricIdentityKey()
+                val loadedKey = activeSong.lyricIdentityKey()
                 if (loadedLyricSongKey == loadedKey && _lyrics.value.isNotEmpty()) {
                     updateCurrentLyricIndex()
                     return@collectLatest
@@ -891,10 +915,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 // Keep the previous lines visible until the replacement arrives. Clearing here
                 // made mini-lyrics and the lyric page go blank when playback-mode changes
                 // briefly emitted another song identity.
-                val songLyrics = repository.getLyrics(song, lyricSourceMode)
+                val songLyrics = repository.getLyrics(activeSong, lyricSourceMode)
                 val notificationArtwork = withContext(Dispatchers.IO) {
                     repository.getCoverArtBitmap(
-                        song = song,
+                        song = activeSong,
                         maxSize = LIVE_UPDATE_ARTWORK_SIZE,
                         usage = CoverUsage.Notification
                     )
@@ -904,18 +928,36 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 liveUpdateArtwork = notificationArtwork
                 loadedLyricSongKey = loadedKey
-                setLoadedLyrics(song, songLyrics, notifyExternal = false)
+                setLoadedLyrics(activeSong, songLyrics, notifyExternal = false)
                 _lyricsLoading.value = false
                 val displayedLyrics = _lyrics.value
 
                 if (lyriconBridge.isEnabled()) {
-                    lyriconBridge.sendSong(song, displayedLyrics)
+                    lyriconBridge.sendSong(activeSong, displayedLyrics)
                 }
                 if (displayedLyrics.isEmpty()) {
                     clearExternalLyrics(clearLyricon = false, clearSuperLyricSong = false)
                 } else {
                     scheduleExternalLyricResend()
                 }
+            }
+        }
+    }
+
+    private fun observeWebDavMetadataRevision() {
+        viewModelScope.launch {
+            repository.webDavMetadataRevision.collect {
+                if (it == 0L) return@collect
+                val current = playerManager.currentSong.value ?: return@collect
+                if (!current.isWebDavRemoteSong()) return@collect
+                val enriched = repository.songs.value.firstOrNull { song -> song.path == current.path } ?: current
+                if (playerManager.currentSong.value?.path != current.path) return@collect
+                if (enriched != current) {
+                    playerManager.updateCurrentSongMetadata(enriched)
+                }
+                // Hydration may only have populated the remote cache. Force embedded/sidecar
+                // lyric lookup and format availability to run again.
+                reloadLyrics(enriched, force = true)
             }
         }
     }
@@ -1330,26 +1372,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!songSources.isNullOrEmpty()) {
             com.ella.music.data.PlaybackSourceNavigation.recordSongSources(songSources)
         }
-        val startSongKey = songs.getOrNull(startIndex)?.playlistIdentityKey()
-        val queueSource = resumeCategoryKey
-            ?: startSongKey?.let { songSources?.get(it) }
-            ?: com.ella.music.data.PlaybackSourceNavigation.activeScreen()
-        if (queueSource != null) {
-            activeResumeCategoryKey = queueSource
-            _playbackSourceKey.value = queueSource
-            com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
-            if (songSources.isNullOrEmpty()) {
-                com.ella.music.data.PlaybackSourceNavigation.recordSongSources(
-                    sequenceOf(songs[startIndex.coerceIn(songs.indices)])
-                        .plus(songs.asSequence())
-                        .distinctBy { it.playlistIdentityKey() }
-                        .take(400)
-                        .associate { song -> song.playlistIdentityKey() to queueSource }
-                )
-            }
+        if (songs.isEmpty()) {
+            activeResumeCategoryKey = resumeCategoryKey?.takeIf { it.isNotBlank() }
+            _playbackSourceKey.value = null
+            com.ella.music.data.PlaybackSourceNavigation.updateSource(null)
+            return
         }
-        songs.getOrNull(startIndex)?.let(::recordCategoryResume)
-        playerManager.setPlaylist(songs, startIndex)
+        val sourceAwareSongs = songs.withPlaybackSources(
+            songSources = songSources,
+            fallbackSource = resumeCategoryKey
+        )
+        val safeStartIndex = startIndex.coerceIn(sourceAwareSongs.indices)
+        val queueSource = sourceAwareSongs[safeStartIndex].playbackSourceKey
+        activeResumeCategoryKey = resumeCategoryKey?.takeIf { it.isNotBlank() }
+        _playbackSourceKey.value = queueSource
+        com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
+        sourceAwareSongs.getOrNull(safeStartIndex)?.let(::recordCategoryResume)
+        playerManager.setPlaylist(sourceAwareSongs, safeStartIndex)
     }
 
     fun setShuffledPlaylist(
@@ -1358,33 +1397,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         resumeCategoryKey: String? = null,
         songSources: Map<String, String>? = null
     ) {
-        if (songs.isEmpty()) return
+        if (songs.isEmpty()) {
+            activeResumeCategoryKey = resumeCategoryKey?.takeIf { it.isNotBlank() }
+            _playbackSourceKey.value = null
+            com.ella.music.data.PlaybackSourceNavigation.updateSource(null)
+            return
+        }
         val randomStartIndex = if (songs.size > 1 && startIndex == 0) songs.indices.random()
         else startIndex.coerceIn(songs.indices)
         lazyOnlineQueueController.clear()
         if (!songSources.isNullOrEmpty()) {
             com.ella.music.data.PlaybackSourceNavigation.recordSongSources(songSources)
         }
-        val startSongKey = songs[randomStartIndex].playlistIdentityKey()
-        val queueSource = resumeCategoryKey
-            ?: songSources?.get(startSongKey)
-            ?: com.ella.music.data.PlaybackSourceNavigation.activeScreen()
-        if (queueSource != null) {
-            activeResumeCategoryKey = queueSource
-            _playbackSourceKey.value = queueSource
-            com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
-            if (songSources.isNullOrEmpty()) {
-                com.ella.music.data.PlaybackSourceNavigation.recordSongSources(
-                    sequenceOf(songs[randomStartIndex])
-                        .plus(songs.asSequence())
-                        .distinctBy { it.playlistIdentityKey() }
-                        .take(400)
-                        .associate { song -> song.playlistIdentityKey() to queueSource }
-                )
-            }
-        }
-        recordCategoryResume(songs[randomStartIndex])
-        playerManager.setPlaylistForShuffleAll(songs, randomStartIndex)
+        val sourceAwareSongs = songs.withPlaybackSources(
+            songSources = songSources,
+            fallbackSource = resumeCategoryKey
+        )
+        val queueSource = sourceAwareSongs[randomStartIndex].playbackSourceKey
+        activeResumeCategoryKey = resumeCategoryKey?.takeIf { it.isNotBlank() }
+        _playbackSourceKey.value = queueSource
+        com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
+        recordCategoryResume(sourceAwareSongs[randomStartIndex])
+        playerManager.setPlaylistForShuffleAll(sourceAwareSongs, randomStartIndex)
     }
 
     private fun recordCategoryResume(song: Song) {
@@ -1422,7 +1456,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val navigation = com.ella.music.data.PlaybackSourceNavigation
         navigation.clearSourceForSong(song.playlistIdentityKey())
         navigation.updateSource(null)
-        playerManager.setPlaylist(listOf(song), 0)
+        playerManager.setPlaylist(listOf(song.copy(playbackSourceKey = "")), 0)
     }
 
     fun playRestoredQueue() {
@@ -1564,8 +1598,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun addToPlaylist(songs: List<Song>, songSources: Map<String, String>? = null) {
         if (queueLocked.value) return
         lazyOnlineQueueController.clear()
-        recordIncomingSongSources(songs, songSources)
-        playerManager.addToPlaylist(songs)
+        val sourceAwareSongs = songs.withPlaybackSources(
+            songSources = songSources,
+            fallbackSource = com.ella.music.data.PlaybackSourceNavigation.activeScreen()
+                .takeIf { songSources.isNullOrEmpty() }
+        )
+        recordIncomingSongSources(songSources)
+        playerManager.addToPlaylist(sourceAwareSongs)
     }
 
     fun playNext(song: Song) {
@@ -1575,21 +1614,41 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun playNext(songs: List<Song>, songSources: Map<String, String>? = null) {
         if (queueLocked.value) return
         lazyOnlineQueueController.clear()
-        recordIncomingSongSources(songs, songSources)
-        playerManager.playNext(songs)
+        val sourceAwareSongs = songs.withPlaybackSources(
+            songSources = songSources,
+            fallbackSource = com.ella.music.data.PlaybackSourceNavigation.activeScreen()
+                .takeIf { songSources.isNullOrEmpty() }
+        )
+        recordIncomingSongSources(songSources)
+        playerManager.playNext(sourceAwareSongs)
     }
 
-    private fun recordIncomingSongSources(songs: List<Song>, songSources: Map<String, String>?) {
+    private fun recordIncomingSongSources(songSources: Map<String, String>?) {
         if (!songSources.isNullOrEmpty()) {
             com.ella.music.data.PlaybackSourceNavigation.recordSongSources(songSources)
-            return
         }
-        val source = com.ella.music.data.PlaybackSourceNavigation.activeScreen() ?: return
-        com.ella.music.data.PlaybackSourceNavigation.recordSongSources(
-            songs.asSequence()
-                .take(400)
-                .associate { song -> song.playlistIdentityKey() to source }
-        )
+    }
+
+    /** Attach source metadata to queue occurrences without changing the library's Song objects. */
+    private fun List<Song>.withPlaybackSources(
+        songSources: Map<String, String>?,
+        fallbackSource: String?
+    ): List<Song> = map { song ->
+        val songKey = song.playlistIdentityKey()
+        val source = when {
+            songSources?.containsKey(songKey) == true ->
+                songSources[songKey]?.takeIf {
+                    com.ella.music.data.PlaybackSourceNavigation.isNavigableSourceKey(it)
+                } ?: ""
+            com.ella.music.data.PlaybackSourceNavigation.isNavigableSourceKey(fallbackSource) ->
+                fallbackSource?.trim()
+            song.playbackSourceKey == null -> null
+            else -> song.playbackSourceKey.takeIf {
+                com.ella.music.data.PlaybackSourceNavigation.isNavigableSourceKey(it)
+            } ?: ""
+        }
+        if (source == song.playbackSourceKey) song
+        else song.copy(playbackSourceKey = source)
     }
 
     /** Re-establish the media controller if the playback session was torn down in the background. */

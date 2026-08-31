@@ -325,7 +325,9 @@ class MainActivity : ComponentActivity() {
                         // content control after the first frame so a TV remote can immediately
                         // use DPAD/OK without a touch screen gesture.
                         delay(80L)
-                        televisionFocusManager.moveFocus(FocusDirection.Enter)
+                        if (!televisionFocusManager.moveFocus(FocusDirection.Enter)) {
+                            televisionFocusManager.moveFocus(FocusDirection.Next)
+                        }
                     }
                 }
                 val reservedHiddenBarInsets = if (systemBarsReserveSpace) {

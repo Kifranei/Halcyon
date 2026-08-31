@@ -29,10 +29,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import com.ella.music.R
+import com.ella.music.playerDismissBackEnabled
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.normalizedAudioFormat
 import com.ella.music.data.normalizedBitDepth
-import com.ella.music.data.parser.LrcParser
 import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
@@ -65,7 +65,8 @@ fun PlayerScreen(
     onNavigateToEqualizer: () -> Unit = {},
     onDismissProgressChange: (Float) -> Unit = {},
     openToken: Int = 0,
-    playerVisible: Boolean = true
+    playerVisible: Boolean = true,
+    restorePlayerOnBack: Boolean = false
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -79,7 +80,6 @@ fun PlayerScreen(
     val playerTapSeekEnabled = playerSettings.playerTapSeekEnabled
     val playerShowTotalDuration = playerSettings.playerShowTotalDuration
     val coverSwipeEnabled = playerSettings.coverSwipeEnabled
-    val lyricParserEngine = playerSettings.lyricParserEngine
     val playerTitlePosition = playerSettings.playerTitlePosition
     val playerPageStyle = playerSettings.playerPageStyle
     val defaultAppleMusicShowLyrics = isLargeScreenDevice &&
@@ -379,10 +379,6 @@ fun PlayerScreen(
         // dynamic cover starts from the beginning instead of resuming a stale position.
         DynamicCoverPlaybackMemory.clearAll()
     }
-    // Sync the lyric parser engine setting to the LrcParser singleton at runtime.
-    LaunchedEffect(lyricParserEngine) {
-        LrcParser.parserEngine = lyricParserEngine
-    }
     PlayerPagerSyncEffects(
         immersiveAlbumCover = immersiveAlbumCover,
         showLyrics = showLyrics,
@@ -396,7 +392,7 @@ fun PlayerScreen(
         onDismissProgressChange = onDismissProgressChange,
         // Always retain an in-app back handler while the player overlay is visible. Disabling
         // it made Android fall through to MainActivity's default back action and finish the app.
-        backEnabled = playerVisible,
+        backEnabled = playerDismissBackEnabled(playerVisible, restorePlayerOnBack),
         predictiveBackEnabled = predictiveBackEnabled,
         onDismiss = {
             playerViewModel.setShowLyrics(false)
@@ -551,7 +547,6 @@ fun PlayerScreen(
                         lyricFormatAvailability = lyricFormatAvailability,
                         preferTtmlLyrics = preferTtmlLyrics,
                         lyricSourceMode = lyricSourceMode,
-                        lyricParserEngine = lyricParserEngine,
                         lyricLayoutProfile = lyricLayoutProfile,
                         lyricFontFamily = lyricFontFamily,
                         lyricTranslationFontFamily = lyricTranslationFontFamily,
@@ -657,7 +652,6 @@ fun PlayerScreen(
                         lyricFormatAvailability = lyricFormatAvailability,
                         preferTtmlLyrics = preferTtmlLyrics,
                         lyricSourceMode = lyricSourceMode,
-                        lyricParserEngine = lyricParserEngine,
                         lyricLayoutProfile = lyricLayoutProfile,
                         lyricFontFamily = lyricFontFamily,
                         lyricTranslationFontFamily = lyricTranslationFontFamily,
