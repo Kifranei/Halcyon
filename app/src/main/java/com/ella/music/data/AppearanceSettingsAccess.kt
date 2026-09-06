@@ -25,6 +25,7 @@ import com.ella.music.data.SettingsManager.Companion.DEFAULT_SHORTCUT_PLAYLISTS_
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_STARTUP_POSTER_DURATION_MS
 import com.ella.music.data.SettingsManager.Companion.normalizeAppShortcutOrder
 import com.ella.music.data.SettingsManager.Companion.normalizeBottomDockItems
+import com.ella.music.data.SettingsManager.Companion.normalizeBottomDockStartupItem
 import com.ella.music.data.SettingsManager.Companion.STARTUP_POSTER_DURATION_MAX_MS
 import com.ella.music.data.SettingsManager.Companion.STARTUP_POSTER_DURATION_MIN_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_ICON_STYLE
@@ -41,8 +42,15 @@ import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_NOW_PLAYING_FLOW_BACKGROUND
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_COVER_CAROUSEL
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_COVER_FOLDER_URI
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_GLASS_EFFECT
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_CORNER_RADIUS
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_LIQUID_BLUR_RADIUS
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_DOCK_ITEMS
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_DOCK_STARTUP_ITEM
 import com.ella.music.data.SettingsManager.Companion.KEY_HI_RES_LOGO_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HI_RES_LOGO_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_AI_MIX_VISIBLE
@@ -94,8 +102,15 @@ interface AppearanceSettingsAccess {
     val appDisplayScalePercent: Flow<Int>
     val appIconStyle: Flow<String>
     val widgetSafeLayout: Flow<Boolean>
+    val bottomBarStyle: Flow<BottomBarStyle>
     val bottomBarGlassEffect: Flow<BottomBarGlassEffect>
+    val bottomBarCornerRadius: Flow<Int>
+    val bottomBarLiquidBlurRadius: Flow<Int>
+    val bottomBarLiquidRefractionHeight: Flow<Int>
+    val bottomBarLiquidRefractionAmount: Flow<Int>
+    val bottomBarLiquidChromaticAberration: Flow<Int>
     val bottomDockItems: Flow<List<String>>
+    val bottomDockStartupItem: Flow<String>
     val artistCoverFolderUri: Flow<String>
     val artistCoverCarousel: Flow<Boolean>
     val startupPosterEnabled: Flow<Boolean>
@@ -138,8 +153,15 @@ interface AppearanceSettingsAccess {
     suspend fun setAppDisplayScalePercent(percent: Int)
     suspend fun setAppIconStyle(style: String)
     suspend fun setWidgetSafeLayout(enabled: Boolean)
+    suspend fun setBottomBarStyle(style: BottomBarStyle)
     suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect)
+    suspend fun setBottomBarCornerRadius(radiusDp: Int)
+    suspend fun setBottomBarLiquidBlurRadius(radiusDp: Int)
+    suspend fun setBottomBarLiquidRefractionHeight(heightDp: Int)
+    suspend fun setBottomBarLiquidRefractionAmount(amountDp: Int)
+    suspend fun setBottomBarLiquidChromaticAberration(percent: Int)
     suspend fun setBottomDockItems(items: List<String>)
+    suspend fun setBottomDockStartupItem(itemId: String)
     suspend fun setArtistCoverCarousel(carousel: Boolean)
     suspend fun setArtistCoverFolderUri(uri: String)
     suspend fun setStartupPosterEnabled(enabled: Boolean)
@@ -205,6 +227,20 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         context.dataStore.data.map { AppIconManager.normalize(it[KEY_APP_ICON_STYLE]) }
     override val widgetSafeLayout: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_WIDGET_SAFE_LAYOUT] ?: false }
+    override val bottomBarStyle: Flow<BottomBarStyle> = context.dataStore.data.map { preferences ->
+        preferences[KEY_BOTTOM_BAR_STYLE]
+            ?.let { stored -> runCatching { BottomBarStyle.valueOf(stored) }.getOrNull() }
+            ?: runCatching {
+                when (
+                    BottomBarGlassEffect.valueOf(
+                        preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.LiquidGlass.name
+                    )
+                ) {
+                    BottomBarGlassEffect.Blur -> BottomBarStyle.Floating
+                    BottomBarGlassEffect.LiquidGlass -> BottomBarStyle.LiquidGlass
+                }
+            }.getOrDefault(BottomBarStyle.LiquidGlass)
+    }
     override val bottomBarGlassEffect: Flow<BottomBarGlassEffect> = context.dataStore.data.map { preferences ->
         runCatching {
             BottomBarGlassEffect.valueOf(
@@ -212,11 +248,61 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
             )
         }.getOrDefault(BottomBarGlassEffect.LiquidGlass)
     }
+    override val bottomBarCornerRadius: Flow<Int> = context.dataStore.data.map { preferences ->
+        (preferences[KEY_BOTTOM_BAR_CORNER_RADIUS]
+            ?: SettingsManager.DEFAULT_BOTTOM_BAR_CORNER_RADIUS_DP)
+            .coerceIn(
+                SettingsManager.BOTTOM_BAR_CORNER_RADIUS_MIN_DP,
+                SettingsManager.BOTTOM_BAR_CORNER_RADIUS_MAX_DP,
+            )
+    }
+    override val bottomBarLiquidBlurRadius: Flow<Int> = context.dataStore.data.map { preferences ->
+        (preferences[KEY_BOTTOM_BAR_LIQUID_BLUR_RADIUS]
+            ?: SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_BLUR_RADIUS_DP)
+            .coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_BLUR_RADIUS_MIN_DP,
+                SettingsManager.BOTTOM_BAR_LIQUID_BLUR_RADIUS_MAX_DP,
+            )
+    }
+    override val bottomBarLiquidRefractionHeight: Flow<Int> = context.dataStore.data.map { preferences ->
+        (preferences[KEY_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT]
+            ?: SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT_DP)
+            .coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MIN_DP,
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MAX_DP,
+            )
+    }
+    override val bottomBarLiquidRefractionAmount: Flow<Int> = context.dataStore.data.map { preferences ->
+        (preferences[KEY_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT]
+            ?: SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT_DP)
+            .coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MIN_DP,
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MAX_DP,
+            )
+    }
+    override val bottomBarLiquidChromaticAberration: Flow<Int> = context.dataStore.data.map { preferences ->
+        (preferences[KEY_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION]
+            ?: SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_PERCENT)
+            .coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MIN_PERCENT,
+                SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MAX_PERCENT,
+            )
+    }
     override val bottomDockItems: Flow<List<String>> =
         context.dataStore.data.map {
             normalizeBottomDockItems(it[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS)
                 .split(',')
                 .filter(String::isNotBlank)
+        }
+    override val bottomDockStartupItem: Flow<String> =
+        context.dataStore.data.map { preferences ->
+            val configuredItems = normalizeBottomDockItems(
+                preferences[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS
+            ).split(',').filter(String::isNotBlank)
+            normalizeBottomDockStartupItem(
+                value = preferences[KEY_BOTTOM_DOCK_STARTUP_ITEM],
+                configuredItems = configuredItems
+            )
         }
 
     override val settingsSearchHistory: Flow<List<String>> =
@@ -357,13 +443,92 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         context.dataStore.edit { it[KEY_WIDGET_SAFE_LAYOUT] = enabled }
     }
 
+    override suspend fun setBottomBarStyle(style: BottomBarStyle) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_BOTTOM_BAR_STYLE] = style.name
+            when (style) {
+                BottomBarStyle.Floating -> preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] = BottomBarGlassEffect.Blur.name
+                BottomBarStyle.LiquidGlass -> preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] = BottomBarGlassEffect.LiquidGlass.name
+                BottomBarStyle.Normal -> Unit
+            }
+        }
+    }
+
     override suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect) {
-        context.dataStore.edit { it[KEY_BOTTOM_BAR_GLASS_EFFECT] = effect.name }
+        context.dataStore.edit {
+            it[KEY_BOTTOM_BAR_GLASS_EFFECT] = effect.name
+            it[KEY_BOTTOM_BAR_STYLE] = when (effect) {
+                BottomBarGlassEffect.Blur -> BottomBarStyle.Floating.name
+                BottomBarGlassEffect.LiquidGlass -> BottomBarStyle.LiquidGlass.name
+            }
+        }
+    }
+
+    override suspend fun setBottomBarCornerRadius(radiusDp: Int) {
+        context.dataStore.edit {
+            it[KEY_BOTTOM_BAR_CORNER_RADIUS] = radiusDp.coerceIn(
+                SettingsManager.BOTTOM_BAR_CORNER_RADIUS_MIN_DP,
+                SettingsManager.BOTTOM_BAR_CORNER_RADIUS_MAX_DP,
+            )
+        }
+    }
+
+    override suspend fun setBottomBarLiquidBlurRadius(radiusDp: Int) {
+        context.dataStore.edit {
+            it[KEY_BOTTOM_BAR_LIQUID_BLUR_RADIUS] = radiusDp.coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_BLUR_RADIUS_MIN_DP,
+                SettingsManager.BOTTOM_BAR_LIQUID_BLUR_RADIUS_MAX_DP,
+            )
+        }
+    }
+
+    override suspend fun setBottomBarLiquidRefractionHeight(heightDp: Int) {
+        context.dataStore.edit {
+            it[KEY_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT] = heightDp.coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MIN_DP,
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MAX_DP,
+            )
+        }
+    }
+
+    override suspend fun setBottomBarLiquidRefractionAmount(amountDp: Int) {
+        context.dataStore.edit {
+            it[KEY_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT] = amountDp.coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MIN_DP,
+                SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MAX_DP,
+            )
+        }
+    }
+
+    override suspend fun setBottomBarLiquidChromaticAberration(percent: Int) {
+        context.dataStore.edit {
+            it[KEY_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION] = percent.coerceIn(
+                SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MIN_PERCENT,
+                SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MAX_PERCENT,
+            )
+        }
     }
 
     override suspend fun setBottomDockItems(items: List<String>) {
-        context.dataStore.edit {
-            it[KEY_BOTTOM_DOCK_ITEMS] = normalizeBottomDockItems(items.joinToString(","))
+        context.dataStore.edit { preferences ->
+            val normalizedItems = normalizeBottomDockItems(items.joinToString(","))
+            preferences[KEY_BOTTOM_DOCK_ITEMS] = normalizedItems
+            preferences[KEY_BOTTOM_DOCK_STARTUP_ITEM] = normalizeBottomDockStartupItem(
+                value = preferences[KEY_BOTTOM_DOCK_STARTUP_ITEM],
+                configuredItems = normalizedItems.split(',').filter(String::isNotBlank)
+            )
+        }
+    }
+
+    override suspend fun setBottomDockStartupItem(itemId: String) {
+        context.dataStore.edit { preferences ->
+            val configuredItems = normalizeBottomDockItems(
+                preferences[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS
+            ).split(',').filter(String::isNotBlank)
+            preferences[KEY_BOTTOM_DOCK_STARTUP_ITEM] = normalizeBottomDockStartupItem(
+                value = itemId,
+                configuredItems = configuredItems
+            )
         }
     }
 

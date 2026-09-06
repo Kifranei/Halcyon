@@ -38,6 +38,16 @@ enum class BottomBarGlassEffect {
     LiquidGlass
 }
 
+/**
+ * Selects the bottom navigation presentation.  The glass effect preference is
+ * kept separately for backwards compatibility with older backups.
+ */
+enum class BottomBarStyle {
+    Normal,
+    Floating,
+    LiquidGlass
+}
+
 class SettingsManager(private val context: Context) :
     SystemLyricSettingsAccess by SystemLyricSettingsAccessImpl(context),
     PlaybackSettingsAccess by PlaybackSettingsAccessImpl(context),
@@ -83,8 +93,18 @@ class SettingsManager(private val context: Context) :
         val KEY_APP_ICON_STYLE = stringPreferencesKey("app_icon_style")
         val KEY_WIDGET_SAFE_LAYOUT = booleanPreferencesKey("widget_safe_layout")
         val KEY_LIBRARY_SOURCE = stringPreferencesKey("library_source")
+        val KEY_BOTTOM_BAR_STYLE = stringPreferencesKey("bottom_bar_style")
         val KEY_BOTTOM_BAR_GLASS_EFFECT = stringPreferencesKey("bottom_bar_glass_effect")
+        val KEY_BOTTOM_BAR_CORNER_RADIUS = intPreferencesKey("bottom_bar_corner_radius")
+        val KEY_BOTTOM_BAR_LIQUID_BLUR_RADIUS = intPreferencesKey("bottom_bar_liquid_blur_radius")
+        val KEY_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT =
+            intPreferencesKey("bottom_bar_liquid_refraction_height")
+        val KEY_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT =
+            intPreferencesKey("bottom_bar_liquid_refraction_amount")
+        val KEY_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION =
+            intPreferencesKey("bottom_bar_liquid_chromatic_aberration")
         val KEY_BOTTOM_DOCK_ITEMS = stringPreferencesKey("bottom_dock_items")
+        val KEY_BOTTOM_DOCK_STARTUP_ITEM = stringPreferencesKey("bottom_dock_startup_item")
         val KEY_TICKER_ENABLED = booleanPreferencesKey("ticker_enabled")
         val KEY_TICKER_HIDE_NOTIFICATION = booleanPreferencesKey("ticker_hide_notification")
         val KEY_TICKER_HEADS_UP_LYRICS = booleanPreferencesKey("ticker_heads_up_lyrics")
@@ -95,6 +115,7 @@ class SettingsManager(private val context: Context) :
         val KEY_LIVE_UPDATE_LYRIC_SECONDARY_MODE = intPreferencesKey("live_update_lyric_secondary_mode")
         val KEY_XIAOMI_SUPER_ISLAND_LYRIC_ENABLED = booleanPreferencesKey("xiaomi_super_island_lyric_enabled")
         val KEY_XIAOMI_SUPER_ISLAND_SETTINGS = stringPreferencesKey("xiaomi_super_island_settings")
+        val KEY_VIVO_ATOM_WALKMAN_WHITELIST_ENABLED = booleanPreferencesKey("vivo_atom_walkman_whitelist_enabled")
         val KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION = booleanPreferencesKey("samsung_floating_lyric_translation")
         val KEY_STATUS_BAR_ALLOW_PHONETIC = booleanPreferencesKey("status_bar_allow_phonetic")
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
@@ -186,6 +207,7 @@ class SettingsManager(private val context: Context) :
         val KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE = intPreferencesKey("player_mini_lyric_secondary_size")
         val KEY_PLAYER_MINI_LYRIC_LINE_SPACING = intPreferencesKey("player_mini_lyric_line_spacing")
         val KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN = intPreferencesKey("player_mini_lyric_text_align")
+        val KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN = intPreferencesKey("player_mini_lyric_vertical_align")
         val KEY_LYRIC_PAUSE_CURRENT_ONLY = booleanPreferencesKey("lyric_pause_current_only")
         val KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE = booleanPreferencesKey("player_immersive_lyric_swipe")
         val KEY_PLAYER_TITLE_POSITION = intPreferencesKey("player_title_position")
@@ -197,9 +219,12 @@ class SettingsManager(private val context: Context) :
         val KEY_QUEUE_TOOLBAR_LAYOUT = stringPreferencesKey("queue_toolbar_layout")
         val KEY_PLAYER_LANDSCAPE_STYLE = intPreferencesKey("player_landscape_style")
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
+        val KEY_PLAYER_LANDSCAPE_HIDE_SYSTEM_BARS = booleanPreferencesKey("player_landscape_hide_system_bars")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_PLAYER_IMMERSIVE_COVER = booleanPreferencesKey("player_immersive_cover")
         val KEY_PLAYER_COVER_CONTENT_COLOR = booleanPreferencesKey("player_cover_content_color")
+        val KEY_PLAYER_ALBUM_COVER_CORNER_RADIUS = intPreferencesKey("player_album_cover_corner_radius")
+        val KEY_PLAYER_MUSIC_VIDEO_CORNER_RADIUS = intPreferencesKey("player_music_video_corner_radius")
         val KEY_SYSTEM_BARS_MODE = intPreferencesKey("system_bars_mode")
         val KEY_SYSTEM_BARS_RESERVE_SPACE =
             booleanPreferencesKey("system_bars_reserve_space")
@@ -267,6 +292,9 @@ class SettingsManager(private val context: Context) :
         val KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES = booleanPreferencesKey("music_video_capture_subtitles")
         val KEY_MUSIC_VIDEO_STRETCH_ENABLED = booleanPreferencesKey("music_video_stretch_enabled")
         val KEY_MUSIC_VIDEO_ORIENTATION = intPreferencesKey("music_video_orientation")
+        val KEY_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED = booleanPreferencesKey("music_video_fullscreen_button_enabled")
+        val KEY_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED = booleanPreferencesKey("music_video_long_press_info_enabled")
+        val KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED = booleanPreferencesKey("music_video_long_press_immersive_lyrics_enabled")
         val KEY_MUSIC_VIDEO_OFFSETS_JSON = stringPreferencesKey("music_video_offsets_json")
         val KEY_DYNAMIC_COVER_CUSTOM_FOLDERS = stringPreferencesKey("dynamic_cover_custom_folders")
         val KEY_MUSIC_VIDEO_CUSTOM_FOLDERS = stringPreferencesKey("music_video_custom_folders")
@@ -468,6 +496,7 @@ class SettingsManager(private val context: Context) :
         val KEY_FOLDER_PLAYLISTS = stringPreferencesKey("folder_playlists")
         val KEY_HOME_TILE_PIN_BUTTONS_VISIBLE = booleanPreferencesKey("home_tile_pin_buttons_visible")
         val KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED = booleanPreferencesKey("notification_permission_prompt_handled")
+        val KEY_ALL_FILES_ACCESS_PROMPT_HANDLED = booleanPreferencesKey("all_files_access_prompt_handled")
 
         const val LYRIC_FONT_SCALE_MIN = 75
         const val LYRIC_FONT_SCALE_PHONE_MAX = 125
@@ -575,7 +604,7 @@ class SettingsManager(private val context: Context) :
         const val ARTIST_BIO_DOWNLOAD_ALWAYS = 0
         const val ARTIST_BIO_DOWNLOAD_WIFI = 1
         const val ARTIST_BIO_DOWNLOAD_NEVER = 2
-        const val DEFAULT_ARTIST_BIO_DOWNLOAD = ARTIST_BIO_DOWNLOAD_WIFI
+        const val DEFAULT_ARTIST_BIO_DOWNLOAD = ARTIST_BIO_DOWNLOAD_ALWAYS
 
         fun normalizeArtistBioDownload(mode: Int?): Int = when (mode) {
             ARTIST_BIO_DOWNLOAD_ALWAYS,
@@ -711,6 +740,16 @@ class SettingsManager(private val context: Context) :
         const val MUSIC_VIDEO_ORIENTATION_LANDSCAPE = 2
         const val MUSIC_VIDEO_ORIENTATION_PORTRAIT = 3
         const val DEFAULT_MUSIC_VIDEO_ORIENTATION = MUSIC_VIDEO_ORIENTATION_VIDEO
+        const val DEFAULT_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED = true
+        const val DEFAULT_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED = false
+        const val DEFAULT_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED = false
+        const val PLAYER_CORNER_RADIUS_MIN_DP = 0
+        const val PLAYER_CORNER_RADIUS_MAX_DP = 32
+        const val DEFAULT_PLAYER_ALBUM_COVER_CORNER_RADIUS_DP = 14
+        // A video surface is not guaranteed to share the Compose clip with its preview frame.
+        // Keep MV playback square by default; users can still opt into rounded corners in the
+        // player settings when the surface and preview have the same shape.
+        const val DEFAULT_PLAYER_MUSIC_VIDEO_CORNER_RADIUS_DP = 0
 
         const val LYRIC_SOURCE_AUTO = 0
         const val LYRIC_SOURCE_EXTERNAL = 1
@@ -775,6 +814,20 @@ class SettingsManager(private val context: Context) :
         const val BOTTOM_DOCK_ITEM_LIBRARY_ANALYSIS = "library_analysis"
         const val MAX_BOTTOM_DOCK_ITEMS = 4
         const val DEFAULT_BOTTOM_DOCK_ITEMS = "$BOTTOM_DOCK_ITEM_HOME,$BOTTOM_DOCK_ITEM_LIBRARY,$BOTTOM_DOCK_ITEM_SETTINGS,$BOTTOM_DOCK_ITEM_PLAYLISTS"
+        const val DEFAULT_BOTTOM_DOCK_STARTUP_ITEM = BOTTOM_DOCK_ITEM_HOME
+        const val BOTTOM_BAR_CORNER_RADIUS_MIN_DP = 0
+        const val BOTTOM_BAR_CORNER_RADIUS_MAX_DP = 32
+        const val DEFAULT_BOTTOM_BAR_CORNER_RADIUS_DP = 32
+        const val BOTTOM_BAR_LIQUID_BLUR_RADIUS_MIN_DP = 0
+        const val BOTTOM_BAR_LIQUID_BLUR_RADIUS_MAX_DP = 24
+        const val DEFAULT_BOTTOM_BAR_LIQUID_BLUR_RADIUS_DP = 6
+        const val BOTTOM_BAR_LIQUID_REFRACTION_MIN_DP = 0
+        const val BOTTOM_BAR_LIQUID_REFRACTION_MAX_DP = 48
+        const val DEFAULT_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT_DP = 24
+        const val DEFAULT_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT_DP = 24
+        const val BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MIN_PERCENT = 0
+        const val BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MAX_PERCENT = 100
+        const val DEFAULT_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_PERCENT = 0
         const val DESKTOP_LYRIC_STATUS_POSITION_LEFT = 0
         const val DESKTOP_LYRIC_STATUS_POSITION_CENTER = 1
         const val DESKTOP_LYRIC_STATUS_POSITION_RIGHT = 2
@@ -784,6 +837,9 @@ class SettingsManager(private val context: Context) :
         const val PLAYER_LYRIC_ALIGN_LEFT = 0
         const val PLAYER_LYRIC_ALIGN_CENTER = 1
         const val PLAYER_LYRIC_ALIGN_RIGHT = 2
+        const val PLAYER_MINI_LYRIC_VERTICAL_ALIGN_TOP = 0
+        const val PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER = 1
+        const val DEFAULT_PLAYER_MINI_LYRIC_VERTICAL_ALIGN = PLAYER_MINI_LYRIC_VERTICAL_ALIGN_TOP
         const val LYRIC_PAGE_VERTICAL_ALIGN_UPPER = 0
         const val LYRIC_PAGE_VERTICAL_ALIGN_CENTER = 1
         const val DEFAULT_LYRIC_PAGE_VERTICAL_ALIGNMENT = LYRIC_PAGE_VERTICAL_ALIGN_UPPER
@@ -982,6 +1038,27 @@ class SettingsManager(private val context: Context) :
                 .joinToString(",")
         }
 
+        /**
+         * Keeps the launch destination tied to an entry that is actually present in the dock.
+         * Home remains the default whenever it is configured; if a user deliberately removes Home,
+         * the first configured entry is the safest replacement.
+         */
+        fun normalizeBottomDockStartupItem(
+            value: String?,
+            configuredItems: List<String>
+        ): String {
+            val configured = configuredItems
+                .map { it.trim().lowercase(Locale.ROOT) }
+                .filter { it in BOTTOM_DOCK_ITEM_IDS }
+                .distinct()
+            val requested = value?.trim()?.lowercase(Locale.ROOT)
+            return requested
+                ?.takeIf { it in configured }
+                ?: DEFAULT_BOTTOM_DOCK_STARTUP_ITEM.takeIf { it in configured }
+                ?: configured.firstOrNull()
+                ?: DEFAULT_BOTTOM_DOCK_STARTUP_ITEM
+        }
+
         fun normalizeAppShortcutOrder(value: String): List<String> =
             value
                 .split(',', '，', ';', '；', '\n')
@@ -1117,6 +1194,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_LIVE_UPDATE_LYRIC_ENABLED)
             setBoolean(KEY_XIAOMI_SUPER_ISLAND_LYRIC_ENABLED)
             setString(KEY_XIAOMI_SUPER_ISLAND_SETTINGS)
+            setBoolean(KEY_VIVO_ATOM_WALKMAN_WHITELIST_ENABLED)
             setBoolean(KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION)
             setBoolean(KEY_STATUS_BAR_ALLOW_PHONETIC)
             setBoolean(KEY_DESKTOP_LYRIC_ENABLED)
@@ -1183,9 +1261,13 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_LIBRARY_SONG_TITLE_MARQUEE)
             setBoolean(KEY_PLAYER_LYRICS_CORNER_ACTIONS)
             setBoolean(KEY_PLAYER_KEEP_SCREEN_ON)
+            setBoolean(KEY_PLAYER_LANDSCAPE_HIDE_SYSTEM_BARS)
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
             setBoolean(KEY_PLAYER_COVER_CONTENT_COLOR)
+            setBoolean(KEY_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED)
+            setBoolean(KEY_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED)
+            setBoolean(KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED)
             setBoolean(KEY_WIDGET_SAFE_LAYOUT)
             setInt(KEY_SYSTEM_BARS_MODE)
             setBoolean(KEY_SYSTEM_BARS_RESERVE_SPACE)
@@ -1231,6 +1313,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_INITIAL_SCAN_PROMPT_HANDLED)
             setBoolean(KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED)
             setBoolean(KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED)
+            setBoolean(KEY_ALL_FILES_ACCESS_PROMPT_HANDLED)
             setBoolean(KEY_TAG_IGNORE_CASE)
             setBoolean(KEY_PARSE_FEATURED_ARTISTS)
             setBoolean(KEY_BLUETOOTH_LYRIC_ENABLED)
@@ -1326,6 +1409,14 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE)
             setInt(KEY_PLAYER_MINI_LYRIC_LINE_SPACING)
             setInt(KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN)
+            setInt(KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN)
+            setInt(KEY_PLAYER_ALBUM_COVER_CORNER_RADIUS)
+            setInt(KEY_PLAYER_MUSIC_VIDEO_CORNER_RADIUS)
+            setInt(KEY_BOTTOM_BAR_CORNER_RADIUS)
+            setInt(KEY_BOTTOM_BAR_LIQUID_BLUR_RADIUS)
+            setInt(KEY_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT)
+            setInt(KEY_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT)
+            setInt(KEY_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION)
             setInt(KEY_DESKTOP_LYRIC_FONT_SCALE)
             setInt(KEY_DESKTOP_LYRIC_WIDTH)
             setInt(KEY_DESKTOP_LYRIC_TRANSLATION_SCALE)
@@ -1501,9 +1592,11 @@ class SettingsManager(private val context: Context) :
             setString(KEY_APP_LANGUAGE)
             setString(KEY_SETTINGS_SEARCH_HISTORY)
             setString(KEY_APP_ICON_STYLE)
-            setString(KEY_BOTTOM_BAR_GLASS_EFFECT)
-            setString(KEY_BOTTOM_DOCK_ITEMS)
-            setString(KEY_LYRIC_OFFSET_OVERRIDES)
+             setString(KEY_BOTTOM_BAR_STYLE)
+             setString(KEY_BOTTOM_BAR_GLASS_EFFECT)
+             setString(KEY_BOTTOM_DOCK_ITEMS)
+             setString(KEY_BOTTOM_DOCK_STARTUP_ITEM)
+             setString(KEY_LYRIC_OFFSET_OVERRIDES)
             setString(KEY_PLAYLIST_CUSTOM_ORDER)
             setString(KEY_FOLDER_PLAYLIST_CUSTOM_ORDER)
             setString(KEY_EQ_BANDS)

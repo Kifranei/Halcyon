@@ -1,6 +1,7 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +63,24 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
     val storedItems by settingsManager.bottomDockItems.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
     )
+    val startupItem by settingsManager.bottomDockStartupItem.collectAsState(
+        initial = SettingsManager.DEFAULT_BOTTOM_DOCK_STARTUP_ITEM
+    )
+    val bottomBarCornerRadius by settingsManager.bottomBarCornerRadius.collectAsState(
+        initial = SettingsManager.DEFAULT_BOTTOM_BAR_CORNER_RADIUS_DP
+    )
+    val bottomBarLiquidBlurRadius by settingsManager.bottomBarLiquidBlurRadius.collectAsState(
+        initial = SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_BLUR_RADIUS_DP
+    )
+    val bottomBarLiquidRefractionHeight by settingsManager.bottomBarLiquidRefractionHeight.collectAsState(
+        initial = SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_REFRACTION_HEIGHT_DP
+    )
+    val bottomBarLiquidRefractionAmount by settingsManager.bottomBarLiquidRefractionAmount.collectAsState(
+        initial = SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_REFRACTION_AMOUNT_DP
+    )
+    val bottomBarLiquidChromaticAberration by settingsManager.bottomBarLiquidChromaticAberration.collectAsState(
+        initial = SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_PERCENT
+    )
     val catalog = bottomDockTabCatalog()
     val selectedIds = storedItems
         .filter { it in catalog }
@@ -71,6 +92,13 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
 
     fun save(items: List<String>) {
         scope.launch { settingsManager.setBottomDockItems(items) }
+    }
+
+    fun reset() {
+        scope.launch {
+            settingsManager.setBottomDockItems(SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(','))
+            settingsManager.setBottomDockStartupItem(SettingsManager.DEFAULT_BOTTOM_DOCK_STARTUP_ITEM)
+        }
     }
 
     Column(
@@ -107,6 +135,149 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                 BottomDockPreview(
                     tabs = selectedIds.mapNotNull(catalog::get)
                 )
+            }
+
+            SmallTitle(text = stringResource(R.string.settings_bottom_bar_appearance_section))
+            SettingsCardGroup {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_bottom_bar_corner_radius),
+                    summary = stringResource(R.string.settings_bottom_bar_corner_radius_summary),
+                    value = bottomBarCornerRadius,
+                    valueRange = SettingsManager.BOTTOM_BAR_CORNER_RADIUS_MIN_DP..
+                        SettingsManager.BOTTOM_BAR_CORNER_RADIUS_MAX_DP,
+                    valueText = "${bottomBarCornerRadius}dp",
+                    onValueChange = { value ->
+                        scope.launch { settingsManager.setBottomBarCornerRadius(value) }
+                    }
+                )
+            }
+
+            SmallTitle(text = stringResource(R.string.settings_bottom_bar_liquid_glass_section))
+            SettingsCardGroup {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_bottom_bar_liquid_blur_radius),
+                    summary = stringResource(R.string.settings_bottom_bar_liquid_blur_radius_summary),
+                    value = bottomBarLiquidBlurRadius,
+                    valueRange = SettingsManager.BOTTOM_BAR_LIQUID_BLUR_RADIUS_MIN_DP..
+                        SettingsManager.BOTTOM_BAR_LIQUID_BLUR_RADIUS_MAX_DP,
+                    valueText = "${bottomBarLiquidBlurRadius}dp",
+                    onValueChange = { value ->
+                        scope.launch { settingsManager.setBottomBarLiquidBlurRadius(value) }
+                    }
+                )
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_bottom_bar_liquid_refraction_height),
+                    summary = stringResource(R.string.settings_bottom_bar_liquid_refraction_height_summary),
+                    value = bottomBarLiquidRefractionHeight,
+                    valueRange = SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MIN_DP..
+                        SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MAX_DP,
+                    valueText = "${bottomBarLiquidRefractionHeight}dp",
+                    onValueChange = { value ->
+                        scope.launch { settingsManager.setBottomBarLiquidRefractionHeight(value) }
+                    }
+                )
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_bottom_bar_liquid_refraction_amount),
+                    summary = stringResource(R.string.settings_bottom_bar_liquid_refraction_amount_summary),
+                    value = bottomBarLiquidRefractionAmount,
+                    valueRange = SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MIN_DP..
+                        SettingsManager.BOTTOM_BAR_LIQUID_REFRACTION_MAX_DP,
+                    valueText = "${bottomBarLiquidRefractionAmount}dp",
+                    onValueChange = { value ->
+                        scope.launch { settingsManager.setBottomBarLiquidRefractionAmount(value) }
+                    }
+                )
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_bottom_bar_liquid_chromatic_aberration),
+                    summary = stringResource(R.string.settings_bottom_bar_liquid_chromatic_aberration_summary),
+                    value = bottomBarLiquidChromaticAberration,
+                    valueRange = SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MIN_PERCENT..
+                        SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MAX_PERCENT,
+                    valueText = "$bottomBarLiquidChromaticAberration%",
+                    onValueChange = { value ->
+                        scope.launch { settingsManager.setBottomBarLiquidChromaticAberration(value) }
+                    }
+                )
+            }
+
+            SmallTitle(text = stringResource(R.string.settings_bottom_dock_startup))
+            SettingsCardGroup {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(
+                        text = stringResource(R.string.settings_bottom_dock_startup_summary),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                    )
+                    selectedIds.forEach { id ->
+                        catalog[id]?.let { tab ->
+                            val selected = id == startupItem
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        color = if (selected) {
+                                            MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .border(
+                                        width = if (selected) 1.5.dp else 0.dp,
+                                        color = if (selected) {
+                                            MiuixTheme.colorScheme.primary
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable {
+                                        scope.launch { settingsManager.setBottomDockStartupItem(id) }
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 11.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = null,
+                                    tint = if (selected) {
+                                        MiuixTheme.colorScheme.primary
+                                    } else {
+                                        MiuixTheme.colorScheme.onSurface
+                                    },
+                                    modifier = Modifier.size(23.dp)
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 10.dp)
+                                ) {
+                                    Text(
+                                        text = tab.label,
+                                        color = MiuixTheme.colorScheme.onSurface,
+                                        fontSize = 15.sp,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                    if (selected) {
+                                        Text(
+                                            text = stringResource(R.string.settings_bottom_dock_startup_selected),
+                                            color = MiuixTheme.colorScheme.primary,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = if (selected) "✓" else "",
+                                    color = MiuixTheme.colorScheme.primary,
+                                    fontSize = 19.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             SmallTitle(text = stringResource(R.string.settings_bottom_dock_selected))
@@ -189,7 +360,7 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            save(SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(','))
+                            reset()
                         }
                         .padding(vertical = 17.dp),
                     contentAlignment = Alignment.Center
@@ -202,7 +373,10 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(40.dp))
+            // The always-visible mini-player is drawn above this route. Leave enough scrollable
+            // tail space so the reset action can be brought fully above it on every OEM.
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(96.dp))
         }
     }
 }

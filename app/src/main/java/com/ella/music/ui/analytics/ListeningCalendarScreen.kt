@@ -13,11 +13,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +64,21 @@ fun ListeningCalendarHistoryScreen(
     val monthSections = remember(dayAggregates) { buildListeningMonths(dayAggregates) }
     val firstDayWithHistory = remember(dayAggregates) { dayAggregates.values.firstOrNull { it.entries.isNotEmpty() }?.dateKey }
     var selectedDateKey by remember(firstDayWithHistory) { mutableStateOf(firstDayWithHistory) }
+    var selectedMonthIndex by remember(monthSections) { mutableIntStateOf(0) }
+    val safeMonthIndex = selectedMonthIndex.coerceIn(0, (monthSections.size - 1).coerceAtLeast(0))
+    val selectedMonth = monthSections.getOrNull(safeMonthIndex)
+
+    fun selectMonth(index: Int) {
+        val target = monthSections.getOrNull(index) ?: return
+        selectedMonthIndex = index
+        selectedDateKey = target.weeks
+            .asSequence()
+            .flatMap { it.asSequence() }
+            .filterNotNull()
+            .firstOrNull { it.entries.isNotEmpty() }
+            ?.dateKey
+            ?: target.weeks.asSequence().flatMap { it.asSequence() }.filterNotNull().firstOrNull()?.dateKey
+    }
     val selectedDay = remember(selectedDateKey, dayAggregates) {
         selectedDateKey?.let(dayAggregates::get)
     }
@@ -150,16 +165,22 @@ fun ListeningCalendarHistoryScreen(
                         modifier = Modifier.padding(horizontal = 14.dp)
                     )
                 }
-                items(monthSections, key = { it.label }) { month ->
-                    ListeningMonthCard(
-                        month = month,
-                        selectedDateKey = selectedDateKey,
-                        onDayClick = { dateKey ->
-                            if (dayAggregates[dateKey]?.entries?.isNotEmpty() == true) {
-                                selectedDateKey = dateKey
-                            }
-                        }
-                    )
+                item("month-calendar:${selectedMonth?.label.orEmpty()}") {
+                    selectedMonth?.let { month ->
+                        ListeningMonthCard(
+                            month = month,
+                            selectedDateKey = selectedDateKey,
+                            onDayClick = { dateKey ->
+                                if (dayAggregates[dateKey]?.entries?.isNotEmpty() == true) {
+                                    selectedDateKey = dateKey
+                                }
+                            },
+                            onPreviousMonth = { selectMonth(safeMonthIndex + 1) },
+                            onNextMonth = { selectMonth(safeMonthIndex - 1) },
+                            canGoPrevious = safeMonthIndex < monthSections.lastIndex,
+                            canGoNext = safeMonthIndex > 0
+                        )
+                    }
                 }
             }
         }

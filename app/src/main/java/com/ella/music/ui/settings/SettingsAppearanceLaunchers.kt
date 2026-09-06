@@ -10,7 +10,6 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -86,7 +85,7 @@ internal fun rememberAppearanceImagePicker(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     return rememberLauncherForActivityResult(
-        GetContentImageContract()
+        com.ella.music.ui.components.GetContentImageContract()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         context.persistImageReadPermission(uri)
@@ -100,24 +99,6 @@ internal fun rememberAppearanceImagePicker(
             }
         }
     }
-}
-
-/**
- * MIUI Gallery exposes its album sidebar through ACTION_GET_CONTENT. OpenDocument works with
- * most document providers but hides the Gallery provider on some HyperOS builds. The selected
- * image is copied into app storage immediately, so a persistable document grant is not needed.
- */
-private class GetContentImageContract : ActivityResultContract<Array<String>, Uri?>() {
-    override fun createIntent(context: Context, input: Array<String>): Intent = Intent(
-        Intent.ACTION_GET_CONTENT
-    ).apply {
-        addCategory(Intent.CATEGORY_OPENABLE)
-        type = input.singleOrNull() ?: "*/*"
-        putExtra(Intent.EXTRA_MIME_TYPES, input)
-    }
-
-    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
-        if (resultCode == Activity.RESULT_OK) intent?.data else null
 }
 
 @Composable

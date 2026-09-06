@@ -10,6 +10,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.Song
+import com.ella.music.data.repository.audioExtension
+import com.ella.music.data.repository.embeddedArtworkFileExtensions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -52,7 +54,6 @@ fun rememberSongArtworkState(
     val coverUrl = song?.coverUrl?.takeIf {
         it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
     }
-    val preferEmbedded = song?.prefersEmbeddedArtwork() == true
     val cacheFamily = usage.cacheFamily
     val cacheKey = remember(
         song?.id,
@@ -70,6 +71,7 @@ fun rememberSongArtworkState(
         song?.let { current ->
             listOf(
                 cacheFamily,
+                "v2",
                 current.id.toString(),
                 current.path,
                 current.dateModified.toString(),
@@ -153,19 +155,7 @@ fun rememberSongArtworkState(
 }
 
 fun Song.prefersEmbeddedArtwork(): Boolean =
-    fileName.substringAfterLast('.', path.substringAfterLast('.'))
-        .lowercase() in embeddedArtworkExtensions
-
-private val embeddedArtworkExtensions = setOf(
-    "m4a",
-    "mp4",
-    "alac",
-    "flac",
-    "wav",
-    "wave",
-    "aif",
-    "aiff"
-)
+    audioExtension() in embeddedArtworkFileExtensions
 
 private object ArtworkModelMemoryCache {
     // Budgeted by bytes so cached Bitmap models (covers resolved from embedded artwork) cannot

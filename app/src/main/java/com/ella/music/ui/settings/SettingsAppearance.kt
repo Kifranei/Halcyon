@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
-import com.ella.music.data.BottomBarGlassEffect
+import com.ella.music.data.BottomBarStyle
 import com.ella.music.data.ActionMenuIds
 import com.ella.music.data.SettingsManager
 import com.ella.music.player.PlaybackWidgetUpdater
@@ -166,17 +166,13 @@ internal fun SettingsAppearanceSection(
         SettingsManager.APP_ICON_STYLE_DEFAULT
     )
     val widgetSafeLayout by settingsManager.widgetSafeLayout.collectCachedAsState("widgetSafeLayout", false)
-    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectCachedAsState(
-        "bottomBarGlassEffect",
-        BottomBarGlassEffect.LiquidGlass
+    val bottomBarStyle by settingsManager.bottomBarStyle.collectCachedAsState(
+        "bottomBarStyle",
+        BottomBarStyle.LiquidGlass
     )
     val systemBarsMode by settingsManager.systemBarsMode.collectCachedAsState(
         "systemBarsMode",
         SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
-    )
-    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectCachedAsState(
-        "systemBarsReserveSpace",
-        SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
     )
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectCachedAsState("startupPosterEnabled", false)
     val startupPosterUri by settingsManager.startupPosterUri.collectCachedAsState("startupPosterUri", "")
@@ -467,22 +463,29 @@ internal fun SettingsAppearanceSection(
         appIconOptions.map { (_, label) -> DropdownItem(title = label) }
     }
 
-    val bottomBarGlassEffects = remember {
-        listOf(BottomBarGlassEffect.Blur, BottomBarGlassEffect.LiquidGlass)
+    val bottomBarStyles = remember {
+        listOf(BottomBarStyle.Normal, BottomBarStyle.Floating, BottomBarStyle.LiquidGlass)
     }
-    val bottomBarGlassBlurLabel = stringResource(R.string.bottom_bar_glass_effect_blur)
-    val bottomBarGlassLiquidLabel = stringResource(R.string.bottom_bar_glass_effect_liquid)
-    val bottomBarGlassEntries = remember(bottomBarGlassBlurLabel, bottomBarGlassLiquidLabel) {
+    val bottomBarNormalLabel = stringResource(R.string.bottom_bar_style_normal)
+    val bottomBarFloatingLabel = stringResource(R.string.bottom_bar_style_floating)
+    val bottomBarLiquidLabel = stringResource(R.string.bottom_bar_style_liquid)
+    val bottomBarStyleEntries = remember(
+        bottomBarNormalLabel,
+        bottomBarFloatingLabel,
+        bottomBarLiquidLabel
+    ) {
         listOf(
-            DropdownItem(title = bottomBarGlassBlurLabel),
-            DropdownItem(title = bottomBarGlassLiquidLabel)
+            DropdownItem(title = bottomBarNormalLabel),
+            DropdownItem(title = bottomBarFloatingLabel),
+            DropdownItem(title = bottomBarLiquidLabel)
         )
     }
-    val selectedBottomBarGlassEffectIndex =
-        bottomBarGlassEffects.indexOf(bottomBarGlassEffect).takeIf { it >= 0 } ?: 0
-    val bottomBarGlassSummary = when (bottomBarGlassEffect) {
-        BottomBarGlassEffect.Blur -> stringResource(R.string.settings_bottom_bar_glass_effect_summary_blur)
-        BottomBarGlassEffect.LiquidGlass -> stringResource(R.string.settings_bottom_bar_glass_effect_summary_liquid)
+    val selectedBottomBarStyleIndex =
+        bottomBarStyles.indexOf(bottomBarStyle).takeIf { it >= 0 } ?: 0
+    val bottomBarStyleSummary = when (bottomBarStyle) {
+        BottomBarStyle.Normal -> stringResource(R.string.settings_bottom_bar_style_summary_normal)
+        BottomBarStyle.Floating -> stringResource(R.string.settings_bottom_bar_style_summary_floating)
+        BottomBarStyle.LiquidGlass -> stringResource(R.string.settings_bottom_bar_style_summary_liquid)
     }
 
     val isTabletDevice = context.resources.configuration.smallestScreenWidthDp >= 600
@@ -695,13 +698,13 @@ internal fun SettingsAppearanceSection(
                 }
             )
             WindowSpinnerPreference(
-                title = stringResource(R.string.settings_bottom_bar_glass_effect),
-                summary = bottomBarGlassSummary,
-                items = bottomBarGlassEntries,
-                selectedIndex = selectedBottomBarGlassEffectIndex,
+                title = stringResource(R.string.settings_bottom_bar_style),
+                summary = bottomBarStyleSummary,
+                items = bottomBarStyleEntries,
+                selectedIndex = selectedBottomBarStyleIndex,
                 onSelectedIndexChange = { index ->
-                    bottomBarGlassEffects.getOrNull(index)?.let { effect ->
-                        scope.launch { settingsManager.setBottomBarGlassEffect(effect) }
+                    bottomBarStyles.getOrNull(index)?.let { style ->
+                        scope.launch { settingsManager.setBottomBarStyle(style) }
                     }
                 }
             )
@@ -721,17 +724,6 @@ internal fun SettingsAppearanceSection(
                     selectedIndex = selectedSystemBarsMode,
                     onSelectedIndexChange = { index ->
                         scope.launch { settingsManager.setSystemBarsMode(index) }
-                    }
-                )
-            }
-            SettingsFocusAnchor(active = highlightKey == "system_bars_reserve_space") {
-                SwitchPreference(
-                    title = stringResource(R.string.settings_system_bars_reserve_space),
-                    summary = stringResource(R.string.settings_system_bars_reserve_space_summary),
-                    checked = systemBarsReserveSpace,
-                    enabled = systemBarsMode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH,
-                    onCheckedChange = {
-                        scope.launch { settingsManager.setSystemBarsReserveSpace(it) }
                     }
                 )
             }
@@ -1231,6 +1223,17 @@ internal fun SettingsAppearanceSection(
                             scope.launch { settingsManager.setPlayerLandscapeStyle(style) }
                         }
                     }
+                )
+            }
+            SettingsFocusAnchor(active = highlightKey == "player_landscape_hide_system_bars") {
+                val hideLandscapeBars by settingsManager.playerLandscapeHideSystemBars.collectCachedAsState(
+                    "playerLandscapeHideSystemBars", false
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_landscape_hide_system_bars),
+                    summary = stringResource(R.string.settings_player_landscape_hide_system_bars_summary),
+                    checked = hideLandscapeBars,
+                    onCheckedChange = { scope.launch { settingsManager.setPlayerLandscapeHideSystemBars(it) } }
                 )
             }
             SettingsFocusAnchor(active = highlightKey == "transport_button_outlines") {

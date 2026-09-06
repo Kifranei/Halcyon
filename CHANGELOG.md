@@ -1,3 +1,47 @@
+# 1.2.8
+
+From `1.2.7` to `1.2.8`.
+
+中文更新日志
+- 新增可选的「所有文件访问权限」入口，方便完整扫描和编辑本地音频；快速增量扫描加入轻量文件内容指纹，外部编辑歌曲标签但保留原修改时间时也能识别变化，避免继续沿用旧缓存。
+- 非全标签扫描改为按系统媒体库收录音频（扩展名与文件大小），不再因时长未写入或文件对应用不可见而漏歌。
+- 列表、播放页、通知和更多菜单统一按当前歌曲解析封面，同一专辑不同内嵌封面不再串图。
+- 音乐库支持单行列表、双列/多列列表和封面网格，可通过双指缩放切换布局，并按手机/平板分别设置封面网格列数；切换布局会尽量保持当前位置，侧边快速定位条在各布局中都支持拖动。
+- 双列歌曲标题支持来回滚动显示；可从歌曲名识别 `feat.` / `ft.` / `featuring` 艺术家，并改进歌曲、歌单和文件夹歌单的排序、筛选、范围选择及拖拽操作。
+- 艺术家图片支持 Last.fm、Spotify 和网易云来源、独立优先级与自动下载策略；语言、图片地区和来源分开保存，精确匹配失败时再回退到不区分大小写，并提供缓存清理和占位图过滤。艺术家简介下载默认改为所有网络。
+- WebDAV 目录支持搜索、收藏整个目录和按目录创建歌单；远程目录加载、分页和 FLAC 元数据处理更稳定。LX 源导入会识别网页、JSON 配置和网盘分享页并给出明确提示。
+- 播放队列保留重复歌曲的实际队列位置，恢复队列和跨来源跳转更可靠；播放/暂停状态增加异步命令确认与乐观状态投影，修复按钮图标反转、暂停后继续反向切换等问题。
+- 蓝牙音频断开和系统音频路由丢失时会按设置暂停播放，连接后可自动播放；交叉淡入淡出、系统 Dolby/FFmpeg 自动解码、音频输出状态和投放设备同步得到强化。
+- 重做歌词解析和打轴流程，支持更完整的 LRC/ELRC/TTML 处理、逐词时间轴、内嵌歌词与旁车文件导出；歌词页和非沉浸迷你歌词恢复羽化、逐字推进、弹簧换行、偏移与对齐过渡。罗马音 + 原词 + 翻译时，原词与上方罗马音、下方翻译的垂直间距对齐（`#602`）。
+- ColorOS Live Lyrics Bridge 4.0 的锁屏歌词发送改为跟随当前 MediaItem，换曲清理旧歌词并保留一次兼容重发；Android 16 实时活动、桌面歌词、状态栏歌词和小米超级岛的同步与失败重试更稳定。
+- 底栏统一接入普通、悬浮和液态玻璃样式，支持圆角和液态玻璃参数自定义；系统栏隐藏/显示不再留下错误占位，ColorOS 手势栏也保持底栏抬高，底栏与迷你播放条保留连续收缩动画，收缩态播放条贴住两侧按钮。
+- 歌曲评分、定时关闭、变速变调、歌词偏移、音频工具和歌曲标签入口统一使用 Miuix BottomSheet 风格，整理卡片边界、滑块、确认按钮和底部留白；播放页与列表操作菜单支持独立排序和隐藏。
+- ZIP 备份可包含自定义字体、歌词源插件、音乐库展示设置和更多应用数据，并支持按分类恢复；维护页补充缓存清理与恢复默认配置。
+- 日志页直接读取当前进程 logcat，导出报告自动附带应用/设备信息、`getprop` 与可读取的 `build.prop`，便于提交可复现的播放、歌词和扫描问题。
+- 增加 Android TV 入口和本地 MV 画中画/横屏体验，艺术家、专辑、听歌统计和封面加载继续采用延迟解析与缓存，降低大曲库打开时的卡顿。
+
+English Changelog
+- Added an optional “All files access” entry for complete local-library scanning and audio-tag editing. Fast incremental scans now use a lightweight content fingerprint, so tag edits that preserve the file timestamp still invalidate stale cache rows.
+- Non-full-tag scans now keep system MediaStore audio by extension and file size, so tracks are no longer dropped when duration is missing or the file is hidden from the app process.
+- Artwork is resolved per current song across lists, the player, notifications, and more menus, so mixed embedded covers in one album no longer share a single picture.
+- The library now supports single-column list, two-/multi-column rows, and cover grids with pinch-to-switch layouts and separate phone/tablet grid-column settings. Layout changes preserve the current position when possible, and the side fast-index bar remains draggable in every layout.
+- Long titles in the two-column list can marquee, and `feat.` / `ft.` / `featuring` artists can be extracted from song titles. Sorting, filtering, range selection, and drag actions are refined across songs, playlists, and folder playlists.
+- Artist artwork supports Last.fm, Spotify, and NetEase sources with independent priority and download policies. Language, image region, and source are stored separately; exact-case matching is preferred before case-insensitive fallback, with cache cleanup and placeholder filtering. Artist-biography downloads now default to all networks.
+- WebDAV directories support search, collecting a whole directory to Favorites, and creating a playlist from a directory. Remote loading, pagination, and FLAC metadata handling are more reliable. LX imports now explain when a URL is an HTML page, JSON configuration, or cloud-share page instead of a JavaScript source.
+- Queue entries retain their actual position even when the same song appears more than once. Queue restoration and cross-source navigation are more reliable, while asynchronous transport acknowledgement and optimistic projection fix play/pause glyph inversion and repeated reverse toggles.
+- Bluetooth audio disconnects and lost system audio routes can pause playback according to the setting, while reconnecting can auto-play. Crossfade handoff, system Dolby/FFmpeg auto-decoding, realtime output status, and casting-device synchronization are improved.
+- Reworked lyric parsing and timing flows with broader LRC/ELRC/TTML handling, word timing, embedded lyrics, and sidecar export. Lyric pages and non-immersive mini lyrics restore feathered word progression, spring line-wrap transitions, offset control, and alignment animation. Romanization-above and translation-below now share the same gap from the original line (`#602`).
+- ColorOS Live Lyrics Bridge 4.0 now publishes lock-screen lyrics through the current MediaItem, clears stale lyrics on track changes, and keeps one compatibility republish. Android 16 Live Updates, desktop/status-bar lyrics, and Xiaomi Super Island synchronization and retry handling are more robust.
+- Bottom docks now share Normal, Floating, and Liquid Glass implementations with configurable corner radius and Liquid Glass parameters. System-bar hide/show no longer leaves incorrect reserved space, ColorOS gesture-bar layouts keep the dock lifted, and the compact mini-player stays adjacent to the side buttons during the collapse animation.
+- Rating, sleep timer, speed/pitch, lyric-offset, audio-tool, and tag-entry sheets now follow the Miuix BottomSheet presentation with cleaner card boundaries, sliders, confirmation buttons, and spacing. Player and list action menus can be independently reordered or hidden.
+- ZIP backups can include custom fonts, lyric-source plugins, library-presentation settings, and more app data, with category-based restore. Maintenance adds cache cleanup and restore-defaults controls.
+- The log screen reads the current process logcat directly. Exported reports include app/device context, `getprop`, and readable `build.prop` files to make playback, lyric, and scan reports self-describing.
+- Added Android TV entry points and improved local-MV picture-in-picture/landscape handling. Artist, album, listening-statistics, and artwork screens use deferred parsing and caching to reduce large-library startup work.
+
+Version
+- Version name: `1.2.8`
+- Version code: `36`
+
 # 1.2.7
 
 From `1.2.6` to `1.2.7`.

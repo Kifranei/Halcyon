@@ -8,17 +8,37 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.ui.components.liquid.lens
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
 import top.yukonga.miuix.kmp.blur.blur
-import kotlin.math.max
+
+/**
+ * Runtime knobs for the refractive bottom-bar surfaces. Defaults intentionally match the
+ * existing Halcyon look; settings only opt into stronger/weaker lens and blur treatment.
+ */
+@Immutable
+data class BottomBarLiquidGlassConfig(
+    val blurRadiusDp: Float = 6f,
+    val refractionHeightDp: Float = 24f,
+    val refractionAmountDp: Float = 24f,
+    val chromaticAberration: Float = 0f,
+)
+
+/** Shared only by the bottom dock subtree; other glass surfaces keep their own defaults. */
+val LocalBottomBarCornerRadiusDp = staticCompositionLocalOf { 32f }
+val LocalBottomBarLiquidGlassConfig = staticCompositionLocalOf { BottomBarLiquidGlassConfig() }
 
 internal fun BackdropEffectScope.applyBottomBarGlassEffect(
     glassEffect: BottomBarGlassEffect,
     blurRadius: Float,
     liquidBlurRadius: Float,
-    disableRefraction: Boolean = false
+    disableRefraction: Boolean = false,
+    liquidRefractionHeight: Float = liquidBlurRadius,
+    liquidRefractionAmount: Float = liquidBlurRadius,
+    liquidChromaticAberration: Float = 0f,
 ) {
     when (glassEffect) {
         BottomBarGlassEffect.Blur -> {
@@ -26,13 +46,15 @@ internal fun BackdropEffectScope.applyBottomBarGlassEffect(
         }
 
         BottomBarGlassEffect.LiquidGlass -> {
-            blur(6f.dp.toPx())
+            blur(liquidBlurRadius.coerceAtLeast(0f).dp.toPx())
             if (!disableRefraction) {
                 runCatching {
-                    val refraction = max(24f, liquidBlurRadius).dp.toPx()
+                    val refractionHeight = liquidRefractionHeight.coerceAtLeast(0f).dp.toPx()
+                    val refractionAmount = liquidRefractionAmount.coerceAtLeast(0f).dp.toPx()
                     lens(
-                        refractionHeight = refraction,
-                        refractionAmount = refraction
+                        refractionHeight = refractionHeight,
+                        refractionAmount = refractionAmount,
+                        chromaticAberration = liquidChromaticAberration.coerceIn(0f, 1f),
                     )
                 }
             }

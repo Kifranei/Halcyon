@@ -15,6 +15,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -54,6 +55,16 @@ import com.ella.music.data.model.LyricWord
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlinx.coroutines.launch
+
+/** Gap between the original lyric and stacked romanization / translation. */
+internal val AppleMusicLyricSecondaryRowSpacing = 5.dp
+
+internal fun appleMusicLyricStackedSecondaryPadding(aboveOriginal: Boolean) =
+    if (aboveOriginal) {
+        PaddingValues(bottom = AppleMusicLyricSecondaryRowSpacing)
+    } else {
+        PaddingValues(top = AppleMusicLyricSecondaryRowSpacing)
+    }
 
 /** Shared single-line surface used by the system desktop-lyrics overlay. */
 @Composable
@@ -178,11 +189,18 @@ internal fun AppleMusicLyricLine(
     onWordClick: ((Long) -> Unit)? = null,
     onTapFraction: ((Float) -> Unit)? = null,
     touchFeedbackEnabled: Boolean = false,
+    showPrimaryText: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     // A mini player is a primary-vocal surface. Do not leave a blank row behind when the source
     // contains an accompaniment-only x-bg line that has intentionally been hidden.
-    if (!showBackgroundText && line.text.isBlank()) return
+    if (!showBackgroundText && line.text.isBlank() &&
+        line.translation.isNullOrBlank() && line.pronunciation.isNullOrBlank()
+    ) return
+    // A presentation policy may intentionally hide the primary row (for example, the previous
+    // line in a top-aligned translated preview). Avoid measuring an empty placeholder when that
+    // source line has no secondary text to show.
+    if (!showPrimaryText && line.translation.isNullOrBlank() && line.pronunciation.isNullOrBlank()) return
     val textAlign = line.duetTextAlign(defaultTextAlign)
     val scale by animateFloatAsState(
         targetValue = if (active) 1f else 0.91f,
@@ -234,6 +252,9 @@ internal fun AppleMusicLyricLine(
             .then(
                 if (
                     nonCurrentLineBlurEnabled && nonCurrentLineBlurPercent > 0 &&
+                    // Preserve the feathered focus gradient for every non-current row. The
+                    // distance-dependent blur is part of the lyric visual hierarchy, not merely
+                    // a decoration for the nearest pair.
                     !userScrolling && !active && abs(distance) >= 2
                 ) {
                     Modifier.blur(
@@ -278,7 +299,17 @@ internal fun AppleMusicLyricLine(
         val showPronunciationAbove = showPronunciation && pronunciation.isNotBlank() && !pronunciationBelow && !inlineRuby
         val showPronunciationBelow = showPronunciation && pronunciation.isNotBlank() && pronunciationBelow && !inlineRuby
         if (showPronunciationAbove) {
-            BasicText(text = pronunciation, style = secondaryStyle, modifier = Modifier.fillMaxWidth())
+            BasicText(
+                text = pronunciation,
+                style = secondaryStyle,
+                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                softWrap = !singleLine,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(appleMusicLyricStackedSecondaryPadding(aboveOriginal = true))
+                    .then(if (singleLine) Modifier.basicMarquee() else Modifier)
+            )
         }
         val primaryText = line.text.ifBlank { line.backgroundText.orEmpty().ifBlank { "♪" } }
         val primaryWords = if (inlineRuby && line.isTtml && line.words.isEmpty() && primaryText.isNotBlank()) {
@@ -293,7 +324,7 @@ internal fun AppleMusicLyricLine(
             line.words
         }
         val hasInlineSecondary = singleLine && inlineStaticSecondaryText.isNotBlank()
-        if (hasInlineSecondary && mergeInlineSecondary) {
+        if (showPrimaryText && hasInlineSecondary && mergeInlineSecondary) {
             // "Merge secondary into primary" is a presentation mode, not an end-of-line effect:
             // it must stay inline from the first word for both word-timed and line-timed lyrics.
             StatusBarMergedTimedLyricRow(
@@ -310,7 +341,7 @@ internal fun AppleMusicLyricLine(
                 sustainThresholdMs = sustainThresholdMs,
                 textAlign = textAlign
             )
-        } else if (hasInlineSecondary) {
+        } else if (showPrimaryText && hasInlineSecondary) {
             StatusBarSeparatedTimedLyricLines(
                 primaryText = primaryText,
                 primaryWords = line.words,
@@ -327,7 +358,7 @@ internal fun AppleMusicLyricLine(
                 statusBarMarquee = statusBarMarquee,
                 followWordFocus = followWordFocus
             )
-        } else {
+        } else if (showPrimaryText) {
             TimedLyricText(
                 text = primaryText,
                 words = primaryWords,
@@ -360,7 +391,7 @@ internal fun AppleMusicLyricLine(
                 overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 5.dp)
+                    .padding(appleMusicLyricStackedSecondaryPadding(aboveOriginal = false))
                     .then(if (singleLine) Modifier.basicMarquee() else Modifier)
             )
         }
@@ -373,7 +404,7 @@ internal fun AppleMusicLyricLine(
                 overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 5.dp)
+                    .padding(appleMusicLyricStackedSecondaryPadding(aboveOriginal = false))
                     .then(if (singleLine) Modifier.basicMarquee() else Modifier)
             )
         }

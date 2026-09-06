@@ -1,19 +1,14 @@
 package com.ella.music.ui.player
 
 import android.os.SystemClock
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,20 +16,19 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.ui.components.SelectionCheck
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -81,6 +75,7 @@ internal fun TimerSheetContent(
                     HalfSheetPill(
                         text = stringResource(R.string.player_minutes_value, minutes),
                         onClick = { onTimer(minutes) },
+                        outlined = true,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -89,25 +84,44 @@ internal fun TimerSheetContent(
             Spacer(modifier = Modifier.height(12.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.player_custom_duration),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface
-        )
-        DottedValueSlider(
-            value = customMinutes,
-            valueRange = 5f..120f,
-            steps = 23,
-            label = stringResource(R.string.player_minutes_value, customMinutes.toInt()),
-            onValueChange = {
-                customMinutes = it
-                onCustomTimerMinutes(it.toInt().coerceIn(5, 120))
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(92.dp)
-        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            insideMargin = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+            colors = CardDefaults.defaultColors(
+                color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.58f)
+            )
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = stringResource(R.string.player_custom_duration),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.player_minutes_value, customMinutes.toInt()),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+            }
+            DottedValueSlider(
+                value = customMinutes,
+                valueRange = 5f..120f,
+                steps = 23,
+                onValueChange = {
+                    customMinutes = it
+                    onCustomTimerMinutes(it.toInt().coerceIn(5, 120))
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(70.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         HalfSheetPill(
             text = stringResource(R.string.player_start_timer_minutes, customMinutes.toInt()),
             selected = true,
@@ -129,24 +143,16 @@ internal fun TimerSheetContent(
 
 @Composable
 private fun TimerStatusCard(title: String, subtitle: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        Text(
-            text = title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = subtitle,
-            fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    ) {
+        BasicComponent(
+            title = title,
+            summary = subtitle,
+            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
         )
     }
 }
@@ -156,40 +162,23 @@ private fun StopAfterCurrentRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
+        )
     ) {
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(
-                    if (checked) MiuixTheme.colorScheme.primary
-                    else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.18f)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            if (checked) {
-                Icon(
-                    imageVector = MiuixIcons.Basic.Check,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(15.dp)
+        BasicComponent(
+            title = stringResource(R.string.player_pause_after_current_song),
+            onClick = { onCheckedChange(!checked) },
+            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            endActions = {
+                SelectionCheck(
+                    selected = checked,
+                    size = 22.dp,
+                    unselectedColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.18f)
                 )
             }
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = stringResource(R.string.player_pause_after_current_song),
-            fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
         )
     }
 }

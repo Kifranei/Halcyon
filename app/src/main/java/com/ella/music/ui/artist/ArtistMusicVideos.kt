@@ -340,7 +340,7 @@ internal fun deleteArtistMusicVideos(context: Context, items: List<ArtistMusicVi
         }
     }
 
-private fun readArtistMusicVideoMetadata(
+internal fun readArtistMusicVideoMetadata(
     context: Context,
     source: DynamicCoverSource
 ): ArtistMusicVideoMetadata = runCatching {

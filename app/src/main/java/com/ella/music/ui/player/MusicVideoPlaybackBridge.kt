@@ -1,5 +1,6 @@
 package com.ella.music.ui.player
 
+import android.os.SystemClock
 import androidx.media3.common.Player
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,11 @@ internal object MusicVideoPlaybackBridge {
         // A tap reaches the audio controller asynchronously. Keep that direct user intent until
         // the controller publishes the matching state, so an old audio snapshot cannot restart MV.
         @Volatile var pendingPlayWhenReady: Boolean? = null,
+        // Keep a short-lived manual override after the matching audio callback as well. The
+        // callback order on a recreated MediaController can be play -> pause -> play; clearing the
+        // pending flag on the first pause callback would let the final stale `play` restart MV.
+        @Volatile var manualOverride: Boolean? = null,
+        @Volatile var manualOverrideUntilMs: Long = 0L,
         @Volatile var syncPositionMs: Long? = null,
         @Volatile var syncDurationMs: Long? = null,
         @Volatile var player: Player? = null
@@ -50,7 +56,15 @@ internal object MusicVideoPlaybackBridge {
         if (source.role != PlayerVideoRole.MusicVideo) return
         val duration = player.duration.takeIf { it > 0L } ?: 0L
         val entry = entries.getOrPut(keyFor(source)) { Entry() }
-        entry.playWhenReady = player.playWhenReady
+        val manualOverride = entry.manualOverride
+            ?.takeIf { SystemClock.elapsedRealtime() < entry.manualOverrideUntilMs }
+        if (manualOverride == null) {
+            entry.manualOverride = null
+            entry.manualOverrideUntilMs = 0L
+            entry.playWhenReady = player.playWhenReady
+        } else if (!manualOverride) {
+            entry.playWhenReady = false
+        }
         entry.snapshot.value = MusicVideoPlaybackSnapshot(
             positionMs = player.currentPosition.coerceAtLeast(0L),
             durationMs = duration,
@@ -60,7 +74,15 @@ internal object MusicVideoPlaybackBridge {
 
     fun detach(source: DynamicCoverSource, player: Player) {
         if (source.role != PlayerVideoRole.MusicVideo) return
-        entries[keyFor(source)]?.takeIf { it.player === player }?.player = null
+        entries[keyFor(source)]?.takeIf { it.player === player }?.let { entry ->
+            entry.player = null
+            // A detached surface cannot be restarted by a queued callback. Drop the manual
+            // override with it so reopening the MV after a pause does not inherit a stale
+            // three-second pause window.
+            entry.manualOverride = null
+            entry.manualOverrideUntilMs = 0L
+            entry.pendingPlayWhenReady = null
+        }
     }
 
     fun seekToProgress(source: DynamicCoverSource?, progress: Float) {
@@ -87,6 +109,9 @@ internal object MusicVideoPlaybackBridge {
     fun setPlaying(playbackOwnerKey: String, playing: Boolean) {
         if (playbackOwnerKey.isBlank()) return
         val entry = entries.getOrPut(playbackOwnerKey) { Entry() }
+        entry.manualOverride = playing
+        entry.manualOverrideUntilMs =
+            SystemClock.elapsedRealtime() + MANUAL_OVERRIDE_GUARD_MS
         entry.pendingPlayWhenReady = playing
         if (!playing) {
             entry.playWhenReady = false
@@ -113,21 +138,47 @@ internal object MusicVideoPlaybackBridge {
         // first frame until the audio clock reaches that delay.
         entry.syncPositionMs = positionMs
         entry.syncDurationMs = audioDurationMs?.coerceAtLeast(0L)
-        entry.playWhenReady = when (val pendingPlaying = entry.pendingPlayWhenReady) {
+        val manualOverride = entry.manualOverride
+            ?.takeIf { SystemClock.elapsedRealtime() < entry.manualOverrideUntilMs }
+            ?: run {
+                entry.manualOverride = null
+                entry.manualOverrideUntilMs = 0L
+                null
+            }
+        entry.playWhenReady = when (manualOverride) {
             false -> {
-                if (!playing) entry.pendingPlayWhenReady = null
+                // Keep a manual pause authoritative for the guard window even after the audio
+                // controller reports the requested pause. This filters a queued stale play event.
+                entry.pendingPlayWhenReady = null
                 false
             }
             true -> {
                 if (playing) {
                     entry.pendingPlayWhenReady = null
+                    entry.manualOverride = null
+                    entry.manualOverrideUntilMs = 0L
                     true
                 } else {
                     // Audio has not resumed yet. Keep the silent decoder on the shared clock.
                     false
                 }
             }
-            null -> playing
+            null -> when (val pendingPlaying = entry.pendingPlayWhenReady) {
+                false -> {
+                    if (!playing) entry.pendingPlayWhenReady = null
+                    false
+                }
+                true -> {
+                    if (playing) {
+                        entry.pendingPlayWhenReady = null
+                        true
+                    } else {
+                        // Audio has not resumed yet. Keep the silent decoder on the shared clock.
+                        false
+                    }
+                }
+                null -> playing
+            }
         }
         entry.player?.let { player ->
             applySync(entry, player)
@@ -157,4 +208,5 @@ internal object MusicVideoPlaybackBridge {
     }
 
     private const val MUSIC_VIDEO_RESYNC_TOLERANCE_MS = 750L
+    private const val MANUAL_OVERRIDE_GUARD_MS = 3_000L
 }

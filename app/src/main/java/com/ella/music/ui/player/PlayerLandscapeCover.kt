@@ -144,6 +144,7 @@ internal fun LandscapeCoverPlayerPage(
     onClearQueue: () -> Unit,
     onLineClick: () -> Unit,
     onArtist: () -> Unit,
+    onSongInfo: (() -> Unit)? = null,
     onDismiss: () -> Unit = {},
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
@@ -320,6 +321,7 @@ internal fun LandscapeCoverPlayerPage(
                         onArtist = onArtist,
                         onToggleFavorite = onToggleFavorite,
                         onToggleMenu = onToggleMenu,
+                        onSongInfo = onSongInfo,
                         modifier = Modifier
                             .fillMaxWidth(coverWidthFraction)
                             .widthIn(max = coverMaxSize)
@@ -394,6 +396,7 @@ internal fun LandscapeCoverPlayerPage(
                         onArtist = onArtist,
                         onToggleFavorite = onToggleFavorite,
                         onToggleMenu = onToggleMenu,
+                        onSongInfo = onSongInfo,
                         modifier = Modifier
                             .fillMaxWidth(coverWidthFraction)
                             .widthIn(max = coverMaxSize)

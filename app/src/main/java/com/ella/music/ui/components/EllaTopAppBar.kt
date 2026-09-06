@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,11 +22,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * Settings pages are hosted by the main navigation graph, so the close action is supplied by
+ * the graph instead of being threaded through every individual settings screen. A null value
+ * keeps ordinary (non-settings) top bars unchanged.
+ */
+val LocalSettingsCloseAction = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 @Composable
 fun EllaSmallTopAppBar(
@@ -48,6 +63,20 @@ fun EllaSmallTopAppBar(
     onDoubleTapTitle: (() -> Unit)? = null,
     bottomContent: @Composable () -> Unit = {},
 ) {
+    val settingsCloseAction = LocalSettingsCloseAction.current
+    val effectiveActions: @Composable RowScope.() -> Unit = {
+        actions()
+        settingsCloseAction?.let { close ->
+            IconButton(onClick = close) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Close,
+                    contentDescription = stringResource(R.string.common_close),
+                    tint = titleColor,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
     // Double-tap-to-top convention: with a visible title only the title area reacts,
     // so the gesture never competes with navigation/action buttons; a title-less bar
     // listens on its whole surface (buttons still win because they consume the tap).
@@ -69,7 +98,7 @@ fun EllaSmallTopAppBar(
                 subtitle = subtitle,
                 subtitleColor = subtitleColor,
                 navigationIcon = navigationIcon,
-                actions = actions,
+                actions = effectiveActions,
                 scrollBehavior = scrollBehavior,
                 defaultWindowInsetsPadding = defaultWindowInsetsPadding,
                 titlePadding = titlePadding,
@@ -105,7 +134,7 @@ fun EllaSmallTopAppBar(
             subtitle = subtitle,
             subtitleColor = subtitleColor,
             navigationIcon = navigationIcon,
-            actions = actions,
+            actions = effectiveActions,
             scrollBehavior = scrollBehavior,
             defaultWindowInsetsPadding = defaultWindowInsetsPadding,
             titlePadding = titlePadding,

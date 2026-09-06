@@ -235,7 +235,9 @@ internal fun SettingsLyricsSection(
         }
     }
 
-    SettingsCardGroup(highlight = highlightKey == "live_update_lyric") {
+    SettingsCardGroup(
+        highlight = highlightKey == "live_update_lyric" || highlightKey == "vivo_atom_walkman_whitelist"
+    ) {
         Column {
             SettingsLiveUpdateLyricControls(
                 playerViewModel = playerViewModel,
@@ -443,6 +445,9 @@ private fun SettingsPlayerMiniLyricControls() {
     val secondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 16)
     val lineSpacing by settingsManager.playerMiniLyricLineSpacing.collectAsState(initial = 7)
     val textAlign by settingsManager.playerMiniLyricTextAlign.collectAsState(initial = 0)
+    val verticalAlign by settingsManager.playerMiniLyricVerticalAlign.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_MINI_LYRIC_VERTICAL_ALIGN
+    )
     val alignLabels = listOf(
         stringResource(R.string.settings_status_align_left),
         stringResource(R.string.settings_status_align_center),
@@ -455,6 +460,19 @@ private fun SettingsPlayerMiniLyricControls() {
         selectedIndex = textAlign.coerceIn(0, 2),
         onSelectedIndexChange = { value ->
             scope.launch { settingsManager.setPlayerMiniLyricTextAlign(value) }
+        }
+    )
+    val verticalAlignLabels = listOf(
+        stringResource(R.string.settings_player_mini_lyric_vertical_top),
+        stringResource(R.string.settings_player_mini_lyric_vertical_center)
+    )
+    WindowSpinnerPreference(
+        title = stringResource(R.string.settings_player_mini_lyric_vertical_align),
+        summary = stringResource(R.string.settings_player_mini_lyric_vertical_align_summary),
+        items = verticalAlignLabels.map { DropdownItem(title = it) },
+        selectedIndex = verticalAlign.coerceIn(0, verticalAlignLabels.lastIndex),
+        onSelectedIndexChange = { value ->
+            scope.launch { settingsManager.setPlayerMiniLyricVerticalAlign(value) }
         }
     )
     SettingsIntSliderPreference(

@@ -48,6 +48,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_TIMING_EDITOR_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_METADATA_EDITOR_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_SPECTRUM_VIEWER_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_MIN_DURATION
+import com.ella.music.data.SettingsManager.Companion.KEY_ALL_FILES_ACCESS_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAY_NEXT_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYLIST_CUSTOM_ORDER
@@ -141,6 +142,7 @@ interface LibrarySettingsAccess {
     val setupWizardCompleted: Flow<Boolean>
     val localPlaylistScanPromptHandled: Flow<Boolean>
     val notificationPermissionPromptHandled: Flow<Boolean>
+    val allFilesAccessPromptHandled: Flow<Boolean>
     val artistSeparators: Flow<String>
     val artistProtectedNames: Flow<String>
     val parseFeaturedArtists: Flow<Boolean>
@@ -220,6 +222,7 @@ interface LibrarySettingsAccess {
     suspend fun setSetupWizardCompleted(completed: Boolean)
     suspend fun setLocalPlaylistScanPromptHandled(handled: Boolean)
     suspend fun setNotificationPermissionPromptHandled(handled: Boolean)
+    suspend fun setAllFilesAccessPromptHandled(handled: Boolean)
     suspend fun setArtistSeparators(separators: String)
     suspend fun setArtistProtectedNames(names: String)
     suspend fun setParseFeaturedArtists(enabled: Boolean)
@@ -361,6 +364,8 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED] ?: false }
     override val notificationPermissionPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED] ?: false }
+    override val allFilesAccessPromptHandled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_ALL_FILES_ACCESS_PROMPT_HANDLED] ?: false }
     override val artistSeparators: Flow<String> = context.dataStore.data.map {
         it[KEY_ARTIST_SEPARATORS] ?: DEFAULT_ARTIST_SEPARATORS
     }
@@ -855,6 +860,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setNotificationPermissionPromptHandled(handled: Boolean) {
         context.dataStore.edit { it[KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED] = handled }
+    }
+
+    override suspend fun setAllFilesAccessPromptHandled(handled: Boolean) {
+        context.dataStore.edit { it[KEY_ALL_FILES_ACCESS_PROMPT_HANDLED] = handled }
     }
 
     override suspend fun setArtistSeparators(separators: String) {

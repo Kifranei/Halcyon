@@ -52,6 +52,27 @@ internal fun InitialScanPromptDialog(
 }
 
 @Composable
+internal fun AllFilesAccessPromptDialog(
+    show: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    EllaMiuixDialog(
+        show = show,
+        title = stringResource(R.string.all_files_access_prompt_title),
+        summary = stringResource(R.string.all_files_access_prompt_message),
+        onDismissRequest = onDismiss
+    ) {
+        EllaMiuixDialogActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.all_files_access_prompt_confirm),
+            onCancel = onDismiss,
+            onConfirm = onConfirm
+        )
+    }
+}
+
+@Composable
 internal fun FullTagSearchPromptDialog(
     show: Boolean,
     onChoose: (Boolean) -> Unit

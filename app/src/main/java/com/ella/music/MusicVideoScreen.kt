@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -309,7 +310,6 @@ internal fun DetailMusicVideoScreen(
             }
         }
         controlsVisible = true
-        activity.setLandscapeImmersive(landscape)
     }
     LaunchedEffect(landscape, controlsVisible, isPlaying, controlsLocked) {
         if (landscape && controlsVisible && isPlaying && !controlsLocked) {
@@ -325,6 +325,12 @@ internal fun DetailMusicVideoScreen(
         } else {
             controlsVisible = true
         }
+    }
+    // Landscape video remains immersive even while transport controls are visible or locked.
+    LaunchedEffect(landscape, inPictureInPictureMode) {
+        activity.setLandscapeImmersive(
+            enabled = landscape && !inPictureInPictureMode
+        )
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -414,6 +420,12 @@ internal fun DetailMusicVideoScreen(
         } else {
             PortraitMusicVideoLayout(
                 song = song,
+                lyrics = lyrics,
+                captionsEnabled = effectiveCaptionsEnabled,
+                captionTranslationEnabled = captionTranslationEnabled,
+                captionStyle = captionStyle,
+                captionOffset = captionOffset,
+                onOpenCaptionSettings = { showCaptionSettings = true },
                 player = player,
                 videoResizeMode = playbackVideoResizeMode,
                 videoAspectRatio = videoAspectRatio,
@@ -434,6 +446,7 @@ internal fun DetailMusicVideoScreen(
         }
         if (showCaptionSettings) {
             MusicVideoCaptionSettingsOverlay(
+                bottomSheet = !landscape,
                 enabled = captionsEnabled,
                 translationEnabled = captionTranslationEnabled,
                 syncOffsetMs = captionSyncOffsetMs,
@@ -523,6 +536,12 @@ internal fun DetailMusicVideoScreen(
 @Composable
 private fun PortraitMusicVideoLayout(
     song: Song,
+    lyrics: List<LyricLine>,
+    captionsEnabled: Boolean,
+    captionTranslationEnabled: Boolean,
+    captionStyle: MusicVideoCaptionStyle,
+    captionOffset: Offset,
+    onOpenCaptionSettings: () -> Unit,
     player: ExoPlayer,
     videoResizeMode: Int,
     videoAspectRatio: Float?,
@@ -537,6 +556,11 @@ private fun PortraitMusicVideoLayout(
     onShare: () -> Unit,
     onControlsVisibleChange: (Boolean) -> Unit
 ) {
+    var gestureFeedback by remember { mutableStateOf<MusicVideoGestureFeedback?>(null) }
+    var feedbackRevision by remember { mutableStateOf(0) }
+    LaunchedEffect(feedbackRevision) {
+        if (feedbackRevision > 0) { delay(850L); gestureFeedback = null }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         VideoSurface(
             player = player,
@@ -550,18 +574,37 @@ private fun PortraitMusicVideoLayout(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(controlsVisible, onTogglePlay) {
-                    detectTapGestures(
-                        onTap = { onControlsVisibleChange(!controlsVisible) },
-                        onDoubleTap = { onTogglePlay() }
-                    )
-                }
+                .musicVideoGestureControls(
+                    player = player,
+                    duration = duration,
+                    controlsLocked = false,
+                    onSeek = onSeek,
+                    onFeedback = { gestureFeedback = it; feedbackRevision += 1 },
+                    onTap = { onControlsVisibleChange(!controlsVisible) },
+                    onDoubleTap = onTogglePlay
+                )
         )
+        gestureFeedback?.let { MusicVideoGestureFeedbackOverlay(feedback = it) }
+        if (captionsEnabled) {
+            MusicVideoCaptions(
+                lyrics = lyrics,
+                position = position,
+                videoAspectRatio = videoAspectRatio,
+                fillVideoBounds = videoResizeMode != AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                positionOffset = captionOffset,
+                style = captionStyle,
+                showTranslation = captionTranslationEnabled,
+                locked = true,
+                onPositionOffsetChange = {},
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         if (controlsVisible) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
@@ -587,6 +630,9 @@ private fun PortraitMusicVideoLayout(
                         onTogglePlay = onTogglePlay,
                         onSeek = onSeek,
                         trailingLabel = stringResource(R.string.player_music_video_landscape),
+                        secondaryTrailingLabel = stringResource(R.string.music_video_captions),
+                        onSecondaryTrailing = onOpenCaptionSettings,
+                        secondaryTrailingSelected = captionsEnabled,
                         trailingIconRes = R.drawable.ic_fullscreen,
                         onTrailing = onLandscape
                     )
@@ -651,6 +697,7 @@ private fun LandscapeMusicVideoLayout(
                 .musicVideoGestureControls(
                     player = player,
                     duration = duration,
+                    controlsLocked = controlsLocked,
                     onSeek = onSeek,
                     onFeedback = { feedback ->
                         gestureFeedback = feedback
@@ -762,7 +809,7 @@ private fun LandscapeMusicVideoLayout(
             VideoIconButton(
                 icon = if (controlsLocked) MiuixIcons.Regular.Lock else MiuixIcons.Regular.Unlock,
                 description = stringResource(
-                    if (controlsLocked) R.string.music_video_lock else R.string.music_video_unlock
+                    if (controlsLocked) R.string.music_video_unlock else R.string.music_video_lock
                 ),
                 onClick = onToggleLock,
                 modifier = Modifier
@@ -791,6 +838,7 @@ private data class MusicVideoGestureFeedback(
 private fun Modifier.musicVideoGestureControls(
     player: ExoPlayer,
     duration: Long,
+    controlsLocked: Boolean,
     onSeek: (Long) -> Unit,
     onFeedback: (MusicVideoGestureFeedback) -> Unit,
     onTap: () -> Unit,
@@ -802,6 +850,7 @@ private fun Modifier.musicVideoGestureControls(
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
     val currentDuration by rememberUpdatedState(duration)
+    val currentControlsLocked by rememberUpdatedState(controlsLocked)
     val currentOnSeek by rememberUpdatedState(onSeek)
     val currentOnFeedback by rememberUpdatedState(onFeedback)
     val currentOnTap by rememberUpdatedState(onTap)
@@ -823,6 +872,29 @@ private fun Modifier.musicVideoGestureControls(
         var lastTapPosition = Offset.Zero
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            // The lock button is the only interactive surface that remains available while the
+            // controls are locked. Leave its hit area untouched so its clickable modifier can
+            // receive the same pointer sequence; every other touch is consumed until release.
+            if (currentControlsLocked) {
+                val unlockHitWidth = 72.dp.toPx()
+                val unlockHitHeight = 72.dp.toPx()
+                val unlockTop = (size.height - unlockHitHeight) / 2f
+                val unlockBottom = unlockTop + unlockHitHeight
+                val isUnlockButtonHit = down.position.x <= unlockHitWidth &&
+                    down.position.y in unlockTop..unlockBottom
+                if (isUnlockButtonHit) {
+                    return@awaitEachGesture
+                }
+                down.consume()
+                var blocked = true
+                while (blocked) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    change.consume()
+                    blocked = change.pressed
+                }
+                return@awaitEachGesture
+            }
             startTouch = down.position
             accumulated = Offset.Zero
             mode = null
@@ -948,7 +1020,7 @@ private fun Modifier.musicVideoGestureControls(
                     pendingSingleTap?.cancel()
                     pendingSingleTap = launch {
                         delay(300L)
-                        if (lastTapTimeMs == releaseTimeMs) {
+                        if (lastTapTimeMs == releaseTimeMs && !currentControlsLocked) {
                             lastTapTimeMs = 0L
                             currentOnTap()
                         }
@@ -1093,6 +1165,7 @@ internal data class MusicVideoCaptionStyle(
 
 @Composable
 private fun MusicVideoCaptionSettingsOverlay(
+    bottomSheet: Boolean = false,
     enabled: Boolean,
     translationEnabled: Boolean,
     syncOffsetMs: Long,
@@ -1110,23 +1183,25 @@ private fun MusicVideoCaptionSettingsOverlay(
         modifier = Modifier
             .fillMaxSize()
             .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.CenterEnd
+        contentAlignment = if (bottomSheet) Alignment.BottomCenter else Alignment.CenterEnd
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.46f)
+                .fillMaxWidth(if (bottomSheet) 1f else 0.46f)
                 .widthIn(min = 320.dp, max = 560.dp)
-                .fillMaxHeight()
+                .fillMaxHeight(if (bottomSheet) 0.78f else 1f)
                 .windowInsetsPadding(WindowInsets.displayCutout)
                 .clip(
                     RoundedCornerShape(
                         topStart = 24.dp,
-                        bottomStart = 24.dp
+                        topEnd = if (bottomSheet) 24.dp else 0.dp,
+                        bottomStart = if (bottomSheet) 0.dp else 24.dp
                     )
                 )
                 .background(ComposeColor.Black.copy(alpha = 0.68f))
                 .clickable { }
                 .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(horizontal = 22.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {

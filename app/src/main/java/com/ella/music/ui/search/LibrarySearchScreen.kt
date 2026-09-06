@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.ella.music.R
+import com.ella.music.data.BottomBarStyle
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.artistNamesForSong
@@ -94,6 +95,10 @@ fun LibrarySearchScreen(
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
     val searchDock = LocalLibrarySearchDockState.current
     val useDockSearchBar = searchDock != null
+    val bottomBarStyle by settingsManager.bottomBarStyle.collectAsState(
+        initial = BottomBarStyle.LiquidGlass
+    )
+    val useTopSearchBar = !useDockSearchBar || bottomBarStyle == BottomBarStyle.Normal
     var localQuery by rememberSaveable(initialQuery) { mutableStateOf(initialQuery.orEmpty()) }
     val query = if (searchDock != null) searchDock.query else localQuery
     fun updateQuery(value: String) {
@@ -621,10 +626,12 @@ fun LibrarySearchScreen(
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        if (!useDockSearchBar) {
+        if (useTopSearchBar) {
             LibrarySearchTopBar(
                 query = query,
-                autoFocus = resolvedSearchAutoFocus,
+                autoFocus = if (useDockSearchBar) searchDock?.autoFocus else resolvedSearchAutoFocus,
+                autoSelectAll = searchDock?.selectAll == true,
+                onAutoSelectAllConsumed = { searchDock?.selectAll = false },
                 showBackButton = showBackButton,
                 onBack = onBack,
                 onQueryChange = { updateQuery(it) },

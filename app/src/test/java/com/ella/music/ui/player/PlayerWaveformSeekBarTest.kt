@@ -22,4 +22,16 @@ class PlayerWaveformSeekBarTest {
         assertEquals(52, levels.size)
         assertTrue(levels.all { it in 0.34f..1f })
     }
+
+    @Test
+    fun waveformEndsTaperForDifferentSongsAndNarrowTimelines() {
+        for (seed in listOf(0, 539, -1, Int.MAX_VALUE)) {
+            for (count in listOf(1, 2, 20, 76)) {
+                val levels = progressWaveformLevels(seed, count, segmented = false)
+                assertEquals(0.08f, levels.first(), 0.0001f)
+                assertEquals(0.08f, levels.last(), 0.0001f)
+                assertTrue(levels.all { it.isFinite() && it in 0.08f..1f })
+            }
+        }
+    }
 }

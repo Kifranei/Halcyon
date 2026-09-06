@@ -34,6 +34,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun LibrarySearchTopBar(
     query: String,
     autoFocus: Boolean?,
+    autoSelectAll: Boolean = false,
+    onAutoSelectAllConsumed: () -> Unit = {},
     showBackButton: Boolean,
     onBack: () -> Unit,
     onQueryChange: (String) -> Unit,
@@ -62,7 +64,9 @@ internal fun LibrarySearchTopBar(
             onSearch = onSearch,
             placeholder = stringResource(R.string.library_search_page_placeholder),
             modifier = Modifier.weight(1f),
-            autoFocus = autoFocus
+            autoFocus = autoFocus,
+            autoSelectAll = autoSelectAll,
+            onAutoSelectAllConsumed = onAutoSelectAllConsumed
         )
     }
 }

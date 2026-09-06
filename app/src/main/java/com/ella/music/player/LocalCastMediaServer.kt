@@ -2,16 +2,21 @@ package com.ella.music.player
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.MediaItem
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.IOException
+import java.net.DatagramSocket
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.Collections
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +29,11 @@ import kotlinx.coroutines.launch
 
 /** Makes phone-local media reachable by Chromecast and DLNA renderers on the same LAN. */
 internal class LocalCastMediaServer(context: Context) {
+    private companion object {
+        const val TAG = "HalcyonCastMediaServer"
+        const val DLNA_FLAGS = "01700000000000000000000000000000"
+    }
+
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -32,20 +42,22 @@ internal class LocalCastMediaServer(context: Context) {
     private var acceptJob: Job? = null
 
     @Synchronized
-    fun urlFor(mediaItem: MediaItem): String? {
+    fun urlFor(mediaItem: MediaItem, targetHost: String? = null): String? {
         val uri = mediaItem.localConfiguration?.uri ?: return null
         if (uri.scheme.equals("http", true) || uri.scheme.equals("https", true)) {
             return uri.toString()
         }
-        val address = runCatching { localIpv4Address() }.getOrNull() ?: return null
+        // A phone may expose several site-local addresses (Wi-Fi, VPN, hotspot). Resolve the
+        // interface that would route to the renderer so the advertised URL is actually reachable.
+        val address = runCatching { localIpv4Address(targetHost) }.getOrNull() ?: return null
         if (runCatching { ensureStarted() }.isFailure) return null
         val socket = serverSocket ?: return null
         val token = mediaItem.mediaId.takeIf(String::isNotBlank)
             ?.let { "${it.hashCode().toUInt().toString(16)}-${uri.toString().hashCode().toUInt().toString(16)}" }
             ?: UUID.randomUUID().toString()
-        val mimeType = mediaItem.localConfiguration?.mimeType
+        val mimeType = normalizeDlnaMimeType(mediaItem.localConfiguration?.mimeType
             ?: appContext.contentResolver.getType(uri)
-            ?: "audio/mpeg"
+            ?: "audio/mpeg")
         entries[token] = Entry(uri, mimeType)
         val url = "http://${address.hostAddress}:${socket.localPort}/media/$token"
         originals[url] = mediaItem
@@ -68,12 +80,31 @@ internal class LocalCastMediaServer(context: Context) {
     }
 
     private fun serve(socket: Socket) {
+        // A renderer is allowed to cancel a probe/range request as soon as it has enough data.
+        // Treat that as a normal transport outcome; an uncaught reset used to kill the app's
+        // DefaultDispatcher worker and leave playback stuck on the TV.
+        try {
+            serveRequest(socket)
+        } catch (error: IOException) {
+            Log.d(TAG, "DLNA client disconnected while serving ${socket.inetAddress?.hostAddress}")
+        } catch (error: Exception) {
+            Log.w(TAG, "DLNA media request failed", error)
+        }
+    }
+
+    private fun serveRequest(socket: Socket) {
         socket.soTimeout = 15_000
+        socket.tcpNoDelay = true
         val input = BufferedInputStream(socket.getInputStream())
         val output = BufferedOutputStream(socket.getOutputStream())
         val requestLine = input.readAsciiLine() ?: return
         val requestParts = requestLine.split(' ')
         val method = requestParts.getOrNull(0).orEmpty().uppercase()
+        if (requestParts.size < 2) {
+            output.writeResponse("HTTP/1.1 400 Bad Request", 0, "text/plain")
+            output.flush()
+            return
+        }
         val token = requestParts.getOrNull(1)?.substringBefore('?')?.substringAfterLast('/')
         var rangeHeader: String? = null
         while (true) {
@@ -81,6 +112,7 @@ internal class LocalCastMediaServer(context: Context) {
             if (line.isEmpty()) break
             if (line.startsWith("Range:", true)) rangeHeader = line.substringAfter(':').trim()
         }
+        Log.d(TAG, "DLNA request method=$method token=${token.orEmpty()} range=${rangeHeader.orEmpty()}")
         val entry = token?.let(entries::get)
         if (method !in setOf("GET", "HEAD") || entry == null) {
             output.writeResponse("HTTP/1.1 404 Not Found", 0, "text/plain")
@@ -105,6 +137,8 @@ internal class LocalCastMediaServer(context: Context) {
             output.writeAscii("Content-Length: $count\r\n")
             output.writeAscii("Accept-Ranges: bytes\r\n")
             if (requested != null) output.writeAscii("Content-Range: bytes $start-$end/${source.length}\r\n")
+            output.writeAscii("transferMode.dlna.org: Streaming\r\n")
+            output.writeAscii("contentFeatures.dlna.org: DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=$DLNA_FLAGS\r\n")
             output.writeAscii("Connection: close\r\n\r\n")
             if (method == "GET") source.copyRangeTo(output, start, count)
             output.flush()
@@ -207,9 +241,33 @@ private fun parseRange(header: String?, length: Long): LongRange? {
     return range.takeIf { it.first in 0 until length && it.last >= it.first }
 }
 
-private fun localIpv4Address(): Inet4Address? = Collections.list(NetworkInterface.getNetworkInterfaces())
-    .asSequence()
-    .filter { it.isUp && !it.isLoopback }
-    .flatMap { Collections.list(it.inetAddresses).asSequence() }
-    .filterIsInstance<Inet4Address>()
-    .firstOrNull { it.isSiteLocalAddress }
+internal fun normalizeDlnaMimeType(raw: String): String = raw
+    .substringBefore(';')
+    .trim()
+    .lowercase(Locale.ROOT)
+    .let { mime ->
+        when (mime) {
+            "audio/x-flac" -> "audio/flac"
+            "audio/x-m4a" -> "audio/mp4"
+            else -> mime.ifBlank { "audio/mpeg" }
+        }
+    }
+
+private fun localIpv4Address(targetHost: String? = null): Inet4Address? {
+    targetHost
+        ?.takeIf { it.isNotBlank() }
+        ?.let { host ->
+            runCatching {
+                DatagramSocket().use { socket ->
+                    socket.connect(InetAddress.getByName(host), 1900)
+                    (socket.localAddress as? Inet4Address)?.takeIf { it.isSiteLocalAddress }
+                }
+            }.getOrNull()?.let { return it }
+        }
+    return Collections.list(NetworkInterface.getNetworkInterfaces())
+        .asSequence()
+        .filter { it.isUp && !it.isLoopback }
+        .flatMap { Collections.list(it.inetAddresses).asSequence() }
+        .filterIsInstance<Inet4Address>()
+        .firstOrNull { it.isSiteLocalAddress }
+}

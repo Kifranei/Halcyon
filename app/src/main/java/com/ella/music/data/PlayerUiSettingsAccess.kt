@@ -26,6 +26,9 @@ import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_RIGHT_BUTTO
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_SWIPE_TO_OPEN_PLAYER
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LONG_PRESS_SOURCE
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES
+import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_ORIENTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CUSTOM_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_OFFSETS_JSON
@@ -41,6 +44,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BEAUTIFUL_LYRICS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BEAUTIFUL_LYRICS_BRIGHTNESS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_BEAUTIFUL_LYRICS_SPEED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_CONTENT_COLOR
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_ALBUM_COVER_CORNER_RADIUS
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MUSIC_VIDEO_CORNER_RADIUS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_SWIPE_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PREDICTIVE_BACK_ENABLED
@@ -71,6 +76,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_PRIMA
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_LINE_SPACING
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAUSE_CURRENT_ONLY
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
@@ -121,6 +127,7 @@ interface PlayerUiSettingsAccess {
     val playerMiniLyricSecondarySize: Flow<Int>
     val playerMiniLyricLineSpacing: Flow<Int>
     val playerMiniLyricTextAlign: Flow<Int>
+    val playerMiniLyricVerticalAlign: Flow<Int>
     val lyricPauseCurrentOnly: Flow<Boolean>
     val playerImmersiveLyricSwipe: Flow<Boolean>
     val playerTitlePosition: Flow<Int>
@@ -131,10 +138,14 @@ interface PlayerUiSettingsAccess {
     val songInfoLayout: Flow<String>
     val queueToolbarLayout: Flow<String>
     val playerLandscapeStyle: Flow<Int>
+    val playerLandscapeHideSystemBars: Flow<Boolean>
+    suspend fun setPlayerLandscapeHideSystemBars(enabled: Boolean)
     val playerKeepScreenOn: Flow<Boolean>
     val playerHdrGlow: Flow<Boolean>
     val playerImmersiveCover: Flow<Boolean>
     val playerCoverContentColor: Flow<Boolean>
+    val playerAlbumCoverCornerRadius: Flow<Int>
+    val playerMusicVideoCornerRadius: Flow<Int>
     val systemBarsMode: Flow<Int>
     val systemBarsReserveSpace: Flow<Boolean>
     val playerDynamicFlowEnabled: Flow<Boolean>
@@ -148,6 +159,9 @@ interface PlayerUiSettingsAccess {
     val musicVideoCaptureSubtitles: Flow<Boolean>
     val musicVideoStretchEnabled: Flow<Boolean>
     val musicVideoOrientation: Flow<Int>
+    val musicVideoFullscreenButtonEnabled: Flow<Boolean>
+    val musicVideoLongPressInfoEnabled: Flow<Boolean>
+    val musicVideoLongPressImmersiveLyricsEnabled: Flow<Boolean>
     val musicVideoOffsetsJson: Flow<String>
     val dynamicCoverCustomFoldersRaw: Flow<String>
     val dynamicCoverCustomFolders: Flow<List<String>>
@@ -179,6 +193,8 @@ interface PlayerUiSettingsAccess {
     suspend fun setTransportButtonOutlines(enabled: Boolean)
     suspend fun setPlayerHdrGlow(enabled: Boolean)
     suspend fun setPlayerImmersiveCover(enabled: Boolean)
+    suspend fun setPlayerAlbumCoverCornerRadius(value: Int)
+    suspend fun setPlayerMusicVideoCornerRadius(value: Int)
     suspend fun setSystemBarsMode(mode: Int)
     suspend fun setSystemBarsReserveSpace(enabled: Boolean)
     suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean)
@@ -192,6 +208,9 @@ interface PlayerUiSettingsAccess {
     suspend fun setMusicVideoCaptureSubtitles(enabled: Boolean)
     suspend fun setMusicVideoStretchEnabled(enabled: Boolean)
     suspend fun setMusicVideoOrientation(orientation: Int)
+    suspend fun setMusicVideoFullscreenButtonEnabled(enabled: Boolean)
+    suspend fun setMusicVideoLongPressInfoEnabled(enabled: Boolean)
+    suspend fun setMusicVideoLongPressImmersiveLyricsEnabled(enabled: Boolean)
     suspend fun setMusicVideoOffsetsJson(json: String)
     suspend fun setDynamicCoverCustomFolders(folders: String)
     suspend fun setMusicVideoCustomFolders(folders: String)
@@ -217,6 +236,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerMiniLyricSecondarySize(value: Int)
     suspend fun setPlayerMiniLyricLineSpacing(value: Int)
     suspend fun setPlayerMiniLyricTextAlign(value: Int)
+    suspend fun setPlayerMiniLyricVerticalAlign(value: Int)
     suspend fun setLyricPauseCurrentOnly(enabled: Boolean)
     suspend fun setPlayerImmersiveLyricSwipe(enabled: Boolean)
     suspend fun setPlayerTitlePosition(position: Int)
@@ -304,6 +324,15 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_LINE_SPACING] ?: 7).coerceIn(0, 24) }
     override val playerMiniLyricTextAlign: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN] ?: 0).coerceIn(0, 2) }
+    override val playerMiniLyricVerticalAlign: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN]
+                ?: SettingsManager.DEFAULT_PLAYER_MINI_LYRIC_VERTICAL_ALIGN)
+                .coerceIn(
+                    SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_TOP,
+                    SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER
+                )
+        }
     override val lyricPauseCurrentOnly: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PAUSE_CURRENT_ONLY] ?: true }
     override val playerImmersiveLyricSwipe: Flow<Boolean> =
@@ -330,11 +359,34 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { SettingsManager.normalizePlayerLandscapeStyle(it[KEY_PLAYER_LANDSCAPE_STYLE]) }
     override val playerKeepScreenOn: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_KEEP_SCREEN_ON] ?: false }
+    override val playerLandscapeHideSystemBars: Flow<Boolean> =
+        context.dataStore.data.map { it[SettingsManager.KEY_PLAYER_LANDSCAPE_HIDE_SYSTEM_BARS] ?: false }
+    override suspend fun setPlayerLandscapeHideSystemBars(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_PLAYER_LANDSCAPE_HIDE_SYSTEM_BARS] = enabled }
+    }
     override val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     override val playerImmersiveCover: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: false }
     override val playerCoverContentColor: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_COVER_CONTENT_COLOR] ?: false }
+    override val playerAlbumCoverCornerRadius: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PLAYER_ALBUM_COVER_CORNER_RADIUS]
+                ?: SettingsManager.DEFAULT_PLAYER_ALBUM_COVER_CORNER_RADIUS_DP)
+                .coerceIn(
+                    SettingsManager.PLAYER_CORNER_RADIUS_MIN_DP,
+                    SettingsManager.PLAYER_CORNER_RADIUS_MAX_DP
+                )
+        }
+    override val playerMusicVideoCornerRadius: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PLAYER_MUSIC_VIDEO_CORNER_RADIUS]
+                ?: SettingsManager.DEFAULT_PLAYER_MUSIC_VIDEO_CORNER_RADIUS_DP)
+                .coerceIn(
+                    SettingsManager.PLAYER_CORNER_RADIUS_MIN_DP,
+                    SettingsManager.PLAYER_CORNER_RADIUS_MAX_DP
+                )
+        }
 
     override val systemBarsMode: Flow<Int> =
         context.dataStore.data.map {
@@ -390,6 +442,21 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
                     SettingsManager.MUSIC_VIDEO_ORIENTATION_PORTRAIT
                 )
                 ?: SettingsManager.DEFAULT_MUSIC_VIDEO_ORIENTATION
+        }
+    override val musicVideoFullscreenButtonEnabled: Flow<Boolean> =
+        context.dataStore.data.map {
+            it[KEY_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED]
+                ?: SettingsManager.DEFAULT_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED
+        }
+    override val musicVideoLongPressInfoEnabled: Flow<Boolean> =
+        context.dataStore.data.map {
+            it[KEY_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED]
+                ?: SettingsManager.DEFAULT_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED
+        }
+    override val musicVideoLongPressImmersiveLyricsEnabled: Flow<Boolean> =
+        context.dataStore.data.map {
+            it[KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED]
+                ?: SettingsManager.DEFAULT_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED
         }
     override val musicVideoOffsetsJson: Flow<String> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_OFFSETS_JSON].orEmpty() }
@@ -495,6 +562,24 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_IMMERSIVE_COVER] = enabled }
     }
 
+    override suspend fun setPlayerAlbumCoverCornerRadius(value: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_ALBUM_COVER_CORNER_RADIUS] = value.coerceIn(
+                SettingsManager.PLAYER_CORNER_RADIUS_MIN_DP,
+                SettingsManager.PLAYER_CORNER_RADIUS_MAX_DP
+            )
+        }
+    }
+
+    override suspend fun setPlayerMusicVideoCornerRadius(value: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_MUSIC_VIDEO_CORNER_RADIUS] = value.coerceIn(
+                SettingsManager.PLAYER_CORNER_RADIUS_MIN_DP,
+                SettingsManager.PLAYER_CORNER_RADIUS_MAX_DP
+            )
+        }
+    }
+
 
     override suspend fun setSystemBarsMode(mode: Int) {
         val normalized = SettingsManager.resolveSystemBarsMode(mode, legacyHideSystemBars = false)
@@ -556,6 +641,18 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
                 SettingsManager.MUSIC_VIDEO_ORIENTATION_PORTRAIT
             )
         }
+    }
+
+    override suspend fun setMusicVideoFullscreenButtonEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED] = enabled }
+    }
+
+    override suspend fun setMusicVideoLongPressInfoEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED] = enabled }
+    }
+
+    override suspend fun setMusicVideoLongPressImmersiveLyricsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED] = enabled }
     }
 
     override suspend fun setMusicVideoOffsetsJson(json: String) {
@@ -676,6 +773,15 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setPlayerMiniLyricTextAlign(value: Int) {
         context.dataStore.edit { it[KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN] = value.coerceIn(0, 2) }
+    }
+
+    override suspend fun setPlayerMiniLyricVerticalAlign(value: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN] = value.coerceIn(
+                SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_TOP,
+                SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER
+            )
+        }
     }
 
     override suspend fun setLyricPauseCurrentOnly(enabled: Boolean) {

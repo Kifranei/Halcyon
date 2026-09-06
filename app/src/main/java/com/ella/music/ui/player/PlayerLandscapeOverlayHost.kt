@@ -31,6 +31,7 @@ internal fun PlayerLandscapeOverlayHost(
     annotation: String,
     dynamicCoverFailedPath: String?,
     isPlaying: Boolean,
+    playWhenReady: Boolean,
     currentPosition: Long,
     duration: Long,
     shuffleEnabled: Boolean,
@@ -176,7 +177,9 @@ internal fun PlayerLandscapeOverlayHost(
             // for the audio state to propagate through the player view model. The source can
             // still be resolving when lyrics are double-tapped, so use the stable song owner.
             if (useMusicVideoBackground) {
-                MusicVideoPlaybackBridge.setPlaying(dynamicCoverSongKey, !isPlaying)
+                // `isPlaying` is false while buffering/crossfading. The audio controller toggles
+                // from playWhenReady, so use the same projected target for the silent MV decoder.
+                MusicVideoPlaybackBridge.setPlaying(dynamicCoverSongKey, !playWhenReady)
             }
             onPlayPause()
         },

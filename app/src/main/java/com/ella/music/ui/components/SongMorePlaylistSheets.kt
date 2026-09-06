@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,7 +45,12 @@ import com.ella.music.data.repository.mediaStoreAlbumArtUri
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -249,21 +255,21 @@ private fun AddToPlaylistRow(
     onClick: () -> Unit
 ) {
     val coverModel = remember(playlist.id, playlist.songs) { playlist.coverModel() }
-    Row(
+    BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MiuixTheme.colorScheme.surfaceContainer),
-            contentAlignment = Alignment.Center
-        ) {
+            .clip(RoundedCornerShape(16.dp)),
+        onClick = onClick,
+        enabled = enabled,
+        insideMargin = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+        startAction = {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MiuixTheme.colorScheme.surfaceContainer),
+                contentAlignment = Alignment.Center
+            ) {
             if (coverModel != null) {
                 SafeCoverImage(
                     model = coverModel,
@@ -276,32 +282,33 @@ private fun AddToPlaylistRow(
             } else {
                 DefaultAlbumCover(modifier = Modifier.size(42.dp))
             }
+            }
+        },
+        endActions = {
+            if (selected) {
+                Icon(
+                    imageVector = MiuixIcons.Basic.Check,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
+    ) {
             Text(
                 text = playlist.name,
-                fontSize = 15.sp,
+                style = MiuixTheme.textStyles.body1,
                 color = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.55f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = stringResource(R.string.song_count, playlist.songs.size),
-                fontSize = 12.sp,
+                style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = if (enabled) 1f else 0.55f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-        if (selected) {
-            Text(
-                text = "\u2713",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.primary
-            )
-        }
     }
 }
 
@@ -318,21 +325,22 @@ private fun AddPlaylistChip(
     modifier: Modifier = Modifier,
     selected: Boolean = false
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(
-                if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-                else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 9.dp)
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        minWidth = 0.dp,
+        minHeight = 40.dp,
+        cornerRadius = 999.dp,
+        insideMargin = PaddingValues(horizontal = 10.dp, vertical = 9.dp),
+        colors = ButtonDefaults.buttonColors(
+            color = if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+            else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f),
+            contentColor = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+        )
     ) {
         Text(
             text = text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+            style = MiuixTheme.textStyles.button,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

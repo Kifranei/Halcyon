@@ -1,8 +1,10 @@
 package com.ella.music.ui.player
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -65,6 +67,7 @@ internal fun LandscapeSongTitle(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 internal fun PlayerSongMetaText(
     song: Song?,
     annotation: String,
@@ -82,7 +85,8 @@ internal fun PlayerSongMetaText(
     titleMarqueeEnabled: Boolean = true,
     artistMarqueeEnabled: Boolean = true,
     onArtistClick: (() -> Unit)? = null,
-    onAlbumClick: (() -> Unit)? = null
+    onAlbumClick: (() -> Unit)? = null,
+    onTitleLongClick: (() -> Unit)? = null
 ) {
     val artist = song?.artist.orEmpty()
     val displayArtist = artistOverride?.takeIf { it.isNotBlank() } ?: artist
@@ -96,6 +100,14 @@ internal fun PlayerSongMetaText(
             Modifier
         }
     }
+    val titleGestureModifier = if (onTitleLongClick != null) {
+        Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = onTitleLongClick
+        )
+    } else {
+        Modifier
+    }
     Column(modifier = modifier) {
         PlayerSongTitleText(
             text = song?.title?.takeIf { it.isNotBlank() }
@@ -107,7 +119,9 @@ internal fun PlayerSongMetaText(
             textAlign = textAlign,
             fontFamily = fontFamily,
             marqueeEnabled = titleMarqueeEnabled,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(titleGestureModifier)
         )
         if (annotation.isNotBlank()) {
             PlayerMarqueeText(

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.ui.components.LocalSettingsCloseAction
 import com.ella.music.ui.effect.BgEffectBackground
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
@@ -43,6 +44,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -79,6 +81,7 @@ fun SettingsWizardScreen(
         .takeIf { it >= 0 } ?: 0
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val heroColor = MiuixTheme.colorScheme.onBackground
+    val closeSettings = LocalSettingsCloseAction.current
 
     fun completeWizard() {
         scope.launch { settingsManager.setSetupWizardCompleted(true) }
@@ -116,8 +119,26 @@ fun SettingsWizardScreen(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .clickable { completeWizard() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                        .padding(
+                            start = 12.dp,
+                            top = 10.dp,
+                            end = if (closeSettings != null) 52.dp else 12.dp,
+                            bottom = 10.dp
+                        )
                 )
+                closeSettings?.let { close ->
+                    IconButton(
+                        onClick = close,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Close,
+                            contentDescription = stringResource(R.string.common_close),
+                            tint = heroColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
             Column(
                 modifier = Modifier

@@ -260,16 +260,23 @@ internal fun SongAudioToolsSheet(
         title = sheetTitle,
         onDismissRequest = onDismiss
     ) {
-        SongSheetColumn {
+        // Keep the current song context visually outside the action card. This makes it read as
+        // the sheet's linked title (and keeps long names from looking like another action row).
+        EllaMiuixSheetColumn(
+            verticalPadding = 8.dp,
+            spacing = 0.dp,
+            showHandle = false
+        ) {
             ExplicitSongTitle(
                 title = song.title.ifBlank { song.fileName },
                 fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = MiuixTheme.colorScheme.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
-            when (page) {
+            EllaMiuixActionMenuGroup {
+                when (page) {
                 AudioToolsPage.Home -> {
                     SongMenuItem(stringResource(R.string.audio_tools_convert), onClick = {
                         page = AudioToolsPage.Format
@@ -401,6 +408,7 @@ internal fun SongAudioToolsSheet(
                         SongMenuItem(stringResource(R.string.common_back), onClick = { page = AudioToolsPage.Home })
                     }
                 }
+            }
             }
         }
     }

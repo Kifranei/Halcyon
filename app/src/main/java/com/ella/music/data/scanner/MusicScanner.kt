@@ -1,9 +1,7 @@
 package com.ella.music.data.scanner
 
-import android.content.ContentUris
 import android.content.Context
 import android.media.MediaMetadataRetriever
-import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.MediaStore
@@ -19,10 +17,8 @@ import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.looksLikeNeteaseKeyValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlin.coroutines.resume
 
 class MusicScanner(private val context: Context) {
     private val audioTagReader = LyricoAudioTagReaderWriter(context)
@@ -42,6 +38,9 @@ class MusicScanner(private val context: Context) {
         filesystemFallbackFolders: List<String> = includeFolders,
         filterVideoFiles: Boolean = true
     ): List<MediaStoreAudioItem> = withContext(Dispatchers.IO) {
+        // Normal refreshes stay incremental. A whole-tree MediaScanner pass is reserved for the
+        // explicit/full scan path below; byte stamps in MusicRepository catch edits whose mtime
+        // was preserved without turning every tap on “scan” into an index rebuild.
         val items = queryMediaStoreAudioItems(
             includeFolders = includeFolders,
             excludeFolders = excludeFolders,
@@ -61,11 +60,12 @@ class MusicScanner(private val context: Context) {
         val filteredFallbackItems = (fallbackItems + indexedItems)
             .filterNot { filterVideoFiles && isVideoFile(it.path, it.mimeType) }
         val (merged, stats) = mergeMediaStoreAndFilesystemItems(filteredItems, filteredFallbackItems)
+        val snapshotted = merged.map { it.withLocalFileSnapshot() }
         Log.i(
             TAG,
             "enumerateAudioFiles mediaStore=${stats.mediaStoreItemCount} filesystemFallback=${stats.filesystemFallbackItemCount} merged=${stats.mergedItemCount}"
         )
-        merged
+        snapshotted
     }
 
     suspend fun scanAudioItem(
@@ -86,13 +86,19 @@ class MusicScanner(private val context: Context) {
         var trackNumber = item.trackNumber
         var discNumber = item.discNumber
         val file = File(item.path)
-        if (!file.exists()) return@withContext null
+        val fileVisible = file.exists()
+        val mediaStoreBacked = item.id > 0L
+        // Salt Player keeps MediaStore rows without File.exists(). Scoped storage often hides
+        // the path even though the provider still has a valid audio row.
+        if (!fileVisible && !mediaStoreBacked) return@withContext null
 
-        val shouldDeepRead = deepMetadata ||
+        val shouldDeepRead = fileVisible && (
+            deepMetadata ||
             isMissingTag(title, file.name) ||
             isMissingArtistTag(artist) ||
             isMissingAlbumTag(album) ||
             duration <= 0
+        )
 
         val tagInfo = if (shouldDeepRead) readTagsBlocking(item.path) else null
 
@@ -132,7 +138,7 @@ class MusicScanner(private val context: Context) {
         }
 
         // WAV files always try WavMetadataReader — MediaStore/Lyrico may not read LIST/INFO chunks
-        if (file.extension.lowercase() in setOf("wav", "wave")) {
+        if (fileVisible && file.extension.lowercase() in setOf("wav", "wave")) {
             WavMetadataReader.read(file)?.let { wavInfo ->
                 if (duration <= 0) duration = wavInfo.durationMs
                 if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
@@ -147,7 +153,7 @@ class MusicScanner(private val context: Context) {
                 trackNumber = trackNumber.takeIf { it > 0 } ?: wavInfo.trackNumber ?: 0
                 discNumber = discNumber.takeIf { it > 0 } ?: wavInfo.discNumber ?: 0
             }
-        } else if (shouldDeepRead || deepMetadata) {
+        } else if (fileVisible && (shouldDeepRead || deepMetadata)) {
             WavMetadataReader.read(file)?.let { wavInfo ->
                 if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
                 if (isMissingArtistTag(artist)) artist = wavInfo.artist.orEmpty()
@@ -181,7 +187,11 @@ class MusicScanner(private val context: Context) {
         if (isMissingArtistTag(artist)) artist = "Unknown Artist"
         if (isMissingAlbumTag(album)) album = "Unknown Album"
 
-        if (duration <= 0 || duration < minDurationMs) return@withContext null
+        if (duration > 0L && duration < minDurationMs) return@withContext null
+        // Unknown MediaStore duration still counts as a song. Salt Player lists these rows and
+        // lets playback fill the length later; dropping them is why files only appear after
+        // another player has indexed them.
+        if (duration <= 0L && !mediaStoreBacked) return@withContext null
 
         Song(
             id = item.id,
@@ -216,6 +226,10 @@ class MusicScanner(private val context: Context) {
         filterVideoFiles: Boolean = true,
         onProgress: ((Int) -> Unit)? = null
     ): List<Song> = withContext(Dispatchers.IO) {
+        MediaStoreLibraryIndexer.refreshIndexedAudio(
+            context = context,
+            folders = filesystemFallbackFolders.ifEmpty { includeFolders }
+        )
         val songs = mutableListOf<Song>()
         val mediaStoreItems = queryMediaStoreAudioItems(
             includeFolders = includeFolders,
@@ -300,62 +314,79 @@ class MusicScanner(private val context: Context) {
             MediaStore.Audio.Media.MIME_TYPE,
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.DATE_MODIFIED,
-            MediaStore.Audio.Media.TRACK
+            MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.RELATIVE_PATH,
+            MediaStore.MediaColumns.VOLUME_NAME
         )
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
+        val seenKeys = HashSet<String>()
+        val basicProjection = projection.copyOf(projection.size - 2)
+        MediaStoreLibraryIndexer.audioCollectionUris(context).forEach { collection ->
+            runCatching {
+                context.contentResolver.query(collection, projection, null, null, null)
+                    ?: context.contentResolver.query(collection, basicProjection, null, null, null)
+            }.recoverCatching {
+                context.contentResolver.query(collection, basicProjection, null, null, null)
+            }.onFailure { error ->
+                Log.w(TAG, "MediaStore query failed for $collection", error)
+            }.getOrNull()?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+                val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+                val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+                val relativePathCol = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                val volumeNameCol = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
 
-        context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            null,
-            null,
-            sortOrder
-        )?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-            val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-            val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
-            val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
-            val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
-            val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
-            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+                while (cursor.moveToNext()) {
+                    val displayName = cursor.getString(nameCol).orEmpty()
+                    val path = MediaStoreLibraryIndexer.reconstructStoragePath(
+                        data = if (dataCol >= 0) cursor.getString(dataCol) else null,
+                        relativePath = if (relativePathCol >= 0) cursor.getString(relativePathCol) else null,
+                        displayName = displayName,
+                        volumeName = if (volumeNameCol >= 0) cursor.getString(volumeNameCol) else null
+                    )
+                    if (path.isEmpty()) continue
+                    val pathKey = path.normalizedAudioPathKey()
+                    if (pathKey.isBlank() || !seenKeys.add(pathKey)) continue
+                    if (!path.isAllowedByFolderFilters(normalizedIncludeFolders, normalizedExcludeFolders)) continue
 
-            while (cursor.moveToNext()) {
-                val path = cursor.getString(dataCol).orEmpty()
-                if (path.isEmpty()) continue
-                if (!path.isAllowedByFolderFilters(normalizedIncludeFolders, normalizedExcludeFolders)) continue
+                    val rawTrackNumber = cursor.getInt(trackCol)
+                    val mediaStoreSize = cursor.getLong(sizeCol).coerceAtLeast(0L)
+                    if (!isMediaStoreAudioCandidate(path, mediaStoreSize)) continue
 
-                val file = if (verifyFileSnapshot) File(path) else null
-                // Scoped storage can hide files from File.exists() even when MediaStore
-                // still has a valid row. Only drop the row when the path is obviously gone
-                // from a location the process can actually observe.
-                if (file != null && file.parentFile?.canRead() == true && !file.exists()) continue
+                    val file = if (verifyFileSnapshot) File(path) else null
+                    // Scoped storage can hide files from File.exists() even when MediaStore
+                    // still has a valid row. Only drop the row when the path is obviously gone
+                    // from a location the process can actually observe.
+                    if (file != null && file.parentFile?.canRead() == true && !file.exists()) continue
 
-                val rawTrackNumber = cursor.getInt(trackCol)
-                val mediaStoreSize = cursor.getLong(sizeCol).coerceAtLeast(0L)
-                val mediaStoreModified = cursor.getLong(dateModifiedCol).takeIf { it > 0L }?.times(1000L) ?: 0L
+                    val mediaStoreModified = cursor.getLong(dateModifiedCol).takeIf { it > 0L }?.times(1000L) ?: 0L
 
-                items += MediaStoreAudioItem(
-                    id = cursor.getLong(idCol),
-                    title = cursor.getString(titleCol).orEmpty(),
-                    artist = cursor.getString(artistCol).orEmpty(),
-                    album = cursor.getString(albumCol).orEmpty(),
-                    albumId = cursor.getLong(albumIdCol),
-                    duration = cursor.getLong(durationCol),
-                    path = path,
-                    fileName = cursor.getString(nameCol).orEmpty(),
-                    fileSize = file?.length()?.takeIf { it > 0L } ?: mediaStoreSize,
-                    mimeType = cursor.getString(mimeCol).orEmpty(),
-                    dateAdded = cursor.getLong(dateAddedCol) * 1000L,
-                    dateModified = file?.lastModified()?.takeIf { it > 0L } ?: mediaStoreModified,
-                    trackNumber = rawTrackNumber.normalizedTrackNumber(),
-                    discNumber = rawTrackNumber.normalizedDiscNumber()
-                )
+                    items += MediaStoreAudioItem(
+                        id = cursor.getLong(idCol),
+                        title = cursor.getString(titleCol).orEmpty(),
+                        artist = cursor.getString(artistCol).orEmpty(),
+                        album = cursor.getString(albumCol).orEmpty(),
+                        albumId = cursor.getLong(albumIdCol),
+                        duration = cursor.getLong(durationCol),
+                        path = path,
+                        fileName = displayName,
+                        fileSize = file?.length()?.takeIf { it > 0L } ?: mediaStoreSize,
+                        mimeType = cursor.getString(mimeCol).orEmpty(),
+                        dateAdded = cursor.getLong(dateAddedCol) * 1000L,
+                        dateModified = file?.lastModified()?.takeIf { it > 0L } ?: mediaStoreModified,
+                        trackNumber = rawTrackNumber.normalizedTrackNumber(),
+                        discNumber = rawTrackNumber.normalizedDiscNumber()
+                    )
+                }
             }
         }
         return items
@@ -525,22 +556,11 @@ class MusicScanner(private val context: Context) {
     }
 
     private suspend fun requestMediaStoreScan(paths: List<String>) {
-        if (paths.isEmpty()) return
-        paths.chunked(32).forEach { chunk ->
-            suspendCancellableCoroutine { continuation ->
-                var remaining = chunk.size
-                MediaScannerConnection.scanFile(
-                    context,
-                    chunk.toTypedArray(),
-                    null
-                ) { _, _ ->
-                    remaining -= 1
-                    if (remaining <= 0 && continuation.isActive) {
-                        continuation.resume(Unit)
-                    }
-                }
-            }
-        }
+        MediaStoreLibraryIndexer.refreshIndexedAudio(
+            context = context,
+            folders = emptyList(),
+            extraPaths = paths
+        )
     }
 
     /**

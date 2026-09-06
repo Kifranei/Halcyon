@@ -44,7 +44,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +60,7 @@ import com.ella.music.data.lastfm.ARTIST_BIO_LANGUAGES
 import com.ella.music.data.lastfm.ArtistBioMenuSource
 import com.ella.music.data.lastfm.artistBioSourcesForLanguage
 import com.ella.music.data.lastfm.normalizeArtistBioSource
+import com.ella.music.data.lastfm.shortLabel
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.data.lastfm.ArtistWikiSource
 import com.ella.music.data.lastfm.LastFmArtistWiki
@@ -270,6 +274,16 @@ internal fun ArtistBiographyPanel(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             sources.forEach { source ->
                                 val sourceSelected = languageSelected && source == selectedSource
+                                val sourceDescription = stringResource(
+                                    when (source) {
+                                        ArtistBioMenuSource.Wikipedia ->
+                                            R.string.artist_biography_source_wikipedia
+                                        ArtistBioMenuSource.LastFm ->
+                                            R.string.artist_image_source_lastfm
+                                        ArtistBioMenuSource.Netease ->
+                                            R.string.artist_image_source_netease
+                                    }
+                                )
                                 val outline = if (sourceSelected) {
                                     MiuixTheme.colorScheme.primary
                                 } else {
@@ -281,6 +295,7 @@ internal fun ArtistBiographyPanel(
                                         .clip(RoundedCornerShape(999.dp))
                                         .background(MiuixTheme.colorScheme.surfaceContainerHigh)
                                         .border(1.5.dp, outline, RoundedCornerShape(999.dp))
+                                        .semantics { contentDescription = sourceDescription }
                                         .clickable {
                                             languageSheetVisible = false
                                             scope.launch {
@@ -290,23 +305,16 @@ internal fun ArtistBiographyPanel(
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        painter = painterResource(source.iconRes),
-                                        contentDescription = stringResource(
-                                            when (source) {
-                                                ArtistBioMenuSource.Wikipedia ->
-                                                    R.string.artist_biography_source_wikipedia
-                                                ArtistBioMenuSource.LastFm ->
-                                                    R.string.artist_image_source_lastfm
-                                                ArtistBioMenuSource.Netease ->
-                                                    R.string.artist_image_source_netease
-                                            }
-                                        ),
-                                        tint = if (sourceSelected) {
+                                    Text(
+                                        text = source.shortLabel,
+                                        color = if (sourceSelected) {
                                             MiuixTheme.colorScheme.primary
                                         } else {
                                             MiuixTheme.colorScheme.onSurface
                                         },
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }

@@ -142,13 +142,16 @@ internal class PlayerPlaybackSettingsBridge(
         scope.launch {
             PlaybackService.externalPlaybackSnapshot.collectLatest { snapshot ->
                 snapshot ?: return@collectLatest
-                playerManager.ensureConnected(refreshStateIfConnected = false)
+                // A service snapshot is already authoritative playback state.  Do not reconnect
+                // the UI MediaController from this hot path: every play/pause callback emits a
+                // snapshot, and reconnecting here can release the controller before its
+                // onIsPlayingChanged callback reaches the player page.  Foreground resume and
+                // transport commands perform the explicit reconnect when it is actually needed.
                 playerManager.applyExternalPlaybackSnapshot(snapshot)
             }
         }
         scope.launch {
             PlaybackService.externalPlaybackModeEvent.collect { snapshot ->
-                playerManager.ensureConnected(refreshStateIfConnected = false)
                 playerManager.applyExternalPlaybackMode(
                     shuffle = snapshot.shuffle,
                     repeatMode = snapshot.repeatMode

@@ -3,7 +3,6 @@ package com.ella.music.ui.components
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.background
@@ -33,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalView
@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -61,6 +62,10 @@ fun FastIndexBar(
     reverse: Boolean = false
 ) {
     val view = LocalView.current
+    // The pointer coroutine can survive a layout transition when the letter list and bar size
+    // stay the same. Keep the callback current so a drag after switching to the two-column
+    // layout always scrolls the newly active LazyListState rather than the old one.
+    val currentOnLetterClick by rememberUpdatedState(onLetterClick)
     val indexLetters = remember(letters, reverse) { letters.toFastIndexLetters(reverse) }
     var heightPx by remember { mutableStateOf(1) }
     var contentHeightPx by remember { mutableStateOf(1) }
@@ -88,7 +93,7 @@ fun FastIndexBar(
         if (letter != lastSelectedLetter) {
             lastSelectedLetter = letter
             lastDispatchTimeMs = now
-            onLetterClick(letter)
+            currentOnLetterClick(letter)
             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         }
     }
@@ -97,21 +102,36 @@ fun FastIndexBar(
         modifier = modifier
             .width(28.dp)
             .fillMaxHeight()
+            // The bar is a sibling of the list. Explicitly place it above the list for hit
+            // testing; this changes no dimensions or touch target width.
+            .zIndex(1f)
             .onSizeChanged { heightPx = it.height.coerceAtLeast(1) }
             .pointerInput(indexLetters, heightPx, contentHeightPx) {
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    selectAt(down.position.y, force = true)
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: break
-                        if (change.changedToUpIgnoreConsumed()) break
-                        if (change.pressed) {
-                            selectAt(change.position.y)
-                            change.consume()
+                    val down = awaitFirstDown(
+                        requireUnconsumed = false,
+                        pass = PointerEventPass.Initial,
+                    )
+                    try {
+                        // The whole bar is one gesture target. Child clickables used to win the
+                        // hit test in the two-column library and swallowed the vertical drag.
+                        down.consume()
+                        selectAt(down.position.y, force = true)
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull() ?: break
+                            if (change.changedToUpIgnoreConsumed()) {
+                                change.consume()
+                                break
+                            }
+                            if (change.pressed) {
+                                selectAt(change.position.y)
+                                change.consume()
+                            }
                         }
+                    } finally {
+                        lastSelectedLetter = null
                     }
-                    lastSelectedLetter = null
                 }
             },
         contentAlignment = Alignment.CenterEnd
@@ -140,13 +160,7 @@ fun FastIndexBar(
                 val selected = letter == lastSelectedLetter
                 Box(
                     modifier = Modifier
-                        .size(cellSize)
-                        .clickable {
-                            lastSelectedLetter = letter
-                            lastDispatchTimeMs = SystemClock.uptimeMillis()
-                            onLetterClick(letter)
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
+                        .size(cellSize),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -371,7 +385,10 @@ private fun ScrollIndicator(
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull() ?: break
-                                if (change.changedToUpIgnoreConsumed()) break
+                                if (change.changedToUpIgnoreConsumed()) {
+                                    change.consume()
+                                    break
+                                }
                                 if (change.pressed) {
                                     change.consume()
                                     dispatch(change.position.y)

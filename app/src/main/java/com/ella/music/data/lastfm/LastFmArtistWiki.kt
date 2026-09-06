@@ -37,6 +37,14 @@ internal enum class ArtistBioMenuSource(val id: String, val iconRes: Int) {
     Netease("netease", com.ella.music.R.drawable.ic_source_netease)
 }
 
+/** Compact, font-independent labels used by the biography source picker. */
+internal val ArtistBioMenuSource.shortLabel: String
+    get() = when (this) {
+        ArtistBioMenuSource.Netease -> "N"
+        ArtistBioMenuSource.LastFm -> "L"
+        ArtistBioMenuSource.Wikipedia -> "W"
+    }
+
 internal fun normalizeArtistBioSource(value: String?): ArtistBioMenuSource =
     ArtistBioMenuSource.entries.firstOrNull { it.id.equals(value?.trim(), ignoreCase = true) }
         ?: ArtistBioMenuSource.Wikipedia

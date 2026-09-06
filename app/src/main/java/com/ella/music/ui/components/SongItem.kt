@@ -87,6 +87,7 @@ fun SongItem(
     loadSongRating: ((Song) -> Int)? = null,
     ratingRevision: Int = 0,
     ratingDisplayMode: Int? = null,
+    titleMarqueeEnabledOverride: Boolean? = null,
     showPlayNextInLists: Boolean = false,
     compactMultiRow: Boolean = false,
     dragSelectedSongs: List<Song> = emptyList(),
@@ -106,12 +107,16 @@ fun SongItem(
     }
     val sourceView = LocalView.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val preferredRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
-        initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
-    )
-    val titleMarqueeEnabled by settingsManager.librarySongTitleMarquee.collectAsState(initial = true)
+    // Large library screens can contain dozens of visible rows. Let their parent collect these
+    // stable display preferences once and pass them down; other callers keep the self-contained
+    // fallback collection for backwards-compatible behavior.
+    val effectiveRatingDisplayMode = ratingDisplayMode ?: settingsManager.songRatingDisplayMode
+        .collectAsState(initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER)
+        .value
+    val titleMarqueeEnabled = titleMarqueeEnabledOverride ?: settingsManager.librarySongTitleMarquee
+        .collectAsState(initial = true)
+        .value
     val compactTitleMarquee = compactMultiRow && titleMarqueeEnabled
-    val effectiveRatingDisplayMode = ratingDisplayMode ?: preferredRatingDisplayMode
     val coverState = rememberSongArtworkState(
         song = song,
         albumArtUri = albumArtUri,
@@ -207,7 +212,10 @@ fun SongItem(
                     contentDescription = null,
                     modifier = Modifier.size(coverSize),
                     contentScale = ContentScale.Crop,
-                    sizePx = if (compactMultiRow) 512 else 384,
+                    // These thumbnails render at 48/64dp. Decode at a modest 2x density target
+                    // instead of 384/512px per row; this keeps the same crisp appearance while
+                    // reducing bitmap memory and GPU upload work during fast scrolling.
+                    sizePx = if (compactMultiRow) 320 else 256,
                     showDefaultPlaceholder = false
                 )
             } else {

@@ -105,6 +105,27 @@ private fun buildQueueEntries(items: List<Song>): List<QueueEntry> {
     }
 }
 
+/**
+ * A queue can be backed by a mutable list while a new playback snapshot is being published.
+ * Compose may therefore see the same list instance (or an equal list) even though its rows have
+ * changed. This order-sensitive key invalidates the local presentation when an occurrence,
+ * source, or file revision changes.
+ */
+internal fun queueSnapshotKey(items: List<Song>): Long {
+    var hash = 17L
+    fun mix(value: Any?) {
+        hash = hash * 31L + (value?.hashCode()?.toLong() ?: 0L)
+    }
+    items.forEachIndexed { index, song ->
+        mix(index)
+        mix(song.playlistIdentityKey())
+        mix(song.playbackSourceKey)
+        mix(song.dateModified)
+        mix(song.fileSize)
+    }
+    return hash
+}
+
 @Composable
 internal fun PlayerQueueMenu(
     playlist: List<Song>,
@@ -151,14 +172,27 @@ internal fun PlayerQueueMenu(
     }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    var manualPlaylist by remember(playlist) { mutableStateOf(buildQueueEntries(playlist)) }
-    var pendingMoveStart by remember(playlist) { mutableStateOf<Int?>(null) }
-    var pendingMoveTarget by remember(playlist) { mutableStateOf<Int?>(null) }
+    // Compute from the rows on every recomposition: the upstream queue may mutate its backing
+    // list in place, making remember(playlist) believe that nothing changed.
+    val playlistSnapshotKey = queueSnapshotKey(playlist)
+    var manualPlaylist by remember(playlistSnapshotKey) {
+        mutableStateOf(buildQueueEntries(playlist))
+    }
+    var pendingMoveStart by remember(playlistSnapshotKey) { mutableStateOf<Int?>(null) }
+    var pendingMoveTarget by remember(playlistSnapshotKey) { mutableStateOf<Int?>(null) }
     // Keep the actual queue occurrence selected while a drag is still local. A raw song identity
     // points to the first duplicate as soon as the reordered list is recomposed.
-    var trackedCurrentEntryKey by remember(playlist) { mutableStateOf<String?>(null) }
-    LaunchedEffect(playlist, currentSongKey, effectiveCurrentSourceKey, currentQueueIndexHint) {
+    var trackedCurrentEntryKey by remember(playlistSnapshotKey) { mutableStateOf<String?>(null) }
+    LaunchedEffect(playlistSnapshotKey, currentSongKey, effectiveCurrentSourceKey, currentQueueIndexHint) {
         val incomingEntries = buildQueueEntries(playlist)
+        // A queue replacement can arrive while the sheet remains composed. Do not rely solely on
+        // remember(playlist): a mutable queue snapshot may compare equal across the transition,
+        // leaving one stale occurrence in the locally reordered presentation. The playback queue
+        // is authoritative whenever it publishes a new snapshot, so replace the local rows before
+        // resolving the current occurrence.
+        manualPlaylist = incomingEntries
+        pendingMoveStart = null
+        pendingMoveTarget = null
         trackedCurrentEntryKey = currentQueueIndexHint.takeIf {
             it in incomingEntries.indices &&
                 incomingEntries[it].song.playlistIdentityKey() == currentSongKey &&

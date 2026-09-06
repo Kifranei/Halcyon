@@ -12,3 +12,19 @@ internal val supportedAudioFileExtensions: Set<String> = setOf(
     "aiff", "aif", "aifc", "afc", "ape", "alac",
     "dsf", "dff", "dsdiff", "dts", "dtshd", "wv", "tta", "mpc", "shn", "mka"
 )
+
+/** Salt Player keeps MediaStore rows at least 1 KB so empty/placeholder audio is skipped. */
+internal const val MEDIA_STORE_MIN_AUDIO_BYTES = 1_000L
+
+internal fun String.audioExtension(): String =
+    substringAfterLast('.', "").lowercase()
+
+/**
+ * Salt Player's Android MediaStore scan keeps a row when `_data` is present, the file is at
+ * least 1 KB, and the extension is a known audio type. No `IS_MUSIC`, duration, or
+ * [java.io.File.exists] gate — scoped storage often hides files that MediaStore still indexes.
+ */
+internal fun isMediaStoreAudioCandidate(path: String, fileSize: Long): Boolean {
+    if (path.isBlank() || fileSize < MEDIA_STORE_MIN_AUDIO_BYTES) return false
+    return path.audioExtension() in supportedAudioFileExtensions
+}

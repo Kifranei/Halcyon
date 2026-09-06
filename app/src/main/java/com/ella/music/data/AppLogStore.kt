@@ -8,6 +8,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 enum class AppLogType(val label: String) {
     APP("应用"),
@@ -35,6 +36,23 @@ data class AppLogEntry(
 
 object AppLogStore {
     private const val LEGACY_FILE_NAME = "ella_logs.tsv"
+    private const val DEVICE_PROPERTY_READ_LIMIT_BYTES = 512 * 1024
+    private val BUILD_PROP_PATHS = listOf(
+        "/system/build.prop",
+        "/system/system/build.prop",
+        "/system/etc/prop.default",
+        "/system/etc/build.prop",
+        "/system_ext/build.prop",
+        "/system_ext/etc/build.prop",
+        "/product/build.prop",
+        "/product/etc/build.prop",
+        "/vendor/build.prop",
+        "/vendor/default.prop",
+        "/vendor/etc/build.prop",
+        "/odm/build.prop",
+        "/odm/etc/build.prop",
+        "/system_dlkm/build.prop"
+    )
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
 
     @Volatile
@@ -158,6 +176,9 @@ object AppLogStore {
             appendLine("Package: ${appContext.packageName}")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})")
             appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+            appendLine()
+            appendLine("== Device/build properties ==")
+            appendDeviceProperties()
             scopeDescription?.takeIf { it.isNotBlank() }?.let { appendLine("Export scope: $it") }
             appendLine("Log count: ${entries.size}")
             appendLine("Error count: ${entries.count { it.level == "ERROR" }}")
@@ -172,6 +193,83 @@ object AppLogStore {
                 if (!dump.endsWith("\n")) appendLine()
             }
         }
+    }
+
+    /**
+     * Adds the same low-level context that is normally requested alongside a bug report.  The
+     * values are collected at export time so a report copied from a different device/process is
+     * still self describing.  Some Android releases make individual build.prop files unreadable;
+     * failures are intentionally represented as a short marker while the public Build values and
+     * getprop output remain available.
+     */
+    private fun StringBuilder.appendDeviceProperties() {
+        fun appendValue(name: String, value: String?) {
+            appendLine("$name: ${value?.takeIf { it.isNotBlank() } ?: "<unavailable>"}")
+        }
+
+        appendValue("Build.BRAND", Build.BRAND)
+        appendValue("Build.MANUFACTURER", Build.MANUFACTURER)
+        appendValue("Build.MODEL", Build.MODEL)
+        appendValue("Build.DEVICE", Build.DEVICE)
+        appendValue("Build.PRODUCT", Build.PRODUCT)
+        appendValue("Build.BOARD", Build.BOARD)
+        appendValue("Build.HARDWARE", Build.HARDWARE)
+        appendValue("Build.FINGERPRINT", Build.FINGERPRINT)
+        appendValue("Build.ID", Build.ID)
+        appendValue("Build.DISPLAY", Build.DISPLAY)
+        appendValue("Build.TYPE", Build.TYPE)
+        appendValue("Build.TAGS", Build.TAGS)
+        appendValue("Build.HOST", Build.HOST)
+        appendValue("Build.USER", Build.USER)
+        appendValue("Build.BOOTLOADER", Build.BOOTLOADER)
+        appendValue("Build.SUPPORTED_ABIS", Build.SUPPORTED_ABIS.joinToString(","))
+        appendValue("Build.VERSION.SECURITY_PATCH", Build.VERSION.SECURITY_PATCH)
+        appendValue("Build.VERSION.INCREMENTAL", Build.VERSION.INCREMENTAL)
+        appendValue("Build.VERSION.CODENAME", Build.VERSION.CODENAME)
+        appendValue("Build.VERSION.BASE_OS", Build.VERSION.BASE_OS)
+        appendValue(
+            "Build.VERSION.PREVIEW_SDK_INT",
+            Build.VERSION.PREVIEW_SDK_INT.toString()
+        )
+        runCatching { Build.getRadioVersion() }
+            .onSuccess { appendValue("Build.RADIO", it) }
+
+        runCatching {
+            val process = Runtime.getRuntime().exec(arrayOf("getprop"))
+            val output = process.inputStream.use { it.readLimitedText(DEVICE_PROPERTY_READ_LIMIT_BYTES) }
+            process.waitFor(2L, TimeUnit.SECONDS)
+            process.destroy()
+            output.takeIf { it.isNotBlank() }?.let {
+                appendLine()
+                appendLine("-- getprop --")
+                appendLine(it.trimEnd())
+            }
+        }.onFailure { appendLine("getprop: <unavailable: ${it.javaClass.simpleName}>") }
+
+        BUILD_PROP_PATHS.forEach { path ->
+            val file = File(path)
+            if (!file.isFile) return@forEach
+            appendLine()
+            appendLine("-- $path --")
+            runCatching {
+                appendLine(file.inputStream().use { it.readLimitedText(DEVICE_PROPERTY_READ_LIMIT_BYTES) }.trimEnd())
+            }.onFailure {
+                appendLine("<unreadable: ${it.javaClass.simpleName}>")
+            }
+        }
+    }
+
+    private fun java.io.InputStream.readLimitedText(limitBytes: Int): String {
+        val bytes = ByteArray(16 * 1024)
+        var total = 0
+        val output = java.io.ByteArrayOutputStream()
+        while (total < limitBytes) {
+            val read = read(bytes, 0, minOf(bytes.size, limitBytes - total))
+            if (read <= 0) break
+            output.write(bytes, 0, read)
+            total += read
+        }
+        return output.toString(Charsets.UTF_8.name())
     }
 
     fun exportDetailedReport(

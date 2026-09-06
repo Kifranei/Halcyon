@@ -97,10 +97,12 @@ internal object DlnaCastManager {
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val server = mediaServer ?: LocalCastMediaServer(context).also { mediaServer = it }
-            val mediaUrl = server.urlFor(mediaItem) ?: error("无法生成局域网媒体地址")
+            val rendererHost = runCatching { URL(renderer.location).host }.getOrNull()
+            val mediaUrl = server.urlFor(mediaItem, targetHost = rendererHost)
+                ?: error("无法生成局域网媒体地址")
             val title = mediaItem.mediaMetadata.title?.toString().orEmpty().ifBlank { mediaItem.mediaId }
             val artist = mediaItem.mediaMetadata.artist?.toString().orEmpty()
-            val mime = mediaItem.localConfiguration?.mimeType ?: "audio/mpeg"
+            val mime = normalizeDlnaMimeType(mediaItem.localConfiguration?.mimeType.orEmpty())
             val metadata = didlMetadata(title, artist, mediaUrl, mime)
             sendSoap(
                 renderer,
@@ -163,10 +165,14 @@ internal object DlnaCastManager {
         val request = Request.Builder()
             .url(renderer.avTransportControlUrl)
             .header("SOAPACTION", "\"$AV_TRANSPORT#$action\"")
+            .header("Connection", "close")
             .post(envelope.toRequestBody("text/xml; charset=utf-8".toMediaType()))
             .build()
         httpClient.newCall(request).execute().use { response ->
-            check(response.isSuccessful) { "DLNA $action HTTP ${response.code}" }
+            val body = response.body?.string().orEmpty()
+            check(response.isSuccessful) {
+                "DLNA $action HTTP ${response.code}" + body.takeIf { it.isNotBlank() }?.let { ": ${it.take(256)}" }.orEmpty()
+            }
         }
     }
 }
@@ -183,7 +189,7 @@ private fun Element.childText(localName: String): String =
 
 private fun didlMetadata(title: String, artist: String, url: String, mime: String): String = """
     <DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
-      <item id="0" parentID="0" restricted="1"><dc:title>${title.xmlEscape()}</dc:title><upnp:artist>${artist.xmlEscape()}</upnp:artist><upnp:class>object.item.audioItem.musicTrack</upnp:class><res protocolInfo="http-get:*:$mime:*">${url.xmlEscape()}</res></item>
+      <item id="0" parentID="0" restricted="1"><dc:title>${title.xmlEscape()}</dc:title><upnp:artist>${artist.xmlEscape()}</upnp:artist><upnp:class>object.item.audioItem.musicTrack</upnp:class><res protocolInfo="http-get:*:${normalizeDlnaMimeType(mime)}:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000">${url.xmlEscape()}</res></item>
     </DIDL-Lite>
 """.trimIndent()
 

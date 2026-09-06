@@ -2,11 +2,12 @@ package com.ella.music.ui.player
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.model.Song
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 
 @Composable
 internal fun PlayerQueueSheet(
@@ -33,36 +34,39 @@ internal fun PlayerQueueSheet(
 ) {
     if (!show) return
 
-    WindowBottomSheet(
-        show = true,
-        enableNestedScroll = false,
-        title = stringResource(R.string.player_queue_title),
-        onDismissRequest = onDismiss
-    ) {
-        PlayerQueueMenu(
-            playlist = playlist,
-            currentSongKey = currentSongKey,
-            currentSongSourceKey = currentSongSourceKey,
-            currentQueueIndexHint = currentQueueIndexHint,
-            shuffleEnabled = shuffleEnabled,
-            repeatMode = repeatMode,
-            queueLocked = queueLocked,
-            favoriteSongKeys = favoriteSongKeys,
-            loadSongRating = loadSongRating,
-            ratingRevision = ratingRevision,
-            onCyclePlaybackMode = onCyclePlaybackMode,
-            onToggleQueueLock = onToggleQueueLock,
-            onSongClick = onSongClick,
-            onRemoveSong = onRemoveSong,
-            onMoveSong = onMoveSong,
-            onRandomizeQueue = onRandomizeQueue,
-            onAddQueueToPlaylist = onAddQueueToPlaylist,
-            onClearQueue = onClearQueue,
-            onNavigateToPlaybackSource = {
-                onDismiss()
-                com.ella.music.data.PlaybackSourceNavigation.request()
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
+    val playlistSnapshotKey = queueSnapshotKey(playlist)
+    key(playlistSnapshotKey) {
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.player_queue_title),
+            onDismissRequest = onDismiss
+        ) {
+            PlayerQueueMenu(
+                playlist = playlist,
+                currentSongKey = currentSongKey,
+                currentSongSourceKey = currentSongSourceKey,
+                currentQueueIndexHint = currentQueueIndexHint,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                queueLocked = queueLocked,
+                favoriteSongKeys = favoriteSongKeys,
+                loadSongRating = loadSongRating,
+                ratingRevision = ratingRevision,
+                onCyclePlaybackMode = onCyclePlaybackMode,
+                onToggleQueueLock = onToggleQueueLock,
+                onSongClick = onSongClick,
+                onRemoveSong = onRemoveSong,
+                onMoveSong = onMoveSong,
+                onRandomizeQueue = onRandomizeQueue,
+                onAddQueueToPlaylist = onAddQueueToPlaylist,
+                onClearQueue = onClearQueue,
+                onNavigateToPlaybackSource = {
+                    onDismiss()
+                    com.ella.music.data.PlaybackSourceNavigation.request()
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }

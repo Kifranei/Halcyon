@@ -21,13 +21,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun GlassPill(
     backdrop: Backdrop?,
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(32.dp),
+    shape: RoundedCornerShape? = null,
+    cornerRadiusDp: Float? = null,
     blurRadius: Float = 34f,
-    liquidBlurRadius: Float = 12f,
     glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
     disableRefraction: Boolean = false,
+    liquidGlassConfig: BottomBarLiquidGlassConfig? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val resolvedShape = shape ?: RoundedCornerShape(
+        (cornerRadiusDp ?: LocalBottomBarCornerRadiusDp.current).coerceIn(0f, 32f).dp
+    )
+    val resolvedLiquidGlassConfig = liquidGlassConfig ?: LocalBottomBarLiquidGlassConfig.current
     val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val isInDark = !isLight
     val containerColor = bottomBarGlassContainerColor(
@@ -42,13 +47,16 @@ fun GlassPill(
     val glassModifier = if (backdrop != null) {
         Modifier.drawBackdrop(
             backdrop = backdrop,
-            shape = { shape },
+            shape = { resolvedShape },
             effects = {
                 applyBottomBarGlassEffect(
                     glassEffect = glassEffect,
                     blurRadius = blurRadius,
-                    liquidBlurRadius = liquidBlurRadius,
-                    disableRefraction = disableRefraction
+                    liquidBlurRadius = resolvedLiquidGlassConfig.blurRadiusDp,
+                    liquidRefractionHeight = resolvedLiquidGlassConfig.refractionHeightDp,
+                    liquidRefractionAmount = resolvedLiquidGlassConfig.refractionAmountDp,
+                    liquidChromaticAberration = resolvedLiquidGlassConfig.chromaticAberration,
+                    disableRefraction = disableRefraction,
                 )
             },
             highlight = {
@@ -61,14 +69,14 @@ fun GlassPill(
             }
         )
     } else {
-        Modifier.background(containerColor, shape)
+        Modifier.background(containerColor, resolvedShape)
     }
 
     Box(
         modifier = modifier
-            .clip(shape)
+            .clip(resolvedShape)
             .dropShadow(
-                shape = shape,
+                shape = resolvedShape,
                 shadow = Shadow(
                     radius = 10.dp,
                     color = Color.Black,

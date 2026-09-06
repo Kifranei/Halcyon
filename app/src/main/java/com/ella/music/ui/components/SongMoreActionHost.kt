@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.exception.WritePermissionRequiredException
+import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
@@ -106,25 +107,30 @@ fun SongMoreActionHost(
     val writePermissionNeeded = stringResource(R.string.song_more_metadata_write_permission_needed)
     val actionArtworkState = rememberSongArtworkState(
         song = actionSong,
-        albumArtUri = actionSong?.albumId
-            ?.takeIf { it > 0L }
-            ?.let(mainViewModel::getAlbumArtUri),
-        // Resolve a concrete Bitmap for the header.  Passing the raw embedded ByteArray directly
-        // to Coil is provider-dependent and made local covers disappear in this sheet.
-        loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
-        usage = ArtworkUsage.LibraryGrid,
+        albumArtUri = null,
+        loadCoverArt = mainViewModel::getMiniPlayerCoverArtBitmap,
+        usage = ArtworkUsage.MiniPlayer,
         showDefaultWhenMissing = false
     )
     val actionCoverModel by produceState<Any?>(
         initialValue = null,
         actionSong?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
     ) {
-        // produceState retains its last value across key changes. Clear it first so a newly
-        // selected song never shows the preceding song's cover while extraction is running.
         value = null
         val requestedSong = actionSong
         value = requestedSong?.let { song ->
-            withContext(Dispatchers.IO) { mainViewModel.getOriginalCoverModel(song) }
+            withContext(Dispatchers.IO) {
+                mainViewModel.getOriginalCoverModel(song)
+                    ?.takeUnless { model ->
+                        val text = when (model) {
+                            is android.net.Uri -> model.toString()
+                            is String -> model
+                            else -> null
+                        }
+                        text?.isMediaStoreAlbumArtworkUri() == true
+                    }
+                    ?: mainViewModel.getMiniPlayerCoverArtBitmap(song)
+            }
         }
     }
 
@@ -190,7 +196,7 @@ fun SongMoreActionHost(
                         song = song,
                         // Prefer the resolved Bitmap for reliable rendering, while retaining the
                         // original model for the full-resolution long-press preview when it exists.
-                        coverModel = actionArtworkState.model ?: actionCoverModel,
+                        coverModel = actionCoverModel ?: actionArtworkState.model,
                         onPreview = {
                             if (actionCoverModel != null) coverPreviewSong = song
                         },

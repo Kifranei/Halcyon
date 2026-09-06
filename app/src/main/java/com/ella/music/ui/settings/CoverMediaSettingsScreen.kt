@@ -506,6 +506,26 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
         "musicVideoOrientation",
         SettingsManager.DEFAULT_MUSIC_VIDEO_ORIENTATION
     )
+    val musicVideoFullscreenButtonEnabled by settingsManager.musicVideoFullscreenButtonEnabled.collectCachedAsState(
+        "musicVideoFullscreenButtonEnabled",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED
+    )
+    val musicVideoLongPressInfoEnabled by settingsManager.musicVideoLongPressInfoEnabled.collectCachedAsState(
+        "musicVideoLongPressInfoEnabled",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED
+    )
+    val musicVideoLongPressImmersiveLyricsEnabled by settingsManager.musicVideoLongPressImmersiveLyricsEnabled.collectCachedAsState(
+        "musicVideoLongPressImmersiveLyricsEnabled",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED
+    )
+    val playerAlbumCoverCornerRadius by settingsManager.playerAlbumCoverCornerRadius.collectCachedAsState(
+        "playerAlbumCoverCornerRadius",
+        SettingsManager.DEFAULT_PLAYER_ALBUM_COVER_CORNER_RADIUS_DP
+    )
+    val playerMusicVideoCornerRadius by settingsManager.playerMusicVideoCornerRadius.collectCachedAsState(
+        "playerMusicVideoCornerRadius",
+        SettingsManager.DEFAULT_PLAYER_MUSIC_VIDEO_CORNER_RADIUS_DP
+    )
     val showLocalMusicVideoInLists by settingsManager.showLocalMusicVideoInLists.collectCachedAsState(
         "showLocalMusicVideoInLists",
         true
@@ -554,7 +574,15 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
 
     SmallTitle(text = stringResource(R.string.settings_music_video_sync))
     SettingsCardGroup(
-        highlight = highlightKey in setOf("music_video", "cover_media")
+        highlight = highlightKey in setOf(
+            "music_video",
+            "cover_media",
+            "music_video_fullscreen_button",
+            "music_video_long_press_info",
+            "music_video_long_press_immersive_lyrics",
+            "player_album_cover_corner_radius",
+            "player_music_video_corner_radius"
+        )
     ) {
         Column {
             SwitchPreference(
@@ -591,6 +619,46 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                         scope.launch { settingsManager.setMusicVideoOrientation(orientation) }
                     }
                 }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_fullscreen_button),
+                summary = stringResource(R.string.settings_music_video_fullscreen_button_summary),
+                checked = musicVideoFullscreenButtonEnabled,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setMusicVideoFullscreenButtonEnabled(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_long_press_info),
+                summary = stringResource(R.string.settings_music_video_long_press_info_summary),
+                checked = musicVideoLongPressInfoEnabled,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setMusicVideoLongPressInfoEnabled(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_long_press_immersive_lyrics),
+                summary = stringResource(R.string.settings_music_video_long_press_immersive_lyrics_summary),
+                checked = musicVideoLongPressImmersiveLyricsEnabled,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setMusicVideoLongPressImmersiveLyricsEnabled(it) }
+                }
+            )
+            SettingsIntSliderPreference(
+                title = stringResource(R.string.settings_player_album_cover_corner_radius),
+                summary = stringResource(R.string.settings_player_cover_corner_radius_summary),
+                value = playerAlbumCoverCornerRadius,
+                valueRange = SettingsManager.PLAYER_CORNER_RADIUS_MIN_DP..SettingsManager.PLAYER_CORNER_RADIUS_MAX_DP,
+                valueText = "${playerAlbumCoverCornerRadius}dp",
+                onValueChange = { value -> scope.launch { settingsManager.setPlayerAlbumCoverCornerRadius(value) } }
+            )
+            SettingsIntSliderPreference(
+                title = stringResource(R.string.settings_player_music_video_corner_radius),
+                summary = stringResource(R.string.settings_player_cover_corner_radius_summary),
+                value = playerMusicVideoCornerRadius,
+                valueRange = SettingsManager.PLAYER_CORNER_RADIUS_MIN_DP..SettingsManager.PLAYER_CORNER_RADIUS_MAX_DP,
+                valueText = "${playerMusicVideoCornerRadius}dp",
+                onValueChange = { value -> scope.launch { settingsManager.setPlayerMusicVideoCornerRadius(value) } }
             )
             SwitchPreference(
                 title = stringResource(R.string.settings_show_local_mv_in_lists),

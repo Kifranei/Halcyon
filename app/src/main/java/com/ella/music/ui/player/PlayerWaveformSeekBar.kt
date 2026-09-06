@@ -58,7 +58,7 @@ internal fun PlayerWaveformSeekBar(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val gap = if (style == SettingsManager.PLAYER_PROGRESS_STYLE_SEGMENTS) 2.3f * density else 1.15f * density
             val slotWidth = size.width / waveform.size.coerceAtLeast(1)
-            val barWidth = (slotWidth - gap).coerceAtLeast(1.1f * density)
+            val barWidth = (slotWidth - gap).coerceIn(slotWidth * 0.25f, slotWidth)
             val playedX = size.width * displayProgress
             waveform.forEachIndexed { index, level ->
                 val x = index * slotWidth + (slotWidth - barWidth) * 0.5f
@@ -79,8 +79,8 @@ internal fun PlayerWaveformSeekBar(
             val needleWidth = 1.2f * density
             drawRoundRect(
                 color = contentColor.copy(alpha = 0.88f),
-                topLeft = Offset(playedX - needleWidth * 0.5f, size.height * 0.08f),
-                size = Size(needleWidth, size.height * 0.84f),
+                topLeft = Offset((playedX - needleWidth * 0.5f).coerceIn(0f, (size.width - needleWidth).coerceAtLeast(0f)), size.height * 0.08f),
+                size = Size(needleWidth.coerceAtMost(size.width), size.height * 0.84f),
                 cornerRadius = CornerRadius(needleWidth, needleWidth)
             )
         }
@@ -125,7 +125,11 @@ internal fun progressWaveformLevels(seed: Int, count: Int, segmented: Boolean): 
             0.34f + noise * 0.66f
         } else {
             val envelope = abs(sin((index + (seed and 15)) * 0.19f))
-            (0.10f + envelope * 0.48f + noise * 0.42f).coerceIn(0.08f, 1f)
+            // Taper the decorative envelope instead of ending on a full-height column.
+            val edgeDistance = minOf(index, safeCount - 1 - index).toFloat()
+            val edge = (edgeDistance / (safeCount * 0.10f).coerceAtLeast(1f)).coerceIn(0f, 1f)
+            val taper = edge * edge * (3f - 2f * edge)
+            (0.08f + (envelope * 0.48f + noise * 0.42f) * taper).coerceIn(0.08f, 1f)
         }
     }
 }

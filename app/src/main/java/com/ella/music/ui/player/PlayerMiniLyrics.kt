@@ -20,10 +20,127 @@ import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
 import top.yukonga.miuix.kmp.basic.Text
+import kotlin.math.abs
 
 // Full lyrics already collapse inactive x-bg. The mini preview must do the same:
 // alpha(0) still occupies layout, which left blank rows around backing-vocal lines.
 internal const val MINI_LYRICS_RESERVE_EXTRA_LYRIC_SPACE = false
+
+/** Per-row visibility used by the fixed mini-lyric preview window. */
+internal data class MiniLyricLinePresentation(
+    val showPrimaryText: Boolean,
+    val showTranslation: Boolean,
+    val showPronunciation: Boolean,
+    val showBackgroundText: Boolean = false
+)
+
+internal data class MiniLyricWindowItem(
+    val sourceIndex: Int,
+    val line: LyricLine,
+    val presentation: MiniLyricLinePresentation
+)
+
+/**
+ * Builds the small, deterministic line window used below the album cover. The visible rows are
+ * deliberately different for top and centered alignment so secondary text does not create a
+ * blank/overfull row around the active lyric.
+ */
+internal fun buildMiniLyricWindow(
+    lyrics: List<LyricLine>,
+    currentIndex: Int,
+    showTranslation: Boolean,
+    showPronunciation: Boolean,
+    verticalAlignment: Int
+): List<MiniLyricWindowItem> {
+    val candidates = lyrics.mapIndexedNotNull { index, line ->
+        line.takeIf { it.hasMiniLyric() }?.let { index to it }
+    }
+    if (candidates.isEmpty()) return emptyList()
+    val anchor = candidates.indices.minByOrNull { position ->
+        abs(candidates[position].first - currentIndex.coerceAtLeast(0))
+    } ?: 0
+    val hasTranslation = showTranslation && candidates.any { !it.second.translation.isNullOrBlank() }
+    val hasPronunciation = showPronunciation && candidates.any { !it.second.pronunciation.isNullOrBlank() }
+    val center = verticalAlignment == SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER
+    val full = MiniLyricLinePresentation(
+        showPrimaryText = true,
+        showTranslation = hasTranslation,
+        showPronunciation = hasPronunciation
+    )
+    val primaryOnly = MiniLyricLinePresentation(
+        showPrimaryText = true,
+        showTranslation = false,
+        showPronunciation = false
+    )
+    val translationOnly = MiniLyricLinePresentation(
+        showPrimaryText = false,
+        showTranslation = true,
+        showPronunciation = false
+    )
+    val primaryTranslation = MiniLyricLinePresentation(
+        showPrimaryText = true,
+        showTranslation = hasTranslation,
+        showPronunciation = false
+    )
+    val primaryPronunciation = MiniLyricLinePresentation(
+        showPrimaryText = true,
+        showTranslation = false,
+        showPronunciation = hasPronunciation
+    )
+    val specs: List<Pair<Int, MiniLyricLinePresentation>> = when {
+        center && hasTranslation && hasPronunciation -> listOf(
+            -1 to primaryTranslation,
+            0 to full,
+            1 to primaryPronunciation
+        )
+        center && hasTranslation -> listOf(
+            -1 to full,
+            0 to full,
+            1 to full
+        )
+        center && hasPronunciation -> listOf(
+            -1 to primaryPronunciation,
+            0 to full,
+            1 to primaryPronunciation
+        )
+        center -> listOf(
+            -2 to primaryOnly,
+            -1 to primaryOnly,
+            0 to primaryOnly,
+            1 to primaryOnly,
+            2 to primaryOnly
+        )
+        hasTranslation && hasPronunciation -> listOf(
+            -1 to translationOnly,
+            0 to full,
+            1 to full
+        )
+        hasTranslation -> listOf(
+            -1 to translationOnly,
+            0 to full,
+            1 to full,
+            2 to primaryOnly
+        )
+        hasPronunciation -> listOf(
+            -1 to primaryOnly,
+            0 to full,
+            1 to full,
+            2 to primaryPronunciation
+        )
+        else -> listOf(
+            -1 to primaryOnly,
+            0 to primaryOnly,
+            1 to primaryOnly,
+            2 to primaryOnly,
+            3 to primaryOnly
+        )
+    }
+    return specs.mapNotNull { (offset, presentation) ->
+        candidates.getOrNull(anchor + offset)?.let { (sourceIndex, line) ->
+            MiniLyricWindowItem(sourceIndex, line, presentation)
+        }
+    }
+}
 
 // Keep the player layout stable when TTML background/translation layers appear or disappear.
 // Extra lyric layers are clipped/scrolled inside this viewport instead of moving transport controls.
@@ -66,6 +183,10 @@ internal fun MiniLyricsPreview(
     translationFontFamily: FontFamily? = fontFamily,
     fontWeight: FontWeight = FontWeight.ExtraBold,
     compact: Boolean = false,
+    // Both player presentations use the retained full lyric window. Keeping one list lets the
+    // spring-driven scroll carry velocity across line changes instead of rebuilding a short
+    // neighbor list (which makes wrapping jump with no elastic transition).
+    legacyWindow: Boolean = false,
     contentColor: Color = Color.White,
     wordLiftEnabled: Boolean = true,
     onLineClick: (LyricLine) -> Unit = {},
@@ -81,12 +202,50 @@ internal fun MiniLyricsPreview(
     val miniTextAlign by settingsManager.playerMiniLyricTextAlign.collectAsState(
         initial = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT
     )
+    val miniVerticalAlign by settingsManager.playerMiniLyricVerticalAlign.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_MINI_LYRIC_VERTICAL_ALIGN
+    )
     val safeIndex = currentIndex.takeIf { it in lyrics.indices }
         ?: lyrics.indexOfFirst { it.hasMiniLyric() }.takeIf { it >= 0 }
         ?: return
+    val miniWindow = if (legacyWindow) {
+        null
+    } else {
+        remember(
+            lyrics,
+            currentIndex,
+            showTranslation,
+            showPronunciation,
+            miniVerticalAlign
+        ) {
+            buildMiniLyricWindow(
+                lyrics = lyrics,
+                currentIndex = currentIndex,
+                showTranslation = showTranslation,
+                showPronunciation = showPronunciation,
+                verticalAlignment = miniVerticalAlign
+            )
+        }
+    }
+    if (miniWindow != null && miniWindow.isEmpty()) return
+    // The shared full window keeps the list identity stable. Include the lyric list itself in the
+    // key so a resident player cannot keep the first song's preview forever after the queue
+    // advances.
+    val previewLyrics = remember(legacyWindow, miniWindow, lyrics) {
+        miniWindow?.map(MiniLyricWindowItem::line) ?: lyrics
+    }
+    val previewCurrentIndex = if (legacyWindow) {
+        safeIndex
+    } else {
+        miniWindow!!.indexOfFirst { it.sourceIndex == currentIndex }
+            .takeIf { it >= 0 }
+            ?: miniWindow.indexOfFirst { it.presentation.showPrimaryText }
+                .takeIf { it >= 0 }
+            ?: 0
+    }
     // When only the main line shows (e.g. Chinese with no translation/pronunciation), tighten the
     // line gap so the preview fits ~5 lines instead of ~4.
-    val visiblePartCount = lyrics.getOrNull(safeIndex)
+    val visiblePartCount = previewLyrics.getOrNull(previewCurrentIndex)
         ?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1
     val singleLinePreview = compact || visiblePartCount <= 1
     val denseMultiPartPreview = !compact && visiblePartCount >= 3
@@ -95,8 +254,8 @@ internal fun MiniLyricsPreview(
     val primarySizeSp = miniPrimarySize * if (compact) 0.816f else 1f
     val secondarySizeSp = miniSecondarySize * if (compact) 0.80f else 1f
     AppleMusicLyricsView(
-        lyrics = lyrics,
-        currentIndex = safeIndex,
+        lyrics = previewLyrics,
+        currentIndex = previewCurrentIndex,
         currentPositionMs = currentPositionMs,
         isPlaying = isPlaying,
         isPaused = isPaused,
@@ -115,8 +274,18 @@ internal fun MiniLyricsPreview(
         primaryTextSizeSp = primarySizeSp,
         secondaryTextSizeSp = secondarySizeSp,
         topContentPadding = 0.dp,
-        bottomContentPadding = if (compact) 20.dp else 86.dp,
-        focusOffsetRatio = if (compact) 0.02f else 0.12f,
+        bottomContentPadding = when {
+            legacyWindow && compact -> 20.dp
+            legacyWindow -> 86.dp
+            else -> 0.dp
+        },
+        focusOffsetRatio = when {
+            legacyWindow && compact -> 0.02f
+            legacyWindow -> 0.12f
+            compact -> 0.02f
+            miniVerticalAlign == SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER -> 0.50f
+            else -> 0.12f
+        },
         contentColor = contentColor,
         onLineClick = onLineClick,
         onLineDoubleClick = onLineDoubleClick,
@@ -126,6 +295,11 @@ internal fun MiniLyricsPreview(
         // The mini preview is tap-to-open only; don't let it scroll on drag.
         userScrollEnabled = false,
         reserveExtraLyricSpace = MINI_LYRICS_RESERVE_EXTRA_LYRIC_SPACE,
+        linePresentation = if (legacyWindow) {
+            null
+        } else {
+            { index, _ -> miniWindow?.getOrNull(index)?.presentation }
+        },
         lineSpacing = when {
             singleLinePreview || denseMultiPartPreview -> miniLineSpacing.coerceAtMost(4).dp
             else -> miniLineSpacing.dp

@@ -32,6 +32,10 @@ import com.ella.music.data.metadata.LyricoAudioTagReaderWriter
 import com.ella.music.data.metadata.WavMetadataReader
 import com.ella.music.data.scanner.MediaStoreAudioItem
 import com.ella.music.data.scanner.MusicScanner
+import com.ella.music.data.scanner.needsUpdateAgainst
+import com.ella.music.data.scanner.hasSameFileSnapshot
+import com.ella.music.data.scanner.quickLocalFileFingerprint
+import com.ella.music.data.scanner.toLibraryScanFingerprint
 import com.ella.music.data.scanner.toShallowSong
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
@@ -65,6 +69,8 @@ import java.util.concurrent.atomic.AtomicLong
 enum class CoverUsage {
     ListThumbnail,
     AlbumGrid,
+    /** Artist headers must not trust the shared .thumbnails cache, which can contain stale files. */
+    ArtistImage,
     Player,
     Notification,
     ShareCard
@@ -250,6 +256,14 @@ class MusicRepository(private val context: Context) {
         val albums = resolvedSongs.toAlbums()
         _songs.value = resolvedSongs
         _albums.value = albums
+        if (fullRescan || effectiveDeepRescan) {
+            val fingerprints = resolvedSongs.mapNotNull { song ->
+                song.path.localFingerprintKeyOrNull()?.let { key ->
+                    quickLocalFileFingerprint(song.path)?.let { key to it }
+                }
+            }.toMap()
+            libraryCacheStore.saveLocalFileFingerprints(fingerprints)
+        }
         libraryCacheStore.saveLibraryCache(resolvedSongs, albums)
         libraryCacheStore.saveLocalScanBaseline(resolvedSongs, albums)
         AppLogStore.info(
@@ -292,9 +306,10 @@ class MusicRepository(private val context: Context) {
             usbSongs.addAll(found.filter { it.path !in existingPaths })
         }
         if (usbSongs.isNotEmpty()) {
-            val merged = existingSongs + usbSongs
+        val merged = existingSongs + usbSongs
             _songs.value = merged
             _albums.value = merged.toAlbums()
+            updateLocalFileFingerprints(usbSongs)
             libraryCacheStore.saveLibraryCache(merged, _albums.value)
             AppLogStore.info(
                 context,
@@ -369,6 +384,7 @@ class MusicRepository(private val context: Context) {
         val albums = merged.toAlbums()
         _songs.value = merged
         _albums.value = albums
+        updateLocalFileFingerprints(scannedSongs)
         libraryCacheStore.saveLibraryCache(merged, albums)
         libraryCacheStore.saveLocalScanBaseline(merged, albums)
         AppLogStore.info(
@@ -401,6 +417,8 @@ class MusicRepository(private val context: Context) {
         val currentKeys = currentItems.map { it.librarySyncKey() }.toSet()
         val currentPaths = currentItems.map { it.path }.toSet()
         val mergedSongs = ArrayList<Song>(currentItems.size)
+        val cachedFingerprints = libraryCacheStore.readLocalFileFingerprints()
+        val nextFingerprints = cachedFingerprints.toMutableMap()
         var reusedCount = 0
         var failedCount = 0
 
@@ -412,14 +430,31 @@ class MusicRepository(private val context: Context) {
                 return@forEachIndexed
             }
 
-            val currentInfo = item.toLibrarySyncInfo()
-            val cachedInfo = cached?.toLibrarySyncInfo()
-            val needsUpdate = cachedInfo == null ||
-                cachedInfo.key != currentInfo.key ||
-                cachedInfo.path != currentInfo.path ||
-                cachedInfo.fileSize != currentInfo.fileSize ||
-                cachedInfo.dateModified != currentInfo.dateModified ||
-                (deepMetadataEnabled && cached.needsMetadataPlaceholderRefresh())
+            val currentInfo = item.toLibraryScanFingerprint()
+            val cachedInfo = cached?.toLibraryScanFingerprint()
+            val fingerprintKey = item.localFingerprintKey()
+            // Only sample bytes when the provider snapshot otherwise looks unchanged (or when
+            // this is a legacy cache with no stamp yet). This keeps the normal scan cheap while
+            // still catching tag editors that preserve SIZE and DATE_MODIFIED.
+            val currentContentFingerprint = if (
+                cached != null && cachedInfo != null &&
+                (currentInfo.hasSameFileSnapshot(cachedInfo) ||
+                    cachedFingerprints[fingerprintKey].isNullOrBlank())
+            ) {
+                quickLocalFileFingerprint(item.path)
+            } else {
+                null
+            }
+            val cachedContentFingerprint = cachedFingerprints[fingerprintKey]
+            val contentFingerprintChanged = cached != null &&
+                currentContentFingerprint != null &&
+                (cachedContentFingerprint.isNullOrBlank() ||
+                    currentContentFingerprint != cachedContentFingerprint)
+            val needsUpdate = currentInfo.needsUpdateAgainst(
+                cached = cachedInfo,
+                forcePlaceholderRefresh = deepMetadataEnabled &&
+                    cached?.needsMetadataPlaceholderRefresh() == true
+            ) || contentFingerprintChanged
 
             if (needsUpdate) {
                 val scanned = runCatching {
@@ -442,10 +477,12 @@ class MusicRepository(private val context: Context) {
                     cached?.let(::clearMetadataCache)
                     clearMetadataCache(scanned)
                     mergedSongs += scanned
+                    quickLocalFileFingerprint(item.path)?.let { nextFingerprints[fingerprintKey] = it }
                 } else if (cached != null) {
                     mergedSongs += cached
+                    currentContentFingerprint?.let { nextFingerprints[fingerprintKey] = it }
                 }
-            } else {
+            } else if (cached != null) {
                 val reused = cached.copy(
                     albumId = item.albumId,
                     fileName = item.fileName.ifBlank { cached.fileName },
@@ -457,6 +494,7 @@ class MusicRepository(private val context: Context) {
                 if (reused.duration >= minDurationMs) {
                     mergedSongs += reused
                     reusedCount++
+                    currentContentFingerprint?.let { nextFingerprints[fingerprintKey] = it }
                 }
             }
             scanProgressState.update(index + 1)
@@ -480,6 +518,9 @@ class MusicRepository(private val context: Context) {
                 song !in retainedFromFilesystem
         }
         deletedSongs.forEach(::clearMetadataCache)
+        val activeFingerprintKeys = mergedSongs.mapNotNull { it.path.localFingerprintKeyOrNull() }.toSet()
+        nextFingerprints.keys.retainAll(activeFingerprintKeys)
+        libraryCacheStore.saveLocalFileFingerprints(nextFingerprints)
         val summary = buildLibraryDeltaSummary(previousSummarySongs, mergedSongs)
             .copy(total = mergedSongs.size, failed = failedCount)
 
@@ -1037,6 +1078,8 @@ class MusicRepository(private val context: Context) {
     fun getCoverArt(song: Song): ByteArray? = coverArtManager.getCoverArt(song)
 
     fun getOriginalCoverModel(song: Song): Any? = coverArtManager.getOriginalCoverModel(song)
+
+    fun getArtistCoverModel(song: Song): Any? = coverArtManager.getArtistCoverModel(song)
 
     fun getCoverArtBitmap(
         song: Song,
@@ -1618,18 +1661,27 @@ class MusicRepository(private val context: Context) {
     }
 
     private fun Song.librarySyncKey(): String =
-        if (id > 0L) {
-            ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
-        } else {
-            path
-        }
+        com.ella.music.data.scanner.MediaStoreLibraryIndexer.mediaStoreLibrarySyncKey(id, path)
 
     private fun MediaStoreAudioItem.librarySyncKey(): String =
-        if (id > 0L) {
-            ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
-        } else {
-            path
+        com.ella.music.data.scanner.MediaStoreLibraryIndexer.mediaStoreLibrarySyncKey(id, path)
+
+    private fun MediaStoreAudioItem.localFingerprintKey(): String =
+        path.localFingerprintKeyOrNull().orEmpty()
+
+    private fun String.localFingerprintKeyOrNull(): String? {
+        if (isBlank() || isContentAudioSource() || isHttpAudioSource()) return null
+        return trim().replace('\\', '/').lowercase()
+    }
+
+    private fun updateLocalFileFingerprints(songs: Iterable<Song>) {
+        val next = libraryCacheStore.readLocalFileFingerprints().toMutableMap()
+        songs.forEach { song ->
+            val key = song.path.localFingerprintKeyOrNull() ?: return@forEach
+            quickLocalFileFingerprint(song.path)?.let { next[key] = it }
         }
+        libraryCacheStore.saveLocalFileFingerprints(next)
+    }
 
     private fun Song.hasExistingLocalFile(): Boolean {
         if (path.isBlank() || path.isContentAudioSource() || path.isHttpAudioSource()) return false
@@ -1637,22 +1689,6 @@ class MusicRepository(private val context: Context) {
     }
 
     private fun Song.scanSummaryKey(): String = path.ifBlank { librarySyncKey() }
-
-    private fun Song.toLibrarySyncInfo(): LibrarySyncInfo =
-        LibrarySyncInfo(
-            key = librarySyncKey(),
-            path = path,
-            fileSize = fileSize,
-            dateModified = dateModified
-        )
-
-    private fun MediaStoreAudioItem.toLibrarySyncInfo(): LibrarySyncInfo =
-        LibrarySyncInfo(
-            key = librarySyncKey(),
-            path = path,
-            fileSize = fileSize,
-            dateModified = dateModified
-        )
 
     private fun Song.toScanSummaryInfo(): ScanSummaryInfo =
         ScanSummaryInfo(
@@ -1667,13 +1703,6 @@ class MusicRepository(private val context: Context) {
             trackNumber = trackNumber,
             discNumber = discNumber
         )
-
-    private data class LibrarySyncInfo(
-        val key: String,
-        val path: String,
-        val fileSize: Long,
-        val dateModified: Long
-    )
 
     private data class ScanSummaryInfo(
         val key: String,

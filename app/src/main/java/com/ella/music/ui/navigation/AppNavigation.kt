@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -14,8 +15,10 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.ella.music.data.SettingsManager
+import com.ella.music.isSettingsGraphRoute
 import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.ui.about.AboutScreen
 import com.ella.music.ui.about.UpdateScreen
@@ -52,6 +55,7 @@ import com.ella.music.ui.settings.CoverMediaSettingsScreen
 import com.ella.music.ui.settings.LyricFontScreen
 import com.ella.music.ui.settings.SettingsWizardScreen
 import com.ella.music.ui.settings.SettingsMaintenanceScreen
+import com.ella.music.ui.settings.PerformanceDiagnosticsScreen
 import com.ella.music.ui.settings.appearanceSubpageForHighlight
 import com.ella.music.ui.settings.LyricPluginSourceSettingsScreen
 import com.ella.music.ui.settings.LogScreen
@@ -59,6 +63,7 @@ import com.ella.music.ui.settings.LastFmSettingsScreen
 import com.ella.music.ui.settings.SettingsDetailScreen
 import com.ella.music.ui.settings.SettingsDetailMode
 import com.ella.music.ui.settings.SettingsScreen
+import com.ella.music.ui.components.LocalSettingsCloseAction
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 
@@ -183,6 +188,7 @@ sealed class Screen(val route: String) {
     }
     data object SettingsWizard : Screen("settings_wizard")
     data object SettingsMaintenance : Screen("settings_maintenance")
+    data object PerformanceDiagnostics : Screen("performance_diagnostics")
     data object AppearanceSubpage : Screen("appearance_subpage/{page}?highlight={highlight}") {
         fun createRoute(page: String, highlight: String = ""): String {
             val encodedPage = java.net.URLEncoder.encode(page, "UTF-8")
@@ -211,6 +217,7 @@ fun AppNavigation(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     initialBottomDockItems: List<String> = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(','),
+    initialStartDestination: String = Screen.Home.route,
     modifier: Modifier = Modifier,
     onNavigateToPlayer: () -> Unit = {}
 ) {
@@ -219,23 +226,40 @@ fun AppNavigation(
     )
     fun isDockItem(itemId: String): Boolean = itemId in bottomDockItems
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Home.route,
-        modifier = modifier,
-        enterTransition = {
-            fadeIn(animationSpec = tween(300)) + slideIntoContainer(
-                AnimatedContentTransitionScope.SlideDirection.Start, tween(300)
-            )
-        },
-        exitTransition = { fadeOut(animationSpec = tween(300)) },
-        popEnterTransition = { fadeIn(animationSpec = tween(300)) },
-        popExitTransition = {
-            fadeOut(animationSpec = tween(300)) + slideOutOfContainer(
-                AnimatedContentTransitionScope.SlideDirection.End, tween(300)
-            )
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val settingsPageVisible = currentBackStackEntry?.destination?.route.isSettingsGraphRoute()
+    val closeSettings: () -> Unit = {
+        // Do not save or restore the settings graph. This intentionally removes every nested
+        // settings destination, so the next visit always starts at the settings home page.
+        navController.navigate(Screen.Home.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = false
+            }
+            launchSingleTop = true
+            restoreState = false
         }
+    }
+
+    CompositionLocalProvider(
+        LocalSettingsCloseAction provides closeSettings.takeIf { settingsPageVisible }
     ) {
+        NavHost(
+            navController = navController,
+            startDestination = initialStartDestination,
+            modifier = modifier,
+            enterTransition = {
+                fadeIn(animationSpec = tween(300)) + slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Start, tween(300)
+                )
+            },
+            exitTransition = { fadeOut(animationSpec = tween(300)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(300)) + slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.End, tween(300)
+                )
+            }
+        ) {
         fun navigateRestorableTopLevel(route: String) {
             navController.navigate(route) {
                 popUpTo(navController.graph.findStartDestination().id) {
@@ -754,9 +778,14 @@ fun AppNavigation(
             SettingsMaintenanceScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateToSetupWizard = { navController.navigate(Screen.SettingsWizard.route) },
+                onNavigateToPerformanceDiagnostics = { navController.navigate(Screen.PerformanceDiagnostics.route) },
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel
             )
+        }
+
+        composable(Screen.PerformanceDiagnostics.route) {
+            PerformanceDiagnosticsScreen(onBack = { navController.popBackStack() })
         }
 
         composable(
@@ -1021,6 +1050,7 @@ fun AppNavigation(
             )
         }
 
+        }
     }
 }
 

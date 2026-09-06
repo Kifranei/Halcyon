@@ -129,6 +129,7 @@ fun PlayerScreen(
     val currentSong by playerViewModel.currentSong.collectAsState()
     val currentSongKey = remember(currentSong) { currentSong?.playlistIdentityKey() }
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val playWhenReady by playerViewModel.playWhenReady.collectAsState()
     val currentPosition = rememberThrottledPlayerPosition(
         positionFlow = playerViewModel.currentPosition,
         isPlaying = isPlaying,
@@ -197,6 +198,7 @@ fun PlayerScreen(
     ) { granted ->
         if (granted) {
             uiState.musicVideoVisible = true
+            uiState.musicVideoOwnerKey = currentSong?.dynamicCoverResolutionKey()
             landscapeState.expanded = true
         }
     }
@@ -242,7 +244,8 @@ fun PlayerScreen(
         PlayerSystemBarsEffect(
             context = context,
             view = view,
-            trigger = landscapeState.expanded
+            trigger = landscapeState.expanded,
+            landscape = isLandscape || landscapeState.expanded
         )
         PlayerSurfaceKeepScreenOnEffect(
             view = view,
@@ -254,6 +257,13 @@ fun PlayerScreen(
     }
 
     val song = currentSong
+    val musicVideoSongKey = song?.dynamicCoverResolutionKey().orEmpty()
+    // Visibility is scoped to the current song instance. The resident player survives queue
+    // changes, so a plain Boolean can otherwise leave the previous song's MV badge/surface on
+    // screen until the new source scan finishes.
+    val musicVideoVisibleForCurrentSong = song != null &&
+        uiState.musicVideoVisible &&
+        uiState.musicVideoOwnerKey == musicVideoSongKey
     val isCurrentSongFavorite = song?.playlistIdentityKey()?.let { it in favoriteSongKeys } == true
     fun requestDeleteSong(targetSong: Song) {
         uiState.deleteConfirmSong = targetSong
@@ -273,12 +283,12 @@ fun PlayerScreen(
     )
     val embeddedCover = songPresentation.embeddedCover
     val paletteBitmap = songPresentation.paletteBitmap
-    val palette = if (coverContentColor && !(landscapeState.expanded && uiState.musicVideoVisible)) {
+    val palette = if (coverContentColor && !(landscapeState.expanded && musicVideoVisibleForCurrentSong)) {
         songPresentation.palette.withCoverContentColor()
     } else {
         songPresentation.palette
     }
-    val lyricPalette = if (coverContentColor && !(landscapeState.expanded && uiState.musicVideoVisible)) {
+    val lyricPalette = if (coverContentColor && !(landscapeState.expanded && musicVideoVisibleForCurrentSong)) {
         songPresentation.lyricPalette.withCoverContentColor()
     } else {
         songPresentation.lyricPalette
@@ -375,6 +385,7 @@ fun PlayerScreen(
     }
     LaunchedEffect(song?.dynamicCoverResolutionKey()) {
         uiState.musicVideoVisible = false
+        uiState.musicVideoOwnerKey = null
         // Clear all remembered video positions so the next/previous song's MV or
         // dynamic cover starts from the beginning instead of resuming a stale position.
         DynamicCoverPlaybackMemory.clearAll()
@@ -494,16 +505,18 @@ fun PlayerScreen(
                         musicVideoSyncEnabled = musicVideoSyncEnabled,
                         // The landscape host owns its MV decoder while expanded. Keeping the
                         // portrait surface composed underneath created a second video pipeline.
-                        musicVideoVisible = uiState.musicVideoVisible && !landscapeState.expanded,
+                        musicVideoVisible = musicVideoVisibleForCurrentSong && !landscapeState.expanded,
                         videoPlaybackActive = videoPlaybackActive,
                         onMusicVideoVisibleChange = { visible ->
                             if (!musicVideoSyncEnabled) {
                                 uiState.musicVideoVisible = false
+                                uiState.musicVideoOwnerKey = null
                             } else if (visible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
                                 musicVideoPermissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
                             } else {
                                 uiState.musicVideoVisible = visible
+                                uiState.musicVideoOwnerKey = if (visible) musicVideoSongKey else null
                             }
                         },
                         onOpenMusicVideoLandscape = {
@@ -514,6 +527,7 @@ fun PlayerScreen(
                                     musicVideoLandscapePermissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
                                 } else {
                                     uiState.musicVideoVisible = true
+                                    uiState.musicVideoOwnerKey = musicVideoSongKey
                                     landscapeState.expanded = true
                                 }
                             }
@@ -599,8 +613,9 @@ fun PlayerScreen(
                         },
                         onDynamicCoverFailedPathChange = {
                             uiState.dynamicCoverFailedPath = it
-                            if (uiState.musicVideoVisible) {
+                            if (musicVideoVisibleForCurrentSong) {
                                 uiState.musicVideoVisible = false
+                                uiState.musicVideoOwnerKey = null
                             }
                         },
                         onDynamicCoverSheetSongChange = { uiState.dynamicCoverSheetSong = it },
@@ -614,6 +629,11 @@ fun PlayerScreen(
                                     playerLandscapeStyle ==
                                         SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO
                                 uiState.musicVideoVisible = useMusicVideo && musicVideoSyncEnabled
+                                uiState.musicVideoOwnerKey = if (useMusicVideo && musicVideoSyncEnabled) {
+                                    musicVideoSongKey
+                                } else {
+                                    null
+                                }
                             }
                             landscapeState.expanded = it
                         },
@@ -724,6 +744,7 @@ fun PlayerScreen(
                         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
                         onOpenMusicVideo = { source ->
                             uiState.musicVideoVisible = false
+                            uiState.musicVideoOwnerKey = null
                             playerViewModel.pauseForMusicVideo()
                             com.ella.music.MusicVideoLauncher.open(context, song, source)
                         },
@@ -740,7 +761,7 @@ fun PlayerScreen(
                 expanded = landscapeState.expanded,
                 // The explicit MV landscape action is an intent to open the MV-backed player,
                 // regardless of the default landscape style selected in Settings.
-                layoutStyle = if (landscapeState.expanded && uiState.musicVideoVisible) {
+                layoutStyle = if (landscapeState.expanded && musicVideoVisibleForCurrentSong) {
                     SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO
                 } else {
                     playerLandscapeStyle
@@ -755,6 +776,7 @@ fun PlayerScreen(
                 annotation = displayAnnotation,
                 dynamicCoverFailedPath = uiState.dynamicCoverFailedPath,
                 isPlaying = isPlaying,
+                playWhenReady = playWhenReady,
                 currentPosition = currentPosition,
                 duration = duration,
                 shuffleEnabled = shuffleEnabled,

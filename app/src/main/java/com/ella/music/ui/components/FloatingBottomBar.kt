@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -245,6 +246,8 @@ fun FloatingBottomBar(
     tabsCount: Int,
     mode: FloatingBottomBarMode = FloatingBottomBarMode.LiquidGlass,
     disableRefraction: Boolean = false,
+    cornerRadiusDp: Float? = null,
+    liquidGlassConfig: BottomBarLiquidGlassConfig? = null,
     colors: FloatingBottomBarColors = FloatingBottomBarDefaults.colors(),
     content: @Composable RowScope.() -> Unit
 ) {
@@ -256,7 +259,12 @@ fun FloatingBottomBar(
     }
     val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val isInDark = !isLight
-    val pillShape = remember { CircleShape }
+    val resolvedCornerRadiusDp = (cornerRadiusDp ?: LocalBottomBarCornerRadiusDp.current)
+        .coerceIn(0f, 32f)
+    val resolvedLiquidGlassConfig = liquidGlassConfig ?: LocalBottomBarLiquidGlassConfig.current
+    val pillShape = remember(resolvedCornerRadiusDp) {
+        RoundedCornerShape(resolvedCornerRadiusDp.dp)
+    }
     // TV renderers frequently lack the RuntimeShader path used by the refractive lens. Keep the
     // same backdrop capture but use the simpler Gaussian blur path there; it also avoids the
     // continuously animated refraction work that can saturate low-power TV CPUs.
@@ -434,11 +442,17 @@ fun FloatingBottomBar(
                                     if (!disableRefraction) {
                                         vibrancy()
                                     }
-                                    blur(4.dp.toPx(), 4.dp.toPx())
+                                    blur(
+                                        resolvedLiquidGlassConfig.blurRadiusDp.coerceAtLeast(0f).dp.toPx(),
+                                        resolvedLiquidGlassConfig.blurRadiusDp.coerceAtLeast(0f).dp.toPx(),
+                                    )
                                     if (!disableRefraction) {
                                         lens(
-                                            refractionHeight = 24.dp.toPx(),
-                                            refractionAmount = 24.dp.toPx(),
+                                            refractionHeight = resolvedLiquidGlassConfig.refractionHeightDp
+                                                .coerceAtLeast(0f).dp.toPx(),
+                                            refractionAmount = resolvedLiquidGlassConfig.refractionAmountDp
+                                                .coerceAtLeast(0f).dp.toPx(),
+                                            chromaticAberration = resolvedLiquidGlassConfig.chromaticAberration,
                                         )
                                     }
                                 },
@@ -494,11 +508,17 @@ fun FloatingBottomBar(
                                 if (!disableRefraction) {
                                     vibrancy()
                                 }
-                                blur(4.dp.toPx(), 4.dp.toPx())
+                                blur(
+                                    resolvedLiquidGlassConfig.blurRadiusDp.coerceAtLeast(0f).dp.toPx(),
+                                    resolvedLiquidGlassConfig.blurRadiusDp.coerceAtLeast(0f).dp.toPx(),
+                                )
                                 if (!disableRefraction) {
                                     lens(
-                                        refractionHeight = 24.dp.toPx(),
-                                        refractionAmount = 24.dp.toPx(),
+                                        refractionHeight = resolvedLiquidGlassConfig.refractionHeightDp
+                                            .coerceAtLeast(0f).dp.toPx(),
+                                        refractionAmount = resolvedLiquidGlassConfig.refractionAmountDp
+                                            .coerceAtLeast(0f).dp.toPx(),
+                                        chromaticAberration = resolvedLiquidGlassConfig.chromaticAberration,
                                     )
                                 }
                             },
@@ -533,10 +553,12 @@ fun FloatingBottomBar(
                                 val progress = dampedDragAnimation.pressProgress
                                 if (!disableRefraction) {
                                     lens(
-                                        refractionHeight = 10.dp.toPx() * progress,
-                                        refractionAmount = 14.dp.toPx() * progress,
+                                        refractionHeight = resolvedLiquidGlassConfig.refractionHeightDp
+                                            .coerceAtLeast(0f).dp.toPx() * progress,
+                                        refractionAmount = resolvedLiquidGlassConfig.refractionAmountDp
+                                            .coerceAtLeast(0f).dp.toPx() * progress,
                                         depthEffect = true,
-                                        chromaticAberration = 0.5f,
+                                        chromaticAberration = resolvedLiquidGlassConfig.chromaticAberration,
                                     )
                                 }
                             },

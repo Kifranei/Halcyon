@@ -9,6 +9,17 @@ import org.junit.Test
 
 class AppleMusicLyricSpacingTest {
     @Test
+    fun stackedRomanizationAndTranslationShareTheSameGapFromTheOriginal() {
+        val above = appleMusicLyricStackedSecondaryPadding(aboveOriginal = true)
+        val below = appleMusicLyricStackedSecondaryPadding(aboveOriginal = false)
+        assertEquals(AppleMusicLyricSecondaryRowSpacing, above.calculateBottomPadding())
+        assertEquals(0.dp, above.calculateTopPadding())
+        assertEquals(AppleMusicLyricSecondaryRowSpacing, below.calculateTopPadding())
+        assertEquals(0.dp, below.calculateBottomPadding())
+        assertEquals(above.calculateBottomPadding(), below.calculateTopPadding())
+    }
+
+    @Test
     fun miniLyricsDoNotReserveBlankRowsForInactiveXbg() {
         assertFalse(MINI_LYRICS_RESERVE_EXTRA_LYRIC_SPACE)
     }

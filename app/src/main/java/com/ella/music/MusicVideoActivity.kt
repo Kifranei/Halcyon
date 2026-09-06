@@ -127,6 +127,13 @@ class MusicVideoActivity : ComponentActivity() {
     internal fun setLandscapeImmersive(enabled: Boolean) {
         landscapeImmersive = enabled
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        window.isNavigationBarContrastEnforced = false
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
         if (enabled) applyLandscapeImmersiveMode()
         else WindowCompat.getInsetsController(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())

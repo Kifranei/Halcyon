@@ -127,6 +127,7 @@ class PlaybackService : MediaLibraryService() {
     private var bluetoothReceiver: BluetoothAutoPlayReceiver? = null
     private var bluetoothReceiverRegistered = false
     private var lastBluetoothAutoPlayAttemptMs = 0L
+    private var bluetoothPauseJob: kotlinx.coroutines.Job? = null
     private var openedAudioEffectSessionId = -1
     private val audioEffectController = AudioEffectController()
     private lateinit var equalizerAudioProcessor: EqualizerAudioProcessor
@@ -723,10 +724,14 @@ class PlaybackService : MediaLibraryService() {
 
         // Register Bluetooth auto-play receiver
         bluetoothReceiver = BluetoothAutoPlayReceiver(
-            isAutoPlayEnabled = { bluetoothAutoPlayEnabled }
-        ) {
-            scheduleBluetoothAutoPlayIfConnected("bluetooth broadcast")
-        }
+            isAutoPlayEnabled = { bluetoothAutoPlayEnabled },
+            onDeviceConnected = {
+                scheduleBluetoothAutoPlayIfConnected("bluetooth broadcast")
+            },
+            onDeviceDisconnected = { source ->
+                scheduleBluetoothPauseIfDisconnected(source)
+            }
+        )
         ensureBluetoothAutoPlayReceiverRegistered()
         scheduleBluetoothAutoPlayIfConnected("service started")
 
@@ -758,7 +763,9 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_WIDGET_PREVIOUS,
                 ACTION_SKIP_PREVIOUS -> player.seekToPreviousMediaItem()
                 ACTION_WIDGET_PLAY_PAUSE,
-                ACTION_PLAY_PAUSE -> if (player.isPlaying) player.pause() else player.play()
+                // isPlaying is transiently false while buffering/crossfading. Toggle the stable
+                // transport intent so a pause key cannot become an accidental play command.
+                ACTION_PLAY_PAUSE -> if (player.playWhenReady) player.pause() else player.play()
                 ACTION_WIDGET_NEXT,
                 ACTION_SKIP_NEXT -> player.seekToNextMediaItem()
             }
@@ -789,6 +796,8 @@ class PlaybackService : MediaLibraryService() {
             bluetoothReceiver = null
             bluetoothReceiverRegistered = false
         }
+        bluetoothPauseJob?.cancel()
+        bluetoothPauseJob = null
         audioEffectController.release()
         AudioEffectState.publish(null)
         crossfadePresentationSettlementJob?.cancel()
@@ -862,13 +871,22 @@ class PlaybackService : MediaLibraryService() {
     private fun ensureBluetoothAutoPlayReceiverRegistered() {
         if (bluetoothReceiverRegistered) return
         val receiver = bluetoothReceiver ?: return
-        if (!BluetoothAutoPlayReceiver.hasBluetoothConnectPermission(this)) {
-            Log.w(TAG, "Bluetooth auto-play receiver not registered: missing BLUETOOTH_CONNECT")
-            AppLogStore.warn(this, "BtAutoPlay", "Missing BLUETOOTH_CONNECT; Bluetooth auto-play cannot listen for connections")
-            return
+        val canReadBluetoothProfiles = BluetoothAutoPlayReceiver.hasBluetoothConnectPermission(this)
+        if (!canReadBluetoothProfiles) {
+            Log.w(TAG, "Bluetooth profile auto-play unavailable: missing BLUETOOTH_CONNECT; monitoring audio-route changes only")
+            AppLogStore.warn(
+                this,
+                "BtAutoPlay",
+                "Missing BLUETOOTH_CONNECT; profile auto-play is disabled, but audio-route disconnects remain monitored"
+            )
         }
         runCatching {
-            registerReceiver(receiver, BluetoothAutoPlayReceiver.createIntentFilter())
+            registerReceiver(
+                receiver,
+                BluetoothAutoPlayReceiver.createIntentFilter(
+                    includeBluetoothProfileActions = canReadBluetoothProfiles
+                )
+            )
             bluetoothReceiverRegistered = true
             AppLogStore.info(this, "BtAutoPlay", "Bluetooth auto-play receiver registered")
         }.onFailure { error ->
@@ -901,13 +919,35 @@ class PlaybackService : MediaLibraryService() {
         lastBluetoothAutoPlayAttemptMs = now
 
         val player = mediaSession?.player
-        if (player != null && player.mediaItemCount > 0 && !player.isPlaying) {
+        if (player != null && player.mediaItemCount > 0 && !player.playWhenReady) {
             player.play()
             AppLogStore.info(this, "BtAutoPlay", "Started playback from $reason")
         } else {
             AppLogStore.info(this, "BtAutoPlay", "Emitting queue restore event from $reason")
         }
         bluetoothConnectEvent.tryEmit(Unit)
+    }
+
+    private fun scheduleBluetoothPauseIfDisconnected(source: String) {
+        bluetoothPauseJob?.cancel()
+        bluetoothPauseJob = serviceScope.launch {
+            // A2DP, HFP/SCO and the system noisy broadcast can arrive in different orders. Give
+            // the audio router time to settle before deciding that playback really lost BT.
+            delay(700L)
+            if (BluetoothAutoPlayReceiver.isBluetoothAudioConnected(this@PlaybackService)) {
+                AppLogStore.info(this@PlaybackService, "BtAutoPause", "Ignored $source: Bluetooth route still active")
+                return@launch
+            }
+            if (PlaybackAudioOutputState.info.value.outputBackend.equals("Chromecast", ignoreCase = true)) {
+                AppLogStore.info(this@PlaybackService, "BtAutoPause", "Ignored $source: Chromecast output is active")
+                return@launch
+            }
+            val player = mediaSession?.player ?: return@launch
+            if (player.playWhenReady) {
+                player.pause()
+                AppLogStore.info(this@PlaybackService, "BtAutoPause", "Paused playback after $source disconnected")
+            }
+        }
     }
 
     private fun openAudioEffectSession(audioSessionId: Int) {
@@ -996,7 +1036,7 @@ class PlaybackService : MediaLibraryService() {
             ACTION_PLAY_PAUSE -> {
                 AppLogStore.info(this, TAG, "NotificationAction play/pause clicked")
                 mediaSession?.player?.let { player ->
-                    if (player.isPlaying) {
+                    if (player.playWhenReady) {
                         player.pause()
                     } else {
                         player.play()

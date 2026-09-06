@@ -15,6 +15,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -31,11 +33,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,12 +55,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.BottomBarGlassEffect
+import com.ella.music.data.BottomBarStyle
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.CompactMiniPlayer
+import com.ella.music.ui.components.BottomBarLiquidGlassConfig
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.GlassPill
 import com.ella.music.ui.components.FloatingBottomBar
@@ -65,6 +71,8 @@ import com.ella.music.ui.components.FloatingBottomBarMode
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.MiniPlayer
 import com.ella.music.ui.components.MiniPlayerLyricTiming
+import com.ella.music.ui.components.LocalBottomBarCornerRadiusDp
+import com.ella.music.ui.components.LocalBottomBarLiquidGlassConfig
 import com.ella.music.ui.search.LibrarySearchDockState
 import com.ella.music.ui.search.LocalLibrarySearchDockState
 import com.ella.music.ui.search.searchDockReturnTabRoute
@@ -75,6 +83,8 @@ import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Music
@@ -114,7 +124,10 @@ internal fun FloatingBottomControls(
     bottomDockMode: BottomDockMode,
     canCompact: Boolean,
     backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
+    bottomBarStyle: BottomBarStyle,
     glassEffect: BottomBarGlassEffect,
+    bottomBarCornerRadiusDp: Int,
+    liquidGlassConfig: BottomBarLiquidGlassConfig,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     onNavigate: (String) -> Unit,
@@ -142,7 +155,20 @@ internal fun FloatingBottomControls(
     val miniPlayerLongPressSource by SettingsManager.getInstance(context)
         .miniPlayerLongPressSource.collectAsState(initial = false)
     val currentSongKey = currentSong?.playlistIdentityKey()
-    val effectiveMode = if (showMiniPlayer && canCompact) bottomDockMode else BottomDockMode.Expanded
+    val effectiveMode = if (bottomBarStyle == BottomBarStyle.Normal) {
+        BottomDockMode.Expanded
+    } else if (showMiniPlayer && canCompact) {
+        bottomDockMode
+    } else {
+        BottomDockMode.Expanded
+    }
+    // Keep the compacting gesture continuous.  MeiloX uses this same spring progress for the
+    // mini-player and the two adjacent controls instead of swapping between two fixed-size rows.
+    val compactProgress by animateFloatAsState(
+        targetValue = if (effectiveMode == BottomDockMode.Compact) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.88f, stiffness = 520f),
+        label = "BottomDockCompactProgress"
+    )
     val searchDock = LocalLibrarySearchDockState.current
     val inSearchDock = usesSearchBottomDock(currentRoute)
     var lastTabRoute by rememberSaveable { mutableStateOf<String?>(null) }
@@ -154,26 +180,81 @@ internal fun FloatingBottomControls(
     val searchReturnTab = tabs.firstOrNull { tab ->
         tab.route == searchDockReturnTabRoute(currentRoute, currentTabRoute, lastTabRoute)
     }
+    val floatingBottomBar = bottomBarStyle != BottomBarStyle.Normal
+    // Normal mode intentionally keeps the same Miuix surface for both the mini-player and
+    // the navigation bar. Artwork colours belong to the immersive player background only.
+    val normalDockSurfaceColor = MiuixTheme.colorScheme.surfaceContainer
     val visualMode = when {
-        inSearchDock -> "search"
+        inSearchDock && floatingBottomBar -> "search"
         effectiveMode == BottomDockMode.Compact && currentSong != null -> "compact"
         else -> "expanded"
     }
-    val dockBackdrop = if (useGlass) backdrop else null
-    val dockLiquidGlass = useGlass
-    AnimatedContent(
-        targetState = visualMode,
-        transitionSpec = {
-            fadeIn() + slideInVertically(initialOffsetY = { it / 3 }) togetherWith
-                fadeOut() + slideOutVertically(targetOffsetY = { it / 3 })
-        },
-        label = "BottomDockMode",
-        modifier = modifier
-            .fillMaxWidth()
-            .then(if (useGlass) Modifier.navigationBarsPadding() else Modifier)
-            .then(if (inSearchDock) Modifier.imePadding() else Modifier)
-            .consumeBottomDockPassthrough(showMiniPlayer, showBottomBar, visualMode)
-    ) { mode ->
+    val dockBackdrop = if (useGlass && floatingBottomBar) backdrop else null
+    val dockLiquidGlass = useGlass && floatingBottomBar
+    CompositionLocalProvider(
+        LocalBottomBarCornerRadiusDp provides bottomBarCornerRadiusDp.toFloat(),
+        LocalBottomBarLiquidGlassConfig provides liquidGlassConfig,
+    ) {
+        AnimatedContent(
+            targetState = visualMode,
+            transitionSpec = {
+                val collapsing = initialState == "expanded" && targetState == "compact"
+                val expanding = initialState == "compact" && targetState == "expanded"
+                val center = androidx.compose.ui.graphics.TransformOrigin.Center
+                if (collapsing) {
+                    (fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(
+                            durationMillis = 230,
+                            delayMillis = 70,
+                        ),
+                    ) + androidx.compose.animation.scaleIn(
+                        animationSpec = androidx.compose.animation.core.tween(280),
+                        initialScale = 0.84f,
+                        transformOrigin = center,
+                    )) togetherWith
+                        (fadeOut(
+                            animationSpec = androidx.compose.animation.core.tween(120),
+                        ) + androidx.compose.animation.scaleOut(
+                            animationSpec = androidx.compose.animation.core.tween(180),
+                            targetScale = 0.72f,
+                            transformOrigin = center,
+                        ))
+                } else if (expanding) {
+                    (fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(260),
+                    ) + androidx.compose.animation.scaleIn(
+                        animationSpec = androidx.compose.animation.core.tween(300),
+                        initialScale = 0.82f,
+                        transformOrigin = center,
+                    )) togetherWith
+                        (fadeOut(
+                            animationSpec = androidx.compose.animation.core.tween(130),
+                        ) + androidx.compose.animation.scaleOut(
+                            animationSpec = androidx.compose.animation.core.tween(180),
+                            targetScale = 0.86f,
+                            transformOrigin = center,
+                        ))
+                } else {
+                    fadeIn() togetherWith fadeOut()
+                }.using(androidx.compose.animation.SizeTransform(clip = false))
+            },
+            label = "BottomDockMode",
+            modifier = modifier
+                .fillMaxWidth()
+                .then(
+                    if (floatingBottomBar || !showBottomBar) {
+                        // Keep a small visual lift even on OEMs that report a zero navigation inset
+                        // while the gesture handle is visible (ColorOS does this in some modes).
+                        Modifier
+                            .navigationBarsPadding()
+                            .padding(bottom = 8.dp)
+                    } else {
+                        Modifier
+                    }
+                )
+                .then(if (inSearchDock && floatingBottomBar) Modifier.imePadding() else Modifier)
+                .consumeBottomDockPassthrough(showMiniPlayer, showBottomBar, visualMode)
+        ) { mode ->
         if (mode == "search") {
             SearchBottomDock(
                 showMiniPlayer = showMiniPlayer,
@@ -229,7 +310,8 @@ internal fun FloatingBottomControls(
                 onPlayPause = { playerViewModel.togglePlayPause() },
                 onSkipNext = { playerViewModel.skipToNext() },
                 onNavigateSearch = onNavigateSearch,
-                onExpand = onExpand
+                onExpand = onExpand,
+                compactProgress = compactProgress,
             )
         } else {
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -253,6 +335,8 @@ internal fun FloatingBottomControls(
                                 liquidGlass = dockLiquidGlass,
                                 glassEffect = glassEffect,
                                 disableRefraction = stabilizeOverWallpaper,
+                                surfaceColor = if (floatingBottomBar) null else normalDockSurfaceColor,
+                                compactProgress = compactProgress,
                                 showQueueButton = miniPlayerRightButton == SettingsManager.MINI_PLAYER_RIGHT_QUEUE,
                                 swipeUpToOpenPlayer = miniPlayerSwipeToOpenPlayer,
                                 onClick = onNavigatePlayer,
@@ -268,12 +352,21 @@ internal fun FloatingBottomControls(
                         }
                     }
 
-                    if (showMiniPlayer && showBottomBar) {
+                    if (showMiniPlayer && showBottomBar && floatingBottomBar) {
                         Spacer(modifier = Modifier.height(4.dp))
                     }
 
                     AnimatedVisibility(visible = showBottomBar) {
-                        if (useGlass) {
+                        if (!floatingBottomBar) {
+                            NormalBottomNavigationBar(
+                                tabs = tabs,
+                                currentTabRoute = currentTabRoute,
+                                currentRoute = currentRoute,
+                                color = normalDockSurfaceColor,
+                                onNavigate = onNavigate,
+                                onNavigateSearch = onNavigateSearch
+                            )
+                        } else if (useGlass) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -346,46 +439,50 @@ internal fun FloatingBottomControls(
     }
 
     if (queueSheetExpanded) {
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = stringResource(R.string.player_queue_title),
-            onDismissRequest = { queueSheetExpanded = false }
+        androidx.compose.runtime.key(
+            com.ella.music.ui.player.queueSnapshotKey(playlist)
         ) {
-            com.ella.music.ui.player.PlayerQueueMenu(
-                playlist = playlist,
-                currentSongKey = currentSongKey,
-                currentSongSourceKey = currentSong?.playbackSourceKey,
-                currentQueueIndexHint = currentQueueIndex,
-                shuffleEnabled = shuffleEnabled,
-                repeatMode = repeatMode,
-                queueLocked = queueLocked,
-                favoriteSongKeys = favoriteSongKeys,
-                loadSongRating = mainViewModel::getSongRating,
-                ratingRevision = ratingRevision,
-                onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
-                onToggleQueueLock = { playerViewModel.toggleQueueLock() },
-                onSongClick = { index ->
-                    queueSheetExpanded = false
-                    playerViewModel.playQueueIndex(index)
-                },
-                onRemoveSong = { index -> playerViewModel.removeFromPlaylist(index) },
-                onMoveSong = { fromIndex, toIndex -> playerViewModel.movePlaylistItem(fromIndex, toIndex) },
-                onRandomizeQueue = { playerViewModel.randomizePlaylistOrder() },
-                onAddQueueToPlaylist = {
-                    queueSheetExpanded = false
-                    queueSongsToAdd = playlist
-                },
-                onClearQueue = {
-                    queueSheetExpanded = false
-                    playerViewModel.clearPlaylist()
-                },
-                onNavigateToPlaybackSource = {
-                    queueSheetExpanded = false
-                    onNavigatePlaybackSource()
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+            EllaMiuixBottomSheet(
+                show = true,
+                enableNestedScroll = false,
+                title = stringResource(R.string.player_queue_title),
+                onDismissRequest = { queueSheetExpanded = false }
+            ) {
+                com.ella.music.ui.player.PlayerQueueMenu(
+                    playlist = playlist,
+                    currentSongKey = currentSongKey,
+                    currentSongSourceKey = currentSong?.playbackSourceKey,
+                    currentQueueIndexHint = currentQueueIndex,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    queueLocked = queueLocked,
+                    favoriteSongKeys = favoriteSongKeys,
+                    loadSongRating = mainViewModel::getSongRating,
+                    ratingRevision = ratingRevision,
+                    onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
+                    onToggleQueueLock = { playerViewModel.toggleQueueLock() },
+                    onSongClick = { index ->
+                        queueSheetExpanded = false
+                        playerViewModel.playQueueIndex(index)
+                    },
+                    onRemoveSong = { index -> playerViewModel.removeFromPlaylist(index) },
+                    onMoveSong = { fromIndex, toIndex -> playerViewModel.movePlaylistItem(fromIndex, toIndex) },
+                    onRandomizeQueue = { playerViewModel.randomizePlaylistOrder() },
+                    onAddQueueToPlaylist = {
+                        queueSheetExpanded = false
+                        queueSongsToAdd = playlist
+                    },
+                    onClearQueue = {
+                        queueSheetExpanded = false
+                        playerViewModel.clearPlaylist()
+                    },
+                    onNavigateToPlaybackSource = {
+                        queueSheetExpanded = false
+                        onNavigatePlaybackSource()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 
@@ -437,6 +534,115 @@ internal fun FloatingBottomControls(
                 }
             }
         )
+    }
+}
+}
+
+@Composable
+private fun NormalBottomNavigationBar(
+    tabs: List<BottomDockTab>,
+    currentTabRoute: String?,
+    currentRoute: String?,
+    color: ComposeColor,
+    onNavigate: (String) -> Unit,
+    onNavigateSearch: () -> Unit
+) {
+    NavigationBar(color = color) {
+        tabs.forEach { tab ->
+            val selected = !currentRoute.isSearchRoute() && currentTabRoute == tab.route
+            NavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) onNavigate(tab.route) },
+                icon = tab.icon,
+                label = tab.label
+            )
+        }
+        NavigationBarItem(
+            selected = currentRoute.isSearchRoute(),
+            onClick = { if (!currentRoute.isSearchRoute()) onNavigateSearch() },
+            icon = MiuixIcons.Basic.Search,
+            label = stringResource(R.string.common_search)
+        )
+    }
+}
+
+/**
+ * Switches the configured normal bottom-dock tabs with a horizontal swipe on the page.
+ *
+ * The search destination is appended because it is always the last item in the normal
+ * navigation bar, even though it is not part of the user-configurable tab list.
+ */
+@Composable
+internal fun normalBottomDockSwipeModifier(
+    enabled: Boolean,
+    tabs: List<BottomDockTab>,
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+    onNavigateSearch: () -> Unit
+): Modifier {
+    val latestOnNavigate by rememberUpdatedState(onNavigate)
+    val latestOnNavigateSearch by rememberUpdatedState(onNavigateSearch)
+    val swipeRoutes = tabs.map { it.route } + Screen.LibrarySearch.createRoute()
+    val currentIndex = swipeRoutes.indexOfFirst { currentRoute.matchesRoute(it) }
+
+    if (!enabled || currentIndex < 0 || swipeRoutes.size < 2) return Modifier
+
+    return Modifier.pointerInput(enabled, swipeRoutes, currentRoute) {
+        val touchSlop = viewConfiguration.touchSlop
+        val swipeThresholdPx = 72.dp.toPx()
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            var lockedHorizontal = false
+            var lockedVertical = false
+            var cancelled = false
+            var totalDx = 0f
+            var totalDy = 0f
+
+            do {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (event.changes.count { it.pressed } > 1) {
+                    // Do not compete with the library's two-finger pinch gesture.
+                    cancelled = true
+                    lockedHorizontal = false
+                    lockedVertical = true
+                }
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) break
+
+                val delta = change.position - change.previousPosition
+                totalDx += delta.x
+                totalDy += delta.y
+
+                if (!cancelled && !lockedHorizontal && !lockedVertical) {
+                    val absX = kotlin.math.abs(totalDx)
+                    val absY = kotlin.math.abs(totalDy)
+                    when {
+                        absY > touchSlop && absY > absX * 1.12f -> {
+                            // Leave vertical movement to the page's own scroll container.
+                            lockedVertical = true
+                            cancelled = true
+                        }
+                        absX > touchSlop && absX > absY * 1.12f -> {
+                            lockedHorizontal = true
+                            change.consume()
+                        }
+                    }
+                } else if (lockedHorizontal && !cancelled) {
+                    change.consume()
+                }
+            } while (true)
+
+            if (!cancelled && lockedHorizontal && kotlin.math.abs(totalDx) >= swipeThresholdPx) {
+                val targetIndex = if (totalDx < 0f) currentIndex + 1 else currentIndex - 1
+                swipeRoutes.getOrNull(targetIndex)?.let { targetRoute ->
+                    if (targetRoute.startsWith(Screen.LibrarySearch.baseRoute)) {
+                        latestOnNavigateSearch()
+                    } else {
+                        latestOnNavigate(targetRoute)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -530,7 +736,6 @@ private fun SearchBottomDock(
                 modifier = Modifier
                     .weight(1f)
                     .height(64.dp),
-                shape = RoundedCornerShape(32.dp),
                 glassEffect = glassEffect,
                 disableRefraction = disableRefraction
             ) {
@@ -577,8 +782,14 @@ private fun CompactBottomDock(
     onSkipNext: () -> Unit,
     onNavigateSearch: () -> Unit,
     onExpand: () -> Unit,
-    disableRefraction: Boolean
+    disableRefraction: Boolean,
+    compactProgress: Float,
 ) {
+    val collapse = compactProgress.coerceIn(0f, 1f)
+    // Side actions shrink with the compact spring. The centre mini-player keeps the remaining
+    // width so it stays adjacent to both buttons instead of collapsing into a short island.
+    val compactControlSize = androidx.compose.ui.unit.lerp(64.dp, 60.dp, collapse)
+    val compactIconScale = 1f - 0.14f * collapse
     val showCompactLyrics = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val isHomeSelected = currentTabRoute == Screen.Home.route
     val leftIcon = currentTab?.icon ?: if (isHomeSelected) MiuixIcons.Regular.Home else MiuixIcons.Regular.Music
@@ -588,7 +799,7 @@ private fun CompactBottomDock(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .height(64.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         BottomDockActionPill(
@@ -599,31 +810,39 @@ private fun CompactBottomDock(
             backdrop = backdrop,
             glassEffect = glassEffect,
             disableRefraction = disableRefraction,
-            modifier = Modifier.size(64.dp)
+            modifier = Modifier.size(compactControlSize),
+            controlSize = compactControlSize,
+            contentScale = compactIconScale,
         )
-        CompactMiniPlayer(
-            song = song,
-            isPlaying = isPlaying,
-            progress = progress,
-            lyricText = if (showCompactLyrics) lyricText else null,
-            lyricTranslation = if (showCompactLyrics) lyricTranslation else null,
-            lyricProgress = if (showCompactLyrics) lyricProgress else 0f,
-            lyricPositionMs = lyricPositionMs,
-            lyricTiming = if (showCompactLyrics) lyricTiming else null,
-            coverRotationEnabled = coverRotationEnabled,
-            albumArtUri = albumArtUri,
-            loadCoverArt = loadCoverArt,
-            backdrop = backdrop,
-            glassEffect = glassEffect,
-            disableRefraction = disableRefraction,
-            onClick = onOpenPlayer,
-            onLongClick = onOpenPlaybackSource,
-            onPlayPause = onPlayPause,
-            onSkipNext = onSkipNext,
-            showSkipButton = false,
-            swipeUpToOpenPlayer = swipeUpToOpenPlayer,
-            modifier = Modifier.weight(1f)
-        )
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.Center,
+        ) {
+            CompactMiniPlayer(
+                song = song,
+                isPlaying = isPlaying,
+                progress = progress,
+                lyricText = if (showCompactLyrics) lyricText else null,
+                lyricTranslation = if (showCompactLyrics) lyricTranslation else null,
+                lyricProgress = if (showCompactLyrics) lyricProgress else 0f,
+                lyricPositionMs = lyricPositionMs,
+                lyricTiming = if (showCompactLyrics) lyricTiming else null,
+                coverRotationEnabled = coverRotationEnabled,
+                albumArtUri = albumArtUri,
+                loadCoverArt = loadCoverArt,
+                backdrop = backdrop,
+                glassEffect = glassEffect,
+                disableRefraction = disableRefraction,
+                compactProgress = collapse,
+                onClick = onOpenPlayer,
+                onLongClick = onOpenPlaybackSource,
+                onPlayPause = onPlayPause,
+                onSkipNext = onSkipNext,
+                showSkipButton = false,
+                swipeUpToOpenPlayer = swipeUpToOpenPlayer,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         BottomDockActionPill(
             icon = MiuixIcons.Basic.Search,
             label = stringResource(R.string.common_search),
@@ -632,7 +851,9 @@ private fun CompactBottomDock(
             backdrop = backdrop,
             glassEffect = glassEffect,
             disableRefraction = disableRefraction,
-            modifier = Modifier.size(64.dp)
+            modifier = Modifier.size(compactControlSize),
+            controlSize = compactControlSize,
+            contentScale = compactIconScale,
         )
     }
 }
@@ -668,7 +889,9 @@ private fun BottomDockActionPill(
     backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
     glassEffect: BottomBarGlassEffect,
     disableRefraction: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    controlSize: androidx.compose.ui.unit.Dp = 64.dp,
+    contentScale: Float = 1f,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -692,11 +915,14 @@ private fun BottomDockActionPill(
         isLight -> ComposeColor.White.copy(alpha = 0.32f)
         else -> ComposeColor.White.copy(alpha = 0.16f)
     }
+    val bottomBarCornerRadius = LocalBottomBarCornerRadiusDp.current
+    val overlayShape = remember(bottomBarCornerRadius) {
+        RoundedCornerShape((bottomBarCornerRadius - 4f).coerceAtLeast(0f).dp)
+    }
 
     GlassPill(
         backdrop = backdrop,
-        modifier = modifier.height(64.dp),
-        shape = RoundedCornerShape(32.dp),
+        modifier = modifier.size(controlSize),
         glassEffect = glassEffect,
         disableRefraction = disableRefraction
     ) {
@@ -710,7 +936,7 @@ private fun BottomDockActionPill(
                 }
                 .background(
                     color = overlayColor.copy(alpha = overlayColor.alpha * overlayAlpha),
-                    shape = RoundedCornerShape(28.dp)
+                    shape = overlayShape
                 )
                 .clickable(
                     interactionSource = interactionSource,
@@ -725,14 +951,14 @@ private fun BottomDockActionPill(
                     painter = painter,
                     contentDescription = label,
                     tint = iconTint,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(26.dp * contentScale)
                 )
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
                     tint = iconTint,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(26.dp * contentScale)
                 )
             }
         }

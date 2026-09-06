@@ -15,17 +15,24 @@ import android.util.Log
 @Suppress("DEPRECATION")
 class BluetoothAutoPlayReceiver(
     private val isAutoPlayEnabled: () -> Boolean,
-    private val onDeviceConnected: () -> Unit
+    private val onDeviceConnected: () -> Unit,
+    private val onDeviceDisconnected: (String) -> Unit = {}
 ) : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BtAutoPlay"
 
-        fun createIntentFilter(): IntentFilter = IntentFilter().apply {
-            addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
-            addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
-            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED)
+        fun createIntentFilter(includeBluetoothProfileActions: Boolean = true): IntentFilter = IntentFilter().apply {
+            if (includeBluetoothProfileActions) {
+                addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+                addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
+                addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+                addAction(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED)
+            }
+            // Some OEMs (notably ColorOS) do not deliver the profile disconnect broadcast
+            // reliably, but still send this route-change broadcast when Bluetooth audio goes away.
+            addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         }
 
         fun hasBluetoothConnectPermission(context: Context): Boolean {
@@ -56,16 +63,23 @@ class BluetoothAutoPlayReceiver(
                 val state = intent.getIntExtra(BluetoothA2dp.EXTRA_STATE, BluetoothA2dp.STATE_DISCONNECTED)
                 if (state == BluetoothA2dp.STATE_CONNECTED) {
                     handleBluetoothAudioConnected(context, intent, "A2DP")
+                } else if (state == BluetoothA2dp.STATE_DISCONNECTED) {
+                    handleBluetoothAudioDisconnected(context, intent, "A2DP")
                 }
             }
             BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED -> {
                 val state = intent.getIntExtra(BluetoothHeadset.EXTRA_STATE, BluetoothHeadset.STATE_DISCONNECTED)
                 if (state == BluetoothHeadset.STATE_CONNECTED) {
                     handleBluetoothAudioConnected(context, intent, "Headset")
+                } else if (state == BluetoothHeadset.STATE_DISCONNECTED) {
+                    handleBluetoothAudioDisconnected(context, intent, "Headset")
                 }
             }
             BluetoothDevice.ACTION_ACL_CONNECTED -> {
                 handleBluetoothAudioConnected(context, intent, "ACL")
+            }
+            BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                handleBluetoothAudioDisconnected(context, intent, "ACL")
             }
             AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED -> {
                 val state = intent.getIntExtra(
@@ -74,7 +88,12 @@ class BluetoothAutoPlayReceiver(
                 )
                 if (state == AudioManager.SCO_AUDIO_STATE_CONNECTED) {
                     handleBluetoothAudioConnected(context, intent, "SCO")
+                } else if (state == AudioManager.SCO_AUDIO_STATE_DISCONNECTED) {
+                    handleBluetoothAudioDisconnected(context, intent, "SCO")
                 }
+            }
+            AudioManager.ACTION_AUDIO_BECOMING_NOISY -> {
+                handleBluetoothAudioDisconnected(context, intent, "audio route")
             }
         }
     }
@@ -92,6 +111,21 @@ class BluetoothAutoPlayReceiver(
             Log.i(TAG, "Bluetooth auto-play enabled, notifying service from $source routeReady=$routeReady")
             onDeviceConnected()
         }
+    }
+
+    private fun handleBluetoothAudioDisconnected(
+        context: Context,
+        intent: Intent,
+        source: String
+    ) {
+        val deviceName = runCatching {
+            val device = intent.bluetoothDeviceExtra()
+            if (hasBluetoothConnectPermission(context)) device?.name ?: "Unknown" else "Unknown"
+        }.getOrDefault("Unknown")
+        Log.i(TAG, "Bluetooth $source disconnected: $deviceName")
+        // The service confirms the route after a short settling period. This avoids pausing when
+        // one profile disconnects while another Bluetooth output profile is still active.
+        onDeviceDisconnected(source)
     }
 
     private fun Intent.bluetoothDeviceExtra(): BluetoothDevice? =

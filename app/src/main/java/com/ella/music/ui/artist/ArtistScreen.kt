@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -187,13 +186,9 @@ fun ArtistScreen(
     val artistMusicVideos = artistMusicVideoState.first
     val artistMusicVideosLoading = artistMusicVideoState.second
     val artistQuery = searchQuery.trim()
-    DisposableEffect(artistMusicVideos) {
-        onDispose {
-            artistMusicVideos.mapNotNull(ArtistMusicVideo::preview).forEach { preview ->
-                if (!preview.isRecycled) preview.recycle()
-            }
-        }
-    }
+    // Music-video previews are backed by DynamicCoverPreviewCache and may be shared with the
+    // player page. The cache owns their lifetime; recycling them from this screen would leave
+    // another Compose surface drawing a recycled bitmap.
     val filteredArtistSongs = remember(artistSongs, artistQuery) {
         if (artistQuery.isBlank()) {
             artistSongs
@@ -366,7 +361,7 @@ fun ArtistScreen(
     val artistCoverState = rememberSongArtworkState(
         song = representativeCoverSong,
         albumArtUri = artistCoverUri,
-        loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
+        loadCoverArt = mainViewModel::getArtistCoverArtBitmap,
         usage = ArtworkUsage.ArtistImage,
         showDefaultWhenMissing = false
     )
@@ -374,10 +369,13 @@ fun ArtistScreen(
     // source changes here so that the header is no longer capped at the list thumbnail size.
     val artistOriginalCoverModel by produceState<Any?>(
         initialValue = artistCoverState.model,
-        representativeCoverSong?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
+        representativeCoverSong?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") },
+        // The embedded artwork lookup is asynchronous. Include the resolved model in the key so
+        // a header that started empty is retried when the artist cover state finishes loading.
+        artistCoverState.model
     ) {
         value = withContext(Dispatchers.IO) {
-            representativeCoverSong?.let(mainViewModel::getOriginalCoverModel) ?: artistCoverState.model
+            representativeCoverSong?.let(mainViewModel::getArtistCoverModel) ?: artistCoverState.model
         }
     }
     val customArtistCoverAssets = rememberArtistCoverAssets(

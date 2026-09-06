@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.BuildConfig
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.player.VivoAtomWalkmanWhitelist
 import com.ella.music.ui.components.EllaMiuixChip
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.EllaSearchBar
@@ -421,6 +422,11 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_cover_media), stringResource(R.string.settings_cover_media_summary), "封面 动态封面 MV 艺术家封面 影像") { onNavigateToHighlightedCoverMediaSettings("cover_media") },
         entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "视频封面 动态封面 mp4 MV 文件夹 相册权限") { onNavigateToHighlightedCoverMediaSettings("dynamic_cover") },
         entry(stringResource(R.string.settings_music_video_sync), stringResource(R.string.settings_music_video_sync_summary), "MV 音乐视频 同步 静音") { onNavigateToHighlightedCoverMediaSettings("music_video") },
+        entry(stringResource(R.string.settings_music_video_fullscreen_button), stringResource(R.string.settings_music_video_fullscreen_button_summary), "MV 静音 全屏 按钮 播放页") { onNavigateToHighlightedCoverMediaSettings("music_video_fullscreen_button") },
+        entry(stringResource(R.string.settings_music_video_long_press_info), stringResource(R.string.settings_music_video_long_press_info_summary), "MV 长按 视频信息 对话框") { onNavigateToHighlightedCoverMediaSettings("music_video_long_press_info") },
+        entry(stringResource(R.string.settings_music_video_long_press_immersive_lyrics), stringResource(R.string.settings_music_video_long_press_immersive_lyrics_summary), "MV 长按 沉浸 歌词") { onNavigateToHighlightedCoverMediaSettings("music_video_long_press_immersive_lyrics") },
+        entry(stringResource(R.string.settings_player_album_cover_corner_radius), stringResource(R.string.settings_player_cover_corner_radius_summary), "播放页 封面 圆角") { onNavigateToHighlightedCoverMediaSettings("player_album_cover_corner_radius") },
+        entry(stringResource(R.string.settings_player_music_video_corner_radius), stringResource(R.string.settings_player_cover_corner_radius_summary), "播放页 MV 圆角") { onNavigateToHighlightedCoverMediaSettings("player_music_video_corner_radius") },
         entry(stringResource(R.string.settings_player_show_total_duration), stringResource(R.string.settings_player_show_total_duration_summary), "进度条 总时长 剩余时间 播放时间 拖动预览") { onNavigateToHighlightedAppearanceSettings("player_show_total_duration") },
         entry(stringResource(R.string.settings_player_show_song_annotation), stringResource(R.string.settings_player_show_song_annotation_summary), "播放页 歌曲注释 注释 annotation") { onNavigateToHighlightedAppearanceSettings("player_show_song_annotation") },
         entry(stringResource(R.string.settings_player_tap_seek), stringResource(R.string.settings_player_tap_seek_summary), "进度条 点击 跳转 拖动") { onNavigateToHighlightedAppearanceSettings("player_tap_seek") },
@@ -527,6 +533,9 @@ private fun settingsSearchFallbackEntries(
         .mapNotNull { field ->
             val name = field.name
             if (!name.startsWith("settings_") || name.endsWith("_summary")) return@mapNotNull null
+            if (name == "settings_enable_vivo_atom_walkman_whitelist" &&
+                !VivoAtomWalkmanWhitelist.isVivoOrIqooDevice()
+            ) return@mapNotNull null
             val id = runCatching { field.getInt(null) }.getOrNull() ?: return@mapNotNull null
             val title = runCatching { resources.getString(id) }.getOrNull()?.trim().orEmpty()
             if (title.isBlank() || title.contains("%")) return@mapNotNull null
@@ -536,6 +545,7 @@ private fun settingsSearchFallbackEntries(
                 name == "settings_live_update_lyric_content" -> { { onLyrics("live_update_lyric_content") } }
                 name == "settings_live_update_lyric_display" -> { { onLyrics("live_update_lyric_display") } }
                 name == "settings_live_update_lyric_secondary" -> { { onLyrics("live_update_lyric_secondary") } }
+                name == "settings_enable_vivo_atom_walkman_whitelist" -> { { onLyrics("vivo_atom_walkman_whitelist") } }
                 name.contains("beautiful_lyrics") || name.contains("apple_flow") ||
                     name.contains("player_dynamic_flow") || name.contains("app_wallpaper") ||
                     name.contains("now_playing_flow") || name.contains("player_background") ||
@@ -557,7 +567,7 @@ private fun settingsSearchFallbackEntries(
                 }
                 name.contains("theme_mode") || name.contains("monet") || name.contains("app_icon") ||
                     name.contains("font_scale") || name.contains("display_scale") ||
-                    name.contains("widget_safe") || name.contains("bottom_bar_glass") ||
+                    name.contains("widget_safe") || name.contains("bottom_bar_style") ||
                     name == "settings_language" -> { { onAppearance(appearanceKey) } }
                 name.contains("backup") -> { { onBackup("backup_settings") } }
                 name.contains("openai") || name.contains("mcp") || name.contains("lastfm") ||

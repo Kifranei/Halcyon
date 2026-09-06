@@ -9,6 +9,11 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"
+        tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -31,6 +36,7 @@
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <queries>
+        <package android:name="moe.shizuku.privileged.api" />
         <package android:name="com.lonx.lyrico" />
         <package android:name="com.example.LyricBox" />
         <package android:name="com.xjcheng.musictageditor" />
@@ -60,6 +66,7 @@
     <application
         android:name=".EllaApp"
         android:allowBackup="true"
+        android:requestLegacyExternalStorage="true"
         android:enableOnBackInvokedCallback="true"
         android:largeHeap="true"
         android:usesCleartextTraffic="true"
@@ -95,6 +102,13 @@
                 android:name="com.xiaomi.dist.handoff.metadata.SECURITY_CONFIG"
                 android:resource="@xml/handoff_signature" />
         </service>
+
+        <!-- Shizuku starts this Binder endpoint as a shell/root user service. -->
+        <service
+            android:name=".shizuku.ShizukuShellService"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            tools:ignore="Instantiatable" />
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

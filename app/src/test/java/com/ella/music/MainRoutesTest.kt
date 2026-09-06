@@ -47,6 +47,11 @@ class MainRoutesTest {
         assertTrue(Screen.LyricSettings.createRoute().isSettingsGraphRoute())
         assertTrue(Screen.AppearanceSubpage.createRoute("player").isSettingsGraphRoute())
         assertTrue(Screen.ScanSettings.createRoute(fromDock = true).isSettingsGraphRoute())
+        assertTrue(Screen.SettingsWizard.route.isSettingsGraphRoute())
+        assertTrue(Screen.SettingsMaintenance.route.isSettingsGraphRoute())
+        assertTrue(Screen.NavidromeServerSettings.route.isSettingsGraphRoute())
+        assertTrue(Screen.LxSourceSettings.route.isSettingsGraphRoute())
+        assertTrue(Screen.WebDav.route.isSettingsGraphRoute())
         assertFalse(Screen.Library.route.isSettingsGraphRoute())
         assertFalse(Screen.Home.route.isSettingsGraphRoute())
         assertFalse(Screen.AlbumDetail.createRoute(11L).isSettingsGraphRoute())
@@ -56,5 +61,22 @@ class MainRoutesTest {
     fun rawSettingsTemplateIsNotADockTabUntilFromDockIsFilled() {
         assertFalse(Screen.Settings.route.isBottomDockRoute())
         assertEquals(null, Screen.Settings.route.toCurrentTabRoute())
+    }
+
+    @Test
+    fun libraryAnalysisIsAUsableDockDestination() {
+        assertTrue(Screen.LibraryAnalysis.route.isBottomDockRoute())
+        assertEquals(Screen.LibraryAnalysis.route, Screen.LibraryAnalysis.route.toCurrentTabRoute())
+    }
+
+    @Test
+    fun settingsChildNeverRestoresAsBottomDockState() {
+        assertFalse(
+            shouldRestoreBottomDockState(
+                Screen.Settings.createRoute(fromDock = true),
+                Screen.SettingsDetail.createRoute()
+            )
+        )
+        assertTrue(shouldRestoreBottomDockState(Screen.Library.route, Screen.Home.route))
     }
 }

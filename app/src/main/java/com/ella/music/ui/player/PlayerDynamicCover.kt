@@ -8,25 +8,34 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.util.Log
+import android.util.LruCache
 import android.view.View
 import android.view.ViewOutlineProvider
 import androidx.documentfile.provider.DocumentFile
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +48,7 @@ import androidx.media3.common.C
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -50,11 +60,36 @@ import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.splitArtistNames
 import com.ella.music.player.EllaRenderersFactory
 import com.ella.music.ui.components.SafeCoverImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+
+private object DynamicCoverPreviewCache {
+    private val cache = object : LruCache<String, Bitmap>(16 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int =
+            (value.byteCount / 1024).coerceAtLeast(1)
+    }
+
+    @Synchronized
+    fun get(key: String): Bitmap? = cache.get(key)
+
+    fun getOrLoad(key: String, loader: () -> Bitmap?): Bitmap? {
+        get(key)?.let { return it }
+        val value = loader() ?: return null
+        synchronized(this) {
+            // A second surface may have completed the same decode while this one was outside
+            // the cache lock. Reuse the winner instead of replacing a bitmap another surface may
+            // already be displaying.
+            cache.get(key)?.let { return it }
+            cache.put(key, value)
+        }
+        return value
+    }
+}
 
 internal enum class DynamicCoverKind {
     Video,
@@ -141,10 +176,29 @@ internal fun DynamicCoverVideo(
         DynamicCoverPlaybackMemory.restore(playbackMemoryKey)
     }
 
-    var playbackAspectRatio by remember(source.failureKey) {
-        mutableStateOf(source.aspectRatio)
+    // A silent MV must have a stable video canvas before Media3 reports its first VideoSize.
+    // Local MV sources intentionally do not probe their aspect ratio up front, so starting with
+    // null makes SurfaceView occupy the cover's square bounds and visibly stretches the first
+    // frames. The authored MV canvas is 16:9 until the decoder supplies a more precise ratio.
+    val initialAspectRatio = if (followsAudioClock) DEFAULT_MUSIC_VIDEO_ASPECT_RATIO else source.aspectRatio
+    var playbackAspectRatio by remember(source.failureKey, source.role) {
+        mutableStateOf(initialAspectRatio)
     }
-    var hasFirstFrame by remember(source.failureKey) { mutableStateOf(false) }
+    var hasFirstFrame by remember(source.failureKey, source.role) { mutableStateOf(false) }
+    val previewFrame by produceState<Bitmap?>(
+        initialValue = DynamicCoverPreviewCache.get(source.failureKey),
+        source.failureKey,
+        source.uri
+    ) {
+        if (value == null) {
+            value = withContext(Dispatchers.IO) {
+                context.readMusicVideoPreviewFrame(
+                    uri = source.uri,
+                    cacheKey = source.failureKey
+                )
+            }
+        }
+    }
 
     val exoPlayer = remember(playbackMemoryKey, playAudio) {
         val trackSelector = DefaultTrackSelector(context).apply {
@@ -154,9 +208,17 @@ internal fun DynamicCoverVideo(
                     .build()
             }
         }
-        val renderersFactory = EllaRenderersFactory(context).apply {
-            setEnableDecoderFallback(true)
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+        val renderersFactory: RenderersFactory = if (playAudio) {
+            EllaRenderersFactory(context).apply {
+                setEnableDecoderFallback(true)
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            }
+        } else {
+            // Dynamic artwork never selects audio. Avoid constructing the app's full custom audio
+            // renderer chain for these surfaces; it delays the first video frame noticeably.
+            DefaultRenderersFactory(context).apply {
+                setEnableDecoderFallback(true)
+            }
         }
         ExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
@@ -234,26 +296,9 @@ internal fun DynamicCoverVideo(
             audioDurationMs = latestSyncDurationMs,
             playing = isPlaying
         )
-        val audioLimit = latestSyncDurationMs?.coerceAtLeast(0L) ?: Long.MAX_VALUE
-        val videoDuration = exoPlayer.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-        val requestedTarget = latestSyncPositionMs!!
-        val unclampedTarget = requestedTarget.coerceAtLeast(0L)
-        val target = if (unclampedTarget >= videoDuration) {
-            // Seeking exactly to duration can clear the video surface on some decoders.
-            // Keep the final decoded frame visible after a short MV has ended.
-            (videoDuration - 1L).coerceAtLeast(0L)
-        } else {
-            unclampedTarget.coerceAtMost(audioLimit)
-        }
-        // Let ExoPlayer advance smoothly between occasional audio-clock corrections. Re-seeking
-        // on every Compose position tick flushes the decoder and makes the MV look choppy.
-        if (kotlin.math.abs(exoPlayer.currentPosition - target) > MUSIC_VIDEO_RESYNC_TOLERANCE_MS ||
-            (!isPlaying && exoPlayer.currentPosition != target)
-        ) {
-            exoPlayer.seekTo(target)
-        }
-        exoPlayer.playWhenReady = isPlaying && requestedTarget >= 0L &&
-            unclampedTarget < videoDuration && unclampedTarget < audioLimit
+        // MusicVideoPlaybackBridge is the single owner of the silent decoder's transport state.
+        // Do not write the raw audio `isPlaying` value here: a late callback from the old audio
+        // command would otherwise undo a just-issued MV pause and restart the video.
     }
 
     DisposableEffect(isPlaying, playAudio, followsAudioClock, exoPlayer) {
@@ -264,53 +309,83 @@ internal fun DynamicCoverVideo(
 
     // PlayerView's AspectRatioFrameLayout is ignored by SurfaceView inside Compose
     // AndroidView, so FIT/ZOOM still stretch. Size the view to the video first.
-    VideoAspectFrame(
-        aspectRatio = playbackAspectRatio,
-        resizeMode = resizeMode,
+    val previewContentScale = when (resizeMode) {
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> ContentScale.Crop
+        AspectRatioFrameLayout.RESIZE_MODE_FILL -> ContentScale.FillBounds
+        else -> ContentScale.Fit
+    }
+    val contentShape = RoundedCornerShape(cornerRadiusDp.coerceAtLeast(0f).dp)
+    Box(
         modifier = modifier
-    ) { frameModifier ->
-        AndroidView(
-            modifier = frameModifier.graphicsLayer { alpha = if (hasFirstFrame) 1f else 0f },
-            factory = { viewContext ->
-                PlayerView(viewContext).apply {
-                    useController = false
-                    controllerAutoShow = false
-                    controllerHideOnTouch = false
-                    this.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                    setKeepContentOnPlayerReset(true)
-                    setShutterBackgroundColor(Color.TRANSPARENT)
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                    findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
-                    player = exoPlayer
-                    clipToOutline = true
-                    outlineProvider = object : ViewOutlineProvider() {
-                        override fun getOutline(view: View, outline: Outline) {
-                            val radiusPx = view.resources.displayMetrics.density * cornerRadiusDp
-                            outline.setRoundRect(0, 0, view.width, view.height, radiusPx)
+            .clip(contentShape)
+            .clipToBounds(),
+        contentAlignment = Alignment.Center
+    ) {
+        previewFrame?.takeUnless { hasFirstFrame }?.let { frame ->
+            Image(
+                bitmap = frame.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = previewContentScale
+            )
+        }
+        VideoAspectFrame(
+            aspectRatio = playbackAspectRatio,
+            resizeMode = resizeMode,
+            modifier = Modifier.fillMaxSize()
+        ) { frameModifier ->
+            // AndroidView can otherwise retain the old PlayerView surface when a resident player
+            // changes songs. Keying the view by the source forces a clean surface and lets the
+            // preview frame cover decoder startup instead of showing the previous MV.
+            key(source.failureKey, source.playbackOwnerKey, source.role, playAudio) {
+                AndroidView(
+                    // Keep the useful static preview visible until the actual surface has decoded
+                    // a frame. This also prevents a black dynamic-cover header during startup.
+                    modifier = frameModifier.graphicsLayer {
+                        alpha = if (hasFirstFrame || previewFrame == null) 1f else 0f
+                    },
+                    factory = { viewContext ->
+                        PlayerView(viewContext).apply {
+                            useController = false
+                            controllerAutoShow = false
+                            controllerHideOnTouch = false
+                            this.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                            setKeepContentOnPlayerReset(true)
+                            setShutterBackgroundColor(Color.TRANSPARENT)
+                            setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                            findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
+                            player = exoPlayer
+                            clipToOutline = true
+                            outlineProvider = object : ViewOutlineProvider() {
+                                override fun getOutline(view: View, outline: Outline) {
+                                    val radiusPx = view.resources.displayMetrics.density * cornerRadiusDp
+                                    outline.setRoundRect(0, 0, view.width, view.height, radiusPx)
+                                }
+                            }
+                            hideController()
                         }
+                    },
+                    update = { view ->
+                        view.useController = false
+                        view.controllerAutoShow = false
+                        view.controllerHideOnTouch = false
+                        view.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
+                        view.player = exoPlayer
+                        view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        view.setKeepContentOnPlayerReset(true)
+                        view.setShutterBackgroundColor(Color.TRANSPARENT)
+                        view.clipToOutline = true
+                        view.hideController()
+                        exoPlayer.volume = if (playAudio) 1f else 0f
+                        if (!followsAudioClock) exoPlayer.playWhenReady = isPlaying
                     }
-                    hideController()
-                }
-            },
-            update = { view ->
-                view.useController = false
-                view.controllerAutoShow = false
-                view.controllerHideOnTouch = false
-                view.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
-                view.player = exoPlayer
-                view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                view.setKeepContentOnPlayerReset(true)
-                view.setShutterBackgroundColor(Color.TRANSPARENT)
-                view.clipToOutline = true
-                view.hideController()
-                exoPlayer.volume = if (playAudio) 1f else 0f
-                if (!followsAudioClock) exoPlayer.playWhenReady = isPlaying
+                )
             }
-        )
+        }
     }
 }
 
-private const val MUSIC_VIDEO_RESYNC_TOLERANCE_MS = 750L
+private const val DEFAULT_MUSIC_VIDEO_ASPECT_RATIO = 16f / 9f
 
 /**
  * Compose-owned video frame. SurfaceView inside [AndroidView] fills the view and ignores
@@ -386,9 +461,13 @@ internal fun videoContentFrameDimensions(
     }
 }
 
+@Suppress("DEPRECATION")
 internal fun VideoSize.toPlaybackAspectRatio(): Float? {
     if (width <= 0 || height <= 0) return null
-    return width.toFloat() / height.toFloat()
+    val rotated = unappliedRotationDegrees == 90 || unappliedRotationDegrees == 270
+    val displayWidth = if (rotated) height else width
+    val displayHeight = if (rotated) width else height
+    return displayWidth.toFloat() / displayHeight.toFloat()
 }
 
 internal fun Song.dynamicCoverSource(
@@ -1170,7 +1249,10 @@ private fun File.toDynamicCoverSource(
     return DynamicCoverSource(
         uri = uri,
         failureKey = "file:${absolutePath}:${lastModified()}:${length()}",
-        aspectRatio = null,
+        // Probe the authored canvas while the source is being resolved off the main thread. A
+        // null ratio makes SurfaceView briefly occupy the square cover bounds, which is the
+        // source of the portrait-MV corner flash reported in #592.
+        aspectRatio = context.readDynamicCoverAspectRatio(uri),
         preferLandscapeBackground = role == PlayerVideoRole.MusicVideo,
         role = role
     )
@@ -1184,7 +1266,7 @@ private fun DocumentFile.toDynamicCoverSource(
     DynamicCoverSource(
         uri = uri,
         failureKey = "tree:$rootUri:${uri}:${length()}",
-        aspectRatio = null,
+        aspectRatio = context.readDynamicCoverAspectRatio(uri),
         preferLandscapeBackground = role == PlayerVideoRole.MusicVideo,
         role = role
     )
@@ -1230,7 +1312,10 @@ internal fun Context.readMusicVideoDurationMs(uri: Uri): Long =
  * Builds a useful MV thumbnail instead of accepting a common all-black opening frame. The frame
  * remains uncropped here; the detail row supplies its required 16:9 presentation box.
  */
-internal fun Context.readMusicVideoPreviewFrame(uri: Uri): Bitmap? =
+internal fun Context.readMusicVideoPreviewFrame(
+    uri: Uri,
+    cacheKey: String = "uri:$uri"
+): Bitmap? = DynamicCoverPreviewCache.getOrLoad(cacheKey) {
     runCatching {
         MediaMetadataRetriever().useCompat { retriever ->
             if (uri.scheme.equals("content", ignoreCase = true)) {
@@ -1247,17 +1332,36 @@ internal fun Context.readMusicVideoPreviewFrame(uri: Uri): Bitmap? =
             var selected: Bitmap? = null
             for (timestampMs in candidateTimestampsMs) {
                 if (selected != null) break
-                val frame = retriever.getFrameAtTime(
-                    timestampMs * 1_000L,
-                    MediaMetadataRetriever.OPTION_CLOSEST_SYNC
-                )
+                val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    retriever.getScaledFrameAtTime(
+                        timestampMs * 1_000L,
+                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        512,
+                        512
+                    )
+                } else {
+                    retriever.getFrameAtTime(
+                        timestampMs * 1_000L,
+                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                    )
+                }
                 if (frame != null) {
                     if (frame.isVisiblyLit()) selected = frame else frame.recycle()
                 }
             }
-            selected ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            selected ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                retriever.getScaledFrameAtTime(
+                    0L,
+                    MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                    512,
+                    512
+                )
+            } else {
+                retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            }
         }
     }.getOrNull()
+}
 
 private fun Bitmap.isVisiblyLit(): Boolean {
     val stepX = (width / 20).coerceAtLeast(1)

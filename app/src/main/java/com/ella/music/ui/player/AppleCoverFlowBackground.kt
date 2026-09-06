@@ -16,7 +16,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -34,7 +33,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -53,7 +51,31 @@ import kotlin.math.roundToInt
  *  - regeneration is quantized to [FRAME_INTERVAL_MS] buckets and runs on [Dispatchers.Default];
  *  - the animation clock freezes while the player surface is hidden (via [LocalPlayerSurfaceActive]).
  */
-private const val FRAME_INTERVAL_MS = 42L
+private const val FRAME_INTERVAL_MS = 32L
+
+/** Per-worker scratch storage for the tiny CPU renderer. The renderer runs on Dispatchers.Default,
+ * so thread-local buffers avoid reallocating two pixel arrays and three Matrix/Paint helpers on
+ * every 24 fps frame without sharing mutable Android graphics objects across workers. */
+private class AppleFlowBlurScratch {
+    var pixels = IntArray(0)
+    var temp = IntArray(0)
+
+    fun ensure(size: Int) {
+        if (pixels.size < size) pixels = IntArray(size)
+        if (temp.size < size) temp = IntArray(size)
+    }
+}
+
+private val appleFlowBlurScratch = object : ThreadLocal<AppleFlowBlurScratch>() {
+    override fun initialValue(): AppleFlowBlurScratch = AppleFlowBlurScratch()
+}
+
+private val appleFlowPaint = object : ThreadLocal<Paint>() {
+    override fun initialValue(): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        isFilterBitmap = true
+        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(2.5f) })
+    }
+}
 
 @Composable
 internal fun AppleCoverFlowBackground(
@@ -97,8 +119,18 @@ internal fun AppleCoverFlowBackground(
         if (isDark) Color.Black.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.14f)
     }.toArgb()
 
-    val frameBitmap by produceState<Bitmap?>(
-        initialValue = null,
+    // Keep the last completed frame while the next one is rendered. Recreating a produceState
+    // with `frameTimeMs` as a key resets its value to null on every tick, briefly exposing the
+    // blurred fallback and making the flow look like it is stepping rather than moving smoothly.
+    var frameBitmap by remember(
+        sourceBitmap,
+        viewportSize,
+        normalizedBlur,
+        densityDpi,
+        washPrimary,
+        washSecondary
+    ) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(
         sourceBitmap,
         viewportSize,
         frameTimeMs,
@@ -111,10 +143,10 @@ internal fun AppleCoverFlowBackground(
         val w = viewportSize.width
         val h = viewportSize.height
         if (cover == null || w <= 0 || h <= 0) {
-            value = null
-            return@produceState
+            frameBitmap = null
+            return@LaunchedEffect
         }
-        value = withContext(Dispatchers.Default) {
+        frameBitmap = withContext(Dispatchers.Default) {
             createAppleFlowFrameBitmap(cover, w, h, frameTimeMs, densityDpi, normalizedBlur, washPrimary, washSecondary)
         }
     }
@@ -168,7 +200,7 @@ internal fun scaledAppleFlowTimeMs(elapsedMs: Long, speedTenths: Int): Long =
     elapsedMs.coerceAtLeast(0L) * speedTenths.coerceIn(5, 60) / 10L
 
 /**
- * ~24 fps process-wide monotonic clock in milliseconds. Every composed flow background samples
+ * ~30 fps process-wide monotonic clock in milliseconds. Every composed flow background samples
  * the same clock origin, so switching surfaces preserves the current coordinates. It freezes
  * (returns the last value) when [animate] is false or the player surface is hidden.
  */
@@ -178,10 +210,13 @@ private fun rememberThrottledFlowTimeMs(key: Any?, animate: Boolean): Long {
     var sharedClockMs by remember(key) { mutableLongStateOf(0L) }
     LaunchedEffect(key, active) {
         if (!active) return@LaunchedEffect
+        var lastPublishedNanos = 0L
         while (true) {
             val now = withFrameNanos { it }
-            sharedClockMs = now / 1_000_000L
-            delay(FRAME_INTERVAL_MS)
+            if (lastPublishedNanos == 0L || now - lastPublishedNanos >= FRAME_INTERVAL_MS * 1_000_000L) {
+                sharedClockMs = now / 1_000_000L
+                lastPublishedNanos = now
+            }
         }
     }
     return sharedClockMs
@@ -229,24 +264,22 @@ internal fun createAppleFlowFrameBitmap(
     val centerX = w / 2f
     val centerY = h / 2f
 
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFilterBitmap = true
-        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(2.5f) })
-    }
+    val paint = appleFlowPaint.get()!!
+    val matrix = Matrix()
 
     val rot = (timeMs % 70_000L) / 70_000f * 360f
     drawFlowLayer(
-        canvas, cover, paint, coverScale, rotatePivot, translateX, translateY,
+        canvas, cover, paint, matrix, coverScale, rotatePivot, translateX, translateY,
         w.toFloat(), h.toFloat(), centerX, centerY,
         rotation = (timeMs % 120_000L) / 120_000f * -360f, offsetXFactor = 0f, offsetYFactor = 0f, extraRotation = null
     )
     drawFlowLayer(
-        canvas, cover, paint, coverScale, rotatePivot, translateX, translateY,
+        canvas, cover, paint, matrix, coverScale, rotatePivot, translateX, translateY,
         w.toFloat(), h.toFloat(), centerX, centerY,
         rotation = (timeMs % 90_000L) / 90_000f * 360f, offsetXFactor = -0.95f, offsetYFactor = -0.7f, extraRotation = null
     )
     drawFlowLayer(
-        canvas, cover, paint, coverScale, rotatePivot, translateX, translateY,
+        canvas, cover, paint, matrix, coverScale, rotatePivot, translateX, translateY,
         w.toFloat(), h.toFloat(), centerX, centerY,
         rotation = rot, offsetXFactor = -0.5f, offsetYFactor = 0.7f, extraRotation = rot
     )
@@ -276,6 +309,7 @@ private fun drawFlowLayer(
     canvas: Canvas,
     cover: Bitmap,
     paint: Paint,
+    matrix: Matrix,
     scale: Float,
     rotatePivot: Float,
     translateX: Float,
@@ -289,7 +323,7 @@ private fun drawFlowLayer(
     offsetYFactor: Float,
     extraRotation: Float?
 ) {
-    val matrix = Matrix()
+    matrix.reset()
     matrix.setScale(scale, scale)
     matrix.postRotate(rotation, rotatePivot, rotatePivot)
     matrix.postTranslate(translateX, translateY)
@@ -310,12 +344,15 @@ private fun blurBitmapFast(bitmap: Bitmap, radius: Int): Bitmap {
     val height = bitmap.height
     if (width <= 1 || height <= 1) return bitmap
 
-    val pixels = IntArray(width * height)
+    val scratch = appleFlowBlurScratch.get()!!
+    val pixelCount = width * height
+    scratch.ensure(pixelCount)
+    val pixels = scratch.pixels
     bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
     val window = r * 2 + 1
 
     // Horizontal pass.
-    val temp = IntArray(width * height)
+    val temp = scratch.temp
     for (y in 0 until height) {
         val rowStart = y * width
         var a = 0; var red = 0; var green = 0; var blue = 0

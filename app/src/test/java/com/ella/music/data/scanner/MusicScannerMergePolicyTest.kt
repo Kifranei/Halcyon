@@ -29,6 +29,19 @@ class MusicScannerMergePolicyTest {
     }
 
     @Test
+    fun prefersMediaStoreDataPathOverRelativePath() {
+        assertEquals(
+            "/storage/emulated/0/Music/a.flac",
+            MediaStoreLibraryIndexer.reconstructStoragePath(
+                data = "/storage/emulated/0/Music/a.flac",
+                relativePath = "Download/",
+                displayName = "ignored.flac",
+                volumeName = "external_primary"
+            )
+        )
+    }
+
+    @Test
     fun primaryDocumentIdMapsToEmulatedStoragePath() {
         assertEquals("/storage/emulated/0", primaryDocumentIdToStoragePath("primary:"))
         assertEquals("/storage/emulated/0/Music/Custom", primaryDocumentIdToStoragePath("primary:Music/Custom"))

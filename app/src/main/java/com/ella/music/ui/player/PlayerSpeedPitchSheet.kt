@@ -2,6 +2,7 @@ package com.ella.music.ui.player
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -12,6 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -25,42 +28,58 @@ internal fun SpeedPitchSheetContent(
 ) {
     HalfSheetTitle(title = stringResource(R.string.player_speed_pitch), onBack = onBack)
     Spacer(modifier = Modifier.height(22.dp))
-    SpeedPitchHeader(title = stringResource(R.string.player_speed_playback))
-    DottedValueSlider(
+    SpeedPitchSliderCard(
+        title = stringResource(R.string.player_speed_playback),
         value = speed,
-        valueRange = 0.5f..2f,
-        steps = 30,
-        label = speed.formatPlaybackStep(),
-        onValueChange = onSpeed,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp)
+        onValueChange = onSpeed
     )
-    SpeedPitchHeader(title = stringResource(R.string.player_pitch_playback))
-    DottedValueSlider(
+    Spacer(modifier = Modifier.height(12.dp))
+    SpeedPitchSliderCard(
+        title = stringResource(R.string.player_pitch_playback),
         value = pitch,
-        valueRange = 0.5f..2f,
-        steps = 30,
-        label = pitch.formatPlaybackStep(),
-        onValueChange = onPitch,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp)
+        onValueChange = onPitch
     )
 }
 
 @Composable
-private fun SpeedPitchHeader(title: String) {
-    Row(
+private fun SpeedPitchSliderCard(
+    title: String,
+    value: Float,
+    onValueChange: (Float) -> Unit
+) {
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+        colors = CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.58f)
+        )
     ) {
-        Text(
-            text = title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MiuixTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "${value.formatPlaybackStep()}x",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MiuixTheme.colorScheme.onSurface
+            )
+        }
+        DottedValueSlider(
+            value = value,
+            valueRange = 0.5f..2f,
+            steps = 30,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(70.dp)
         )
     }
 }

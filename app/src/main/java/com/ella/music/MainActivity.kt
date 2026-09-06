@@ -23,10 +23,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
-import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -37,8 +33,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -168,8 +162,7 @@ class MainActivity : ComponentActivity() {
                 globalCjkFontPath = settingsManager.globalCjkFontPath.first(),
                 appFontWeight = settingsManager.lyricFontWeight.first(),
                 monetMode = settingsManager.monetColorMode.first(),
-                systemBarsMode = settingsManager.systemBarsMode.first(),
-                systemBarsReserveSpace = settingsManager.systemBarsReserveSpace.first()
+                systemBarsMode = settingsManager.systemBarsMode.first()
             )
         }
         appliedSystemBarsMode = startupAppearance.systemBarsMode
@@ -199,9 +192,6 @@ class MainActivity : ComponentActivity() {
             val monetMode by settingsManager.monetColorMode.collectAsState(initial = startupAppearance.monetMode)
             val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
                 initial = startupAppearance.systemBarsMode
-            )
-            val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
-                initial = startupAppearance.systemBarsReserveSpace
             )
             val monetSong by produceState<Song?>(null, playerVm) {
                 playerVm.currentSong.collect { value = it }
@@ -316,35 +306,6 @@ class MainActivity : ComponentActivity() {
             ) {
                 val televisionDevice = remember { isTelevisionDevice() }
                 val televisionFocusRequester = remember { FocusRequester() }
-                val televisionFocusManager = LocalFocusManager.current
-                LaunchedEffect(televisionDevice) {
-                    if (televisionDevice) {
-                        televisionFocusRequester.requestFocus()
-                        // The outer focus target receives the first key event so media keys work
-                        // before a screen-specific control has focus.  Move into the nearest
-                        // content control after the first frame so a TV remote can immediately
-                        // use DPAD/OK without a touch screen gesture.
-                        delay(80L)
-                        if (!televisionFocusManager.moveFocus(FocusDirection.Enter)) {
-                            televisionFocusManager.moveFocus(FocusDirection.Next)
-                        }
-                    }
-                }
-                val reservedHiddenBarInsets = if (systemBarsReserveSpace) {
-                    when (systemBarsMode) {
-                        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS ->
-                            WindowInsets.statusBarsIgnoringVisibility
-                        SettingsManager.SYSTEM_BARS_MODE_HIDE_NAVIGATION ->
-                            WindowInsets.navigationBarsIgnoringVisibility
-                        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH ->
-                            WindowInsets.statusBarsIgnoringVisibility.union(
-                                WindowInsets.navigationBarsIgnoringVisibility
-                            )
-                        else -> null
-                    }
-                } else {
-                    null
-                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -381,22 +342,19 @@ class MainActivity : ComponentActivity() {
                         .background(MiuixTheme.colorScheme.background)
                 ) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(
-                                if (reservedHiddenBarInsets != null) {
-                                    Modifier.windowInsetsPadding(reservedHiddenBarInsets)
-                                } else {
-                                    Modifier
-                                }
-                            )
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         Scaffold(
                             modifier = Modifier.fillMaxSize(),
                             containerColor = ComposeColor.Transparent,
                             contentWindowInsets = WindowInsets(0, 0, 0, 0)
                         ) {
-                            EllaApp(mainVm, playerVm, isDark)
+                            EllaApp(
+                                mainViewModel = mainVm,
+                                playerViewModel = playerVm,
+                                isDarkTheme = isDark,
+                                televisionFocusRequester = televisionFocusRequester.takeIf { televisionDevice }
+                            )
                         }
                     }
                 }
@@ -426,16 +384,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions(): Boolean {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
-
-        return if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(permission)
-            false
-        } else true
+        if (ContextCompat.checkSelfPermission(this, audioPermission) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(audioPermission)
+            return false
+        }
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            return false
+        }
+        return true
     }
 
     /**
@@ -521,7 +486,6 @@ class MainActivity : ComponentActivity() {
         val globalCjkFontPath: String,
         val appFontWeight: Int,
         val monetMode: Int,
-        val systemBarsMode: Int,
-        val systemBarsReserveSpace: Boolean
+        val systemBarsMode: Int
     )
 }

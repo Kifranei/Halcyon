@@ -110,7 +110,7 @@ internal fun rememberArtistCoverResolution(
     val artworkState = rememberSongArtworkState(
         song = representativeSong,
         albumArtUri = albumArtUri,
-        loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
+        loadCoverArt = mainViewModel::getArtistCoverArtBitmap,
         usage = ArtworkUsage.ArtistImage,
         showDefaultWhenMissing = false
     )

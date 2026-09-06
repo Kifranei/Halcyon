@@ -77,7 +77,10 @@ internal fun storagePathToPrimaryDocumentId(path: String): String? {
 
 internal fun MediaStoreAudioItem.toShallowSong(minDurationMs: Long = 0): Song? {
     val safeDuration = duration
-    if (safeDuration <= 0L || safeDuration < minDurationMs) return null
+    if (safeDuration > 0L && safeDuration < minDurationMs) return null
+    // MediaStore often leaves DURATION at 0 until another app reads the file. Salt Player still
+    // keeps the row; filesystem fallback items (negative ids) must go through a tag read instead.
+    if (safeDuration <= 0L && id <= 0L) return null
     return Song(
         id = id,
         title = LibraryNormalizer.cleanedTagText(title)

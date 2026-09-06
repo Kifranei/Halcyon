@@ -16,22 +16,22 @@ import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** One shared current-song background used behind the app's top-level browsing pages. */
+internal data class AppNowPlayingArtwork(
+    val coverBitmap: Bitmap?,
+    val palette: PlayerPalette
+)
+
+/**
+ * Resolves the same cover bitmap and palette used by the Apple Music-style app background.
+ * Keeping this state reusable prevents the mini player from inventing a second, subtly different
+ * color extraction path.
+ */
 @Composable
-internal fun AppNowPlayingFlowBackground(
+internal fun rememberAppNowPlayingArtwork(
     song: Song,
     mainViewModel: MainViewModel,
-    currentPositionMs: Long,
-    isPlaying: Boolean,
-    light: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val beautifulLyrics by settingsManager.playerBeautifulLyricsBackground.collectAsState(initial = false)
-    val dynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(
-        initial = SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
-    )
+    light: Boolean
+): AppNowPlayingArtwork {
     val songKey = remember(song) {
         listOf(
             song.playlistIdentityKey(), song.id, song.path, song.coverUrl,
@@ -50,6 +50,29 @@ internal fun AppNowPlayingFlowBackground(
     ) {
         value = withContext(Dispatchers.Default) { PlayerPalette.from(coverBitmap, light) }
     }
+    return AppNowPlayingArtwork(coverBitmap = coverBitmap, palette = palette)
+}
+
+/** One shared current-song background used behind the app's top-level browsing pages. */
+@Composable
+internal fun AppNowPlayingFlowBackground(
+    song: Song,
+    mainViewModel: MainViewModel,
+    currentPositionMs: Long,
+    isPlaying: Boolean,
+    light: Boolean,
+    modifier: Modifier = Modifier,
+    artwork: AppNowPlayingArtwork? = null
+) {
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val beautifulLyrics by settingsManager.playerBeautifulLyricsBackground.collectAsState(initial = false)
+    val dynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_DYNAMIC_FLOW_ENABLED
+    )
+    val resolvedArtwork = artwork ?: rememberAppNowPlayingArtwork(song, mainViewModel, light)
+    val coverBitmap = resolvedArtwork.coverBitmap
+    val palette = resolvedArtwork.palette
 
     if (beautifulLyrics) {
         BeautifulLyricsDynamicBackground(

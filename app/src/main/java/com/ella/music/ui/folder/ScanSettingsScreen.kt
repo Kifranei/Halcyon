@@ -4,6 +4,10 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.widget.Toast
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.ella.music.data.AllFilesAccess
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -16,6 +20,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +62,22 @@ fun ScanSettingsScreen(
     val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
     val useAndroidMediaLibrary by mainViewModel.settingsManager.useAndroidMediaLibrary.collectAsState(initial = true)
     val fullTagSearchEnabled by mainViewModel.settingsManager.fullTagSearchEnabled.collectAsState(initial = true)
+    var allFilesAccessGranted by remember { mutableStateOf(AllFilesAccess.isGranted(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                allFilesAccessGranted = AllFilesAccess.isGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val allFilesAccessLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        allFilesAccessGranted = AllFilesAccess.isGranted(context)
+    }
     val savedFolders = remember(scanIncludeFolders) { scanIncludeFolders.toFolderSettingList() }
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
     val blockedFolderKeys = remember(blockedFolders) {
@@ -162,6 +183,7 @@ fun ScanSettingsScreen(
                     useAndroidMediaLibrary = useAndroidMediaLibrary,
                     fullTagSearchEnabled = fullTagSearchEnabled,
                     customFolderCount = savedFolders.size,
+                    allFilesAccessGranted = allFilesAccessGranted,
                     highlight = highlightKey == "scan_media_source",
                     onUseAndroidMediaLibraryChange = { enabled ->
                         scope.launch {
@@ -177,6 +199,11 @@ fun ScanSettingsScreen(
                                 mainViewModel.clearLibrarySnapshotCache()
                             }
                             mainViewModel.scanMusic()
+                        }
+                    },
+                    onAllFilesAccessClick = {
+                        runCatching {
+                            allFilesAccessLauncher.launch(AllFilesAccess.settingsIntent(context))
                         }
                     }
                 )

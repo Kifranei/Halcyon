@@ -372,29 +372,33 @@ private fun AppleMusicKaraokeWord(
                 blurRadius = 10f * glowAlpha
             )
         }
+        val dimStyle = remember(baseStyle, dim) { baseStyle.copy(color = dim) }
+        val brightStyle = remember(baseStyle, bright, glowShadow) {
+            baseStyle.copy(color = bright, shadow = glowShadow)
+        }
         when {
-            progress <= 0f -> BasicText(text = word.text, style = baseStyle.copy(color = dim))
+            progress <= 0f -> BasicText(text = word.text, style = dimStyle)
             progress >= 1f -> BasicText(
                 text = word.text,
-                style = baseStyle.copy(color = bright, shadow = glowShadow)
+                style = brightStyle
             )
             else -> {
-                BasicText(text = word.text, style = baseStyle.copy(color = dim))
-                val featherStart = (progress - 0.15f).coerceAtLeast(0f)
+                BasicText(text = word.text, style = dimStyle)
+                // Use a real alpha gradient for the karaoke edge. A hard clip makes the sweep
+                // disappear on devices where BasicText is rendered through a cached paragraph;
+                // the brush keeps the soft feathered/逐字扫过效果 visible while preserving the
+                // dim text underneath.
                 BasicText(
                     text = word.text,
                     style = baseStyle.copy(
                         brush = Brush.horizontalGradient(
                             colorStops = arrayOf(
                                 0f to bright,
-                                featherStart to bright,
+                                (progress - 0.15f).coerceAtLeast(0f) to bright,
                                 progress to Color.Transparent,
                                 1f to Color.Transparent
                             )
                         ),
-                        // The glow belongs to the primary karaoke layer, matching ConePlayer's
-                        // TextPaint shadow. Attaching it to the narrow sheen made the halo look
-                        // like a hard edge and disappear at the start of a held note.
                         shadow = glowShadow
                     )
                 )

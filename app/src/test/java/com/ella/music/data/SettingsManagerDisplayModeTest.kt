@@ -2,6 +2,7 @@ package com.ella.music.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.ella.music.data.lastfm.shortLabel
 
 class SettingsManagerDisplayModeTest {
 
@@ -73,5 +74,47 @@ class SettingsManagerDisplayModeTest {
                 legacyHideSystemBars = false
             )
         )
+    }
+
+    @Test
+    fun `startup dock destination follows configured entries and defaults to home`() {
+        assertEquals(
+            SettingsManager.BOTTOM_DOCK_ITEM_HOME,
+            SettingsManager.normalizeBottomDockStartupItem(
+                value = null,
+                configuredItems = listOf(
+                    SettingsManager.BOTTOM_DOCK_ITEM_HOME,
+                    SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY
+                )
+            )
+        )
+        assertEquals(
+            SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY,
+            SettingsManager.normalizeBottomDockStartupItem(
+                value = SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY,
+                configuredItems = listOf(
+                    SettingsManager.BOTTOM_DOCK_ITEM_HOME,
+                    SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `startup dock destination falls back when selected entry is removed`() {
+        assertEquals(
+            SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY,
+            SettingsManager.normalizeBottomDockStartupItem(
+                value = SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS,
+                configuredItems = listOf(SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY)
+            )
+        )
+    }
+
+    @Test
+    fun `biography providers expose compact source labels`() {
+        assertEquals("N", com.ella.music.data.lastfm.ArtistBioMenuSource.Netease.shortLabel)
+        assertEquals("L", com.ella.music.data.lastfm.ArtistBioMenuSource.LastFm.shortLabel)
+        assertEquals("W", com.ella.music.data.lastfm.ArtistBioMenuSource.Wikipedia.shortLabel)
     }
 }

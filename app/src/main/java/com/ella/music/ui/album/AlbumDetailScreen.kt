@@ -179,18 +179,22 @@ fun AlbumDetailScreen(
             emptyList()
         }
     }
-    val albumArtUri = mainViewModel.getAlbumArtUri(
-        album?.artAlbumId?.takeIf { it > 0L }
-            ?: albumSongs.firstOrNull()?.albumId?.takeIf { it > 0L }
-            ?: 0L
-    )
+    val albumArtworkRevision = remember(albumSongs) {
+        albumSongs.joinToString("|") {
+            listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|")
+        }
+    }
     val albumPreviewModel by produceState<Any?>(
-        initialValue = albumArtUri,
-        albumArtUri,
-        albumSongs.firstOrNull()?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
+        initialValue = null,
+        albumArtworkRevision
     ) {
         value = withContext(Dispatchers.IO) {
-            albumSongs.firstOrNull()?.let(mainViewModel::getOriginalCoverModel) ?: albumArtUri
+            albumSongs.asSequence()
+                .mapNotNull { song ->
+                    mainViewModel.getAlbumCoverArtBitmap(song)
+                        ?: mainViewModel.getOriginalCoverModel(song)
+                }
+                .firstOrNull()
         }
     }
     var coverPreviewVisible by remember(albumPreviewModel) { mutableStateOf(false) }

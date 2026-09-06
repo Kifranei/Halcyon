@@ -8,11 +8,11 @@ import com.ella.music.R
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ConfirmDangerDialog
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.RatingSheet
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 @Composable
 internal fun PlayerLibraryActionSheets(
@@ -26,7 +26,7 @@ internal fun PlayerLibraryActionSheets(
     onWritePermissionRequired: (WritePermissionRequiredException, suspend () -> Unit) -> Unit
 ) {
     ratingSheetSong?.let { currentSong ->
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.song_more_rating_title),

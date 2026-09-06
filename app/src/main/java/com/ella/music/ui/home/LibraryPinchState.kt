@@ -57,6 +57,7 @@ internal class LibraryPinchState(initialLayout: Int) {
     private var boundaryAnimationGeneration = 0
     private var boundaryRawOverPull by mutableFloatStateOf(0f)
 
+    /** True when the transition target is the denser, more detailed list. */
     val isZoomInTransition: Boolean
         get() = layoutOrder(targetLayout) > layoutOrder(sourceLayout)
 
@@ -67,20 +68,23 @@ internal class LibraryPinchState(initialLayout: Int) {
 
     /**
      * @param rawDelta accumulated pinch ratio minus one; positive when the fingers spread
-     * (zoom in, towards the detailed list), negative when they close (towards the grid).
+     * (towards the cover grid), negative when they close (towards the detailed list).
      * @param velocityDp current pinch velocity in dp/s.
      */
     fun updatePinch(rawDelta: Float, velocityDp: Float) {
-        val isZoomIn = rawDelta > 0f
+        val towardGrid = rawDelta > 0f
         if (!isTransitioning) {
-            val target = nextLayout(isZoomIn)
+            val target = nextLayout(towardGrid)
             if (target == null) {
-                updateBoundaryElastic(rawDelta, isZoomIn)
+                updateBoundaryElastic(rawDelta, towardGrid)
                 return
             }
             beginTransition(target)
         }
-        val signedDelta = if (isZoomIn == isZoomInTransition) abs(rawDelta) else -abs(rawDelta)
+        // Keep progress positive while moving toward the chosen target. If the fingers reverse
+        // direction mid-gesture, a negative value rolls the transition back toward its source.
+        val towardList = rawDelta < 0f
+        val signedDelta = if (towardList == isZoomInTransition) abs(rawDelta) else -abs(rawDelta)
         transitionProgress = signedDelta.coerceIn(0f, 1f)
         transitionScaleFactor = elasticScale(signedDelta, isZoomInTransition)
     }
@@ -92,7 +96,8 @@ internal class LibraryPinchState(initialLayout: Int) {
             return false
         }
         val confirm = if (abs(velocityDp) >= VELOCITY_THRESHOLD_DP) {
-            (velocityDp > 0f) == isZoomInTransition
+            // Positive pinch velocity means the fingers are spreading toward the cover grid.
+            (velocityDp > 0f) != isZoomInTransition
         } else {
             transitionProgress > POSITION_THRESHOLD
         }
@@ -222,19 +227,20 @@ internal class LibraryPinchState(initialLayout: Int) {
         }
     }
 
-    private fun nextLayout(isZoomIn: Boolean): Int? {
+    private fun nextLayout(towardGrid: Boolean): Int? {
         val order = layoutOrder(currentLayout)
-        val targetOrder = if (isZoomIn) {
-            (order + 1).takeIf { it <= LAYOUT_ORDER_LIST }
-        } else {
+        val targetOrder = if (towardGrid) {
             (order - 1).takeIf { it >= LAYOUT_ORDER_GRID }
+        } else {
+            (order + 1).takeIf { it <= LAYOUT_ORDER_LIST }
         }
         return targetOrder?.let(::layoutForOrder)
     }
 
     companion object {
-        // Layout "zoom" order: GRID is the most zoomed-out (many small covers), LIST the most
-        // zoomed-in (single column, large rows). Spreading the fingers moves up this order.
+        // Layout order: GRID is the most zoomed-out (many small covers), LIST the most
+        // zoomed-in (single column, large rows). Spreading the fingers moves down this order,
+        // matching the library gesture convention: list -> multi-row -> cover grid.
         internal const val LAYOUT_ORDER_GRID = 0
         internal const val LAYOUT_ORDER_MULTI_ROW = 1
         internal const val LAYOUT_ORDER_LIST = 2

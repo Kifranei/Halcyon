@@ -26,6 +26,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -52,8 +53,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -61,16 +64,61 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun ListeningMonthCard(
     month: ListeningMonthSection,
     selectedDateKey: String?,
-    onDayClick: (String) -> Unit
+    onDayClick: (String) -> Unit,
+    onPreviousMonth: (() -> Unit)? = null,
+    onNextMonth: (() -> Unit)? = null,
+    canGoPrevious: Boolean = true,
+    canGoNext: Boolean = true
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Text(
-                text = month.label,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onSurface
-            )
+            if (onPreviousMonth != null || onNextMonth != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    IconButton(
+                        enabled = canGoPrevious,
+                        onClick = { onPreviousMonth?.invoke() }
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.ArrowRight,
+                            contentDescription = stringResource(R.string.listening_calendar_previous_month),
+                            tint = if (canGoPrevious) MiuixTheme.colorScheme.onSurface
+                            else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
+                            modifier = Modifier
+                                .size(22.dp)
+                                .graphicsLayer { rotationY = 180f }
+                        )
+                    }
+                    Text(
+                        text = month.label,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    IconButton(
+                        enabled = canGoNext,
+                        onClick = { onNextMonth?.invoke() }
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.ArrowRight,
+                            contentDescription = stringResource(R.string.listening_calendar_next_month),
+                            tint = if (canGoNext) MiuixTheme.colorScheme.onSurface
+                            else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = month.label,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
             month.weeks.forEach { week ->
                 Row(

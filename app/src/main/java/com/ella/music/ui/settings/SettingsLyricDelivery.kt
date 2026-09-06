@@ -1,6 +1,7 @@
 package com.ella.music.ui.settings
 
 import android.os.Build
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -10,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.player.VivoAtomWalkmanWhitelist
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -36,6 +38,7 @@ internal fun SettingsLiveUpdateLyricControls(
     val secondaryMode by settingsManager.liveUpdateLyricSecondaryMode.collectAsState(
         initial = SettingsManager.LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG
     )
+    val vivoAtomWalkmanEnabled by settingsManager.vivoAtomWalkmanWhitelistEnabled.collectAsState(initial = false)
     val labels = listOf(
         stringResource(R.string.settings_live_update_lyric_original),
         stringResource(R.string.settings_live_update_lyric_translation),
@@ -126,6 +129,29 @@ internal fun SettingsLiveUpdateLyricControls(
         summary = stringResource(R.string.settings_xiaomi_super_island_custom_summary),
         onClick = onOpenXiaomiSuperIslandSettings
     )
+
+    if (remember { VivoAtomWalkmanWhitelist.isVivoOrIqooDevice() }) {
+        SettingsFocusAnchor(active = highlightKey == "vivo_atom_walkman_whitelist") {
+            SwitchPreference(
+                title = stringResource(R.string.settings_enable_vivo_atom_walkman_whitelist),
+                summary = stringResource(R.string.settings_enable_vivo_atom_walkman_whitelist_summary),
+                checked = vivoAtomWalkmanEnabled,
+                onCheckedChange = { nextEnabled ->
+                    scope.launch {
+                        if (VivoAtomWalkmanWhitelist.setEnabled(context, nextEnabled)) {
+                            settingsManager.setVivoAtomWalkmanWhitelistEnabled(nextEnabled)
+                        } else {
+                            Toast.makeText(
+                                context,
+                                R.string.settings_vivo_atom_walkman_whitelist_failed,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            )
+        }
+    }
 }
 
 @Composable

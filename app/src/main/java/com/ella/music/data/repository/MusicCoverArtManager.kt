@@ -18,12 +18,6 @@ import java.io.File
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 
-private val embeddedArtworkThumbnailExtensions = setOf(
-    "m4a", "m4b", "m4r", "m4p", "mp4", "alac", "flac", "wav", "wave", "aif", "aiff", "aifc", "afc",
-    "ape", "dsf", "dff", "dsdiff", "wv", "tta", "mpc", "shn", "mka",
-    "spx", "wma", "asf"
-)
-
 /**
  * Library surfaces (list rows, two-column rows, grid cards) all render at or below this size, so
  * a single decoded "master" bitmap per song can serve every layout: grid-sized requests decode
@@ -59,11 +53,12 @@ internal class MusicCoverArtManager(
     // keeps repeated bitmap-cache hits free of disk IO.
     private val sidecarFileMemo = ConcurrentHashMap<String, Optional<File>>()
 
-    private fun songSidecarFile(song: Song): File? {
-        val memoKey = song.coverDataCacheKey()
+    private fun songSidecarFile(
+        song: Song
+    ): File? {
+        val memoKey = "${song.coverDataCacheKey()}:sidecar:named"
         sidecarFileMemo[memoKey]?.let { return it.orElse(null) }
-        val file = song.folderSidecarCoverFile()
-            ?: song.externalThumbnailCandidates().firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+        val file = song.songNamedSidecarCoverFile()
         sidecarFileMemo[memoKey] = Optional.ofNullable(file)
         return file
     }
@@ -122,7 +117,7 @@ internal class MusicCoverArtManager(
         val targetSize = maxSize.coerceIn(64, 3000)
         val sidecar = songSidecarFile(song)
         val sidecarStamp = sidecar?.let { "${it.absolutePath}:${it.lastModified()}:${it.length()}" } ?: "none"
-        val exactKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:${usage.name}:$targetSize"
+        val exactKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:${usage.name}:v2:$targetSize"
         coverBitmapCache.get(exactKey)?.let { return it }
         return synchronized(coverArtLock) {
             coverBitmapCache.get(exactKey)?.let { return it }
@@ -130,10 +125,10 @@ internal class MusicCoverArtManager(
                 // Library covers share one master bitmap per song: any layout at or below the
                 // master size derives from it, so switching layouts never decodes the same
                 // artwork twice.
-                val masterKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:m"
+                val masterKey = "${song.coverDataCacheKey()}:sidecar=$sidecarStamp:v2"
                 var master = coverBitmapCache.get(masterKey)
                 if (master == null) {
-                    master = decodeCoverMaster(song, sidecar, usage)
+                    master = decodeCoverMaster(song, sidecar)
                     if (master != null) coverBitmapCache.put(masterKey, master)
                 }
                 if (master == null) return null
@@ -146,17 +141,20 @@ internal class MusicCoverArtManager(
         }
     }
 
-    /** Decodes the song's artwork once at [MASTER_COVER_SIZE] for reuse by every library layout. */
-    private fun decodeCoverMaster(song: Song, sidecar: File?, usage: CoverUsage): Bitmap? {
+    /**
+     * One resolution order for every surface: song-named sidecar, embedded picture,
+     * folder `cover.jpg`, then MediaStore album art. List thumbnails must not skip
+     * embedded artwork in favor of a shared album URI.
+     */
+    private fun decodeCoverMaster(song: Song, sidecar: File?): Bitmap? {
         if (sidecar != null) {
             decodeBitmapFile(sidecar, MASTER_COVER_SIZE, Bitmap.Config.ARGB_8888)?.let { return it }
         }
-        if (usage == CoverUsage.ListThumbnail && !song.prefersEmbeddedArtworkForThumbnail()) {
-            getSharedAlbumArtBitmap(song.albumId)?.let { return it }
-        }
-        val data = getCoverArt(song)
-        if (data != null) {
+        getCoverArt(song)?.let { data ->
             decodeCoverDataToBitmap(data, MASTER_COVER_SIZE)?.let { return it }
+        }
+        song.folderAlbumCoverFile()?.let { folderCover ->
+            decodeBitmapFile(folderCover, MASTER_COVER_SIZE, Bitmap.Config.ARGB_8888)?.let { return it }
         }
         return getSharedAlbumArtBitmap(song.albumId)
     }
@@ -169,20 +167,23 @@ internal class MusicCoverArtManager(
         usage: CoverUsage,
         exactKey: String
     ): Bitmap? {
+        val config = if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
         if (sidecar != null) {
-            decodeBitmapFile(
-                sidecar,
-                targetSize,
-                if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
-            )?.also { coverBitmapCache.put(exactKey, it) }?.let { return it }
+            decodeBitmapFile(sidecar, targetSize, config)
+                ?.also { coverBitmapCache.put(exactKey, it) }
+                ?.let { return it }
         }
-        if (usage == CoverUsage.ListThumbnail && !song.prefersEmbeddedArtworkForThumbnail()) {
-            decodeAlbumArtBitmap(song.albumId, targetSize, usage)?.let { return it }
+        getCoverArt(song)?.let { data ->
+            decodeCoverDataToBitmap(data, targetSize)
+                ?.also { coverBitmapCache.put(exactKey, it) }
+                ?.let { return it }
         }
-        val data = getCoverArt(song)
-        if (data == null) return decodeAlbumArtBitmap(song.albumId, targetSize, usage)
-        return decodeCoverDataToBitmap(data, targetSize)
-            ?.also { coverBitmapCache.put(exactKey, it) }
+        song.folderAlbumCoverFile()?.let { folderCover ->
+            decodeBitmapFile(folderCover, targetSize, config)
+                ?.also { coverBitmapCache.put(exactKey, it) }
+                ?.let { return it }
+        }
+        return decodeAlbumArtBitmap(song.albumId, targetSize, usage)
     }
 
     private fun decodeCoverDataToBitmap(data: ByteArray, targetSize: Int): Bitmap? {
@@ -252,8 +253,24 @@ internal class MusicCoverArtManager(
         return song.coverUrl.takeIf {
             it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
         }
-            ?: songSidecarFile(song)
+            ?: song.songNamedSidecarCoverFile()
             ?: getCoverArt(song)
+            ?: song.folderAlbumCoverFile()
+            ?: readableAlbumArtUri(song.albumId)
+    }
+
+    /**
+     * Original artwork source for artist detail headers. Do not return a shared external
+     * thumbnail here: those files can be stale or partially written while MediaStore is
+     * rebuilding its cache, and Coil then never reaches the embedded/album fallback.
+     */
+    fun getArtistCoverModel(song: Song): Any? {
+        return song.coverUrl.takeIf {
+            it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
+        }
+            ?: song.songNamedSidecarCoverFile()
+            ?: getCoverArt(song)
+            ?: song.folderAlbumCoverFile()
             ?: readableAlbumArtUri(song.albumId)
     }
 
@@ -351,63 +368,36 @@ internal class MusicCoverArtManager(
         }
     }
 
-    private fun Song.prefersEmbeddedArtworkForThumbnail(): Boolean =
-        fileName.substringAfterLast('.', path.substringAfterLast('.')).lowercase() in embeddedArtworkThumbnailExtensions
-
-    private fun Song.externalThumbnailCandidates(): List<File> {
-        val metadataPath = effectiveLocalPathForMetadataBlocking(settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
-        val songFile = File(metadataPath)
-        if (!songFile.isFile) return emptyList()
-        val fileNameBase = fileName.ifBlank { songFile.name }
-        val stem = fileNameBase.substringBeforeLast('.').ifBlank { songFile.nameWithoutExtension }
-        val directories = buildList {
-            songFile.parentFile?.let { add(File(it, ".thumbnails")) }
-            add(File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC), ".thumbnails"))
-        }.distinctBy { it.absolutePath }
-        val keys = listOf(
-            stem,
-            fileNameBase,
-            id.takeIf { it > 0L }?.toString().orEmpty(),
-            path.sha256()
-        ).filter { it.isNotBlank() }.distinct()
-        val extensions = listOf("jpg", "jpeg", "png", "webp")
-        return directories.flatMap { dir ->
-            keys.flatMap { key ->
-                extensions.map { ext -> File(dir, "$key.$ext") }
-            }
-        }
-    }
-
-    private fun Song.folderSidecarCoverFile(): File? =
-        folderSidecarCoverCandidates().firstOrNull { it.exists() && it.isFile && it.length() > 0L }
-
-    private fun Song.folderSidecarCoverCandidates(): List<File> {
+    private fun Song.songNamedSidecarCoverFile(): File? {
         val metadataPath = effectiveLocalPathForMetadataBlocking(
             settingsManager,
             httpClient,
             remoteAudioCacheDir,
             remoteMetadataHeaderCacheDir
         )
-        val directory = File(metadataPath).parentFile ?: return emptyList()
-        if (!directory.isDirectory) return emptyList()
-        val names = listOf(
-            "cover", "folder", "albumart", "albumartsmall", "front", "album", "artwork"
+        val songFile = File(metadataPath)
+        return songNamedCoverFileCandidates(
+            songDirectory = songFile.parentFile,
+            fileName = fileName.ifBlank { songFile.name },
+            path = metadataPath,
+            songId = id,
+            musicThumbnailsDir = File(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC),
+                ".thumbnails"
+            )
+        ).firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+    }
+
+    private fun Song.folderAlbumCoverFile(): File? {
+        val metadataPath = effectiveLocalPathForMetadataBlocking(
+            settingsManager,
+            httpClient,
+            remoteAudioCacheDir,
+            remoteMetadataHeaderCacheDir
         )
-        val extensions = listOf("jpg", "jpeg", "png", "webp")
-        val files = directory.listFiles() ?: return emptyList()
-        val named = files.filter { file ->
-            file.isFile && file.length() > 0L &&
-                file.name.substringBeforeLast('.').lowercase() in names &&
-                file.extension.lowercase() in extensions
-        }.sortedBy { file ->
-            val stem = file.name.substringBeforeLast('.').lowercase()
-            names.indexOf(stem).takeIf { it >= 0 } ?: names.size
-        }
-        if (named.isNotEmpty()) return named
-        return files.filter { file ->
-            file.isFile &&
-                file.length() >= 8_192L &&
-                file.extension.lowercase() in extensions
-        }.sortedByDescending { it.length() }
+        val directory = File(metadataPath).parentFile ?: return null
+        if (!directory.isDirectory) return null
+        return folderAlbumCoverFileCandidates(directory)
+            .firstOrNull { it.exists() && it.isFile && it.length() > 0L }
     }
 }

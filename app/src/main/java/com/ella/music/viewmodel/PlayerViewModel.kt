@@ -40,6 +40,7 @@ import com.ella.music.player.TickerBridge
 import com.ella.music.player.XiaomiSuperIslandLyricBridge
 import androidx.media3.common.Player
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -179,9 +180,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _rawLyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
-    val lyrics: StateFlow<List<LyricLine>> = _lyrics.asStateFlow()
+    /**
+     * The backing lyric list is intentionally retained while a replacement is loaded so a
+     * transient controller emission does not blank every surface.  It must not, however, be
+     * presented for the new song.  Keep the identity beside the list and expose only a matching
+     * list to Compose and other consumers.
+     */
+    private val _lyricsSongKey = MutableStateFlow<String?>(null)
+    val lyrics: StateFlow<List<LyricLine>> = combine(
+        currentSong,
+        _lyrics,
+        _lyricsSongKey
+    ) { song, lines, loadedSongKey ->
+        if (song != null && loadedSongKey == song.lyricIdentityKey()) lines else emptyList()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val _lyricsLoading = MutableStateFlow(false)
-    val lyricsLoading: StateFlow<Boolean> = _lyricsLoading.asStateFlow()
+    val lyricsLoading: StateFlow<Boolean> = combine(
+        currentSong,
+        _lyricsLoading,
+        _lyricsSongKey
+    ) { song, loading, loadedSongKey ->
+        song != null && (loading || loadedSongKey != song.lyricIdentityKey())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     private val _currentLyricOffsetMs = MutableStateFlow(0L)
     val currentLyricOffsetMs: StateFlow<Long> = _currentLyricOffsetMs.asStateFlow()
 
@@ -308,6 +328,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var activeResumeCategoryKey: String? = null
     private val _playbackSourceKey = MutableStateFlow<String?>(null)
     val playbackSourceKey: StateFlow<String?> = _playbackSourceKey.asStateFlow()
+
+    /** Return lyrics only when the list belongs to the currently playing song. */
+    private fun loadedLyricsForCurrentSong(): List<LyricLine> {
+        val songKey = currentSong.value?.lyricIdentityKey() ?: return emptyList()
+        return _lyrics.value.takeIf { _lyricsSongKey.value == songKey }.orEmpty()
+    }
 
     init {
         com.ella.music.data.PlaybackSourceNavigation.attach(getApplication())
@@ -785,7 +811,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!bluetoothLyricEnabled || !isPlaying.value) return
 
         val index = _currentLyricIndex.value
-        val currentLyrics = _lyrics.value
+        val currentLyrics = loadedLyricsForCurrentSong()
+        if (currentLyrics.isEmpty()) return
         val payload = currentLyrics.bluetoothPayloadAt(
             index = index,
             includeTranslation = bluetoothLyricTranslationEnabled,
@@ -823,7 +850,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     PlaybackWidgetUpdater.updateLyrics(
                         context = getApplication<Application>(),
                         song = currentSong.value,
-                        line = _lyrics.value.getOrNull(_currentLyricIndex.value),
+                        line = loadedLyricsForCurrentSong().getOrNull(_currentLyricIndex.value),
                         positionMs = playerManager.currentPosition.value,
                         isPlaying = isPlaying.value
                     )
@@ -858,6 +885,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     delay(280L)
                     if (playerManager.currentSong.value != null) return@collectLatest
                     loadedLyricSongKey = null
+                    _lyricsSongKey.value = null
                     liveUpdateArtwork = null
                     suppressLeadingZeroLyric = false
                     _lyricsLoading.value = false
@@ -906,22 +934,55 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 val loadedKey = activeSong.lyricIdentityKey()
-                if (loadedLyricSongKey == loadedKey && _lyrics.value.isNotEmpty()) {
+                if (_lyricsSongKey.value != loadedKey) {
+                    // Keep the backing list for a possible transient controller emission, but
+                    // invalidate its presentation immediately so the previous song's lines can
+                    // never be rendered under the new title while the async lookup is running.
+                    _lyricsSongKey.value = null
+                    _currentLyricIndex.value = -1
+                }
+                if (loadedLyricSongKey == loadedKey &&
+                    _lyricsSongKey.value == loadedKey &&
+                    _lyrics.value.isNotEmpty()
+                ) {
                     updateCurrentLyricIndex()
                     return@collectLatest
                 }
                 suppressLeadingZeroLyric = true
                 _lyricsLoading.value = true
-                // Keep the previous lines visible until the replacement arrives. Clearing here
-                // made mini-lyrics and the lyric page go blank when playback-mode changes
-                // briefly emitted another song identity.
-                val songLyrics = repository.getLyrics(activeSong, lyricSourceMode)
-                val notificationArtwork = withContext(Dispatchers.IO) {
-                    repository.getCoverArtBitmap(
-                        song = activeSong,
-                        maxSize = LIVE_UPDATE_ARTWORK_SIZE,
-                        usage = CoverUsage.Notification
+                // Retain the previous lines in the backing state while the replacement arrives;
+                // _lyricsSongKey keeps them hidden from the page and bridges during this window.
+                val songLyrics = try {
+                    repository.getLyrics(activeSong, lyricSourceMode)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    AppLogStore.warn(
+                        getApplication(),
+                        "PlayerLyrics",
+                        "Failed to load lyrics for ${activeSong.title}",
+                        error
                     )
+                    emptyList()
+                }
+                val notificationArtwork = try {
+                    withContext(Dispatchers.IO) {
+                        repository.getCoverArtBitmap(
+                            song = activeSong,
+                            maxSize = LIVE_UPDATE_ARTWORK_SIZE,
+                            usage = CoverUsage.Notification
+                        )
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    AppLogStore.warn(
+                        getApplication(),
+                        "PlayerLyrics",
+                        "Failed to load notification artwork for ${activeSong.title}",
+                        error
+                    )
+                    null
                 }
                 if (playerManager.currentSong.value?.lyricIdentityKey() != loadedKey) {
                     return@collectLatest
@@ -930,7 +991,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 loadedLyricSongKey = loadedKey
                 setLoadedLyrics(activeSong, songLyrics, notifyExternal = false)
                 _lyricsLoading.value = false
-                val displayedLyrics = _lyrics.value
+                val displayedLyrics = loadedLyricsForCurrentSong()
 
                 if (lyriconBridge.isEnabled()) {
                     lyriconBridge.sendSong(activeSong, displayedLyrics)
@@ -1006,17 +1067,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun updateCurrentLyricIndex() {
+        val songKey = currentSong.value?.lyricIdentityKey()
+        if (songKey == null || _lyricsSongKey.value != songKey) {
+            // The backing list may still contain the previous song while the replacement is being
+            // fetched. Never advance/send that list against the new song's position.
+            if (_currentLyricIndex.value != -1) _currentLyricIndex.value = -1
+            liveLyricNotificationBridge.clear()
+            lastLiveUpdateLyricPayload = null
+            lastLyricPositionSongKey = songKey
+            lastLyricPositionMs = playerManager.currentPosition.value
+            return
+        }
         val currentLyrics = _lyrics.value
         if (currentLyrics.isEmpty()) {
             liveLyricNotificationBridge.clear()
             lastLiveUpdateLyricPayload = null
-            lastLyricPositionSongKey = currentSong.value?.lyricIdentityKey()
+            lastLyricPositionSongKey = songKey
             lastLyricPositionMs = playerManager.currentPosition.value
             return
         }
 
         val position = playerManager.currentPosition.value
-        val songKey = currentSong.value?.lyricIdentityKey()
         val previousPosition = if (lastLyricPositionSongKey == songKey) lastLyricPositionMs else position
         val effectivePosition = if (
             isPlaying.value &&
@@ -1080,11 +1151,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val songKey = song.lyricIdentityKey()
         // Guard: if lyrics are loaded for a different song, skip this resend
         if (loadedLyricSongKey != null && loadedLyricSongKey != songKey) return
-        if (_lyrics.value.isEmpty()) {
+        if (_lyricsSongKey.value != songKey || _lyrics.value.isEmpty()) {
             val loaded = repository.getLyrics(song, lyricSourceMode)
+            if (playerManager.currentSong.value?.lyricIdentityKey() != songKey) return
+            loadedLyricSongKey = songKey
             setLoadedLyrics(song, loaded, notifyExternal = false)
         }
-        val songLyrics = _lyrics.value
+        val songLyrics = loadedLyricsForCurrentSong()
         // Re-verify after potential async fetch
         if (playerManager.currentSong.value?.lyricIdentityKey() != songKey) return
         lyriconBridge.sendSong(song, songLyrics)
@@ -1106,25 +1179,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!tickerBridge.isEnabled() || !isPlaying.value) return
         if (force) lastTickerPayload = null
         val index = _currentLyricIndex.value
-        val currentLyrics = _lyrics.value
+        val currentLyrics = loadedLyricsForCurrentSong()
+        if (currentLyrics.isEmpty()) return
         sendTickerLyric(index, currentLyrics)
     }
 
     private fun resendLiveUpdateLyric(force: Boolean = false) {
         if (!liveUpdateLyricEnabled || !isPlaying.value) return
         if (force) lastLiveUpdateLyricPayload = null
+        val currentLyrics = loadedLyricsForCurrentSong()
+        if (currentLyrics.isEmpty()) return
         sendLiveUpdateLyric(
             index = _currentLyricIndex.value,
-            lyrics = _lyrics.value,
+            lyrics = currentLyrics,
             positionMs = effectiveLyricPositionMs()
         )
     }
 
     private fun resendXiaomiSuperIslandLyric() {
         if (!xiaomiSuperIslandLyricEnabled || !isPlaying.value) return
+        val currentLyrics = loadedLyricsForCurrentSong()
+        if (currentLyrics.isEmpty()) return
         sendXiaomiSuperIslandLyric(
             index = _currentLyricIndex.value,
-            lyrics = _lyrics.value,
+            lyrics = currentLyrics,
             positionMs = effectiveLyricPositionMs()
         )
     }
@@ -1203,7 +1281,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!desktopLyricBridge.isEnabled()) return
         if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) return
         val index = _currentLyricIndex.value
-        val currentLyrics = _lyrics.value
+        val currentLyrics = loadedLyricsForCurrentSong()
+        if (currentLyrics.isEmpty()) return
         desktopLyricBridge.sendLyric(
             line = currentLyrics.getOrNull(index),
             positionMs = effectiveLyricPositionMs(),
@@ -1216,7 +1295,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!desktopLyricBridge.isEnabled()) return
         if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) return
         val index = _currentLyricIndex.value
-        val line = _lyrics.value.getOrNull(index) ?: return
+        val line = loadedLyricsForCurrentSong().getOrNull(index) ?: return
         desktopLyricBridge.sendLyric(
             line,
             effectiveLyricPositionMs(),
@@ -1244,7 +1323,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun resendSuperLyric(force: Boolean = false) {
         if (!superLyricBridge.isEnabled() || !isPlaying.value) return
         val index = _currentLyricIndex.value
-        val line = _lyrics.value.getOrNull(index) ?: return
+        val line = loadedLyricsForCurrentSong().getOrNull(index) ?: return
         superLyricBridge.sendLyric(line, currentPosition.value, _showLyricTranslation.value && superLyricTranslationEnabled, force)
     }
 
@@ -1255,7 +1334,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun resendLyricGetter(force: Boolean = false) {
         if (!lyricGetterBridge.isEnabled() || !isPlaying.value) return
-        lyricGetterBridge.sendLyric(_lyrics.value.getOrNull(_currentLyricIndex.value), force)
+        lyricGetterBridge.sendLyric(loadedLyricsForCurrentSong().getOrNull(_currentLyricIndex.value), force)
     }
 
     private fun setLoadedLyrics(
@@ -1263,8 +1342,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         rawLyrics: List<LyricLine>,
         notifyExternal: Boolean
     ) {
+        // Do not expose the old list while the new list is being transformed. The key is set
+        // again only after the display-time offset/blacklist pipeline has completed.
+        _lyricsSongKey.value = null
+        _currentLyricIndex.value = -1
         _rawLyrics.value = rawLyrics
         applyCurrentLyricOffset(song = song, notifyExternal = notifyExternal)
+        _lyricsSongKey.value = song.lyricIdentityKey()
     }
 
     private fun applyCurrentLyricOffset(
@@ -1272,6 +1356,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         notifyExternal: Boolean = false
     ) {
         if (song == null) {
+            _lyricsSongKey.value = null
             _currentLyricOffsetMs.value = 0L
             val nextLyrics = _rawLyrics.value.preparedForDisplay()
             if (_lyrics.value != nextLyrics) {
@@ -1298,9 +1383,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             lastBluetoothLyricPayload = null
         }
         if (!notifyExternal) return
-        if (lyriconBridge.isEnabled()) lyriconBridge.sendSong(song, _lyrics.value)
+        if (lyriconBridge.isEnabled()) lyriconBridge.sendSong(song, loadedLyricsForCurrentSong())
         superLyricBridge.sendSong(song)
-        if (_lyrics.value.isEmpty()) {
+        if (loadedLyricsForCurrentSong().isEmpty()) {
             clearExternalLyrics(clearLyricon = false, clearSuperLyricSong = false)
         } else {
             resendTickerLyric(force = true)
@@ -1518,7 +1603,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         lastLyricPositionSongKey = currentSong.value?.lyricIdentityKey()
         lastLyricPositionMs = positionMs
 
-        val lyrics = _lyrics.value
+        val lyrics = loadedLyricsForCurrentSong()
         val index = currentLyricIndexAt(
             positionMs = positionMs,
             lyrics = lyrics,
@@ -1540,7 +1625,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             delay(SEEK_EXTERNAL_LYRIC_SYNC_DEBOUNCE_MS)
             lyriconBridge.seekTo(positionMs)
             if (!isPlaying.value || !superLyricBridge.isEnabled()) return@launch
-            val line = _lyrics.value.getOrNull(_currentLyricIndex.value) ?: return@launch
+            val line = loadedLyricsForCurrentSong().getOrNull(_currentLyricIndex.value) ?: return@launch
             superLyricBridge.sendLyric(
                 line = line,
                 positionMs = positionMs,
@@ -1653,11 +1738,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Re-establish the media controller if the playback session was torn down in the background. */
     fun ensurePlayerConnected() {
-        // The manager already receives live callbacks while this process stays alive. Asking a
-        // healthy controller to refresh on every resume momentarily republishes the queue/song
-        // state, which made the whole app appear to reload after returning from background.
-        playerManager.ensureConnected(refreshStateIfConnected = false)
+        // A controller can advance while the app is backgrounded without causing a new UI
+        // composition. Reconcile its current item on resume so the lyric collector sees the same
+        // song as the playback service before the player page is shown again.
+        playerManager.ensureConnected(refreshStateIfConnected = true)
         startPositionUpdates()
+        val song = currentSong.value ?: return
+        val songKey = song.lyricIdentityKey()
+        if (_lyricsSongKey.value != songKey && !_lyricsLoading.value) {
+            viewModelScope.launch { reloadLyrics(song, force = false) }
+        }
     }
 
     fun livePositionMs(): Long = playerManager.livePositionMs()
@@ -1836,24 +1926,48 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         song?.playlistIdentityKey()?.let { it in favoriteSongKeys.value } == true
 
     private suspend fun reloadLyrics(song: Song, force: Boolean = false) {
+        val songKey = song.lyricIdentityKey()
+        if (currentSong.value?.lyricIdentityKey() != songKey) return
+        _lyricsSongKey.value = null
+        _currentLyricIndex.value = -1
+        _lyricsLoading.value = true
         lastTickerPayload = null
         lastLiveUpdateLyricPayload = null
         lastBluetoothLyricPayload = null
         bluetoothLyricRetryJob?.cancel()
-        val availability = repository.getLyricFormatAvailability(song)
-        _lyricFormatAvailability.value = availability
-        val formatOverride = _preferTtmlLyrics.value.takeIf { availability.hasBoth }
-        if (!availability.hasBoth) _preferTtmlLyrics.value = null
-        val songLyrics = if (formatOverride != null) {
-            repository.reloadLyricsByFormat(song, formatOverride)
-        } else if (force) {
-            repository.reloadLyrics(song, lyricSourceMode)
-        } else {
-            repository.getLyrics(song, lyricSourceMode)
+        val songLyrics = try {
+            val availability = repository.getLyricFormatAvailability(song)
+            _lyricFormatAvailability.value = availability
+            val formatOverride = _preferTtmlLyrics.value.takeIf { availability.hasBoth }
+            if (!availability.hasBoth) _preferTtmlLyrics.value = null
+            if (formatOverride != null) {
+                repository.reloadLyricsByFormat(song, formatOverride)
+            } else if (force) {
+                repository.reloadLyrics(song, lyricSourceMode)
+            } else {
+                repository.getLyrics(song, lyricSourceMode)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            AppLogStore.warn(
+                getApplication(),
+                "PlayerLyrics",
+                "Failed to reload lyrics for ${song.title}",
+                error
+            )
+            if (currentSong.value?.lyricIdentityKey() == songKey) {
+                loadedLyricSongKey = songKey
+                setLoadedLyrics(song, emptyList(), notifyExternal = false)
+                _lyricsLoading.value = false
+            }
+            return
         }
-        loadedLyricSongKey = song.lyricIdentityKey()
+        if (currentSong.value?.lyricIdentityKey() != songKey) return
+        loadedLyricSongKey = songKey
         setLoadedLyrics(song, songLyrics, notifyExternal = false)
-        val displayedLyrics = _lyrics.value
+        _lyricsLoading.value = false
+        val displayedLyrics = loadedLyricsForCurrentSong()
         if (lyriconBridge.isEnabled()) lyriconBridge.sendSong(song, displayedLyrics)
         superLyricBridge.sendSong(song)
         if (displayedLyrics.isEmpty()) {
@@ -1906,7 +2020,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             lyriconBridge.setEnabled(enabled)
             if (enabled) {
                 currentSong.value?.let { song ->
-                    lyriconBridge.sendSong(song, _lyrics.value)
+                    lyriconBridge.sendSong(song, loadedLyricsForCurrentSong())
                     lyriconBridge.sendPlaybackState(isPlaying.value)
                 }
             }

@@ -3,6 +3,8 @@ package com.ella.music.player
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
@@ -95,6 +98,14 @@ class ExoPlayerManager(private val context: Context) {
     private var playNextMode = SettingsManager.PLAY_NEXT_MODE_REVERSE_STACK
     private var virtualPlaylistCurrentIndex: Int? = null
     private var pendingOptimisticSongKey: String? = null
+    private var pendingOptimisticPreviousSongKey: String? = null
+    // MediaSession forwarding (especially the crossfade presentation player) can report the
+    // outgoing item once after the incoming item has already become authoritative. Keep that
+    // outgoing identity as a short-lived guard so the resident player page does not flash back to
+    // the previous cover/mini lyric before settling on the target.
+    private var staleTransitionSongKey: String? = null
+    private var confirmedTransitionSongKey: String? = null
+    private var staleTransitionGuardUntilElapsedRealtime = 0L
     private var playWhenConnected = false
     private var pendingPlaylist: PendingPlaylist? = null
     private var reorderingPlaylistForShuffle = false
@@ -121,6 +132,13 @@ class ExoPlayerManager(private val context: Context) {
     private var deferredSeekStateSaveJob: Job? = null
     private var deferredSeekCommandJob: Job? = null
     private var pendingSeekTargetMs: Long? = null
+    // MediaController commands are asynchronous.  Keep the latest user transport intent for a
+    // short acknowledgement window so an old isPlaying/playWhenReady callback (or a snapshot
+    // emitted while a controller is being recreated) cannot put the UI back into the opposite
+    // state.  The intent is deliberately short-lived: if a command really failed, the next
+    // controller state is eventually allowed to become authoritative.
+    private var pendingTransportTarget: Boolean? = null
+    private var pendingTransportIssuedAtMs = 0L
     @Volatile
     private var playbackStateSaveGeneration = 0L
     private var decoderRecoveryJob: Job? = null
@@ -151,13 +169,17 @@ class ExoPlayerManager(private val context: Context) {
             future,
             object : FutureCallback<MediaController> {
                 override fun onSuccess(result: MediaController?) {
-                    if (controllerFuture !== future || result == null) return
+                    if (controllerFuture !== future || result == null) {
+                        result?.let { runCatching { it.release() } }
+                        return
+                    }
                     mediaController = result
                     setupListener()
                 }
 
                 override fun onFailure(t: Throwable) {
                     if (controllerFuture !== future) return
+                    controllerFuture = null
                     AppLogStore.error(context, "PlayerController", "Failed to connect media controller", t)
                 }
             },
@@ -187,15 +209,159 @@ class ExoPlayerManager(private val context: Context) {
             if (refreshStateIfConnected) refreshStateFromController()
             return
         }
+        // External playback snapshots can arrive in bursts while a new controller is still being
+        // built. Do not release and recreate that in-flight future for every snapshot; doing so
+        // produced repeated MediaController Init/Release cycles and let old queue states flash
+        // through the player page during a track transition.
+        if (controllerFuture?.isDone == false) return
         if (controller != null) disconnect()
         if (controllerFuture == null) connect()
     }
 
     private fun activeController(): MediaController? = mediaController?.takeIf { it.isConnected }
 
+    private fun clearPendingTransportCommand() {
+        pendingTransportTarget = null
+        pendingTransportIssuedAtMs = 0L
+    }
+
+    private fun pendingTransportTargetOrNull(): Boolean? {
+        val target = pendingTransportTarget ?: return null
+        if (SystemClock.elapsedRealtime() - pendingTransportIssuedAtMs > TRANSPORT_COMMAND_GUARD_MS) {
+            clearPendingTransportCommand()
+            return null
+        }
+        return target
+    }
+
+    /**
+     * Applies a transport snapshot without allowing it to contradict a just-issued user command.
+     * A play request is projected for the short acknowledgement window because some vendor
+     * builds start AudioTrack without dispatching the matching MediaController callback. Once the
+     * command is acknowledged, the controller's actual `isPlaying` bit becomes authoritative.
+     */
+    private fun publishTransportState(isPlaying: Boolean, playWhenReady: Boolean) {
+        val pending = pendingTransportTargetOrNull()
+        val projection = projectTransportState(
+            actualIsPlaying = isPlaying,
+            actualPlayWhenReady = playWhenReady,
+            pendingTarget = pending
+        )
+        _playWhenReady.value = projection.playWhenReady
+        _isPlaying.value = projection.isPlaying
+        if (pending != null && projection.acknowledged) clearPendingTransportCommand()
+    }
+
+    /** Issue one transport command and immediately publish its projected state to the UI. */
+    private fun requestTransportState(target: Boolean, controller: MediaController?): Boolean {
+        pendingTransportTarget = target
+        pendingTransportIssuedAtMs = SystemClock.elapsedRealtime()
+        _playWhenReady.value = target
+        // Project both directions immediately.  In particular, a play command must not leave the
+        // pause glyph stuck on "play" when the vendor AudioTrack starts before MediaController
+        // delivers onIsPlayingChanged.
+        _isPlaying.value = target
+        Log.d(
+            TIMING_TAG,
+            "transport command target=$target connected=${controller?.isConnected == true} " +
+                "controllerPlayWhenReady=${controller?.playWhenReady} controllerIsPlaying=${controller?.isPlaying}"
+        )
+
+        if (controller == null || !controller.isConnected) {
+            // Reconnect on demand when a command arrives while the foreground controller is stale.
+            // This is intentionally outside the external-snapshot collector; snapshots are a hot
+            // stream and must never release/recreate the controller for every state change.
+            ensureConnected(refreshStateIfConnected = false)
+            // Keep the intent for the controller that will be created on the next foreground
+            // pass.  A pending false is also meaningful: it must cancel a service that kept
+            // playing while the UI controller was disconnected.
+            playWhenConnected = target
+            savePlaybackState(force = true)
+            return target
+        }
+
+        playWhenConnected = false
+        runCatching {
+            if (target) controller.play() else controller.pause()
+        }.onFailure { error ->
+            AppLogStore.warn(
+                context,
+                "PlayerController",
+                "Failed to request ${if (target) "play" else "pause"}",
+                error
+            )
+        }
+        savePlaybackState(force = true)
+        return target
+    }
+
+    /** Retry a projected transport intent once a replacement controller is ready. */
+    private fun reconcilePendingTransport(controller: MediaController) {
+        val target = pendingTransportTargetOrNull() ?: return
+        if (!controller.isConnected) return
+        if (controller.playWhenReady == target) {
+            playWhenConnected = false
+            if (!target || controller.isPlaying) clearPendingTransportCommand()
+            return
+        }
+        runCatching {
+            if (target) controller.play() else controller.pause()
+        }.onFailure { error ->
+            AppLogStore.warn(
+                context,
+                "PlayerController",
+                "Failed to reconcile ${if (target) "play" else "pause"} after reconnect",
+                error
+            )
+        }
+    }
+
     private fun clearPresentationMetadataPatchGuard() {
         presentationMetadataPatchSongKey = null
         presentationMetadataPatchUntilMs = 0L
+    }
+
+    private fun clearStaleTransitionGuard() {
+        staleTransitionSongKey = null
+        confirmedTransitionSongKey = null
+        staleTransitionGuardUntilElapsedRealtime = 0L
+    }
+
+    private fun rememberAcceptedSongTransition(previousSongKey: String?, acceptedSong: Song?) {
+        val acceptedKey = acceptedSong?.playbackStackKey()
+        if (previousSongKey.isNullOrBlank() || acceptedKey.isNullOrBlank() || previousSongKey == acceptedKey) {
+            clearStaleTransitionGuard()
+            return
+        }
+        staleTransitionSongKey = previousSongKey
+        confirmedTransitionSongKey = acceptedKey
+        staleTransitionGuardUntilElapsedRealtime =
+            SystemClock.elapsedRealtime() + STALE_TRANSITION_GUARD_MS
+    }
+
+    private fun rememberAcceptedSongTransition(previousSong: Song?, acceptedSong: Song?) {
+        rememberAcceptedSongTransition(previousSong?.playbackStackKey(), acceptedSong)
+    }
+
+    private fun shouldIgnoreStaleTransition(restoredSong: Song?): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (now >= staleTransitionGuardUntilElapsedRealtime) {
+            if (staleTransitionGuardUntilElapsedRealtime != 0L) clearStaleTransitionGuard()
+            return false
+        }
+        val currentKey = _currentSong.value?.playbackStackKey()
+        val ignored = currentKey != null &&
+            currentKey == confirmedTransitionSongKey &&
+            restoredSong?.playbackStackKey() == staleTransitionSongKey
+        if (ignored) {
+            AppLogStore.debug(
+                context,
+                "PlayerTransition",
+                "Ignored stale controller song=${restoredSong?.title.orEmpty()} " +
+                    "while keeping=${_currentSong.value?.title.orEmpty()}"
+            )
+        }
+        return ignored
     }
 
     fun isConnected(): Boolean = mediaController?.isConnected == true
@@ -223,32 +389,37 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     private fun setupListener() {
-        playerListener = object : Player.Listener {
+        val controller = mediaController ?: return
+        val listener = object : Player.Listener {
+            // A released MediaController can still have callbacks queued on the main looper.
+            // Never let those callbacks inspect the replacement controller and overwrite the
+            // state projected by a newer user command.
+            private fun isCurrentController(): Boolean = mediaController === controller
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _isPlaying.value = isPlaying
-                _playWhenReady.value = mediaController?.playWhenReady ?: isPlaying
+                if (!isCurrentController()) return
+                publishTransportState(isPlaying, controller.playWhenReady)
                 savePlaybackState(force = true)
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                _playWhenReady.value = playWhenReady
-                // A pause intent must update UI/lyric consumers immediately. Some controller or
-                // crossfade paths deliver onIsPlayingChanged one callback later (or not at all),
-                // which otherwise leaves a stale pause glyph while the session is already paused.
-                if (!playWhenReady) _isPlaying.value = false
+                if (!isCurrentController()) return
+                publishTransportState(controller.isPlaying, playWhenReady)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (!isCurrentController()) return
                 _playbackState.value = playbackState
-                _duration.value = mediaController?.duration?.coerceAtLeast(0) ?: 0L
+                _duration.value = controller.duration.coerceAtLeast(0)
                 when (playbackState) {
-                    Player.STATE_BUFFERING -> Log.d(TIMING_TAG, "controller state BUFFERING mediaId=${mediaController?.currentMediaItem?.mediaId}")
-                    Player.STATE_READY -> Log.d(TIMING_TAG, "controller state READY mediaId=${mediaController?.currentMediaItem?.mediaId}")
-                    Player.STATE_ENDED -> Log.d(TIMING_TAG, "controller state ENDED mediaId=${mediaController?.currentMediaItem?.mediaId}")
+                    Player.STATE_BUFFERING -> Log.d(TIMING_TAG, "controller state BUFFERING mediaId=${controller.currentMediaItem?.mediaId}")
+                    Player.STATE_READY -> Log.d(TIMING_TAG, "controller state READY mediaId=${controller.currentMediaItem?.mediaId}")
+                    Player.STATE_ENDED -> Log.d(TIMING_TAG, "controller state ENDED mediaId=${controller.currentMediaItem?.mediaId}")
                 }
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (!isCurrentController()) return
                 Log.d(TIMING_TAG, "controller media transition reason=$reason mediaId=${mediaItem?.mediaId}")
                 externalSnapshotGuard = null
                 clearPresentationMetadataPatchGuard()
@@ -260,11 +431,12 @@ class ExoPlayerManager(private val context: Context) {
             }
 
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                if (!isCurrentController()) return
                 if (mediaMetadata.metadataPatchReason() == null) {
                     clearPresentationMetadataPatchGuard()
                     return
                 }
-                val song = mediaController?.currentMediaItem?.toSongFromMediaItemExtras()
+                val song = controller.currentMediaItem?.toSongFromMediaItemExtras()
                     ?: _currentSong.value
                 presentationMetadataPatchSongKey = song?.playbackStackKey()
                 presentationMetadataPatchUntilMs =
@@ -276,7 +448,8 @@ class ExoPlayerManager(private val context: Context) {
                 newPosition: Player.PositionInfo,
                 reason: Int
             ) {
-                val currentItem = mediaController?.currentMediaItem
+                if (!isCurrentController()) return
+                val currentItem = controller.currentMediaItem
                 val currentSong = _currentSong.value
                 val nowMs = SystemClock.elapsedRealtime()
                 // Replacing MediaMetadata for notification lyrics can surface as an internal
@@ -302,13 +475,14 @@ class ExoPlayerManager(private val context: Context) {
                     return
                 }
                 _currentPosition.value = newPosition.positionMs.coerceAtLeast(0L)
-                _duration.value = mediaController?.duration?.coerceAtLeast(0) ?: 0L
+                _duration.value = controller.duration.coerceAtLeast(0)
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
                     updateCurrentSong()
                 }
             }
 
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                if (!isCurrentController()) return
                 if (reorderingPlaylistForShuffle) return
                 // Artwork and base-session patches replace the current item's MediaMetadata via
                 // replaceMediaItem without changing the actual playback queue. These trigger
@@ -317,7 +491,7 @@ class ExoPlayerManager(private val context: Context) {
                 // spurious StateFlow emissions that flicker the lyrics page.
                 if (shouldIgnoreDisplayOnlyTimelineUpdate(
                         reason = reason,
-                        currentItem = mediaController?.currentMediaItem,
+                        currentItem = controller.currentMediaItem,
                         currentSong = _currentSong.value
                     )
                 ) return
@@ -325,11 +499,12 @@ class ExoPlayerManager(private val context: Context) {
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                if (!isCurrentController()) return
                 if (_queueLocked.value) {
                     if (shuffleModeEnabled) {
                         _shuffleEnabled.value = true
                         persistAppShuffleEnabled(true)
-                        mediaController?.shuffleModeEnabled = false
+                        controller.shuffleModeEnabled = false
                     }
                     return
                 }
@@ -340,12 +515,13 @@ class ExoPlayerManager(private val context: Context) {
                         markPendingShuffleReorder()
                     }
                     if (!pendingShuffleReorder) {
-                        mediaController?.shuffleModeEnabled = false
+                        controller.shuffleModeEnabled = false
                     }
                 }
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
+                if (!isCurrentController()) return
                 _repeatMode.value = repeatMode
                 // The combined playback-mode button in the media notification changes the app-level
                 // shuffle flag (persisted, not part of Media3 state) together with the repeat mode.
@@ -357,16 +533,18 @@ class ExoPlayerManager(private val context: Context) {
             }
 
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+                if (!isCurrentController()) return
                 _playbackSpeed.value = playbackParameters.speed
                 _playbackPitch.value = playbackParameters.pitch
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                if (!isCurrentController()) return
                 val song = _currentSong.value
                 AppLogStore.error(
                     context,
                     "PlayerError",
-                    "Playback failed code=${error.errorCodeName} song=${song?.title.orEmpty()} uri=${mediaController?.currentMediaItem?.localConfiguration?.uri}",
+                    "Playback failed code=${error.errorCodeName} song=${song?.title.orEmpty()} uri=${controller.currentMediaItem?.localConfiguration?.uri}",
                     error
                 )
                 decoderRecoveryJob?.cancel()
@@ -380,9 +558,10 @@ class ExoPlayerManager(private val context: Context) {
                 }
             }
         }
-        mediaController?.addListener(playerListener!!)
+        playerListener = listener
+        controller.addListener(listener)
         // A recreated MediaController does not retain app-owned ReplayGain state.
-        mediaController?.volume = replayGainVolume
+        controller.volume = replayGainVolume
 
         val pending = pendingPlaylist
         if (pending != null) {
@@ -396,10 +575,13 @@ class ExoPlayerManager(private val context: Context) {
         } else {
             restoreSavedQueueIfNeeded()
         }
-        refreshStateFromController()
-        if (playWhenConnected) {
+        refreshStateFromController(controller)
+        val pendingTransport = pendingTransportTargetOrNull()
+        if (pendingTransport != null) {
+            reconcilePendingTransport(controller)
+        } else if (playWhenConnected) {
             playWhenConnected = false
-            play()
+            requestTransportState(target = true, controller = controller)
         }
     }
 
@@ -441,6 +623,8 @@ class ExoPlayerManager(private val context: Context) {
         AppLogStore.debug(context, "PlayerQueue", "setPlaylist size=${songs.size} start=$startIndex")
         virtualPlaylistCurrentIndex = null
         pendingOptimisticSongKey = null
+        pendingOptimisticPreviousSongKey = null
+        clearStaleTransitionGuard()
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
         notificationArtworkJob?.cancel()
@@ -487,8 +671,8 @@ class ExoPlayerManager(private val context: Context) {
             }
             setMediaItems(mediaItems, safeIndex, startPositionMs)
             prepare()
-            play()
         }
+        requestTransportState(target = true, controller = controller)
         updateCurrentSong()
         savePlaybackQueue(force = true)
     }
@@ -559,11 +743,14 @@ class ExoPlayerManager(private val context: Context) {
         _playlist.value = playlist.toList()
         _currentQueueIndex.value = safeIndex
 
-        mediaController?.apply {
-            playWhenReady = shouldPlay
-            setMediaItems(listOf(songToMediaItem(sourceAwareResolvedSong)), 0, resumePositionFor(sourceAwareResolvedSong))
-            prepare()
-            if (shouldPlay) play()
+        activeController()?.let { controller ->
+            controller.setMediaItems(
+                listOf(songToMediaItem(sourceAwareResolvedSong)),
+                0,
+                resumePositionFor(sourceAwareResolvedSong)
+            )
+            controller.prepare()
+            requestTransportState(target = shouldPlay, controller = controller)
         }
         _currentSong.value = sourceAwareResolvedSong
         _duration.value = sourceAwareResolvedSong.duration
@@ -723,6 +910,9 @@ class ExoPlayerManager(private val context: Context) {
         cancelPendingSeekCommand()
         externalSnapshotGuard = null
         suppressExternalSnapshotsUntilMs = 0L
+        pendingOptimisticSongKey = null
+        pendingOptimisticPreviousSongKey = null
+        clearStaleTransitionGuard()
         resetPlayNextForwardStack()
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = false)
         rememberCurrentSongResumePosition()
@@ -857,6 +1047,9 @@ class ExoPlayerManager(private val context: Context) {
         currentSongRefreshJob?.cancel()
         currentSongRefreshJob = null
         virtualPlaylistCurrentIndex = null
+        pendingOptimisticSongKey = null
+        pendingOptimisticPreviousSongKey = null
+        clearStaleTransitionGuard()
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
         playlist.clear()
@@ -870,8 +1063,7 @@ class ExoPlayerManager(private val context: Context) {
         clearBluetoothMetadataPatchState()
         _currentPosition.value = 0L
         _duration.value = 0L
-        _isPlaying.value = false
-        _playWhenReady.value = false
+        requestTransportState(target = false, controller = activeController())
         _playbackState.value = Player.STATE_IDLE
         autoDecoderRetrySongKey = null
         _queueLocked.value = false
@@ -917,10 +1109,15 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun togglePlayPause() {
-        mediaController?.let {
-            flushPendingSeekCommand()
-            if (it.isPlaying) it.pause() else it.play()
-        }
+        flushPendingSeekCommand()
+        val controller = activeController()
+        // `isPlaying` is false while buffering and during a crossfade handoff even though the
+        // user still intends playback to continue. Toggling that transient bit is what turned a
+        // pause tap into a play command. `playWhenReady` is the stable transport intent instead.
+        val currentIntent = pendingTransportTargetOrNull()
+            ?: controller?.playWhenReady
+            ?: _playWhenReady.value
+        requestTransportState(target = !currentIntent, controller = controller)
     }
 
     /**
@@ -932,20 +1129,20 @@ class ExoPlayerManager(private val context: Context) {
         mediaController?.currentPosition?.coerceAtLeast(0) ?: _currentPosition.value
 
     fun play() {
-        val controller = mediaController
+        val controller = activeController()
         if (controller == null) {
-            playWhenConnected = true
+            requestTransportState(target = true, controller = null)
             return
         }
         if (controller.mediaItemCount > 0) {
-            controller.play()
-            refreshStateFromController()
+            requestTransportState(target = true, controller = controller)
+            refreshStateFromController(controller)
         }
     }
 
     fun pause() {
         flushPendingSeekCommand()
-        mediaController?.pause()
+        requestTransportState(target = false, controller = activeController())
     }
 
     fun skipToNext() {
@@ -996,6 +1193,8 @@ class ExoPlayerManager(private val context: Context) {
 
     private fun applyOptimisticSong(song: Song, positionMs: Long, queueIndex: Int? = null) {
         currentSongRefreshJob?.cancel()
+        pendingOptimisticPreviousSongKey = _currentSong.value?.playbackStackKey()
+        clearStaleTransitionGuard()
         pendingOptimisticSongKey = song.playbackStackKey()
         _currentSong.value = song
         queueIndex?.takeIf { it in playlist.indices }?.let { _currentQueueIndex.value = it }
@@ -1005,9 +1204,12 @@ class ExoPlayerManager(private val context: Context) {
 
     fun restartCurrent() {
         cancelPendingSeekCommand()
-        mediaController?.run {
+        pendingOptimisticSongKey = null
+        pendingOptimisticPreviousSongKey = null
+        clearStaleTransitionGuard()
+        activeController()?.run {
             seekToDefaultPosition(currentMediaItemIndex.coerceAtLeast(0))
-            play()
+            requestTransportState(target = true, controller = this)
         }
         _currentPosition.value = 0L
         updateCurrentSong()
@@ -1015,7 +1217,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun restartSong(song: Song?) {
-        val controller = mediaController ?: return
+        val controller = activeController() ?: return
         cancelPendingSeekCommand()
         val target = song ?: _currentSong.value
         val targetIndex = if (target != null && target.isSamePlaybackIdentity(_currentSong.value)) {
@@ -1027,7 +1229,7 @@ class ExoPlayerManager(private val context: Context) {
         if (safeIndex < 0) return
         _currentQueueIndex.value = safeIndex
         controller.seekToDefaultPosition(safeIndex)
-        controller.play()
+        requestTransportState(target = true, controller = controller)
         _currentPosition.value = 0L
         updateCurrentSong()
         savePlaybackQueue(force = true)
@@ -1227,8 +1429,16 @@ class ExoPlayerManager(private val context: Context) {
         if (_currentSong.value == null && (mediaController?.mediaItemCount ?: 0) > 0) {
             refreshStateFromController()
         }
-        _currentPosition.value = mediaController?.currentPosition?.coerceAtLeast(0) ?: 0L
-        _duration.value = mediaController?.duration?.coerceAtLeast(0) ?: 0L
+        mediaController?.let { controller ->
+            if (mediaController === controller && controller.isConnected) {
+                // A few vendor builds update AudioTrack without dispatching the matching
+                // MediaController listener callback. The existing 10 Hz position ticker is a
+                // reliable, low-cost reconciliation point for the play/pause state.
+                publishTransportState(controller.isPlaying, controller.playWhenReady)
+                _currentPosition.value = controller.currentPosition.coerceAtLeast(0)
+                _duration.value = controller.duration.coerceAtLeast(0)
+            }
+        }
         if (_currentSong.value != null) savePlaybackState()
     }
 
@@ -1295,12 +1505,15 @@ class ExoPlayerManager(private val context: Context) {
         updateBluetoothLyric(null)
     }
     fun refreshStateFromController() {
-        val controller = mediaController ?: return
+        mediaController?.let(::refreshStateFromController)
+    }
+
+    private fun refreshStateFromController(controller: MediaController) {
+        if (mediaController !== controller) return
         hydratePlaylistFromController(controller)
         if (shouldIgnoreStaleControllerSong(controller)) return
 
-        _isPlaying.value = controller.isPlaying
-        _playWhenReady.value = controller.playWhenReady
+        publishTransportState(controller.isPlaying, controller.playWhenReady)
         _playbackState.value = controller.playbackState
         _repeatMode.value = controller.repeatMode
         _playbackSpeed.value = controller.playbackParameters.speed
@@ -1341,6 +1554,39 @@ class ExoPlayerManager(private val context: Context) {
     fun applyExternalPlaybackSnapshot(snapshot: PlaybackExternalSnapshot) {
         val snapshotSong = snapshot.mediaItem?.toSongFromMediaItemExtras()
             ?: snapshot.mediaItem?.toSong()
+        val snapshotSongKey = snapshotSong?.playbackStackKey()
+        // A manual skip is reflected in the UI before the Binder command reaches the service.
+        // Ignore an older external snapshot until the controller reports the requested target;
+        // otherwise the resident player flashes back to the outgoing cover and mini lyric.
+        val pendingKey = pendingOptimisticSongKey
+        var acceptedPendingSnapshot = false
+        if (pendingKey != null && snapshotSongKey != pendingKey) {
+            val indexedTarget = playlist.getOrNull(snapshot.mediaItemIndex)
+            if (indexedTarget?.playbackStackKey() != pendingKey ||
+                (snapshotSong != null && !snapshotSong.isSamePlaybackIdentity(indexedTarget))
+            ) {
+                return
+            }
+            acceptedPendingSnapshot = true
+        } else if (pendingKey != null && snapshotSongKey == pendingKey) {
+            acceptedPendingSnapshot = true
+        }
+        if (acceptedPendingSnapshot && snapshotSong != null) {
+            // Usually onMediaItemTransition clears this marker. External playback snapshots can
+            // be the only callback delivered after a Binder skip, though; confirm the optimistic
+            // target here as well so a later automatic transition is not blocked forever. Keep the
+            // short stale-identity guard to reject an outgoing snapshot that follows this one.
+            val previousKey = pendingOptimisticPreviousSongKey
+            pendingOptimisticSongKey = null
+            pendingOptimisticPreviousSongKey = null
+            rememberAcceptedSongTransition(previousKey, snapshotSong)
+        }
+        // The crossfade/session forwarding chain can publish the outgoing item once after the
+        // incoming item has already been accepted. Reuse the same short-lived identity guard used
+        // by controller callbacks so external snapshots cannot undo that transition.
+        if (snapshotSong != null && shouldIgnoreStaleTransition(snapshotSong)) {
+            return
+        }
         if (snapshotSong != null && SystemClock.elapsedRealtime() < suppressExternalSnapshotsUntilMs) {
             return
         }
@@ -1361,8 +1607,7 @@ class ExoPlayerManager(private val context: Context) {
             return
         }
 
-        _isPlaying.value = snapshot.isPlaying
-        _playWhenReady.value = snapshot.playWhenReady
+        publishTransportState(snapshot.isPlaying, snapshot.playWhenReady)
         _playbackState.value = snapshot.playbackState
         _repeatMode.value = snapshot.repeatMode
         _currentPosition.value = snapshot.positionMs.coerceAtLeast(0L)
@@ -1435,6 +1680,7 @@ class ExoPlayerManager(private val context: Context) {
             ?: sourceAwareSnapshotSong.duration.coerceAtLeast(0L)
 
         if (!previousSong.isSamePlaybackIdentity(sourceAwareSnapshotSong)) {
+            rememberAcceptedSongTransition(previousSong, sourceAwareSnapshotSong)
             resetPlayNextForwardStack()
             notificationArtworkJob?.cancel()
             notificationArtworkJob = null
@@ -1570,14 +1816,25 @@ class ExoPlayerManager(private val context: Context) {
         }
         val previousSong = _currentSong.value
         val pendingKey = pendingOptimisticSongKey
+        var acceptedOptimisticTransition = false
         if (pendingKey != null) {
             if (restoredSong?.playbackStackKey() == pendingKey) {
                 pendingOptimisticSongKey = null
+                acceptedOptimisticTransition = true
+                rememberAcceptedSongTransition(
+                    previousSongKey = pendingOptimisticPreviousSongKey,
+                    acceptedSong = restoredSong
+                )
+                pendingOptimisticPreviousSongKey = null
             } else {
                 // seekToNext is Binder-async; keep the already-switched cover/title until the
                 // controller actually lands on the song the skip button targeted.
                 return
             }
+        }
+        if (!acceptedOptimisticTransition && shouldIgnoreStaleTransition(restoredSong)) {
+            _duration.value = controller.duration.coerceAtLeast(0)
+            return
         }
         if (currentItem?.isMetadataOnlyPatch() == true &&
             previousSong.isSamePlaybackIdentity(restoredSong)
@@ -1598,6 +1855,9 @@ class ExoPlayerManager(private val context: Context) {
         _currentSong.value = restoredSong
         _duration.value = controller.duration.coerceAtLeast(0)
         if (!previousSong.isSamePlaybackIdentity(restoredSong)) {
+            if (!acceptedOptimisticTransition) {
+                rememberAcceptedSongTransition(previousSong, restoredSong)
+            }
             autoDecoderRetrySongKey = null
             resetPlayNextForwardStack()
             notificationArtworkJob?.cancel()
@@ -1886,26 +2146,13 @@ class ExoPlayerManager(private val context: Context) {
             val startedAt = SystemClock.elapsedRealtime()
             Log.d(TIMING_TAG, "artwork load start mediaId=${song.id}")
             val data = runCatching {
-                artworkRepository.getCoverArt(song)
+                artworkRepository.getCoverArt(song)?.let(::notificationArtworkBytes)
             }.getOrElse { error ->
                 AppLogStore.warn(context, "PlayerArtwork", "Failed to load notification artwork for ${song.title}", error)
                 null
             }
             if (data == null) {
                 Log.d(TIMING_TAG, "artwork load finish mediaId=${song.id} elapsed=${SystemClock.elapsedRealtime() - startedAt}ms missing")
-                withContext(Dispatchers.Main.immediate) {
-                    val latestController = mediaController
-                    val latestIndex = latestController?.currentMediaItemIndex ?: -1
-                    if (latestController?.currentMediaItem?.matchesSong(song) == true) {
-                        missingNotificationArtworkKeys += artworkKey
-                        replaceCurrentItemArtwork(latestController, latestIndex, song, null)
-                    }
-                }
-                return@launch
-            }
-            if (data.size > MAX_NOTIFICATION_ARTWORK_BYTES) {
-                Log.d(TIMING_TAG, "artwork load finish mediaId=${song.id} elapsed=${SystemClock.elapsedRealtime() - startedAt}ms oversized=${data.size}")
-                AppLogStore.warn(context, "PlayerArtwork", "Skip oversized notification artwork for ${song.title}: ${data.size} bytes")
                 withContext(Dispatchers.Main.immediate) {
                     val latestController = mediaController
                     val latestIndex = latestController?.currentMediaItemIndex ?: -1
@@ -1930,6 +2177,32 @@ class ExoPlayerManager(private val context: Context) {
                 }
             }
         }
+    }
+
+    private fun notificationArtworkBytes(data: ByteArray): ByteArray? {
+        if (data.size <= MAX_NOTIFICATION_ARTWORK_BYTES) return data
+        return runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+            var sample = 1
+            while (
+                bounds.outWidth / sample > NOTIFICATION_ARTWORK_MAX_SIDE ||
+                bounds.outHeight / sample > NOTIFICATION_ARTWORK_MAX_SIDE
+            ) {
+                sample *= 2
+            }
+            val bitmap = BitmapFactory.decodeByteArray(
+                data,
+                0,
+                data.size,
+                BitmapFactory.Options().apply { inSampleSize = sample }
+            ) ?: return@runCatching null
+            val out = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+            if (!bitmap.isRecycled) bitmap.recycle()
+            out.toByteArray().takeIf { it.isNotEmpty() }
+        }.getOrNull()
     }
 
     private fun replaceCurrentItemArtwork(
@@ -2201,16 +2474,19 @@ class ExoPlayerManager(private val context: Context) {
         const val RESUME_POSITION_END_GUARD_MS = 8_000L
         const val MAX_RESUME_POSITION_ENTRIES = 256
         const val CLEAR_EXTERNAL_SNAPSHOT_SUPPRESSION_MS = 3_000L
+        const val TRANSPORT_COMMAND_GUARD_MS = 3_000L
         const val EXTRA_ONLINE_SOURCE = "com.ella.music.extra.ONLINE_SOURCE"
         const val EXTRA_ONLINE_ID = "com.ella.music.extra.ONLINE_ID"
         const val EXTRA_SONG_JSON = "com.ella.music.extra.SONG_JSON"
         const val MAX_NOTIFICATION_ARTWORK_BYTES = 2 * 1024 * 1024
+        const val NOTIFICATION_ARTWORK_MAX_SIDE = 512
         const val PLAYBACK_PREFS = "ella_playback_state"
         const val KEY_QUEUE = "queue"
         const val KEY_STATE = "state"
         const val KEY_APP_SHUFFLE = "app_shuffle_enabled"
         const val KEY_APP_REPEAT = "app_repeat_mode"
         const val SHUFFLE_REORDER_IDENTITY_GUARD_MS = 450L
+        const val STALE_TRANSITION_GUARD_MS = 2_000L
         const val DECODER_MODE_FFMPEG_PREFER = 1
         const val DECODER_MODE_AUTO = 2
     }

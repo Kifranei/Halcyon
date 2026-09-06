@@ -16,7 +16,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-val appVersionName = "1.2.7"
+val appVersionName = "1.2.8"
 val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 val configuredAbis = providers.gradleProperty("ellaAbi")
     .orNull
@@ -125,7 +125,7 @@ android {
         applicationId = "com.ella.music"
         minSdk = 29
         targetSdk = 37
-        versionCode = 35
+        versionCode = 36
         versionName = appVersionName
         externalNativeBuild {
             cmake {
@@ -198,6 +198,8 @@ android {
     }
 
     buildFeatures {
+        // The Shizuku user service uses a small app-local Binder interface.
+        aidl = true
         compose = true
         buildConfig = true
         prefab = true
@@ -215,6 +217,11 @@ android {
             useLegacyPackaging = true
             // FFmpegKit and the app's native audio path both use the shared C++ runtime.
             pickFirsts += setOf("**/libc++_shared.so")
+            // ffmpeg-kit-full ships a second NEON-tuned library set for armeabi-v7a. Its
+            // NativeLoader already catches a failed NEON load and falls back to the generic
+            // libraries, so omitting this optional set saves roughly 12 MiB from the v7a and
+            // universal APKs while keeping ARMv7 devices supported (without NEON acceleration).
+            excludes += setOf("**/armeabi-v7a/*_neon.so")
         }
     }
 }

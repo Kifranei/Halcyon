@@ -1,14 +1,13 @@
 package com.ella.music.player
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.IConnectivityManager
 import android.os.IBinder
 import android.os.INetworkManagementService
 import android.util.Log
+import com.ella.music.shizuku.ShizukuPermissionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
@@ -16,7 +15,6 @@ import rikka.shizuku.SystemServiceHelper
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.coroutines.resume
 
 /** Shizuku-backed XMSF firewall compatibility layer used by HyperOS Super Island. */
 internal object ShizukuXmsfNetworkHelper {
@@ -59,9 +57,6 @@ internal object ShizukuXmsfNetworkHelper {
             ?: error("NetworkManagementService wrapper unavailable")
     }
 
-    @Volatile
-    private var nextRequestCode = 1000
-
     suspend fun setXmsfNetworkingEnabled(context: Context, enabled: Boolean): Boolean {
         val appContext = context.applicationContext
         val uid = runCatching { appContext.packageManager.getPackageUid(XMSF_PACKAGE, 0) }
@@ -69,7 +64,7 @@ internal object ShizukuXmsfNetworkHelper {
                 Log.i(TAG, "XMSF is not installed")
                 return false
             }
-        if (!ensureShizukuPermission()) {
+        if (!ShizukuPermissionHelper.ensurePermission()) {
             Log.w(TAG, "Shizuku is unavailable or permission was denied")
             return false
         }
@@ -89,34 +84,6 @@ internal object ShizukuXmsfNetworkHelper {
             }
             Log.w(TAG, "No compatible XMSF firewall backend", lastFailure)
             false
-        }
-    }
-
-    private suspend fun ensureShizukuPermission(): Boolean = withContext(Dispatchers.Main.immediate) {
-        if (!runCatching { Shizuku.pingBinder() }.getOrDefault(false)) return@withContext false
-        if (runCatching { Shizuku.checkSelfPermission() }.getOrDefault(PackageManager.PERMISSION_DENIED) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return@withContext true
-        }
-
-        suspendCancellableCoroutine { continuation ->
-            val requestCode = synchronized(this@ShizukuXmsfNetworkHelper) {
-                nextRequestCode = (nextRequestCode + 1).coerceAtLeast(1001)
-                nextRequestCode
-            }
-            lateinit var listener: Shizuku.OnRequestPermissionResultListener
-            listener = Shizuku.OnRequestPermissionResultListener { returnedCode, result ->
-                if (returnedCode != requestCode || !continuation.isActive) return@OnRequestPermissionResultListener
-                Shizuku.removeRequestPermissionResultListener(listener)
-                continuation.resume(result == PackageManager.PERMISSION_GRANTED)
-            }
-            Shizuku.addRequestPermissionResultListener(listener)
-            continuation.invokeOnCancellation { Shizuku.removeRequestPermissionResultListener(listener) }
-            runCatching { Shizuku.requestPermission(requestCode) }.onFailure {
-                Shizuku.removeRequestPermissionResultListener(listener)
-                if (continuation.isActive) continuation.resume(false)
-            }
         }
     }
 

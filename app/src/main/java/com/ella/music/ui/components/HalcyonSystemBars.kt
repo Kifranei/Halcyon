@@ -20,19 +20,30 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.ella.music.data.SettingsManager
 
+// Window-scoped override survives Activity focus/theme callbacks while the player is visible.
+private val playerImmersiveWindows = java.util.WeakHashMap<Window, Boolean>()
+
+internal fun Window.setPlayerImmersiveOverride(enabled: Boolean) {
+    if (enabled) playerImmersiveWindows[this] = true else playerImmersiveWindows.remove(this)
+}
+
 internal fun Window.applyHalcyonSystemBars(mode: Int) {
+    val effectiveMode = if (playerImmersiveWindows[this] == true) SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH else mode
     WindowCompat.setDecorFitsSystemWindows(this, false)
     navigationBarColor = Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        setNavigationBarDividerColor(Color.TRANSPARENT)
+    }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         isNavigationBarContrastEnforced = false
     }
     val controller = WindowInsetsControllerCompat(this, decorView)
-    controller.show(WindowInsetsCompat.Type.systemBars())
-    if (mode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH) {
+    if (effectiveMode != SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH) controller.show(WindowInsetsCompat.Type.systemBars())
+    if (effectiveMode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH) {
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
-    when (mode) {
+    when (effectiveMode) {
         SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS ->
             controller.hide(WindowInsetsCompat.Type.statusBars())
         SettingsManager.SYSTEM_BARS_MODE_HIDE_NAVIGATION ->

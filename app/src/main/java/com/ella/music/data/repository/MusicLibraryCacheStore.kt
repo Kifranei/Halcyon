@@ -22,6 +22,7 @@ internal class MusicLibraryCacheStore(
 ) {
     val libraryCacheFile = File(context.filesDir, "music_library_cache.json")
     val localScanBaselineFile = File(context.filesDir, "music_local_scan_baseline.json")
+    private val localFileFingerprintFile = File(context.filesDir, "music_local_file_fingerprints.json")
 
     fun remoteLibraryCacheFile(source: String): File =
         File(context.filesDir, "remote_library_$source.json")
@@ -82,5 +83,40 @@ internal class MusicLibraryCacheStore(
 
     fun saveLocalScanBaseline(songs: List<Song>, albums: List<Album>) {
         saveLibraryCacheTo(localScanBaselineFile, songs, albums)
+    }
+
+    /** Reads the lightweight local-file stamps used by incremental scans. */
+    fun readLocalFileFingerprints(): Map<String, String> {
+        if (!localFileFingerprintFile.exists()) return emptyMap()
+        return runCatching {
+            val root = JSONObject(localFileFingerprintFile.readText())
+            val values = root.optJSONObject("fingerprints") ?: return@runCatching emptyMap()
+            buildMap {
+                values.keys().forEach { key ->
+                    values.optString(key).takeIf { it.isNotBlank() }?.let { put(key, it) }
+                }
+            }
+        }.getOrElse {
+            Log.w("MusicRepo", "Failed to read local file fingerprints", it)
+            emptyMap()
+        }
+    }
+
+    fun saveLocalFileFingerprints(fingerprints: Map<String, String>) {
+        runCatching {
+            val values = JSONObject()
+            fingerprints.forEach { (key, value) ->
+                if (key.isNotBlank() && value.isNotBlank()) values.put(key, value)
+            }
+            writeLibraryCacheAtomically(
+                localFileFingerprintFile,
+                JSONObject()
+                    .put("version", 1)
+                    .put("fingerprints", values)
+                    .toString()
+            )
+        }.onFailure {
+            Log.w("MusicRepo", "Failed to save local file fingerprints", it)
+        }
     }
 }

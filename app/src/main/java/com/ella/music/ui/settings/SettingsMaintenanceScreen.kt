@@ -42,6 +42,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun SettingsMaintenanceScreen(
     onBack: () -> Unit,
     onNavigateToSetupWizard: () -> Unit,
+    onNavigateToPerformanceDiagnostics: () -> Unit,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel
 ) {
@@ -98,6 +99,11 @@ internal fun SettingsMaintenanceScreen(
                                 ).show()
                             }
                         }
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_performance_diagnostics),
+                        summary = stringResource(R.string.settings_performance_diagnostics_summary),
+                        onClick = onNavigateToPerformanceDiagnostics
                     )
                     ArrowPreference(
                         title = stringResource(R.string.settings_clear_artist_image_cache),

@@ -130,10 +130,7 @@ internal fun BeautifulLyricsDynamicBackground(
     val activeDrift = rememberSharedFlowProgress(
         durationMillis = durationMs,
         animate = animate,
-        fallback = 0.42f,
-        // Output is heavily blurred, so ~15 fps drift is indistinguishable from full refresh rate
-        // while roughly halving the per-frame full-screen blur cost.
-        frameIntervalMs = 64L
+        fallback = 0.42f
     )
     val pulse = if (isPlaying) {
         0.5f + 0.5f * kotlin.math.sin(positionMs / 760.0).toFloat()

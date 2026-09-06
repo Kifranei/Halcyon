@@ -29,7 +29,8 @@ internal class PlayerScreenUiState(
     lyricTimingEditorSong: Song? = null,
     dynamicCoverFailedPath: String? = null,
     lyricMatchSong: Song? = null,
-    musicVideoVisible: Boolean = false
+    musicVideoVisible: Boolean = false,
+    musicVideoOwnerKey: String? = null
 ) {
     var menuExpanded by mutableStateOf(menuExpanded)
     var dynamicCoverSheetSong by mutableStateOf(dynamicCoverSheetSong)
@@ -51,6 +52,8 @@ internal class PlayerScreenUiState(
     var dynamicCoverFailedPath by mutableStateOf(dynamicCoverFailedPath)
     var lyricMatchSong by mutableStateOf(lyricMatchSong)
     var musicVideoVisible by mutableStateOf(musicVideoVisible)
+    /** The song instance for which the MV switch was enabled. */
+    var musicVideoOwnerKey by mutableStateOf(musicVideoOwnerKey)
 }
 
 internal class PlayerLandscapeUiState(

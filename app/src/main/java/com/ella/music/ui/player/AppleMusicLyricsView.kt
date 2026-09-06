@@ -82,6 +82,7 @@ internal fun AppleMusicLyricsView(
     singleLine: Boolean = false,
     followWordFocus: Boolean = false,
     showBackgroundText: Boolean = true,
+    linePresentation: ((Int, LyricLine) -> MiniLyricLinePresentation?)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -128,7 +129,8 @@ internal fun AppleMusicLyricsView(
                 verticalArrangement = Arrangement.spacedBy(lineSpacing),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                lyrics.forEach { line ->
+                lyrics.forEachIndexed { index, line ->
+                    val presentation = linePresentation?.invoke(index, line)
                     AppleMusicLyricLine(
                         line = line,
                         active = true,
@@ -137,8 +139,8 @@ internal fun AppleMusicLyricsView(
                         userScrolling = true,
                         nonCurrentLineBlurEnabled = false,
                         currentPositionMs = Long.MIN_VALUE,
-                        showTranslation = showTranslation,
-                        showPronunciation = showPronunciation,
+                        showTranslation = presentation?.showTranslation ?: showTranslation,
+                        showPronunciation = presentation?.showPronunciation ?: showPronunciation,
                         pronunciationBelow = pronunciationBelow,
                         fontFamily = fontFamily,
                         translationFontFamily = translationFontFamily,
@@ -154,7 +156,8 @@ internal fun AppleMusicLyricsView(
                         reserveExtraLyricSpace = false,
                         singleLine = singleLine,
                         followWordFocus = followWordFocus,
-                        showBackgroundText = showBackgroundText,
+                        showBackgroundText = presentation?.showBackgroundText ?: showBackgroundText,
+                        showPrimaryText = presentation?.showPrimaryText ?: true,
                         onClick = { onLineClick(line) },
                         onDoubleClick = effectiveLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },
@@ -230,7 +233,14 @@ internal fun AppleMusicLyricsView(
     // Keep one frame-clock loop for the lifetime of this lyric list. Keying it on the 10 Hz
     // player sample (or word-lift) cancelled interpolation every tick and made the karaoke
     // fill jump like a slideshow.
-    LaunchedEffect(lyrics) {
+    LaunchedEffect(lyrics, pageVisible, renderIsPlaying) {
+        // A retained/paused lyrics page must not keep a frame-clock coroutine alive. Snap to the
+        // latest sample so reopening starts from the correct line, then let the active playing
+        // page resume the smooth karaoke clock below.
+        if (!pageVisible || !renderIsPlaying) {
+            smoothPositionMs = latestRenderPositionMs
+            return@LaunchedEffect
+        }
         var lastFrameNs = 0L
         while (true) {
             val frameNs = withFrameNanos { it }
@@ -356,16 +366,21 @@ internal fun AppleMusicLyricsView(
             focusOffsetNudge = focusOffsetNudgeDp,
             minimumTopPadding = topContentPadding
         )
-        // The regular fixed bottom inset is too short for the final line to reach the same
-        // focus offset as every other line. Reserve the remaining viewport after that line so
-        // the final lyric can still scroll to the focus position rather than pinning to the bottom.
-        val trailingFocusPadding = resolveAppleMusicLyricsTrailingPadding(
-            viewportHeight = maxHeight,
-            focusOffsetRatio = focusOffsetRatio,
-            focusOffsetNudge = focusOffsetNudgeDp,
-            trailingLineHeight = trailingLineHeight,
-            minimumBottomPadding = bottomContentPadding
-        )
+        // The mini preview is a bounded, non-scrollable line window. Adding enough trailing
+        // padding to scroll the final row to the normal focus offset leaves a large blank tail
+        // under the lyrics (and pushes the waveform/action area down). Only the full, scrollable
+        // lyrics page needs that final-row affordance.
+        val trailingFocusPadding = if (userScrollEnabled) {
+            resolveAppleMusicLyricsTrailingPadding(
+                viewportHeight = maxHeight,
+                focusOffsetRatio = focusOffsetRatio,
+                focusOffsetNudge = focusOffsetNudgeDp,
+                trailingLineHeight = trailingLineHeight,
+                minimumBottomPadding = bottomContentPadding
+            )
+        } else {
+            bottomContentPadding
+        }
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(top = leadingFocusPadding, bottom = trailingFocusPadding),
@@ -392,6 +407,7 @@ internal fun AppleMusicLyricsView(
                 item(key = "${line.timeMs}-$index") {
                     val duetActive = line.isDuetLine() && line.isActiveAt(smoothPositionMs)
                     val lineIsActive = activeInterlude == null && (index == activeIndex || duetActive)
+                    val presentation = linePresentation?.invoke(index, line)
                     AppleMusicLyricLine(
                         line = line,
                         active = lineIsActive,
@@ -403,8 +419,8 @@ internal fun AppleMusicLyricsView(
                         // Do not invalidate every retained LazyColumn row for every playback tick.
                         // Only the active (or simultaneous duet) line needs a changing karaoke position.
                         currentPositionMs = if (lineIsActive) smoothPositionMs else Long.MIN_VALUE,
-                        showTranslation = showTranslation,
-                        showPronunciation = showPronunciation,
+                        showTranslation = presentation?.showTranslation ?: showTranslation,
+                        showPronunciation = presentation?.showPronunciation ?: showPronunciation,
                         pronunciationBelow = pronunciationBelow,
                         fontFamily = fontFamily,
                         translationFontFamily = translationFontFamily,
@@ -420,7 +436,8 @@ internal fun AppleMusicLyricsView(
                         reserveExtraLyricSpace = reserveExtraLyricSpace,
                         singleLine = singleLine,
                         followWordFocus = followWordFocus,
-                        showBackgroundText = showBackgroundText,
+                        showBackgroundText = presentation?.showBackgroundText ?: showBackgroundText,
+                        showPrimaryText = presentation?.showPrimaryText ?: true,
                         onClick = { onLineClick(line) },
                         onDoubleClick = effectiveLineDoubleClick,
                         onLongClick = { onLineLongClick(line) },

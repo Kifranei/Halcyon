@@ -152,16 +152,24 @@ internal fun SongTagEditorSheet(
     onDismiss: () -> Unit,
     onOptionClick: (TagEditorOption) -> Unit
 ) {
-    SongSheetColumn {
+    EllaMiuixSheetColumn(
+        verticalPadding = 8.dp,
+        spacing = 0.dp,
+        showHandle = false
+    ) {
         ExplicitSongTitle(
-            title = song.title,
+            title = song.title.ifBlank { song.fileName },
             fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = MiuixTheme.colorScheme.primary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
-        options.forEach { option -> SongMenuItem(option.label, onClick = { onOptionClick(option) }) }
-        SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
+        EllaMiuixActionMenuGroup {
+            options.forEach { option ->
+                SongMenuItem(option.label, onClick = { onOptionClick(option) })
+            }
+            SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
+        }
     }
 }

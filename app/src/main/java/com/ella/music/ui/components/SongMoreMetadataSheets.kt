@@ -1,7 +1,8 @@
 package com.ella.music.ui.components
 
+import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -46,8 +47,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -60,8 +65,15 @@ internal fun RatingSheet(
     var rating by remember(currentRating) { mutableStateOf(currentRating.coerceIn(0, 5)) }
     var ratingRowWidthPx by remember { mutableStateOf(0f) }
     val hasRatingChanged = rating != currentRating.coerceIn(0, 5)
-    SongSheetColumn {
-        Row(
+    // Keep the star card and the action button as siblings. SongSheetColumn adds a surrounding
+    // action card, whose side edges remain visible around the button after the stars were moved
+    // into their own card.
+    EllaMiuixSheetColumn(
+        verticalPadding = 8.dp,
+        spacing = 0.dp,
+        showHandle = false
+    ) {
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .onSizeChanged { ratingRowWidthPx = it.width.toFloat() }
@@ -75,32 +87,47 @@ internal fun RatingSheet(
                             change.consume()
                         }
                     )
-                }
-                .padding(horizontal = 18.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.Center
+                },
+            insideMargin = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 18.dp,
+                vertical = 12.dp
+            ),
+            colors = CardDefaults.defaultColors(
+                color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
+            )
         ) {
-            (1..5).forEach { star ->
-                RatingStarIcon(
-                    filled = star <= rating,
-                    tint = if (star <= rating) {
-                        MiuixTheme.colorScheme.primary
-                    } else {
-                        MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    },
-                    modifier = Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { rating = if (rating == star) 0 else star }
-                        .padding(5.dp)
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                (1..5).forEach { star ->
+                    RatingStarIcon(
+                        filled = star <= rating,
+                        tint = if (star <= rating) {
+                            MiuixTheme.colorScheme.primary
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        },
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { rating = if (rating == star) 0 else star }
+                            .padding(5.dp)
+                    )
+                }
             }
         }
+        Spacer(modifier = Modifier.height(12.dp))
         Button(
             enabled = hasRatingChanged,
             onClick = { onRatingSelected(rating) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp)
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                color = if (hasRatingChanged) MiuixTheme.colorScheme.primary
+                else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f),
+                contentColor = if (hasRatingChanged) MiuixTheme.colorScheme.onPrimary
+                else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.55f)
+            )
         ) {
             Text(text = stringResource(R.string.common_save))
         }
@@ -158,19 +185,29 @@ internal fun SongMetadataEditorSheet(
     var selectedCoverPreview by remember(song.id) { mutableStateOf<Any?>(null) }
     var coverChanged by remember(song.id) { mutableStateOf(false) }
     var coverPreviewVisible by remember(song.id) { mutableStateOf(false) }
-    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    var bitmapToCrop by remember(song.id) { mutableStateOf<Bitmap?>(null) }
+    var showCoverCropSheet by remember(song.id) { mutableStateOf(false) }
+    fun applyCroppedCover(bitmap: Bitmap) {
+        val jpeg = bitmap.toEmbeddedCoverJpeg()
+        selectedCover = AudioCoverInfo(bytes = jpeg, mimeType = "image/jpeg")
+        selectedCoverPreview = jpeg
+        coverChanged = true
+        if (bitmap !== bitmapToCrop) bitmap.recycle()
+    }
+    fun openCoverCrop(source: Any?) {
         scope.launch {
-            val bytes = withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            } ?: return@launch
-            selectedCover = AudioCoverInfo(
-                bytes = bytes,
-                mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
-            )
-            selectedCoverPreview = uri
-            coverChanged = true
+            val bitmap = withContext(Dispatchers.IO) { decodeCoverSource(context, source) }
+            if (bitmap == null) {
+                Toast.makeText(context, R.string.song_more_metadata_cover_crop_failed, Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            bitmapToCrop = bitmap
+            showCoverCropSheet = true
         }
+    }
+    val coverPicker = rememberLauncherForActivityResult(GetContentImageContract()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        openCoverCrop(uri)
     }
     var customTags: MutableList<Pair<String, String>> by remember(fullTagInfo) {
         val initial: MutableList<Pair<String, String>> = fullTagInfo?.customTags
@@ -222,6 +259,12 @@ internal fun SongMetadataEditorSheet(
                     primary = true
                 ),
                 EllaMiuixAction(
+                    text = stringResource(R.string.song_more_metadata_cover_crop),
+                    onClick = {
+                        openCoverCrop(selectedCover?.bytes ?: selectedCoverPreview ?: currentCover)
+                    }
+                ),
+                EllaMiuixAction(
                     text = stringResource(R.string.song_more_metadata_cover_remove),
                     onClick = {
                         selectedCover = null
@@ -230,7 +273,8 @@ internal fun SongMetadataEditorSheet(
                     }
                 )
             ),
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+            spacing = 8.dp
         )
         if (coverChanged && selectedCover == null) {
             Text(
@@ -519,6 +563,35 @@ internal fun SongMetadataEditorSheet(
             )
         } else {
             coverPreviewVisible = false
+        }
+    }
+    bitmapToCrop?.let { cropBitmap ->
+        val cropperState = rememberCoverImageCropperState(cropBitmap)
+        EllaMiuixBottomSheet(
+            show = showCoverCropSheet,
+            enableNestedScroll = false,
+            title = stringResource(R.string.song_more_metadata_cover_crop_title),
+            endAction = {
+                IconButton(
+                    onClick = {
+                        applyCroppedCover(cropperState.crop())
+                        showCoverCropSheet = false
+                    }
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Basic.Check,
+                        contentDescription = stringResource(R.string.common_save),
+                        tint = MiuixTheme.colorScheme.primary
+                    )
+                }
+            },
+            onDismissRequest = { showCoverCropSheet = false },
+            onDismissFinished = { bitmapToCrop = null }
+        ) {
+            CoverImageCropper(
+                state = cropperState,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

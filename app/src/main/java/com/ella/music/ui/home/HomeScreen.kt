@@ -160,6 +160,10 @@ fun LibraryScreen(
     )
     val librarySongGridColumnsPhone by settingsManager.librarySongGridColumnsPhone.collectAsState(initial = 2)
     val librarySongGridColumnsTablet by settingsManager.librarySongGridColumnsTablet.collectAsState(initial = 5)
+    val librarySongRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
+        initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
+    )
+    val librarySongTitleMarqueeEnabled by settingsManager.librarySongTitleMarquee.collectAsState(initial = true)
     val libraryConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
     val libraryIsTablet = libraryConfiguration.smallestScreenWidthDp >= 600
     val librarySongGridColumns = if (libraryIsTablet) {
@@ -584,12 +588,21 @@ fun LibraryScreen(
             } else {
                 currentSongIndex
             }
-            val showLocateCurrentSongButton by remember(currentVisibleItemIndex, selection.selectionMode, librarySongGrid) {
+            val showLocateCurrentSongButton by remember(
+                currentVisibleItemIndex,
+                selection.selectionMode,
+                librarySongGrid,
+                librarySongMultiRow,
+                librarySongGridColumns,
+                libraryLandscape
+            ) {
                 derivedStateOf {
                     if (selection.selectionMode || currentVisibleItemIndex < 0) return@derivedStateOf false
-                    val visibleIndexes = listState.layoutInfo.visibleItemsInfo.map { it.index }
-                    if (visibleIndexes.isEmpty()) return@derivedStateOf false
-                    visibleIndexes.none { kotlin.math.abs(it - currentVisibleItemIndex) <= 2 }
+                    val visibleItems = listState.layoutInfo.visibleItemsInfo
+                    val firstVisible = visibleItems.firstOrNull()?.index
+                        ?: return@derivedStateOf false
+                    val lastVisible = visibleItems.lastOrNull()?.index ?: firstVisible
+                    currentVisibleItemIndex !in (firstVisible - 2)..(lastVisible + 2)
                 }
             }
 
@@ -678,7 +691,30 @@ fun LibraryScreen(
             // scroll targets. Building this inline on every recomposition was O(n) main-thread work
             // that scaled badly for large libraries (1k–10k+ songs).
             val showFastIndexBar = sortMode.sortField() in setOf(HomeSortField.Title, HomeSortField.FileName) && sortedSongs.size > 30
-            val fastIndexData = remember(showFastIndexBar, sortedSongs, sortKeysBySongId, librarySongGrid) {
+            // Use the layout that is actually rendering the settled list. During a pinch or an
+            // external layout toggle the persisted preference can briefly lead/lag the list state;
+            // deriving row targets from it would send a two-column list a one-column item index.
+            val fastIndexUsesGrid = settledLayout == SettingsManager.LIBRARY_LAYOUT_GRID
+            val fastIndexUsesMultiRow = settledLayout == SettingsManager.LIBRARY_LAYOUT_MULTI_ROW
+            val fastIndexColumnCount = libraryLayoutColumnCount(
+                multiRow = fastIndexUsesMultiRow,
+                grid = fastIndexUsesGrid,
+                landscape = libraryLandscape,
+                gridColumns = librarySongGridColumns
+            )
+            // The target is a LazyColumn row in multi-row/grid layouts rather than a song index.
+            // Include every layout dimension in the memoization keys; otherwise switching from
+            // the detailed list to the two-column layout keeps the old per-song targets and the
+            // side index appears to stop responding (or jumps to an unrelated row).
+            val fastIndexData = remember(
+                showFastIndexBar,
+                sortedSongs,
+                sortKeysBySongId,
+                sortMode,
+                settledLayout,
+                libraryLandscape,
+                librarySongGridColumns
+            ) {
                 if (!showFastIndexBar) {
                     FastIndexData.Empty
                 } else {
@@ -691,13 +727,8 @@ fun LibraryScreen(
                         }
                         targets.putIfAbsent(
                             song.indexLetter(indexKey),
-                            if (librarySongGrid || librarySongMultiRow) {
-                                index / libraryLayoutColumnCount(
-                                    multiRow = librarySongMultiRow,
-                                    grid = librarySongGrid,
-                                    landscape = libraryLandscape,
-                                    gridColumns = librarySongGridColumns
-                                )
+                            if (fastIndexUsesGrid || fastIndexUsesMultiRow) {
+                                index / fastIndexColumnCount
                             } else {
                                 index
                             }
@@ -897,6 +928,8 @@ fun LibraryScreen(
                             selectedSongsForDrag = selectedSongsForDrag,
                             libraryLandscape = libraryLandscape,
                             gridColumns = librarySongGridColumns,
+                            ratingDisplayMode = librarySongRatingDisplayMode,
+                            titleMarqueeEnabled = librarySongTitleMarqueeEnabled,
                             mainViewModel = mainViewModel,
                             contentPadding = pinchListContentPadding,
                             userScrollEnabled = !pinchTransitionActive && !libraryPinch.isPinching,
@@ -922,6 +955,8 @@ fun LibraryScreen(
                                 selectedSongsForDrag = selectedSongsForDrag,
                                 libraryLandscape = libraryLandscape,
                                 gridColumns = librarySongGridColumns,
+                                ratingDisplayMode = librarySongRatingDisplayMode,
+                                titleMarqueeEnabled = librarySongTitleMarqueeEnabled,
                                 mainViewModel = mainViewModel,
                                 contentPadding = pinchListContentPadding,
                                 userScrollEnabled = false,
@@ -1146,6 +1181,8 @@ private fun LibrarySongsList(
     selectedSongsForDrag: List<Song>,
     libraryLandscape: Boolean,
     gridColumns: Int,
+    ratingDisplayMode: Int,
+    titleMarqueeEnabled: Boolean,
     mainViewModel: MainViewModel,
     contentPadding: PaddingValues,
     userScrollEnabled: Boolean,
@@ -1204,6 +1241,8 @@ private fun LibrarySongsList(
                                 loadSongTagInfo = mainViewModel::getSongTagInfo,
                                 isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
                                 loadSongRating = mainViewModel::getSongRating,
+                                ratingDisplayMode = ratingDisplayMode,
+                                titleMarqueeEnabledOverride = titleMarqueeEnabled,
                                 showPlayNextInLists = showPlayNextInLists,
                                 compactMultiRow = true,
                                 selectionMode = selection.selectionMode,
@@ -1267,6 +1306,8 @@ private fun LibrarySongsList(
                     loadSongTagInfo = mainViewModel::getSongTagInfo,
                     isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
                     loadSongRating = mainViewModel::getSongRating,
+                    ratingDisplayMode = ratingDisplayMode,
+                    titleMarqueeEnabledOverride = titleMarqueeEnabled,
                     showPlayNextInLists = showPlayNextInLists,
                     selectionMode = selection.selectionMode,
                     selected = selected,
@@ -1424,8 +1465,10 @@ internal fun libraryLayoutAfterPinch(
     scaleDelta: Float,
     threshold: Float = 0.2f
 ): Int = when {
-    scaleDelta >= threshold -> (currentLayout - 1).coerceAtLeast(SettingsManager.LIBRARY_LAYOUT_LIST)
-    scaleDelta <= -threshold -> (currentLayout + 1).coerceAtMost(SettingsManager.LIBRARY_LAYOUT_GRID)
+    // A positive scale delta means the fingers spread apart. In the library that moves toward
+    // the denser cover grid: detailed list -> multi-row -> cover grid.
+    scaleDelta >= threshold -> (currentLayout + 1).coerceAtMost(SettingsManager.LIBRARY_LAYOUT_GRID)
+    scaleDelta <= -threshold -> (currentLayout - 1).coerceAtLeast(SettingsManager.LIBRARY_LAYOUT_LIST)
     else -> currentLayout
 }
 

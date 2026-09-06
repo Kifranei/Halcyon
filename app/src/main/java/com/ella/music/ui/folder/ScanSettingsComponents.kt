@@ -83,9 +83,11 @@ internal fun MediaSourceModeCard(
     useAndroidMediaLibrary: Boolean,
     fullTagSearchEnabled: Boolean,
     customFolderCount: Int,
+    allFilesAccessGranted: Boolean,
     highlight: Boolean = false,
     onUseAndroidMediaLibraryChange: (Boolean) -> Unit,
-    onFullTagSearchEnabledChange: (Boolean) -> Unit
+    onFullTagSearchEnabledChange: (Boolean) -> Unit,
+    onAllFilesAccessClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -114,6 +116,18 @@ internal fun MediaSourceModeCard(
                 },
                 checked = fullTagSearchEnabled,
                 onCheckedChange = onFullTagSearchEnabledChange
+            )
+            SwitchPreference(
+                title = stringResource(R.string.folder_all_files_access),
+                summary = if (allFilesAccessGranted) {
+                    stringResource(R.string.folder_all_files_access_summary_on)
+                } else {
+                    stringResource(R.string.folder_all_files_access_summary_off)
+                },
+                checked = allFilesAccessGranted,
+                onCheckedChange = { enabled ->
+                    if (enabled != allFilesAccessGranted) onAllFilesAccessClick()
+                }
             )
         }
     }

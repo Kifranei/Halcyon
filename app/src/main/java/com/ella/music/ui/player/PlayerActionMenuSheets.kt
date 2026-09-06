@@ -1,12 +1,10 @@
 package com.ella.music.ui.player
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,15 +23,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,13 +35,14 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.EllaMiuixMenuItem
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.SliderDefaults
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlin.math.round
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
@@ -263,24 +256,38 @@ internal fun HalfSheetPill(
     text: String,
     selected: Boolean = false,
     onClick: () -> Unit,
+    outlined: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    val shape = RoundedCornerShape(14.dp)
+    top.yukonga.miuix.kmp.basic.Button(
+        onClick = onClick,
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(
-                if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-                else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .then(
+                if (outlined) {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.38f),
+                        shape = shape
+                    )
+                } else {
+                    Modifier
+                }
+            ),
+        minWidth = 0.dp,
+        minHeight = 48.dp,
+        cornerRadius = 14.dp,
+        insideMargin = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 14.dp),
+        colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
+            color = if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+            else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f),
+            contentColor = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+        )
     ) {
         Text(
             text = text,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+            style = MiuixTheme.textStyles.button,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -299,76 +306,36 @@ internal fun DottedValueSlider(
 ) {
     val safeValue = value.coerceIn(valueRange.start, valueRange.endInclusive)
     val fraction = ((safeValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
-    val activeDotColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.72f)
-    val inactiveDotColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f)
-    val activeLineColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.88f)
-    val activeKnobColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.92f)
-
-    var latestValue by remember(valueRange, steps) { mutableFloatStateOf(safeValue) }
-    fun update(width: Float, x: Float): Float {
-        val raw = valueRange.start + (x / width.coerceAtLeast(1f)).coerceIn(0f, 1f) *
-            (valueRange.endInclusive - valueRange.start)
-        val stepped = if (steps > 0) {
-            val stepSize = (valueRange.endInclusive - valueRange.start) / steps
-            val stepIndex = round((raw - valueRange.start) / stepSize)
-            (valueRange.start + stepIndex * stepSize).coerceIn(valueRange.start, valueRange.endInclusive)
-        } else {
-            raw
-        }
-        latestValue = stepped
-        onValueChange(stepped)
-        return stepped
-    }
-
     BoxWithConstraints(modifier = modifier) {
-        // Reserve enough room for the widest value (for example "100%") and move the
-        // whole label slot. This keeps the bubble centred over the thumb without letting
-        // the text wrap when the thumb reaches either edge.
+        // Miuix owns drag semantics, keyboard/accessibility actions, haptics, and key-point
+        // rendering. Keep the value bubble as a small overlay that follows the thumb.
         val labelWidth = 96.dp
-        val labelOffset = (maxWidth - labelWidth) * fraction
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(valueRange, steps) {
-                    detectTapGestures { offset ->
-                        onValueChangeFinished?.invoke(update(size.width.toFloat(), offset.x))
-                    }
-                }
-                .pointerInput(valueRange, steps) {
-                    detectDragGestures(
-                        onDragEnd = { onValueChangeFinished?.invoke(latestValue) },
-                        onDragCancel = { onValueChangeFinished?.invoke(latestValue) }
-                    ) { change, _ ->
-                        change.consume()
-                        update(size.width.toFloat(), change.position.x)
-                    }
-                }
-        ) {
-            val centerY = size.height * 0.60f
-            val dotCount = 44
-            val gap = size.width / (dotCount - 1).coerceAtLeast(1)
-            for (index in 0 until dotCount) {
-                val dotFraction = index.toFloat() / (dotCount - 1).coerceAtLeast(1)
-                drawCircle(
-                    color = if (dotFraction <= fraction) activeDotColor else inactiveDotColor,
-                    radius = if (index % 5 == 0) 4.2f else 3.2f,
-                    center = Offset(x = gap * index, y = centerY)
-                )
-            }
-            val knobX = size.width * fraction
-            drawLine(
-                color = activeLineColor,
-                start = Offset(knobX, centerY - 36f),
-                end = Offset(knobX, centerY + 36f),
-                strokeWidth = 6f,
-                cap = StrokeCap.Round
+        val maxLabelOffset = (maxWidth - labelWidth).coerceAtLeast(0.dp)
+        val labelOffset = maxLabelOffset * fraction
+        Box(modifier = Modifier.fillMaxSize()) {
+            Slider(
+                value = safeValue,
+                onValueChange = { next ->
+                    onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+                },
+                onValueChangeFinished = { onValueChangeFinished?.invoke(safeValue) },
+                valueRange = valueRange,
+                // Miuix counts intermediate key points; the old helper counted intervals.
+                steps = (steps - 1).coerceAtLeast(0),
+                showKeyPoints = true,
+                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                colors = SliderDefaults.sliderColors(
+                    foregroundColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.88f),
+                    backgroundColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f),
+                    thumbColor = MiuixTheme.colorScheme.primary,
+                    keyPointColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f),
+                    keyPointForegroundColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.72f)
+                ),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(top = 26.dp)
             )
-            drawCircle(
-                color = activeKnobColor,
-                radius = 24f,
-                center = Offset(knobX, centerY - 54f)
-            )
-        }
         label?.let {
             Box(
                 modifier = Modifier
@@ -390,6 +357,7 @@ internal fun DottedValueSlider(
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
+        }
         }
     }
 }

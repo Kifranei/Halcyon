@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -53,6 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -425,27 +427,24 @@ private data class SongInfoNamePicker(
 private fun SongInfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     if (value.isBlank()) return
     val context = LocalContext.current
-    Column(
+    BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.38f))
             .combinedClickable(
                 onClick = { onClick?.invoke() },
                 onLongClick = { copySongInfoValue(context, label, value) }
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            ),
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Text(
             text = label,
-            fontSize = 12.sp,
+            style = MiuixTheme.textStyles.body2,
             fontWeight = FontWeight.Bold,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
         Text(
             text = value,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
+            style = MiuixTheme.textStyles.body1,
             color = MiuixTheme.colorScheme.onSurface
         )
     }
@@ -454,27 +453,24 @@ private fun SongInfoRow(label: String, value: String, onClick: (() -> Unit)? = n
 @Composable
 private fun SongInfoActionRow(label: String, value: String, onClick: () -> Unit) {
     val context = LocalContext.current
-    Column(
+    BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.18f))
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = { copySongInfoValue(context, label, value) }
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            ),
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Text(
             text = label,
-            fontSize = 12.sp,
+            style = MiuixTheme.textStyles.body2,
             fontWeight = FontWeight.Bold,
             color = MiuixTheme.colorScheme.primary
         )
         Text(
             text = value,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
+            style = MiuixTheme.textStyles.body1,
             color = MiuixTheme.colorScheme.onSurface
         )
     }

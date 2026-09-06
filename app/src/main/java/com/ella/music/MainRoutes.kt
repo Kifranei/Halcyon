@@ -117,6 +117,7 @@ internal fun String?.toCurrentTabRoute(): String? {
         this.isDockSettingsRoute() -> Screen.Settings.createRoute(fromDock = true)
         this.isDockScanSettingsRoute() -> Screen.ScanSettings.createRoute(fromDock = true)
         this == Screen.Analytics.route -> Screen.Analytics.route
+        this == Screen.LibraryAnalysis.route -> Screen.LibraryAnalysis.route
         this.metadataCategoryType() != null -> Screen.MetadataCategory.createRoute(this.metadataCategoryType().orEmpty(), fromDock = true)
         else -> null
     }
@@ -139,6 +140,13 @@ internal fun String?.isSettingsGraphRoute(): Boolean {
         path == "equalizer" ||
         path == "backup_settings" ||
         path == "cover_media_settings" ||
+        path == "settings_wizard" ||
+        path == "settings_maintenance" ||
+        path == "navidrome_server_settings" ||
+        path == "opensubsonic_server_settings" ||
+        path == "emby_server_settings" ||
+        path == "lx_source_settings" ||
+        path == "webdav" ||
         path == "logs" ||
         path == "appearance_subpage" ||
         path.startsWith("appearance_subpage/")
@@ -162,10 +170,14 @@ internal fun String?.isBottomDockRoute(): Boolean {
         this.isDockSettingsRoute() -> true
         this.isDockScanSettingsRoute() -> true
         this == Screen.Analytics.route -> true
+        this == Screen.LibraryAnalysis.route -> true
         this.metadataCategoryType() != null -> true
         else -> false
     }
 }
+
+internal fun shouldRestoreBottomDockState(route: String, currentRoute: String?): Boolean =
+    route.isBottomDockRoute() && !currentRoute.isSettingsGraphRoute()
 
 internal fun String?.matchesRoute(route: String): Boolean {
     return when {
@@ -294,18 +306,44 @@ internal fun NavHostController.navigateBottomDockRoute(
     route: String,
     currentRoute: String?
 ) {
-    // Search is opened from the current page as a transient library tool. Keeping the
-    // previous destination in the stack makes Back return to that page instead of Home.
-    if (route.startsWith(Screen.LibrarySearch.baseRoute) && !currentRoute.isSearchRoute()) {
+    // Search is opened from the current page as a transient library tool. Keep its Back
+    // behaviour, but remove it before switching to another bottom-dock destination. Otherwise
+    // restoreState can resurrect the search entry and make a later Settings click land back on
+    // Search.
+    val leavingSearch = currentRoute.isSearchRoute()
+    if (leavingSearch) {
+        popBackStack()
+    }
+    if (route.startsWith(Screen.LibrarySearch.baseRoute) && !leavingSearch) {
         navigate(route) { launchSingleTop = true }
         return
     }
+    val restoringDockState = shouldRestoreBottomDockState(route, currentRoute)
     navigate(route) {
         popUpTo(graph.findStartDestination().id) {
             saveState = currentRoute.isBottomDockRoute()
         }
         launchSingleTop = true
-        restoreState = route.isBottomDockRoute()
+        // A settings child is intentionally left on the back stack when a source is opened. If
+        // the user taps the Settings dock item after returning, start at Settings home instead
+        // of restoring that child state again.
+        restoreState = restoringDockState
+    }
+}
+
+/**
+ * Routes emitted by shared song-information surfaces may be either a real detail page or one of
+ * the first-level destinations. Keep both cases on the same navigation policy as the bottom dock
+ * so a jump cannot accidentally leave a stale search/settings entry on top of the destination.
+ */
+internal fun NavHostController.navigateAppRoute(
+    route: String,
+    currentRoute: String?
+) {
+    if (route.isBottomDockRoute()) {
+        navigateBottomDockRoute(route, currentRoute)
+    } else {
+        navigate(route)
     }
 }
 
@@ -314,16 +352,22 @@ internal fun NavHostController.navigatePlaybackSourceRoute(
     route: String,
     currentRoute: String?
 ) {
-    if (!currentRoute.isSettingsGraphRoute()) {
-        navigate(route)
+    if (currentRoute.isSettingsGraphRoute()) {
+        // Keep the settings destination beneath the source page. Back therefore returns to the
+        // exact settings child the user was editing, instead of jumping to Home.
+        navigate(route) {
+            launchSingleTop = true
+            restoreState = false
+        }
+        return
+    }
+    if (route.isBottomDockRoute()) {
+        navigateBottomDockRoute(route, currentRoute)
         return
     }
     navigate(route) {
-        popUpTo(graph.findStartDestination().id) {
-            saveState = true
-        }
         launchSingleTop = true
-        restoreState = route.isBottomDockRoute()
+        restoreState = false
     }
 }
 

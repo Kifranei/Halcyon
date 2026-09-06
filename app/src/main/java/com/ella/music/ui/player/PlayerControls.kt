@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -171,7 +172,8 @@ internal fun PlayerProgressBlock(
     allowTapSeek: Boolean,
     showTotalDuration: Boolean,
     onSeek: (Float) -> Unit,
-    fontFamily: FontFamily? = null
+    fontFamily: FontFamily? = null,
+    onInfoLongPress: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -273,7 +275,12 @@ internal fun PlayerProgressBlock(
                 accent = palette.accent,
                 allowTapSeek = allowTapSeek,
                 onPreviewProgressChange = { previewProgress = it },
-                modifier = Modifier.fillMaxWidth()
+                // Reserve a taller viewport for the waveform bars. PlayerWaveformSeekBar keeps
+                // its compact fallback height for other callers, while the main player gets the
+                // larger timeline requested by the portrait/landscape references.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .requiredHeight(52.dp)
             )
         }
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -321,7 +328,9 @@ internal fun PlayerProgressBlock(
                         fontFamily = fontFamily,
                         onTap = { if (!longPressCyclesInfo) cycleInfo() },
                         onLongPress = {
-                            if (longPressCyclesInfo) {
+                            if (onInfoLongPress != null) {
+                                onInfoLongPress()
+                            } else if (longPressCyclesInfo) {
                                 cycleInfo()
                             } else {
                                 handleExistingLongPress(infoItem)

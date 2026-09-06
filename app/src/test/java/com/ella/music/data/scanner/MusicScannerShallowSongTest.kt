@@ -22,9 +22,21 @@ class MusicScannerShallowSongTest {
     }
 
     @Test
-    fun shallowSongSkipsMissingOrTooShortDuration() {
-        assertNull(item(duration = 0L).toShallowSong())
+    fun shallowSongKeepsUnknownMediaStoreDuration() {
+        val song = item(title = "", duration = 0L).toShallowSong()
+        requireNotNull(song)
+        assertEquals(0L, song.duration)
+        assertEquals("Track 01", song.title)
+    }
+
+    @Test
+    fun shallowSongSkipsKnownTooShortDuration() {
         assertNull(item(duration = 999L).toShallowSong(minDurationMs = 1_000L))
+    }
+
+    @Test
+    fun shallowSongSkipsUnknownDurationWithoutMediaStoreId() {
+        assertNull(item(duration = 0L).copy(id = -12L).toShallowSong())
     }
 
     private fun item(

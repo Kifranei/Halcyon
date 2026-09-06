@@ -10,9 +10,9 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.viewmodel.MainViewModel
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 @Composable
 internal fun PlayerPlaylistSheets(
@@ -29,7 +29,7 @@ internal fun PlayerPlaylistSheets(
     onCreatePlaylistSongsChange: (List<Song>?) -> Unit
 ) {
     playlistPickerSong?.let { currentSong ->
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.player_add_to_playlist),
@@ -59,7 +59,7 @@ internal fun PlayerPlaylistSheets(
     }
 
     playlistPickerSongs?.let { songsToAdd ->
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.player_add_to_playlist),

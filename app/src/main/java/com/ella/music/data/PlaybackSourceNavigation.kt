@@ -27,10 +27,12 @@ internal object PlaybackSourceNavigation {
     private var prefsReady = false
     private var appContext: Context? = null
 
-    /** Only category routes can provide a meaningful "jump to source" destination. */
+    /** Browse source keys that can provide a meaningful "jump to source" destination. */
     fun isNavigableSourceKey(sourceKey: String?): Boolean {
         val source = sourceKey?.trim().orEmpty()
-        return source.startsWith("album:") ||
+        return source == CategoryResumeKeys.HOME ||
+            source == CategoryResumeKeys.DASHBOARD ||
+            source.startsWith("album:") ||
             source.startsWith("playlist:") ||
             source.startsWith("folder:") ||
             source.startsWith("folderPlaylist:") ||

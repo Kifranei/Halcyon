@@ -85,7 +85,7 @@ internal fun PlayerScreenSheetHost(
     }
 
     if (songInfoExpanded && song != null) {
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.player_song_info),

@@ -42,7 +42,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - The library source can switch between Local, Navidrome, and Emby, and the visible library refreshes to the selected source instead of keeping songs from the previous source.
 - Provides a dedicated library search page with song, album, artist, lyric, duplicate-song, and full-tag search, plus search history, multi-select, and range selection.
 - Supports local playlists, favorites, five-star songs, playlist import / export, desktop shortcuts, and custom drag sorting.
-- Playlist and folder-playlist pages can expose independent rating / favorite filters. The library supports list and artwork-grid layouts while preserving the visible position when switching.
+- Playlist and folder-playlist pages can expose independent rating / favorite filters. The library supports list, two-/multi-column, and artwork-grid layouts with pinch-to-switch, separate phone/tablet grid columns, and position preservation when switching.
 - Album grouping uses both album name and album artist to avoid merging same-name albums from different artists.
 - Album details include a dedicated, editable introduction page. Local albums prefer the `<review>` field in a neighboring `album.nfo`; when the folder is not writable, the introduction is stored inside the app.
 - Includes library analytics, listening calendar, play-count ranking, listening-duration ranking, format distribution, and quality distribution.

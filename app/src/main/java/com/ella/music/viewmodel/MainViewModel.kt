@@ -578,9 +578,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAlbumCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 512, CoverUsage.AlbumGrid)
 
+    fun getArtistCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 512, CoverUsage.ArtistImage)
+
     fun getLargeCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 1200, CoverUsage.Player)
 
     fun getOriginalCoverModel(song: Song): Any? = repository.getOriginalCoverModel(song)
+
+    fun getArtistCoverModel(song: Song): Any? = repository.getArtistCoverModel(song)
 
     fun getMetadataEditorCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 1600, CoverUsage.Player)
 

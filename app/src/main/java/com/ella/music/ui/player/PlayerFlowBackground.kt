@@ -30,10 +30,10 @@ internal fun rememberSharedFlowProgress(
     animate: Boolean,
     reverse: Boolean = false,
     fallback: Float = 0f,
-    // These drifts cycle over 18–192 seconds, so redrawing the (often blurred) full-screen canvas at
-    // the display refresh rate (60/120 Hz) is imperceptible waste. Capping to ~30 fps cuts the
-    // per-frame recomposition + Canvas cost by 2–4x with no visible difference.
-    frameIntervalMs: Long = 32L
+    // Keep the animation clock on the display frame cadence. These backgrounds are intentionally
+    // soft, but dropping updates to a timer cadence makes the flow visibly step on 60/120 Hz
+    // devices. Callers may still opt into a cap when a future surface is explicitly static.
+    frameIntervalMs: Long = 0L
 ): Float {
     // Freeze the animation clock whenever the player surface is slid off-screen but still resident.
     val effectiveAnimate = animate && LocalPlayerSurfaceActive.current

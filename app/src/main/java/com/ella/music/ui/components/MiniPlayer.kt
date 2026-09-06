@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -60,8 +61,12 @@ fun MiniPlayer(
     loadCoverArt: ((Song) -> Bitmap?)? = null,
     backdrop: Backdrop? = null,
     liquidGlass: Boolean = false,
+    surfaceColor: Color? = null,
     glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
     disableRefraction: Boolean = false,
+    cornerRadiusDp: Float? = null,
+    liquidGlassConfig: BottomBarLiquidGlassConfig? = null,
+    compactProgress: Float = 0f,
     showQueueButton: Boolean = false,
     swipeUpToOpenPlayer: Boolean = true,
     onClick: () -> Unit,
@@ -73,9 +78,17 @@ fun MiniPlayer(
     modifier: Modifier = Modifier
 ) {
     val coverState = rememberMiniPlayerCoverModel(song, albumArtUri, loadCoverArt)
-    val shape = RoundedCornerShape(if (liquidGlass) 32.dp else 0.dp)
+    val resolvedCornerRadiusDp = (cornerRadiusDp ?: LocalBottomBarCornerRadiusDp.current)
+        .coerceIn(0f, 32f)
+    val liquidConfig = liquidGlassConfig ?: LocalBottomBarLiquidGlassConfig.current
+    val shape = RoundedCornerShape(if (liquidGlass) resolvedCornerRadiusDp.dp else 0.dp)
     val glassBackdrop = if (liquidGlass) backdrop else null
     val useGlassLayout = liquidGlass
+    val compact = compactProgress.coerceIn(0f, 1f)
+    // Keep the surface itself centred while it collapses, matching iOS/MeiloX's mini-player
+    // transition.  The hit target remains the caller-provided layout bounds; only the drawn
+    // surface and its contents move inward.
+    val glassHorizontalPadding = androidx.compose.ui.unit.lerp(16.dp, 72.dp, compact)
     val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val surfaceContainer = MiuixTheme.colorScheme.surfaceContainer
     val glassSurface = bottomBarGlassContainerColor(
@@ -93,7 +106,10 @@ fun MiniPlayer(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = if (useGlassLayout) 16.dp else 0.dp, vertical = if (useGlassLayout) 2.dp else 0.dp)
+            .padding(
+                horizontal = if (useGlassLayout) glassHorizontalPadding else 0.dp,
+                vertical = if (useGlassLayout) 2.dp else 0.dp
+            )
             .pointerInput(song.id) {
                 var dragAmount = 0f
                 detectHorizontalDragGestures(
@@ -167,8 +183,11 @@ fun MiniPlayer(
                                 applyBottomBarGlassEffect(
                                     glassEffect = glassEffect,
                                     blurRadius = 42f,
-                                    liquidBlurRadius = 12f,
-                                    disableRefraction = disableRefraction
+                                    liquidBlurRadius = liquidConfig.blurRadiusDp,
+                                    liquidRefractionHeight = liquidConfig.refractionHeightDp,
+                                    liquidRefractionAmount = liquidConfig.refractionAmountDp,
+                                    liquidChromaticAberration = liquidConfig.chromaticAberration,
+                                    disableRefraction = disableRefraction,
                                 )
                             },
                             highlight = {
@@ -196,7 +215,7 @@ fun MiniPlayer(
                             isLight = isLight
                         )
                 } else {
-                    Modifier.background(surfaceContainer)
+                    Modifier.background(surfaceColor ?: surfaceContainer)
                 }
             )
             .padding(horizontal = 8.dp, vertical = 6.dp),
@@ -298,6 +317,9 @@ fun CompactMiniPlayer(
     backdrop: Backdrop? = null,
     glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
     disableRefraction: Boolean = false,
+    cornerRadiusDp: Float? = null,
+    liquidGlassConfig: BottomBarLiquidGlassConfig? = null,
+    compactProgress: Float = 0f,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit = {},
@@ -309,24 +331,33 @@ fun CompactMiniPlayer(
     val coverState = rememberMiniPlayerCoverModel(song, albumArtUri, loadCoverArt)
     val textState = rememberMiniPlayerTextState(song, lyricText, lyricTranslation)
     var transitionDirection by remember { mutableIntStateOf(1) }
+    val compact = compactProgress.coerceIn(0f, 1f)
+    val compactHeight = androidx.compose.ui.unit.lerp(64.dp, 60.dp, compact)
+    val coverSize = 38.dp
+    val ringSize = 44.dp
+    val startPadding = 12.dp
 
     GlassPill(
         backdrop = backdrop,
-        modifier = modifier.height(64.dp),
-        shape = RoundedCornerShape(32.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(compactHeight),
+        cornerRadiusDp = cornerRadiusDp,
         glassEffect = glassEffect,
-        disableRefraction = disableRefraction
+        disableRefraction = disableRefraction,
+        liquidGlassConfig = liquidGlassConfig,
     ) {
         Row(
             modifier = Modifier
-                .height(64.dp)
-                .padding(start = 12.dp, end = 8.dp),
+                .fillMaxWidth()
+                .height(compactHeight)
+                .padding(start = startPadding, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .height(64.dp)
+                    .height(compactHeight)
                     .pointerInput(song.id, swipeUpToOpenPlayer) {
                         var verticalDragAmount = 0f
                         detectVerticalDragGestures(
@@ -360,8 +391,8 @@ fun CompactMiniPlayer(
                     isPlaying = isPlaying,
                     progress = progress,
                     coverRotationEnabled = coverRotationEnabled,
-                    coverSize = 38.dp,
-                    ringSize = 44.dp
+                    coverSize = coverSize,
+                    ringSize = ringSize
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 MiniPlayerAnimatedText(
