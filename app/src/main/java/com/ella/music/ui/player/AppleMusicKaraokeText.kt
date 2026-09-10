@@ -85,6 +85,7 @@ internal fun TimedLyricText(
     splitRubyByCharacter: Boolean = false,
     rubyStyle: TextStyle? = null,
     onWordClick: ((Long) -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // TTML may encode the blank before a word as part of that word. Move it to the prior
@@ -139,7 +140,8 @@ internal fun TimedLyricText(
                 ruby = rubies.getOrNull(index).orEmpty(),
                 rubyStyle = rubyStyle,
                 rubyBelow = rubyBelow,
-                onWordClick = onWordClick
+                onWordClick = onWordClick,
+                onLongPress = onLongPress
             )
         }
     }
@@ -150,6 +152,7 @@ internal fun TimedLyricText(
                 positionMs = positionMs,
                 active = active,
                 horizontalArrangement = horizontalArrangement,
+                rubyBelow = rubyBelow,
                 modifier = modifier,
                 content = content
             )
@@ -157,7 +160,7 @@ internal fun TimedLyricText(
             Row(
                 modifier = modifier.then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
                 horizontalArrangement = horizontalArrangement,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = if (rubyBelow) Alignment.Top else Alignment.Bottom
             ) {
                 content()
             }
@@ -169,6 +172,7 @@ internal fun TimedLyricText(
         // the full line width so every row shares the exact same alignment anchor.
         AppleMusicTimedWordRows(
             textAlign = style.textAlign,
+            rubyBelow = rubyBelow,
             modifier = modifier
         ) {
             content()
@@ -187,6 +191,7 @@ private fun AppleMusicFocusedTimedRow(
     positionMs: Long,
     active: Boolean,
     horizontalArrangement: Arrangement.Horizontal,
+    rubyBelow: Boolean = false,
     modifier: Modifier,
     content: @Composable () -> Unit
 ) {
@@ -209,7 +214,7 @@ private fun AppleMusicFocusedTimedRow(
         LaunchedEffect(targetOffset) {
             animatedOffset.animateTo(
                 targetValue = targetOffset,
-                animationSpec = tween(durationMillis = 180)
+                animationSpec = tween(durationMillis = 90)
             )
         }
         Row(
@@ -219,7 +224,7 @@ private fun AppleMusicFocusedTimedRow(
                 .onSizeChanged { contentWidthPx = it.width }
                 .graphicsLayer { translationX = -animatedOffset.value },
             horizontalArrangement = horizontalArrangement,
-            verticalAlignment = Alignment.Bottom
+            verticalAlignment = if (rubyBelow) Alignment.Top else Alignment.Bottom
         ) {
             content()
         }
@@ -229,6 +234,7 @@ private fun AppleMusicFocusedTimedRow(
 @Composable
 private fun AppleMusicTimedWordRows(
     textAlign: TextAlign,
+    rubyBelow: Boolean = false,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -276,8 +282,10 @@ private fun AppleMusicTimedWordRows(
                     else -> 0
                 }
                 rows[rowIndex].forEach { placeable ->
-                    // Bottom-align so furigana grows upward instead of dropping the kanji.
-                    placeable.placeRelative(x, y + rowHeights[rowIndex] - placeable.height)
+                    // Bottom-align when ruby is above so furigana grows upward without dropping the kanji.
+                    // Top-align when ruby is below so furigana grows downward without raising the kanji.
+                    val placeableY = if (rubyBelow) y else y + rowHeights[rowIndex] - placeable.height
+                    placeable.placeRelative(x, placeableY)
                     x += placeable.width
                 }
                 y += rowHeights[rowIndex]
@@ -299,7 +307,8 @@ private fun AppleMusicKaraokeWord(
     ruby: String = "",
     rubyStyle: TextStyle? = null,
     rubyBelow: Boolean = false,
-    onWordClick: ((Long) -> Unit)? = null
+    onWordClick: ((Long) -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null
 ) {
     val word = renderWord.word
     val progress = if (active) ((positionMs - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1L))
@@ -335,16 +344,17 @@ private fun AppleMusicKaraokeWord(
         modifier = Modifier
             .then(
                 if (onWordClick != null) {
-                    Modifier.pointerInput(word.startMs, onWordClick) {
-                        detectTapGestures(onTap = { onWordClick(word.startMs) })
+                    Modifier.pointerInput(word.startMs, onWordClick, onLongPress) {
+                        detectTapGestures(
+                            onTap = { onWordClick(word.startMs) },
+                            onLongPress = onLongPress?.let { press -> { press() } }
+                        )
                     }
                 } else Modifier
             )
             .graphicsLayer {
                 translationY = -liftPx
-                // Keep the glyph box stable during a held note. Pulsing scale changes are perceived
-                // as character jitter on the desktop overlay, especially with long TTML spans.
-                transformOrigin = TransformOrigin(0.5f, 1f)
+                transformOrigin = TransformOrigin(0.5f, if (rubyBelow) 0f else 1f)
             }
     ) {
         if (!rubyBelow) rubyContent()
@@ -352,13 +362,13 @@ private fun AppleMusicKaraokeWord(
         if (visibleSustainGlow > 0f) {
             val durationScale = ((sustainDurationMs - 600L).coerceAtLeast(0L) / 2_400f)
                 .coerceIn(0f, 1f)
-            val haloAlpha = (0.12f + durationScale * 0.16f) * visibleSustainGlow * baseStyle.color.alpha
+            val haloAlpha = ((0.12f + durationScale * 0.16f) * visibleSustainGlow * baseStyle.color.alpha).coerceIn(0f, 1f)
             BasicText(
                 text = word.text,
                 style = baseStyle.copy(
                     color = contentColor.copy(alpha = haloAlpha),
                     shadow = Shadow(
-                        color = contentColor.copy(alpha = (0.72f + durationScale * 0.20f) * visibleSustainGlow),
+                        color = contentColor.copy(alpha = ((0.72f + durationScale * 0.20f) * visibleSustainGlow).coerceIn(0f, 1f)),
                         offset = Offset.Zero,
                         blurRadius = (14f + durationScale * 12f) * visibleSustainGlow
                     )
@@ -430,9 +440,9 @@ private fun AppleMusicKaraokeWord(
                 }
             }
         }
+        }
         if (rubyBelow) rubyContent()
     }
-}
 }
 
 internal fun rubiesForTimedWords(
@@ -714,7 +724,10 @@ internal fun LyricWord.shouldSplitForAppleMusicCharacters(
     sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
 ): Boolean {
     if (endMs - startMs < sustainThresholdMs.coerceAtLeast(0).toLong() || text.length <= 1) return false
-    return text.any { it.isAppleMusicLatinLetter() || it.isAppleMusicCjkCharacter() }
+    // Latin words should never be split into characters across line wraps.
+    // Whole words are kept intact so that "stranger" never breaks into "stra" and "nger".
+    if (text.any { it.isAppleMusicLatinLetter() }) return false
+    return text.any { it.isAppleMusicCjkCharacter() }
 }
 
 private fun Char.isAppleMusicLatinLetter(): Boolean = this in 'a'..'z' || this in 'A'..'Z'

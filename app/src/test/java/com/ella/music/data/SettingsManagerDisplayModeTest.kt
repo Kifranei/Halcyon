@@ -12,6 +12,11 @@ class SettingsManagerDisplayModeTest {
     }
 
     @Test
+    fun `new installations use 20 percent default home card opacity`() {
+        assertEquals(20, SettingsManager.DEFAULT_HOME_CARD_OPACITY)
+    }
+
+    @Test
     fun `new installations use the adaptive large-screen landscape player`() {
         assertEquals(
             SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE,
@@ -77,6 +82,28 @@ class SettingsManagerDisplayModeTest {
     }
 
     @Test
+    fun `visible dock items hide search unless merge is enabled`() {
+        val items = listOf(
+            SettingsManager.BOTTOM_DOCK_ITEM_HOME,
+            SettingsManager.BOTTOM_DOCK_ITEM_SEARCH,
+            SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY
+        )
+        assertEquals(
+            listOf(SettingsManager.BOTTOM_DOCK_ITEM_HOME, SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY),
+            SettingsManager.visibleBottomDockItems(items, mergeSearch = false)
+        )
+        assertEquals(items, SettingsManager.visibleBottomDockItems(items, mergeSearch = true))
+    }
+
+    @Test
+    fun `normalize bottom dock items keeps a search slot`() {
+        assertEquals(
+            "home,search,library",
+            SettingsManager.normalizeBottomDockItems("home,search,library")
+        )
+    }
+
+    @Test
     fun `startup dock destination follows configured entries and defaults to home`() {
         assertEquals(
             SettingsManager.BOTTOM_DOCK_ITEM_HOME,
@@ -109,6 +136,51 @@ class SettingsManagerDisplayModeTest {
                 configuredItems = listOf(SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY)
             )
         )
+    }
+
+    @Test
+    fun `list quality display follows tablet phone and always modes`() {
+        assertEquals(
+            true,
+            SettingsManager.shouldShowListQuality(
+                SettingsManager.LIST_QUALITY_DISPLAY_TABLET,
+                600
+            )
+        )
+        assertEquals(
+            false,
+            SettingsManager.shouldShowListQuality(
+                SettingsManager.LIST_QUALITY_DISPLAY_TABLET,
+                411
+            )
+        )
+        assertEquals(
+            true,
+            SettingsManager.shouldShowListQuality(
+                SettingsManager.LIST_QUALITY_DISPLAY_PHONE,
+                411
+            )
+        )
+        assertEquals(
+            false,
+            SettingsManager.shouldShowListQuality(
+                SettingsManager.LIST_QUALITY_DISPLAY_PHONE,
+                600
+            )
+        )
+        assertEquals(
+            true,
+            SettingsManager.shouldShowListQuality(
+                SettingsManager.LIST_QUALITY_DISPLAY_ALWAYS,
+                411
+            )
+        )
+    }
+
+    @Test
+    fun `new installations default to DeepSeek AI provider`() {
+        assertEquals("https://api.deepseek.com/v1", SettingsManager.DEFAULT_OPENAI_BASE_URL)
+        assertEquals("deepseek-flash", SettingsManager.DEFAULT_OPENAI_MODEL)
     }
 
     @Test

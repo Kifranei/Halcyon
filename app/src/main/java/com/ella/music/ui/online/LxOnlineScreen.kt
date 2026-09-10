@@ -33,11 +33,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.graphics.luminance
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.window.WindowListPopup
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
@@ -66,6 +75,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import androidx.compose.ui.graphics.Color
+import com.ella.music.ui.components.wallpaperAwareCardColors
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -113,6 +124,19 @@ fun LxOnlineScreen(
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val currentSourceId = selectedSource?.id.orEmpty()
     var observedSourceId by remember { mutableStateOf<String?>(null) }
+    val selectedLxSearchPlatform by settingsManager.selectedLxSearchPlatform.collectAsState(initial = "")
+    var hasInitializedPlatform by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedLxSearchPlatform) {
+        if (!hasInitializedPlatform && selectedLxSearchPlatform.isNotBlank()) {
+            val matched = LxSearchPlatform.entries.firstOrNull {
+                it.source == selectedLxSearchPlatform || it.name.equals(selectedLxSearchPlatform, ignoreCase = true)
+            }
+            if (matched != null) {
+                state.searchPlatform = matched
+            }
+            hasInitializedPlatform = true
+        }
+    }
     var actionItem by remember { mutableStateOf<LxOnlineSong?>(null) }
     var remoteResults by remember { mutableStateOf<List<RemoteOnlineSong>>(emptyList()) }
     var remoteActionItem by remember { mutableStateOf<RemoteOnlineSong?>(null) }
@@ -237,7 +261,7 @@ fun LxOnlineScreen(
     ) {
         EllaSmallTopAppBar(
             title = titleOverride ?: selectedProvider.displayName(context),
-            color = ellaPageBackground(),
+            color = Color.Transparent,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -260,11 +284,21 @@ fun LxOnlineScreen(
             }
         )
 
+        val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+        val sourceCardColor = if (com.ella.music.ui.components.isAppWallpaperVisible()) {
+            com.ella.music.ui.components.wallpaperAwareCardColor(defaultAlpha = 0.42f)
+        } else if (isDark) {
+            MiuixTheme.colorScheme.surfaceContainer
+        } else {
+            androidx.compose.ui.graphics.Color.White
+        }
+
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Card(
                 modifier = Modifier.padding(vertical = 4.dp),
+                colors = CardDefaults.defaultColors(color = sourceCardColor),
                 onClick = onNavigateToSourceSettings
             ) {
                 BasicComponent(
@@ -283,39 +317,93 @@ fun LxOnlineScreen(
                 )
             }
 
-            OnlineTextField(
-                value = state.searchQuery,
-                onValueChange = { state.searchQuery = it },
-                onSearch = {
-                    scope.launch { searchSelectedProvider() }
-                },
-                placeholder = stringResource(R.string.lx_online_search_placeholder),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (selectedProvider == RemoteMusicProvider.Lx) {
+                    var platformMenuVisible by remember { mutableStateOf(false) }
+                    val currentHapticFeedback = LocalHapticFeedback.current
 
-            if (selectedProvider == RemoteMusicProvider.Lx) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LxSearchPlatform.entries.forEach { platform ->
-                        EllaMiuixChip(
-                            text = platform.displayName,
-                            selected = state.searchPlatform == platform,
+                    Box {
+                        Button(
                             onClick = {
-                                if (state.searchPlatform != platform) {
-                                    state.searchPlatform = platform
-                                    state.clearResults()
-                                    remoteResults = emptyList()
+                                platformMenuVisible = !platformMenuVisible
+                                if (platformMenuVisible) {
+                                    currentHapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
                                 }
                             }
-                        )
+                        ) {
+                            Text(
+                                text = state.searchPlatform.displayName,
+                                maxLines = 1
+                            )
+                        }
+
+                        WindowListPopup(
+                            show = platformMenuVisible,
+                            alignment = PopupPositionProvider.Align.Start,
+                            onDismissRequest = { platformMenuVisible = false }
+                        ) {
+                            ListPopupColumn {
+                                val platforms = LxSearchPlatform.entries
+                                val lastIndex = platforms.lastIndex
+                                platforms.forEachIndexed { index, platform ->
+                                    val isSelected = state.searchPlatform == platform
+                                    DropdownImpl(
+                                        item = DropdownItem(
+                                            text = platform.displayName,
+                                            selected = isSelected,
+                                            onClick = {
+                                                if (state.searchPlatform != platform) {
+                                                    state.searchPlatform = platform
+                                                    state.clearResults()
+                                                    remoteResults = emptyList()
+                                                    scope.launch {
+                                                        settingsManager.setSelectedLxSearchPlatform(platform.source)
+                                                    }
+                                                }
+                                                platformMenuVisible = false
+                                            }
+                                        ),
+                                        optionSize = platforms.size,
+                                        isSelected = isSelected,
+                                        index = index,
+                                        enabled = true,
+                                        isFirst = index == 0,
+                                        isLast = index == lastIndex,
+                                        onSelectedIndexChange = {
+                                            currentHapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            if (state.searchPlatform != platform) {
+                                                state.searchPlatform = platform
+                                                state.clearResults()
+                                                remoteResults = emptyList()
+                                                scope.launch {
+                                                    settingsManager.setSelectedLxSearchPlatform(platform.source)
+                                                }
+                                            }
+                                            platformMenuVisible = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
+
+                OnlineTextField(
+                    value = state.searchQuery,
+                    onValueChange = { state.searchQuery = it },
+                    onSearch = {
+                        scope.launch { searchSelectedProvider() }
+                    },
+                    placeholder = stringResource(R.string.lx_online_search_placeholder),
+                    modifier = Modifier.weight(1f)
+                )
             }
+
+            Spacer(modifier = Modifier.height(2.dp))
 
             Button(
                 enabled = !state.isBusy && state.searchQuery.isNotBlank() && remoteConfigured,

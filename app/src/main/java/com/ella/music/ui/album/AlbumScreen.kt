@@ -59,7 +59,11 @@ import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
+import com.ella.music.data.ActionMenuIds
+import com.ella.music.ui.components.ActionMenuCommonIcons
+import com.ella.music.ui.components.EllaMiuixActionMenuGroup
 import com.ella.music.ui.components.EllaMiuixMenuItem
+import com.ella.music.ui.components.actionMenuIcon
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.requestPinnedEllaShortcut
@@ -678,82 +682,53 @@ fun AlbumScreen(
     albumMenuTarget?.let { album ->
         val albumKey = album.id.toString()
         val isPinned = albumKey in pinnedAlbumKeys
-        EllaMiuixBottomSheet(
+        com.ella.music.ui.components.LibraryEntityActionSheet(
             show = true,
-            enableNestedScroll = false,
             title = stringResource(R.string.player_more_actions),
-            onDismissRequest = { albumMenuTarget = null }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                EllaMiuixMenuItem(
-                    text = stringResource(if (isPinned) R.string.common_unpin else R.string.common_pin_to_top),
-                    onClick = {
-                        scope.launch { mainViewModel.settingsManager.setPinned("album", albumKey, !isPinned) }
-                        albumMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_share),
-                    onClick = {
-                        shareLocalSongs(context, mainViewModel.getSongsForAlbum(album.id))
-                        albumMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_add_to_playlist),
-                    onClick = {
-                        playlistPickerSongs = mainViewModel.getSongsForAlbum(album.id).sortedForAlbumDetail(detailSongSortMode)
-                        albumMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_to_queue),
-                    onClick = {
-                        playerViewModel.addToPlaylist(mainViewModel.getSongsForAlbum(album.id).sortedForAlbumDetail(detailSongSortMode))
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
-                        albumMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_play_next),
-                    onClick = {
-                        playerViewModel.playNext(mainViewModel.getSongsForAlbum(album.id).sortedForAlbumDetail(detailSongSortMode))
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                        albumMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_desktop_shortcut),
-                    onClick = {
-                        val ok = requestPinnedEllaShortcut(
-                            context = context,
-                            id = "album_${album.id}",
-                            label = album.name,
-                            route = Screen.AlbumDetail.createRoute(album.id)
-                        )
-                        Toast.makeText(
-                            context,
-                            if (ok) context.getString(R.string.playlist_shortcut_requested, album.name) else context.getString(R.string.playlist_shortcut_unsupported),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        albumMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_delete_permanently),
-                    danger = true,
-                    onClick = {
-                        pendingDeleteSongs = mainViewModel.getSongsForAlbum(album.id)
-                        albumMenuTarget = null
-                    }
-                )
-            }
-        }
+            onDismissRequest = { albumMenuTarget = null },
+            actions = listOf(
+                com.ella.music.ui.components.LibraryEntityActions.pin(isPinned = isPinned) {
+                    scope.launch { mainViewModel.settingsManager.setPinned("album", albumKey, !isPinned) }
+                    albumMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.share {
+                    shareLocalSongs(context, mainViewModel.getSongsForAlbum(album.id))
+                    albumMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.addToPlaylist {
+                    playlistPickerSongs = mainViewModel.getSongsForAlbum(album.id).sortedForAlbumDetail(detailSongSortMode)
+                    albumMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.addToQueue {
+                    playerViewModel.addToPlaylist(mainViewModel.getSongsForAlbum(album.id).sortedForAlbumDetail(detailSongSortMode))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                    albumMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.playNext {
+                    playerViewModel.playNext(mainViewModel.getSongsForAlbum(album.id).sortedForAlbumDetail(detailSongSortMode))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    albumMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.desktopShortcut {
+                    val ok = requestPinnedEllaShortcut(
+                        context = context,
+                        id = "album_${album.id}",
+                        label = album.name,
+                        route = Screen.AlbumDetail.createRoute(album.id)
+                    )
+                    Toast.makeText(
+                        context,
+                        if (ok) context.getString(R.string.playlist_shortcut_requested, album.name) else context.getString(R.string.playlist_shortcut_unsupported),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    albumMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
+                    pendingDeleteSongs = mainViewModel.getSongsForAlbum(album.id)
+                    albumMenuTarget = null
+                }
+            )
+        )
     }
 
     if (pendingDeleteSongs.isNotEmpty()) {

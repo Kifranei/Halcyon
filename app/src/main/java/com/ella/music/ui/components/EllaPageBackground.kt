@@ -12,6 +12,8 @@ import com.ella.music.ui.navigation.Screen
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+import com.ella.music.isSettingsGraphRoute
+
 internal val LocalSharedAppBackgroundVisible = compositionLocalOf { false }
 
 internal fun supportsNowPlayingFlowBackground(route: String?): Boolean = route in setOf(
@@ -22,8 +24,9 @@ internal fun supportsNowPlayingFlowBackground(route: String?): Boolean = route i
     Screen.Folder.route,
     Screen.FolderPlaylists.route,
     Screen.Playlists.route,
-    Screen.MetadataCategory.route
-)
+    Screen.MetadataCategory.route,
+    Screen.LxOnline.route
+) || route.isSettingsGraphRoute()
 
 @Composable
 fun isAppWallpaperVisible(): Boolean {
@@ -62,13 +65,9 @@ fun wallpaperContentOverlayColor(): Color {
 @Composable
 fun wallpaperAwareCardColor(defaultAlpha: Float = 0.42f): Color {
     if (!isAppWallpaperVisible()) return MiuixTheme.colorScheme.surface
-    val context = LocalContext.current
-    val settingsManager = androidx.compose.runtime.remember(context) { SettingsManager.getInstance(context) }
-    val opacity by settingsManager.homeCardOpacity.collectAsState(initial = 58)
     val backgroundIsLight = MiuixTheme.colorScheme.background.luminance() >= 0.5f
-    val base = if (backgroundIsLight) Color.White else Color.Black
-    val alpha = (opacity.coerceIn(20, 100) / 100f).coerceAtLeast(defaultAlpha)
-    return base.copy(alpha = alpha)
+    val base = if (backgroundIsLight) Color.White else Color(0xFF252528)
+    return base.copy(alpha = defaultAlpha)
 }
 
 @Composable

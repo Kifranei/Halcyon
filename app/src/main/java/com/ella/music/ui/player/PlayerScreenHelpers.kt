@@ -245,6 +245,40 @@ internal fun setPlayerSystemBars(activity: Activity?, view: View) {
     }
 }
 
+internal data class PlaybackAudioOutputState(
+    val isBluetooth: Boolean = false,
+    val isHeadphones: Boolean = false,
+    val deviceName: String? = null
+)
+
+@Composable
+internal fun rememberAudioOutputDeviceState(): PlaybackAudioOutputState {
+    val context = LocalContext.current
+    var state by remember(context) { mutableStateOf(context.currentAudioOutputState()) }
+    DisposableEffect(context) {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        if (audioManager == null) {
+            state = PlaybackAudioOutputState()
+            return@DisposableEffect onDispose {}
+        }
+        state = context.currentAudioOutputState(audioManager)
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                state = context.currentAudioOutputState(audioManager)
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                state = context.currentAudioOutputState(audioManager)
+            }
+        }
+        audioManager.registerAudioDeviceCallback(callback, null)
+        onDispose {
+            audioManager.unregisterAudioDeviceCallback(callback)
+        }
+    }
+    return state
+}
+
 @Composable
 internal fun rememberBluetoothOutputName(): String? {
     val context = LocalContext.current
@@ -313,6 +347,34 @@ private fun Context.currentOutputDisplayName(audioManager: AudioManager?): Strin
         usb != null -> usb.outputDisplayName(this, R.string.player_output_usb_audio)
         speaker != null -> getString(R.string.player_output_speaker)
         else -> null
+    }
+}
+
+private fun Context.currentAudioOutputState(audioManager: AudioManager? = getSystemService(Context.AUDIO_SERVICE) as? AudioManager): PlaybackAudioOutputState {
+    val devices = runCatching {
+        audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS).orEmpty()
+    }.getOrDefault(emptyArray())
+    val bluetooth = devices.firstOrNull(::isBluetoothOutputDevice)
+    val headphones = devices.firstOrNull { device ->
+        device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+    }
+    return when {
+        bluetooth != null -> PlaybackAudioOutputState(
+            isBluetooth = true,
+            isHeadphones = false,
+            deviceName = bluetooth.outputDisplayName(this, R.string.player_output_bluetooth)
+        )
+        headphones != null -> PlaybackAudioOutputState(
+            isBluetooth = false,
+            isHeadphones = true,
+            deviceName = headphones.outputDisplayName(this, R.string.player_output_headphones)
+        )
+        else -> PlaybackAudioOutputState(
+            isBluetooth = false,
+            isHeadphones = false,
+            deviceName = null
+        )
     }
 }
 

@@ -4,6 +4,7 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.primaryEndMs
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class EllaLyricsParserTest {
@@ -122,6 +123,55 @@ class EllaLyricsParserTest {
         assertEquals("wake me up", result.lyrics.single().text)
         assertEquals("叫醒我", result.lyrics.single().translation)
         assertEquals(listOf("wake ", "me ", "up"), result.lyrics.single().words.map { it.text })
+    }
+
+    @Test
+    fun appleMusicTtmlKeepsPhraseLevelFuriganaOnCompoundKanji() {
+        val result = EllaLyricsParser.parse(
+            """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word">
+              <head>
+                <metadata>
+                  <iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">
+                    <transliterations>
+                      <transliteration xml:lang="ja">
+                        <text for="L14">
+                          <span begin="0:58.888" end="0:59.158">あなた</span>
+                          <span begin="0:59.293" end="0:59.563">あなた</span>
+                          <span begin="0:59.701" end="1:00.404">まこと</span>
+                        </text>
+                      </transliteration>
+                    </transliterations>
+                  </iTunesMetadata>
+                </metadata>
+              </head>
+              <body>
+                <div>
+                  <p begin="0:58.888" end="1:00.913" itunes:key="L14">
+                    <span begin="0:58.888" end="0:59.158">貴方</span>
+                    <span begin="0:59.158" end="0:59.293">の</span>
+                    <span begin="0:59.293" end="0:59.563">貴方</span>
+                    <span begin="0:59.563" end="0:59.701">の</span>
+                    <span begin="0:59.701" end="1:00.404">誠</span>
+                    <span begin="1:00.404" end="1:00.913">は</span>
+                  </p>
+                </div>
+              </body>
+            </tt>
+            """.trimIndent()
+        )
+
+        val line = result.lyrics.single()
+        assertEquals(listOf("貴方", "の", "貴方", "の", "誠", "は"), line.words.map { it.text })
+        assertEquals(listOf("あなた", "あなた", "まこと"), line.pronunciationWords.map { it.text })
+        assertEquals(
+            listOf("あなた", "", "あなた", "", "まこと", ""),
+            com.ella.music.ui.player.rubiesForTimedWords(
+                line.words,
+                line.pronunciationWords,
+                line.pronunciation.orEmpty()
+            )
+        )
     }
 
     @Test

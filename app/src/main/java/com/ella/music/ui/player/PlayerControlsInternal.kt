@@ -40,12 +40,13 @@ import top.yukonga.miuix.kmp.basic.Icon
 @Composable
 internal fun PlayerTransportIconButton(
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
         modifier = Modifier
             .size(56.dp)
-            .playerNoIndicationClick(onClick),
+            .playerNoIndicationClick(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center,
         content = content
     )

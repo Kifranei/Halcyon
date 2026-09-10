@@ -67,7 +67,8 @@ internal fun String.toSongTitlePresentation(): SongTitlePresentation {
 internal fun ExplicitBadge(
     contentColor: Color,
     modifier: Modifier = Modifier,
-    height: Dp = 14.dp
+    height: Dp = 14.dp,
+    fontSize: TextUnit = 9.sp
 ) {
     val labelColor = if (contentColor.luminance() > 0.5f) {
         Color.Black.copy(alpha = 0.80f)
@@ -85,7 +86,7 @@ internal fun ExplicitBadge(
     ) {
         Text(
             text = "E",
-            fontSize = 9.sp,
+            fontSize = fontSize,
             fontWeight = FontWeight.Bold,
             color = labelColor,
             maxLines = 1
@@ -106,9 +107,12 @@ internal fun ExplicitSongTitle(
     textAlign: TextAlign = TextAlign.Start,
     softWrap: Boolean = true,
     titleModifier: Modifier = Modifier,
-    titleFillMaxWidth: Boolean = false
+    titleFillMaxWidth: Boolean = false,
+    matchBadgeToTitleSize: Boolean = false
 ) {
     val presentation = remember(title) { title.toSongTitlePresentation() }
+    val badgeFontSize = if (matchBadgeToTitleSize) 11.sp else 9.sp
+    val badgeHeight = if (matchBadgeToTitleSize) 17.dp else 14.dp
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
@@ -131,7 +135,11 @@ internal fun ExplicitSongTitle(
         )
         if (presentation.isExplicit) {
             Spacer(modifier = Modifier.width(2.dp))
-            ExplicitBadge(contentColor = color)
+            ExplicitBadge(
+                contentColor = color,
+                height = badgeHeight,
+                fontSize = badgeFontSize
+            )
         }
     }
 }

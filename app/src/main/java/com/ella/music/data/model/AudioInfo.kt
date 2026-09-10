@@ -30,6 +30,8 @@ data class SongTagInfo(
     val copyright: String = "",
     val neteaseKey: String = "",
     val lyrics: String = "",
+    val ttmlLyrics: String = "",
+    val songwriters: String = "",
     val rating: Int = 0,
     val customTagText: String = "",
     /** Keeps individual metadata keys available to search UI and content filters. */
@@ -78,6 +80,7 @@ fun Song.searchableTagValues(tagInfo: SongTagInfo = SongTagInfo()): Sequence<Str
     yieldNonBlank(tagInfo.composer)
     yieldNonBlank(tagInfo.arranger)
     yieldNonBlank(tagInfo.lyricist)
+    yieldNonBlank(tagInfo.songwriters)
     yieldNonBlank(tagInfo.track)
     yieldNonBlank(tagInfo.displayComment)
     yieldNonBlank(tagInfo.copyright)

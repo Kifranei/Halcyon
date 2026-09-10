@@ -1,6 +1,7 @@
 package com.ella.music.ui.online
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,12 +11,16 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,6 +50,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.folder.WebDavTextField
+import com.ella.music.ui.settings.SettingsCardGroup
 import com.ella.music.ui.settings.rememberSettingsLazyListState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -54,7 +60,14 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -67,7 +80,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun RemoteServerSettingsScreen(
     provider: RemoteMusicProvider,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToEditor: (serverId: String?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -91,15 +105,8 @@ fun RemoteServerSettingsScreen(
         RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
     }.collectAsState(initial = "")
 
-    var editorServer by remember { mutableStateOf<SavedRemoteServer?>(null) }
-    var showEditor by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<SavedRemoteServer?>(null) }
     val pageBackground = ellaPageBackground()
-    val cardColor = if (MiuixTheme.colorScheme.background.luminance() < 0.5f) {
-        Color(0xFF1D1D21)
-    } else {
-        Color(0xFFFFFFFF)
-    }
     val listState = rememberSettingsLazyListState("settings_remote_${provider.name}")
 
     Column(
@@ -126,12 +133,11 @@ fun RemoteServerSettingsScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
         ) {
             if (servers.isEmpty()) {
                 item {
-                    RemoteServerCard(cardColor = cardColor) {
+                    SettingsCardGroup {
                         BasicComponent(
                             title = stringResource(R.string.remote_server_empty),
                             summary = stringResource(R.string.remote_server_manage_summary)
@@ -143,7 +149,6 @@ fun RemoteServerSettingsScreen(
                 RemoteServerRow(
                     server = server,
                     isActive = server.id == activeId,
-                    cardColor = cardColor,
                     onSetActive = {
                         scope.launch {
                             when (provider) {
@@ -154,36 +159,21 @@ fun RemoteServerSettingsScreen(
                             }
                         }
                     },
-                    onEdit = {
-                        editorServer = server
-                        showEditor = true
-                    },
+                    onEdit = { onNavigateToEditor(server.id) },
                     onDelete = { pendingDelete = server }
                 )
             }
             item {
-                RemoteServerCard(cardColor = cardColor) {
+                SettingsCardGroup {
                     ArrowPreference(
                         title = stringResource(R.string.remote_server_add),
                         summary = providerName,
-                        onClick = {
-                            editorServer = null
-                            showEditor = true
-                        }
+                        onClick = { onNavigateToEditor(null) }
                     )
                 }
                 Spacer(modifier = Modifier.height(120.dp))
             }
         }
-    }
-
-    if (showEditor) {
-        RemoteServerEditorSheet(
-            provider = provider,
-            existing = editorServer,
-            onDismiss = { showEditor = false },
-            onSaved = { showEditor = false }
-        )
     }
 
     pendingDelete?.let { server ->
@@ -209,30 +199,14 @@ fun RemoteServerSettingsScreen(
 }
 
 @Composable
-private fun RemoteServerCard(
-    cardColor: Color,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        insideMargin = PaddingValues(0.dp),
-        colors = CardDefaults.defaultColors(color = cardColor)
-    ) {
-        content()
-    }
-}
-
-@Composable
 private fun RemoteServerRow(
     server: SavedRemoteServer,
     isActive: Boolean,
-    cardColor: Color,
     onSetActive: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    RemoteServerCard(cardColor = cardColor) {
+    SettingsCardGroup {
         Column {
             BasicComponent(
                 title = server.name.ifBlank { server.config.baseUrl },
@@ -266,10 +240,10 @@ private fun RemoteServerRow(
 }
 
 @Composable
-private fun RemoteServerEditorSheet(
+fun RemoteServerEditorScreen(
     provider: RemoteMusicProvider,
-    existing: SavedRemoteServer?,
-    onDismiss: () -> Unit,
+    serverId: String? = null,
+    onBack: () -> Unit,
     onSaved: () -> Unit
 ) {
     val context = LocalContext.current
@@ -287,141 +261,235 @@ private fun RemoteServerEditorSheet(
         }
     )
 
-    var name by remember(existing) { mutableStateOf(existing?.name.orEmpty()) }
-    var url by remember(existing) { mutableStateOf(existing?.config?.baseUrl.orEmpty()) }
-    var secondaryUrl by remember(existing) { mutableStateOf(existing?.config?.secondaryBaseUrl.orEmpty()) }
-    var user by remember(existing) { mutableStateOf(existing?.config?.username.orEmpty()) }
-    var password by remember(existing) { mutableStateOf(existing?.config?.password.orEmpty()) }
-    var remoteWriteEnabled by remember(existing) { mutableStateOf(existing?.config?.remoteWriteEnabled ?: false) }
-    var streamMaxBitRate by remember(existing) { mutableStateOf(existing?.config?.streamMaxBitRate?.toString().orEmpty()) }
-    var downloadMaxBitRate by remember(existing) { mutableStateOf(existing?.config?.downloadMaxBitRate?.toString().orEmpty()) }
-    var coverArtSize by remember(existing) { mutableStateOf((existing?.config?.coverArtSize ?: 512).toString()) }
+    val servers by when (provider) {
+        RemoteMusicProvider.Navidrome -> settingsManager.navidromeServers
+        RemoteMusicProvider.OpenSubsonic -> settingsManager.openSubsonicServers
+        RemoteMusicProvider.Emby -> settingsManager.embyServers
+        RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
+    }.collectAsState(initial = emptyList())
+
+    val existing = remember(servers, serverId) {
+        if (serverId != null) servers.firstOrNull { it.id == serverId } else null
+    }
+
+    var name by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    var secondaryUrl by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var remoteWriteEnabled by remember { mutableStateOf(false) }
+    var streamMaxBitRate by remember { mutableStateOf("") }
+    var downloadMaxBitRate by remember { mutableStateOf("") }
+    var coverArtSize by remember { mutableStateOf("512") }
     var status by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var isInitialized by remember { mutableStateOf(false) }
 
-    EllaMiuixBottomSheet(
-        show = true,
-        title = stringResource(if (existing == null) R.string.remote_server_add else R.string.remote_server_edit),
-        onDismissRequest = onDismiss
-    ) {
-        Column(
-            modifier = Modifier.padding(bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            WebDavTextField(stringResource(R.string.remote_server_name_label), name, onValueChange = { name = it })
-            WebDavTextField(stringResource(R.string.webdav_url), url, onValueChange = { url = it })
-            if (isSubsonicLike) {
-                WebDavTextField(
-                    stringResource(R.string.remote_server_secondary_url_label),
-                    secondaryUrl,
-                    onValueChange = { secondaryUrl = it }
-                )
+    LaunchedEffect(existing, serverId) {
+        if (!isInitialized) {
+            if (serverId == null) {
+                isInitialized = true
+            } else if (existing != null) {
+                name = existing.name
+                url = existing.config.baseUrl
+                secondaryUrl = existing.config.secondaryBaseUrl
+                user = existing.config.username
+                password = existing.config.password
+                remoteWriteEnabled = existing.config.remoteWriteEnabled
+                streamMaxBitRate = existing.config.streamMaxBitRate.takeIf { it > 0 }?.toString().orEmpty()
+                downloadMaxBitRate = existing.config.downloadMaxBitRate.takeIf { it > 0 }?.toString().orEmpty()
+                coverArtSize = (existing.config.coverArtSize.takeIf { it > 0 } ?: 512).toString()
+                isInitialized = true
             }
-            WebDavTextField(stringResource(R.string.webdav_username), user, onValueChange = { user = it })
-            WebDavTextField(
-                label = stringResource(R.string.webdav_password),
-                value = password,
-                onValueChange = { password = it },
-                visualTransformation = PasswordVisualTransformation()
-            )
-            if (isSubsonicLike) {
-                WebDavTextField(
-                    stringResource(R.string.remote_server_stream_bitrate_label),
-                    streamMaxBitRate,
-                    onValueChange = { streamMaxBitRate = it.filter(Char::isDigit).take(4) }
-                )
-                WebDavTextField(
-                    stringResource(R.string.remote_server_download_bitrate_label),
-                    downloadMaxBitRate,
-                    onValueChange = { downloadMaxBitRate = it.filter(Char::isDigit).take(4) }
-                )
-                WebDavTextField(
-                    stringResource(R.string.remote_server_cover_size_label),
-                    coverArtSize,
-                    onValueChange = { coverArtSize = it.filter(Char::isDigit).take(4) }
-                )
-                SwitchPreference(
-                    title = stringResource(R.string.remote_playlist_write_title),
-                    summary = stringResource(R.string.remote_playlist_write_summary),
-                    checked = remoteWriteEnabled,
-                    onCheckedChange = { remoteWriteEnabled = it }
-                )
-            }
-            status?.let {
-                Text(text = it, color = MiuixTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
-            }
-            EllaMiuixActionRow(
-                actions = listOf(
-                    EllaMiuixAction(text = stringResource(R.string.common_cancel), onClick = onDismiss),
-                    EllaMiuixAction(
-                        text = stringResource(R.string.common_save),
-                        primary = true,
-                        onClick = onClick@{
-                            if (saving) return@onClick
-                            saving = true
-                            scope.launch {
-                                val id = existing?.id ?: settingsManager.newRemoteServerId()
-                                val trimmedUrl = url.trim().trimEnd('/')
-                                val displayName = name.trim().ifBlank {
-                                    trimmedUrl.substringAfter("://").substringBefore('/').ifBlank { trimmedUrl }
-                                }
-                                runCatching {
-                                    if (isSubsonicLike) {
-                                        val config = RemoteMusicSourceConfig(
-                                            provider = provider,
-                                            baseUrl = trimmedUrl,
-                                            username = user.trim(),
-                                            password = password,
-                                            secondaryBaseUrl = secondaryUrl.trim().trimEnd('/'),
-                                            remoteWriteEnabled = remoteWriteEnabled,
-                                            streamMaxBitRate = streamMaxBitRate.toIntOrNull()?.coerceAtLeast(0) ?: 0,
-                                            downloadMaxBitRate = downloadMaxBitRate.toIntOrNull()?.coerceAtLeast(0) ?: 0,
-                                            coverArtSize = coverArtSize.toIntOrNull()?.coerceIn(64, 2048) ?: 512
-                                        )
-                                        navidromeService.test(config)
-                                        val server = SavedRemoteServer(id = id, name = displayName, config = config)
-                                        when (provider) {
-                                            RemoteMusicProvider.Navidrome -> settingsManager.upsertNavidromeServer(server)
-                                            RemoteMusicProvider.OpenSubsonic -> settingsManager.upsertOpenSubsonicServer(server)
-                                            RemoteMusicProvider.Emby,
-                                            RemoteMusicProvider.Lx -> error("Unsupported Subsonic-like provider: ${provider.id}")
-                                        }
-                                    } else {
-                                        val login = embyService.login(trimmedUrl, user.trim(), password)
-                                        val config = RemoteMusicSourceConfig(
-                                            provider = provider,
-                                            baseUrl = trimmedUrl,
-                                            username = user.trim(),
-                                            token = login.token,
-                                            userId = login.userId,
-                                            serverName = login.serverName
-                                        )
-                                        when (provider) {
-                                            RemoteMusicProvider.Emby -> settingsManager.upsertEmbyServer(
-                                                SavedRemoteServer(id = id, name = displayName, config = config)
-                                            )
-                                            RemoteMusicProvider.Lx,
-                                            RemoteMusicProvider.Navidrome,
-                                            RemoteMusicProvider.OpenSubsonic -> error("Unsupported provider for Emby login path: ${provider.id}")
-                                        }
-                                    }
-                                }.onSuccess {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.remote_source_saved_named, providerName),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    saving = false
-                                    onSaved()
-                                }.onFailure { error ->
-                                    saving = false
-                                    status = error.localizedMessage ?: context.getString(R.string.remote_source_request_failed)
-                                }
-                            }
+        }
+    }
+
+    val pageBackground = ellaPageBackground()
+
+    val doSave = {
+        if (!saving && url.isNotBlank()) {
+            saving = true
+            status = null
+            scope.launch {
+                val id = existing?.id ?: serverId ?: settingsManager.newRemoteServerId()
+                val trimmedUrl = url.trim().trimEnd('/')
+                val displayName = name.trim().ifBlank {
+                    trimmedUrl.substringAfter("://").substringBefore('/').ifBlank { trimmedUrl }
+                }
+                runCatching {
+                    if (isSubsonicLike) {
+                        val config = RemoteMusicSourceConfig(
+                            provider = provider,
+                            baseUrl = trimmedUrl,
+                            username = user.trim(),
+                            password = password,
+                            secondaryBaseUrl = secondaryUrl.trim().trimEnd('/'),
+                            remoteWriteEnabled = remoteWriteEnabled,
+                            streamMaxBitRate = streamMaxBitRate.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+                            downloadMaxBitRate = downloadMaxBitRate.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+                            coverArtSize = coverArtSize.toIntOrNull()?.coerceIn(64, 2048) ?: 512
+                        )
+                        navidromeService.test(config)
+                        val server = SavedRemoteServer(id = id, name = displayName, config = config)
+                        when (provider) {
+                            RemoteMusicProvider.Navidrome -> settingsManager.upsertNavidromeServer(server)
+                            RemoteMusicProvider.OpenSubsonic -> settingsManager.upsertOpenSubsonicServer(server)
+                            RemoteMusicProvider.Emby,
+                            RemoteMusicProvider.Lx -> error("Unsupported Subsonic-like provider: ${provider.id}")
                         }
+                    } else {
+                        val login = embyService.login(trimmedUrl, user.trim(), password)
+                        val config = RemoteMusicSourceConfig(
+                            provider = provider,
+                            baseUrl = trimmedUrl,
+                            username = user.trim(),
+                            token = login.token,
+                            userId = login.userId,
+                            serverName = login.serverName
+                        )
+                        when (provider) {
+                            RemoteMusicProvider.Emby -> settingsManager.upsertEmbyServer(
+                                SavedRemoteServer(id = id, name = displayName, config = config)
+                            )
+                            RemoteMusicProvider.Lx,
+                            RemoteMusicProvider.Navidrome,
+                            RemoteMusicProvider.OpenSubsonic -> error("Unsupported provider for Emby login path: ${provider.id}")
+                        }
+                    }
+                }.onSuccess {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.remote_source_saved_named, providerName),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    saving = false
+                    onSaved()
+                }.onFailure { error ->
+                    saving = false
+                    status = error.localizedMessage ?: context.getString(R.string.remote_source_request_failed)
+                }
+            }
+        }
+    }
+
+    BackHandler(onBack = onBack)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
+        EllaSmallTopAppBar(
+            title = stringResource(if (serverId == null) R.string.remote_server_add else R.string.remote_server_edit),
+            color = pageBackground,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
                     )
+                }
+            },
+            actions = {
+                IconButton(
+                    onClick = doSave,
+                    enabled = !saving && url.isNotBlank()
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Ok,
+                        contentDescription = stringResource(R.string.common_save),
+                        tint = if (!saving && url.isNotBlank()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            SettingsCardGroup {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    WebDavTextField(stringResource(R.string.remote_server_name_label), name, onValueChange = { name = it })
+                    WebDavTextField(stringResource(R.string.webdav_url), url, onValueChange = { url = it })
+                    if (isSubsonicLike) {
+                        WebDavTextField(
+                            stringResource(R.string.remote_server_secondary_url_label),
+                            secondaryUrl,
+                            onValueChange = { secondaryUrl = it }
+                        )
+                    }
+                    WebDavTextField(stringResource(R.string.webdav_username), user, onValueChange = { user = it })
+                    WebDavTextField(
+                        label = stringResource(R.string.webdav_password),
+                        value = password,
+                        onValueChange = { password = it },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    if (isSubsonicLike) {
+                        WebDavTextField(
+                            stringResource(R.string.remote_server_stream_bitrate_label),
+                            streamMaxBitRate,
+                            onValueChange = { streamMaxBitRate = it.filter(Char::isDigit).take(4) }
+                        )
+                        WebDavTextField(
+                            stringResource(R.string.remote_server_download_bitrate_label),
+                            downloadMaxBitRate,
+                            onValueChange = { downloadMaxBitRate = it.filter(Char::isDigit).take(4) }
+                        )
+                        WebDavTextField(
+                            stringResource(R.string.remote_server_cover_size_label),
+                            coverArtSize,
+                            onValueChange = { coverArtSize = it.filter(Char::isDigit).take(4) }
+                        )
+                        SwitchPreference(
+                            title = stringResource(R.string.remote_playlist_write_title),
+                            summary = stringResource(R.string.remote_playlist_write_summary),
+                            checked = remoteWriteEnabled,
+                            onCheckedChange = { remoteWriteEnabled = it }
+                        )
+                    }
+                }
+            }
+
+            status?.let {
+                Text(
+                    text = it,
+                    color = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
-            )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Button(
+                onClick = doSave,
+                enabled = !saving && url.isNotBlank(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.common_save),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }

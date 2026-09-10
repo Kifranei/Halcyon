@@ -1,17 +1,13 @@
 package com.ella.music.ui.components
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.ui.platform.LocalView
+
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,20 +16,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.ui.listmodel.SortDirection
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowListPopup
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.ella.music.data.SettingsManager
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.basic.Check
 
 internal data class SortDropdownItem(
     val text: String,
@@ -123,32 +142,220 @@ internal fun <M> directionalSortModeDropdownItems(
     }
 
 @Composable
+internal fun randomSortDropdownItem(
+    selected: Boolean,
+    onSelect: () -> Unit
+): SortDropdownItem {
+    val randomText = stringResource(R.string.common_sort_random)
+    val resortText = stringResource(R.string.common_sort_random_resort)
+    return SortDropdownItem(
+        text = randomText,
+        selected = selected,
+        summary = resortText,
+        onClick = {
+            com.ella.music.ui.LibrarySortUiState.reshuffleRandomSort()
+            onSelect()
+        }
+    )
+}
+
+@Composable
 internal fun SortDropdownMenu(
     items: List<SortDropdownItem>,
     modifier: Modifier = Modifier,
+    alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.End,
     tint: Color = MiuixTheme.colorScheme.onSurface,
     contentDescription: String = stringResource(R.string.common_sort)
 ) {
-    var sheetVisible by remember { mutableStateOf(false) }
-    Box(
-        modifier = modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable { sheetVisible = true },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = MiuixIcons.Regular.Sort,
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
+    if (items.isEmpty()) return
+    var menuVisible by remember { mutableStateOf(false) }
+    val view = LocalView.current
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val sortMenuStyle by settingsManager.sortMenuStyle.collectAsState(initial = SettingsManager.SORT_MENU_STYLE_DROPDOWN)
+
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    menuVisible = true
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Sort,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        if (sortMenuStyle == SettingsManager.SORT_MENU_STYLE_BOTTOM_SHEET) {
+            SortBottomSheet(
+                show = menuVisible,
+                items = items,
+                onDismissRequest = { menuVisible = false }
+            )
+        } else {
+            SortListPopup(
+                show = menuVisible,
+                items = items,
+                alignment = alignment,
+                onDismissRequest = { menuVisible = false }
+            )
+        }
+    }
+}
+
+private fun PopupPositionProvider.Align.resolve(layoutDirection: LayoutDirection): PopupPositionProvider.Align {
+    if (layoutDirection == LayoutDirection.Ltr) return this
+    return when (this) {
+        PopupPositionProvider.Align.Start -> PopupPositionProvider.Align.End
+        PopupPositionProvider.Align.End -> PopupPositionProvider.Align.Start
+        PopupPositionProvider.Align.TopStart -> PopupPositionProvider.Align.TopEnd
+        PopupPositionProvider.Align.TopEnd -> PopupPositionProvider.Align.TopStart
+        PopupPositionProvider.Align.BottomStart -> PopupPositionProvider.Align.BottomEnd
+        PopupPositionProvider.Align.BottomEnd -> PopupPositionProvider.Align.BottomStart
+    }
+}
+
+internal val SafeDropdownPositionProvider = object : PopupPositionProvider {
+    private val margins = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
+
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowBounds: IntRect,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+        popupMargin: IntRect,
+        alignment: PopupPositionProvider.Align,
+    ): IntOffset {
+        val isEnd = alignment.resolve(layoutDirection) == PopupPositionProvider.Align.End
+        val offsetX = if (isEnd) {
+            anchorBounds.right - popupContentSize.width - popupMargin.right
+        } else {
+            anchorBounds.left + popupMargin.left
+        }
+
+        val spaceBelow = windowBounds.bottom - anchorBounds.bottom - popupMargin.bottom
+        val spaceAbove = anchorBounds.top - windowBounds.top - popupMargin.top
+
+        val offsetY = if (spaceBelow >= popupContentSize.height) {
+            anchorBounds.bottom + popupMargin.bottom
+        } else if (spaceAbove >= popupContentSize.height) {
+            anchorBounds.top - popupContentSize.height - popupMargin.top
+        } else if (spaceBelow >= spaceAbove) {
+            anchorBounds.bottom + popupMargin.bottom
+        } else {
+            anchorBounds.top - popupContentSize.height - popupMargin.top
+        }
+
+        val minX = windowBounds.left
+        val maxX = (windowBounds.right - popupContentSize.width - popupMargin.right).coerceAtLeast(minX)
+        val minY = windowBounds.top + popupMargin.top
+        val maxY = (windowBounds.bottom - popupContentSize.height - popupMargin.bottom).coerceAtLeast(minY)
+
+        return IntOffset(
+            x = offsetX.coerceIn(minX, maxX),
+            y = offsetY.coerceIn(minY, maxY),
         )
     }
-    SortBottomSheet(
-        show = sheetVisible,
-        items = items,
-        onDismissRequest = { sheetVisible = false }
-    )
+
+    override fun getMargins(): PaddingValues = margins
+}
+
+@Composable
+private fun SortListPopup(
+    show: Boolean,
+    items: List<SortDropdownItem>,
+    alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.End,
+    onDismissRequest: () -> Unit
+) {
+    val view = LocalView.current
+    val ascendingLabel = stringResource(R.string.common_sort_ascending)
+    val descendingLabel = stringResource(R.string.common_sort_descending)
+    WindowListPopup(
+        show = show,
+        popupPositionProvider = SafeDropdownPositionProvider,
+        alignment = alignment,
+        maxHeight = 360.dp,
+        onDismissRequest = onDismissRequest
+    ) {
+        ListPopupColumn {
+            items.forEachIndexed { index, item ->
+                val hasDirectionChoices = item.onSelectAscending != null || item.onSelectDescending != null
+                val summary = when {
+                    hasDirectionChoices ->
+                        if (item.direction == SortDirection.Descending) descendingLabel else ascendingLabel
+                    else -> item.summary
+                }
+                DropdownImpl(
+                    item = DropdownItem(
+                        text = item.text,
+                        summary = summary,
+                        selected = item.selected
+                    ),
+                    optionSize = items.size,
+                    isSelected = item.selected,
+                    index = index,
+                    onSelectedIndexChange = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        val togglingSelectedField = item.selected &&
+                            item.onSelectAscending != null &&
+                            item.onSelectDescending != null
+                        if (togglingSelectedField) {
+                            if (item.direction == SortDirection.Descending) {
+                                item.onSelectAscending()
+                            } else {
+                                item.onSelectDescending()
+                            }
+                        } else {
+                            item.onClick()
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SortDirectionPill(
+    text: String,
+    active: Boolean,
+    onClick: () -> Unit
+) {
+    val bg = if (active) {
+        MiuixTheme.colorScheme.primary
+    } else {
+        MiuixTheme.colorScheme.surfaceContainerHigh
+    }
+    val fg = if (active) {
+        MiuixTheme.colorScheme.onPrimary
+    } else {
+        MiuixTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+    }
+    val view = LocalView.current
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(bg)
+            .clickable(onClick = {
+                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                onClick()
+            })
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+            color = fg
+        )
+    }
 }
 
 @Composable
@@ -157,176 +364,134 @@ private fun SortBottomSheet(
     items: List<SortDropdownItem>,
     onDismissRequest: () -> Unit
 ) {
+    val view = LocalView.current
+    val ascendingLabel = stringResource(R.string.common_sort_ascending)
+    val descendingLabel = stringResource(R.string.common_sort_descending)
     EllaMiuixBottomSheet(
         show = show,
         title = stringResource(R.string.common_sort),
         onDismissRequest = onDismissRequest
     ) {
-        EllaMiuixSheetColumn(
-            maxHeight = 680.dp,
-            showHandle = false,
-            spacing = 8.dp,
-            modifier = Modifier.padding(bottom = 12.dp)
-        ) {
-            items.forEach { item ->
-                SortBottomSheetItem(
-                    item = item,
-                    onApplied = onDismissRequest
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SortBottomSheetItem(
-    item: SortDropdownItem,
-    onApplied: () -> Unit
-) {
-    val hasDirectionChoices = item.onSelectAscending != null || item.onSelectDescending != null
-    val containerColor = if (item.selected) {
-        MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
-    } else {
-        Color.Transparent
-    }
-    val titleColor = if (item.selected) {
-        MiuixTheme.colorScheme.primary
-    } else {
-        MiuixTheme.colorScheme.onSurface
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(containerColor)
-            .padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
         Column(
             modifier = Modifier
-                .weight(1f)
-                .clickable {
-                    item.onClick()
-                    onApplied()
-                }
-                .padding(vertical = 3.dp)
+                .fillMaxWidth()
+                .heightIn(max = 720.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(
-                text = item.text,
-                fontSize = 16.sp,
-                color = titleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            item.summary?.takeIf { !hasDirectionChoices }?.let { summary ->
-                Text(
-                    text = summary,
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+            items.forEach { item ->
+                val hasDirectionChoices = item.onSelectAscending != null || item.onSelectDescending != null
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            val togglingSelectedField = item.selected &&
+                                item.onSelectAscending != null &&
+                                item.onSelectDescending != null
+                            if (togglingSelectedField) {
+                                if (item.direction == SortDirection.Descending) {
+                                    item.onSelectAscending.invoke()
+                                } else {
+                                    item.onSelectDescending.invoke()
+                                }
+                            } else {
+                                item.onClick()
+                            }
+                            onDismissRequest()
+                        }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = item.text,
+                        fontSize = 16.sp,
+                        fontWeight = if (item.selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (item.selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (hasDirectionChoices) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SortDirectionPill(
+                                text = ascendingLabel,
+                                active = item.selected && item.direction != SortDirection.Descending,
+                                onClick = {
+                                    item.onSelectAscending?.invoke() ?: item.onClick()
+                                    onDismissRequest()
+                                }
+                            )
+                            SortDirectionPill(
+                                text = descendingLabel,
+                                active = item.selected && item.direction == SortDirection.Descending,
+                                onClick = {
+                                    item.onSelectDescending?.invoke() ?: item.onClick()
+                                    onDismissRequest()
+                                }
+                            )
+                        }
+                    } else {
+                        if (!item.summary.isNullOrBlank()) {
+                            Text(
+                                text = item.summary,
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                        }
+                        if (item.selected) {
+                            Icon(
+                                imageVector = MiuixIcons.Basic.Check,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
-
-        // Keep both direction affordances visible for every sortable field.  Only the active
-        // field is accented, so inactive arrows remain discoverable without appearing selected.
-        if (hasDirectionChoices) {
-            SortDirectionAction(
-                selected = item.selected && item.direction == SortDirection.Ascending,
-                onClick = item.onSelectAscending?.let { select ->
-                    {
-                        select()
-                        onApplied()
-                    }
-                },
-                ascending = true,
-                contentDescription = stringResource(R.string.common_sort_ascending)
-            )
-            SortDirectionAction(
-                selected = item.selected && item.direction == SortDirection.Descending,
-                onClick = item.onSelectDescending?.let { select ->
-                    {
-                        select()
-                        onApplied()
-                    }
-                },
-                ascending = false,
-                contentDescription = stringResource(R.string.common_sort_descending)
-            )
-        } else if (!hasDirectionChoices) {
-            SelectionCheck(
-                selected = item.selected,
-                size = 22.dp,
-                selectedColor = MiuixTheme.colorScheme.primary,
-                unselectedColor = MiuixTheme.colorScheme.surfaceContainer
-            )
-        }
-    }
-}
-
-@Composable
-private fun SortDirectionAction(
-    selected: Boolean,
-    onClick: (() -> Unit)?,
-    ascending: Boolean,
-    contentDescription: String
-) {
-    val enabled = onClick != null
-    val background = when {
-        selected -> MiuixTheme.colorScheme.primary.copy(alpha = 0.18f)
-        enabled -> Color.Transparent
-        else -> Color.Transparent
-    }
-    val borderColor = when {
-        selected -> MiuixTheme.colorScheme.primary
-        enabled -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.72f)
-        else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f)
-    }
-    Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .border(1.dp, borderColor, CircleShape)
-            .background(background)
-            .clickable(enabled = enabled) { onClick?.invoke() },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = MiuixIcons.Regular.Back,
-            contentDescription = contentDescription,
-            tint = when {
-                selected -> MiuixTheme.colorScheme.primary
-                enabled -> MiuixTheme.colorScheme.onSurfaceVariantSummary
-                else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.30f)
-            },
-            // Miuix's back glyph has the rounded shaft and arrow head used throughout the app.
-            // Rotating it keeps the ascending/descending controls visually native instead of
-            // using the old corner-shaped expand glyphs.
-            modifier = Modifier
-                .size(20.dp)
-                .graphicsLayer { rotationZ = if (ascending) 90f else -90f }
-        )
     }
 }
 
 @Composable
 internal fun SortDropdownMenuContent(
     items: List<SortDropdownItem>,
+    alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.End,
     content: @Composable () -> Unit
 ) {
-    var sheetVisible by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier.clickable { sheetVisible = true }
-    ) {
+    if (items.isEmpty()) {
         content()
+        return
     }
-    SortBottomSheet(
-        show = sheetVisible,
-        items = items,
-        onDismissRequest = { sheetVisible = false }
-    )
+    var menuVisible by remember { mutableStateOf(false) }
+    val view = LocalView.current
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val sortMenuStyle by settingsManager.sortMenuStyle.collectAsState(initial = SettingsManager.SORT_MENU_STYLE_DROPDOWN)
+
+    Box(modifier = Modifier.clickable {
+        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        menuVisible = true
+    }) {
+        content()
+        if (sortMenuStyle == SettingsManager.SORT_MENU_STYLE_BOTTOM_SHEET) {
+            SortBottomSheet(
+                show = menuVisible,
+                items = items,
+                onDismissRequest = { menuVisible = false }
+            )
+        } else {
+            SortListPopup(
+                show = menuVisible,
+                items = items,
+                alignment = alignment,
+                onDismissRequest = { menuVisible = false }
+            )
+        }
+    }
 }

@@ -54,6 +54,7 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Gap between the original lyric and stacked romanization / translation. */
@@ -379,6 +380,7 @@ internal fun AppleMusicLyricLine(
                 rubyBelow = inlineRuby && pronunciationBelow,
                 splitRubyByCharacter = line.isTtml && inlineRuby,
                 onWordClick = onWordClick,
+                onLongPress = onLongClick,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -435,6 +437,7 @@ internal fun AppleMusicLyricLine(
                         wordLiftScale = wordLiftScale,
                         sustainGlowScale = sustainGlowScale,
                         singleLine = singleLine,
+                        onLongPress = onLongClick,
                         modifier = Modifier.fillMaxWidth().padding(top = 7.dp)
                     )
                     line.backgroundTranslation?.takeIf { showTranslation && it.isNotBlank() }?.let { translation ->
@@ -554,7 +557,17 @@ internal fun Modifier.appleMusicTouchRipple(
                 }
             }
             var dragging = false
+            var longPressed = false
             val width = size.width.toFloat().coerceAtLeast(1f)
+            val longPressJob = onLongPress?.let { callback ->
+                scope.launch {
+                    delay(viewConfiguration.longPressTimeoutMillis)
+                    if (!dragging) {
+                        longPressed = true
+                        callback()
+                    }
+                }
+            }
             fun emitFraction(x: Float) {
                 fractionHandler((x / width).coerceIn(0f, 1f))
             }
@@ -562,11 +575,15 @@ internal fun Modifier.appleMusicTouchRipple(
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                 if (!change.pressed) {
-                    if (!dragging) onTap(change.position, width)
+                    longPressJob?.cancel()
+                    if (!dragging && !longPressed) onTap(change.position, width)
                     break
                 }
                 val dx = change.position.x - down.position.x
-                if (!dragging && abs(dx) >= touchSlop) dragging = true
+                if (!dragging && abs(dx) >= touchSlop) {
+                    dragging = true
+                    longPressJob?.cancel()
+                }
                 if (dragging) {
                     emitFraction(change.position.x)
                     change.consume()

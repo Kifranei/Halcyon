@@ -3,10 +3,13 @@ package com.ella.music.ui.player
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.ella.music.data.NeteaseKeyInfo
 import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.isHttpAudioSource
@@ -47,13 +50,18 @@ internal fun rememberPlayerSongPresentationState(
     val shouldResolveLocalArtwork = song?.let {
         it.onlineSource.isBlank() && !it.path.isHttpAudioSource()
     } == true
-    val embeddedCover by produceState<Bitmap?>(
-        initialValue = null,
-        songKey,
-        shouldResolveLocalArtwork,
-        artworkGeneration
-    ) {
-        value = withContext(Dispatchers.IO) {
+    var embeddedCover by remember { mutableStateOf<Bitmap?>(null) }
+    var paletteBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var palettePair by remember(playerLight) { mutableStateOf(paletteDefault to paletteDefault) }
+
+    LaunchedEffect(songKey, shouldResolveLocalArtwork, artworkGeneration, playerLight) {
+        if (songKey == null) {
+            embeddedCover = null
+            paletteBitmap = null
+            palettePair = paletteDefault to paletteDefault
+            return@LaunchedEffect
+        }
+        val loadedCover = withContext(Dispatchers.IO) {
             runCatching {
                 CoverLoadLimiter.run {
                     song?.takeIf {
@@ -64,18 +72,15 @@ internal fun rememberPlayerSongPresentationState(
                 }
             }.getOrNull()
         }
-    }
-    val paletteBitmap by produceState<Bitmap?>(initialValue = null, songKey, embeddedCover) {
-        value = withContext(Dispatchers.IO) {
-            embeddedCover ?: song?.let { loadPaletteCoverBitmap(context, it) }
+        val loadedPaletteBitmap = withContext(Dispatchers.IO) {
+            loadedCover ?: song?.let { loadPaletteCoverBitmap(context, it) }
         }
-    }
-    val palettePair by produceState(
-        initialValue = paletteDefault to paletteDefault,
-        paletteBitmap,
-        playerLight
-    ) {
-        value = withContext(Dispatchers.Default) { PlayerPalette.pairFrom(paletteBitmap, playerLight) }
+        val loadedPalettePair = withContext(Dispatchers.Default) {
+            PlayerPalette.pairFrom(loadedPaletteBitmap, playerLight)
+        }
+        embeddedCover = loadedCover
+        paletteBitmap = loadedPaletteBitmap
+        palettePair = loadedPalettePair
     }
     val audioInfo by produceState<AudioInfo?>(initialValue = null, songKey) {
         value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getAudioInfo) }

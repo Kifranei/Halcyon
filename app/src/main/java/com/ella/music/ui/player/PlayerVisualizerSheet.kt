@@ -30,7 +30,8 @@ internal fun VisualizerSheetContent(
     opacity: Int,
     onBack: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
-    onOpacityChange: (Int) -> Unit
+    onOpacityChange: (Int) -> Unit,
+    showHeader: Boolean = true
 ) {
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
@@ -51,8 +52,10 @@ internal fun VisualizerSheetContent(
         stringResource(R.string.player_progress_style_segments)
     )
 
-    HalfSheetTitle(title = stringResource(R.string.player_visualizer_settings), onBack = onBack)
-    Spacer(modifier = Modifier.height(22.dp))
+    if (showHeader) {
+        HalfSheetTitle(title = stringResource(R.string.player_visualizer_settings), onBack = onBack)
+        Spacer(modifier = Modifier.height(22.dp))
+    }
     SettingsCardGroup {
         SwitchPreference(
             title = stringResource(R.string.player_music_visualizer),

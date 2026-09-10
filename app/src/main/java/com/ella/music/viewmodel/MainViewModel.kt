@@ -189,8 +189,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun scanMusic(fullRescan: Boolean = false, deepRescan: Boolean? = null) {
         if (scanJob?.isActive == true || isScanning.value) {
             if (!fullRescan) return
-            // A long-press complete scan must replace an in-flight incremental pass; otherwise
-            // newly copied files in custom folders stay invisible until MediaStore catches up.
+            // A complete scan must replace an in-flight incremental pass; otherwise newly
+            // copied files in custom folders stay invisible until MediaStore catches up.
             scanJob?.cancel()
         }
         scanJob = viewModelScope.launch {

@@ -20,12 +20,20 @@ internal fun PlayerSystemBarsEffect(
     val settings = SettingsManager.getInstance(context)
     val hideLandscapeBars by settings.playerLandscapeHideSystemBars.collectAsState(initial = false)
     val globalMode by settings.systemBarsMode.collectAsState(initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH)
-    DisposableEffect(view, trigger, landscape, hideLandscapeBars, globalMode) {
+    val playerMode by settings.playerSystemBarsMode.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_SYSTEM_BARS_MODE
+    )
+    DisposableEffect(view, trigger, landscape, hideLandscapeBars, globalMode, playerMode) {
         val activity = context.findActivity()
         fun applyBars() {
             val window = activity?.window ?: return
-            window.setPlayerImmersiveOverride(landscape && hideLandscapeBars)
-            window.applyHalcyonSystemBars(globalMode)
+            val effectiveMode = if (landscape && hideLandscapeBars) {
+                SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+            } else {
+                SettingsManager.playerSystemBarsEffectiveMode(playerMode, globalMode)
+            }
+            window.setPlayerImmersiveOverride(false)
+            window.applyHalcyonSystemBars(effectiveMode)
             setPlayerSystemBars(activity, view)
         }
         applyBars()

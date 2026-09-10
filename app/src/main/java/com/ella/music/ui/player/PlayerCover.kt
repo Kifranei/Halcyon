@@ -48,6 +48,7 @@ internal fun FullBleedCover(
     embeddedCover: Bitmap?,
     coverModel: Any? = null,
     cornerRadius: Dp = 0.dp,
+    contentScale: ContentScale = ContentScale.Crop,
     modifier: Modifier = Modifier
 ) {
     val resolvedCoverModel = coverModel ?: resolveCoverPreviewModel(song, embeddedCover)
@@ -57,8 +58,8 @@ internal fun FullBleedCover(
                 model = resolvedCoverModel,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit,
-                sizePx = 768,
+                contentScale = contentScale,
+                sizePx = 2048,
                 loadOriginal = true,
                 cornerRadius = cornerRadius
             )
@@ -190,7 +191,7 @@ internal fun AlbumArtView(
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = contentScale,
-                sizePx = 768,
+                sizePx = 2048,
                 loadOriginal = loadOriginal,
                 cornerRadius = cornerRadius
             )
@@ -213,10 +214,14 @@ internal fun AlbumArtView(
 }
 
 internal fun resolveCoverPreviewModel(song: Song?, embeddedCover: Bitmap?): Any? {
-    return embeddedCover ?: song?.coverUrl?.takeIf {
-        it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
-    }
+    val rawCover = song?.coverUrl?.takeIf { it.isNotBlank() }
+    val explicitCover = rawCover?.takeUnless { it.isMediaStoreAlbumArtworkUri() }
+    return embeddedCover ?: explicitCover ?: rawCover
 }
+
+/** Prefers the unscaled source so preview dialogs never inherit a list/player thumbnail. */
+internal fun preferredCoverPreviewModel(originalModel: Any?, decodedFallback: Any?): Any? =
+    originalModel ?: decodedFallback
 
 @Composable
 internal fun HiResLogoBadge(

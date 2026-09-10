@@ -98,7 +98,8 @@ fun LibrarySearchScreen(
     val bottomBarStyle by settingsManager.bottomBarStyle.collectAsState(
         initial = BottomBarStyle.LiquidGlass
     )
-    val useTopSearchBar = !useDockSearchBar || bottomBarStyle == BottomBarStyle.Normal
+    val mergeSearch by settingsManager.bottomDockMergeSearch.collectAsState(initial = false)
+    val useTopSearchBar = !useDockSearchBar || bottomBarStyle == BottomBarStyle.Normal || mergeSearch
     var localQuery by rememberSaveable(initialQuery) { mutableStateOf(initialQuery.orEmpty()) }
     val query = if (searchDock != null) searchDock.query else localQuery
     fun updateQuery(value: String) {

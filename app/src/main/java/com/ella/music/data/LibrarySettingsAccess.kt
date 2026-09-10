@@ -75,6 +75,9 @@ import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_LOCAL_MV_IN_LISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_ONLINE_MV_IN_LISTS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_PLAY_NEXT_IN_LISTS
+import com.ella.music.data.SettingsManager.Companion.KEY_LIST_QUALITY_DISPLAY_MODE
+import com.ella.music.data.SettingsManager.Companion.LIST_QUALITY_DISPLAY_TABLET
+import com.ella.music.data.SettingsManager.Companion.LIST_QUALITY_DISPLAY_ALWAYS
 import com.ella.music.data.SettingsManager.Companion.KEY_SHOW_REMOVE_FROM_PLAYLIST_BUTTON
 import com.ella.music.data.SettingsManager.Companion.KEY_SONG_RATING_DISPLAY_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_TAG_IGNORE_CASE
@@ -104,6 +107,7 @@ interface LibrarySettingsAccess {
     val filterVideoFiles: Flow<Boolean>
     val playlistSpecialEntriesVisible: Flow<Boolean>
     val showPlayNextInLists: Flow<Boolean>
+    val listQualityDisplayMode: Flow<Int>
     val showLocalMusicVideoInLists: Flow<Boolean>
     val showOnlineMusicVideoInLists: Flow<Boolean>
     val showRemoveFromPlaylistButton: Flow<Boolean>
@@ -165,6 +169,7 @@ interface LibrarySettingsAccess {
     suspend fun setFilterVideoFiles(enabled: Boolean)
     suspend fun setPlaylistSpecialEntriesVisible(visible: Boolean)
     suspend fun setShowPlayNextInLists(enabled: Boolean)
+    suspend fun setListQualityDisplayMode(mode: Int)
     suspend fun setShowLocalMusicVideoInLists(enabled: Boolean)
     suspend fun setShowOnlineMusicVideoInLists(enabled: Boolean)
     suspend fun setShowRemoveFromPlaylistButton(enabled: Boolean)
@@ -249,6 +254,11 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE] ?: false }
     override val showPlayNextInLists: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] ?: false }
+    override val listQualityDisplayMode: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_LIST_QUALITY_DISPLAY_MODE] ?: LIST_QUALITY_DISPLAY_TABLET)
+                .coerceIn(LIST_QUALITY_DISPLAY_TABLET, LIST_QUALITY_DISPLAY_ALWAYS)
+        }
     override val showLocalMusicVideoInLists: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SHOW_LOCAL_MV_IN_LISTS] ?: true }
     override val showOnlineMusicVideoInLists: Flow<Boolean> =
@@ -262,9 +272,9 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
             SettingsManager.normalizeSearchClickPlaybackMode(it[KEY_SEARCH_CLICK_PLAYBACK_MODE])
         }
     override val playlistShowRatingFilter: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYLIST_SHOW_RATING_FILTER] ?: true }
+        context.dataStore.data.map { it[KEY_PLAYLIST_SHOW_RATING_FILTER] ?: false }
     override val playlistShowFavoriteFilter: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYLIST_SHOW_FAVORITE_FILTER] ?: true }
+        context.dataStore.data.map { it[KEY_PLAYLIST_SHOW_FAVORITE_FILTER] ?: false }
     override val autoShowSearchKeyboard: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUTO_SHOW_SEARCH_KEYBOARD] ?: true }
     override val searchReopenBehavior: Flow<Int> =
@@ -337,7 +347,7 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     override val useAndroidMediaLibrary: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_USE_ANDROID_MEDIA_LIBRARY] ?: true }
     override val fullTagSearchEnabled: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_FULL_TAG_SEARCH_ENABLED] ?: false }
+        context.dataStore.data.map { it[KEY_FULL_TAG_SEARCH_ENABLED] ?: true }
     override val fullTagSearchPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_FULL_TAG_SEARCH_PROMPT_HANDLED] ?: false }
     override val coverExportFolderUri: Flow<String> =
@@ -367,7 +377,7 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     override val allFilesAccessPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_ALL_FILES_ACCESS_PROMPT_HANDLED] ?: false }
     override val artistSeparators: Flow<String> = context.dataStore.data.map {
-        it[KEY_ARTIST_SEPARATORS] ?: DEFAULT_ARTIST_SEPARATORS
+        resolvedArtistSeparators(it[KEY_ARTIST_SEPARATORS])
     }
     override val artistProtectedNames: Flow<String> = context.dataStore.data.map { it[KEY_ARTIST_PROTECTED_NAMES] ?: "" }
     override val parseFeaturedArtists: Flow<Boolean> = context.dataStore.data.map {
@@ -450,6 +460,15 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setShowPlayNextInLists(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] = enabled }
+    }
+
+    override suspend fun setListQualityDisplayMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_LIST_QUALITY_DISPLAY_MODE] = mode.coerceIn(
+                LIST_QUALITY_DISPLAY_TABLET,
+                LIST_QUALITY_DISPLAY_ALWAYS
+            )
+        }
     }
 
     override suspend fun setShowLocalMusicVideoInLists(enabled: Boolean) {
@@ -941,3 +960,11 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         return if (raw == null) SEARCH_ALL_SONG_MATCH_TYPES else saved
     }
 }
+
+/** Users who never customized separators pick up the ideographic comma added to the default. */
+internal fun resolvedArtistSeparators(stored: String?): String =
+    when (stored) {
+        null, SettingsManager.LEGACY_DEFAULT_ARTIST_SEPARATORS ->
+            SettingsManager.DEFAULT_ARTIST_SEPARATORS
+        else -> stored
+    }

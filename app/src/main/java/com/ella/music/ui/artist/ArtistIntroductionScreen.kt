@@ -44,7 +44,7 @@ import com.ella.music.data.ArtistDescriptionStore
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.EllaMiuixSheetActions
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
@@ -161,7 +161,7 @@ internal fun ArtistIntroductionScreen(
                     ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                EllaMiuixTextField(
+                TextField(
                     value = draft,
                     onValueChange = { draft = it },
                     label = stringResource(R.string.artist_introduction_editor_hint),

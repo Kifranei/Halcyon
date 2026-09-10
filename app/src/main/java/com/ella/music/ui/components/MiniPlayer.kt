@@ -9,13 +9,19 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -69,6 +75,8 @@ fun MiniPlayer(
     compactProgress: Float = 0f,
     showQueueButton: Boolean = false,
     swipeUpToOpenPlayer: Boolean = true,
+    isFloating: Boolean = true,
+    dockedAtBottom: Boolean = false,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipPrevious: () -> Unit = {},
@@ -82,7 +90,7 @@ fun MiniPlayer(
         .coerceIn(0f, 32f)
     val liquidConfig = liquidGlassConfig ?: LocalBottomBarLiquidGlassConfig.current
     val shape = RoundedCornerShape(if (liquidGlass) resolvedCornerRadiusDp.dp else 0.dp)
-    val glassBackdrop = if (liquidGlass) backdrop else null
+    val glassBackdrop = backdrop
     val useGlassLayout = liquidGlass
     val compact = compactProgress.coerceIn(0f, 1f)
     // Keep the surface itself centred while it collapses, matching iOS/MeiloX's mini-player
@@ -103,7 +111,7 @@ fun MiniPlayer(
     var transitionDirection by remember { mutableIntStateOf(1) }
     val interactionSource = remember { MutableInteractionSource() }
 
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(
@@ -167,13 +175,17 @@ fun MiniPlayer(
             .then(
                 if (glassBackdrop != null) {
                     Modifier
-                        .dropShadow(
-                            shape = shape,
-                            shadow = Shadow(
-                                radius = 10.dp,
-                                color = Color.Black,
-                                alpha = if (!isLight) 0.2f else 0.1f,
-                            ),
+                        .then(
+                            if (useGlassLayout) {
+                                Modifier.dropShadow(
+                                    shape = shape,
+                                    shadow = Shadow(
+                                        radius = 10.dp,
+                                        color = Color.Black,
+                                        alpha = if (!isLight) 0.2f else 0.1f,
+                                    ),
+                                )
+                            } else Modifier
                         )
                         .clip(shape)
                         .drawBackdrop(
@@ -181,8 +193,8 @@ fun MiniPlayer(
                             shape = { shape },
                             effects = {
                                 applyBottomBarGlassEffect(
-                                    glassEffect = glassEffect,
-                                    blurRadius = 42f,
+                                    glassEffect = if (useGlassLayout) glassEffect else BottomBarGlassEffect.Blur,
+                                    blurRadius = if (useGlassLayout) 42f else 25f,
                                     liquidBlurRadius = liquidConfig.blurRadiusDp,
                                     liquidRefractionHeight = liquidConfig.refractionHeightDp,
                                     liquidRefractionAmount = liquidConfig.refractionAmountDp,
@@ -192,14 +204,20 @@ fun MiniPlayer(
                             },
                             highlight = {
                                 Highlight.Default.copy(
-                                    alpha = when (glassEffect) {
-                                        BottomBarGlassEffect.Blur -> if (isLight) 0.26f else 0.16f
-                                        BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.10f
-                                    }
+                                    alpha = if (useGlassLayout) {
+                                        when (glassEffect) {
+                                            BottomBarGlassEffect.Blur -> if (isLight) 0.26f else 0.16f
+                                            BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.10f
+                                        }
+                                    } else 0f
                                 )
                             },
                             onDrawSurface = {
-                                drawRect(glassSurface)
+                                drawRect(
+                                    if (useGlassLayout) glassSurface
+                                    else if (isLight) Color.White.copy(alpha = 0.65f)
+                                    else Color.Black.copy(alpha = 0.55f)
+                                )
                             }
                         )
                         .liquidGlassDepthOverlay(
@@ -218,19 +236,32 @@ fun MiniPlayer(
                     Modifier.background(surfaceColor ?: surfaceContainer)
                 }
             )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        MiniPlayerCoverProgress(
-            coverState = coverState,
-            isPlaying = isPlaying,
-            progress = progress,
-            coverRotationEnabled = coverRotationEnabled,
-            coverSize = 44.dp,
-            ringSize = 50.dp
-        )
-
-        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isFloating) {
+                    MiniPlayerCoverProgress(
+                        coverState = coverState,
+                        isPlaying = isPlaying,
+                        progress = progress,
+                        coverRotationEnabled = coverRotationEnabled,
+                        coverSize = 44.dp,
+                        ringSize = 50.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    MiniPlayerSquareCover(
+                        coverState = coverState,
+                        size = 44.dp,
+                        shape = RoundedCornerShape(6.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
 
         MiniPlayerAnimatedText(
             textState = textState,
@@ -298,7 +329,33 @@ fun MiniPlayer(
                 )
             }
         }
+        }
+
+        if (dockedAtBottom) {
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+        }
     }
+
+    if (!isFloating) {
+        val clampedProgress = progress.coerceIn(0f, 1f)
+        val trackColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+        val progressColor = MiuixTheme.colorScheme.primary
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .align(Alignment.TopCenter)
+        ) {
+            drawRect(color = trackColor)
+            if (clampedProgress > 0f) {
+                drawRect(
+                    color = progressColor,
+                    size = size.copy(width = size.width * clampedProgress)
+                )
+            }
+        }
+    }
+}
 }
 @Composable
 @OptIn(ExperimentalFoundationApi::class)

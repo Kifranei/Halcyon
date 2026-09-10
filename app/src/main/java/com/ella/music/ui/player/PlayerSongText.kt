@@ -201,7 +201,8 @@ internal fun PlayerSongTitleText(
             overflow = TextOverflow.Clip,
             textAlign = textAlign,
             modifier = modifier,
-            titleModifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+            titleModifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+            matchBadgeToTitleSize = true
         )
     } else {
         BasicText(

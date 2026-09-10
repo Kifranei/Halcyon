@@ -1,6 +1,8 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -9,9 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -30,6 +32,7 @@ fun AppearanceSubpageScreen(
     onBack: () -> Unit,
     highlightKey: String? = null,
     onNavigateToBottomNavigationSettings: () -> Unit = {},
+    onNavigateToPlayerShortcutSettings: (String) -> Unit = {},
     onNavigateToAppearancePage: (String) -> Unit = {}
 ) {
     val pageBackground = ellaPageBackground()
@@ -44,12 +47,32 @@ fun AppearanceSubpageScreen(
         APPEARANCE_PAGE_QUEUE_TOOLBAR -> stringResource(R.string.settings_queue_toolbar_layout)
         else -> stringResource(R.string.settings_appearance_theme_page)
     }
-    Column(
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topBarHeight = 56.dp + statusBarHeight
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberSettingsScrollState("appearance_$page"))
+                .padding(horizontal = 12.dp)
+        ) {
+            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
+            SettingsAppearanceSection(
+                highlightKey = highlightKey,
+                page = page,
+                onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings,
+                onNavigateToPlayerShortcutSettings = onNavigateToPlayerShortcutSettings,
+                onNavigateToAppearancePage = onNavigateToAppearancePage,
+                onNavigateBack = onBack
+            )
+            Spacer(modifier = Modifier.height(160.dp))
+        }
+
         EllaSmallTopAppBar(
             title = title,
             color = pageBackground,
@@ -62,23 +85,8 @@ fun AppearanceSubpageScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-            }
+            },
+            modifier = Modifier.align(Alignment.TopCenter)
         )
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberSettingsScrollState("appearance_$page"))
-                .padding(horizontal = 12.dp)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            SettingsAppearanceSection(
-                highlightKey = highlightKey,
-                page = page,
-                onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings,
-                onNavigateToAppearancePage = onNavigateToAppearancePage,
-                onNavigateBack = onBack
-            )
-            Spacer(modifier = Modifier.height(160.dp))
-        }
     }
 }

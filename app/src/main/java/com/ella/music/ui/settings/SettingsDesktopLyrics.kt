@@ -169,377 +169,360 @@ internal fun SettingsDesktopLyricControls(
         )
     }
 
-    SwitchPreference(
-        title = stringResource(R.string.desktop_lyric_status_bar_mode),
-        summary = stringResource(R.string.desktop_lyric_status_bar_mode_summary),
-        enabled = desktopLyricEnabled,
-        checked = desktopLyricStatusBarMode,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarMode(enabled)
-                if (enabled) settingsManager.resetDesktopLyricPosition()
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_floating_lyric_hide_when_paused),
-        summary = stringResource(R.string.settings_floating_lyric_hide_when_paused_summary),
-        enabled = desktopLyricEnabled && !desktopLyricStatusBarMode,
-        checked = desktopLyricHideWhenPaused,
-        onCheckedChange = { enabled ->
-            playerViewModel?.setDesktopLyricHideWhenPaused(enabled)
-                ?: scope.launch { settingsManager.setDesktopLyricHideWhenPaused(enabled) }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_desktop_lyric_hide_in_landscape),
-        summary = stringResource(R.string.settings_desktop_lyric_hide_in_landscape_summary),
-        enabled = desktopLyricEnabled && !desktopLyricStatusBarMode,
-        checked = desktopLyricHideInLandscape,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricHideInLandscape(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_desktop_lyric_hide_on_player_page),
-        summary = stringResource(R.string.settings_desktop_lyric_hide_on_player_page_summary),
-        enabled = desktopLyricEnabled,
-        checked = desktopLyricHideOnPlayerPage,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricHideOnPlayerPage(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_desktop_lyric_hide_on_lyrics_page),
-        summary = stringResource(R.string.settings_desktop_lyric_hide_on_lyrics_page_summary),
-        enabled = desktopLyricEnabled,
-        checked = desktopLyricHideOnLyricsPage,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricHideOnLyricsPage(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_status_lyric_hide_when_paused),
-        summary = stringResource(R.string.settings_status_lyric_hide_when_paused_summary),
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        checked = desktopLyricStatusBarHideWhenPaused,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarHideWhenPaused(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_status_lyric_hide_in_landscape),
-        summary = stringResource(R.string.settings_status_lyric_hide_in_landscape_summary),
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        checked = desktopLyricStatusBarHideInLandscape,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarHideInLandscape(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_status_lyric_top_offset_value, desktopLyricStatusBarTopOffset),
-        summary = stringResource(R.string.settings_status_lyric_top_offset_summary),
-        value = desktopLyricStatusBarTopOffset,
-        valueRange = 0..120,
-        valueText = "${desktopLyricStatusBarTopOffset.coerceIn(0, 120)}dp",
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        onValueChange = { offset ->
+    if (desktopLyricEnabled) {
+        SwitchPreference(
+            title = stringResource(R.string.desktop_lyric_status_bar_mode),
+            summary = stringResource(R.string.desktop_lyric_status_bar_mode_summary),
+            checked = desktopLyricStatusBarMode,
+            onCheckedChange = { enabled ->
                 scope.launch {
-                    settingsManager.setDesktopLyricStatusBarTopOffset(offset)
+                    settingsManager.setDesktopLyricStatusBarMode(enabled)
+                    if (enabled) settingsManager.resetDesktopLyricPosition()
                     applyDesktopLyricSettings()
                 }
-        }
-    )
-
-    SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_desktop_lyric_width_value, desktopLyricWidth),
-        summary = stringResource(R.string.settings_desktop_lyric_width_summary),
-        value = desktopLyricWidth,
-        valueRange = DesktopLyricSettings.MIN_WIDTH_PERCENT..DesktopLyricSettings.MAX_WIDTH_PERCENT,
-        valueText = "${desktopLyricWidth.coerceIn(DesktopLyricSettings.MIN_WIDTH_PERCENT, DesktopLyricSettings.MAX_WIDTH_PERCENT)}%",
-        enabled = desktopLyricEnabled && !desktopLyricStatusBarMode,
-        onValueChange = { width ->
-            scope.launch {
-                settingsManager.setDesktopLyricWidth(width)
-                applyDesktopLyricSettings()
             }
-        }
-    )
+        )
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_desktop_lyric_sync_cover_content_color),
-        summary = stringResource(R.string.settings_desktop_lyric_sync_cover_content_color_summary),
-        enabled = desktopLyricEnabled,
-        checked = desktopLyricSyncCoverContentColor,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricSyncCoverContentColor(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_status_bar_lyric_position),
-        summary = stringResource(R.string.settings_status_bar_lyric_position_summary),
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        items = statusLyricPositionEntries,
-        selectedIndex = desktopLyricStatusBarPosition.coerceIn(0, 2),
-        onSelectedIndexChange = { index ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarPosition(index)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_status_lyric_width_value, desktopLyricStatusBarWidth),
-        summary = stringResource(R.string.settings_status_lyric_width_summary),
-        value = desktopLyricStatusBarWidth,
-        valueRange = DesktopLyricSettings.MIN_WIDTH_PERCENT..DesktopLyricSettings.MAX_WIDTH_PERCENT,
-        valueText = "${desktopLyricStatusBarWidth.coerceIn(DesktopLyricSettings.MIN_WIDTH_PERCENT, DesktopLyricSettings.MAX_WIDTH_PERCENT)}%",
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        onValueChange = { width ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarWidth(width)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_status_lyric_x_offset_value, desktopLyricStatusBarXOffset),
-        summary = stringResource(R.string.settings_status_lyric_x_offset_summary),
-        value = desktopLyricStatusBarXOffset,
-        valueRange = -640..640,
-        valueText = "${desktopLyricStatusBarXOffset.coerceIn(-640, 640)}dp",
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        onValueChange = { offset ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarXOffset(offset)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_status_bar_lyric_text_align),
-        summary = stringResource(R.string.settings_status_bar_lyric_text_align_summary),
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        items = statusLyricTextAlignEntries,
-        selectedIndex = desktopLyricStatusBarTextAlign.coerceIn(0, 2),
-        onSelectedIndexChange = { index ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarTextAlign(index)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_status_bar_lyric_vertical_align),
-        summary = stringResource(R.string.settings_status_bar_lyric_vertical_align_summary),
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        items = statusLyricVerticalAlignEntries,
-        selectedIndex = desktopLyricStatusBarVerticalAlign.coerceIn(0, 2),
-        onSelectedIndexChange = { index ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarVerticalAlign(index)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_status_bar_lyric_secondary),
-        summary = stringResource(R.string.settings_status_bar_lyric_secondary_summary),
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
-        items = statusLyricSecondaryEntries,
-        selectedIndex = desktopLyricStatusBarSecondary.coerceIn(0, 2),
-        onSelectedIndexChange = { index ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarSecondary(index)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_status_lyric_secondary_opacity_value, desktopLyricStatusBarSecondaryOpacity),
-        summary = stringResource(R.string.settings_status_lyric_secondary_opacity_summary),
-        value = desktopLyricStatusBarSecondaryOpacity,
-        valueRange = 20..100,
-        valueText = "${desktopLyricStatusBarSecondaryOpacity.coerceIn(20, 100)}%",
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode && desktopLyricStatusBarSecondary != SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF,
-        onValueChange = { opacity ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarSecondaryOpacity(opacity)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_status_lyric_merge_secondary),
-        summary = stringResource(R.string.settings_status_lyric_merge_secondary_summary),
-        enabled = desktopLyricEnabled && desktopLyricStatusBarMode && desktopLyricStatusBarSecondary != SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF,
-        checked = desktopLyricStatusBarMergeSecondary,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricStatusBarMergeSecondary(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    SwitchPreference(
-        title = stringResource(R.string.settings_lock_desktop_lyric),
-        summary = stringResource(R.string.settings_lock_desktop_lyric_summary),
-        enabled = desktopLyricEnabled,
-        checked = desktopLyricLocked,
-        onCheckedChange = { enabled ->
-            scope.launch {
-                settingsManager.setDesktopLyricLocked(enabled)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
-
-    ArrowPreference(
-        title = stringResource(R.string.desktop_lyric_reset_position),
-        summary = stringResource(R.string.desktop_lyric_reset_position_summary),
-        enabled = desktopLyricEnabled,
-        onClick = {
-            scope.launch {
-                settingsManager.resetDesktopLyricPosition()
-                withContext(Dispatchers.Main) {
-                    context.startService(
-                        Intent(context, DesktopLyricService::class.java)
-                            .setAction(DesktopLyricService.ACTION_RESET_POSITION)
+        if (desktopLyricStatusBarMode) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_status_lyric_hide_when_paused),
+                        summary = stringResource(R.string.settings_status_lyric_hide_when_paused_summary),
+                        checked = desktopLyricStatusBarHideWhenPaused,
+                        onCheckedChange = { enabled ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarHideWhenPaused(enabled)
+                                applyDesktopLyricSettings()
+                            }
+                        }
                     )
-                    Toast.makeText(context, context.getString(R.string.desktop_lyric_reset_position_done), Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    )
 
-    SettingsIntSliderPreference(
-        title = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_font_scale else R.string.settings_desktop_lyric_font_scale,
-            activeLyricFontScale
-        ),
-        summary = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_font_scale_summary else R.string.settings_desktop_lyric_font_scale_summary
-        ),
-        value = activeLyricFontScale,
-        valueRange = 80..220,
-        valueText = "${activeLyricFontScale.coerceIn(80, 220)}%",
-        enabled = desktopLyricEnabled,
-        onValueChange = { scale ->
-            scope.launch {
-                if (desktopLyricStatusBarMode) {
-                    settingsManager.setDesktopLyricStatusBarFontScale(scale)
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_status_lyric_hide_in_landscape),
+                        summary = stringResource(R.string.settings_status_lyric_hide_in_landscape_summary),
+                        checked = desktopLyricStatusBarHideInLandscape,
+                        onCheckedChange = { enabled ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarHideInLandscape(enabled)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_status_lyric_top_offset_value, desktopLyricStatusBarTopOffset),
+                        summary = stringResource(R.string.settings_status_lyric_top_offset_summary),
+                        value = desktopLyricStatusBarTopOffset,
+                        valueRange = 0..120,
+                        valueText = "${desktopLyricStatusBarTopOffset.coerceIn(0, 120)}dp",
+                        onValueChange = { offset ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarTopOffset(offset)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_status_bar_lyric_position),
+                        summary = stringResource(R.string.settings_status_bar_lyric_position_summary),
+                        items = statusLyricPositionEntries,
+                        selectedIndex = desktopLyricStatusBarPosition.coerceIn(0, 2),
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarPosition(index)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_status_lyric_width_value, desktopLyricStatusBarWidth),
+                        summary = stringResource(R.string.settings_status_lyric_width_summary),
+                        value = desktopLyricStatusBarWidth,
+                        valueRange = DesktopLyricSettings.MIN_WIDTH_PERCENT..DesktopLyricSettings.MAX_WIDTH_PERCENT,
+                        valueText = "${desktopLyricStatusBarWidth.coerceIn(DesktopLyricSettings.MIN_WIDTH_PERCENT, DesktopLyricSettings.MAX_WIDTH_PERCENT)}%",
+                        onValueChange = { width ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarWidth(width)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_status_lyric_x_offset_value, desktopLyricStatusBarXOffset),
+                        summary = stringResource(R.string.settings_status_lyric_x_offset_summary),
+                        value = desktopLyricStatusBarXOffset,
+                        valueRange = -640..640,
+                        valueText = "${desktopLyricStatusBarXOffset.coerceIn(-640, 640)}dp",
+                        onValueChange = { offset ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarXOffset(offset)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_status_bar_lyric_text_align),
+                        summary = stringResource(R.string.settings_status_bar_lyric_text_align_summary),
+                        items = statusLyricTextAlignEntries,
+                        selectedIndex = desktopLyricStatusBarTextAlign.coerceIn(0, 2),
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarTextAlign(index)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_status_bar_lyric_vertical_align),
+                        summary = stringResource(R.string.settings_status_bar_lyric_vertical_align_summary),
+                        items = statusLyricVerticalAlignEntries,
+                        selectedIndex = desktopLyricStatusBarVerticalAlign.coerceIn(0, 2),
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarVerticalAlign(index)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_status_bar_lyric_secondary),
+                        summary = stringResource(R.string.settings_status_bar_lyric_secondary_summary),
+                        items = statusLyricSecondaryEntries,
+                        selectedIndex = desktopLyricStatusBarSecondary.coerceIn(0, 2),
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarSecondary(index)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    if (desktopLyricStatusBarSecondary != SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF) {
+                        SettingsIntSliderPreference(
+                            title = stringResource(R.string.settings_status_lyric_secondary_opacity_value, desktopLyricStatusBarSecondaryOpacity),
+                            summary = stringResource(R.string.settings_status_lyric_secondary_opacity_summary),
+                            value = desktopLyricStatusBarSecondaryOpacity,
+                            valueRange = 20..100,
+                            valueText = "${desktopLyricStatusBarSecondaryOpacity.coerceIn(20, 100)}%",
+                            onValueChange = { opacity ->
+                                scope.launch {
+                                    settingsManager.setDesktopLyricStatusBarSecondaryOpacity(opacity)
+                                    applyDesktopLyricSettings()
+                                }
+                            }
+                        )
+
+                        SwitchPreference(
+                            title = stringResource(R.string.settings_status_lyric_merge_secondary),
+                            summary = stringResource(R.string.settings_status_lyric_merge_secondary_summary),
+                            checked = desktopLyricStatusBarMergeSecondary,
+                            onCheckedChange = { enabled ->
+                                scope.launch {
+                                    settingsManager.setDesktopLyricStatusBarMergeSecondary(enabled)
+                                    applyDesktopLyricSettings()
+                                }
+                            }
+                        )
+                    }
                 } else {
-                    settingsManager.setDesktopLyricFontScale(scale)
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_floating_lyric_hide_when_paused),
+                        summary = stringResource(R.string.settings_floating_lyric_hide_when_paused_summary),
+                        checked = desktopLyricHideWhenPaused,
+                        onCheckedChange = { enabled ->
+                            playerViewModel?.setDesktopLyricHideWhenPaused(enabled)
+                                ?: scope.launch { settingsManager.setDesktopLyricHideWhenPaused(enabled) }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_desktop_lyric_hide_in_landscape),
+                        summary = stringResource(R.string.settings_desktop_lyric_hide_in_landscape_summary),
+                        checked = desktopLyricHideInLandscape,
+                        onCheckedChange = { enabled ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricHideInLandscape(enabled)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_desktop_lyric_width_value, desktopLyricWidth),
+                        summary = stringResource(R.string.settings_desktop_lyric_width_summary),
+                        value = desktopLyricWidth,
+                        valueRange = DesktopLyricSettings.MIN_WIDTH_PERCENT..DesktopLyricSettings.MAX_WIDTH_PERCENT,
+                        valueText = "${desktopLyricWidth.coerceIn(DesktopLyricSettings.MIN_WIDTH_PERCENT, DesktopLyricSettings.MAX_WIDTH_PERCENT)}%",
+                        onValueChange = { width ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricWidth(width)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_lock_desktop_lyric),
+                        summary = stringResource(R.string.settings_lock_desktop_lyric_summary),
+                        checked = desktopLyricLocked,
+                        onCheckedChange = { enabled ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricLocked(enabled)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    ArrowPreference(
+                        title = stringResource(R.string.desktop_lyric_reset_position),
+                        summary = stringResource(R.string.desktop_lyric_reset_position_summary),
+                        onClick = {
+                            scope.launch {
+                                settingsManager.resetDesktopLyricPosition()
+                                withContext(Dispatchers.Main) {
+                                    context.startService(
+                                        Intent(context, DesktopLyricService::class.java)
+                                            .setAction(DesktopLyricService.ACTION_RESET_POSITION)
+                                    )
+                                    Toast.makeText(context, context.getString(R.string.desktop_lyric_reset_position_done), Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    )
                 }
-                applyDesktopLyricSettings()
-            }
-        }
-    )
 
-    SettingsIntSliderPreference(
-        title = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_translation_scale else R.string.settings_desktop_lyric_translation_scale,
-            activeLyricTranslationScale
-        ),
-        summary = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_translation_scale_summary else R.string.settings_desktop_lyric_translation_scale_summary
-        ),
-        value = activeLyricTranslationScale,
-        valueRange = 80..220,
-        valueText = "${activeLyricTranslationScale.coerceIn(80, 220)}%",
-        enabled = desktopLyricEnabled,
-        onValueChange = { scale ->
-            scope.launch {
-                if (desktopLyricStatusBarMode) {
-                    settingsManager.setDesktopLyricStatusBarTranslationScale(scale)
-                } else {
-                    settingsManager.setDesktopLyricTranslationScale(scale)
+            SwitchPreference(
+                title = stringResource(R.string.settings_desktop_lyric_hide_on_player_page),
+                summary = stringResource(R.string.settings_desktop_lyric_hide_on_player_page_summary),
+                checked = desktopLyricHideOnPlayerPage,
+                onCheckedChange = { enabled ->
+                    scope.launch {
+                        settingsManager.setDesktopLyricHideOnPlayerPage(enabled)
+                        applyDesktopLyricSettings()
+                    }
                 }
-                applyDesktopLyricSettings()
-            }
-        }
-    )
+            )
 
-    SettingsIntSliderPreference(
-        title = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_opacity else R.string.settings_desktop_lyric_opacity,
-            activeLyricOpacity
-        ),
-        summary = stringResource(
-            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_opacity_summary else R.string.settings_desktop_lyric_opacity_summary
-        ),
-        value = activeLyricOpacity,
-        valueRange = 35..100,
-        valueText = "${activeLyricOpacity.coerceIn(35, 100)}%",
-        enabled = desktopLyricEnabled,
-        onValueChange = { opacity ->
-            scope.launch {
-                if (desktopLyricStatusBarMode) {
-                    settingsManager.setDesktopLyricStatusBarOpacity(opacity)
-                } else {
-                    settingsManager.setDesktopLyricOpacity(opacity)
+            SwitchPreference(
+                title = stringResource(R.string.settings_desktop_lyric_hide_on_lyrics_page),
+                summary = stringResource(R.string.settings_desktop_lyric_hide_on_lyrics_page_summary),
+                checked = desktopLyricHideOnLyricsPage,
+                onCheckedChange = { enabled ->
+                    scope.launch {
+                        settingsManager.setDesktopLyricHideOnLyricsPage(enabled)
+                        applyDesktopLyricSettings()
+                    }
                 }
-                applyDesktopLyricSettings()
-            }
-        }
-    )
+            )
 
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_desktop_lyric_color),
-        summary = stringResource(R.string.settings_desktop_lyric_color_summary),
-        enabled = desktopLyricEnabled && !desktopLyricSyncCoverContentColor,
-        items = desktopLyricColorEntries,
-        selectedIndex = selectedDesktopLyricColorIndex,
-        onSelectedIndexChange = { index ->
-            val color = desktopLyricColorPresets.getOrNull(index)?.second ?: android.graphics.Color.WHITE
-            scope.launch {
-                settingsManager.setDesktopLyricTextColor(color)
-                applyDesktopLyricSettings()
-            }
-        }
-    )
+            SwitchPreference(
+                title = stringResource(R.string.settings_desktop_lyric_sync_cover_content_color),
+                summary = stringResource(R.string.settings_desktop_lyric_sync_cover_content_color_summary),
+                checked = desktopLyricSyncCoverContentColor,
+                onCheckedChange = { enabled ->
+                    scope.launch {
+                        settingsManager.setDesktopLyricSyncCoverContentColor(enabled)
+                        applyDesktopLyricSettings()
+                    }
+                }
+            )
 
-    ArrowPreference(
-        title = stringResource(R.string.common_custom),
-        summary = String.format("#%06X", 0xFFFFFF and activeLyricTextColor),
-        enabled = desktopLyricEnabled && !desktopLyricSyncCoverContentColor,
-        onClick = { showColorPickerSheet = true }
-    )
+            SettingsIntSliderPreference(
+                title = stringResource(
+                    if (desktopLyricStatusBarMode) R.string.settings_status_lyric_font_scale else R.string.settings_desktop_lyric_font_scale,
+                    activeLyricFontScale
+                ),
+                summary = stringResource(
+                    if (desktopLyricStatusBarMode) R.string.settings_status_lyric_font_scale_summary else R.string.settings_desktop_lyric_font_scale_summary
+                ),
+                value = activeLyricFontScale,
+                valueRange = 80..220,
+                valueText = "${activeLyricFontScale.coerceIn(80, 220)}%",
+                onValueChange = { scale ->
+                    scope.launch {
+                        if (desktopLyricStatusBarMode) {
+                            settingsManager.setDesktopLyricStatusBarFontScale(scale)
+                        } else {
+                            settingsManager.setDesktopLyricFontScale(scale)
+                        }
+                        applyDesktopLyricSettings()
+                    }
+                }
+            )
+
+            SettingsIntSliderPreference(
+                title = stringResource(
+                    if (desktopLyricStatusBarMode) R.string.settings_status_lyric_translation_scale else R.string.settings_desktop_lyric_translation_scale,
+                    activeLyricTranslationScale
+                ),
+                summary = stringResource(
+                    if (desktopLyricStatusBarMode) R.string.settings_status_lyric_translation_scale_summary else R.string.settings_desktop_lyric_translation_scale_summary
+                ),
+                value = activeLyricTranslationScale,
+                valueRange = 80..220,
+                valueText = "${activeLyricTranslationScale.coerceIn(80, 220)}%",
+                onValueChange = { scale ->
+                    scope.launch {
+                        if (desktopLyricStatusBarMode) {
+                            settingsManager.setDesktopLyricStatusBarTranslationScale(scale)
+                        } else {
+                            settingsManager.setDesktopLyricTranslationScale(scale)
+                        }
+                        applyDesktopLyricSettings()
+                    }
+                }
+            )
+
+            SettingsIntSliderPreference(
+                title = stringResource(
+                    if (desktopLyricStatusBarMode) R.string.settings_status_lyric_opacity else R.string.settings_desktop_lyric_opacity,
+                    activeLyricOpacity
+                ),
+                summary = stringResource(
+                    if (desktopLyricStatusBarMode) R.string.settings_status_lyric_opacity_summary else R.string.settings_desktop_lyric_opacity_summary
+                ),
+                value = activeLyricOpacity,
+                valueRange = 35..100,
+                valueText = "${activeLyricOpacity.coerceIn(35, 100)}%",
+                onValueChange = { opacity ->
+                    scope.launch {
+                        if (desktopLyricStatusBarMode) {
+                            settingsManager.setDesktopLyricStatusBarOpacity(opacity)
+                        } else {
+                            settingsManager.setDesktopLyricOpacity(opacity)
+                        }
+                        applyDesktopLyricSettings()
+                    }
+                }
+            )
+
+            if (!desktopLyricSyncCoverContentColor) {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_desktop_lyric_color),
+                    summary = stringResource(R.string.settings_desktop_lyric_color_summary),
+                    items = desktopLyricColorEntries,
+                    selectedIndex = selectedDesktopLyricColorIndex,
+                    onSelectedIndexChange = { index ->
+                        val color = desktopLyricColorPresets.getOrNull(index)?.second ?: android.graphics.Color.WHITE
+                        scope.launch {
+                            settingsManager.setDesktopLyricTextColor(color)
+                            applyDesktopLyricSettings()
+                        }
+                    }
+                )
+
+                ArrowPreference(
+                    title = stringResource(R.string.common_custom),
+                    summary = String.format("#%06X", 0xFFFFFF and activeLyricTextColor),
+                    onClick = { showColorPickerSheet = true }
+                )
+            }
+    }
 
     EllaMiuixBottomSheet(
         show = showColorPickerSheet,

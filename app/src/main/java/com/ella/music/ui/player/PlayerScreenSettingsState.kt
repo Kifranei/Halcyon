@@ -53,8 +53,7 @@ internal data class PlayerScreenSettings(
     val appleMusicLyricsWordLift: Boolean = true,
     val lyricPerspectiveEffect: Boolean = false,
     val lyricPerspectiveYAngle: Int = 25,
-    val playerLyricTextAlign: Int = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT,
-    val lyricPageVerticalAlignment: Int = SettingsManager.DEFAULT_LYRIC_PAGE_VERTICAL_ALIGNMENT
+    val playerLyricTextAlign: Int = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT
 )
 
 private data class PlayerSettingsGroupA(
@@ -162,8 +161,7 @@ private data class PlayerSettingsGroupD(
     val appleMusicLyricsWordLift: Boolean,
     val lyricPerspectiveEffect: Boolean,
     val lyricPerspectiveYAngle: Int,
-    val playerLyricTextAlign: Int,
-    val lyricPageVerticalAlignment: Int
+    val playerLyricTextAlign: Int
 )
 
 @Composable
@@ -297,7 +295,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         ) { shareInfo, metadataId, timingId, customMinutes, stopAfterCurrent ->
             PlayerSettingsGroupC(shareInfo, metadataId, timingId, customMinutes, stopAfterCurrent)
         }
-        val groupDBase = combine(
+        val groupD = combine(
             settingsManager.lyricPageKeepScreenOn,
             settingsManager.appleMusicLyricsWordLift,
             settingsManager.lyricPerspectiveEffect,
@@ -309,12 +307,8 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 appleMusicLyricsWordLift = wordLiftEnabled,
                 lyricPerspectiveEffect = perspective,
                 lyricPerspectiveYAngle = perspectiveYAngle,
-                playerLyricTextAlign = lyricTextAlign,
-                lyricPageVerticalAlignment = SettingsManager.DEFAULT_LYRIC_PAGE_VERTICAL_ALIGNMENT
+                playerLyricTextAlign = lyricTextAlign
             )
-        }
-        val groupD = combine(groupDBase, settingsManager.lyricPageVerticalAlignment) { base, verticalAlignment ->
-            base.copy(lyricPageVerticalAlignment = verticalAlignment)
         }
         combine(groupA, groupB, groupC, groupD) { a, b, c, d ->
             PlayerScreenSettings(
@@ -352,8 +346,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 appleMusicLyricsWordLift = d.appleMusicLyricsWordLift,
                 lyricPerspectiveEffect = d.lyricPerspectiveEffect,
                 lyricPerspectiveYAngle = d.lyricPerspectiveYAngle,
-                playerLyricTextAlign = d.playerLyricTextAlign,
-                lyricPageVerticalAlignment = d.lyricPageVerticalAlignment
+                playerLyricTextAlign = d.playerLyricTextAlign
             )
         }
     }

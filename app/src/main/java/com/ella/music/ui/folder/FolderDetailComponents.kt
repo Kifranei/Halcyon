@@ -6,6 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,9 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.ui.components.BreadcrumbBar
+import com.ella.music.ui.components.BreadcrumbItem
+import androidx.compose.ui.focus.focusRequester
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
-import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.FolderOutlineIcon
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
@@ -135,11 +139,14 @@ internal fun CreatePlaylistAndAddSelectedSheet(
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
-            EllaMiuixTextField(
+            TextField(
                 value = name,
                 onValueChange = { name = it },
                 label = stringResource(R.string.playlist_name_label),
-                focusRequester = focusRequester
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
             EllaMiuixSheetActions(
                 cancelText = stringResource(R.string.common_cancel),
@@ -231,39 +238,20 @@ internal fun FolderBreadcrumbRow(
 ) {
     if (crumbs.isEmpty()) return
     val current = currentPath.normalizeFolderPath()
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        crumbs.forEachIndexed { index, crumb ->
-            if (index > 0) {
-                Text(
-                    text = " > ",
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-            val isCurrent = crumb.path.normalizeFolderPath().equals(current, ignoreCase = true)
-            Text(
-                text = crumb.label,
-                fontSize = 13.sp,
-                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (isCurrent) {
-                    MiuixTheme.colorScheme.onSurface
-                } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = if (isCurrent) {
-                    Modifier
-                } else {
-                    Modifier.clickable { onCrumbClick(crumb.path) }
-                }
-            )
-        }
+    val items = remember(crumbs) {
+        crumbs.map { BreadcrumbItem(path = it.path, text = it.label) }
     }
+    val highlightIndex = remember(crumbs, current) {
+        val idx = crumbs.indexOfLast { it.path.normalizeFolderPath().equals(current, ignoreCase = true) }
+        if (idx >= 0) idx else crumbs.lastIndex
+    }
+    BreadcrumbBar(
+        items = items,
+        onItemClick = { index ->
+            crumbs.getOrNull(index)?.let { onCrumbClick(it.path) }
+        },
+        highlightIndex = highlightIndex,
+        insideMargin = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
+        modifier = modifier.fillMaxWidth()
+    )
 }

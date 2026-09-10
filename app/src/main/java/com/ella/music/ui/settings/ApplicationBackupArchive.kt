@@ -42,7 +42,7 @@ import java.util.zip.ZipOutputStream
 internal const val APPLICATION_BACKUP_ZIP_MIME = "application/zip"
 
 private const val BACKUP_JSON_ENTRY = "backup.json"
-private const val PORTABLE_ASSETS_FIELD = "portableAssets"
+internal const val PORTABLE_ASSETS_FIELD = "portableAssets"
 private const val ARCHIVE_REFERENCE_PREFIX = "archive://"
 private const val EXTRACTED_ASSET_FILES_FIELD = "_portableAssetFiles"
 private const val EXTRACTED_ASSET_DIR_FIELD = "_portableAssetDir"
@@ -138,7 +138,7 @@ internal suspend fun buildApplicationBackupZipFile(
                 settings.remove(key)
             }
         }
-        packImportedFontDirectory(context, zip, manifest)
+        packImportedFontDirectory(context, zip, manifest, selectedTypes)
         packLyricoPlugins(context, zip, selectedTypes)
 
         root.put("version", 2)
@@ -394,7 +394,13 @@ private const val IMPORTED_FONTS_DIR = "lyric_fonts"
 private const val BUNDLED_FONTS_DIR = "lyric_builtin_fonts"
 private const val IMPORTED_FONTS_ZIP_PREFIX = "assets/imported_fonts/"
 
-private fun packImportedFontDirectory(context: Context, zip: ZipOutputStream, manifest: JSONObject) {
+private fun packImportedFontDirectory(
+    context: Context,
+    zip: ZipOutputStream,
+    manifest: JSONObject,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.Fonts !in selectedTypes) return
     val dir = File(context.filesDir, IMPORTED_FONTS_DIR)
     val packedNames = buildSet {
         val keys = manifest.keys()

@@ -164,7 +164,7 @@ fun AlbumDetailScreen(
             }
         }
     }
-    val sortedAlbumSongs = remember(filteredAlbumSongs, sortMode) { filteredAlbumSongs.sortedForAlbumDetail(sortMode) }
+    val sortedAlbumSongs = remember(filteredAlbumSongs, sortMode, com.ella.music.ui.LibrarySortUiState.randomSortSeed) { filteredAlbumSongs.sortedForAlbumDetail(sortMode) }
     val sortedAlbumSongIndexById = remember(sortedAlbumSongs) {
         buildMap {
             sortedAlbumSongs.forEachIndexed { index, song -> put(song.id, index) }
@@ -190,10 +190,7 @@ fun AlbumDetailScreen(
     ) {
         value = withContext(Dispatchers.IO) {
             albumSongs.asSequence()
-                .mapNotNull { song ->
-                    mainViewModel.getAlbumCoverArtBitmap(song)
-                        ?: mainViewModel.getOriginalCoverModel(song)
-                }
+                .mapNotNull { song -> mainViewModel.getOriginalCoverModel(song) }
                 .firstOrNull()
         }
     }
@@ -419,6 +416,7 @@ fun AlbumDetailScreen(
             songs = albumSongs,
             coverModel = albumPreviewModel,
             releaseDate = albumReleaseDate,
+            neteaseAlbumUrl = neteaseAlbumUrl,
             onBack = { showIntroduction = false }
         )
         return
@@ -806,6 +804,15 @@ fun AlbumDetailScreen(
                             scope.launch { mainViewModel.settingsManager.setAlbumDetailSongSortIndex(mode.ordinal) }
                             scrollToTopRequest++
                         }
+                    ) + listOf(
+                        com.ella.music.ui.components.randomSortDropdownItem(
+                            selected = sortMode == AlbumDetailSongSortMode.Random,
+                            onSelect = {
+                                LibrarySortUiState.albumDetailSongSortIndex = AlbumDetailSongSortMode.Random.ordinal
+                                scope.launch { mainViewModel.settingsManager.setAlbumDetailSongSortIndex(AlbumDetailSongSortMode.Random.ordinal) }
+                                scrollToTopRequest++
+                            }
+                        )
                     )
                     )
                 }

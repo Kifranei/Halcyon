@@ -3,10 +3,15 @@ package com.ella.music.ui.effect
 import androidx.compose.ui.graphics.Brush
 import top.yukonga.miuix.kmp.blur.RuntimeShader
 import top.yukonga.miuix.kmp.blur.asBrush
+import kotlin.math.cos
+import kotlin.math.sin
 
-class BgEffectPainter {
+class BgEffectPainter(
+    val isOs3: Boolean = true
+) {
     val runtimeShader by lazy {
-        RuntimeShader(OS3_BG_FRAG).also {
+        val shaderCode = if (isOs3) OS3_BG_FRAG else OS2_BG_FRAG
+        RuntimeShader(shaderCode).also {
             initStaticUniforms(it)
         }
     }
@@ -15,6 +20,7 @@ class BgEffectPainter {
 
     private val resolution = FloatArray(2)
     private val bound = FloatArray(4)
+    private val pointsAnimBuffer = FloatArray(8)
     private var animTime = Float.NaN
     private var isDarkCached: Boolean? = null
     private var deviceTypeCached: DeviceType? = null
@@ -35,8 +41,10 @@ class BgEffectPainter {
         shader.setFloatUniform("uNoiseScale", U_NOISE_SCALE)
         shader.setFloatUniform("uPointRadiusMulti", U_POINT_RADIUS_MULTI)
         shader.setFloatUniform("uAlphaMulti", U_ALPHA_MULTI)
-        shader.setFloatUniform("uAlphaOffset", U_ALPHA_OFFSET)
-        shader.setFloatUniform("uShadowOffset", U_SHADOW_OFFSET)
+        if (isOs3) {
+            shader.setFloatUniform("uAlphaOffset", U_ALPHA_OFFSET)
+            shader.setFloatUniform("uShadowOffset", U_SHADOW_OFFSET)
+        }
     }
 
     fun updateResolution(width: Float, height: Float) {
@@ -50,6 +58,22 @@ class BgEffectPainter {
         if (animTime == time) return
         animTime = time
         runtimeShader.setFloatUniform("uAnimTime", animTime)
+
+        if (!isOs3) {
+            val preset = BgEffectConfig.get(deviceType, isDarkCached ?: false, isOs3)
+            val offset = preset.pointOffset
+            var i = 0
+            while (i < 4) {
+                val srcX = preset.points[i * 3]
+                val srcY = preset.points[i * 3 + 1]
+                val animX = srcX + sin(time + srcY) * offset
+                val animY = srcY + cos(time + animX) * offset
+                pointsAnimBuffer[i * 2] = animX
+                pointsAnimBuffer[i * 2 + 1] = animY
+                i++
+            }
+            runtimeShader.setFloatUniform("uPointsAnim", pointsAnimBuffer)
+        }
     }
 
     fun updateColors(colors: FloatArray) {
@@ -66,15 +90,17 @@ class BgEffectPainter {
     }
 
     private fun applyPreset(isDark: Boolean) {
-        val preset = BgEffectConfig.get(deviceType, isDark)
+        val preset = BgEffectConfig.get(deviceType, isDark, isOs3)
         runtimeShader.setFloatUniform("uPoints", preset.points)
-        runtimeShader.setFloatUniform("uPointOffset", preset.pointOffset)
         runtimeShader.setFloatUniform("uLightOffset", preset.lightOffset)
         runtimeShader.setFloatUniform("uSaturateOffset", preset.saturateOffset)
         runtimeShader.setFloatUniform("uBound", bound)
-        runtimeShader.setFloatUniform("uShadowColorMulti", preset.shadowColorMulti)
-        runtimeShader.setFloatUniform("uShadowColorOffset", preset.shadowColorOffset)
-        runtimeShader.setFloatUniform("uShadowNoiseScale", preset.shadowNoiseScale)
+        if (isOs3) {
+            runtimeShader.setFloatUniform("uPointOffset", preset.pointOffset)
+            runtimeShader.setFloatUniform("uShadowColorMulti", preset.shadowColorMulti)
+            runtimeShader.setFloatUniform("uShadowColorOffset", preset.shadowColorOffset)
+            runtimeShader.setFloatUniform("uShadowNoiseScale", preset.shadowNoiseScale)
+        }
     }
 
     private fun updateBound(logoHeight: Float, totalHeight: Float, totalWidth: Float) {

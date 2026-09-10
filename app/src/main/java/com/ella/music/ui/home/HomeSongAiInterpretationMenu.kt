@@ -30,6 +30,10 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ExplicitSongTitle
 import com.ella.music.viewmodel.MainViewModel
+import android.widget.Toast
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import com.ella.music.ui.components.EllaMiuixActionMenuGroup
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -42,7 +46,6 @@ internal fun SongAiInterpretationMenu(
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
-    val missingApiKeyText = stringResource(R.string.library_ai_missing_api_key)
     val aiFailedText = stringResource(R.string.song_more_ai_failed)
     var requestKey by remember(song.id) { mutableStateOf(0) }
     var isLoading by remember(song.id) { mutableStateOf(false) }
@@ -51,9 +54,8 @@ internal fun SongAiInterpretationMenu(
 
     LaunchedEffect(song.id, requestKey, openAiApiKey) {
         if (openAiApiKey.isBlank()) {
-            isLoading = false
-            resultText = ""
-            errorText = missingApiKeyText
+            Toast.makeText(context, R.string.library_ai_missing_api_key, Toast.LENGTH_SHORT).show()
+            onDismiss()
             return@LaunchedEffect
         }
         isLoading = true
@@ -80,7 +82,7 @@ internal fun SongAiInterpretationMenu(
                 .fillMaxHeight(0.78f)
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ExplicitSongTitle(
                 title = song.title,
@@ -93,32 +95,52 @@ internal fun SongAiInterpretationMenu(
 
             when {
                 isLoading -> {
-                    SongInfoRow(
-                        stringResource(R.string.library_status_label),
-                        stringResource(R.string.library_ai_loading)
-                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 16.dp,
+                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer)
+                    ) {
+                        SongInfoRow(
+                            stringResource(R.string.library_status_label),
+                            stringResource(R.string.library_ai_loading)
+                        )
+                    }
                 }
                 errorText != null -> {
-                    SongInfoRow(stringResource(R.string.library_status_label), errorText.orEmpty())
-                    LibraryMenuItem(stringResource(R.string.library_retry), onClick = { requestKey++ })
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 16.dp,
+                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer)
+                    ) {
+                        SongInfoRow(stringResource(R.string.library_status_label), errorText.orEmpty())
+                    }
+                    EllaMiuixActionMenuGroup {
+                        LibraryMenuItem(stringResource(R.string.library_retry), onClick = { requestKey++ })
+                    }
                 }
                 resultText.isNotBlank() -> {
-                    Text(
-                        text = resultText,
-                        fontSize = 14.sp,
-                        lineHeight = 22.sp,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
-                    )
-                    LibraryMenuItem(stringResource(R.string.library_reinterpret), onClick = { requestKey++ })
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 16.dp,
+                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer)
+                    ) {
+                        Text(
+                            text = resultText,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                        )
+                    }
+                    EllaMiuixActionMenuGroup {
+                        LibraryMenuItem(stringResource(R.string.library_reinterpret), onClick = { requestKey++ })
+                    }
                 }
             }
 
-            LibraryMenuItem(stringResource(R.string.common_close), onDismiss)
+            EllaMiuixActionMenuGroup {
+                LibraryMenuItem(stringResource(R.string.common_close), onDismiss)
+            }
         }
     }
 }

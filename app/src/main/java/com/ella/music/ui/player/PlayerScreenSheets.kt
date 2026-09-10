@@ -20,7 +20,6 @@ import com.ella.music.ui.components.openSongWithMediaInfo
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 @Composable
 internal fun PlayerScreenSheetHost(
@@ -146,7 +145,7 @@ internal fun PlayerScreenSheetHost(
     )
 
     aiSheetSong?.let { currentSong ->
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.song_more_ai_title),
@@ -161,7 +160,7 @@ internal fun PlayerScreenSheetHost(
     }
 
     lyricMatchSong?.let { currentSong ->
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.player_match_online_lyrics),

@@ -38,17 +38,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.mediaStoreAlbumArtUri
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.focus.focusRequester
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -91,9 +96,7 @@ fun AddToPlaylistSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .background(MiuixTheme.colorScheme.background)
-            .padding(horizontal = 18.dp, vertical = 8.dp)
+            .padding(bottom = 8.dp)
             .heightIn(max = 560.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -105,10 +108,12 @@ fun AddToPlaylistSheet(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
             )
         }
-        EllaMiuixTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = stringResource(R.string.common_search),
+        EllaSearchBar(
+            query = query,
+            onQueryChange = { query = it },
+            placeholder = stringResource(R.string.common_search),
+            onSearch = {},
+            autoFocus = false,
             modifier = Modifier.fillMaxWidth()
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -149,7 +154,8 @@ fun AddToPlaylistSheet(
                         ),
                         selectedMode = sortMode,
                         onSelect = { sortMode = it }
-                    )
+                    ),
+                    alignment = PopupPositionProvider.Align.Start
                 ) {
                     Box(
                         modifier = Modifier
@@ -187,7 +193,13 @@ fun AddToPlaylistSheet(
                 modifier = Modifier.weight(1f)
             )
         }
-        SongMenuItem(stringResource(R.string.song_more_create_playlist), onCreatePlaylist)
+        EllaMiuixActionMenuGroup {
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.song_more_create_playlist),
+                icon = ActionMenuCommonIcons.add,
+                onClick = onCreatePlaylist
+            )
+        }
         if (writablePlaylists.isEmpty()) {
             Text(
                 text = stringResource(R.string.song_more_no_custom_playlists),
@@ -199,28 +211,35 @@ fun AddToPlaylistSheet(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = false)
+                    .weight(1f, fill = false),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(visiblePlaylists, key = { it.id }) { playlist ->
                     val selected = playlist.id in selectedIds
                     val alreadyContainsAll = targetSongKeys.isNotEmpty() &&
                         targetSongKeys.all { targetKey -> playlist.songs.any { it.key == targetKey } }
-                    AddToPlaylistRow(
-                        playlist = playlist,
-                        selected = selected,
-                        enabled = !alreadyContainsAll,
-                        onClick = {
-                            if (multiSelect) {
-                                selectedIds = if (selected) {
-                                    selectedIds - playlist.id
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer),
+                        cornerRadius = 14.dp
+                    ) {
+                        AddToPlaylistRow(
+                            playlist = playlist,
+                            selected = selected,
+                            enabled = !alreadyContainsAll,
+                            onClick = {
+                                if (multiSelect) {
+                                    selectedIds = if (selected) {
+                                        selectedIds - playlist.id
+                                    } else {
+                                        selectedIds + playlist.id
+                                    }
                                 } else {
-                                    selectedIds + playlist.id
+                                    onPlaylistsConfirm(listOf(playlist), appendToEnd)
                                 }
-                            } else {
-                                onPlaylistsConfirm(listOf(playlist), appendToEnd)
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -391,11 +410,14 @@ fun CreatePlaylistAndAddSheet(
                 .padding(bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            EllaMiuixTextField(
+            TextField(
                 value = name,
                 onValueChange = { name = it },
                 label = stringResource(R.string.playlist_name_label),
-                focusRequester = focusRequester
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
             EllaMiuixSheetActions(
                 cancelText = stringResource(R.string.common_cancel),

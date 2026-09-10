@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -226,6 +228,38 @@ private fun MiniPlayerTextRow(
                 Spacer(modifier = Modifier.width(2.dp))
                 ExplicitBadge(contentColor = color, height = 12.dp)
             }
+        }
+    }
+}
+
+@Composable
+internal fun MiniPlayerSquareCover(
+    coverState: MiniPlayerCoverState,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    shape: Shape = RoundedCornerShape(6.dp)
+) {
+    val coverModel = coverState.model
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .background(MiuixTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        if (coverModel != null) {
+            SafeCoverImage(
+                model = coverModel,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(size)
+                    .clip(shape),
+                contentScale = ContentScale.Crop,
+                sizePx = 128,
+                showDefaultPlaceholder = false
+            )
+        } else if (coverState.showDefaultCover) {
+            DefaultAlbumCover(modifier = Modifier.size(size))
         }
     }
 }

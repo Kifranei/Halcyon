@@ -29,14 +29,12 @@ class LastFmApi {
             ?: error("Last.fm did not return an authorization token")
     }
 
-    fun authorizationIntent(apiKey: String, token: String): Intent = Intent(
-        Intent.ACTION_VIEW,
-        Uri.parse("https://www.last.fm/api/auth/")
-            .buildUpon()
-            .appendQueryParameter("api_key", apiKey)
-            .appendQueryParameter("token", token)
-            .build()
-    )
+    fun authorizationIntent(apiKey: String? = null, token: String? = null): Intent {
+        val builder = Uri.parse("https://www.last.fm/api/auth/").buildUpon()
+        if (!apiKey.isNullOrBlank()) builder.appendQueryParameter("api_key", apiKey)
+        if (!token.isNullOrBlank()) builder.appendQueryParameter("token", token)
+        return Intent(Intent.ACTION_VIEW, builder.build())
+    }
 
     suspend fun finishAuthorization(credentials: LastFmCredentials, token: String): LastFmSession = withContext(Dispatchers.IO) {
         require(credentials.hasAppCredentials) { "Missing Last.fm API key or shared secret" }

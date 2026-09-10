@@ -26,10 +26,37 @@ import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.SelectionCheck
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+internal fun sleepTimerRemainingLabel(
+    endRealtimeMs: Long,
+    nowRealtimeMs: Long = SystemClock.elapsedRealtime()
+): String? {
+    val remaining = (endRealtimeMs - nowRealtimeMs).coerceAtLeast(0L)
+    if (remaining <= 0L) return null
+    return remaining.formatPlaybackDuration()
+}
+
+@Composable
+internal fun rememberSleepTimerRemaining(endRealtimeMs: Long?): String? {
+    var nowRealtimeMs by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    LaunchedEffect(endRealtimeMs) {
+        if (endRealtimeMs == null) return@LaunchedEffect
+        while (SystemClock.elapsedRealtime() < endRealtimeMs) {
+            nowRealtimeMs = SystemClock.elapsedRealtime()
+            delay(1_000L)
+        }
+        nowRealtimeMs = SystemClock.elapsedRealtime()
+    }
+    val end = endRealtimeMs ?: return null
+    return sleepTimerRemainingLabel(end, nowRealtimeMs)
+}
 
 @Composable
 internal fun TimerSheetContent(
@@ -41,7 +68,8 @@ internal fun TimerSheetContent(
     onStopAfterCurrent: (Boolean) -> Unit,
     onTimer: (Int) -> Unit,
     onCustomTimerMinutes: (Int) -> Unit,
-    onCancelTimer: () -> Unit
+    onCancelTimer: () -> Unit,
+    showHeader: Boolean = true
 ) {
     var customMinutes by remember(sleepTimerCustomMinutes) {
         mutableFloatStateOf(sleepTimerCustomMinutes.coerceIn(5, 120).toFloat())
@@ -59,8 +87,10 @@ internal fun TimerSheetContent(
         }
     }
 
-    HalfSheetTitle(title = stringResource(R.string.player_sleep_timer_title), onBack = onBack)
-    Spacer(modifier = Modifier.height(18.dp))
+    if (showHeader) {
+        HalfSheetTitle(title = stringResource(R.string.player_sleep_timer_title), onBack = onBack)
+        Spacer(modifier = Modifier.height(18.dp))
+    }
 
     if (timerActive) {
         TimerStatusCard(
@@ -88,7 +118,7 @@ internal fun TimerSheetContent(
             modifier = Modifier.fillMaxWidth(),
             insideMargin = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
             colors = CardDefaults.defaultColors(
-                color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.58f)
+                color = MiuixTheme.colorScheme.secondaryContainer
             )
         ) {
             Row(
@@ -108,26 +138,30 @@ internal fun TimerSheetContent(
                     color = MiuixTheme.colorScheme.onSurface
                 )
             }
-            DottedValueSlider(
-                value = customMinutes,
+            Spacer(modifier = Modifier.height(6.dp))
+            Slider(
+                value = customMinutes.coerceIn(5f, 120f),
                 valueRange = 5f..120f,
-                steps = 23,
                 onValueChange = {
                     customMinutes = it
                     onCustomTimerMinutes(it.toInt().coerceIn(5, 120))
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(70.dp)
+                    .padding(vertical = 4.dp)
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
-        HalfSheetPill(
-            text = stringResource(R.string.player_start_timer_minutes, customMinutes.toInt()),
-            selected = true,
+        Button(
             onClick = { onTimer(customMinutes.toInt().coerceAtLeast(1)) },
-            modifier = Modifier.fillMaxWidth()
-        )
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                color = MiuixTheme.colorScheme.primary,
+                contentColor = MiuixTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(text = stringResource(R.string.player_start_timer_minutes, customMinutes.toInt()))
+        }
         Spacer(modifier = Modifier.height(10.dp))
     }
 
@@ -137,7 +171,12 @@ internal fun TimerSheetContent(
     )
     if (timerActive) {
         Spacer(modifier = Modifier.height(8.dp))
-        PlayerActionMenuItem(stringResource(R.string.player_cancel_sleep_timer), onCancelTimer)
+        Button(
+            onClick = onCancelTimer,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = stringResource(R.string.player_cancel_sleep_timer))
+        }
     }
 }
 
@@ -146,7 +185,7 @@ private fun TimerStatusCard(title: String, subtitle: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
+            color = MiuixTheme.colorScheme.secondaryContainer
         )
     ) {
         BasicComponent(
@@ -165,7 +204,7 @@ private fun StopAfterCurrentRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
+            color = MiuixTheme.colorScheme.secondaryContainer
         )
     ) {
         BasicComponent(

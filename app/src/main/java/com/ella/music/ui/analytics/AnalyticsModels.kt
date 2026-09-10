@@ -21,12 +21,33 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+enum class AnalysisDimension(val labelRes: Int) {
+    FORMAT(R.string.analytics_dimension_format),
+    QUALITY(R.string.analytics_dimension_quality),
+    SAMPLE_RATE(R.string.analytics_dimension_sample_rate),
+    BIT_DEPTH(R.string.analytics_dimension_bit_depth)
+}
+
+enum class AnalysisMetric(val labelRes: Int) {
+    SIZE(R.string.analytics_metric_size),
+    COUNT(R.string.analytics_metric_count)
+}
+
 internal data class LibraryAnalysis(
     val formatBuckets: List<AnalysisBucket>,
     val qualityBuckets: List<AnalysisBucket>,
+    val sampleRateBuckets: List<AnalysisBucket> = emptyList(),
+    val bitDepthBuckets: List<AnalysisBucket> = emptyList(),
     val totalCount: Int,
     val totalSizeBytes: Long
-)
+) {
+    fun getBuckets(dimension: AnalysisDimension): List<AnalysisBucket> = when (dimension) {
+        AnalysisDimension.FORMAT -> formatBuckets
+        AnalysisDimension.QUALITY -> qualityBuckets
+        AnalysisDimension.SAMPLE_RATE -> sampleRateBuckets
+        AnalysisDimension.BIT_DEPTH -> bitDepthBuckets
+    }
+}
 
 internal data class AnalysisBucket(
     val label: String,
@@ -324,6 +345,12 @@ internal fun buildLibraryAnalysis(
         qualityBuckets = rows.toBuckets { qualityLabel(it.song, it.info) }
             .sortedWith(compareBy<AnalysisBucket> { qualityOrder.indexOf(it.label).let { index -> if (index < 0) Int.MAX_VALUE else index } }
                 .thenByDescending { it.count }),
+        sampleRateBuckets = rows.toBuckets { sampleRateLabel(it.info) }
+            .sortedWith(compareByDescending<AnalysisBucket> { parseSampleRateKhz(it.label) }
+                .thenByDescending { it.count }),
+        bitDepthBuckets = rows.toBuckets { bitDepthLabel(it.info) }
+            .sortedWith(compareByDescending<AnalysisBucket> { parseBitDepth(it.label) }
+                .thenByDescending { it.count }),
         totalCount = songs.size,
         totalSizeBytes = songs.sumOf { it.fileSize }
     )
@@ -333,14 +360,14 @@ internal fun readCachedLibraryAnalysis(
     context: Context,
     songs: List<Song>
 ): LibraryAnalysis? {
-    if (songs.isEmpty()) return LibraryAnalysis(emptyList(), emptyList(), 0, 0L)
+    if (songs.isEmpty()) return LibraryAnalysis(emptyList(), emptyList(), emptyList(), emptyList(), 0, 0L)
     val cacheKey = songs.libraryAnalysisCacheKey()
     LibraryAnalysisSessionCache.get(cacheKey)?.let { return it }
     return runCatching {
         val file = libraryAnalysisCacheFile(context)
         if (!file.exists()) return@runCatching null
         val root = JSONObject(file.readText())
-        if (root.optInt("version", 1) < 2) return@runCatching null
+        if (root.optInt("version", 1) < 3) return@runCatching null
         if (root.optString("key") != cacheKey) return@runCatching null
         root.optJSONObject("analysis")?.toLibraryAnalysis()
     }.getOrNull()?.also { LibraryAnalysisSessionCache.put(cacheKey, it) }
@@ -354,7 +381,7 @@ internal fun writeCachedLibraryAnalysis(
     runCatching {
         val file = libraryAnalysisCacheFile(context)
         val root = JSONObject()
-            .put("version", 2)
+            .put("version", 3)
             .put("key", songs.libraryAnalysisCacheKey())
             .put("updatedAt", System.currentTimeMillis())
             .put("analysis", analysis.toJson())
@@ -405,6 +432,8 @@ private fun LibraryAnalysis.toJson(): JSONObject =
     JSONObject()
         .put("formatBuckets", formatBuckets.toJson())
         .put("qualityBuckets", qualityBuckets.toJson())
+        .put("sampleRateBuckets", sampleRateBuckets.toJson())
+        .put("bitDepthBuckets", bitDepthBuckets.toJson())
         .put("totalCount", totalCount)
         .put("totalSizeBytes", totalSizeBytes)
 
@@ -425,6 +454,8 @@ private fun JSONObject.toLibraryAnalysis(): LibraryAnalysis =
     LibraryAnalysis(
         formatBuckets = optJSONArray("formatBuckets").toAnalysisBuckets(),
         qualityBuckets = optJSONArray("qualityBuckets").toAnalysisBuckets(),
+        sampleRateBuckets = optJSONArray("sampleRateBuckets").toAnalysisBuckets(),
+        bitDepthBuckets = optJSONArray("bitDepthBuckets").toAnalysisBuckets(),
         totalCount = optInt("totalCount", 0),
         totalSizeBytes = optLong("totalSizeBytes", 0L)
     )
@@ -498,6 +529,28 @@ internal fun qualityLabel(song: Song, info: AudioInfo): String {
         else -> label
     }
 }
+
+internal fun sampleRateLabel(info: AudioInfo): String {
+    val rate = info.sampleRate
+    if (rate <= 0) return "UNKNOWN"
+    return if (rate % 1000 == 0) {
+        "${rate / 1000} kHz"
+    } else {
+        "%.1f kHz".format(Locale.US, rate / 1000.0)
+    }
+}
+
+internal fun bitDepthLabel(info: AudioInfo): String {
+    val depth = info.bitDepth
+    if (depth <= 0) return "UNKNOWN"
+    return "${depth}-bit"
+}
+
+internal fun parseSampleRateKhz(label: String): Float =
+    label.removeSuffix(" kHz").toFloatOrNull() ?: -1f
+
+internal fun parseBitDepth(label: String): Int =
+    label.removeSuffix("-bit").toIntOrNull() ?: -1
 
 internal fun Song.fileExtension(): String {
     val source = fileName.ifBlank { path.substringAfterLast('/') }
@@ -633,3 +686,37 @@ internal fun qualityBucketColor(label: String): Color = when (label.uppercase())
         qualityOrder.indexOf(label).takeIf { it >= 0 }?.rem(qualityPalette.size) ?: 6
     ]
 }
+
+internal val xiaomiStoragePalette = listOf(
+    Color(0xFFFFB300), // Yellow / Gold
+    Color(0xFF00B0FF), // Cyan / Sky Blue
+    Color(0xFF3D5AFE), // Royal Blue
+    Color(0xFFAA00FF), // Violet / Purple
+    Color(0xFFFF5252), // Coral / Red
+    Color(0xFF00E676), // Bright Green
+    Color(0xFF9E9E9E)  // Slate Grey
+)
+
+internal val sampleRatePalette = listOf(
+    Color(0xFFFFB300), // Amber / Gold (192 kHz+)
+    Color(0xFF00B0FF), // Sky Blue (96 kHz)
+    Color(0xFF3D5AFE), // Deep Blue (48 kHz)
+    Color(0xFF00E676), // Green (44.1 kHz)
+    Color(0xFFAA00FF), // Violet (DSD / Other)
+    Color(0xFF9E9E9E)  // Grey
+)
+
+internal val bitDepthPalette = listOf(
+    Color(0xFFAA00FF), // Purple (32-bit)
+    Color(0xFFFFB300), // Amber (24-bit)
+    Color(0xFF00B0FF), // Cyan (16-bit)
+    Color(0xFF9E9E9E)  // Grey
+)
+
+internal fun dimensionPalette(dimension: AnalysisDimension): List<Color> = when (dimension) {
+    AnalysisDimension.FORMAT -> xiaomiStoragePalette
+    AnalysisDimension.QUALITY -> qualityPalette
+    AnalysisDimension.SAMPLE_RATE -> sampleRatePalette
+    AnalysisDimension.BIT_DEPTH -> bitDepthPalette
+}
+

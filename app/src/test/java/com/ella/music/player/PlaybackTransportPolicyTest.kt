@@ -58,6 +58,19 @@ class PlaybackTransportPolicyTest {
     }
 
     @Test
+    fun pauseProjectionStaysUnacknowledgedWhileAudioTrackIsStillPlaying() {
+        val projection = projectTransportState(
+            actualIsPlaying = true,
+            actualPlayWhenReady = false,
+            pendingTarget = false
+        )
+
+        assertFalse(projection.isPlaying)
+        assertFalse(projection.playWhenReady)
+        assertFalse(projection.acknowledged)
+    }
+
+    @Test
     fun pausedCallbackAcknowledgesPauseProjection() {
         val projection = projectTransportState(
             actualIsPlaying = false,

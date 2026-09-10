@@ -35,8 +35,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import com.ella.music.BuildConfig
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.ui.effect.BgEffectBackground
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
@@ -103,6 +106,7 @@ fun AboutScreen(
     }
 
     Scaffold(
+        containerColor = colorScheme.surface,
         topBar = {
             EllaSmallTopAppBar(
                 title = stringResource(R.string.about),
@@ -158,14 +162,20 @@ private fun AboutContent(
 
     val titleBlend = remember(isDark) { aboutTitleBlendColors(isDark) }
 
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val bgEffectVersion by settingsManager.bgEffectVersion.collectAsState(initial = settingsManager.defaultBgEffectVersion)
+    val isOs1 = bgEffectVersion == SettingsManager.BG_EFFECT_OS1
+    val effectiveBlurEnable = blurEnable && !isOs1
     val cardBlendColors = remember(isDark) { aboutCardBlendColors(isDark) }
 
     BgEffectBackground(
-        dynamicBackground = true,
+        dynamicBackground = !isOs1,
         modifier = Modifier.fillMaxSize(),
         bgModifier = Modifier.layerBackdrop(backdrop),
-        effectBackground = true,
+        effectBackground = !isOs1,
         isDarkTheme = isDark,
+        isOs3 = bgEffectVersion == SettingsManager.BG_EFFECT_OS3,
         alpha = {
             val fade = 1f - scrollProgress
             fade
@@ -186,7 +196,7 @@ private fun AboutContent(
                 modifier = Modifier
                     .padding(top = 0.dp, bottom = 5.dp)
                     .then(
-                        if (blurEnable) Modifier.textureBlur(
+                        if (effectiveBlurEnable) Modifier.textureBlur(
                             backdrop = backdrop,
                             shape = RoundedCornerShape(16.dp),
                             blurRadius = 150f,
@@ -231,7 +241,7 @@ private fun AboutContent(
 
             item {
                 SmallTitle(text = stringResource(R.string.about_project))
-                FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
+                FrostedCard(backdrop = backdrop, blurEnable = effectiveBlurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
                     BasicComponent(
                         title = when {
                             updateState is UpdateUiState.Ready && updateState.hasUpdate ->
@@ -269,7 +279,7 @@ private fun AboutContent(
 
             item {
                 SmallTitle(text = stringResource(R.string.about_acknowledgements))
-                FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
+                FrostedCard(backdrop = backdrop, blurEnable = effectiveBlurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
                     BasicComponent(
                         title = "BetterLyrics",
                         summary = stringResource(R.string.about_summary_betterlyrics),
@@ -286,6 +296,11 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://github.com/pxeemo/LySy") },
                     )
                     BasicComponent(
+                        title = "LunaBeat",
+                        summary = stringResource(R.string.about_summary_lunabeat),
+                        onClick = { uriHandler.openUri("https://github.com/2755337087/LunaBeat") },
+                    )
+                    BasicComponent(
                         title = stringResource(R.string.about_title_lightcone),
                         summary = stringResource(R.string.about_summary_lightcone),
                         onClick = { uriHandler.openUri("https://coneplayer.trantor.ink/") },
@@ -295,7 +310,7 @@ private fun AboutContent(
 
             item {
                 SmallTitle(text = stringResource(R.string.about_open_source_projects))
-                FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
+                FrostedCard(backdrop = backdrop, blurEnable = effectiveBlurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
                     BasicComponent(
                         title = "Miuix",
                         summary = stringResource(R.string.about_summary_miuix),
@@ -372,7 +387,7 @@ private fun AboutContent(
             item {
                 Spacer(
                     Modifier
-                        .height(160.dp)
+                        .height(32.dp)
                         .navigationBarsPadding()
                 )
             }
@@ -405,14 +420,12 @@ private fun FrostedCard(
                 ) else Modifier
             ),
         colors = CardDefaults.defaultColors(
-            if (blurEnable) {
+            color = if (blurEnable) {
                 Color.Transparent
-            } else if (isDark) {
-                aboutCardFallbackColor(isDark).copy(alpha = 0.86f + 0.08f * scrollProgress.coerceIn(0f, 1f))
             } else {
                 colorScheme.surfaceContainer
             },
-            colorScheme.onSurface,
+            contentColor = colorScheme.onSurface,
         ),
     ) {
         content()

@@ -157,19 +157,10 @@ internal fun SongTagEditorSheet(
         spacing = 0.dp,
         showHandle = false
     ) {
-        ExplicitSongTitle(
-            title = song.title.ifBlank { song.fileName },
-            fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.primary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
         EllaMiuixActionMenuGroup {
             options.forEach { option ->
                 SongMenuItem(option.label, onClick = { onOptionClick(option) })
             }
-            SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
         }
     }
 }

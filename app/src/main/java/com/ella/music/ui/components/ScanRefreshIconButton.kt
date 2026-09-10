@@ -1,7 +1,6 @@
 package com.ella.music.ui.components
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -16,12 +15,10 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.SearchDevice
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ScanRefreshIconButton(
     enabled: Boolean,
     onScan: () -> Unit,
-    onDeepRescan: () -> Unit,
     modifier: Modifier = Modifier,
     iconSize: Dp = 24.dp,
     contentDescription: String = stringResource(R.string.library_refresh)
@@ -29,11 +26,7 @@ fun ScanRefreshIconButton(
     Box(
         modifier = modifier
             .size(48.dp)
-            .combinedClickable(
-                enabled = enabled,
-                onClick = onScan,
-                onLongClick = onDeepRescan
-            ),
+            .clickable(enabled = enabled, onClick = onScan),
         contentAlignment = Alignment.Center
     ) {
         Icon(

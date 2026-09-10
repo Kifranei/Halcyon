@@ -56,8 +56,11 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.ExplicitSongTitle
+import com.ella.music.ui.components.AudioQualityListBadge
 import com.ella.music.ui.components.SongRatingIndicator
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.data.audioQualitySummary
+import com.ella.music.data.model.AudioInfo
 import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -163,6 +166,13 @@ internal fun PlayerQueueMenu(
     val queueToolbarLayout by settingsManager.queueToolbarLayout.collectAsState(initial = "")
     val ratingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
         initial = com.ella.music.data.SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
+    )
+    val listQualityMode by settingsManager.listQualityDisplayMode.collectAsState(
+        initial = com.ella.music.data.SettingsManager.LIST_QUALITY_DISPLAY_TABLET
+    )
+    val showQueueQuality = com.ella.music.data.SettingsManager.shouldShowListQuality(
+        listQualityMode,
+        queueContext.resources.configuration.smallestScreenWidthDp
     )
     val queueActions = remember(queueToolbarLayout) {
         com.ella.music.data.ActionMenuLayout.parse(
@@ -437,6 +447,20 @@ internal fun PlayerQueueMenu(
                                 loadSongRating(queueSong).coerceIn(0, 5)
                             }
                         }
+                        val audioInfo by androidx.compose.runtime.produceState<AudioInfo?>(
+                            initialValue = null,
+                            queueSong.id,
+                            showQueueQuality
+                        ) {
+                            value = if (!showQueueQuality) {
+                                null
+                            } else {
+                                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    MusicRepository.getInstance(queueContext).getAudioInfo(queueSong)
+                                }
+                            }
+                        }
+                        val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -482,23 +506,28 @@ internal fun PlayerQueueMenu(
                                         Spacer(modifier = Modifier.width(5.dp))
                                         SongRatingIndicator(
                                             rating = rating,
-                                            displayMode = ratingDisplayMode,
-                                            iconSize = 13.dp,
-                                            numberSize = 11.sp
+                                            displayMode = ratingDisplayMode
                                         )
                                     }
                                 }
-                                Text(
-                                    text = listOf(queueSong.artist, queueSong.album)
-                                        .map { it.trim() }
-                                        .filter { it.isNotBlank() }
-                                        .joinToString(" · ")
-                                        .ifBlank { queueSong.artist },
-                                    fontSize = 11.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (qualityTag != null) {
+                                        AudioQualityListBadge(qualityTag)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = listOf(queueSong.artist, queueSong.album)
+                                            .map { it.trim() }
+                                            .filter { it.isNotBlank() }
+                                            .joinToString(" · ")
+                                            .ifBlank { queueSong.artist },
+                                        fontSize = 11.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                             if (rowCanNavigate) {
                                 Spacer(modifier = Modifier.width(6.dp))

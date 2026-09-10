@@ -113,7 +113,7 @@ internal fun LyricActionMenu(
         modifier
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 10.dp)
+            .padding(vertical = 10.dp)
     } else {
         modifier
     }
@@ -253,6 +253,7 @@ internal fun LyricStyleSettingsContent(
     onPrimaryTextSize: (Float) -> Unit,
     onSecondaryTextSize: (Float) -> Unit,
     onBack: () -> Unit,
+    initialBlurPercent: Int? = null,
     showSheetHeader: Boolean = true,
     applyScrollableContainer: Boolean = true,
     modifier: Modifier = Modifier
@@ -260,7 +261,7 @@ internal fun LyricStyleSettingsContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val nonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = 40)
+    val nonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = initialBlurPercent ?: 40)
     val configuration = LocalConfiguration.current
     val ultraWideLandscape = isUltraWideLandscapePlayerLayout(
         screenWidthDp = configuration.screenWidthDp,

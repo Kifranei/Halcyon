@@ -19,6 +19,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_EMBY_USER_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_EMBY_USERNAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SOURCE
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SELECTED_SOURCE_ID
+import com.ella.music.data.SettingsManager.Companion.KEY_LX_SELECTED_SEARCH_PLATFORM
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_SCRIPT
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_URL
@@ -34,6 +35,9 @@ import com.ella.music.data.SettingsManager.Companion.KEY_ONLINE_SELECTED_PROVIDE
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENAI_API_KEY
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENAI_BASE_URL
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENAI_MODEL
+import com.ella.music.data.SettingsManager.Companion.KEY_AI_API_PROTOCOL
+import com.ella.music.data.SettingsManager.Companion.AI_API_PROTOCOL_COMPATIBLE
+import com.ella.music.data.SettingsManager.Companion.AI_API_PROTOCOL_ANTHROPIC
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENSUBSONIC_ACTIVE_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENSUBSONIC_SERVERS
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_ENABLED
@@ -85,6 +89,7 @@ interface RemoteSourceSettingsAccess {
     val webDavRestoreLastSeenAt: Flow<Long>
     val lxSources: Flow<List<LxSourceConfig>>
     val selectedLxSourceId: Flow<String>
+    val selectedLxSearchPlatform: Flow<String>
     val selectedLxSource: Flow<LxSourceConfig?>
     val lxSourceUrl: Flow<String>
     val lxSourceName: Flow<String>
@@ -103,6 +108,7 @@ interface RemoteSourceSettingsAccess {
     val openAiApiKey: Flow<String>
     val openAiBaseUrl: Flow<String>
     val openAiModel: Flow<String>
+    val aiApiProtocol: Flow<Int>
     suspend fun setMcpServerEnabled(enabled: Boolean)
     suspend fun setWebMusicServerEnabled(enabled: Boolean)
     suspend fun setLibrarySource(source: String)
@@ -114,6 +120,7 @@ interface RemoteSourceSettingsAccess {
     suspend fun setLxSource(url: String, name: String, script: String)
     suspend fun clearLxSource()
     suspend fun selectLxSource(id: String)
+    suspend fun setSelectedLxSearchPlatform(platform: String)
     suspend fun removeLxSource(id: String)
     suspend fun selectOnlineProvider(provider: RemoteMusicProvider)
     fun newRemoteServerId(): String
@@ -135,6 +142,7 @@ interface RemoteSourceSettingsAccess {
     suspend fun setOpenAiApiKey(apiKey: String)
     suspend fun setOpenAiBaseUrl(baseUrl: String)
     suspend fun setOpenAiModel(model: String)
+    suspend fun setAiApiProtocol(protocol: Int)
 }
 
 internal class RemoteSourceSettingsAccessImpl(private val context: Context) : RemoteSourceSettingsAccess {
@@ -167,6 +175,7 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
     }
     override val lxSources: Flow<List<LxSourceConfig>> = context.dataStore.data.map { prefs -> prefs.lxSources() }
     override val selectedLxSourceId: Flow<String> = context.dataStore.data.map { it[KEY_LX_SELECTED_SOURCE_ID] ?: "" }
+    override val selectedLxSearchPlatform: Flow<String> = context.dataStore.data.map { it[KEY_LX_SELECTED_SEARCH_PLATFORM] ?: "" }
     override val selectedLxSource: Flow<LxSourceConfig?> = context.dataStore.data.map { prefs ->
         val sources = prefs.lxSources()
         val selectedId = prefs[KEY_LX_SELECTED_SOURCE_ID].orEmpty()
@@ -259,6 +268,11 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
         context.dataStore.data.map { it[KEY_OPENAI_BASE_URL] ?: DEFAULT_OPENAI_BASE_URL }
     override val openAiModel: Flow<String> =
         context.dataStore.data.map { it[KEY_OPENAI_MODEL] ?: DEFAULT_OPENAI_MODEL }
+    override val aiApiProtocol: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_AI_API_PROTOCOL] ?: AI_API_PROTOCOL_COMPATIBLE)
+                .coerceIn(AI_API_PROTOCOL_COMPATIBLE, AI_API_PROTOCOL_ANTHROPIC)
+        }
 
     override suspend fun setMcpServerEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MCP_SERVER_ENABLED] = enabled }
@@ -362,6 +376,16 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
                 prefs[KEY_LX_SOURCE_URL] = selected.url
                 prefs[KEY_LX_SOURCE_NAME] = selected.name
                 prefs[KEY_LX_SOURCE_SCRIPT] = selected.script
+            }
+        }
+    }
+
+    override suspend fun setSelectedLxSearchPlatform(platform: String) {
+        context.dataStore.edit {
+            if (platform.isBlank()) {
+                it.remove(KEY_LX_SELECTED_SEARCH_PLATFORM)
+            } else {
+                it[KEY_LX_SELECTED_SEARCH_PLATFORM] = platform.trim()
             }
         }
     }
@@ -505,6 +529,15 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
     override suspend fun setOpenAiModel(model: String) {
         context.dataStore.edit {
             it[KEY_OPENAI_MODEL] = model.trim().ifBlank { DEFAULT_OPENAI_MODEL }
+        }
+    }
+
+    override suspend fun setAiApiProtocol(protocol: Int) {
+        context.dataStore.edit {
+            it[KEY_AI_API_PROTOCOL] = protocol.coerceIn(
+                AI_API_PROTOCOL_COMPATIBLE,
+                AI_API_PROTOCOL_ANTHROPIC
+            )
         }
     }
 

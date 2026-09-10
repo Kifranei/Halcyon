@@ -64,7 +64,7 @@ fun BackupSettingsScreen(
     val playbackStatsStore = remember { PlaybackStatsStore.getInstance(context) }
     val librarySongs by mainViewModel?.songs?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
     suspend fun writeBackupText(uri: Uri, text: String) = withContext(Dispatchers.IO) {
         context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
             output.bufferedWriter(Charsets.UTF_8).use { writer ->
@@ -270,7 +270,7 @@ fun BackupSettingsScreen(
     ) {
         EllaSmallTopAppBar(
             title = stringResource(R.string.settings_backup),
-            color = pageBackground,
+            color = Color.Transparent,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -424,7 +424,7 @@ fun BackupSettingsScreen(
                                         password = effectivePassword
                                     )
                                     val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
-                                    val fileName = "halcyon_backup_${System.currentTimeMillis()}.zip"
+                                    val fileName = generateBackupFileName("zip")
                                     val fullUrl = "${effectiveUrl.trimEnd('/')}/$path/$fileName"
                                     val archive = withContext(Dispatchers.IO) {
                                         buildApplicationBackupZipFile(context, librarySongs = librarySongs)
@@ -571,7 +571,7 @@ fun BackupSettingsScreen(
         onConfirm = { selectedTypes ->
             exportTypeSelection = selectedTypes
             pendingExportTypes = selectedTypes
-            settingsExportLauncher.launch("halcyon_settings_${System.currentTimeMillis()}.zip")
+            settingsExportLauncher.launch(generateBackupFileName("zip"))
         }
     )
 

@@ -11,12 +11,16 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -28,20 +32,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -60,14 +61,14 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.window.WindowDialog
+
+val LocalInBottomSheet = androidx.compose.runtime.compositionLocalOf { false }
 
 data class EllaMiuixAction(
     val text: String,
@@ -80,9 +81,10 @@ data class EllaMiuixAction(
 @Composable
 fun EllaMiuixBottomSheet(
     show: Boolean,
-    title: String,
+    title: String? = null,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null,
     enableNestedScroll: Boolean = true,
@@ -94,16 +96,22 @@ fun EllaMiuixBottomSheet(
     WindowBottomSheet(
         show = show,
         title = title,
+        startAction = startAction,
         endAction = endAction,
         onDismissRequest = onDismissRequest,
         onDismissFinished = onDismissFinished,
         enableNestedScroll = enableNestedScroll,
         cornerRadius = 28.dp,
         insideMargin = DpSize(20.dp, 18.dp),
-        backgroundColor = MiuixTheme.colorScheme.background.copy(alpha = 0.98f),
+        backgroundColor = MiuixTheme.colorScheme.background,
         modifier = modifier,
         content = {
-            CompositionLocalProvider(LocalDensity provides inheritedDensity) {
+            CompositionLocalProvider(
+                LocalDensity provides inheritedDensity,
+                LocalSettingsCardFrosting provides null,
+                LocalSharedAppBackgroundVisible provides false,
+                LocalInBottomSheet provides true
+            ) {
                 ApplyHalcyonSystemBarsToCurrentWindow()
                 Box(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)) {
                     content()
@@ -127,10 +135,107 @@ fun EllaMiuixDialog(
         title = title,
         summary = summary,
         onDismissRequest = onDismissRequest,
-        backgroundColor = MiuixTheme.colorScheme.background.copy(alpha = 0.98f),
+        backgroundColor = MiuixTheme.colorScheme.background,
         insideMargin = DpSize(22.dp, 20.dp),
         modifier = modifier,
-        content = content
+        content = {
+            CompositionLocalProvider(
+                LocalSettingsCardFrosting provides null,
+                LocalSharedAppBackgroundVisible provides false,
+                LocalInBottomSheet provides true
+            ) {
+                content()
+            }
+        }
+    )
+}
+
+@Composable
+fun EllaMiuixWideDialog(
+    show: Boolean,
+    title: String,
+    summary: String? = null,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    portraitActions: @Composable () -> Unit,
+    landscapeActions: @Composable () -> Unit
+) {
+    val windowSize = androidx.compose.ui.platform.LocalWindowInfo.current.containerDpSize
+    val isLandscape = windowSize.width > windowSize.height
+
+    WindowDialog(
+        show = show,
+        title = if (isLandscape) null else title,
+        summary = if (isLandscape) null else summary,
+        onDismissRequest = onDismissRequest,
+        backgroundColor = MiuixTheme.colorScheme.background,
+        insideMargin = DpSize(22.dp, 20.dp),
+        modifier = if (isLandscape) modifier.widthIn(max = 560.dp) else modifier,
+        content = {
+            CompositionLocalProvider(
+                LocalSettingsCardFrosting provides null,
+                LocalSharedAppBackgroundVisible provides false,
+                LocalInBottomSheet provides true
+            ) {
+                if (isLandscape) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = title,
+                                style = MiuixTheme.textStyles.title4,
+                                color = MiuixTheme.colorScheme.onBackground,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
+                            if (!summary.isNullOrBlank()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    text = summary,
+                                    style = MiuixTheme.textStyles.body1,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(1.dp)
+                                .background(MiuixTheme.colorScheme.dividerLine)
+                                .padding(horizontal = 20.dp)
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            verticalArrangement = Arrangement.spacedBy(
+                                space = 12.dp,
+                                alignment = Alignment.CenterVertically
+                            )
+                        ) {
+                            landscapeActions()
+                        }
+                    }
+                } else {
+                    portraitActions()
+                }
+            }
+        }
     )
 }
 
@@ -169,63 +274,6 @@ fun EllaMiuixTripleDialogActions(
         ),
         modifier = modifier,
         spacing = 8.dp
-    )
-}
-
-@Composable
-fun EllaMiuixTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    singleLine: Boolean = true,
-    selectAllOnStart: Boolean = false,
-    focusRequester: FocusRequester? = null,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default,
-    textStyle: TextStyle = TextStyle(
-        color = MiuixTheme.colorScheme.onSurface,
-        fontSize = 15.sp
-    )
-) {
-    val focusModifier = if (focusRequester != null) {
-        Modifier.focusRequester(focusRequester)
-    } else {
-        Modifier
-    }
-    // Drive the field through a TextFieldValue so a pre-filled value (e.g. rename) starts with the
-    // caret at the end instead of position 0. External value changes also reset the caret to the end.
-    val initialSelection = if (selectAllOnStart && value.isNotEmpty()) {
-        TextRange(0, value.length)
-    } else {
-        TextRange(value.length)
-    }
-    var fieldValue by remember { mutableStateOf(TextFieldValue(value, initialSelection)) }
-    if (value != fieldValue.text) {
-        fieldValue = TextFieldValue(value, TextRange(value.length))
-    }
-    TextField(
-        value = fieldValue,
-        onValueChange = {
-            fieldValue = it
-            if (it.text != value) onValueChange(it.text)
-        },
-        label = label,
-        useLabelAsPlaceholder = true,
-        singleLine = singleLine,
-        insideMargin = DpSize(14.dp, 11.dp),
-        colors = TextFieldDefaults.textFieldColors(
-            backgroundColor = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.84f),
-        ),
-        cornerRadius = 14.dp,
-        textStyle = textStyle,
-        visualTransformation = visualTransformation,
-        keyboardOptions = keyboardOptions,
-        keyboardActions = keyboardActions,
-        modifier = modifier
-            .fillMaxWidth()
-            .then(focusModifier)
     )
 }
 
@@ -431,7 +479,11 @@ fun EllaMiuixActionRow(
                 TextButton(
                     text = action.text,
                     onClick = action.onClick,
-                    modifier = buttonModifier
+                    modifier = buttonModifier,
+                    colors = ButtonDefaults.textButtonColors(
+                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                        textColor = MiuixTheme.colorScheme.onSurface
+                    )
                 )
             }
         }
@@ -442,7 +494,7 @@ fun EllaMiuixActionRow(
 fun EllaMiuixSheetColumn(
     modifier: Modifier = Modifier,
     maxHeight: Dp = 560.dp,
-    horizontalPadding: Dp = 18.dp,
+    horizontalPadding: Dp = 0.dp,
     verticalPadding: Dp = 12.dp,
     spacing: Dp = 6.dp,
     showHandle: Boolean = true,

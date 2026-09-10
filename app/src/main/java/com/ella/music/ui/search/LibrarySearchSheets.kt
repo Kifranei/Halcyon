@@ -18,6 +18,7 @@ import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.ui.components.ActionMenuCommonIcons
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.EllaMiuixBottomSheet
@@ -144,7 +145,9 @@ internal fun LibrarySearchAuxiliarySurfaces(
                         onClick = {
                             folderToBlock = target.item.name.normalizeFolderPath()
                             onActionTargetChange(null)
-                        }
+                        },
+                        danger = true,
+                        icon = ActionMenuCommonIcons.block
                     )
                 }
             }

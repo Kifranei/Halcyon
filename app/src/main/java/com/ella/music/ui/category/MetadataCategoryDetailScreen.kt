@@ -159,7 +159,7 @@ fun MetadataCategoryDetailScreen(
             }
         }
     }
-    val sortedSongs by produceState(emptyList<Song>(), filteredSongs, sortMode) {
+    val sortedSongs by produceState(emptyList<Song>(), filteredSongs, sortMode, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         value = withContext(Dispatchers.Default) {
             filteredSongs.sortedForMetadataDetail(sortMode)
         }
@@ -520,6 +520,14 @@ fun MetadataCategoryDetailScreen(
                                     LibrarySortUiState.updateMetadataCategoryDetailSongSortIndex(type, mode.ordinal)
                                     saveScope.launch { mainViewModel.settingsManager.setMetadataCategoryDetailSongSortIndex(type, mode.ordinal) }
                                 }
+                            ) + listOf(
+                                com.ella.music.ui.components.randomSortDropdownItem(
+                                    selected = sortMode == MetadataDetailSongSortMode.Random,
+                                    onSelect = {
+                                        LibrarySortUiState.updateMetadataCategoryDetailSongSortIndex(type, MetadataDetailSongSortMode.Random.ordinal)
+                                        saveScope.launch { mainViewModel.settingsManager.setMetadataCategoryDetailSongSortIndex(type, MetadataDetailSongSortMode.Random.ordinal) }
+                                    }
+                                )
                             )
                         }
                         SortDropdownMenu(items = sortItems)

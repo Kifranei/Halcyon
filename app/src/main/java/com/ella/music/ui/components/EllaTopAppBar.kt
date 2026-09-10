@@ -1,5 +1,6 @@
 package com.ella.music.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,6 +25,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
+import com.ella.music.data.SettingsManager
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
@@ -40,6 +50,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * keeps ordinary (non-settings) top bars unchanged.
  */
 val LocalSettingsCloseAction = staticCompositionLocalOf<(() -> Unit)?> { null }
+val LocalTopBarBlurStyle = staticCompositionLocalOf { SettingsManager.TOP_BAR_BLUR_OFF }
+val LocalBackdrop = staticCompositionLocalOf<top.yukonga.miuix.kmp.blur.LayerBackdrop?> { null }
 
 @Composable
 fun EllaSmallTopAppBar(
@@ -64,6 +76,7 @@ fun EllaSmallTopAppBar(
     bottomContent: @Composable () -> Unit = {},
 ) {
     val settingsCloseAction = LocalSettingsCloseAction.current
+
     val effectiveActions: @Composable RowScope.() -> Unit = {
         actions()
         settingsCloseAction?.let { close ->

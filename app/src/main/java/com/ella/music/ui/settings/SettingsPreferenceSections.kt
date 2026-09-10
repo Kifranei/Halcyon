@@ -4,6 +4,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -26,17 +27,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.ai.AiProviderClient
+import com.ella.music.data.ai.OpenAiSongInterpretationConfig
+import com.ella.music.data.ai.resolveAiApiProtocol
 import com.ella.music.ui.components.TagEditorOptionIds
 import com.ella.music.ui.components.SpectrumViewerLauncher
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun SettingsHomeCustomizeSection(
@@ -47,7 +61,6 @@ internal fun SettingsHomeCustomizeSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(initial = "")
-    val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = true)
     val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
     val homeFeatureWallpaperPicker = rememberAppearanceImagePicker(
         currentUri = homeFeatureWallpaperUri,
@@ -82,14 +95,6 @@ internal fun SettingsHomeCustomizeSection(
                     }
                 )
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_ai_mix),
-                summary = stringResource(R.string.settings_ai_mix_summary),
-                checked = homeAiMixVisible,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setHomeAiMixVisible(it) }
-                }
-            )
             SwitchPreference(
                 title = stringResource(R.string.settings_continue_playback_row),
                 summary = stringResource(R.string.settings_continue_playback_row_summary),
@@ -163,17 +168,17 @@ internal fun SettingsLibrarySourceSection(
             )
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_navidrome)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_navidrome_summary),
                 onClick = { onOpenNavidromeConfig?.invoke() }
             )
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_opensubsonic)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_opensubsonic_summary),
                 onClick = { onOpenOpenSubsonicConfig?.invoke() }
             )
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_emby)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_emby_summary),
                 onClick = { onOpenEmbyConfig?.invoke() }
             )
             ArrowPreference(
@@ -195,6 +200,19 @@ internal fun SettingsAiInterpretationSection(
     val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
     val openAiBaseUrl by settingsManager.openAiBaseUrl.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_BASE_URL)
     val openAiModel by settingsManager.openAiModel.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_MODEL)
+    val aiApiProtocol by settingsManager.aiApiProtocol.collectAsState(
+        initial = SettingsManager.AI_API_PROTOCOL_COMPATIBLE
+    )
+    var fetchingModels by remember { mutableStateOf(false) }
+    var modelSheetVisible by remember { mutableStateOf(false) }
+    var fetchedModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    val protocolLabels = listOf(
+        stringResource(R.string.settings_ai_protocol_compatible),
+        stringResource(R.string.settings_ai_protocol_anthropic)
+    )
+    val protocolEntries = remember(protocolLabels) { protocolLabels.map { DropdownItem(title = it) } }
+    val selectedProtocol = aiApiProtocol.coerceIn(protocolLabels.indices)
+    val canFetchModels = openAiApiKey.isNotBlank() && openAiBaseUrl.isNotBlank() && !fetchingModels
 
     SmallTitle(text = stringResource(R.string.settings_ai_interpretation))
 
@@ -202,24 +220,122 @@ internal fun SettingsAiInterpretationSection(
         Column {
             SettingsFocusAnchor(active = highlightKey == "ai") {
                 SplitSettingTextField(
-                    label = "OpenAI API Key",
+                    label = stringResource(R.string.settings_ai_api_key),
                     value = openAiApiKey,
                     summary = stringResource(R.string.settings_openai_api_key_summary),
+                    isPassword = true,
+                    singleLine = true,
                     onValueChange = { value -> scope.launch { settingsManager.setOpenAiApiKey(value) } }
                 )
             }
             SplitSettingTextField(
-                label = "OpenAI Base URL",
+                label = stringResource(R.string.settings_ai_base_url),
                 value = openAiBaseUrl,
                 summary = stringResource(R.string.settings_openai_base_url_summary),
+                singleLine = true,
                 onValueChange = { value -> scope.launch { settingsManager.setOpenAiBaseUrl(value) } }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_ai_protocol),
+                summary = protocolLabels[selectedProtocol],
+                items = protocolEntries,
+                selectedIndex = selectedProtocol,
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setAiApiProtocol(index) }
+                }
             )
             SplitSettingTextField(
                 label = stringResource(R.string.settings_openai_model),
                 value = openAiModel,
                 summary = stringResource(R.string.settings_openai_model_summary, SettingsManager.DEFAULT_OPENAI_MODEL),
+                singleLine = true,
+                endAction = {
+                    IconButton(
+                        onClick = {
+                            if (!canFetchModels) return@IconButton
+                            fetchingModels = true
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        AiProviderClient(context).listModels(
+                                            OpenAiSongInterpretationConfig(
+                                                apiKey = openAiApiKey,
+                                                baseUrl = openAiBaseUrl,
+                                                model = openAiModel,
+                                                protocol = resolveAiApiProtocol(aiApiProtocol, openAiBaseUrl)
+                                            )
+                                        )
+                                    }
+                                }.onSuccess { models ->
+                                    fetchedModels = models
+                                    if (models.isEmpty()) {
+                                        Toast.makeText(
+                                            context,
+                                            R.string.settings_ai_models_empty,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        modelSheetVisible = true
+                                    }
+                                }.onFailure { error ->
+                                    Toast.makeText(
+                                        context,
+                                        error.message.orEmpty().ifBlank {
+                                            context.getString(R.string.settings_ai_models_fetch_failed)
+                                        },
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                fetchingModels = false
+                            }
+                        },
+                        enabled = canFetchModels
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = stringResource(R.string.settings_ai_fetch_models),
+                            tint = if (canFetchModels) {
+                                MiuixTheme.colorScheme.primary
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            }
+                        )
+                    }
+                },
                 onValueChange = { value -> scope.launch { settingsManager.setOpenAiModel(value) } }
             )
+        }
+    }
+
+    EllaMiuixBottomSheet(
+        show = modelSheetVisible,
+        title = stringResource(R.string.settings_ai_select_model),
+        onDismissRequest = { modelSheetVisible = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 720.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            fetchedModels.forEach { modelId ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 16.dp,
+                    colors = CardDefaults.defaultColors(
+                        color = MiuixTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    BasicComponent(
+                        title = modelId,
+                        onClick = {
+                            scope.launch { settingsManager.setOpenAiModel(modelId) }
+                            modelSheetVisible = false
+                        }
+                    )
+                }
+            }
         }
     }
 }

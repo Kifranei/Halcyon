@@ -313,6 +313,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lyricBlacklistRules = emptyList<LyricBlacklistRule>()
     private var hideLyricExtraInfo = true
     private var lyricOpeningTemplate = ""
+    private var lyricOpeningAsFallback = false
     private var appliedDecoderMode: Int? = null
     private var appliedLyricSourceMode: Int? = null
     private var previousButtonAction = SettingsManager.PREVIOUS_BUTTON_PREVIOUS
@@ -763,8 +764,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun initLyricOpeningTemplate() {
         viewModelScope.launch {
             var initialized = false
-            settingsManager.lyricOpeningTemplate.distinctUntilChanged().collect { template ->
+            combine(
+                settingsManager.lyricOpeningTemplate,
+                settingsManager.lyricOpeningAsFallback
+            ) { template, fallback ->
+                template to fallback
+            }.distinctUntilChanged().collect { (template, fallback) ->
                 lyricOpeningTemplate = template
+                lyricOpeningAsFallback = fallback
                 if (!initialized) {
                     initialized = true
                     applyCurrentLyricOffset(notifyExternal = false)
@@ -1370,7 +1377,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val nextLyrics = _rawLyrics.value
             .filterBlacklistedLyricLines()
             .shiftedBy(offsetMs)
-            .withOpeningMetadataLine(song, lyricOpeningTemplate)
+            .withOpeningMetadataLine(song, lyricOpeningTemplate, lyricOpeningAsFallback)
             .withImplicitLineEndTimes()
         val lyricsChanged = _lyrics.value != nextLyrics
         if (lyricsChanged) {

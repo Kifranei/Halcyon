@@ -92,6 +92,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.ella.music.data.ActionMenuIds
+import com.ella.music.data.tagIdentityKey
+import com.ella.music.ui.components.ActionMenuCommonIcons
+import com.ella.music.ui.components.AddToPlaylistSheet
+import com.ella.music.ui.components.ConfirmDangerDialog
+import com.ella.music.ui.components.CreatePlaylistAndAddSheet
+import com.ella.music.ui.components.EllaMiuixActionMenuGroup
+import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.EllaMiuixMenuItem
+import com.ella.music.ui.components.actionMenuIcon
+import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
+import com.ella.music.ui.components.requestPinnedEllaShortcut
+import com.ella.music.ui.components.shareLocalSongs
+import com.ella.music.ui.folder.FolderActionSheet
+import com.ella.music.ui.folder.FolderBlockDialog
+import com.ella.music.ui.folder.LinkToFolderPlaylistSheet
+import com.ella.music.ui.folder.normalizeFolderPath
+import com.ella.music.ui.navigation.Screen
+import java.util.Locale
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
@@ -143,6 +162,9 @@ fun MetadataCategoryScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var associateFolderPaths by remember { mutableStateOf<List<String>?>(null) }
+    val folderPlaylists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
+    val librarySongs by mainViewModel.songs.collectAsState()
     val displayedItems = remember(pinnedOrderedItems, searchQuery, type) {
         val query = searchQuery.trim()
         if (query.isBlank()) {
@@ -561,29 +583,262 @@ fun MetadataCategoryScreen(
         }
     }
 
-    MetadataCategoryScreenSurfaces(
-        context = context,
-        type = type,
-        mainViewModel = mainViewModel,
-        playerViewModel = playerViewModel,
-        playlists = playlists,
-        blockedFolders = blockedFolders,
-        categoryMenuItem = categoryMenuItem,
-        onCategoryMenuItemChange = { categoryMenuItem = it },
-        pinnedCategoryKeys = pinnedCategoryKeys,
-        folderToBlock = folderToBlock,
-        onFolderToBlockChange = { folderToBlock = it },
-        playlistPickerSongs = playlistPickerSongs,
-        onPlaylistPickerSongsChange = { playlistPickerSongs = it },
-        createPlaylistSongs = createPlaylistSongs,
-        onCreatePlaylistSongsChange = { createPlaylistSongs = it },
-        pendingDeleteSongs = pendingDeleteSongs,
-        onPendingDeleteSongsChange = { pendingDeleteSongs = it },
-        onRequestDeleteSongs = requestDeleteSongs,
-        loadDetailSongs = { categoryType, categoryName ->
-            mainViewModel.detailSortedSongsForMetadataCategory(categoryType, categoryName)
+    categoryMenuItem?.let { item ->
+        val isPinned = item.name in pinnedCategoryKeys
+        if (type == "folder") {
+            val folderTitle = item.name.substringAfterLast('/').ifBlank { item.name }
+            FolderActionSheet(
+                title = stringResource(R.string.player_more_actions),
+                isPinned = isPinned,
+                onDismiss = { categoryMenuItem = null },
+                onTogglePin = {
+                    categoryMenuItem = null
+                    scope.launch {
+                        mainViewModel.settingsManager.setPinned("category:$type", item.name, !isPinned)
+                    }
+                },
+                onShare = {
+                    val selectedSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
+                    shareLocalSongs(context, selectedSongs)
+                    categoryMenuItem = null
+                },
+                onAssociate = {
+                    associateFolderPaths = listOf(item.name)
+                    categoryMenuItem = null
+                },
+                onAddToPlaylist = {
+                    scope.launch {
+                        playlistPickerSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
+                    }
+                    categoryMenuItem = null
+                },
+                onAddToQueue = {
+                    scope.launch {
+                        val selectedSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
+                        playerViewModel.addToPlaylist(
+                            selectedSongs,
+                            playbackSourcesForSongs(
+                                listOf(CategoryResumeKeys.metadata(type, item.name) to selectedSongs)
+                            )
+                        )
+                        Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                    }
+                    categoryMenuItem = null
+                },
+                onPlayNext = {
+                    scope.launch {
+                        val selectedSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
+                        playerViewModel.playNext(
+                            selectedSongs,
+                            playbackSourcesForSongs(
+                                listOf(CategoryResumeKeys.metadata(type, item.name) to selectedSongs)
+                            )
+                        )
+                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    }
+                    categoryMenuItem = null
+                },
+                onAddShortcut = {
+                    val ok = requestPinnedEllaShortcut(
+                        context = context,
+                        id = "folder_${item.name.tagIdentityKey()}",
+                        label = folderTitle,
+                        route = Screen.FolderDetail.createRoute(item.name)
+                    )
+                    Toast.makeText(
+                        context,
+                        if (ok) context.getString(R.string.playlist_shortcut_requested, folderTitle) else context.getString(R.string.playlist_shortcut_unsupported),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    categoryMenuItem = null
+                },
+                onBlock = {
+                    folderToBlock = item.name.normalizeFolderPath()
+                    categoryMenuItem = null
+                }
+            )
+        } else {
+            com.ella.music.ui.components.LibraryEntityActionSheet(
+                show = true,
+                title = stringResource(R.string.player_more_actions),
+                onDismissRequest = { categoryMenuItem = null },
+                actions = listOf(
+                    com.ella.music.ui.components.LibraryEntityActions.pin(isPinned = isPinned) {
+                        scope.launch {
+                            mainViewModel.settingsManager.setPinned("category:$type", item.name, !isPinned)
+                        }
+                        categoryMenuItem = null
+                    },
+                    com.ella.music.ui.components.LibraryEntityActions.share {
+                        val selectedSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
+                        shareLocalSongs(context, selectedSongs)
+                        categoryMenuItem = null
+                    },
+                    com.ella.music.ui.components.LibraryEntityActions.addToPlaylist {
+                        scope.launch {
+                            playlistPickerSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
+                        }
+                        categoryMenuItem = null
+                    },
+                    com.ella.music.ui.components.LibraryEntityActions.addToQueue {
+                        scope.launch {
+                            val selectedSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
+                            playerViewModel.addToPlaylist(
+                                selectedSongs,
+                                playbackSourcesForSongs(
+                                    listOf(CategoryResumeKeys.metadata(type, item.name) to selectedSongs)
+                                )
+                            )
+                            Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                        }
+                        categoryMenuItem = null
+                    },
+                    com.ella.music.ui.components.LibraryEntityActions.playNext {
+                        scope.launch {
+                            val selectedSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
+                            playerViewModel.playNext(
+                                selectedSongs,
+                                playbackSourcesForSongs(
+                                    listOf(CategoryResumeKeys.metadata(type, item.name) to selectedSongs)
+                                )
+                            )
+                            Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                        }
+                        categoryMenuItem = null
+                    },
+                    com.ella.music.ui.components.LibraryEntityActions.desktopShortcut {
+                        val ok = requestPinnedEllaShortcut(
+                            context = context,
+                            id = "category_${type}_${item.name.tagIdentityKey()}",
+                            label = item.name,
+                            route = Screen.MetadataCategoryDetail.createRoute(type, item.name)
+                        )
+                        Toast.makeText(
+                            context,
+                            if (ok) context.getString(R.string.playlist_shortcut_requested, item.name) else context.getString(R.string.playlist_shortcut_unsupported),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        categoryMenuItem = null
+                    },
+                    com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
+                        pendingDeleteSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
+                        categoryMenuItem = null
+                    }
+                )
+            )
         }
-    )
+    }
+
+    associateFolderPaths?.let { sourceFolders ->
+        LinkToFolderPlaylistSheet(
+            show = true,
+            songs = librarySongs,
+            selectedFolderCount = sourceFolders.size,
+            folderPlaylists = folderPlaylists,
+            onDismiss = { associateFolderPaths = null },
+            onLink = { targets ->
+                scope.launch {
+                    targets.forEach { target ->
+                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                            target.id,
+                            target.name,
+                            (target.folders + sourceFolders).distinctBy { it.lowercase() }
+                        )
+                    }
+                    Toast.makeText(
+                        context,
+                        if (targets.size == 1) {
+                            context.getString(R.string.folder_playlist_associate_done, targets.first().name)
+                        } else {
+                            context.getString(R.string.folder_playlist_associate_multi_done, targets.size)
+                        },
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                associateFolderPaths = null
+            },
+            onCreatePlaylist = { name ->
+                scope.launch { mainViewModel.settingsManager.upsertFolderPlaylist(null, name, sourceFolders) }
+                associateFolderPaths = null
+            }
+        )
+    }
+
+    folderToBlock?.let { folderPath ->
+        FolderBlockDialog(
+            folderPath = folderPath,
+            onDismiss = { folderToBlock = null },
+            onBlock = {
+                scope.launch {
+                    val normalizedPath = folderPath.normalizeFolderPath()
+                    mainViewModel.settingsManager.setScanExcludeFolders(
+                        (blockedFolders + normalizedPath)
+                            .distinctBy { it.normalizeFolderPath().lowercase(Locale.ROOT) }
+                            .joinToString("；")
+                    )
+                    mainViewModel.scanMusic()
+                }
+                folderToBlock = null
+            }
+        )
+    }
+
+    playlistPickerSongs?.let { songs ->
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.song_more_add_to_playlist_title),
+            onDismissRequest = { playlistPickerSongs = null }
+        ) {
+            AddToPlaylistSheet(
+                playlists = playlists,
+                songsToAdd = songs,
+                songCount = songs.size,
+                onDismiss = { playlistPickerSongs = null },
+                onCreatePlaylist = {
+                    createPlaylistSongs = songs
+                    playlistPickerSongs = null
+                },
+                onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
+                    selectedPlaylists.forEach { playlist ->
+                        mainViewModel.addSongsToPlaylist(playlist.id, songs, appendToEnd)
+                    }
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    playlistPickerSongs = null
+                }
+            )
+        }
+    }
+
+    createPlaylistSongs?.let { songs ->
+        CreatePlaylistAndAddSheet(
+            onDismiss = { createPlaylistSongs = null },
+            onCreate = { name ->
+                mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { playlist ->
+                    mainViewModel.addSongsToPlaylist(playlist.id, songs)
+                    createPlaylistSongs = null
+                }
+            }
+        )
+    }
+
+    if (pendingDeleteSongs.isNotEmpty()) {
+        ConfirmDangerDialog(
+            show = true,
+            title = stringResource(R.string.song_more_delete_song_title),
+            message = stringResource(R.string.library_delete_selected_message, pendingDeleteSongs.size),
+            confirmText = stringResource(R.string.song_more_delete_permanently),
+            onDismiss = { pendingDeleteSongs = emptyList() },
+            onConfirm = {
+                requestDeleteSongs(pendingDeleteSongs)
+                pendingDeleteSongs = emptyList()
+            }
+        )
+    }
 }
 }
 

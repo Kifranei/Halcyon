@@ -62,7 +62,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import androidx.compose.foundation.background
+import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.frostedCardColor
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -146,9 +150,16 @@ private fun CastingDeviceScreen(controller: MediaController?, onBack: () -> Unit
     }
     LaunchedEffect(Unit) { scan() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    val pageBackground = ellaPageBackground()
+    val cardColor = frostedCardColor()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+    ) {
         EllaSmallTopAppBar(
             title = stringResource(R.string.casting_devices_title),
+            color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -168,7 +179,8 @@ private fun CastingDeviceScreen(controller: MediaController?, onBack: () -> Unit
                 CastingSectionTitle(stringResource(R.string.casting_chromecast))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 20.dp
+                    cornerRadius = 20.dp,
+                    colors = CardDefaults.defaultColors(color = cardColor)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -281,10 +293,16 @@ private fun CastingSectionTitle(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CastingRouteRow(title: String, summary: String, onClick: () -> Unit) {
+private fun CastingRouteRow(
+    title: String,
+    summary: String,
+    onClick: () -> Unit,
+    cardColor: androidx.compose.ui.graphics.Color = frostedCardColor()
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        cornerRadius = 20.dp
+        cornerRadius = 20.dp,
+        colors = CardDefaults.defaultColors(color = cardColor)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
             Text(text = title, fontSize = 18.sp, color = MiuixTheme.colorScheme.onSurface)

@@ -23,9 +23,13 @@ import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.ui.components.EllaMiuixAction
 import com.ella.music.ui.components.EllaMiuixActionRow
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.wallpaperAwareCardColors
+import com.ella.music.ui.components.LocalSettingsCardFrosting
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -45,16 +49,19 @@ internal fun WebDavItemRow(
     onAddToQueue: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
+    val frosting = LocalSettingsCardFrosting.current
+    val baseModifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp, vertical = 4.dp)
+        .combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+    val cardModifier = frostedCardModifier(modifier = baseModifier, cornerRadius = 16.dp, frosting = frosting)
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+        modifier = cardModifier,
         cornerRadius = 16.dp,
-        colors = wallpaperAwareCardColors(defaultAlpha = 0.50f)
+        colors = CardDefaults.defaultColors(color = frostedCardColor(frosting = frosting, defaultAlpha = 0.42f))
     ) {
         Row(
             modifier = Modifier
@@ -163,10 +170,11 @@ internal fun WebDavTextField(
     onValueChange: (String) -> Unit,
     visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
-    EllaMiuixTextField(
+    TextField(
         value = value,
         onValueChange = onValueChange,
         label = label,
+        singleLine = true,
         visualTransformation = visualTransformation,
         modifier = Modifier.fillMaxWidth()
     )

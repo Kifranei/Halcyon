@@ -24,12 +24,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
+import top.yukonga.miuix.kmp.basic.Text
 import kotlin.math.abs
 
 @Composable
@@ -62,7 +67,6 @@ internal fun LyricsPlayerPage(
     perspectiveEffect: Boolean,
     perspectiveYAngle: Int,
     lyricTextAlign: Int,
-    lyricPageVerticalAlignment: Int,
     palette: PlayerPalette,
     flowEffectMode: Int,
     currentPositionMs: Long,
@@ -185,33 +189,51 @@ internal fun LyricsPlayerPage(
                         lyricTextAlign = lyricTextAlign
                     )
             ) {
-                if (!lyricsLoading) {
-                    AppleMusicLyricsView(
-                        lyrics = lyrics,
-                        currentIndex = currentLyricIndex,
-                        currentPositionMs = currentPositionMs,
-                        isPlaying = isPlaying,
-                        isPaused = isPaused,
-                        pageVisible = pageVisible,
-                        showTranslation = showTranslation,
-                        showPronunciation = showPronunciation,
-                        fontFamily = fontFamily,
-                        translationFontFamily = translationFontFamily,
-                        fontWeight = fontWeight,
-                        fontScale = fontScale,
-                        secondaryFontScale = secondaryFontScale,
-                        primaryTextSizeSp = primaryTextSizeSp,
-                        secondaryTextSizeSp = secondaryTextSizeSp,
-                        lyricTextAlign = lyricTextAlign,
-                        contentColor = palette.onBackground,
-                        wordLiftEnabled = appleMusicWordLiftEnabled,
-                        onLineClick = onLineClick,
-                        onLineDoubleClick = onLineDoubleClick,
-                        onLineLongClick = onLineLongClick,
-                        nonCurrentLineBlurEnabled = !useCustomPlayerBackground,
-                        bottomContentPadding = 72.dp,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                when {
+                    lyricsLoading -> {
+                        EllaCenteredLoadingIndicator(modifier = Modifier.fillMaxSize())
+                    }
+                    lyrics.isEmpty() -> {
+                        Text(
+                            text = stringResource(R.string.player_no_lyrics),
+                            color = palette.onBackground.copy(alpha = 0.54f),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = fontFamily,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    else -> {
+                        AppleMusicLyricsView(
+                            lyrics = lyrics,
+                            currentIndex = currentLyricIndex,
+                            currentPositionMs = currentPositionMs,
+                            isPlaying = isPlaying,
+                            isPaused = isPaused,
+                            pageVisible = pageVisible,
+                            showTranslation = showTranslation,
+                            showPronunciation = showPronunciation,
+                            fontFamily = fontFamily,
+                            translationFontFamily = translationFontFamily,
+                            fontWeight = fontWeight,
+                            fontScale = fontScale,
+                            secondaryFontScale = secondaryFontScale,
+                            primaryTextSizeSp = primaryTextSizeSp,
+                            secondaryTextSizeSp = secondaryTextSizeSp,
+                            lyricTextAlign = lyricTextAlign,
+                            contentColor = palette.onBackground,
+                            wordLiftEnabled = appleMusicWordLiftEnabled,
+                            onLineClick = onLineClick,
+                            onLineDoubleClick = onLineDoubleClick,
+                            onLineLongClick = onLineLongClick,
+                            nonCurrentLineBlurEnabled = !useCustomPlayerBackground,
+                            topContentPadding = 72.dp,
+                            bottomContentPadding = 72.dp,
+                            useFocusLeadingPadding = false,
+                            focusOffsetRatio = resolveLyricPageFocusOffsetRatio(0.24f),
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }

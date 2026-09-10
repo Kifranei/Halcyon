@@ -1,12 +1,16 @@
 package com.ella.music.ui.settings
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.launch
@@ -46,48 +50,57 @@ internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
         )
     }
 
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_mini_player_secondary),
-        summary = stringResource(R.string.settings_mini_player_secondary_summary),
-        enabled = miniPlayerLyricsEnabled,
-        items = statusLyricSecondaryEntries,
-        selectedIndex = miniPlayerLyricSecondary.coerceIn(0, 2),
-        onSelectedIndexChange = { index ->
-            scope.launch { settingsManager.setMiniPlayerLyricSecondary(index) }
+    if (miniPlayerLyricsEnabled) {
+        SettingsFocusAnchor(active = highlightKey == "mini_player_secondary") {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_mini_player_secondary),
+                summary = stringResource(R.string.settings_mini_player_secondary_summary),
+                items = statusLyricSecondaryEntries,
+                selectedIndex = miniPlayerLyricSecondary.coerceIn(0, 2),
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setMiniPlayerLyricSecondary(index) }
+                }
+            )
         }
-    )
+    }
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_mini_player_cover_rotation),
-        summary = stringResource(R.string.settings_mini_player_cover_rotation_summary),
-        checked = miniPlayerCoverRotation,
-        onCheckedChange = { enabled ->
-            scope.launch { settingsManager.setMiniPlayerCoverRotation(enabled) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "mini_player_cover_rotation") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_mini_player_cover_rotation),
+            summary = stringResource(R.string.settings_mini_player_cover_rotation_summary),
+            checked = miniPlayerCoverRotation,
+            onCheckedChange = { enabled ->
+                scope.launch { settingsManager.setMiniPlayerCoverRotation(enabled) }
+            }
+        )
+    }
 
-    SwitchPreference(
-        title = stringResource(R.string.settings_mini_player_swipe_to_open_player),
-        summary = stringResource(R.string.settings_mini_player_swipe_to_open_player_summary),
-        checked = miniPlayerSwipeToOpenPlayer,
-        onCheckedChange = { enabled ->
-            scope.launch { settingsManager.setMiniPlayerSwipeToOpenPlayer(enabled) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "mini_player_swipe_to_open_player") {
+        SwitchPreference(
+            title = stringResource(R.string.settings_mini_player_swipe_to_open_player),
+            summary = stringResource(R.string.settings_mini_player_swipe_to_open_player_summary),
+            checked = miniPlayerSwipeToOpenPlayer,
+            onCheckedChange = { enabled ->
+                scope.launch { settingsManager.setMiniPlayerSwipeToOpenPlayer(enabled) }
+            }
+        )
+    }
 
     val miniPlayerRightButtonLabels = listOf(
         stringResource(R.string.settings_mini_player_right_next),
         stringResource(R.string.settings_mini_player_right_queue)
     )
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_mini_player_right_button),
-        summary = stringResource(R.string.settings_mini_player_right_button_summary),
-        items = miniPlayerRightButtonLabels.map { DropdownItem(title = it) },
-        selectedIndex = miniPlayerRightButton.coerceIn(0, 1),
-        onSelectedIndexChange = { index ->
-            scope.launch { settingsManager.setMiniPlayerRightButton(index) }
-        }
-    )
+    SettingsFocusAnchor(active = highlightKey == "mini_player_right_button") {
+        WindowSpinnerPreference(
+            title = stringResource(R.string.settings_mini_player_right_button),
+            summary = stringResource(R.string.settings_mini_player_right_button_summary),
+            items = miniPlayerRightButtonLabels.map { DropdownItem(title = it) },
+            selectedIndex = miniPlayerRightButton.coerceIn(0, 1),
+            onSelectedIndexChange = { index ->
+                scope.launch { settingsManager.setMiniPlayerRightButton(index) }
+            }
+        )
+    }
 
     LyricSourcePriorityBlock(
         items = listOf(

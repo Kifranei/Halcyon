@@ -1,3 +1,136 @@
+# 1.2.9-alpha1
+
+From `1.2.8` to `1.2.9-alpha1`.
+
+中文更新日志
+- 内置标签编辑器改用分卡片独立展示（基本信息、音轨信息、创作信息、歌词、评分、自定义标签各自独立 Card），顶部左上角为关闭、右上角为保存，移除底部取消/保存操作栏；封面裁剪右上角统一为 Ok 图标；封面按钮文案精简为「选择」「裁剪」「移除」。
+- 专辑介绍页右上角新增「获取」按钮，支持一键从网易云拉取专辑介绍并自动保存。
+- 定时关闭开始计时后「取消定时播放」改为全宽 Button。
+- 音频工具页移除左上角多余返回按钮；设置向导第一页不再显示左上角返回按钮。
+- 首页功能卡片背景未播放歌曲且无壁纸时与设置页卡片背景完全一致，开启流光或壁纸后呈现半透明毛玻璃；卡片背景透明度默认调整为 20%（可在外观设置中自定义调整为 0%~100%）。
+- OS1 流光开启时关于页与设置向导背景适配系统原生底色（深色纯黑、浅色浅白），卡片背景色与普通设置卡片统一，关于页 Halcyon 标题还原为普通文字色；导出歌单卡片背景色与歌单更多菜单统一。
+- 重构音乐库扫描架构，实现两阶段极速扫描机制：Stage 1 零开销浅层扫描极速上屏（数秒内呈现全部歌曲、时长与封面），Stage 2 后台多协程并发补全深度标签；文件夹设置联动优化：添加、删除或切换文件夹勾选后自动触发扫描。
+- 优化 Compose 列表模型稳定性（`@Immutable`）与扫描期间专辑聚类节流，消除后台补全时的卡顿与收尾 I/O 停顿。
+- 清理项目中过时的单线程全量比对与指纹逻辑，移除非必要的全库 CRC32 抽样与冗余资源。
+- 修复当前播放列表删除条目或拖拽排序时面板先关闭再重新弹出的问题（`#604`）。
+- 播放页无声 MV 的暂停/继续会立即同步画面，不再短暂停顿后又自行播放（`#605`）。
+- 歌单详情「更多操作」从歌单移除只保留一次确认（`#606`）。
+- 悬浮/液态玻璃底栏固定页支持左右滑动切换（`#608`）。
+- 播放页、专辑页、艺术家页和「更多操作」查看大图改为加载原图，更多操作封面支持点击预览（`#609`）。
+- 设置搜索跳转按当前分类定位（如「迷你播放条上滑打开播放页」进入歌词页），点击搜索历史会收起键盘并把它移到最前（`#610`）。
+- 桌面组件在未播放或暂停时停止进度计时，不再在添加组件后自行走动（`#611`）。
+- 搜索页列表抬高避开底栏迷你播放条，最后几首不再被挡住。
+- 自定义艺术家拆分符号默认加入顿号「、」。
+- 移除音频格式转换与音轨导出二级页面底部的返回菜单项。
+- 修复 Apple Music 沉浸歌词返回播放页时封面渐变遮罩闪烁的问题。
+- 投放设备页（Cast devices）适配页面背景色与卡片主题色，解决浅色模式下卡片与背景融合问题。
+- 彻底修复 TTML 逐字注音和日语假名/罗马音显示在下方时与文字重叠的 bug，并优化下行注音基线对齐。
+- TTML 词组注音（如「貴方／あなた」「彼方／かなた」）保持整词对齐；长时长词组不会再被拆开，行内空格也不会把假名挤到旁边的字上。
+- 间奏等待符消失后，迷你歌词不再先跳到居中偏上再往下回正。
+- 竖屏歌词页固定偏上；迷你歌词固定居中。设置一级页不再显示关闭按钮。
+- 音乐库和歌单用漏斗筛选：红心歌曲、全部评分、全部星级和 1–5 星，可多选。
+- 首页功能块改为统一半透明，不再使用七彩色。
+- 列表排序改为 Miuix 下拉：名称下方显示升序/降序，点一下即可切换（艺术家传记除外）。
+- 播放页脏话 E 标与歌曲名同字号；音乐库扫描按钮不再支持长按完整重扫。
+- 定时关闭与音频工具改用 Material Symbols 图标。
+- 开屏海报和交叉淡入淡出时长改为无刻度滑块，步进 0.01 秒（`#416`）。
+- 系统栏设置新增播放页沉浸模式（`#582`）。
+- 无歌词时可把开头空白歌词当作歌词；播放队列评级与音乐库一致，平板显示音质（`#624`）。
+- 开头空白歌词可按行宽跳转进度（`#615`）。
+- 歌词换行弹簧更跟手，逐字时钟在换行时与播放进度对齐，减轻卡顿（`#616`）。
+- 内置元数据编辑器次要按钮提高对比度，输入框与卡片同宽。
+- Apple Music 沉浸播放页封面铺到歌曲信息上方。
+- 音乐库改为下拉刷新，左上角扫描按钮已移除。
+- 定时关闭启用后，非沉浸快捷区和更多菜单直接显示倒计时，且不拉高快捷按钮。
+- Apple Music 沉浸封面占歌曲信息上方剩余高度的 80%；播放页 E 标改为紧凑尺寸。
+- 音频工具去掉顶部歌曲信息；元数据编辑器评分星星加大 6px。
+- 手机 Apple Music 横屏改为左侧非沉浸封面、右侧信息与控制。
+- 排序菜单 BottomSheet 提高内容高度上限（`#629`）。
+- 开屏海报与交叉淡入淡出支持点开输入秒数（取消/保存），设置页仍保留滑块。
+- 长按迷你播放条跳到来源后，可再点底栏设置回到设置页。
+- 进度条下音质/音频信息/输出设备改为可排序开关控件。
+- 修复手动点其他专辑歌曲时迷你条/封面仍停在上一曲的问题；点第二次才恢复。
+- 全局搜索框改为 Miuix 标准 InputField 胶囊搜索框。
+- 开屏海报与交叉淡入淡出改为 Miuix 滑块行（右侧数值+箭头点开输入）。
+- Apple Music 沉浸封面再下移；横屏左右区域 1:1。
+- 播放页更多菜单定时关闭显示剩余倒计时；E 标改为 15px。
+- 沉浸模式、播放页沉浸和横屏隐藏系统栏合并为同一个下拉 Spinner（非对话框）。
+- 播放页横屏隐藏系统栏移到外观-系统栏与启动画面；沉浸模式「全部显示 / 全部隐藏」。
+- Last.fm 未填写 API Key / Shared Secret 时，「去浏览器授权」仍会打开授权页。
+- 「AI 解读」改为「AI 供应商配置」：默认 DeepSeek，去掉 OpenAI 文案，支持 Anthropic 协议，填写 Key 和地址后可用搜索图标拉取模型列表。
+- 文件夹层次结构扫描设置新增强制重扫（完整标签重扫并清理扫描错误缓存）。
+- 播放列表音质显示改为下拉：`(默认)仅在平板上显示` / `仅在手机上显示` / `显示`。
+- 歌词分享卡片改为 Apple Music 贴纸样式：歌词在上，底部下巴区放封面、歌名、艺术家和来源。
+- 播放页 E 标改为 17px；沉浸模式下拉并入播放页系统栏选项。
+- Apple Music 播放页增加「1:1 沉浸」开关：开启保持正方形封面，关闭则填满歌曲信息上方剩余高度。
+- 歌词分享卡底部也使用流光背景，并加一层较浅的深色遮罩与歌词区区分。
+- 底栏新增「搜索栏合并」：搜索可并入自定义入口；收缩态去掉右侧搜索按钮，迷你播放条向右拉满并可显示歌词。
+
+English Changelog
+- Song tag editor redesigned with modular section cards (basic info, track info, credits, lyrics, rating, custom tags), top-left close and top-right save icons with bottom action bar removed; cover crop confirmation icon updated to Ok; cover button labels simplified to Choose, Crop, and Remove.
+- Album introduction page added a top-right "Fetch" action to fetch and auto-save album introductions from NetEase Cloud Music.
+- Sleep timer cancel button updated to full-width button when timer is active.
+- Audio tools removed redundant top-left back icon; settings wizard hides top-left back icon on step 1.
+- Home feature cards match settings card background when idle without wallpaper, becoming translucent frosted glass when playing or with active flow/wallpaper; default tile background opacity changed to 20% (configurable 0%–100%).
+- In OS1 flow mode, about screen and setup wizard backgrounds match native system surface colors (pure black in dark, off-white in light), card backgrounds align with standard settings cards, and about screen Halcyon title uses standard text color; export playlist card background unified with playlist menus.
+- Refactored library scanning into a two-stage architecture: Stage 1 rapid shallow scan for instant library display (songs, duration, and artwork ready in seconds), Stage 2 background multi-coroutine concurrency for detailed tag enrichment; folder management auto-triggers scanning on changes.
+- Optimized Compose list model stability (`@Immutable`) and throttled album clustering during scans to prevent UI frame drops.
+- Cleaned up obsolete single-threaded sync methods, file fingerprint stamps, and dead resources.
+- The current-queue sheet no longer dismisses and reopens after removing or dragging an item (`#604`).
+- Silent MV on the player page now pauses and resumes with the transport controls instead of briefly stopping and then continuing (`#605`).
+- Removing a song from a playlist via More actions now shows a single confirmation (`#606`).
+- Swiping between pinned bottom-dock pages also works in Floating and Liquid Glass styles (`#608`).
+- Cover previews on the player, album, artist, and More-actions surfaces load the original artwork, and tapping the More-actions cover opens the preview (`#609`).
+- Settings search jumps to the current category for each preference (for example “Swipe mini player up” opens Lyrics). Tapping a search-history chip dismisses the keyboard and moves that query to the front (`#610`).
+- Home-screen widgets freeze their progress timer when nothing is playing or playback is paused, including right after the widget is added (`#611`).
+- The search list now clears the mini player so the last songs are not covered.
+- The ideographic comma `、` is included in the default artist-separator list.
+- Removed redundant back menu items in audio tools format conversion and track export subpages.
+- Fixed cover gradient mask flicker when returning to playback page from Apple Music immersive lyrics.
+- Styled casting device page with proper page background and card colors, preventing card blending into background in light mode.
+- Fixed TTML phonetic/ruby annotations overlapping with base lyric text when displayed below, with aligned baselines.
+- Phrase-level TTML ruby such as 貴方/あなた stays centered on the whole word instead of the first kanji, including long-held compounds, and inter-word spaces no longer pull a reading off its host.
+- Mini lyrics no longer drop the next line above center and then scroll it back down after interlude waiting dots collapse.
+- Portrait lyric pages stay upper-aligned; mini lyrics stay centered. The settings home page no longer shows a close button.
+- Library and playlist screens filter with a funnel menu: loved songs, all ratings, all stars, and 1–5 stars, as a multi-select.
+- Home tiles use a shared translucent overlay instead of per-tile rainbow colors.
+- List sorting uses a Miuix dropdown: each field shows 升序/降序 underneath and a tap toggles direction (except artist biography).
+- The player-page explicit badge matches the song title size, and the library scan button no longer starts a full rescan on long-press.
+- Sleep timer and audio-tools menu icons now use Material Symbols.
+- Startup poster and crossfade duration use a continuous slider with 0.01 s steps (`#416`).
+- System bars settings add a player immersive mode (`#582`).
+- Songs without lyrics can use the opening-lyric template; the queue rating icon matches the library, and tablets also show quality (`#624`).
+- Opening lyrics can be scrubbed like a progress bar (`#615`).
+- Lyric line-change springs are snappier and karaoke clocks resync at wrap, reducing stutter (`#616`).
+- Built-in metadata editor secondary buttons are more visible, and text fields span the card width.
+- Apple Music immersive cover uses 80% of the remaining height above song info.
+- The library uses pull-to-refresh instead of the top-left scan button.
+- An active sleep timer shows remaining countdown on non-immersive shortcuts without growing the button, and in the more menu.
+- Phone Apple Music landscape puts the cover on the left and info/controls on the right.
+- Audio tools no longer show the song title at the top; tag-editor rating stars are 6px larger.
+- Sort-menu BottomSheet raises its max height (`#629`).
+- Startup poster and crossfade duration keep a page slider and open an input dialog (Cancel / Save).
+- After a mini-player long-press jump to the playback source, the Settings dock item returns to Settings.
+- Quality / audio info / output device under the progress bar use a reorderable on/off sheet.
+- Tapping a song in another album no longer leaves the mini player on the previous cover/title until a second tap.
+- Search fields now use the standard Miuix InputField capsule.
+- Startup poster and crossfade duration use a Miuix slider row; tapping the value opens an input dialog.
+- Apple Music immersive cover extends lower; landscape panes are split 1:1.
+- The player more-menu sleep timer shows remaining time; the explicit badge is 15 px.
+- Immersive mode, player immersive, and landscape hide-bars are one dropdown spinner, not a dialog.
+- Landscape player system-bar hiding moved to Appearance → System bars & startup; immersive labels are Show all / Hide all.
+- Last.fm “Authorize in browser” opens the auth page even when API key and shared secret are empty.
+- “AI interpretation” is now “AI provider”: DeepSeek defaults, no OpenAI copy, Anthropic protocol support, and a search-icon fetch for available models.
+- Folder-hierarchy scan settings add Force full rescan (full tag rescan and scan error-cache clear).
+- Playlist audio-quality badges use a dropdown: (Default) tablets only / phones only / show.
+- Lyric share cards now follow Apple Music’s sticker layout: lyrics on top, cover/title/artist/source in a bottom chin.
+- Player explicit badge is 17 px; immersive-mode dropdown includes the player system-bar options.
+- Apple Music player page adds a 1:1 immersive switch: on keeps a square cover, off fills the space above the song info.
+
+Version
+- Version name: `1.2.9-alpha1`
+- Version code: `37`
+
 # 1.2.8
 
 From `1.2.7` to `1.2.8`.

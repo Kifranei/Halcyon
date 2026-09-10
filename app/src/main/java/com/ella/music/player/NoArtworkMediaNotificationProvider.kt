@@ -95,7 +95,7 @@ internal class NoArtworkMediaNotificationProvider(
             .setContentIntent(mediaSession.sessionActivity)
             .setDeleteIntent(actionFactory.createNotificationDismissalIntent(mediaSession))
             .setOnlyAlertOnce(true)
-            .setOngoing(false)
+            .setOngoing(isMediaNotificationOngoing(player.playWhenReady, player.playbackState))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
         val compactIndices = mutableListOf<Int>()
@@ -383,3 +383,8 @@ internal class NoArtworkMediaNotificationProvider(
         )
     }
 }
+
+internal fun isMediaNotificationOngoing(playWhenReady: Boolean, playbackState: Int): Boolean =
+    playWhenReady &&
+        playbackState != Player.STATE_ENDED &&
+        playbackState != Player.STATE_IDLE

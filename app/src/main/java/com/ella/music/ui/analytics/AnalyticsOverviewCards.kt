@@ -30,8 +30,20 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.LibraryNormalizer
 import com.ella.music.viewmodel.MainViewModel
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import com.ella.music.ui.artist.rememberArtistCoverModel
+import com.ella.music.ui.components.SafeCoverImage
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -347,6 +359,19 @@ private fun FavoriteInsightCard(
     } else {
         insight.title
     }
+    val isArtist = insight.labelRes == R.string.analytics_month_favorite_artist
+    val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
+    val artistCoverModel = if (isArtist) {
+        rememberArtistCoverModel(
+            artistName = insight.title,
+            representativeSong = insight.song,
+            folderLocation = artistCoverFolderUri,
+            mainViewModel = mainViewModel,
+            coversEnabled = true,
+            includeLibraryArtwork = true
+        )
+    } else null
+
     Card(
         modifier = Modifier
             .width(168.dp)
@@ -354,26 +379,85 @@ private fun FavoriteInsightCard(
         colors = analyticsWallpaperCardColors(alpha = 0.55f)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            AnalyticsSongCover(
-                song = insight.song,
-                mainViewModel = mainViewModel,
-                modifier = Modifier.fillMaxSize(),
-                coverSize = 512,
-                loadOriginal = insight.labelRes == R.string.analytics_month_favorite_album
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.Black.copy(alpha = 0.08f),
-                                Color.Black.copy(alpha = 0.28f),
-                                Color.Black.copy(alpha = 0.78f)
+            if (isArtist) {
+                // Apple Music Replay style Top Artist card
+                if (artistCoverModel != null) {
+                    SafeCoverImage(
+                        model = artistCoverModel,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = 0.25f },
+                        contentScale = ContentScale.Crop,
+                        sizePx = 512,
+                        showDefaultPlaceholder = false
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF1E1B2E).copy(alpha = 0.70f),
+                                    Color(0xFF151421).copy(alpha = 0.88f),
+                                    Color(0xFF0C0A14).copy(alpha = 0.96f)
+                                )
                             )
                         )
-                    )
-            )
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(bottom = 26.dp)
+                        .size(86.dp)
+                        .clip(CircleShape)
+                        .background(MiuixTheme.colorScheme.surfaceContainer)
+                        .border(2.dp, Color.White.copy(alpha = 0.25f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (artistCoverModel != null) {
+                        SafeCoverImage(
+                            model = artistCoverModel,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                            sizePx = 256,
+                            showDefaultPlaceholder = false
+                        )
+                    } else {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Music,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+            } else {
+                AnalyticsSongCover(
+                    song = insight.song,
+                    mainViewModel = mainViewModel,
+                    modifier = Modifier.fillMaxSize(),
+                    coverSize = 512,
+                    loadOriginal = insight.labelRes == R.string.analytics_month_favorite_album
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Black.copy(alpha = 0.08f),
+                                    Color.Black.copy(alpha = 0.28f),
+                                    Color.Black.copy(alpha = 0.78f)
+                                )
+                            )
+                        )
+                )
+            }
             Text(
                 text = stringResource(insight.labelRes),
                 fontSize = 12.sp,

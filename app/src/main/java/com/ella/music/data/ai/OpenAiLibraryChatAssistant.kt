@@ -7,10 +7,7 @@ import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -39,49 +36,22 @@ class OpenAiLibraryChatAssistant(
         .addInterceptor(AppNetworkLoggingInterceptor("OpenAILibraryChat"))
         .build()
 ) {
-    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-
     suspend fun chat(
         config: OpenAiSongInterpretationConfig,
         input: OpenAiLibraryChatInput
     ): OpenAiLibraryChatResponse {
-        val apiKey = config.apiKey.trim()
-        if (apiKey.isBlank()) error(context.getString(R.string.error_openai_missing_api_key))
         if (input.userMessage.isBlank()) error(context.getString(R.string.error_ai_chat_empty_message))
         if (input.songs.isEmpty()) error(context.getString(R.string.error_library_empty))
-
-        val messagesArray = JSONArray()
-            .put(JSONObject().put("role", "system").put("content", buildSystemPrompt()))
-        input.conversationHistory.takeLast(20).forEach { (role, content) ->
-            messagesArray.put(JSONObject().put("role", role).put("content", content))
-        }
-        messagesArray.put(JSONObject().put("role", "user").put("content", buildPrompt(input)))
-
-        val requestBody = JSONObject()
-            .put("model", config.model.trim().ifBlank { "gpt-4.1-mini" })
-            .put("messages", messagesArray)
-            .put("temperature", 0.68)
-            .put("top_p", 0.9)
-            .put("max_tokens", 1600)
-
-        val request = Request.Builder()
-            .url(config.baseUrl.toChatCompletionsEndpoint())
-            .header("Authorization", "Bearer $apiKey")
-            .header("Content-Type", "application/json")
-            .header("User-Agent", "Halcyon")
-            .post(requestBody.toString().toRequestBody(jsonMediaType))
-            .build()
-
-        return client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                val message = runCatching {
-                    JSONObject(body).optJSONObject("error")?.optString("message")
-                }.getOrNull().orEmpty()
-                error(context.getString(R.string.error_openai_request_failed, response.code, message.takeIf { it.isNotBlank() }?.let { "${context.getString(R.string.error_openai_api_error_separator)}$it" }.orEmpty()))
-            }
-            parseChatResponse(parseResponseText(body), input.songs)
-        }
+        val text = AiProviderClient(context, client).completeChat(
+            config = config,
+            systemPrompt = buildSystemPrompt(),
+            userPrompt = buildPrompt(input),
+            conversationHistory = input.conversationHistory.takeLast(20),
+            temperature = 0.68,
+            topP = 0.9,
+            maxTokens = 1600
+        )
+        return parseChatResponse(text, input.songs)
     }
 
     private fun buildSystemPrompt(): String =
@@ -169,40 +139,6 @@ class OpenAiLibraryChatAssistant(
             songKeys = songKeys.distinct(),
             playlistName = root.optString("playlistName").trim()
         )
-    }
-
-    private fun parseResponseText(body: String): String {
-        val root = JSONObject(body)
-        root.optString("output_text").takeIf { it.isNotBlank() }?.let { return it }
-        val choices = root.optJSONArray("choices")
-        if (choices != null) {
-            val parts = mutableListOf<String>()
-            for (i in 0 until choices.length()) {
-                val text = choices.optJSONObject(i)?.optJSONObject("message")?.optString("content").orEmpty()
-                if (text.isNotBlank()) parts += text
-            }
-            if (parts.isNotEmpty()) return parts.joinToString("\n").trim()
-        }
-        val output = root.optJSONArray("output") ?: return ""
-        val parts = mutableListOf<String>()
-        for (i in 0 until output.length()) {
-            val content = output.optJSONObject(i)?.optJSONArray("content") ?: continue
-            for (j in 0 until content.length()) {
-                val item = content.optJSONObject(j) ?: continue
-                val text = item.optString("text").ifBlank { item.optString("output_text") }
-                if (text.isNotBlank()) parts += text
-            }
-        }
-        return parts.joinToString("\n").trim()
-    }
-
-    private fun String.toChatCompletionsEndpoint(): String {
-        val trimmed = trim().ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
-        return when {
-            trimmed.endsWith("/chat/completions") -> trimmed
-            trimmed.endsWith("/responses") -> trimmed.removeSuffix("/responses") + "/chat/completions"
-            else -> "$trimmed/chat/completions"
-        }
     }
 
     private fun String.toJsonObjectText(): String {

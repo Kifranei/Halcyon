@@ -33,6 +33,12 @@ object LibrarySortUiState {
     var playlistCustomOrderIds by mutableStateOf<List<String>>(emptyList())
     var pendingPlaylistListSortIndex by mutableStateOf<Int?>(null)
 
+    var randomSortSeed by mutableIntStateOf(kotlin.random.Random.nextInt())
+
+    fun reshuffleRandomSort() {
+        randomSortSeed = kotlin.random.Random.nextInt()
+    }
+
     val metadataCategoryScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     val metadataCategoryDetailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     private val metadataCategorySortIndices = mutableStateMapOf<String, Int>()

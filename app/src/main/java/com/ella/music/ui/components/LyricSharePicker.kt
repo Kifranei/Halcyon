@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -455,28 +456,28 @@ private fun LyricSharePreviewCard(
         )
     }
     val layout = remember(content, shareTypeface) {
-        calculateLyricShareLayout(content, shareTypeface = shareTypeface)
+        runCatching { calculateLyricShareLayout(content, shareTypeface = shareTypeface) }.getOrNull()
     }
     val previewBitmap = remember(content, layout, cover) {
-        renderLyricShareCardBitmap(content, layout, cover)
+        layout?.let { runCatching { renderLyricShareCardBitmap(content, it, cover) }.getOrNull() }
     }
 
     DisposableEffect(previewBitmap) {
         onDispose {
-            if (!previewBitmap.isRecycled) {
-                previewBitmap.recycle()
-            }
+            previewBitmap?.takeUnless { it.isRecycled }?.recycle()
         }
     }
 
-    Image(
-        bitmap = previewBitmap.asImageBitmap(),
-        contentDescription = null,
-        modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
-            .aspectRatio(
-                ratio = layout.canvasWidth.toFloat() / layout.adaptiveCanvasHeight.toFloat(),
-                matchHeightConstraintsFirst = fitHeight
-            )
-    )
+    if (previewBitmap != null && layout != null) {
+        Image(
+            bitmap = previewBitmap.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier
+                .aspectRatio(
+                    ratio = layout.canvasWidth.toFloat() / layout.adaptiveCanvasHeight.toFloat(),
+                    matchHeightConstraintsFirst = fitHeight
+                )
+        )
+    }
 }

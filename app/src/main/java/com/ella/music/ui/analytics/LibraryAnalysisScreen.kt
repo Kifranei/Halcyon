@@ -1,5 +1,8 @@
 package com.ella.music.ui.analytics
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.ui.platform.LocalView
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,8 +44,8 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.SongMenuItem
-import com.ella.music.ui.components.SongSheetColumn
+import com.ella.music.ui.components.LibraryEntityActionSheet
+import com.ella.music.ui.components.LibraryEntityActions
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.rememberSongDeleteResultHandler
 import com.ella.music.ui.components.requestPinnedEllaShortcut
@@ -56,12 +59,20 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowListPopup
 
 @Composable
 fun LibraryAnalysisScreen(
@@ -76,13 +87,17 @@ fun LibraryAnalysisScreen(
     initialBucketLabel: String? = null
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val songs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
+    var currentDimension by remember { mutableStateOf(AnalysisDimension.FORMAT) }
+    var currentMetric by remember { mutableStateOf(AnalysisMetric.SIZE) }
+    var filterMenuVisible by remember { mutableStateOf(false) }
     var selectedBucket by remember {
-        mutableStateOf(
+        mutableStateOf<Pair<AnalysisDimension, String>?>(
             if (!initialBucketLabel.isNullOrBlank() && initialQualityBucket != null) {
-                initialQualityBucket to initialBucketLabel
+                (if (initialQualityBucket) AnalysisDimension.QUALITY else AnalysisDimension.FORMAT) to initialBucketLabel
             } else {
                 null
             }
@@ -90,7 +105,7 @@ fun LibraryAnalysisScreen(
     }
     val analysisListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     var matchingSongs by remember { mutableStateOf<List<Song>?>(null) }
-    var actionBucket by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    var actionBucket by remember { mutableStateOf<Pair<AnalysisDimension, String>?>(null) }
     var actionSongs by remember { mutableStateOf<List<Song>?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
@@ -99,14 +114,14 @@ fun LibraryAnalysisScreen(
     val analysisCacheKey = remember(songs) { songs.libraryAnalysisCacheKey() }
     val analysis by produceState<LibraryAnalysis?>(
         initialValue = if (songs.isEmpty()) {
-            LibraryAnalysis(emptyList(), emptyList(), 0, 0L)
+            LibraryAnalysis(emptyList(), emptyList(), emptyList(), emptyList(), 0, 0L)
         } else {
             LibraryAnalysisSessionCache.get(analysisCacheKey)
         },
         songs
     ) {
         if (songs.isEmpty()) {
-            value = LibraryAnalysis(emptyList(), emptyList(), 0, 0L)
+            value = LibraryAnalysis(emptyList(), emptyList(), emptyList(), emptyList(), 0, 0L)
             return@produceState
         }
         val cachedAnalysis = withContext(Dispatchers.IO) { readCachedLibraryAnalysis(context, songs) }
@@ -128,9 +143,9 @@ fun LibraryAnalysisScreen(
             return@LaunchedEffect
         }
         val currentAnalysis = analysis
-        val (quality, label) = bucket
+        val (dimension, label) = bucket
         val cachedKeys = currentAnalysis
-            ?.let { if (quality) it.qualityBuckets else it.formatBuckets }
+            ?.getBuckets(dimension)
             ?.firstOrNull { it.label == label }?.songKeys.orEmpty()
         if (cachedKeys.isNotEmpty()) {
             val keySet = cachedKeys.toSet()
@@ -140,7 +155,12 @@ fun LibraryAnalysisScreen(
         matchingSongs = withContext(Dispatchers.IO) {
             songs.filter { song ->
                 val info = mainViewModel.getAudioInfo(song)
-                if (quality) qualityLabel(song, info) == label else formatLabel(song, info) == label
+                when (dimension) {
+                    AnalysisDimension.FORMAT -> formatLabel(song, info) == label
+                    AnalysisDimension.QUALITY -> qualityLabel(song, info) == label
+                    AnalysisDimension.SAMPLE_RATE -> sampleRateLabel(info) == label
+                    AnalysisDimension.BIT_DEPTH -> bitDepthLabel(info) == label
+                }
             }
         }
     }
@@ -151,9 +171,9 @@ fun LibraryAnalysisScreen(
             return@LaunchedEffect
         }
         actionSongs = null
-        val (quality, label) = bucket
+        val (dimension, label) = bucket
         val cachedKeys = analysis
-            ?.let { if (quality) it.qualityBuckets else it.formatBuckets }
+            ?.getBuckets(dimension)
             ?.firstOrNull { it.label == label }?.songKeys.orEmpty()
         val matchedSongs = if (cachedKeys.isNotEmpty()) {
             val keySet = cachedKeys.toSet()
@@ -161,10 +181,15 @@ fun LibraryAnalysisScreen(
         } else withContext(Dispatchers.IO) {
             songs.filter { song ->
                 val info = mainViewModel.getAudioInfo(song)
-                if (quality) qualityLabel(song, info) == label else formatLabel(song, info) == label
+                when (dimension) {
+                    AnalysisDimension.FORMAT -> formatLabel(song, info) == label
+                    AnalysisDimension.QUALITY -> qualityLabel(song, info) == label
+                    AnalysisDimension.SAMPLE_RATE -> sampleRateLabel(info) == label
+                    AnalysisDimension.BIT_DEPTH -> bitDepthLabel(info) == label
+                }
             }
         }
-        val sourceKey = com.ella.music.data.CategoryResumeKeys.analysis(quality, label)
+        val sourceKey = com.ella.music.data.CategoryResumeKeys.analysis(dimension == AnalysisDimension.QUALITY, label)
         actionSongs = matchedSongs.cachedSortedForHomeMode(
             LibraryAnalysisBucketSortState.get(sourceKey)
         ).songs
@@ -205,7 +230,129 @@ fun LibraryAnalysisScreen(
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
+            )
+
+            Box(modifier = Modifier.padding(end = 4.dp)) {
+                IconButton(onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    filterMenuVisible = true
+                }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Filter,
+                        contentDescription = stringResource(R.string.analytics_filter_title),
+                        tint = MiuixTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                val filterEntries = listOf(
+                    DropdownEntry(
+                        items = listOf(
+                            DropdownItem(
+                                text = stringResource(R.string.analytics_dimension_format),
+                                selected = currentDimension == AnalysisDimension.FORMAT,
+                                onClick = {
+                                    currentDimension = AnalysisDimension.FORMAT
+                                    filterMenuVisible = false
+                                }
+                            ),
+                            DropdownItem(
+                                text = stringResource(R.string.analytics_dimension_quality),
+                                selected = currentDimension == AnalysisDimension.QUALITY,
+                                onClick = {
+                                    currentDimension = AnalysisDimension.QUALITY
+                                    filterMenuVisible = false
+                                }
+                            ),
+                            DropdownItem(
+                                text = stringResource(R.string.analytics_dimension_sample_rate),
+                                selected = currentDimension == AnalysisDimension.SAMPLE_RATE,
+                                onClick = {
+                                    currentDimension = AnalysisDimension.SAMPLE_RATE
+                                    filterMenuVisible = false
+                                }
+                            ),
+                            DropdownItem(
+                                text = stringResource(R.string.analytics_dimension_bit_depth),
+                                selected = currentDimension == AnalysisDimension.BIT_DEPTH,
+                                onClick = {
+                                    currentDimension = AnalysisDimension.BIT_DEPTH
+                                    filterMenuVisible = false
+                                }
+                            )
+                        )
+                    ),
+                    DropdownEntry(
+                        items = listOf(
+                            DropdownItem(
+                                text = stringResource(R.string.analytics_metric_size),
+                                selected = currentMetric == AnalysisMetric.SIZE,
+                                onClick = {
+                                    currentMetric = AnalysisMetric.SIZE
+                                    filterMenuVisible = false
+                                }
+                            ),
+                            DropdownItem(
+                                text = stringResource(R.string.analytics_metric_count),
+                                selected = currentMetric == AnalysisMetric.COUNT,
+                                onClick = {
+                                    currentMetric = AnalysisMetric.COUNT
+                                    filterMenuVisible = false
+                                }
+                            )
+                        )
+                    )
+                )
+
+                WindowListPopup(
+                    show = filterMenuVisible,
+                    alignment = PopupPositionProvider.Align.End,
+                    onDismissRequest = { filterMenuVisible = false }
+                ) {
+                    ListPopupColumn {
+                        val lastEntryIdx = filterEntries.lastIndex
+                        filterEntries.forEachIndexed { entryIdx, entry ->
+                            val lastItemIdx = entry.items.lastIndex
+                            val isFirstEntry = entryIdx == 0
+                            val isLastEntry = entryIdx == lastEntryIdx
+                            entry.items.forEachIndexed { itemIdx, option ->
+                                DropdownImpl(
+                                    item = option,
+                                    optionSize = entry.items.size,
+                                    isSelected = option.selected,
+                                    index = itemIdx,
+                                    enabled = true,
+                                    isFirst = isFirstEntry && itemIdx == 0,
+                                    isLast = isLastEntry && itemIdx == lastItemIdx,
+                                    onSelectedIndexChange = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        option.onClick?.invoke()
+                                    }
+                                )
+                            }
+                            if (entryIdx < lastEntryIdx) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                    thickness = 1.dp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        val totalSongsCount = analysis?.totalCount ?: songs.size
+        val totalSongsSize = analysis?.totalSizeBytes ?: songs.sumOf { it.fileSize }
+        if (totalSongsCount > 0) {
+            Text(
+                text = stringResource(R.string.analytics_header_summary, totalSongsCount, formatFileSize(totalSongsSize)),
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
             )
         }
 
@@ -215,54 +362,40 @@ fun LibraryAnalysisScreen(
             contentPadding = PaddingValues(
                 start = 12.dp,
                 end = 12.dp,
-                top = 12.dp,
+                top = 8.dp,
                 bottom = 160.dp
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                SummaryCard(
-                    songs = songs,
-                    playbackStats = playbackStats
-                )
-            }
-
-            item {
-                DonutChartCard(
-                    title = stringResource(R.string.analytics_audio_format_stats),
-                    loadingText = stringResource(R.string.analytics_loading_audio_formats),
-                    buckets = analysis?.formatBuckets,
-                    total = analysis?.totalCount ?: 0,
-                    totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
-                    palette = formatPalette,
+                val currentBuckets = analysis?.getBuckets(currentDimension)
+                val palette = when (currentDimension) {
+                    AnalysisDimension.FORMAT -> xiaomiStoragePalette
+                    AnalysisDimension.QUALITY -> currentBuckets?.map { qualityBucketColor(it.label) } ?: qualityPalette
+                    AnalysisDimension.SAMPLE_RATE -> sampleRatePalette
+                    AnalysisDimension.BIT_DEPTH -> bitDepthPalette
+                }
+                Xiaomi3DCylinderStorageCard(
+                    title = stringResource(currentDimension.labelRes),
+                    loadingText = stringResource(R.string.analytics_loading_data),
+                    buckets = currentBuckets,
+                    total = totalSongsCount,
+                    totalSizeBytes = totalSongsSize,
+                    palette = palette,
+                    metric = currentMetric,
                     onBucketClick = {
-                        selectedBucket = false to it.label
+                        selectedBucket = currentDimension to it.label
                     },
-                    onBucketLongClick = { actionBucket = false to it.label }
-                )
-            }
-
-            item {
-                DonutChartCard(
-                    title = stringResource(R.string.analytics_audio_quality_stats),
-                    loadingText = stringResource(R.string.analytics_loading_audio_quality),
-                    buckets = analysis?.qualityBuckets,
-                    total = analysis?.totalCount ?: 0,
-                    totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
-                    palette = analysis?.qualityBuckets?.map { qualityBucketColor(it.label) } ?: qualityPalette,
-                    onBucketClick = {
-                        selectedBucket = true to it.label
-                    },
-                    onBucketLongClick = { actionBucket = true to it.label }
+                    onBucketLongClick = { actionBucket = currentDimension to it.label }
                 )
             }
         }
     }
 
-    selectedBucket?.let { (quality, label) ->
+    selectedBucket?.let { (dimension, label) ->
         LibraryAnalysisBucketDetailScreen(
             bucketLabel = label,
-            qualityBucket = quality,
+            qualityBucket = (dimension == AnalysisDimension.QUALITY),
             songs = matchingSongs.orEmpty(),
             songsLoading = matchingSongs == null,
             totalLibraryCount = songs.size,
@@ -278,49 +411,54 @@ fun LibraryAnalysisScreen(
     }
 
 
-    actionBucket?.let { (quality, label) ->
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = label,
-            onDismissRequest = { actionBucket = null }
-        ) {
-            val bucketSongs = actionSongs
-            if (bucketSongs == null) {
+    actionBucket?.let { (dimension, label) ->
+        val bucketSongs = actionSongs
+        if (bucketSongs == null) {
+            EllaMiuixBottomSheet(
+                show = true,
+                enableNestedScroll = false,
+                title = label,
+                onDismissRequest = { actionBucket = null }
+            ) {
                 EllaCenteredLoadingIndicator(modifier = Modifier.padding(24.dp))
-            } else {
-                SongSheetColumn {
-                    SongMenuItem(stringResource(R.string.common_share), onClick = {
+            }
+        } else {
+            LibraryEntityActionSheet(
+                show = true,
+                title = label,
+                onDismissRequest = { actionBucket = null },
+                actions = listOf(
+                    LibraryEntityActions.share {
                         shareLocalSongs(context, bucketSongs)
                         actionBucket = null
-                    })
-                    SongMenuItem(stringResource(R.string.song_more_add_to_playlist), onClick = {
+                    },
+                    LibraryEntityActions.addToPlaylist {
                         playlistPickerSongs = bucketSongs
                         actionBucket = null
-                    })
-                    SongMenuItem(stringResource(R.string.common_add_to_queue), onClick = {
+                    },
+                    LibraryEntityActions.addToQueue {
                         playerViewModel.addToPlaylist(bucketSongs)
                         actionBucket = null
-                    })
-                    SongMenuItem(stringResource(R.string.song_more_play_next), onClick = {
+                    },
+                    LibraryEntityActions.playNext {
                         playerViewModel.playNext(bucketSongs)
                         actionBucket = null
-                    })
-                    SongMenuItem(stringResource(R.string.common_add_desktop_shortcut), onClick = {
+                    },
+                    LibraryEntityActions.desktopShortcut {
                         requestPinnedEllaShortcut(
                             context,
-                            "analysis_${if (quality) "quality" else "format"}_$label",
+                            "analysis_${if (dimension == AnalysisDimension.QUALITY) "quality" else "format"}_$label",
                             label,
-                            Screen.LibraryAnalysis.createBucketRoute(quality, label)
+                            Screen.LibraryAnalysis.createBucketRoute(dimension == AnalysisDimension.QUALITY, label)
                         )
                         actionBucket = null
-                    })
-                    SongMenuItem(stringResource(R.string.song_more_delete_permanently), onClick = {
+                    },
+                    LibraryEntityActions.deletePermanently {
                         pendingDeleteSongs = bucketSongs
                         actionBucket = null
-                    }, danger = true)
-                }
-            }
+                    }
+                )
+            )
         }
     }
 

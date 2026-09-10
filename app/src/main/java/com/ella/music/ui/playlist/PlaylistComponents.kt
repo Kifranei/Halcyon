@@ -1,7 +1,9 @@
 package com.ella.music.ui.playlist
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -43,11 +46,15 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.EllaMiuixAction
 import com.ella.music.ui.components.EllaMiuixActionRow
+import androidx.compose.ui.focus.focusRequester
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
-import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
+import com.ella.music.ui.components.LocalSettingsCardFrosting
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.StarRate
@@ -109,20 +116,23 @@ internal fun PlaylistRow(
     onMore: (() -> Unit)? = null,
     trailingContent: (@Composable (() -> Unit))? = null
 ) {
+    val frosting = LocalSettingsCardFrosting.current
+    val baseModifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 10.dp)
+        .combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+    val cardModifier = frostedCardModifier(modifier = baseModifier, cornerRadius = 16.dp, frosting = frosting)
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+        modifier = cardModifier,
         cornerRadius = 16.dp,
         colors = CardDefaults.defaultColors(
             color = if (selected) {
-                MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
+                MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
             } else {
-                wallpaperAwarePlaylistCardColor()
+                frostedCardColor(frosting = frosting, defaultAlpha = 0.42f)
             }
         )
     ) {
@@ -275,11 +285,14 @@ internal fun CreatePlaylistDialog(
             modifier = Modifier.padding(bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            EllaMiuixTextField(
+            TextField(
                 value = name,
                 onValueChange = { name = it },
                 label = stringResource(R.string.playlist_name_label),
-                focusRequester = focusRequester
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
             EllaMiuixSheetActions(
                 cancelText = stringResource(R.string.common_cancel),
@@ -383,7 +396,9 @@ private fun ImportModeItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 14.dp,
-        colors = CardDefaults.defaultColors(color = wallpaperAwarePlaylistCardColor(alpha = 0.50f)),
+        colors = CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.secondaryContainer
+        ),
         onClick = onClick
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
@@ -405,13 +420,6 @@ private fun ImportModeItem(
 
 @Composable
 internal fun wallpaperAwarePlaylistCardColor(alpha: Float = 0.42f): Color {
-    val context = LocalContext.current
-    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val wallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = false)
-    val wallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = "")
-    return if (wallpaperEnabled && wallpaperUri.isNotBlank()) {
-        MiuixTheme.colorScheme.surfaceContainer.copy(alpha = alpha)
-    } else {
-        MiuixTheme.colorScheme.surfaceContainer
-    }
+    val frosting = LocalSettingsCardFrosting.current
+    return frostedCardColor(frosting = frosting, defaultAlpha = alpha)
 }

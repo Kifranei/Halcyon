@@ -3,9 +3,8 @@ package com.ella.music.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ViewList
-import androidx.compose.material.icons.rounded.GridView
+import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.ListView
 import android.widget.Toast
 import android.graphics.Bitmap
 import android.net.Uri
@@ -44,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -90,7 +90,7 @@ import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SongSelectionActionRow
 import com.ella.music.ui.components.ShuffleAllSummaryButton
-import com.ella.music.ui.components.ScanRefreshIconButton
+
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.TagEditorOptionKind
 import com.ella.music.ui.components.buildTagEditorOptions
@@ -112,17 +112,23 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun LibraryScreen(
@@ -132,7 +138,10 @@ fun LibraryScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToAlbum: (Long) -> Unit = {},
-    onNavigateToArtist: (String) -> Unit = {}
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAiChat: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
@@ -146,6 +155,18 @@ fun LibraryScreen(
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
+    var libraryRefreshing by remember { mutableStateOf(false) }
+    val libraryPullToRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(libraryRefreshing, isScanning) {
+        if (!libraryRefreshing) return@LaunchedEffect
+        val started = withTimeoutOrNull(1_500) {
+            snapshotFlow { isScanning }.first { it }
+        }
+        if (started == true) {
+            snapshotFlow { isScanning }.first { !it }
+        }
+        libraryRefreshing = false
+    }
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
@@ -200,7 +221,7 @@ fun LibraryScreen(
     var aiInterpretationSong by remember { mutableStateOf<Song?>(null) }
     var listCoversEnabled by remember { mutableStateOf(false) }
     var pendingConfirmDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-    var ratingFilterExpanded by remember { mutableStateOf(false) }
+
     var scrollToTopRequest by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     fun applyHomeSortMode(mode: HomeSortMode) {
@@ -257,7 +278,8 @@ fun LibraryScreen(
     val sortedResult by produceState<HomeSortedSongs?>(
         initialValue = null,
         filteredSongs,
-        sortMode
+        sortMode,
+        LibrarySortUiState.randomSortSeed
     ) {
         value = withContext(Dispatchers.Default) { filteredSongs.cachedSortedForHomeMode(sortMode) }
     }
@@ -302,52 +324,17 @@ fun LibraryScreen(
             EllaSmallTopAppBar(
                 title = "",
                 color = libraryPageBackground,
-                titleStartPadding = if (!selection.selectionMode && songs.isNotEmpty()) 156.dp else 20.dp,
-                titleEndPadding = if (selection.selectionMode) 170.dp else 152.dp,
+                titleStartPadding = if (!selection.selectionMode && songs.isNotEmpty()) 108.dp else 20.dp,
+                titleEndPadding = 144.dp,
                 navigationIcon = {
-                    if (!selection.selectionMode) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            ScanRefreshIconButton(
-                                enabled = !isScanning,
-                                onScan = { mainViewModel.scanMusic() },
-                                onDeepRescan = { mainViewModel.fullRescanMusic() }
-                            )
-                            if (songs.isNotEmpty()) {
-                                IconButton(onClick = { ratingFilterExpanded = !ratingFilterExpanded }) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_rating_star_half),
-                                        contentDescription = stringResource(R.string.song_more_set_rating),
-                                        tint = if (ratingFilter.hasRatingConstraint() || ratingFilterExpanded) {
-                                            MiuixTheme.colorScheme.primary
-                                        } else {
-                                            MiuixTheme.colorScheme.onSurface
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                IconButton(onClick = {
-                                    ratingFilter = ratingFilter.toggleFavoriteFilter()
-                                    HomeRatingFilterUiState.selection = ratingFilter
-                                }) {
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (ratingFilter.hasFavoriteFilterMemory()) {
-                                                R.drawable.ic_notification_favorite_filled
-                                            } else {
-                                                R.drawable.ic_notification_favorite
-                                            }
-                                        ),
-                                        contentDescription = stringResource(R.string.favorite_filter),
-                                        tint = if (ratingFilter.hasFavoriteFilterMemory()) {
-                                            Color(0xFFFF4D6D)
-                                        } else {
-                                            MiuixTheme.colorScheme.onSurface
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
+                    if (!selection.selectionMode && songs.isNotEmpty()) {
+                        RatingFilterMenu(
+                            selection = ratingFilter,
+                            onSelectionChange = {
+                                ratingFilter = it
+                                HomeRatingFilterUiState.selection = it
                             }
-                        }
+                        )
                     }
                 },
                 actions = {
@@ -415,7 +402,7 @@ fun LibraryScreen(
                         }
                         SortDropdownMenu(
                             items = directionalSortDropdownItems(
-                                fields = HomeSortField.entries.map { field ->
+                                fields = HomeSortField.entries.filter { it != HomeSortField.Random }.map { field ->
                                     DirectionalSortField(
                                         field = field,
                                         text = stringResource(field.labelRes),
@@ -440,7 +427,12 @@ fun LibraryScreen(
                                 applyHomeSortMode(
                                     field.toMode(direction == SortDirection.Descending)
                                 )
-                            }
+                            } + listOf(
+                                com.ella.music.ui.components.randomSortDropdownItem(
+                                    selected = sortMode == HomeSortMode.Random,
+                                    onSelect = { applyHomeSortMode(HomeSortMode.Random) }
+                                )
+                            )
                         )
                     }
                 }
@@ -450,11 +442,12 @@ fun LibraryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 160.dp else 56.dp
+                startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 108.dp else 20.dp,
+                endPadding = 140.dp
             )
         }
 
-        BackHandler(enabled = selection.selectionMode || searchExpanded || ratingFilterExpanded) {
+        BackHandler(enabled = selection.selectionMode || searchExpanded) {
             when {
                 selection.selectionMode -> {
                     selection.finishSelectionMode()
@@ -463,7 +456,6 @@ fun LibraryScreen(
                     searchExpanded = false
                     searchQuery = ""
                 }
-                ratingFilterExpanded -> ratingFilterExpanded = false
             }
         }
 
@@ -477,20 +469,6 @@ fun LibraryScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp),
                 containerColor = searchBarColor
-            )
-        }
-
-        AnimatedVisibility(
-            visible = songs.isNotEmpty() && !selection.selectionMode && ratingFilterExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
-        ) {
-            StarRatingFilterRow(
-                selection = ratingFilter,
-                onSelectionChange = {
-                    ratingFilter = it
-                    HomeRatingFilterUiState.selection = it
-                }
             )
         }
 
@@ -802,11 +780,10 @@ fun LibraryScreen(
                                 ) {
                                     Icon(
                                         imageVector = when (librarySongLayout) {
-                                            SettingsManager.LIBRARY_LAYOUT_GRID ->
-                                                Icons.AutoMirrored.Rounded.ViewList
                                             SettingsManager.LIBRARY_LAYOUT_MULTI_ROW ->
-                                                Icons.Rounded.GridView
-                                            else -> Icons.AutoMirrored.Rounded.ViewList
+                                                MiuixIcons.Regular.GridView
+                                            else ->
+                                                MiuixIcons.Regular.ListView
                                         },
                                         contentDescription = stringResource(
                                             when (librarySongLayout) {
@@ -905,10 +882,27 @@ fun LibraryScreen(
                         scope.launch { settingsManager.setLibrarySongLayout(committedLayout) }
                     }
 
-                    Box(
+                    PullToRefresh(
+                        isRefreshing = libraryRefreshing,
+                        onRefresh = {
+                            libraryRefreshing = true
+                            mainViewModel.scanMusic()
+                        },
+                        pullToRefreshState = libraryPullToRefreshState,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        refreshTexts = listOf(
+                            stringResource(R.string.library_pull_to_refresh),
+                            stringResource(R.string.library_release_to_refresh),
+                            stringResource(R.string.library_refreshing),
+                            stringResource(R.string.library_refresh_complete)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
+                    ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
                             .libraryPinchGesture(
                                 enabled = !selection.selectionMode,
                                 state = libraryPinch,
@@ -969,6 +963,7 @@ fun LibraryScreen(
                                 modifier = Modifier.matchParentSize()
                             )
                         }
+                    }
                     }
                 }
 
@@ -1199,6 +1194,7 @@ private fun LibrarySongsList(
     LazyColumn(
         state = listState,
         userScrollEnabled = userScrollEnabled,
+        overscrollEffect = null,
         modifier = modifier.graphicsLayer {
             this.alpha = alpha
             scaleX = scale

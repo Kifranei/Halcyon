@@ -192,7 +192,7 @@ fun FolderDetailScreen(
                 it.fileName.contains(searchQuery, ignoreCase = true)
         }
     }
-    val sortedSongs = remember(filteredSongs, sortMode) {
+    val sortedSongs = remember(filteredSongs, sortMode, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         filteredSongs.sortedForFolderDetail(sortMode)
     }
     val sortedSongIdsForSelection = remember(sortedSongs) { sortedSongs.map { it.id } }
@@ -407,6 +407,11 @@ fun FolderDetailScreen(
                             ),
                             selectedMode = sortMode,
                             onSelect = ::updateSortMode
+                        ) + listOf(
+                            com.ella.music.ui.components.randomSortDropdownItem(
+                                selected = sortMode == FolderSongSortMode.Random,
+                                onSelect = { updateSortMode(FolderSongSortMode.Random) }
+                            )
                         )
                     )
                 }

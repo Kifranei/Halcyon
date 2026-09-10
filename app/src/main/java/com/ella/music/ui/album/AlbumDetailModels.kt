@@ -16,7 +16,8 @@ internal enum class AlbumDetailSongSortMode(val labelRes: Int) {
     TrackDesc(R.string.album_sort_track),
     TitleDesc(R.string.playlist_song_sort_title),
     FileNameDesc(R.string.playlist_song_sort_file_name),
-    DurationAsc(R.string.playlist_song_sort_duration)
+    DurationAsc(R.string.playlist_song_sort_duration),
+    Random(R.string.common_sort_random)
 }
 
 internal fun AlbumDetailSongSortMode.isDescending(): Boolean = when (this) {
@@ -72,5 +73,6 @@ internal fun List<Song>.sortedForAlbumDetail(mode: AlbumDetailSongSortMode): Lis
         AlbumDetailSongSortMode.DateAddedAsc -> sortedBy { it.dateAdded }
         AlbumDetailSongSortMode.DateModified -> sortedByDescending { it.dateModified }
         AlbumDetailSongSortMode.DateModifiedAsc -> sortedBy { it.dateModified }
+        AlbumDetailSongSortMode.Random -> shuffled(kotlin.random.Random(com.ella.music.ui.LibrarySortUiState.randomSortSeed))
     }
 }

@@ -48,7 +48,7 @@ import com.ella.music.plugin.source.toAudioTagInfo
 import com.ella.music.plugin.source.toEmbeddedLyricsText
 import com.ella.music.ui.components.EllaLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -159,10 +159,11 @@ internal fun PluginLyricsMatchSheet(
             .heightIn(max = 620.dp)
             .padding(horizontal = 18.dp, vertical = 12.dp)
     ) {
-        EllaMiuixTextField(
+        TextField(
             value = query,
             onValueChange = { query = it },
             label = stringResource(R.string.lyric_match_query_label),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))

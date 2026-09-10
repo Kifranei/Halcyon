@@ -82,7 +82,9 @@ internal fun LibrarySearchResultsPane(
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 128.dp)
+        // Search keeps its own dock (mini player + search field). Leave enough list
+        // clearance so the last rows are not covered by that overlay.
+        contentPadding = PaddingValues(bottom = 232.dp)
     ) {
         if (trimmedQuery.isBlank() && !duplicatesOnlyActive && !hasActiveContentFilter) {
             if (history.isNotEmpty()) {

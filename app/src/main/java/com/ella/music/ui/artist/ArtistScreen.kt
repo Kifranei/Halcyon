@@ -64,7 +64,6 @@ import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.SongItem
-import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -72,7 +71,6 @@ import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.rememberLibrarySelectionState
-import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.toFastIndexSection
 import com.ella.music.ui.components.openVideoWithMediaInfo
@@ -201,7 +199,7 @@ fun ArtistScreen(
             }
         }
     }
-    val sortedArtistSongs = remember(filteredArtistSongs, sortMode) {
+    val sortedArtistSongs = remember(filteredArtistSongs, sortMode, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         filteredArtistSongs.sortedForArtistDetail(sortMode)
     }
     val filteredArtistMusicVideos = remember(artistMusicVideos, artistQuery) {
@@ -355,27 +353,15 @@ fun ArtistScreen(
     val representativeCoverSong = remember(songs, artistName) {
         selectArtistCoverSong(songs, artistName)
     }
-    val artistCoverUri = representativeCoverSong?.albumId
-        ?.takeIf { it > 0L }
-        ?.let { mainViewModel.getAlbumArtUri(it) }
-    val artistCoverState = rememberSongArtworkState(
-        song = representativeCoverSong,
-        albumArtUri = artistCoverUri,
-        loadCoverArt = mainViewModel::getArtistCoverArtBitmap,
-        usage = ArtworkUsage.ArtistImage,
-        showDefaultWhenMissing = false
-    )
-    // The representative song is still chosen by the #266 policy above; only the decoded
-    // source changes here so that the header is no longer capped at the list thumbnail size.
+    // The representative song is still chosen by the #266 policy above. Use the unscaled
+    // artwork source so the header and long-press preview are not capped at the 512px
+    // artist-image decode (#609).
     val artistOriginalCoverModel by produceState<Any?>(
-        initialValue = artistCoverState.model,
-        representativeCoverSong?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") },
-        // The embedded artwork lookup is asynchronous. Include the resolved model in the key so
-        // a header that started empty is retried when the artist cover state finishes loading.
-        artistCoverState.model
+        initialValue = null,
+        representativeCoverSong?.let { listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize).joinToString("|") }
     ) {
         value = withContext(Dispatchers.IO) {
-            representativeCoverSong?.let(mainViewModel::getArtistCoverModel) ?: artistCoverState.model
+            representativeCoverSong?.let(mainViewModel::getArtistCoverModel)
         }
     }
     val customArtistCoverAssets = rememberArtistCoverAssets(
@@ -1090,6 +1076,15 @@ fun ArtistScreen(
                             scope.launch { mainViewModel.settingsManager.setArtistDetailSongSortIndex(mode.ordinal) }
                             scrollToTopRequest++
                         }
+                    ) + listOf(
+                        com.ella.music.ui.components.randomSortDropdownItem(
+                            selected = sortMode == ArtistDetailSongSortMode.Random,
+                            onSelect = {
+                                LibrarySortUiState.artistDetailSongSortIndex = ArtistDetailSongSortMode.Random.ordinal
+                                scope.launch { mainViewModel.settingsManager.setArtistDetailSongSortIndex(ArtistDetailSongSortMode.Random.ordinal) }
+                                scrollToTopRequest++
+                            }
+                        )
                     )
                     }
                     ArtistTab.MusicVideos -> {

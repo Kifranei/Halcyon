@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -24,10 +26,13 @@ internal fun SpeedPitchSheetContent(
     pitch: Float,
     onBack: () -> Unit,
     onSpeed: (Float) -> Unit,
-    onPitch: (Float) -> Unit
+    onPitch: (Float) -> Unit,
+    showHeader: Boolean = true
 ) {
-    HalfSheetTitle(title = stringResource(R.string.player_speed_pitch), onBack = onBack)
-    Spacer(modifier = Modifier.height(22.dp))
+    if (showHeader) {
+        HalfSheetTitle(title = stringResource(R.string.player_speed_pitch), onBack = onBack)
+        Spacer(modifier = Modifier.height(22.dp))
+    }
     SpeedPitchSliderCard(
         title = stringResource(R.string.player_speed_playback),
         value = speed,
@@ -51,7 +56,7 @@ private fun SpeedPitchSliderCard(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.58f)
+            color = MiuixTheme.colorScheme.secondaryContainer
         )
     ) {
         Row(
@@ -72,14 +77,14 @@ private fun SpeedPitchSliderCard(
                 color = MiuixTheme.colorScheme.onSurface
             )
         }
-        DottedValueSlider(
-            value = value,
+        Spacer(modifier = Modifier.height(6.dp))
+        Slider(
+            value = value.coerceIn(0.5f, 2f),
             valueRange = 0.5f..2f,
-            steps = 30,
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(70.dp)
+                .padding(vertical = 4.dp)
         )
     }
 }

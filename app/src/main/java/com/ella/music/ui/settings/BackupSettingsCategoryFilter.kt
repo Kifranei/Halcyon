@@ -24,6 +24,8 @@ internal fun JSONObject.filterBackupSettings(
 }
 
 internal fun String.backupType(): BackupType = when {
+    isFontSettingKey() -> BackupType.Fonts
+    isWallpaperAndImageSettingKey() -> BackupType.WallpapersAndImages
     isEqualizerSettingKey() -> BackupType.Equalizer
     isOnlineSourceSettingKey() -> BackupType.OnlineSources
     isAiSettingKey() -> BackupType.AiConfigAndChat
@@ -42,6 +44,14 @@ internal fun JSONObject.availableBackupTypes(includeDeviceLocalAssets: Boolean =
         val key = keys.next()
         if (includeDeviceLocalAssets || !key.isBackupExcludedSettingKey()) available += key.backupType()
     }
+    val manifest = optJSONObject(PORTABLE_ASSETS_FIELD)
+    if (manifest != null) {
+        val manifestKeys = manifest.keys()
+        while (manifestKeys.hasNext()) {
+            val key = manifestKeys.next()
+            available += key.backupType()
+        }
+    }
     if (has("playlists")) available += BackupType.Playlists
     if (has("playback")) available += BackupType.PlaybackStats
     if (has("aiChat")) available += BackupType.AiConfigAndChat
@@ -49,10 +59,24 @@ internal fun JSONObject.availableBackupTypes(includeDeviceLocalAssets: Boolean =
     return available
 }
 
+private fun String.isFontSettingKey(): Boolean =
+    startsWith("imported_font_") ||
+        startsWith("lyric_font_") ||
+        startsWith("lyric_western_") ||
+        startsWith("lyric_cjk_") ||
+        startsWith("lyric_original_") ||
+        startsWith("lyric_translation_") ||
+        startsWith("global_western_") ||
+        startsWith("global_cjk_") ||
+        this == "lyric_custom_font_enabled" ||
+        this == "lyric_share_use_lyric_font" ||
+        this == "desktop_lyric_font_scale"
+
 private fun String.isAiSettingKey(): Boolean =
     this == "openai_api_key" ||
         this == "openai_base_url" ||
-        this == "openai_model"
+        this == "openai_model" ||
+        this == "ai_api_protocol"
 
 private fun String.isEqualizerSettingKey(): Boolean =
     startsWith("audio_eq_") ||
@@ -111,3 +135,20 @@ private fun String.isLibraryAndScanSettingKey(): Boolean =
         startsWith("sort_metadata_category_detail_song_") ||
         startsWith("sort_metadata_category_detail_album_") ||
         (startsWith("pinned_") && this != "pinned_folder_playlist")
+
+private fun String.isWallpaperAndImageSettingKey(): Boolean =
+    this == "startup_poster_enabled" ||
+        this == "startup_poster_uri" ||
+        this == "startup_poster_duration_ms" ||
+        this == "app_wallpaper_enabled" ||
+        this == "app_wallpaper_uri" ||
+        this == "app_wallpaper_opacity" ||
+        this == "app_wallpaper_dim" ||
+        this == "app_wallpaper_content_overlay" ||
+        this == "player_background_enabled" ||
+        this == "player_background_uri" ||
+        this == "player_background_opacity" ||
+        this == "player_background_dim" ||
+        this == "home_feature_wallpaper_uri" ||
+        this == "hi_res_logo_enabled" ||
+        this == "hi_res_logo_uri"

@@ -16,18 +16,19 @@ class NowPlayingFlowRouteTest {
             Screen.Folder.route,
             Screen.FolderPlaylists.route,
             Screen.Playlists.route,
-            Screen.MetadataCategory.route
+            Screen.MetadataCategory.route,
+            Screen.Settings.route,
+            Screen.PlayerShortcutSettings.createRoute()
         ).forEach { route -> assertTrue(route, supportsNowPlayingFlowBackground(route)) }
     }
 
     @Test
-    fun detailAndSettingsPages_remainOpaque() {
+    fun detailPages_remainOpaque() {
         listOf(
             Screen.AlbumDetail.route,
             Screen.ArtistDetail.route,
             Screen.PlaylistDetail.route,
             Screen.FolderDetail.route,
-            Screen.Settings.route,
             null
         ).forEach { route -> assertFalse(route, supportsNowPlayingFlowBackground(route)) }
     }

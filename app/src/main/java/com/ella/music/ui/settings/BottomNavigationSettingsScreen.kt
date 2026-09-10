@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,8 +24,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,7 +47,11 @@ import com.ella.music.R
 import com.ella.music.bottomDockTabCatalog
 import com.ella.music.data.SettingsManager
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.ReorderableSelectionItem
+import com.ella.music.ui.components.ReorderableSelectionSheet
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -63,6 +70,7 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
     val storedItems by settingsManager.bottomDockItems.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
     )
+    val mergeSearch by settingsManager.bottomDockMergeSearch.collectAsState(initial = false)
     val startupItem by settingsManager.bottomDockStartupItem.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_STARTUP_ITEM
     )
@@ -82,13 +90,12 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
         initial = SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_PERCENT
     )
     val catalog = bottomDockTabCatalog()
-    val selectedIds = storedItems
-        .filter { it in catalog }
-        .distinct()
-        .take(SettingsManager.MAX_BOTTOM_DOCK_ITEMS)
-        .ifEmpty { SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',') }
+    val selectedIds = SettingsManager.visibleBottomDockItems(
+        storedItems.filter { it in catalog }.distinct(),
+        mergeSearch
+    ).ifEmpty { SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',') }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
 
     fun save(items: List<String>) {
         scope.launch { settingsManager.setBottomDockItems(items) }
@@ -101,39 +108,27 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    Column(
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topBarHeight = 56.dp + statusBarHeight
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        EllaSmallTopAppBar(
-            title = stringResource(R.string.settings_bottom_dock_items),
-            color = pageBackground,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = stringResource(R.string.common_back),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberSettingsScrollState("settings_bottom_navigation"))
                 .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
 
             SmallTitle(text = stringResource(R.string.settings_bottom_dock_preview))
             SettingsCardGroup {
                 BottomDockPreview(
-                    tabs = selectedIds.mapNotNull(catalog::get)
+                    tabs = selectedIds.mapNotNull(catalog::get),
+                    mergeSearch = mergeSearch
                 )
             }
 
@@ -280,109 +275,113 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                 }
             }
 
+            var showReorderSheet by remember { mutableStateOf(false) }
+
             SmallTitle(text = stringResource(R.string.settings_bottom_dock_selected))
             SettingsCardGroup {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    Text(
-                        text = stringResource(
-                            R.string.settings_bottom_dock_selection_count,
-                            selectedIds.size,
-                            SettingsManager.MAX_BOTTOM_DOCK_ITEMS
-                        ),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
-                    selectedIds.forEachIndexed { index, id ->
-                        catalog[id]?.let { tab ->
-                            SelectedDockRow(
-                                tab = tab,
-                                position = index + 1,
-                                canMoveUp = index > 0,
-                                canMoveDown = index < selectedIds.lastIndex,
-                                canRemove = selectedIds.size > 1,
-                                onMoveUp = {
-                                    val updated = selectedIds.toMutableList()
-                                    java.util.Collections.swap(updated, index, index - 1)
-                                    save(updated)
-                                },
-                                onMoveDown = {
-                                    val updated = selectedIds.toMutableList()
-                                    java.util.Collections.swap(updated, index, index + 1)
-                                    save(updated)
-                                },
-                                onRemove = { save(selectedIds - id) }
-                            )
-                        }
+                SwitchPreference(
+                    title = stringResource(R.string.settings_bottom_dock_merge_search),
+                    summary = stringResource(R.string.settings_bottom_dock_merge_search_summary),
+                    checked = mergeSearch,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsManager.setBottomDockMergeSearch(enabled) }
                     }
-                }
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_bottom_dock_items),
+                    summary = stringResource(
+                        R.string.settings_bottom_dock_selection_count,
+                        selectedIds.size,
+                        SettingsManager.MAX_BOTTOM_DOCK_ITEMS
+                    ),
+                    onClick = { showReorderSheet = true }
+                )
             }
 
-            SmallTitle(text = stringResource(R.string.settings_bottom_dock_available))
-            SettingsCardGroup {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_bottom_dock_available_summary),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+            val allDockItems = remember(catalog, mergeSearch) {
+                catalog.entries
+                    .filter { mergeSearch || it.key != SettingsManager.BOTTOM_DOCK_ITEM_SEARCH }
+                    .map { (id, tab) ->
+                    ReorderableSelectionItem(
+                        id = id,
+                        title = tab.label,
+                        enabled = false
                     )
-                    catalog.entries.chunked(2).forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowItems.forEach { (id, tab) ->
-                                val selected = id in selectedIds
-                                val enabled = selected || selectedIds.size < SettingsManager.MAX_BOTTOM_DOCK_ITEMS
-                                AvailableDockTile(
-                                    tab = tab,
-                                    selected = selected,
-                                    enabled = enabled,
-                                    onClick = {
-                                        when {
-                                            selected && selectedIds.size > 1 -> save(selectedIds - id)
-                                            !selected && enabled -> save(selectedIds + id)
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
                 }
+            }
+            val currentDockSheetItems = remember(selectedIds, allDockItems) {
+                val selected = selectedIds.mapNotNull { id ->
+                    allDockItems.find { it.id == id }?.copy(enabled = true)
+                }
+                val unselected = allDockItems.filter { it.id !in selectedIds }
+                selected + unselected
+            }
+            val defaultDockIds = remember {
+                SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
+            }
+            val defaultDockSheetItems = remember(defaultDockIds, allDockItems) {
+                val defSelected = defaultDockIds.mapNotNull { id ->
+                    allDockItems.find { it.id == id }?.copy(enabled = true)
+                }
+                val defUnselected = allDockItems.filter { it.id !in defaultDockIds }
+                defSelected + defUnselected
             }
 
-            SettingsCardGroup {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            reset()
-                        }
-                        .padding(vertical = 17.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_bottom_dock_reset),
-                        color = MiuixTheme.colorScheme.primary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            ReorderableSelectionSheet(
+                show = showReorderSheet,
+                title = stringResource(R.string.settings_bottom_dock_items),
+                subtitle = stringResource(R.string.settings_bottom_dock_available_summary),
+                items = currentDockSheetItems,
+                defaultItems = defaultDockSheetItems,
+                maxSelectCount = SettingsManager.MAX_BOTTOM_DOCK_ITEMS,
+                onExceedMaxSelect = {
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_bottom_dock_selection_count, SettingsManager.MAX_BOTTOM_DOCK_ITEMS, SettingsManager.MAX_BOTTOM_DOCK_ITEMS),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                },
+                onDismissRequest = { showReorderSheet = false },
+                onSave = { updated ->
+                    val newSelected = updated.filter { it.enabled }.map { it.id }.take(SettingsManager.MAX_BOTTOM_DOCK_ITEMS)
+                    if (newSelected.isNotEmpty()) {
+                        save(newSelected)
+                    }
+                    showReorderSheet = false
+                },
+                onReset = {
+                    reset()
                 }
-            }
+            )
             // The always-visible mini-player is drawn above this route. Leave enough scrollable
             // tail space so the reset action can be brought fully above it on every OEM.
             Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
             Spacer(modifier = Modifier.height(96.dp))
         }
+
+        EllaSmallTopAppBar(
+            title = stringResource(R.string.settings_bottom_dock_items),
+            color = pageBackground,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 }
 
 @Composable
-private fun BottomDockPreview(tabs: List<BottomDockTab>) {
+private fun BottomDockPreview(
+    tabs: List<BottomDockTab>,
+    mergeSearch: Boolean
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -392,7 +391,7 @@ private fun BottomDockPreview(tabs: List<BottomDockTab>) {
     ) {
         Row(
             modifier = Modifier
-                .weight(1f)
+                .then(if (mergeSearch) Modifier.fillMaxWidth() else Modifier.weight(1f))
                 .height(58.dp)
                 .background(
                     color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f),
@@ -410,21 +409,23 @@ private fun BottomDockPreview(tabs: List<BottomDockTab>) {
                 )
             }
         }
-        Box(
-            modifier = Modifier
-                .size(58.dp)
-                .background(
-                    color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                    shape = RoundedCornerShape(29.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Basic.Search,
-                contentDescription = stringResource(R.string.common_search),
-                tint = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.size(24.dp)
-            )
+        if (!mergeSearch) {
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .background(
+                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                        shape = RoundedCornerShape(29.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Basic.Search,
+                    contentDescription = stringResource(R.string.common_search),
+                    tint = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }

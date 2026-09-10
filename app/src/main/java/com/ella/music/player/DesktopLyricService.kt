@@ -489,7 +489,7 @@ class DesktopLyricService : Service() {
 
     private fun closeByUser() {
         userHidden = true
-        serviceScope.launch { SettingsManager.getInstance(this@DesktopLyricService).setDesktopLyricEnabled(false) }
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { SettingsManager.getInstance(applicationContext).setDesktopLyricEnabled(false) }
         rootView?.let { runCatching { windowManager.removeView(it) } }
         rootView = null
         lyricView = null
@@ -1130,6 +1130,12 @@ class DesktopLyricService : Service() {
             Color.rgb(255, 224, 150),
             Color.rgb(255, 87, 34)
         )
-        private var userHidden = false
+        @Volatile
+        internal var userHidden = false
+            private set
+
+        fun resetUserHidden() {
+            userHidden = false
+        }
     }
 }

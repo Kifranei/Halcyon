@@ -119,7 +119,8 @@ internal fun LandscapeTransportControls(
     controlHeight: androidx.compose.ui.unit.Dp = 58.dp,
     sideIconSize: androidx.compose.ui.unit.Dp = 30.dp,
     playButtonSize: androidx.compose.ui.unit.Dp = 54.dp,
-    playIconSize: androidx.compose.ui.unit.Dp = 34.dp
+    playIconSize: androidx.compose.ui.unit.Dp = 34.dp,
+    useAppleMusicIcons: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -129,12 +130,19 @@ internal fun LandscapeTransportControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         PlayerTransportIconButton(onClick = onPrevious) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_skip_previous),
-                contentDescription = stringResource(R.string.common_previous),
-                tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(sideIconSize)
-            )
+            if (useAppleMusicIcons) {
+                AppleSkipPreviousIcon(
+                    color = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            } else {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_skip_previous),
+                    contentDescription = stringResource(R.string.common_previous),
+                    tint = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -143,19 +151,34 @@ internal fun LandscapeTransportControls(
                 .playerNoIndicationClick(onPlayPause),
             contentAlignment = Alignment.Center
         ) {
-            CenteredPlayPauseGlyph(
-                isPlaying = isPlaying,
-                tint = palette.onBackground.copy(alpha = 0.96f),
-                modifier = Modifier.size(playIconSize)
-            )
+            if (useAppleMusicIcons) {
+                ApplePlayPauseIcon(
+                    isPlaying = isPlaying,
+                    color = palette.onBackground.copy(alpha = 0.96f),
+                    modifier = Modifier.size(playIconSize)
+                )
+            } else {
+                CenteredPlayPauseGlyph(
+                    isPlaying = isPlaying,
+                    tint = palette.onBackground.copy(alpha = 0.96f),
+                    modifier = Modifier.size(playIconSize)
+                )
+            }
         }
         PlayerTransportIconButton(onClick = onNext) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_skip_next),
-                contentDescription = stringResource(R.string.common_next),
-                tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(sideIconSize)
-            )
+            if (useAppleMusicIcons) {
+                AppleSkipNextIcon(
+                    color = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            } else {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_skip_next),
+                    contentDescription = stringResource(R.string.common_next),
+                    tint = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            }
         }
     }
 }
@@ -182,9 +205,9 @@ internal fun PlayerProgressBlock(
     val progressStyle by settingsManager.playerProgressStyle.collectAsState(
         initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE
     )
-    val showQuality by settingsManager.playerProgressShowQuality.collectAsState(initial = true)
-    val showAudioInfo by settingsManager.playerProgressShowAudioInfo.collectAsState(initial = true)
-    val showOutputDevice by settingsManager.playerProgressShowOutputDevice.collectAsState(initial = true)
+    val progressInfoPriority by settingsManager.playerProgressInfoPriority.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_INFO_PRIORITY
+    )
     val longPressCyclesInfo by settingsManager.playerProgressLongPressCycle.collectAsState(initial = false)
     val separateGainChip by settingsManager.playerProgressInfoSeparated.collectAsState(initial = false)
     var infoMode by remember { mutableIntStateOf(0) }
@@ -211,26 +234,33 @@ internal fun PlayerProgressBlock(
         bluetoothDeviceName,
         playbackModeLabel,
         replayGainLabel,
-        showQuality,
-        showAudioInfo,
-        showOutputDevice,
+        progressInfoPriority,
         separateGainChip
     ) {
+        val enabledIds = SettingsManager.normalizePlayerProgressInfoPriority(progressInfoPriority)
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
         buildList {
             playbackModeLabel?.takeIf { it.isNotBlank() }
                 ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.PlaybackMode)) }
                 ?: run {
-                if (showQuality) qualityLabel?.let {
-                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.Quality))
+                enabledIds.forEach { id ->
+                    when (id) {
+                        SettingsManager.PLAYER_PROGRESS_INFO_QUALITY -> qualityLabel?.let {
+                            add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.Quality))
+                        }
+                        SettingsManager.PLAYER_PROGRESS_INFO_AUDIO -> qualitySummary?.detailLabel
+                            ?.takeIf { text -> text.isNotBlank() }
+                            ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
+                        SettingsManager.PLAYER_PROGRESS_INFO_OUTPUT ->
+                            bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
+                                add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
+                            }
+                    }
                 }
-                if (showAudioInfo) qualitySummary?.detailLabel
-                    ?.takeIf { text -> text.isNotBlank() }
-                    ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
                 if (separateGainChip) replayGainLabel?.takeIf { it.isNotBlank() }?.let {
                     add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.ReplayGain))
-                }
-                if (showOutputDevice) bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
-                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
                 }
             }
         }.distinctBy { it.text }

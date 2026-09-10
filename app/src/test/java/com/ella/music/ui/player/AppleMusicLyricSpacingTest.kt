@@ -212,6 +212,33 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
+    fun leadingPaddingUsesFixedFocusOffsetWhenProvided() {
+        assertEquals(
+            110.dp,
+            resolveAppleMusicLyricsLeadingPadding(
+                viewportHeight = 800.dp,
+                focusOffsetRatio = 0.22f,
+                minimumTopPadding = 16.dp,
+                fixedFocusOffset = 110.dp
+            )
+        )
+    }
+
+    @Test
+    fun trailingPaddingUsesFixedFocusOffsetWhenProvided() {
+        assertEquals(
+            650.dp,
+            resolveAppleMusicLyricsTrailingPadding(
+                viewportHeight = 800.dp,
+                focusOffsetRatio = 0.22f,
+                trailingLineHeight = 40.dp,
+                minimumBottomPadding = 56.dp,
+                fixedFocusOffset = 110.dp
+            )
+        )
+    }
+
+    @Test
     fun focusOffsetIsClampedWhenLyricRowIsTallerThanTheViewport() {
         assertEquals(
             0,
@@ -323,6 +350,18 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
+    fun englishWordsAreNeverSplitIntoCharacters() {
+        assertFalse(
+            LyricWord("stranger", 0L, 4_000L)
+                .shouldSplitForAppleMusicCharacters()
+        )
+        assertFalse(
+            LyricWord("falling in love in stranger", 0L, 4_000L)
+                .shouldSplitForAppleMusicCharacters()
+        )
+    }
+
+    @Test
     fun minorPlaybackRegressionIsIgnoredButSeekJumpIsAccepted() {
         assertTrue(
             shouldIgnoreMinorPlaybackRegression(
@@ -338,5 +377,21 @@ class AppleMusicLyricSpacingTest {
                 isPlaying = true
             )
         )
+    }
+
+    @Test
+    fun timedWordsWithPronunciationWordsMapDirectly() {
+        val words = listOf(
+            LyricWord("なんで", 0L, 500L),
+            LyricWord("少しだけ", 500L, 1_000L),
+            LyricWord("夢をみた", 1_000L, 2_000L)
+        )
+        val pronunciationWords = listOf(
+            LyricWord("nante", 0L, 500L),
+            LyricWord("sukoshi dake", 500L, 1_000L),
+            LyricWord("yumeo mita", 1_000L, 2_000L)
+        )
+        val rubies = rubiesForTimedWords(words, pronunciationWords, "")
+        assertEquals(listOf("nante", "sukoshi dake", "yumeo mita"), rubies)
     }
 }

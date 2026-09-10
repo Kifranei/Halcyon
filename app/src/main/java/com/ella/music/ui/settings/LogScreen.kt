@@ -1,9 +1,5 @@
 package com.ella.music.ui.settings
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import com.ella.music.R
 import com.ella.music.data.AppLogEntry
 import com.ella.music.data.AppLogStore
@@ -35,16 +30,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
-import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
-import com.ella.music.ui.components.ellaPageBackground
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -124,34 +116,27 @@ fun LogScreen(
                     )
                 }
             }
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, shareSubject)
-                putExtra(Intent.EXTRA_TITLE, file.name)
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                clipData = ClipData.newUri(context.contentResolver, shareSubject, uri)
-            }
-            runCatching {
-                context.startActivity(
-                    Intent.createChooser(intent, shareChooserTitle)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                )
-            }.onFailure {
-                showToast(noShareApp)
-            }
+            shareDiagnosticsTextFile(
+                context = context,
+                file = file,
+                subject = shareSubject,
+                chooserTitle = shareChooserTitle,
+                noAppMessage = noShareApp
+            )
         }
     }
 
     fun copyEntry(entry: AppLogEntry) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText(logClipLabel, entry.formatForCopy(context)))
-        showToast(copiedToast)
+        copyDiagnosticsText(
+            context = context,
+            label = logClipLabel,
+            text = entry.formatForCopy(context),
+            toastMessage = copiedToast
+        )
         showDetailSheet = false
     }
 
-    val pageBackground = ellaPageBackground()
+    val pageBackground = diagnosticsPageBackground()
     Scaffold(
         modifier = Modifier.background(pageBackground),
         topBar = {
@@ -204,7 +189,7 @@ fun LogScreen(
             overscrollEffect = null
         ) {
             item("filters") {
-                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+                DiagnosticsCard {
                     WindowDropdownPreference(
                         title = stringResource(R.string.logs_level_filter),
                         items = listOf(allLabel) + EllaLogLevelFilter.entries.map { stringResource(it.labelRes) },
@@ -225,18 +210,14 @@ fun LogScreen(
             }
 
             item("search") {
-                EllaMiuixTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = stringResource(R.string.logs_search_label),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
+                DiagnosticsSearchBar(
+                    query = query,
+                    onQueryChange = { query = it }
                 )
             }
 
             item("summary") {
-                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+                DiagnosticsCard {
                     BasicComponent(
                         title = stringResource(R.string.logs_summary_title),
                         summary = stringResource(
@@ -252,9 +233,9 @@ fun LogScreen(
 
             if (filteredEntries.isEmpty()) {
                 item("empty") {
-                    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-                        BasicComponent(title = if (entries.isEmpty()) stringResource(R.string.logs_empty) else stringResource(R.string.logs_empty_filtered))
-                    }
+                    DiagnosticsEmptyCard(
+                        text = if (entries.isEmpty()) stringResource(R.string.logs_empty) else stringResource(R.string.logs_empty_filtered)
+                    )
                 }
             } else {
                 itemsIndexed(

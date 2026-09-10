@@ -54,7 +54,10 @@ import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.CloverShape
 import com.ella.music.ui.components.CookieShape
 import com.ella.music.ui.components.ExplicitSongTitle
+import com.ella.music.ui.components.LocalSettingsCardFrosting
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.effect.BgEffectBackground
@@ -142,7 +145,6 @@ internal data class HomeTileSpec(
     val id: String,
     val title: String,
     val subtitle: String,
-    val color: Color,
     val route: String,
     val onClick: () -> Unit
 )
@@ -153,9 +155,7 @@ internal fun HomeTileSection(
     tiles: List<HomeTileSpec>,
     context: Context,
     showPinButtons: Boolean,
-    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    gradientEnabled: Boolean = false,
-    gradientStartColor: Color? = null
+    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer
 ) {
     if (tiles.isEmpty()) return
     SectionTitle(title)
@@ -163,9 +163,7 @@ internal fun HomeTileSection(
         tiles = tiles,
         context = context,
         showPinButtons = showPinButtons,
-        cardColor = cardColor,
-        gradientEnabled = gradientEnabled,
-        gradientStartColor = gradientStartColor
+        cardColor = cardColor
     )
 }
 
@@ -174,9 +172,7 @@ internal fun HomeTileGrid(
     tiles: List<HomeTileSpec>,
     context: Context,
     showPinButtons: Boolean,
-    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    gradientEnabled: Boolean = false,
-    gradientStartColor: Color? = null
+    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer
 ) {
     val televisionDevice = remember(context) {
         context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
@@ -278,9 +274,6 @@ internal fun HomeTileGrid(
                             onClick = {},
                             onPinClick = null,
                             cardColor = cardColor,
-                            tileColor = tile.color,
-                            gradientEnabled = gradientEnabled,
-                            gradientStartColor = gradientStartColor,
                             interactive = false,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -292,9 +285,6 @@ internal fun HomeTileGrid(
                         onClick = tile.onClick,
                         onPinClick = onPinClick,
                         cardColor = cardColor,
-                        tileColor = tile.color,
-                        gradientEnabled = gradientEnabled,
-                        gradientStartColor = gradientStartColor,
                         modifier = tileModifier
                     )
                 }
@@ -475,32 +465,34 @@ private fun HomeTile(
     onClick: () -> Unit,
     onPinClick: (() -> Unit)? = null,
     cardColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    tileColor: Color = MiuixTheme.colorScheme.primary,
-    gradientEnabled: Boolean = false,
-    gradientStartColor: Color? = null,
     interactive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val frosting = LocalSettingsCardFrosting.current
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val background = tileColor
-        .copy(alpha = if (isDark) 0.30f else 0.24f)
-        .compositeOver(cardColor)
-    val gradientBase = gradientStartColor ?: tileColor.copy(alpha = if (isDark) 0.18f else 0.14f)
-    val gradientStart = gradientBase.copy(alpha = if (isDark) 0.52f else 0.44f).compositeOver(cardColor)
-    val contentColor = if (background.luminance() < 0.42f) Color.White else Color(0xFF15151A)
+    val hasCustomCardColor = cardColor != MiuixTheme.colorScheme.surfaceContainer
+    val hasSharedBackground = frosting != null
+    val effectiveCardColor = when {
+        hasCustomCardColor -> cardColor
+        hasSharedBackground -> Color.Transparent
+        isDark -> MiuixTheme.colorScheme.surfaceContainer
+        else -> Color.White
+    }
+    val tileModifier = if (hasSharedBackground && !hasCustomCardColor) {
+        frostedCardModifier(
+            modifier = modifier.height(96.dp),
+            cornerRadius = 16.dp,
+            frosting = frosting
+        )
+    } else {
+        modifier.height(96.dp)
+    }
+    val background = effectiveCardColor
+    val contentColor = MiuixTheme.colorScheme.onSurface
     Column(
-        modifier = modifier
-            .height(96.dp)
+        modifier = tileModifier
             .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (gradientEnabled) {
-                    Brush.linearGradient(
-                        colors = listOf(gradientStart, background, background.copy(alpha = 0.92f))
-                    )
-                } else {
-                    Brush.linearGradient(listOf(background, background))
-                }
-            )
+            .background(background)
             .then(if (interactive) Modifier.combinedClickable(onClick = onClick, onLongClick = onPinClick) else Modifier)
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween

@@ -35,9 +35,10 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.ui.components.EllaMiuixAction
 import com.ella.music.ui.components.EllaMiuixActionRow
 import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.ReorderableSelectionItem
+import com.ella.music.ui.components.ReorderableSelectionSheet
 import kotlinx.coroutines.flow.Flow
-import org.json.JSONObject
-import sh.calvin.reorderable.ReorderableColumn
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -86,10 +87,6 @@ internal fun HomeDisplaySettingsPage(
     hiddenOnlineTiles: String,
     tilePinButtonsVisible: Boolean,
     homeCardColor: String,
-    homeCardOpacity: Int,
-    homeTileColors: String,
-    homeTileGradientEnabled: Boolean,
-    homeTileGradientStartColor: String,
     highlightKey: String? = null,
     onHiddenSectionsChange: (String) -> Unit,
     onHiddenTilesChange: (String) -> Unit,
@@ -99,11 +96,7 @@ internal fun HomeDisplaySettingsPage(
     onTileOrderChange: (String) -> Unit,
     onOnlineOrderChange: (String) -> Unit,
     onTilePinButtonsVisibleChange: (Boolean) -> Unit,
-    onHomeCardColorChange: (String) -> Unit,
-    onHomeCardOpacityChange: (Int) -> Unit,
-    onHomeTileColorChange: (String, String) -> Unit,
-    onHomeTileGradientEnabledChange: (Boolean) -> Unit,
-    onHomeTileGradientStartColorChange: (String) -> Unit
+    onHomeCardColorChange: (String) -> Unit
 ) {
     val orderedSections = remember(sectionItems, sectionOrder) {
         sectionItems.orderedByCsv(sectionOrder, SettingsManager.DEFAULT_HOME_SECTION_ORDER)
@@ -117,34 +110,33 @@ internal fun HomeDisplaySettingsPage(
     val hiddenSectionIds = remember(hiddenSections) { hiddenSections.csvIdSet() }
     val hiddenTileIds = remember(hiddenTiles) { hiddenTiles.csvIdSet() }
     val hiddenOnlineTileIds = remember(hiddenOnlineTiles) { hiddenOnlineTiles.csvIdSet() }
-    val tileColorMap = remember(homeTileColors) { homeTileColors.parseHomeTileColorStrings() }
     val highlightTileColors = highlightKey == "home_tile_colors"
 
     if (highlightTileColors) {
         HomeTileColorSettings(
-            tileItems = orderedTiles + orderedOnlineTiles,
             homeCardColor = homeCardColor,
-            homeCardOpacity = homeCardOpacity,
-            tileColorMap = tileColorMap,
-            homeTileGradientEnabled = homeTileGradientEnabled,
-            homeTileGradientStartColor = homeTileGradientStartColor,
             highlight = true,
-            onHomeCardColorChange = onHomeCardColorChange,
-            onHomeCardOpacityChange = onHomeCardOpacityChange,
-            onHomeTileColorChange = onHomeTileColorChange,
-            onHomeTileGradientEnabledChange = onHomeTileGradientEnabledChange,
-            onHomeTileGradientStartColorChange = onHomeTileGradientStartColorChange
+            onHomeCardColorChange = onHomeCardColorChange
         )
     }
 
-    HomeDisplayGroup(
-        title = stringResource(R.string.settings_home_sections_title),
-        items = orderedSections,
-        hiddenIds = hiddenSectionIds,
-        highlight = highlightKey == "home_sections",
-        onHiddenIdsChange = onHiddenSectionsChange,
-        onOrderChange = onSectionOrderChange
-    )
+    var showSectionSheet by remember { mutableStateOf(false) }
+    var showTileSheet by remember { mutableStateOf(false) }
+    var showOnlineTileSheet by remember { mutableStateOf(false) }
+
+    SmallTitle(text = stringResource(R.string.settings_home_sections_title))
+    SettingsCardGroup(highlight = highlightKey == "home_sections") {
+        val enabledSectionTitles = orderedSections.filter { it.id !in hiddenSectionIds }.map { it.title }
+        ArrowPreference(
+            title = stringResource(R.string.settings_home_sections_custom_title),
+            summary = if (enabledSectionTitles.isNotEmpty()) {
+                enabledSectionTitles.joinToString(" / ")
+            } else {
+                stringResource(R.string.custom_sort_or_hide_summary)
+            },
+            onClick = { showSectionSheet = true }
+        )
+    }
     SettingsCardGroup(highlight = highlightKey == "home_recent_section_mode") {
         WindowSpinnerPreference(
             title = stringResource(R.string.settings_home_recent_content),
@@ -161,23 +153,31 @@ internal fun HomeDisplaySettingsPage(
         )
     }
     SmallTitle(text = stringResource(R.string.settings_home_library_grid_title))
-    HomeDisplayGroup(
-        title = null,
-        items = orderedTiles,
-        hiddenIds = hiddenTileIds,
-        highlight = highlightKey == "home_library_tiles",
-        onHiddenIdsChange = onHiddenTilesChange,
-        onOrderChange = onTileOrderChange
-    )
+    SettingsCardGroup(highlight = highlightKey == "home_library_tiles") {
+        val enabledTileTitles = orderedTiles.filter { it.id !in hiddenTileIds }.map { it.title }
+        ArrowPreference(
+            title = stringResource(R.string.settings_home_library_tiles_custom_title),
+            summary = if (enabledTileTitles.isNotEmpty()) {
+                enabledTileTitles.joinToString(" / ")
+            } else {
+                stringResource(R.string.custom_sort_or_hide_summary)
+            },
+            onClick = { showTileSheet = true }
+        )
+    }
     SmallTitle(text = stringResource(R.string.settings_home_online_grid_title))
-    HomeDisplayGroup(
-        title = null,
-        items = orderedOnlineTiles,
-        hiddenIds = hiddenOnlineTileIds,
-        highlight = highlightKey == "home_online_tiles",
-        onHiddenIdsChange = onHiddenOnlineTilesChange,
-        onOrderChange = onOnlineOrderChange
-    )
+    SettingsCardGroup(highlight = highlightKey == "home_online_tiles") {
+        val enabledOnlineTitles = orderedOnlineTiles.filter { it.id !in hiddenOnlineTileIds }.map { it.title }
+        ArrowPreference(
+            title = stringResource(R.string.settings_home_online_tiles_custom_title),
+            summary = if (enabledOnlineTitles.isNotEmpty()) {
+                enabledOnlineTitles.joinToString(" / ")
+            } else {
+                stringResource(R.string.custom_sort_or_hide_summary)
+            },
+            onClick = { showOnlineTileSheet = true }
+        )
+    }
     SettingsCardGroup(highlight = highlightKey == "home_tile_pin_buttons") {
         SwitchPreference(
             title = stringResource(R.string.settings_home_tile_pin_buttons),
@@ -188,96 +188,140 @@ internal fun HomeDisplaySettingsPage(
     }
     if (!highlightTileColors) {
         HomeTileColorSettings(
-            tileItems = orderedTiles + orderedOnlineTiles,
             homeCardColor = homeCardColor,
-            homeCardOpacity = homeCardOpacity,
-            tileColorMap = tileColorMap,
-            homeTileGradientEnabled = homeTileGradientEnabled,
-            homeTileGradientStartColor = homeTileGradientStartColor,
             highlight = false,
-            onHomeCardColorChange = onHomeCardColorChange,
-            onHomeCardOpacityChange = onHomeCardOpacityChange,
-            onHomeTileColorChange = onHomeTileColorChange,
-            onHomeTileGradientEnabledChange = onHomeTileGradientEnabledChange,
-            onHomeTileGradientStartColorChange = onHomeTileGradientStartColorChange
+            onHomeCardColorChange = onHomeCardColorChange
         )
     }
+
+    val sectionSelectionItems = remember(orderedSections, hiddenSectionIds) {
+        orderedSections.map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = it.id !in hiddenSectionIds
+            )
+        }
+    }
+    val defaultSectionItems = remember(sectionItems) {
+        sectionItems.orderedByCsv(SettingsManager.DEFAULT_HOME_SECTION_ORDER, SettingsManager.DEFAULT_HOME_SECTION_ORDER).map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = true
+            )
+        }
+    }
+    ReorderableSelectionSheet(
+        show = showSectionSheet,
+        title = stringResource(R.string.settings_home_sections_custom_title),
+        items = sectionSelectionItems,
+        defaultItems = defaultSectionItems,
+        onDismissRequest = { showSectionSheet = false },
+        onSave = { updated ->
+            val newOrder = updated.joinToString(",") { it.id }
+            val newHidden = updated.filterNot { it.enabled }.map { it.id }.toSet().toCsv()
+            onSectionOrderChange(newOrder)
+            onHiddenSectionsChange(newHidden)
+        }
+    )
+
+    val tileSelectionItems = remember(orderedTiles, hiddenTileIds) {
+        orderedTiles.map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = it.id !in hiddenTileIds
+            )
+        }
+    }
+    val defaultTileItems = remember(tileItems) {
+        tileItems.orderedByCsv(SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER, SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER).map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = true
+            )
+        }
+    }
+    ReorderableSelectionSheet(
+        show = showTileSheet,
+        title = stringResource(R.string.settings_home_library_tiles_custom_title),
+        items = tileSelectionItems,
+        defaultItems = defaultTileItems,
+        onDismissRequest = { showTileSheet = false },
+        onSave = { updated ->
+            val newOrder = updated.joinToString(",") { it.id }
+            val newHidden = updated.filterNot { it.enabled }.map { it.id }.toSet().toCsv()
+            onTileOrderChange(newOrder)
+            onHiddenTilesChange(newHidden)
+        }
+    )
+
+    val onlineTileSelectionItems = remember(orderedOnlineTiles, hiddenOnlineTileIds) {
+        orderedOnlineTiles.map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = it.id !in hiddenOnlineTileIds
+            )
+        }
+    }
+    val defaultOnlineTileItems = remember(onlineItems) {
+        onlineItems.orderedByCsv(SettingsManager.DEFAULT_HOME_ONLINE_TILE_ORDER, SettingsManager.DEFAULT_HOME_ONLINE_TILE_ORDER).map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = true
+            )
+        }
+    }
+    ReorderableSelectionSheet(
+        show = showOnlineTileSheet,
+        title = stringResource(R.string.settings_home_online_tiles_custom_title),
+        items = onlineTileSelectionItems,
+        defaultItems = defaultOnlineTileItems,
+        onDismissRequest = { showOnlineTileSheet = false },
+        onSave = { updated ->
+            val newOrder = updated.joinToString(",") { it.id }
+            val newHidden = updated.filterNot { it.enabled }.map { it.id }.toSet().toCsv()
+            onOnlineOrderChange(newOrder)
+            onHiddenOnlineTilesChange(newHidden)
+        }
+    )
 }
 
 @Composable
 private fun HomeTileColorSettings(
-    tileItems: List<HomePreferenceItem>,
     homeCardColor: String,
-    homeCardOpacity: Int,
-    tileColorMap: Map<String, String>,
-    homeTileGradientEnabled: Boolean,
-    homeTileGradientStartColor: String,
     highlight: Boolean,
-    onHomeCardColorChange: (String) -> Unit,
-    onHomeCardOpacityChange: (Int) -> Unit,
-    onHomeTileColorChange: (String, String) -> Unit,
-    onHomeTileGradientEnabledChange: (Boolean) -> Unit,
-    onHomeTileGradientStartColorChange: (String) -> Unit
+    onHomeCardColorChange: (String) -> Unit
 ) {
-    var colorTarget by remember { mutableStateOf<HomeColorTarget?>(null) }
+    var showColorPicker by remember { mutableStateOf(false) }
     SmallTitle(text = stringResource(R.string.settings_home_tile_colors_title))
     SettingsCardGroup(highlight = highlight) {
-        Column {
-            BasicComponent(
-                title = stringResource(R.string.settings_home_card_color),
-                summary = homeCardColor.ifBlank { stringResource(R.string.settings_home_card_color_default) },
-                modifier = Modifier.clickable { colorTarget = HomeColorTarget.Global }
-            )
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_home_card_opacity),
-                summary = stringResource(R.string.settings_home_card_opacity_summary),
-                value = homeCardOpacity,
-                valueRange = 20..100,
-                valueText = "$homeCardOpacity%",
-                onValueChange = onHomeCardOpacityChange
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_home_tile_gradient_enabled),
-                summary = stringResource(R.string.settings_home_tile_gradient_enabled_summary),
-                checked = homeTileGradientEnabled,
-                onCheckedChange = onHomeTileGradientEnabledChange
-            )
-            BasicComponent(
-                title = stringResource(R.string.settings_home_tile_gradient_start_color),
-                summary = homeTileGradientStartColor.ifBlank { stringResource(R.string.settings_home_card_color_default) },
-                modifier = Modifier.clickable { colorTarget = HomeColorTarget.GradientStart }
-            )
-            tileItems.forEach { item ->
-                HomeTileColorRow(
-                    item = item,
-                    color = tileColorMap[item.id],
-                    onClick = { colorTarget = HomeColorTarget.Tile(item) }
-                )
-            }
-        }
+        BasicComponent(
+            title = stringResource(R.string.settings_home_card_color),
+            summary = homeCardColor.ifBlank { stringResource(R.string.settings_home_card_color_default) },
+            modifier = Modifier.clickable { showColorPicker = true }
+        )
     }
 
-    val target = colorTarget
     EllaMiuixBottomSheet(
-        show = target != null,
-        title = when (target) {
-            HomeColorTarget.Global -> stringResource(R.string.settings_home_card_color)
-            HomeColorTarget.GradientStart -> stringResource(R.string.settings_home_tile_gradient_start_color)
-            is HomeColorTarget.Tile -> target.item.title
-            null -> ""
-        },
-        onDismissRequest = { colorTarget = null }
+        show = showColorPicker,
+        title = stringResource(R.string.settings_home_card_color),
+        onDismissRequest = { showColorPicker = false }
     ) {
-        val saved = when (target) {
-            HomeColorTarget.Global -> homeCardColor
-            HomeColorTarget.GradientStart -> homeTileGradientStartColor
-            is HomeColorTarget.Tile -> tileColorMap[target.item.id].orEmpty()
-            null -> ""
+        val currentColor = remember(homeCardColor) {
+            homeCardColor.parseHomeDisplayColorOrNull() ?: Color(0xFF2B2B31)
         }
-        val currentColor = remember(target, saved) {
-            saved.parseHomeDisplayColorOrNull() ?: Color(0xFF2B2B31)
-        }
-        var pickerColor by remember(target, currentColor) { mutableStateOf(currentColor) }
+        var pickerColor by remember(currentColor) { mutableStateOf(currentColor) }
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
             ColorPicker(
                 color = pickerColor,
@@ -288,14 +332,8 @@ private fun HomeTileColorSettings(
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = {
-                    val value = "#%08X".format(pickerColor.toArgb())
-                    when (target) {
-                        HomeColorTarget.Global -> onHomeCardColorChange(value)
-                        HomeColorTarget.GradientStart -> onHomeTileGradientStartColorChange(value)
-                        is HomeColorTarget.Tile -> onHomeTileColorChange(target.item.id, value)
-                        null -> Unit
-                    }
-                    colorTarget = null
+                    onHomeCardColorChange("#%08X".format(pickerColor.toArgb()))
+                    showColorPicker = false
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -304,13 +342,8 @@ private fun HomeTileColorSettings(
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = {
-                    when (target) {
-                        HomeColorTarget.Global -> onHomeCardColorChange("")
-                        HomeColorTarget.GradientStart -> onHomeTileGradientStartColorChange("")
-                        is HomeColorTarget.Tile -> onHomeTileColorChange(target.item.id, "")
-                        null -> Unit
-                    }
-                    colorTarget = null
+                    onHomeCardColorChange("")
+                    showColorPicker = false
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -321,275 +354,64 @@ private fun HomeTileColorSettings(
 }
 
 @Composable
-private fun HomeTileColorRow(
-    item: HomePreferenceItem,
-    color: String?,
-    onClick: () -> Unit
-) {
-    BasicComponent(
-        title = item.title,
-        summary = color ?: stringResource(R.string.settings_home_tile_color_default),
-        modifier = Modifier.clickable(onClick = onClick),
-        endActions = {
-            Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .clip(RoundedCornerShape(7.dp))
-                    .background(color?.parseHomeDisplayColorOrNull() ?: MiuixTheme.colorScheme.primary.copy(alpha = 0.32f))
-            )
-        }
-    )
-}
-
-private sealed class HomeColorTarget {
-    data object Global : HomeColorTarget()
-    data object GradientStart : HomeColorTarget()
-    data class Tile(val item: HomePreferenceItem) : HomeColorTarget()
-}
-
-@Composable
-private fun HomeDisplayGroup(
-    title: String?,
-    items: List<HomePreferenceItem>,
-    hiddenIds: Set<String>,
-    highlight: Boolean = false,
-    onHiddenIdsChange: (String) -> Unit,
-    onOrderChange: (String) -> Unit
-) {
-    var manualItems by remember(items.map { it.id }.joinToString(",")) { mutableStateOf(items) }
-
-    if (title != null) {
-        SmallTitle(text = title)
-    }
-    SettingsCardGroup(highlight = highlight) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                HomeDisplayCommand(
-                    text = stringResource(R.string.common_select_all),
-                    modifier = Modifier.weight(1f),
-                    onClick = { onHiddenIdsChange("") }
-                )
-                HomeDisplayCommand(
-                    text = stringResource(R.string.common_invert_selection),
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        val allIds = items.map { it.id }.toSet()
-                        val nextHidden = allIds - hiddenIds
-                        onHiddenIdsChange(nextHidden.toCsv())
-                    }
-                )
-            }
-            ReorderableColumn(
-                list = manualItems,
-                onSettle = { fromIndex, toIndex ->
-                    if (fromIndex !in manualItems.indices || toIndex !in manualItems.indices || fromIndex == toIndex) return@ReorderableColumn
-                    manualItems = manualItems.moveItem(fromIndex, toIndex)
-                    onOrderChange(manualItems.joinToString(",") { it.id })
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { _, item, isDragging ->
-                val checked = item.id !in hiddenIds
-                ReorderableItem {
-                    HomeDisplayCheckRow(
-                        item = item,
-                        checked = checked,
-                        dragging = isDragging,
-                        modifier = Modifier.longPressDraggableHandle(),
-                        onClick = {
-                            val nextHidden = if (checked) {
-                                hiddenIds + item.id
-                            } else {
-                                hiddenIds - item.id
-                            }
-                            onHiddenIdsChange(nextHidden.toCsv())
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeDisplayCommand(
-    text: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier,
-        cornerRadius = 14.dp,
-        insideMargin = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
-        onClick = onClick
-    ) {
-        BasicComponent(
-            title = text
-        )
-    }
-}
-
-@Composable
-private fun HomeDisplayCheckRow(
-    item: HomePreferenceItem,
-    checked: Boolean,
-    dragging: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    BasicComponent(
-        title = item.title,
-        summary = item.summary,
-        modifier = modifier
-            .background(
-                if (dragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent,
-                RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick),
-        endActions = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "☰",
-                    fontSize = 11.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                if (checked) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.Check,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-        }
-    )
-}
-
-@Composable
 internal fun LyricSourcePriorityBlock(
     items: List<LyricSourcePreferenceItem>,
-    onOrderChange: (String) -> Unit
+    onOrderChange: (String) -> Unit,
+    title: String = stringResource(R.string.settings_lyric_source_priority),
+    subtitle: String = stringResource(R.string.settings_lyric_source_priority_summary),
+    defaultOrder: String = SettingsManager.DEFAULT_LYRIC_SOURCE_PRIORITY
 ) {
     var sheetVisible by remember { mutableStateOf(false) }
-    var manualItems by remember(items.map { it.id }.joinToString(",")) { mutableStateOf(items) }
 
-    BasicComponent(
-        title = stringResource(R.string.settings_lyric_source_priority),
-        summary = manualItems.joinToString(" / ") { it.title },
-        modifier = Modifier.clickable { sheetVisible = true }
+    val enabledItems = items.filter { it.enabled }
+    val summaryText = if (enabledItems.isNotEmpty()) {
+        enabledItems.joinToString(" / ") { it.title }
+    } else {
+        stringResource(R.string.custom_sort_or_hide_summary)
+    }
+
+    ArrowPreference(
+        title = title,
+        summary = summaryText,
+        onClick = { sheetVisible = true }
     )
 
-    EllaMiuixBottomSheet(
-        show = sheetVisible,
-        title = stringResource(R.string.settings_lyric_source_priority),
-        onDismissRequest = { sheetVisible = false }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.settings_lyric_source_priority_summary),
-                fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+    val selectionItems = remember(items) {
+        items.map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = it.enabled
             )
-            ReorderableColumn(
-                list = manualItems,
-                onSettle = { fromIndex, toIndex ->
-                    if (fromIndex !in manualItems.indices || toIndex !in manualItems.indices || fromIndex == toIndex) return@ReorderableColumn
-                    manualItems = manualItems.moveItem(fromIndex, toIndex)
-                    onOrderChange(manualItems.filter { it.enabled }.joinToString(",") { it.id })
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { _, item, isDragging ->
-                ReorderableItem {
-                    BasicComponent(
-                        title = item.title,
-                        summary = item.summary,
-                        modifier = Modifier
-                            .background(
-                                if (isDragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent,
-                                RoundedCornerShape(12.dp)
-                            )
-                            .longPressDraggableHandle(),
-                        endActions = {
-                            Text(
-                                text = "☰",
-                                fontSize = 16.sp,
-                                color = if (isDragging) {
-                                    MiuixTheme.colorScheme.primary
-                                } else {
-                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                }
-                            )
-                            LyricSourceEnabledCheckbox(
-                                checked = item.enabled,
-                                onCheckedChange = { checked ->
-                                    manualItems = manualItems.map {
-                                        if (it.id == item.id) it.copy(enabled = checked) else it
-                                    }
-                                    onOrderChange(manualItems.filter { it.enabled }.joinToString(",") { it.id })
-                                }
-                            )
-                        }
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            EllaMiuixActionRow(
-                actions = listOf(
-                    EllaMiuixAction(
-                        text = stringResource(R.string.common_done),
-                        onClick = { sheetVisible = false },
-                        primary = true
-                    )
-                ),
-                modifier = Modifier.padding(horizontal = 12.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
-}
 
-@Composable
-private fun LyricSourceEnabledCheckbox(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(22.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (checked) MiuixTheme.colorScheme.primary else Color.Transparent)
-            .border(
-                width = 1.5.dp,
-                color = if (checked) {
-                    MiuixTheme.colorScheme.primary
-                } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f)
-                },
-                shape = RoundedCornerShape(6.dp)
-            )
-            .clickable { onCheckedChange(!checked) },
-        contentAlignment = Alignment.Center
-    ) {
-        if (checked) {
-            Icon(
-                imageVector = MiuixIcons.Basic.Check,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(14.dp)
+    val defaultItems = remember(items, defaultOrder) {
+        val byId = items.associateBy { it.id }
+        val defaultIds = defaultOrder.split(',')
+        (defaultIds.mapNotNull { byId[it] } + items.filterNot { it.id in defaultIds }).map {
+            ReorderableSelectionItem(
+                id = it.id,
+                title = it.title,
+                summary = it.summary,
+                enabled = true
             )
         }
     }
+
+    ReorderableSelectionSheet(
+        show = sheetVisible,
+        title = title,
+        subtitle = subtitle,
+        items = selectionItems,
+        defaultItems = defaultItems,
+        onDismissRequest = { sheetVisible = false },
+        onSave = { updatedItems ->
+            val priority = updatedItems.filter { it.enabled }.joinToString(",") { it.id }
+            onOrderChange(priority)
+        }
+    )
 }
 
 private fun <T> List<T>.moveItem(from: Int, to: Int): List<T> {
@@ -605,9 +427,12 @@ private fun List<HomePreferenceItem>.orderedByCsv(order: String, defaultOrder: S
     return (orderIds.mapNotNull { byId[it] } + filterNot { it.id in orderIds }).distinctBy { it.id }
 }
 
-internal fun List<LyricSourcePreferenceItem>.orderedByLyricPriority(priority: String): List<LyricSourcePreferenceItem> {
+internal fun List<LyricSourcePreferenceItem>.orderedByLyricPriority(priority: String): List<LyricSourcePreferenceItem> =
+    orderedByEnabledIds(SettingsManager.normalizeLyricSourcePriority(priority))
+
+internal fun List<LyricSourcePreferenceItem>.orderedByEnabledIds(enabledCsv: String): List<LyricSourcePreferenceItem> {
     val byId = associateBy { it.id }
-    val enabledIds = SettingsManager.normalizeLyricSourcePriority(priority)
+    val enabledIds = enabledCsv
         .split(',')
         .map { it.trim() }
         .filter { it.isNotBlank() }
@@ -621,19 +446,6 @@ private fun String.csvIdSet(): Set<String> =
         .map { it.trim().lowercase(Locale.ROOT) }
         .filter { it.isNotBlank() }
         .toSet()
-
-private fun String.parseHomeTileColorStrings(): Map<String, String> =
-    runCatching {
-        val json = JSONObject(this)
-        buildMap {
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                val value = json.optString(key).trim()
-                if (value.matches(Regex("""#[0-9A-Fa-f]{8}"""))) put(key, value.uppercase(Locale.ROOT))
-            }
-        }
-    }.getOrDefault(emptyMap())
 
 private fun String.parseHomeDisplayColorOrNull(): Color? {
     val normalized = trim().takeIf { it.isNotBlank() } ?: return null

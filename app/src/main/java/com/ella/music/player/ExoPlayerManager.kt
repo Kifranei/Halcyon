@@ -249,7 +249,11 @@ class ExoPlayerManager(private val context: Context) {
         )
         _playWhenReady.value = projection.playWhenReady
         _isPlaying.value = projection.isPlaying
-        if (pending != null && projection.acknowledged) clearPendingTransportCommand()
+        if (pending != null && projection.acknowledged &&
+            SystemClock.elapsedRealtime() - pendingTransportIssuedAtMs >= MIN_TRANSPORT_HOLD_MS
+        ) {
+            clearPendingTransportCommand()
+        }
     }
 
     /** Issue one transport command and immediately publish its projected state to the UI. */
@@ -644,6 +648,12 @@ class ExoPlayerManager(private val context: Context) {
         playlist.addAll(queueSongs)
         _playlist.value = playlist.toList()
 
+        val startSong = queueSongs.getOrNull(safeIndex)
+        if (startSong != null) {
+            applyOptimisticSong(startSong, startPositionMs, safeIndex)
+        }
+        suppressSongIdentityUntilElapsedRealtime = 0L
+
         val mediaItems = queueSongs.map(::songToMediaItem)
         val controller = activeController()
         if (controller == null) {
@@ -657,9 +667,6 @@ class ExoPlayerManager(private val context: Context) {
                 honorShuffle = false,
                 resetQueueLock = resetQueueLock
             )
-            _currentSong.value = queueSongs.getOrNull(safeIndex)
-            _currentQueueIndex.value = safeIndex
-            _duration.value = queueSongs.getOrNull(safeIndex)?.duration ?: 0L
             _repeatMode.value = Player.REPEAT_MODE_ALL
             savePlaybackQueue(force = true)
             return
@@ -1607,7 +1614,10 @@ class ExoPlayerManager(private val context: Context) {
             return
         }
 
-        publishTransportState(snapshot.isPlaying, snapshot.playWhenReady)
+        val pending = pendingTransportTargetOrNull()
+        if (pending == null || snapshot.playWhenReady == pending) {
+            publishTransportState(snapshot.isPlaying, snapshot.playWhenReady)
+        }
         _playbackState.value = snapshot.playbackState
         _repeatMode.value = snapshot.repeatMode
         _currentPosition.value = snapshot.positionMs.coerceAtLeast(0L)
@@ -1809,11 +1819,12 @@ class ExoPlayerManager(private val context: Context) {
         val itemSong = currentItem?.toSongFromMediaItemExtras() ?: currentItem?.toSong()
         val playlistIndex = virtualPlaylistCurrentIndex?.takeIf { it in playlist.indices } ?: currentIndex
         val playlistSong = playlist.getOrNull(playlistIndex)
-        val restoredSong = if (currentIndex in playlist.indices) {
-            itemSong?.takeUnless { it.isSamePlaybackIdentity(playlistSong) } ?: playlistSong
-        } else {
-            itemSong
-        }
+        val restoredSong = resolveControllerPlaylistSong(
+            currentIndex = playlistIndex,
+            playlistSize = playlist.size,
+            itemSong = itemSong,
+            playlistSong = playlistSong
+        )
         val previousSong = _currentSong.value
         val pendingKey = pendingOptimisticSongKey
         var acceptedOptimisticTransition = false
@@ -2064,8 +2075,12 @@ class ExoPlayerManager(private val context: Context) {
         val itemSong = controller.currentMediaItem?.toSongFromMediaItemExtras()
             ?: controller.currentMediaItem?.toSong()
         if (controllerIndex in playlist.indices) {
-            val playlistSong = playlist[controllerIndex]
-            return itemSong?.takeUnless { it.isSamePlaybackIdentity(playlistSong) } ?: playlistSong
+            return resolveControllerPlaylistSong(
+                currentIndex = controllerIndex,
+                playlistSize = playlist.size,
+                itemSong = itemSong,
+                playlistSong = playlist[controllerIndex]
+            )
         }
         return itemSong
             ?: _currentSong.value
@@ -2475,6 +2490,7 @@ class ExoPlayerManager(private val context: Context) {
         const val MAX_RESUME_POSITION_ENTRIES = 256
         const val CLEAR_EXTERNAL_SNAPSHOT_SUPPRESSION_MS = 3_000L
         const val TRANSPORT_COMMAND_GUARD_MS = 3_000L
+        const val MIN_TRANSPORT_HOLD_MS = 200L
         const val EXTRA_ONLINE_SOURCE = "com.ella.music.extra.ONLINE_SOURCE"
         const val EXTRA_ONLINE_ID = "com.ella.music.extra.ONLINE_ID"
         const val EXTRA_SONG_JSON = "com.ella.music.extra.SONG_JSON"

@@ -790,7 +790,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         legacyArtworkPublishSequence++
         LegacyArtworkCompat.clear()
-        PlaybackWidgetUpdater.stopProgressUpdates()
+        PlaybackWidgetUpdater.onPlayerSessionEnded(this)
         bluetoothReceiver?.let {
             runCatching { unregisterReceiver(it) }
             bluetoothReceiver = null

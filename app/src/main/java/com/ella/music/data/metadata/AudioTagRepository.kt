@@ -34,6 +34,8 @@ data class AudioTagInfo(
     val discNumber: Int? = null,
     val comment: String? = null,
     val lyrics: String? = null,
+    val ttmlLyrics: String? = null,
+    val songwriters: String? = null,
     val copyright: String? = null,
     val neteaseKey: String? = null,
     val rating: Int? = null,
@@ -124,6 +126,9 @@ class AudioTagRepository(
         val key = cacheKey(path) ?: return@withContext null
         coverDataCache.get(key)?.let { return@withContext it }
         val cover = readWithFallback("cover", path) { it.readEmbeddedCover(path) }?.takeIf { it.bytes.isNotEmpty() }
+            ?: EmbeddedArtworkReader.extractCoverArt(path)?.takeIf { it.isNotEmpty() }?.let {
+                AudioCoverInfo(bytes = it, mimeType = "")
+            }
         cover?.also { coverDataCache.put(key, it) }
     }
 
@@ -272,7 +277,7 @@ class AudioTagRepository(
     }
 
     private fun AudioTagInfo.hasUsefulTagData(): Boolean =
-        listOf(title, artist, album, albumArtist, composer, arranger, lyricist, genre, year, comment, lyrics, copyright, neteaseKey)
+        listOf(title, artist, album, albumArtist, composer, arranger, lyricist, genre, year, comment, lyrics, ttmlLyrics, songwriters, copyright, neteaseKey)
             .any { !it.isNullOrBlank() } ||
             trackNumber != null ||
             discNumber != null ||
@@ -291,7 +296,10 @@ class AudioTagRepository(
             genre = genre.takeIf { !it.isNullOrBlank() } ?: other.genre,
             year = year.takeIf { !it.isNullOrBlank() } ?: other.year,
             trackNumber = trackNumber ?: other.trackNumber,
-            discNumber = discNumber ?: other.discNumber
+            discNumber = discNumber ?: other.discNumber,
+            lyrics = lyrics.takeIf { !it.isNullOrBlank() } ?: other.lyrics,
+            ttmlLyrics = ttmlLyrics.takeIf { !it.isNullOrBlank() } ?: other.ttmlLyrics,
+            songwriters = songwriters.takeIf { !it.isNullOrBlank() } ?: other.songwriters
         )
 
     private fun isWavFile(path: String): Boolean =
@@ -355,6 +363,23 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
             "ARRANGEMENT",
             "ARRANGE"
         )
+        val resolvedSongwriters = raw.firstTagValue(
+            "SONGWRITERS",
+            "SONGWRITER",
+            "AUTHOR"
+        )
+        val rawTtml = raw.bestTtmlLyrics()
+        val rawStandard = data.lyrics?.cleanTagValue() ?: raw.bestLyrics()
+        val resolvedTtml = when {
+            !rawTtml.isNullOrBlank() -> rawTtml
+            rawStandard?.looksLikeTtmlLyrics() == true -> rawStandard
+            else -> null
+        }
+        val resolvedLyrics = when {
+            !rawStandard.isNullOrBlank() && !rawStandard.looksLikeTtmlLyrics() -> rawStandard
+            !rawTtml.isNullOrBlank() && rawStandard?.looksLikeTtmlLyrics() == true -> null
+            else -> rawStandard?.takeUnless { it.looksLikeTtmlLyrics() }
+        }
         AudioTagInfo(
             title = data.title,
             artist = data.artist,
@@ -368,7 +393,9 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
             trackNumber = data.trackNumber?.substringBefore('/')?.toIntOrNull(),
             discNumber = data.discNumber,
             comment = resolvedComment,
-            lyrics = raw.bestTtmlLyrics() ?: data.lyrics?.ifBlank { null } ?: raw.bestLyrics(),
+            lyrics = resolvedLyrics,
+            ttmlLyrics = resolvedTtml,
+            songwriters = resolvedSongwriters,
             copyright = data.copyright,
             neteaseKey = resolvedNeteaseKey,
             rating = data.rating,
@@ -390,7 +417,7 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
         }
 
     override suspend fun readEmbeddedLyrics(path: String): String? =
-        readTags(path)?.lyrics?.takeIf { it.isNotBlank() }
+        readTags(path)?.let { it.ttmlLyrics ?: it.lyrics }?.takeIf { it.isNotBlank() }
 
     override suspend fun writeTags(path: String, tags: AudioTagInfo): Result<Unit> {
         return try {
@@ -471,12 +498,17 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
         composer?.let { put("COMPOSER", it) }
         arranger?.let { put("ARRANGER", it) }
         lyricist?.let { put("LYRICIST", it) }
+        songwriters?.let {
+            put("SONGWRITERS", it)
+            put("SONGWRITER", it)
+        }
         genre?.let { put("GENRE", it) }
         year?.let { put("DATE", it) }
         trackNumber?.let { put("TRACKNUMBER", it.toString()) }
         discNumber?.let { put("DISCNUMBER", it.toString()) }
         comment?.let { put("COMMENT", it) }
         lyrics?.let { put("LYRICS", it) }
+        ttmlLyrics?.let { put("TTMLLYRIC", it) }
         rating?.let { put("RATING", it.toStandardTagRatingValue().toString()) }
         customTags.forEach { (key, values) ->
             if (key.isNotBlank() && values.isNotEmpty()) put(key, values.joinToString("; "))
@@ -540,14 +572,33 @@ private fun Map<String, List<String>>.bestNeteaseKey(comment: String?): String? 
 
 private fun Map<String, List<String>>.firstTagValue(vararg keys: String): String? {
     keys.forEach { requested ->
-        val value = entries.firstOrNull { (key, _) -> key.equals(requested, ignoreCase = true) }
-            ?.value
+        val reqNorm = requested.normalizedTagName()
+        val entry = entries.firstOrNull { (key, values) ->
+            (key.equals(requested, ignoreCase = true) || key.normalizedTagName() == reqNorm) &&
+                values.any { it.isNotBlank() }
+        }
+        val value = entry?.value
             ?.firstOrNull { it.isNotBlank() }
             .cleanTagValue()
         if (!value.isNullOrBlank()) return value
     }
     return null
 }
+
+private fun String.normalizedTagName(): String {
+    var s = uppercase()
+    if (s.startsWith("TXXX/") || s.startsWith("TXXX:") || s.startsWith("TXXX.") || s.startsWith("TXXX ")) {
+        s = s.substring(4).trimStart('/', ':', '.', ' ')
+    } else if (s.startsWith("TXXX") && s.length > 4) {
+        s = s.substring(4)
+    } else if (s.startsWith("----:COM.APPLE.ITUNES:")) {
+        s = s.removePrefix("----:COM.APPLE.ITUNES:")
+    }
+    return s.filter { it.isLetterOrDigit() }
+}
+
+private fun String.looksLikeTtmlLyrics(): Boolean =
+    contains("<tt", ignoreCase = true) && contains("</tt", ignoreCase = true)
 
 private fun String?.cleanTagValue(): String? =
     this?.trim('\uFEFF', '\u0000', ' ', '\t', '\r', '\n')?.takeIf { it.isNotBlank() }

@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -33,8 +34,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.ActionMenuIds
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.EllaMiuixMenuItem
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
@@ -56,38 +60,41 @@ internal fun PlayerActionMenuHeader(
     val title = song?.let {
         it.title.ifBlank { it.fileName.ifBlank { stringResource(R.string.player_unknown_song) } }
     } ?: stringResource(R.string.player_no_song_playing)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer)
     ) {
-        SmallCover(
-            song = song,
-            embeddedCover = embeddedCover,
+        Row(
             modifier = Modifier
-                .size(68.dp)
-                .combinedClickable(onClick = {}, onLongClick = onPreviewCover)
-        )
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontSize = 19.sp,
-                lineHeight = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(5.dp))
-            PlayerActionMenuSubtitle(
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SmallCover(
                 song = song,
-                onArtist = onArtist,
-                onAlbum = onAlbum
+                embeddedCover = embeddedCover,
+                modifier = Modifier
+                    .size(68.dp)
+                    .combinedClickable(onClick = onPreviewCover, onLongClick = onPreviewCover)
             )
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 17.sp,
+                    lineHeight = 21.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                PlayerActionMenuSubtitle(
+                    song = song,
+                    onArtist = onArtist,
+                    onAlbum = onAlbum
+                )
+            }
         }
     }
 }
@@ -145,55 +152,32 @@ private fun PlayerActionMenuSubtitle(
 
 @Composable
 internal fun PlayerActionShortcutRow(
-    onAddToPlaylist: () -> Unit,
-    onPlayNext: () -> Unit,
-    onTimer: () -> Unit,
-    onSpeed: () -> Unit,
-    onOpenEqualizer: () -> Unit
+    shortcutIds: List<String>,
+    onActionClick: (String) -> Unit,
+    sleepTimerEndRealtimeMs: Long? = null
 ) {
+    val timerRemaining = rememberSleepTimerRemaining(sleepTimerEndRealtimeMs)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        PlayerActionShortcut(
-            label = stringResource(R.string.player_speed_pitch),
-            kind = PlayerQuickActionKind.Speed,
-            onClick = onSpeed,
-            modifier = Modifier.weight(1f)
-        )
-        PlayerActionShortcut(
-            label = stringResource(R.string.player_equalizer),
-            kind = PlayerQuickActionKind.Equalizer,
-            onClick = onOpenEqualizer,
-            modifier = Modifier.weight(1f)
-        )
-        PlayerActionShortcut(
-            label = stringResource(R.string.player_sleep_timer),
-            kind = PlayerQuickActionKind.Timer,
-            onClick = onTimer,
-            modifier = Modifier.weight(1f)
-        )
-        PlayerActionShortcut(
-            label = stringResource(R.string.player_add_to_playlist),
-            kind = PlayerQuickActionKind.Add,
-            onClick = onAddToPlaylist,
-            modifier = Modifier.weight(1f)
-        )
-        PlayerActionShortcut(
-            label = stringResource(R.string.song_more_play_next),
-            kind = PlayerQuickActionKind.PlayNext,
-            onClick = onPlayNext,
-            modifier = Modifier.weight(1f)
-        )
+        shortcutIds.forEach { id ->
+            PlayerActionShortcut(
+                id = id,
+                onClick = { onActionClick(id) },
+                caption = if (id == ActionMenuIds.TIMER) timerRemaining else null,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
 @Composable
 private fun PlayerActionShortcut(
-    label: String,
-    kind: PlayerQuickActionKind,
+    id: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    caption: String? = null
 ) {
     Column(
         modifier = modifier
@@ -203,14 +187,15 @@ private fun PlayerActionShortcut(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        QuickActionIcon(
-            kind = kind,
-            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+        com.ella.music.ui.settings.PlayerShortcutItemIcon(
+            id = id,
+            tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.82f),
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
+        val label = com.ella.music.ui.settings.playerShortcutLabel(id)
         Text(
-            text = label,
+            text = if (!caption.isNullOrBlank()) "$label\n$caption" else label,
             fontSize = 11.sp,
             lineHeight = 13.sp,
             fontWeight = FontWeight.Bold,
@@ -281,7 +266,7 @@ internal fun HalfSheetPill(
         insideMargin = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 14.dp),
         colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
             color = if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-            else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f),
+            else MiuixTheme.colorScheme.secondaryContainer,
             contentColor = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
         )
     ) {
@@ -305,59 +290,75 @@ internal fun DottedValueSlider(
     label: String? = null
 ) {
     val safeValue = value.coerceIn(valueRange.start, valueRange.endInclusive)
-    val fraction = ((safeValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
-    BoxWithConstraints(modifier = modifier) {
-        // Miuix owns drag semantics, keyboard/accessibility actions, haptics, and key-point
-        // rendering. Keep the value bubble as a small overlay that follows the thumb.
-        val labelWidth = 96.dp
-        val maxLabelOffset = (maxWidth - labelWidth).coerceAtLeast(0.dp)
-        val labelOffset = maxLabelOffset * fraction
-        Box(modifier = Modifier.fillMaxSize()) {
-            Slider(
-                value = safeValue,
-                onValueChange = { next ->
-                    onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
-                },
-                onValueChangeFinished = { onValueChangeFinished?.invoke(safeValue) },
-                valueRange = valueRange,
-                // Miuix counts intermediate key points; the old helper counted intervals.
-                steps = (steps - 1).coerceAtLeast(0),
-                showKeyPoints = true,
-                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
-                colors = SliderDefaults.sliderColors(
-                    foregroundColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.88f),
-                    backgroundColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f),
-                    thumbColor = MiuixTheme.colorScheme.primary,
-                    keyPointColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f),
-                    keyPointForegroundColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.72f)
-                ),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(top = 26.dp)
-            )
-        label?.let {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = labelOffset)
-                    .width(labelWidth)
-                    .padding(top = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = it,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MiuixTheme.colorScheme.onPrimary,
-                    maxLines = 1,
+    val sliderColors = SliderDefaults.sliderColors(
+        foregroundColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.88f),
+        backgroundColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f),
+        thumbColor = Color.White,
+        keyPointColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
+        keyPointForegroundColor = Color.White.copy(alpha = 0.72f)
+    )
+
+    if (label == null) {
+        Slider(
+            value = safeValue,
+            onValueChange = { next ->
+                onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+            },
+            onValueChangeFinished = { onValueChangeFinished?.invoke(safeValue) },
+            valueRange = valueRange,
+            steps = (steps - 1).coerceAtLeast(0),
+            showKeyPoints = true,
+            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+            colors = sliderColors,
+            modifier = modifier
+        )
+    } else {
+        val fraction = ((safeValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+        BoxWithConstraints(modifier = modifier) {
+            // Miuix owns drag semantics, keyboard/accessibility actions, haptics, and key-point
+            // rendering. Keep the value bubble as a small overlay that follows the thumb.
+            val labelWidth = 96.dp
+            val maxLabelOffset = (maxWidth - labelWidth).coerceAtLeast(0.dp)
+            val labelOffset = maxLabelOffset * fraction
+            Box(modifier = Modifier.fillMaxSize()) {
+                Slider(
+                    value = safeValue,
+                    onValueChange = { next ->
+                        onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+                    },
+                    onValueChangeFinished = { onValueChangeFinished?.invoke(safeValue) },
+                    valueRange = valueRange,
+                    // Miuix counts intermediate key points; the old helper counted intervals.
+                    steps = (steps - 1).coerceAtLeast(0),
+                    showKeyPoints = true,
+                    hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                    colors = sliderColors,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(MiuixTheme.colorScheme.primary)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(top = 26.dp)
                 )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = labelOffset)
+                        .width(labelWidth)
+                        .padding(top = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MiuixTheme.colorScheme.onPrimary,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(MiuixTheme.colorScheme.primary)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
             }
-        }
         }
     }
 }
@@ -367,7 +368,8 @@ internal fun PlayerActionMenuItem(
     text: String,
     onClick: () -> Unit,
     danger: Boolean = false,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    subtitle: String? = null
 ) {
-    EllaMiuixMenuItem(text = text, onClick = onClick, danger = danger, icon = icon)
+    EllaMiuixMenuItem(text = text, onClick = onClick, danger = danger, icon = icon, subtitle = subtitle)
 }

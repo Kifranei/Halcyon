@@ -369,4 +369,5 @@ The Halcyon main project is licensed under **Apache-2.0**. Third-party component
   A local music player by leguan with a beautifully designed playback experience.
 
 - [LunaBeat](https://github.com/2755337087/LunaBeat)
-  A mobile lyric timing editor and music player with polished player and lyric pages. It can also match lyrics for songs.
+  A mobile lyric timing editor and music player with polished player and lyric pages. Halcyon references aspects of its lyric timing interface design.
+

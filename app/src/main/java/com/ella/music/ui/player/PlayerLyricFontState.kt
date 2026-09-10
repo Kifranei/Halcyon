@@ -47,7 +47,7 @@ internal fun rememberPlayerLyricFontState(
     val lyricCompactSecondaryTextSizeValue by settingsManager.lyricCompactSecondaryTextSize.collectAsState(initial = SettingsManager.LYRIC_COMPACT_SECONDARY_TEXT_SIZE_DEFAULT_SP)
     val lyricWidePrimaryTextSizeValue by settingsManager.lyricWidePrimaryTextSize.collectAsState(initial = SettingsManager.LYRIC_WIDE_PRIMARY_TEXT_SIZE_DEFAULT_SP)
     val lyricWideSecondaryTextSizeValue by settingsManager.lyricWideSecondaryTextSize.collectAsState(initial = SettingsManager.LYRIC_WIDE_SECONDARY_TEXT_SIZE_DEFAULT_SP)
-    val lyricShareUseLyricFont by settingsManager.lyricShareUseLyricFont.collectAsState(initial = false)
+    val lyricShareUseLyricFont by settingsManager.lyricShareUseLyricFont.collectAsState(initial = true)
     val lyricFontApplyToPage by settingsManager.lyricFontApplyToPage.collectAsState(initial = true)
     val bundledInterPath = remember(context) { ensureBundledInterPath(context) }
     val bundledCjkPath = remember(context) { ensureBundledMiSansBoldPath(context) }

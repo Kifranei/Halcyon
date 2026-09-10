@@ -31,20 +31,31 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
-import com.ella.music.ui.components.LocalSettingsCloseAction
 import com.ella.music.ui.effect.BgEffectBackground
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import com.ella.music.ui.about.aboutCardBlendColors
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.shader.isRenderEffectSupported
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -60,13 +71,14 @@ fun SettingsWizardScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    val bgEffectVersion by settingsManager.bgEffectVersion.collectCachedAsState("bgEffectVersion", settingsManager.defaultBgEffectVersion)
     var step by rememberSaveable { mutableIntStateOf(0) }
     val lastStep = 4
     val playerPageStyle by settingsManager.playerPageStyle.collectCachedAsState(
         "wizardPlayerPageStyle",
         SettingsManager.DEFAULT_PLAYER_PAGE_STYLE
     )
-    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectCachedAsState("wizardPlayerImmersive", false)
+    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectCachedAsState("wizardPlayerImmersive", true)
     val playerShowSongAnnotation by settingsManager.playerShowSongAnnotation.collectCachedAsState(
         "wizardPlayerAnnotation",
         true
@@ -81,20 +93,34 @@ fun SettingsWizardScreen(
         .takeIf { it >= 0 } ?: 0
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val heroColor = MiuixTheme.colorScheme.onBackground
-    val closeSettings = LocalSettingsCloseAction.current
+    val backdrop = rememberLayerBackdrop()
+    val blurEnable by remember { mutableStateOf(isRenderEffectSupported()) }
+    val isOs1 = bgEffectVersion == SettingsManager.BG_EFFECT_OS1
+    val effectiveBlurEnable = blurEnable && !isOs1
+    val cardBlendColors = remember(isDark) { aboutCardBlendColors(isDark) }
+    val frosting = remember(backdrop, effectiveBlurEnable, cardBlendColors, isOs1) {
+        if (isOs1) null else SettingsCardFrosting(backdrop, effectiveBlurEnable, cardBlendColors)
+    }
 
     fun completeWizard() {
         scope.launch { settingsManager.setSetupWizardCompleted(true) }
         onFinish()
     }
 
+    BackHandler(enabled = step > 0) {
+        step -= 1
+    }
+
     BgEffectBackground(
-        dynamicBackground = true,
+        dynamicBackground = !isOs1,
         modifier = Modifier.fillMaxSize(),
-        effectBackground = true,
-        isDarkTheme = isDark
+        bgModifier = Modifier.layerBackdrop(backdrop),
+        effectBackground = !isOs1,
+        isDarkTheme = isDark,
+        isOs3 = bgEffectVersion == SettingsManager.BG_EFFECT_OS3
     ) {
-        Column(
+        CompositionLocalProvider(LocalSettingsCardFrosting provides frosting) {
+            Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -104,13 +130,17 @@ fun SettingsWizardScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = stringResource(R.string.common_back),
-                        tint = heroColor,
-                        modifier = Modifier.size(24.dp)
-                    )
+                if (step > 0) {
+                    IconButton(
+                        onClick = { step -= 1 },
+                        modifier = Modifier.align(Alignment.CenterStart)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Back,
+                            contentDescription = stringResource(R.string.common_back),
+                            tint = heroColor
+                        )
+                    }
                 }
                 Text(
                     text = stringResource(R.string.settings_setup_wizard_skip),
@@ -119,26 +149,8 @@ fun SettingsWizardScreen(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .clickable { completeWizard() }
-                        .padding(
-                            start = 12.dp,
-                            top = 10.dp,
-                            end = if (closeSettings != null) 52.dp else 12.dp,
-                            bottom = 10.dp
-                        )
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
                 )
-                closeSettings?.let { close ->
-                    IconButton(
-                        onClick = close,
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Close,
-                            contentDescription = stringResource(R.string.common_close),
-                            tint = heroColor,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
             }
             Column(
                 modifier = Modifier
@@ -213,45 +225,44 @@ fun SettingsWizardScreen(
                     SettingsDynamicCoverSection()
                     SettingsMusicVideoSection()
                     SettingsArtistCoverSection()
-                    top.yukonga.miuix.kmp.preference.ArrowPreference(
-                        title = stringResource(R.string.settings_cover_media),
-                        summary = stringResource(R.string.settings_cover_media_summary),
-                        onClick = onOpenCoverMedia
-                    )
+                    SettingsCardGroup {
+                        top.yukonga.miuix.kmp.preference.ArrowPreference(
+                            title = stringResource(R.string.settings_cover_media),
+                            summary = stringResource(R.string.settings_cover_media_summary),
+                            onClick = onOpenCoverMedia
+                        )
+                    }
                 }
                 else -> WizardIntroCard(done = true)
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .padding(bottom = 108.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (step > 0) {
-                Button(
-                    onClick = { step -= 1 },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(text = stringResource(R.string.settings_setup_wizard_back))
-                }
-            }
-            Button(
-                onClick = {
-                    if (step == lastStep) completeWizard() else step += 1
-                },
-                modifier = Modifier.weight(1f)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 28.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = if (step == lastStep) {
-                        stringResource(R.string.settings_setup_wizard_finish)
-                    } else {
-                        stringResource(R.string.settings_setup_wizard_next)
-                    }
-                )
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(MiuixTheme.colorScheme.primary)
+                        .clickable {
+                            if (step == lastStep) completeWizard() else step += 1
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (step == lastStep) MiuixIcons.Regular.Ok else MiuixIcons.Basic.ArrowRight,
+                        contentDescription = stringResource(
+                            if (step == lastStep) R.string.settings_setup_wizard_finish else R.string.settings_setup_wizard_next
+                        ),
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
             }
         }
         }
@@ -260,10 +271,7 @@ fun SettingsWizardScreen(
 
 @Composable
 private fun WizardIntroCard(done: Boolean = false) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp
-    ) {
+    SettingsCardGroup {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = stringResource(

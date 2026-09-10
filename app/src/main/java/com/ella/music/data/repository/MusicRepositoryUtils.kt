@@ -214,26 +214,31 @@ private fun downloadHttpToFile(
 }
 
 internal fun AudioTagInfo.embeddedLyricsContent(preferTtml: Boolean): String? {
-    val names = if (preferTtml) {
-        listOf(
+    if (preferTtml) {
+        ttmlLyrics?.takeIf { it.isNotBlank() && it.looksLikeTtmlLyrics() }?.let { return it }
+        val names = listOf(
             "TTML LYRICS", "TTML LYRIC", "TTMLLYRICS", "TTMLLYRIC", "TTML",
             "SYNCEDLYRICS", "LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS",
             "USLT", "SYLT", "LYRIC", "LYR",
             // iTunes / M4A extended lyric tags
             "----:com.apple.iTunes:Lyrics", "ITUNESLYRICS"
         )
+        names.forEach { target ->
+            customTags.firstMatchingTagValue(target)?.takeIf { it.looksLikeTtmlLyrics() }?.let { return it }
+        }
+        return lyrics?.takeIf { it.isNotBlank() && it.looksLikeTtmlLyrics() }
     } else {
-        listOf(
+        val names = listOf(
             "SYNCEDLYRICS", "LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS",
             "USLT", "SYLT", "LYRIC", "LYR",
             // iTunes / M4A extended lyric tags
             "----:com.apple.iTunes:Lyrics", "ITUNESLYRICS"
         )
+        names.forEach { target ->
+            customTags.firstMatchingTagValue(target)?.takeIf { !it.looksLikeTtmlLyrics() }?.let { return it }
+        }
+        return lyrics?.takeIf { it.isNotBlank() && !it.looksLikeTtmlLyrics() }
     }
-    names.forEach { target ->
-        customTags.firstMatchingTagValue(target)?.takeIf { it.looksLikeTtmlLyrics() == preferTtml }?.let { return it }
-    }
-    return lyrics?.takeIf { it.isNotBlank() && (preferTtml == it.looksLikeTtmlLyrics()) }
 }
 
 internal fun Map<String, List<String>>.firstMatchingTagValue(target: String): String? {
@@ -243,8 +248,17 @@ internal fun Map<String, List<String>>.firstMatchingTagValue(target: String): St
     }?.value?.firstOrNull { it.isNotBlank() }
 }
 
-internal fun String.normalizedTagName(): String =
-    uppercase().filter { it.isLetterOrDigit() }
+internal fun String.normalizedTagName(): String {
+    var s = uppercase()
+    if (s.startsWith("TXXX/") || s.startsWith("TXXX:") || s.startsWith("TXXX.") || s.startsWith("TXXX ")) {
+        s = s.substring(4).trimStart('/', ':', '.', ' ')
+    } else if (s.startsWith("TXXX") && s.length > 4) {
+        s = s.substring(4)
+    } else if (s.startsWith("----:COM.APPLE.ITUNES:")) {
+        s = s.removePrefix("----:COM.APPLE.ITUNES:")
+    }
+    return s.filter { it.isLetterOrDigit() }
+}
 
 internal fun String.looksLikeTtmlLyrics(): Boolean =
     contains("<tt", ignoreCase = true) && contains("</tt", ignoreCase = true)
@@ -310,6 +324,8 @@ internal fun AudioTagInfo.toSongTagInfo(): com.ella.music.data.model.SongTagInfo
         copyright = copyright.orEmpty(),
         neteaseKey = neteaseKey.orEmpty(),
         lyrics = lyrics.orEmpty(),
+        ttmlLyrics = ttmlLyrics.orEmpty().ifBlank { customTags.firstMatchingTagValue("TTMLLYRIC") ?: "" },
+        songwriters = songwriters.orEmpty().ifBlank { customTags.firstMatchingTagValue("SONGWRITERS") ?: customTags.firstMatchingTagValue("SONGWRITER").orEmpty() },
         rating = rating.normalizeTagRatingToStars(),
         customTagText = customTags.flattenForSearch(),
         customTags = customTags

@@ -238,6 +238,14 @@ object WebDavClient {
         }
         .build()
 
+    private val fileTransferClient by lazy {
+        httpClient.newBuilder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+
     fun newAuthenticatedOkHttpClient(configProvider: () -> WebDavConfig): OkHttpClient {
         return OkHttpClient.Builder()
             .connectTimeout(8, TimeUnit.SECONDS)
@@ -435,7 +443,7 @@ object WebDavClient {
             .apply { applyPreemptiveBasicAuth(config) }
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        fileTransferClient.newCall(request).execute().use { response ->
             if (response.code !in 200..399) {
                 throw WebDavException(WebDavResponse(response.code, response.body?.string().orEmpty()).toFriendlyMessage(ctx))
             }
@@ -478,7 +486,7 @@ object WebDavClient {
             .apply { applyPreemptiveBasicAuth(config) }
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        fileTransferClient.newCall(request).execute().use { response ->
             if (response.code !in 200..399) {
                 throw WebDavException(WebDavResponse(response.code, response.body?.string().orEmpty()).toFriendlyMessage(ctx))
             }

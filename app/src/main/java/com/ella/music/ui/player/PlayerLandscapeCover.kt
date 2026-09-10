@@ -322,9 +322,7 @@ internal fun LandscapeCoverPlayerPage(
                         onToggleFavorite = onToggleFavorite,
                         onToggleMenu = onToggleMenu,
                         onSongInfo = onSongInfo,
-                        modifier = Modifier
-                            .fillMaxWidth(coverWidthFraction)
-                            .widthIn(max = coverMaxSize)
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
                 }
@@ -397,9 +395,7 @@ internal fun LandscapeCoverPlayerPage(
                         onToggleFavorite = onToggleFavorite,
                         onToggleMenu = onToggleMenu,
                         onSongInfo = onSongInfo,
-                        modifier = Modifier
-                            .fillMaxWidth(coverWidthFraction)
-                            .widthIn(max = coverMaxSize)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 Spacer(modifier = Modifier.height(if (ultraWideLandscape) 6.dp else 10.dp))
