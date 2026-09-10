@@ -17,6 +17,15 @@ class AudioQualityTest {
             audioQualitySummary(AudioInfo(format = "FLAC", bitDepth = 24, sampleRate = 44_100)).compactLabel
         )
     }
+ 
+    @Test
+    fun lossyAudioWithHighSampleRateIsNotHiRes() {
+        val summary = audioQualitySummary(
+            AudioInfo(format = "MP3", bitRate = 192_000, sampleRate = 48_000, channels = 2)
+        )
+        assertEquals("LQ", summary.compactLabel)
+        assertEquals("LQ", summary.listTag)
+    }
 
     @Test
     fun normalizedAudioFormatRecognizesAc4Variants() {

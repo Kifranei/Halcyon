@@ -110,18 +110,48 @@ internal fun PlayerActionMenu(
     onCycleRemoteStreamQuality: () -> Unit,
     onPreviewCover: () -> Unit,
     initialPage: PlayerActionSheetPage = PlayerActionSheetPage.Main,
+    page: PlayerActionSheetPage? = null,
+    onPageChange: ((PlayerActionSheetPage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val savedLayout by settingsManager.playerActionMenuLayout.collectAsState(initial = "")
-    val visibleActions = remember(savedLayout) {
-        ActionMenuLayout.parse(savedLayout, ActionMenuIds.playerDefaults)
-            .visibleIds(ActionMenuIds.playerDefaults)
+    val rawShortcuts by settingsManager.playerShortcutItems.collectAsState(initial = SettingsManager.DEFAULT_PLAYER_SHORTCUT_ITEMS)
+    val shortcutIds = remember(rawShortcuts) {
+        if (rawShortcuts.isBlank()) {
+            emptyList()
+        } else {
+            rawShortcuts.split(',')
+                .filter { it.isNotBlank() && it in ActionMenuIds.playerShortcutCatalog }
+                .distinct()
+                .take(SettingsManager.MAX_PLAYER_SHORTCUT_ITEMS)
+        }
     }
-    var page by remember(initialPage) { mutableStateOf(initialPage) }
+    // Shortcut-only ids (speed/eq/timer/playlist/play-next) are not in playerDefaults.
+    // Put them first so when horizontal shortcuts are cleared they land at the top of the
+    // vertical list (especially important on tablet sheets with a shorter scroll viewport).
+    val playerActionMenuDefaults = remember {
+        (ActionMenuIds.playerShortcutDefaults +
+            ActionMenuIds.playerDefaults +
+            ActionMenuIds.playerShortcutCatalog +
+            listOf(ActionMenuIds.REMOTE_QUALITY, PlayerExtraActionIds.LYRIC_SHARE))
+            .distinct()
+    }
+    val visibleActions = remember(savedLayout, playerActionMenuDefaults, shortcutIds) {
+        ActionMenuLayout.parse(savedLayout, playerActionMenuDefaults)
+            .visibleIds(playerActionMenuDefaults)
+            .filterNot { it in shortcutIds }
+    }
+    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = 70)
+    var internalPage by remember(initialPage) { mutableStateOf(initialPage) }
+    val currentPage = page ?: internalPage
+    val setPage: (PlayerActionSheetPage) -> Unit = { target ->
+        internalPage = target
+        onPageChange?.invoke(target)
+    }
     val pageScrollState = rememberScrollState()
-    LaunchedEffect(page) {
+    LaunchedEffect(currentPage) {
         pageScrollState.scrollTo(0)
     }
     val abRepeatLabel = when (abRepeatState.phase) {
@@ -141,9 +171,9 @@ internal fun PlayerActionMenu(
         modifier = modifier
             .verticalScroll(pageScrollState)
             .navigationBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 10.dp)
+            .padding(vertical = 8.dp)
     ) {
-        when (page) {
+        when (currentPage) {
             PlayerActionSheetPage.Main -> {
                 PlayerActionMenuHeader(
                     song = song,
@@ -152,21 +182,71 @@ internal fun PlayerActionMenu(
                     onAlbum = onAlbum,
                     onPreviewCover = onPreviewCover
                 )
-                Spacer(modifier = Modifier.height(14.dp))
-                PlayerActionMenuGroup {
-                    PlayerActionShortcutRow(
-                        onAddToPlaylist = onAddToPlaylist,
-                        onPlayNext = onPlayNext,
-                        onTimer = { page = PlayerActionSheetPage.Timer },
-                        onSpeed = { page = PlayerActionSheetPage.Speed },
-                        onOpenEqualizer = onOpenEqualizer,
-                    )
+                if (shortcutIds.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    PlayerActionMenuGroup {
+                        PlayerActionShortcutRow(
+                            shortcutIds = shortcutIds,
+                            sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
+                            onActionClick = { actionId ->
+                                when (actionId) {
+                                    ActionMenuIds.SPEED -> setPage(PlayerActionSheetPage.Speed)
+                                    ActionMenuIds.EQUALIZER -> onOpenEqualizer()
+                                    ActionMenuIds.TIMER -> setPage(PlayerActionSheetPage.Timer)
+                                    ActionMenuIds.ADD_TO_PLAYLIST -> onAddToPlaylist()
+                                    ActionMenuIds.PLAY_NEXT -> onPlayNext()
+                                    ActionMenuIds.ADD_TO_QUEUE -> onAddToQueue()
+                                    ActionMenuIds.SHARE -> onShare()
+                                    ActionMenuIds.AI -> onAiInterpret()
+                                    ActionMenuIds.INFO -> onSongInfo()
+                                    ActionMenuIds.AUDIO_OUTPUT -> setPage(PlayerActionSheetPage.AudioOutput)
+                                    ActionMenuIds.CASTING -> openSystemOutputSwitcher(context)
+                                    ActionMenuIds.AB_REPEAT -> onAbRepeat()
+                                    ActionMenuIds.LANDSCAPE -> onLandscape()
+                                    ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) setPage(PlayerActionSheetPage.LyricDisplay)
+                                    ActionMenuIds.SPECTRUM -> onSpectrum()
+                                    ActionMenuIds.RATING -> onSetRating()
+                                    ActionMenuIds.DYNAMIC_COVER -> onMatchDynamicCover()
+                                    ActionMenuIds.VISUALIZER -> if (visualizerAvailable) setPage(PlayerActionSheetPage.Visualizer)
+                                    ActionMenuIds.EDIT_TAGS -> onEditMetadata()
+                                    ActionMenuIds.LYRIC_TIMING -> onLyricTiming()
+                                    ActionMenuIds.ONLINE_LYRICS -> onMatchOnlineLyrics()
+                                    ActionMenuIds.LYRIC_OFFSET -> setPage(PlayerActionSheetPage.LyricOffset)
+                                    ActionMenuIds.KEEP_SCREEN_ON -> if (showPlayerKeepScreenOnAction) onPlayerKeepScreenOnChange(!playerKeepScreenOn)
+                                    ActionMenuIds.DOWNLOAD -> onDownload()
+                                    ActionMenuIds.DELETE -> onDeleteSong()
+                                }
+                            }
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(14.dp))
                 PlayerActionMenuGroup {
                     visibleActions.forEach { actionId ->
                         val icon = actionMenuIcon(actionId)
                         when (actionId) {
+                            // Fallback rows for horizontal shortcuts that are turned off.
+                            // Without these branches the ids stay in visibleActions but render nothing.
+                            ActionMenuIds.SPEED -> PlayerActionMenuItem(
+                                stringResource(R.string.player_speed_pitch),
+                                { setPage(PlayerActionSheetPage.Speed) },
+                                icon = icon
+                            )
+                            ActionMenuIds.EQUALIZER -> PlayerActionMenuItem(
+                                stringResource(R.string.player_equalizer),
+                                onOpenEqualizer,
+                                icon = icon
+                            )
+                            ActionMenuIds.ADD_TO_PLAYLIST -> PlayerActionMenuItem(
+                                stringResource(R.string.song_more_add_to_playlist),
+                                onAddToPlaylist,
+                                icon = icon
+                            )
+                            ActionMenuIds.PLAY_NEXT -> PlayerActionMenuItem(
+                                stringResource(R.string.song_more_play_next),
+                                onPlayNext,
+                                icon = icon
+                            )
                             ActionMenuIds.ADD_TO_QUEUE -> PlayerActionMenuItem(
                                 stringResource(R.string.common_add_to_queue),
                                 onAddToQueue,
@@ -189,7 +269,7 @@ internal fun PlayerActionMenu(
                             )
                             ActionMenuIds.AUDIO_OUTPUT -> PlayerActionMenuItem(
                                 text = stringResource(R.string.player_audio_output_info),
-                                onClick = { page = PlayerActionSheetPage.AudioOutput },
+                                onClick = { setPage(PlayerActionSheetPage.AudioOutput) },
                                 icon = icon
                             )
                             ActionMenuIds.CASTING -> PlayerActionMenuItem(
@@ -220,7 +300,7 @@ internal fun PlayerActionMenu(
                             ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) {
                                 PlayerActionMenuItem(
                                     text = stringResource(R.string.player_lyrics_display),
-                                    onClick = { page = PlayerActionSheetPage.LyricDisplay },
+                                    onClick = { setPage(PlayerActionSheetPage.LyricDisplay) },
                                     icon = icon
                                 )
                             }
@@ -242,7 +322,7 @@ internal fun PlayerActionMenu(
                             ActionMenuIds.VISUALIZER -> if (visualizerAvailable) {
                                 PlayerActionMenuItem(
                                     text = stringResource(R.string.player_visualizer_settings),
-                                    onClick = { page = PlayerActionSheetPage.Visualizer },
+                                    onClick = { setPage(PlayerActionSheetPage.Visualizer) },
                                     icon = icon
                                 )
                             }
@@ -263,7 +343,7 @@ internal fun PlayerActionMenu(
                             )
                             ActionMenuIds.LYRIC_OFFSET -> PlayerActionMenuItem(
                                 text = stringResource(R.string.player_lyric_offset),
-                                onClick = { page = PlayerActionSheetPage.LyricOffset },
+                                onClick = { setPage(PlayerActionSheetPage.LyricOffset) },
                                 icon = icon
                             )
                             ActionMenuIds.KEEP_SCREEN_ON -> if (showPlayerKeepScreenOnAction) {
@@ -283,6 +363,17 @@ internal fun PlayerActionMenu(
                                     icon = icon
                                 )
                             }
+                            ActionMenuIds.TIMER -> {
+                                val remaining = rememberSleepTimerRemaining(sleepTimerEndRealtimeMs)
+                                PlayerActionMenuItem(
+                                    text = stringResource(R.string.player_sleep_timer_title),
+                                    onClick = { setPage(PlayerActionSheetPage.Timer) },
+                                    icon = icon,
+                                    subtitle = remaining?.let {
+                                        stringResource(R.string.player_sleep_timer_remaining, it)
+                                    }
+                                )
+                            }
                             ActionMenuIds.DELETE -> if (
                                 song != null && !song.path.startsWith("http://", ignoreCase = true) &&
                                 !song.path.startsWith("https://", ignoreCase = true)
@@ -300,7 +391,7 @@ internal fun PlayerActionMenu(
             }
             PlayerActionSheetPage.Timer -> {
                 TimerSheetContent(
-                    onBack = { page = PlayerActionSheetPage.Main },
+                    onBack = { setPage(PlayerActionSheetPage.Main) },
                     sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
                     stopAfterCurrentEnabled = stopAfterCurrentEnabled,
                     sleepTimerCustomMinutes = sleepTimerCustomMinutes,
@@ -308,32 +399,36 @@ internal fun PlayerActionMenu(
                     onStopAfterCurrent = onStopAfterCurrent,
                     onTimer = onTimer,
                     onCustomTimerMinutes = onCustomTimerMinutes,
-                    onCancelTimer = onCancelTimer
+                    onCancelTimer = onCancelTimer,
+                    showHeader = false
                 )
             }
             PlayerActionSheetPage.Speed -> {
                 SpeedPitchSheetContent(
                     speed = speed,
                     pitch = pitch,
-                    onBack = { page = PlayerActionSheetPage.Main },
+                    onBack = { setPage(PlayerActionSheetPage.Main) },
                     onSpeed = onSpeed,
-                    onPitch = onPitch
+                    onPitch = onPitch,
+                    showHeader = false
                 )
             }
             PlayerActionSheetPage.LyricOffset -> {
                 LyricOffsetSheetContent(
                     offsetMs = lyricOffsetMs,
-                    onBack = { page = PlayerActionSheetPage.Main },
-                    onOffsetChange = onLyricOffset
+                    onBack = { setPage(PlayerActionSheetPage.Main) },
+                    onOffsetChange = onLyricOffset,
+                    showHeader = false
                 )
             }
             PlayerActionSheetPage.Visualizer -> {
                 VisualizerSheetContent(
                     enabled = visualizerEnabled,
                     opacity = visualizerOpacity,
-                    onBack = { page = PlayerActionSheetPage.Main },
+                    onBack = { setPage(PlayerActionSheetPage.Main) },
                     onEnabledChange = onVisualizerEnabled,
-                    onOpacityChange = onVisualizerOpacityChange
+                    onOpacityChange = onVisualizerOpacityChange,
+                    showHeader = false
                 )
             }
             PlayerActionSheetPage.LyricDisplay -> {
@@ -362,9 +457,9 @@ internal fun PlayerActionMenu(
                     onSecondaryFontScale = onLyricSecondaryFontScale,
                     onPrimaryTextSize = onLyricPrimaryTextSize,
                     onSecondaryTextSize = onLyricSecondaryTextSize,
-                    onStyleSettings = { page = PlayerActionSheetPage.LyricStyle },
-                    showSheetHeader = true,
-                    onBack = { page = PlayerActionSheetPage.Main },
+                    onStyleSettings = { setPage(PlayerActionSheetPage.LyricStyle) },
+                    showSheetHeader = false,
+                    onBack = { setPage(PlayerActionSheetPage.Main) },
                     applyScrollableContainer = false,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -383,7 +478,9 @@ internal fun PlayerActionMenu(
                     onSecondaryFontScale = onLyricSecondaryFontScale,
                     onPrimaryTextSize = onLyricPrimaryTextSize,
                     onSecondaryTextSize = onLyricSecondaryTextSize,
-                    onBack = { page = PlayerActionSheetPage.LyricDisplay },
+                    onBack = { setPage(PlayerActionSheetPage.LyricDisplay) },
+                    initialBlurPercent = lyricNonCurrentBlurPercent,
+                    showSheetHeader = false,
                     applyScrollableContainer = false,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -391,7 +488,8 @@ internal fun PlayerActionMenu(
             PlayerActionSheetPage.AudioOutput -> {
                 AudioOutputInfoSheetContent(
                     song = song,
-                    onBack = { page = PlayerActionSheetPage.Main }
+                    onBack = { setPage(PlayerActionSheetPage.Main) },
+                    showHeader = false
                 )
             }
         }

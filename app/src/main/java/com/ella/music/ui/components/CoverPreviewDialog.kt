@@ -12,8 +12,25 @@ import android.widget.Toast
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.produceState
+import androidx.media3.ui.AspectRatioFrameLayout
+import com.ella.music.ui.player.DynamicCoverSource
+import com.ella.music.ui.player.DynamicCoverVideo
+import com.ella.music.ui.player.readMusicVideoPreviewFrame
+import java.util.Locale
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -21,20 +38,30 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,7 +69,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import top.yukonga.miuix.kmp.icon.extended.GridView
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
@@ -85,21 +114,43 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 @Composable
 internal fun CoverPreviewDialog(
     model: Any,
+    models: List<Any> = listOf(model),
+    initialIndex: Int = 0,
     title: String,
     saveName: String = title,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var scale by remember(model) { mutableFloatStateOf(1f) }
-    var offset by remember(model) { mutableStateOf(Offset.Zero) }
-    var resolution by remember(model) { mutableStateOf<CoverResolution?>(null) }
-    var viewportSize by remember(model) { mutableStateOf(ComposeIntSize.Zero) }
-    var doubleTapTargetScale by remember(model) { mutableFloatStateOf(1f) }
-    var doubleTapTargetOffset by remember(model) { mutableStateOf(Offset.Zero) }
-    var doubleTapRequest by remember(model) { mutableIntStateOf(0) }
+    val effectiveModels = remember(model, models) {
+        if (models.isNotEmpty()) models else listOf(model)
+    }
+    val safeInitialIndex = remember(effectiveModels, initialIndex) {
+        initialIndex.coerceIn(0, (effectiveModels.size - 1).coerceAtLeast(0))
+    }
+    val pagerState = rememberPagerState(
+        initialPage = safeInitialIndex,
+        pageCount = { effectiveModels.size }
+    )
+    val currentModel = effectiveModels.getOrElse(pagerState.currentPage) { model }
+
+    var scale by remember(currentModel) { mutableFloatStateOf(1f) }
+    var offset by remember(currentModel) { mutableStateOf(Offset.Zero) }
+    // Per-page cache: AsyncImage onSuccess often fires while a neighbour page is preloading
+    // (isCurrent=false). Remembering a single nullable by currentModel cleared the badge on
+    // swipe and never refilled it when Coil served the already-decoded result without a new
+    // onSuccess. Keep every page's size and read the active page below (#654).
+    val resolutionByPage = remember(effectiveModels) { mutableStateMapOf<Int, CoverResolution>() }
+    val resolution = resolutionByPage[pagerState.currentPage]
+    var viewportSize by remember { mutableStateOf(ComposeIntSize.Zero) }
+    var doubleTapTargetScale by remember(currentModel) { mutableFloatStateOf(1f) }
+    var doubleTapTargetOffset by remember(currentModel) { mutableStateOf(Offset.Zero) }
+    var doubleTapRequest by remember(currentModel) { mutableIntStateOf(0) }
     val latestScale by rememberUpdatedState(scale)
     val latestOffset by rememberUpdatedState(offset)
+
+    var showThumbnailSheet by remember { mutableStateOf(false) }
+
     LaunchedEffect(doubleTapRequest) {
         if (doubleTapRequest == 0) return@LaunchedEffect
         val initialScale = scale
@@ -122,7 +173,9 @@ internal fun CoverPreviewDialog(
         scale = doubleTapTargetScale
         offset = doubleTapTargetOffset
     }
-    val controlsVisible = scale <= 1.01f
+
+    val controlsVisible = scale <= 1.01f && !showThumbnailSheet
+
     fun handleDoubleTap(tapPosition: Offset) {
         val targetScale = if (scale > 1.01f) {
             1f
@@ -152,72 +205,181 @@ internal fun CoverPreviewDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (showThumbnailSheet) {
+                showThumbnailSheet = false
+            } else {
+                onDismiss()
+            }
+        },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false
         )
     ) {
+        ApplyHalcyonSystemBarsToCurrentWindow()
+        BackHandler(enabled = showThumbnailSheet) {
+            showThumbnailSheet = false
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
+                .onSizeChanged { viewportSize = it }
         ) {
-            AsyncImage(
-                model = remember(context, model) {
-                    ImageRequest.Builder(context)
-                        .data(model)
-                        .size(Size.ORIGINAL)
-                        .build()
-                },
-                contentDescription = title,
-                contentScale = ContentScale.Fit,
-                onSuccess = { state ->
-                    resolution = CoverResolution(state.result.image.width, state.result.image.height)
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .onSizeChanged { viewportSize = it }
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offset.x
-                        translationY = offset.y
-                    }
-            )
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = scale <= 1.01f,
+                key = { pageIndex -> effectiveModels.getOrNull(pageIndex)?.toString() ?: pageIndex.toString() }
+            ) { pageIndex ->
+                val pageModel = effectiveModels[pageIndex]
+                val isCurrent = pageIndex == pagerState.currentPage
+                val isVideo = remember(pageModel) { isCoverVideoModel(context, pageModel) }
 
-            // This layer deliberately stays outside the scaled artwork. Pointer coordinates on a
-            // graphicsLayer are transformed with the content; at 5x that made a 100 px finger
-            // drag arrive as only 20 px. Keeping detection in screen coordinates makes panning
-            // stay exactly 1:1 at every zoom level.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .coverPreviewGestures(
-                        currentScale = { latestScale },
-                        currentOffset = { latestOffset },
-                        viewportSize = viewportSize,
-                        onTransform = { nextScale, nextOffset ->
-                            scale = nextScale
-                            offset = nextOffset
-                        },
-                        onSettle = { settledScale, settledOffset ->
-                            scale = settledScale
-                            offset = settledOffset
-                        },
-                        resolution = resolution,
-                        onDoubleTap = ::handleDoubleTap
-                    )
-            )
+                if (isVideo) {
+                    var isVideoPlaying by remember(pageModel) { mutableStateOf(false) }
+                    LaunchedEffect(isCurrent) {
+                        if (!isCurrent) isVideoPlaying = false
+                    }
+                    val videoUri = remember(pageModel) { toCoverMediaUri(pageModel) }
+                    val videoSource = remember(videoUri) {
+                        videoUri?.let {
+                            DynamicCoverSource(
+                                uri = it,
+                                failureKey = "preview-video:$it"
+                            )
+                        }
+                    }
+                    val previewFrame by produceState<Bitmap?>(initialValue = null, videoUri) {
+                        if (videoUri != null) {
+                            value = withContext(Dispatchers.IO) {
+                                context.readMusicVideoPreviewFrame(
+                                    uri = videoUri,
+                                    cacheKey = "preview-artist-video:$videoUri"
+                                )
+                            }
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { isVideoPlaying = !isVideoPlaying },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isVideoPlaying && videoSource != null) {
+                            DynamicCoverVideo(
+                                source = videoSource,
+                                isPlaying = true,
+                                playAudio = false,
+                                onPlaybackError = { isVideoPlaying = false },
+                                modifier = Modifier.fillMaxSize(),
+                                cornerRadiusDp = 0f,
+                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            )
+                        } else {
+                            if (previewFrame != null) {
+                                Image(
+                                    bitmap = previewFrame!!.asImageBitmap(),
+                                    contentDescription = title,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = remember(context, pageModel) {
+                                        ImageRequest.Builder(context)
+                                            .data(pageModel)
+                                            .size(Size.ORIGINAL)
+                                            .build()
+                                    },
+                                    contentDescription = title,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(76.dp)
+                                    .background(Color.Black.copy(alpha = 0.58f), CircleShape)
+                                    .border(1.5.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CoverPreviewPlayIcon(
+                                    modifier = Modifier.size(34.dp),
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = remember(context, pageModel) {
+                                ImageRequest.Builder(context)
+                                    .data(pageModel)
+                                    .size(Size.ORIGINAL)
+                                    .build()
+                            },
+                            contentDescription = title,
+                            contentScale = ContentScale.Fit,
+                            onSuccess = { state ->
+                                resolutionByPage[pageIndex] = CoverResolution(
+                                    state.result.image.width,
+                                    state.result.image.height
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    if (isCurrent) {
+                                        scaleX = scale
+                                        scaleY = scale
+                                        translationX = offset.x
+                                        translationY = offset.y
+                                    }
+                                }
+                        )
+
+                        if (isCurrent) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .coverPreviewGestures(
+                                        currentScale = { latestScale },
+                                        currentOffset = { latestOffset },
+                                        viewportSize = viewportSize,
+                                        resolution = resolution,
+                                        onTransform = { nextScale, nextOffset ->
+                                            scale = nextScale
+                                            offset = nextOffset
+                                        },
+                                        onSettle = { settledScale, settledOffset ->
+                                            scale = settledScale
+                                            offset = settledOffset
+                                        },
+                                        onDoubleTap = ::handleDoubleTap
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
 
             if (controlsVisible) {
+                // Top header bar
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
                         .statusBarsPadding()
-                        .navigationBarsPadding()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 18.dp, vertical = 12.dp)
+                        .align(Alignment.TopCenter)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -229,73 +391,294 @@ internal fun CoverPreviewDialog(
                             action = CoverPreviewActionKind.Back,
                             onClick = onDismiss
                         )
-                        Text(
-                            text = title,
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(start = 8.dp, end = 8.dp)
-                        )
-                        Row {
-                            CoverPreviewAction(
-                                contentDescription = stringResource(R.string.cover_preview_save),
-                                action = CoverPreviewActionKind.Save,
-                                onClick = {
-                                    scope.launch {
-                                        val saved = saveCoverToPictures(context, model, saveName)
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(
-                                                if (saved) R.string.cover_preview_saved
-                                                else R.string.cover_preview_save_failed
-                                            ),
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
+                                .padding(horizontal = 12.dp)
+                        ) {
+                            Text(
+                                text = title,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.size(8.dp))
-                            CoverPreviewAction(
-                                contentDescription = stringResource(R.string.cover_preview_share),
-                                action = CoverPreviewActionKind.Share,
-                                onClick = {
-                                    scope.launch {
-                                        val shared = writeAndShareCover(context, model, title)
-                                        if (!shared) {
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.cover_preview_share_failed),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    }
-                                }
+                            if (effectiveModels.size > 1) {
+                                Text(
+                                    text = "${pagerState.currentPage + 1} / ${effectiveModels.size}",
+                                    color = Color.White.copy(alpha = 0.72f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal
+                                )
+                            }
+                        }
+                        resolution?.takeIf { it.width > 0 && it.height > 0 }?.let { size ->
+                            Text(
+                                text = "${size.width} × ${size.height}",
+                                color = Color.White.copy(alpha = 0.88f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .background(Color.Black.copy(alpha = 0.46f), RoundedCornerShape(99.dp))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
                     }
-                    resolution?.takeIf { it.width > 0 && it.height > 0 }?.let { size ->
-                        Text(
-                            text = context.getString(
-                                R.string.cover_preview_resolution,
-                                size.width,
-                                size.height
-                            ),
-                            color = Color.White.copy(alpha = 0.88f),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .background(Color.Black.copy(alpha = 0.46f), RoundedCornerShape(99.dp))
-                                .padding(horizontal = 13.dp, vertical = 7.dp)
+                }
+
+                // Bottom floating action pill
+                CoverPreviewBottomBar(
+                    currentPage = pagerState.currentPage,
+                    totalCount = effectiveModels.size,
+                    onSave = {
+                        scope.launch {
+                            val currentSaveName = if (effectiveModels.size > 1) {
+                                "${saveName}_${pagerState.currentPage + 1}"
+                            } else {
+                                saveName
+                            }
+                            val saved = saveCoverToPictures(context, currentModel, currentSaveName)
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    if (saved) R.string.cover_preview_saved
+                                    else R.string.cover_preview_save_failed
+                                ),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    onShare = {
+                        scope.launch {
+                            val shared = writeAndShareCover(context, currentModel, title)
+                            if (!shared) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.cover_preview_share_failed),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    },
+                    onOpenGallery = {
+                        showThumbnailSheet = true
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 24.dp)
+                )
+            }
+
+            // Thumbnail sheet scrim
+            AnimatedVisibility(
+                visible = showThumbnailSheet,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .clickable { showThumbnailSheet = false }
+                )
+            }
+
+            // Thumbnail sheet content
+            AnimatedVisibility(
+                visible = showThumbnailSheet,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .background(
+                            color = Color(0xFF1E1E1E),
+                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
                         )
-                    } ?: Spacer(modifier = Modifier.size(1.dp))
+                        .navigationBarsPadding()
+                        .padding(top = 16.dp, bottom = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 36.dp, height = 4.dp)
+                            .background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
+                            .align(Alignment.CenterHorizontally)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${stringResource(R.string.cover_preview_all_covers)} (${effectiveModels.size})",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = stringResource(R.string.common_close),
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .clickable { showThumbnailSheet = false }
+                                .padding(4.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        itemsIndexed(effectiveModels) { index, itemModel ->
+                            val isSelected = index == pagerState.currentPage
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(
+                                        width = if (isSelected) 2.5.dp else 0.5.dp,
+                                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable {
+                                        scope.launch {
+                                            pagerState.scrollToPage(index)
+                                        }
+                                        showThumbnailSheet = false
+                                    }
+                            ) {
+                                val isItemVideo = remember(itemModel) { isCoverVideoModel(context, itemModel) }
+                                AsyncImage(
+                                    model = remember(context, itemModel) {
+                                        ImageRequest.Builder(context)
+                                            .data(itemModel)
+                                            .size(300)
+                                            .build()
+                                    },
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                if (isItemVideo) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(4.dp)
+                                            .background(
+                                                color = Color.Black.copy(alpha = 0.65f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        CoverPreviewPlayIcon(
+                                            modifier = Modifier.size(10.dp),
+                                            tint = Color.White
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(4.dp)
+                                        .background(
+                                            color = if (isSelected) Color.White else Color.Black.copy(alpha = 0.65f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        )
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        color = if (isSelected) Color.Black else Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CoverPreviewBottomBar(
+    currentPage: Int,
+    totalCount: Int,
+    onSave: () -> Unit,
+    onShare: () -> Unit,
+    onOpenGallery: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 24.dp, vertical = 10.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CoverPreviewBarButton(
+                icon = { PlayerCoverPreviewSaveIcon(modifier = Modifier.size(22.dp)) },
+                label = stringResource(R.string.cover_preview_save),
+                onClick = onSave
+            )
+            CoverPreviewBarButton(
+                icon = { PlayerCoverPreviewShareIcon(modifier = Modifier.size(22.dp)) },
+                label = stringResource(R.string.cover_preview_share),
+                onClick = onShare
+            )
+            if (totalCount > 1) {
+                CoverPreviewBarButton(
+                    icon = {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.GridView,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    label = "${currentPage + 1}/$totalCount",
+                    onClick = onOpenGallery
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoverPreviewBarButton(
+    icon: @Composable () -> Unit,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        icon()
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.9f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -385,8 +768,101 @@ private fun PlayerCoverPreviewSaveIcon(modifier: Modifier = Modifier) {
     }
 }
 
+@Composable
+private fun CoverPreviewPlayIcon(modifier: Modifier = Modifier, tint: Color = Color.White) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val path = Path().apply {
+            val left = size.width * 0.30f
+            val right = size.width * 0.78f
+            val top = size.height * 0.20f
+            val bottom = size.height * 0.80f
+            val midY = size.height * 0.5f
+            moveTo(left, top)
+            lineTo(right, midY)
+            lineTo(left, bottom)
+            close()
+        }
+        drawPath(path = path, color = tint)
+    }
+}
+
+internal fun toCoverMediaUri(model: Any?): Uri? {
+    return when (model) {
+        is Uri -> model
+        is File -> Uri.fromFile(model)
+        is String -> {
+            if (model.startsWith("content://", ignoreCase = true) || model.startsWith("file://", ignoreCase = true)) {
+                Uri.parse(model)
+            } else {
+                Uri.fromFile(File(model))
+            }
+        }
+        else -> null
+    }
+}
+
+private val supportedCoverVideoExtensions = setOf("mp4", "m4v", "mov", "webm", "mkv")
+
+internal fun isCoverVideoModel(context: Context, model: Any?): Boolean {
+    if (model == null) return false
+    val uri = toCoverMediaUri(model) ?: return false
+    val path = uri.path.orEmpty()
+    val ext = path.substringAfterLast('.', "").lowercase(Locale.ROOT)
+    if (ext in supportedCoverVideoExtensions) return true
+    val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+    return mime?.startsWith("video/", ignoreCase = true) == true
+}
+
+private suspend fun saveVideoToMovies(context: Context, model: Any, title: String): Boolean {
+    val srcUri = toCoverMediaUri(model) ?: return false
+    return withContext(Dispatchers.IO) {
+        try {
+            val safeTitle = title.sanitizeExportFileName(fallback = "artist_video", maxLength = 80)
+            val ext = srcUri.path.orEmpty().substringAfterLast('.', "mp4")
+            val displayName = "$safeTitle.$ext"
+            val values = ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
+                put(MediaStore.Video.Media.MIME_TYPE, "video/$ext")
+                put(
+                    MediaStore.Video.Media.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_MOVIES}${File.separator}Halcyon"
+                )
+                put(MediaStore.Video.Media.IS_PENDING, 1)
+            }
+            val dstUri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return@withContext false
+            val inStream = context.contentResolver.openInputStream(srcUri) ?: return@withContext false
+            val outStream = context.contentResolver.openOutputStream(dstUri) ?: return@withContext false
+            inStream.use { input ->
+                outStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            values.clear()
+            values.put(MediaStore.Video.Media.IS_PENDING, 0)
+            context.contentResolver.update(dstUri, values, null, null)
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+}
+
 private suspend fun writeAndShareCover(context: Context, model: Any, title: String): Boolean {
     return runCatching {
+        if (isCoverVideoModel(context, model)) {
+            val srcUri = toCoverMediaUri(model) ?: return false
+            val ext = srcUri.path.orEmpty().substringAfterLast('.', "mp4")
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "video/$ext"
+                putExtra(Intent.EXTRA_STREAM, srcUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                clipData = ClipData.newUri(context.contentResolver, title, srcUri)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.cover_preview_share)))
+            return true
+        }
+
         // Coil may hand us the same Bitmap object that is currently rendered by the preview/player.
         // Sharing must only recycle a private copy; recycling the source made the preview black and
         // could later crash the player when it attempted to reuse its cover.
@@ -421,6 +897,9 @@ private suspend fun writeAndShareCover(context: Context, model: Any, title: Stri
 }
 
 private suspend fun saveCoverToPictures(context: Context, model: Any, title: String): Boolean {
+    if (isCoverVideoModel(context, model)) {
+        return saveVideoToMovies(context, model, title)
+    }
     val bitmap = loadCoverBitmapCopy(context, model) ?: return false
     return withContext(Dispatchers.IO) {
         var uri: Uri? = null

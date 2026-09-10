@@ -50,7 +50,10 @@ class MainRoutesTest {
         assertTrue(Screen.SettingsWizard.route.isSettingsGraphRoute())
         assertTrue(Screen.SettingsMaintenance.route.isSettingsGraphRoute())
         assertTrue(Screen.NavidromeServerSettings.route.isSettingsGraphRoute())
+        assertTrue(Screen.RemoteServerEditor.createRoute(com.ella.music.data.remote.RemoteMusicProvider.Navidrome).isSettingsGraphRoute())
+        assertTrue(Screen.RemoteServerEditor.createRoute(com.ella.music.data.remote.RemoteMusicProvider.Navidrome, "server123").isSettingsGraphRoute())
         assertTrue(Screen.LxSourceSettings.route.isSettingsGraphRoute())
+        assertTrue(Screen.PlayerShortcutSettings.createRoute().isSettingsGraphRoute())
         assertTrue(Screen.WebDav.route.isSettingsGraphRoute())
         assertFalse(Screen.Library.route.isSettingsGraphRoute())
         assertFalse(Screen.Home.route.isSettingsGraphRoute())
@@ -78,5 +81,30 @@ class MainRoutesTest {
             )
         )
         assertTrue(shouldRestoreBottomDockState(Screen.Library.route, Screen.Home.route))
+    }
+
+    @Test
+    fun settingsDockPopsSourceStackedOnSettings() {
+        assertTrue(
+            shouldPopStackedSourceToDockSettings(
+                dockRoute = Screen.Settings.createRoute(fromDock = true),
+                currentRoute = Screen.Library.route,
+                previousRoute = Screen.AppearanceSubpage.createRoute("player")
+            )
+        )
+        assertFalse(
+            shouldPopStackedSourceToDockSettings(
+                dockRoute = Screen.Settings.createRoute(fromDock = true),
+                currentRoute = Screen.Library.route,
+                previousRoute = Screen.Home.route
+            )
+        )
+        assertFalse(
+            shouldPopStackedSourceToDockSettings(
+                dockRoute = Screen.Home.route,
+                currentRoute = Screen.Library.route,
+                previousRoute = Screen.AppearanceSubpage.createRoute("player")
+            )
+        )
     }
 }

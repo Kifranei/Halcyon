@@ -54,7 +54,10 @@ import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.CloverShape
 import com.ella.music.ui.components.CookieShape
 import com.ella.music.ui.components.ExplicitSongTitle
+import com.ella.music.ui.components.LocalSettingsCardFrosting
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.effect.BgEffectBackground
@@ -142,7 +145,6 @@ internal data class HomeTileSpec(
     val id: String,
     val title: String,
     val subtitle: String,
-    val color: Color,
     val route: String,
     val onClick: () -> Unit
 )
@@ -153,9 +155,7 @@ internal fun HomeTileSection(
     tiles: List<HomeTileSpec>,
     context: Context,
     showPinButtons: Boolean,
-    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    gradientEnabled: Boolean = false,
-    gradientStartColor: Color? = null
+    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer
 ) {
     if (tiles.isEmpty()) return
     SectionTitle(title)
@@ -163,9 +163,7 @@ internal fun HomeTileSection(
         tiles = tiles,
         context = context,
         showPinButtons = showPinButtons,
-        cardColor = cardColor,
-        gradientEnabled = gradientEnabled,
-        gradientStartColor = gradientStartColor
+        cardColor = cardColor
     )
 }
 
@@ -174,14 +172,10 @@ internal fun HomeTileGrid(
     tiles: List<HomeTileSpec>,
     context: Context,
     showPinButtons: Boolean,
-    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    gradientEnabled: Boolean = false,
-    gradientStartColor: Color? = null
+    cardColor: Color = MiuixTheme.colorScheme.surfaceContainer
 ) {
     val televisionDevice = remember(context) {
-        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
-            (context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
-            Configuration.UI_MODE_TYPE_TELEVISION
+        com.ella.music.util.isTelevisionDevice(context)
     }
     val tileIds = remember(tiles) { tiles.map { it.id } }
     val focusRequesters = remember(tileIds) {
@@ -278,9 +272,6 @@ internal fun HomeTileGrid(
                             onClick = {},
                             onPinClick = null,
                             cardColor = cardColor,
-                            tileColor = tile.color,
-                            gradientEnabled = gradientEnabled,
-                            gradientStartColor = gradientStartColor,
                             interactive = false,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -292,9 +283,6 @@ internal fun HomeTileGrid(
                         onClick = tile.onClick,
                         onPinClick = onPinClick,
                         cardColor = cardColor,
-                        tileColor = tile.color,
-                        gradientEnabled = gradientEnabled,
-                        gradientStartColor = gradientStartColor,
                         modifier = tileModifier
                     )
                 }
@@ -309,6 +297,13 @@ internal fun HomeFeatureWallpaperCard(
     uri: String,
     modifier: Modifier = Modifier
 ) {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val cardHeight = if (isLandscape) {
+        minOf(320.dp, (configuration.screenHeightDp * 0.72f).dp).coerceAtLeast(240.dp)
+    } else {
+        180.dp
+    }
     Card(
         modifier = modifier,
         cornerRadius = 18.dp
@@ -317,9 +312,10 @@ internal fun HomeFeatureWallpaperCard(
             model = uri,
             contentDescription = stringResource(R.string.home_feature_wallpaper),
             contentScale = ContentScale.Crop,
+            alignment = Alignment.TopCenter,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .height(cardHeight)
         )
     }
 }
@@ -331,10 +327,12 @@ internal fun DailyMixCard(
     currentSongTitle: String?,
     mainViewModel: MainViewModel,
     onPlay: () -> Unit,
+    title: String,
+    playContentDescription: String,
     modifier: Modifier = Modifier
 ) {
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val contentColor = if (isDark) Color.White else Color(0xFF15151A)
+    // The nostalgia card intentionally keeps the bright OS2 palette in dark mode too.
+    val contentColor = Color(0xFF15151A)
     // Material 3 Expressive thumbnail shapes for the small covers, cycled across them.
     val coverShapes = listOf(CircleShape, CookieShape, CloverShape)
     Card(
@@ -342,16 +340,18 @@ internal fun DailyMixCard(
         cornerRadius = 18.dp,
         onClick = onPlay
     ) {
-        // HyperOS 3-style animated dynamic gradient (the About-page effect) as the card background.
+        // Keep the historical card on the bright OS2 flow palette in every app theme.
         BgEffectBackground(
             dynamicBackground = true,
             effectBackground = true,
+            isDarkTheme = false,
+            isOs3 = false,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(160.dp)
+                .height(128.dp)
         ) {
             featuredSongs.take(3).forEachIndexed { index, song ->
-                val coverSize = listOf(72, 60, 50).getOrElse(index) { 50 }.dp
+                val coverSize = listOf(56, 46, 38).getOrElse(index) { 38 }.dp
                 val coverState = rememberSongArtworkState(
                     song = song,
                     albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
@@ -363,7 +363,7 @@ internal fun DailyMixCard(
                     contentDescription = null,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = (-14 - index * 30).dp, y = (16 + index * 18).dp)
+                        .offset(x = (-12 - index * 24).dp, y = (12 + index * 14).dp)
                         .size(coverSize)
                         .clip(coverShapes[index % coverShapes.size]),
                     sizePx = 192
@@ -374,11 +374,11 @@ internal fun DailyMixCard(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 140.dp)
+                    .padding(start = 16.dp, end = 112.dp)
             ) {
                 Text(
-                    text = stringResource(R.string.home_daily_mix),
-                    fontSize = 30.sp,
+                    text = title,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = contentColor
                 )
@@ -395,13 +395,13 @@ internal fun DailyMixCard(
                         .fillMaxWidth()
                         .padding(top = 6.dp)
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 IconButton(onClick = onPlay) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Play,
-                        contentDescription = stringResource(R.string.home_play_daily_mix),
+                        contentDescription = playContentDescription,
                         tint = contentColor,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
             }
@@ -475,32 +475,34 @@ private fun HomeTile(
     onClick: () -> Unit,
     onPinClick: (() -> Unit)? = null,
     cardColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    tileColor: Color = MiuixTheme.colorScheme.primary,
-    gradientEnabled: Boolean = false,
-    gradientStartColor: Color? = null,
     interactive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val frosting = LocalSettingsCardFrosting.current
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val background = tileColor
-        .copy(alpha = if (isDark) 0.30f else 0.24f)
-        .compositeOver(cardColor)
-    val gradientBase = gradientStartColor ?: tileColor.copy(alpha = if (isDark) 0.18f else 0.14f)
-    val gradientStart = gradientBase.copy(alpha = if (isDark) 0.52f else 0.44f).compositeOver(cardColor)
-    val contentColor = if (background.luminance() < 0.42f) Color.White else Color(0xFF15151A)
+    val hasCustomCardColor = cardColor != MiuixTheme.colorScheme.surfaceContainer
+    val hasSharedBackground = frosting != null
+    val effectiveCardColor = when {
+        hasCustomCardColor -> cardColor
+        hasSharedBackground -> Color.Transparent
+        isDark -> MiuixTheme.colorScheme.surfaceContainer
+        else -> Color.White
+    }
+    val tileModifier = if (hasSharedBackground && !hasCustomCardColor) {
+        frostedCardModifier(
+            modifier = modifier.height(96.dp),
+            cornerRadius = 16.dp,
+            frosting = frosting
+        )
+    } else {
+        modifier.height(96.dp)
+    }
+    val background = effectiveCardColor
+    val contentColor = MiuixTheme.colorScheme.onSurface
     Column(
-        modifier = modifier
-            .height(96.dp)
+        modifier = tileModifier
             .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (gradientEnabled) {
-                    Brush.linearGradient(
-                        colors = listOf(gradientStart, background, background.copy(alpha = 0.92f))
-                    )
-                } else {
-                    Brush.linearGradient(listOf(background, background))
-                }
-            )
+            .background(background)
             .then(if (interactive) Modifier.combinedClickable(onClick = onClick, onLongClick = onPinClick) else Modifier)
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween

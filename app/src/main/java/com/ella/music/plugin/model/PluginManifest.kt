@@ -22,7 +22,14 @@ data class PluginManifest(
     val includeDirs: List<String> = emptyList(),
     val icon: String? = null,
     val capabilities: Set<PluginCapability> = emptySet(),
-    val configFields: List<PluginConfigField> = emptyList()
+    val configFields: List<PluginConfigField> = emptyList(),
+    val i18n: PluginI18n? = null
+)
+
+@Serializable
+data class PluginI18n(
+    val defaultLocale: String,
+    val resources: Map<String, String>
 )
 
 @Serializable
@@ -47,7 +54,10 @@ data class PluginConfigField(
     val required: Boolean = false,
     val defaultValue: JsonElement = JsonPrimitive(""),
     val options: List<PluginConfigOption> = emptyList(),
-    val dependency: PluginConfigDependency? = null
+    val dependency: PluginConfigDependency? = null,
+    // Resolved presentation only; group remains the stable grouping identity.
+    @kotlinx.serialization.Transient
+    val groupTitle: String? = null
 )
 
 fun PluginConfigField.defaultValueString(): String =

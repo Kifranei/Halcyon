@@ -26,6 +26,9 @@ import com.ella.music.data.SettingsManager.Companion.normalizeLyricSourcePriorit
 import com.ella.music.data.SettingsManager.Companion.PLAYER_LYRIC_ALIGN_LEFT
 import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_WORD_LIFT
 import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_RAINBOW_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_FULL_TRAIL_BREATH
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_HDR_HIGHLIGHT_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_CJK_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_CJK_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_GLOBAL_WESTERN_FONT_NAME
@@ -46,18 +49,20 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_FONT_WEIGHT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_LINE_BLACKLIST
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_OFFSET_OVERRIDES
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_OPENING_TEMPLATE
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_OPENING_AS_FALLBACK
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_CJK_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_CJK_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_FONT_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_KEEP_SCREEN_ON
-import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_TRANSLATION
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_EFFECT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_Y_ANGLE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PRONUNCIATION_BELOW
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SECONDARY_FONT_SCALE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_CUSTOM_INFO
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_EXPORT_FOLDER_URI
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_LONG_PRESS_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_USE_LYRIC_FONT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SOURCE_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SOURCE_PRIORITY
@@ -95,14 +100,19 @@ interface LyricSettingsAccess {
     val lyricLineBlacklist: Flow<List<String>>
     val lyricOffsetOverrides: Flow<Map<String, Long>>
     val playerLyricTextAlign: Flow<Int>
-    val lyricPageVerticalAlignment: Flow<Int>
     val lyricPronunciationBelow: Flow<Boolean>
     val lyricPageTranslation: Flow<Boolean>
     val lyricPageKeepScreenOn: Flow<Boolean>
     val appleMusicLyricsWordLift: Flow<Boolean>
     val appleMusicLyricsSustainThresholdMs: Flow<Int>
+    val lyricRainbowEnabled: Flow<Boolean>
+    val appleMusicLyricsFullTrailBreath: Flow<Boolean>
+    val lyricHdrHighlightEnabled: Flow<Boolean>
     val lyricOpeningTemplate: Flow<String>
+    val lyricOpeningAsFallback: Flow<Boolean>
+    val lyricShareLongPressEnabled: Flow<Boolean>
     val lyricShareCustomInfo: Flow<String>
+    val lyricShareExportFolderUri: Flow<String>
     val lyricFontName: Flow<String>
     val lyricFontPath: Flow<String>
     val lyricWesternFontName: Flow<String>
@@ -135,7 +145,6 @@ interface LyricSettingsAccess {
     val lyricPerspectiveEffect: Flow<Boolean>
     val lyricPerspectiveYAngle: Flow<Int>
     suspend fun setPlayerLyricTextAlign(align: Int)
-    suspend fun setLyricPageVerticalAlignment(alignment: Int)
     suspend fun setLyricPronunciationBelow(below: Boolean)
     suspend fun setLyricLineBlacklist(lines: List<String>)
     suspend fun setIgnoreLyricHeaderTags(enabled: Boolean)
@@ -148,10 +157,16 @@ interface LyricSettingsAccess {
     suspend fun setLyricPageKeepScreenOn(enabled: Boolean)
     suspend fun setAppleMusicLyricsWordLift(enabled: Boolean)
     suspend fun setAppleMusicLyricsSustainThresholdMs(thresholdMs: Int)
+    suspend fun setLyricRainbowEnabled(enabled: Boolean)
+    suspend fun setAppleMusicLyricsFullTrailBreath(enabled: Boolean)
+    suspend fun setLyricHdrHighlightEnabled(enabled: Boolean)
     suspend fun setLyricOpeningTemplate(template: String)
+    suspend fun setLyricOpeningAsFallback(enabled: Boolean)
+    suspend fun setLyricShareLongPressEnabled(enabled: Boolean)
     suspend fun setLyricPerspectiveEffect(enabled: Boolean)
     suspend fun setLyricPerspectiveYAngle(angle: Int)
     suspend fun setLyricShareCustomInfo(info: String)
+    suspend fun setLyricShareExportFolderUri(uri: String)
     suspend fun setLyricShareUseLyricFont(enabled: Boolean)
     suspend fun setLyricFont(name: String, path: String)
     suspend fun clearLyricFont()
@@ -198,14 +213,6 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         context.dataStore.data.map { parseLyricOffsetOverrides(it[KEY_LYRIC_OFFSET_OVERRIDES]) }
     override val playerLyricTextAlign: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_LYRIC_TEXT_ALIGN] ?: PLAYER_LYRIC_ALIGN_LEFT).coerceIn(0, 2) }
-    override val lyricPageVerticalAlignment: Flow<Int> =
-        context.dataStore.data.map {
-            (it[KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT] ?: SettingsManager.DEFAULT_LYRIC_PAGE_VERTICAL_ALIGNMENT)
-                .coerceIn(
-                    SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_UPPER,
-                    SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_CENTER
-                )
-        }
     // Whether romaji / phonetic guides render BELOW the main lyric line (main → romaji → translation)
     // instead of above it. Default false = above.
     override val lyricPronunciationBelow: Flow<Boolean> =
@@ -224,11 +231,23 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
                     SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
                 )
         }
+    override val lyricRainbowEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_RAINBOW_ENABLED] ?: false }
+    override val appleMusicLyricsFullTrailBreath: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_APPLE_MUSIC_LYRICS_FULL_TRAIL_BREATH] ?: false }
+    override val lyricHdrHighlightEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_HDR_HIGHLIGHT_ENABLED] ?: false }
     override val lyricOpeningTemplate: Flow<String> =
         context.dataStore.data.map { it[KEY_LYRIC_OPENING_TEMPLATE] ?: "" }
+    override val lyricOpeningAsFallback: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_OPENING_AS_FALLBACK] ?: false }
+    override val lyricShareLongPressEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_SHARE_LONG_PRESS_ENABLED] ?: true }
 
     override val lyricShareCustomInfo: Flow<String> =
         context.dataStore.data.map { it[KEY_LYRIC_SHARE_CUSTOM_INFO] ?: "" }
+    override val lyricShareExportFolderUri: Flow<String> =
+        context.dataStore.data.map { it[KEY_LYRIC_SHARE_EXPORT_FOLDER_URI] ?: "" }
 
     override val lyricFontName: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_NAME] ?: "" }
     override val lyricFontPath: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_PATH] ?: "" }
@@ -277,21 +296,12 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
     override val lyricFontItalic: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_FONT_ITALIC] ?: false }
     override val lyricFontApplyToPage: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_FONT_APPLY_TO_PAGE] ?: true }
     override val lyricFontApplyToDesktop: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_FONT_APPLY_TO_DESKTOP] ?: true }
-    override val lyricShareUseLyricFont: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_SHARE_USE_LYRIC_FONT] ?: false }
+    override val lyricShareUseLyricFont: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_SHARE_USE_LYRIC_FONT] ?: true }
     override val lyricPerspectiveEffect: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PERSPECTIVE_EFFECT] ?: false }
     override val lyricPerspectiveYAngle: Flow<Int> = context.dataStore.data.map { it[KEY_LYRIC_PERSPECTIVE_Y_ANGLE] ?: 25 }
 
     override suspend fun setPlayerLyricTextAlign(align: Int) {
         context.dataStore.edit { it[KEY_PLAYER_LYRIC_TEXT_ALIGN] = align.coerceIn(0, 2) }
-    }
-
-    override suspend fun setLyricPageVerticalAlignment(alignment: Int) {
-        context.dataStore.edit {
-            it[KEY_LYRIC_PAGE_VERTICAL_ALIGNMENT] = alignment.coerceIn(
-                SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_UPPER,
-                SettingsManager.LYRIC_PAGE_VERTICAL_ALIGN_CENTER
-            )
-        }
     }
 
     override suspend fun setLyricPronunciationBelow(below: Boolean) {
@@ -329,7 +339,8 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         val pluginId = id.trim()
         if (pluginId.isBlank()) return
         context.dataStore.edit { prefs ->
-            val current = LyricoPluginManager.normalizeEnabledIds(prefs[KEY_LYRICO_PLUGIN_ENABLED_IDS]).toMutableSet()
+            val current = (prefs[KEY_LYRICO_PLUGIN_ENABLED_IDS]?.let(LyricoPluginManager::normalizeEnabledIds)
+                ?: LyricoPluginManager.DEFAULT_ENABLED_SOURCE_IDS).toMutableSet()
             if (enabled) current += pluginId else current -= pluginId
             prefs[KEY_LYRICO_PLUGIN_ENABLED_IDS] = current.joinToString(",")
         }
@@ -366,12 +377,32 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         }
     }
 
+    override suspend fun setLyricRainbowEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_RAINBOW_ENABLED] = enabled }
+    }
+
+    override suspend fun setAppleMusicLyricsFullTrailBreath(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APPLE_MUSIC_LYRICS_FULL_TRAIL_BREATH] = enabled }
+    }
+
+    override suspend fun setLyricHdrHighlightEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_HDR_HIGHLIGHT_ENABLED] = enabled }
+    }
+
     override suspend fun setLyricOpeningTemplate(template: String) {
         context.dataStore.edit { preferences ->
             val value = template.trim()
             if (value.isEmpty()) preferences.remove(KEY_LYRIC_OPENING_TEMPLATE)
             else preferences[KEY_LYRIC_OPENING_TEMPLATE] = value
         }
+    }
+
+    override suspend fun setLyricOpeningAsFallback(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_OPENING_AS_FALLBACK] = enabled }
+    }
+
+    override suspend fun setLyricShareLongPressEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_SHARE_LONG_PRESS_ENABLED] = enabled }
     }
 
     override suspend fun setLyricPerspectiveEffect(enabled: Boolean) {
@@ -391,6 +422,14 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
             } else {
                 it[KEY_LYRIC_SHARE_CUSTOM_INFO] = trimmed
             }
+        }
+    }
+
+    override suspend fun setLyricShareExportFolderUri(uri: String) {
+        context.dataStore.edit { preferences ->
+            val normalized = uri.trim()
+            if (normalized.isBlank()) preferences.remove(KEY_LYRIC_SHARE_EXPORT_FOLDER_URI)
+            else preferences[KEY_LYRIC_SHARE_EXPORT_FOLDER_URI] = normalized
         }
     }
 

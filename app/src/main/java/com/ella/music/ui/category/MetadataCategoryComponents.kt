@@ -38,6 +38,8 @@ import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.isAppWallpaperVisible
 import com.ella.music.ui.components.rememberSongArtworkState
+import com.ella.music.ui.artist.rememberArtistCoverModel
+import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.MetadataCategoryItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -59,6 +61,8 @@ internal fun MetadataCategoryCard(
     selectionMode: Boolean = false,
     selected: Boolean = false,
     isPinned: Boolean = false,
+    mainViewModel: MainViewModel? = null,
+    artistCoverFolderUri: String = "",
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -86,10 +90,22 @@ internal fun MetadataCategoryCard(
             return
         }
         "composer", "arranger", "lyricist" -> {
+            val personCoverModel: Any? = if (mainViewModel != null) {
+                rememberArtistCoverModel(
+                    artistName = item.name,
+                    representativeSong = representativeSong,
+                    folderLocation = artistCoverFolderUri,
+                    mainViewModel = mainViewModel,
+                    coversEnabled = true,
+                    includeLibraryArtwork = true
+                )
+            } else {
+                coverModel
+            }
             PersonCategoryRow(
                 item = item,
                 sortMode = sortMode,
-                coverModel = coverModel,
+                coverModel = personCoverModel,
                 selectionMode = selectionMode,
                 selected = selected,
                 isPinned = isPinned,

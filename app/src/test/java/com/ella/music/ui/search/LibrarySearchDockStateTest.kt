@@ -15,6 +15,20 @@ class LibrarySearchDockStateTest {
         assertFalse(usesSearchBottomDock(Screen.Home.route))
         assertFalse(usesSearchBottomDock(Screen.Library.route))
         assertFalse(usesSearchBottomDock(null))
+        assertFalse(
+            usesSearchBottomDock(
+                currentRoute = Screen.LibrarySearch.createRoute(),
+                mergeSearch = true,
+                floatingBottomBar = true
+            )
+        )
+        assertFalse(
+            usesSearchBottomDock(
+                currentRoute = Screen.LibrarySearch.createRoute(),
+                mergeSearch = false,
+                floatingBottomBar = false
+            )
+        )
     }
 
     @Test

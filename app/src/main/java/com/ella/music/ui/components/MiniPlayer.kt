@@ -9,31 +9,56 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.model.Song
@@ -41,6 +66,10 @@ import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.drawBackdrop
 import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.sign
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -69,10 +98,14 @@ fun MiniPlayer(
     compactProgress: Float = 0f,
     showQueueButton: Boolean = false,
     swipeUpToOpenPlayer: Boolean = true,
+    isFloating: Boolean = true,
+    dockedAtBottom: Boolean = false,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipPrevious: () -> Unit = {},
     onSkipNext: () -> Unit = {},
+    previousSongTitle: String? = null,
+    nextSongTitle: String? = null,
     onShowQueue: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -82,7 +115,7 @@ fun MiniPlayer(
         .coerceIn(0f, 32f)
     val liquidConfig = liquidGlassConfig ?: LocalBottomBarLiquidGlassConfig.current
     val shape = RoundedCornerShape(if (liquidGlass) resolvedCornerRadiusDp.dp else 0.dp)
-    val glassBackdrop = if (liquidGlass) backdrop else null
+    val glassBackdrop = backdrop
     val useGlassLayout = liquidGlass
     val compact = compactProgress.coerceIn(0f, 1f)
     // Keep the surface itself centred while it collapses, matching iOS/MeiloX's mini-player
@@ -103,7 +136,63 @@ fun MiniPlayer(
     var transitionDirection by remember { mutableIntStateOf(1) }
     val interactionSource = remember { MutableInteractionSource() }
 
-    Row(
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    var travelPx by remember { mutableFloatStateOf(0f) }
+    var hintStrength by remember { mutableFloatStateOf(0f) }
+    var settleJob by remember { mutableStateOf<Job?>(null) }
+    val previousLabel = stringResource(R.string.common_previous)
+    val nextLabel = stringResource(R.string.common_next)
+    val measurer = rememberTextMeasurer()
+    val onSurfaceColor = MiuixTheme.colorScheme.onSurface
+    val globalFontFamily = MiuixTheme.textStyles.main.fontFamily
+    val hintStyle = remember(onSurfaceColor, globalFontFamily) {
+        TextStyle(
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = onSurfaceColor,
+            fontFamily = globalFontFamily
+        )
+    }
+    val titleStyle = remember(onSurfaceColor, globalFontFamily) {
+        TextStyle(
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Normal,
+            color = onSurfaceColor,
+            fontFamily = globalFontFamily
+        )
+    }
+    val maxTitleWidthPx = with(LocalDensity.current) { 92.dp.toPx() }.toInt()
+    val previousHint = remember(previousLabel, hintStyle) { measurer.measure(previousLabel, hintStyle) }
+    val nextHint = remember(nextLabel, hintStyle) { measurer.measure(nextLabel, hintStyle) }
+    val previousTitleHint = remember(previousSongTitle, titleStyle, maxTitleWidthPx) {
+        previousSongTitle?.takeIf { it.isNotBlank() }?.let {
+            measurer.measure(
+                text = it,
+                style = titleStyle,
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = maxTitleWidthPx)
+            )
+        }
+    }
+    val nextTitleHint = remember(nextSongTitle, titleStyle, maxTitleWidthPx) {
+        nextSongTitle?.takeIf { it.isNotBlank() }?.let {
+            measurer.measure(
+                text = it,
+                style = titleStyle,
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = maxTitleWidthPx)
+            )
+        }
+    }
+    val currentSkipPrevious by rememberUpdatedState(onSkipPrevious)
+    val currentSkipNext by rememberUpdatedState(onSkipNext)
+    val swipeThresholdPx = with(LocalDensity.current) { 72.dp.toPx() }
+    val maxTravelPx = with(LocalDensity.current) { 108.dp.toPx() }
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(
@@ -112,25 +201,70 @@ fun MiniPlayer(
             )
             .pointerInput(song.id) {
                 var dragAmount = 0f
+                var passedThreshold = false
                 detectHorizontalDragGestures(
-                    onDragStart = { dragAmount = 0f },
+                    onDragStart = {
+                        dragAmount = 0f
+                        passedThreshold = false
+                    },
                     onHorizontalDrag = { change, amount ->
                         dragAmount += amount
                         change.consume()
+                        settleJob?.cancel()
+                        travelPx = sign(dragAmount) * maxTravelPx * (1f - exp(-abs(dragAmount) / maxTravelPx))
+                        hintStrength = (abs(dragAmount) / swipeThresholdPx).coerceIn(0f, 1f)
+                        val nowPassed = abs(dragAmount) >= swipeThresholdPx
+                        if (nowPassed != passedThreshold) {
+                            passedThreshold = nowPassed
+                            if (nowPassed) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
                     },
                     onDragEnd = {
-                        if (abs(dragAmount) > 96f) {
-                            if (dragAmount < 0f) {
-                                transitionDirection = 1
-                                onSkipNext()
-                            } else {
-                                transitionDirection = -1
-                                onSkipPrevious()
+                        val commit = when {
+                            dragAmount <= -swipeThresholdPx -> -1
+                            dragAmount >= swipeThresholdPx -> 1
+                            else -> 0
+                        }
+                        if (commit < 0) {
+                            transitionDirection = 1
+                            currentSkipNext()
+                        } else if (commit > 0) {
+                            transitionDirection = -1
+                            currentSkipPrevious()
+                        }
+                        settleJob?.cancel()
+                        settleJob = scope.launch {
+                            animate(
+                                initialValue = travelPx,
+                                targetValue = 0f,
+                                animationSpec = spring(dampingRatio = 0.78f, stiffness = 380f)
+                            ) { value, _ ->
+                                travelPx = value
+                                hintStrength = hintStrength * 0.86f
                             }
+                            travelPx = 0f
+                            hintStrength = 0f
                         }
                         dragAmount = 0f
                     },
-                    onDragCancel = { dragAmount = 0f }
+                    onDragCancel = {
+                        settleJob?.cancel()
+                        settleJob = scope.launch {
+                            animate(
+                                initialValue = travelPx,
+                                targetValue = 0f,
+                                animationSpec = spring(dampingRatio = 0.78f, stiffness = 380f)
+                            ) { value, _ ->
+                                travelPx = value
+                                hintStrength = hintStrength * 0.86f
+                            }
+                            travelPx = 0f
+                            hintStrength = 0f
+                        }
+                        dragAmount = 0f
+                    }
                 )
             }
             .pointerInput(song.id, swipeUpToOpenPlayer) {
@@ -167,13 +301,17 @@ fun MiniPlayer(
             .then(
                 if (glassBackdrop != null) {
                     Modifier
-                        .dropShadow(
-                            shape = shape,
-                            shadow = Shadow(
-                                radius = 10.dp,
-                                color = Color.Black,
-                                alpha = if (!isLight) 0.2f else 0.1f,
-                            ),
+                        .then(
+                            if (useGlassLayout) {
+                                Modifier.dropShadow(
+                                    shape = shape,
+                                    shadow = Shadow(
+                                        radius = 10.dp,
+                                        color = Color.Black,
+                                        alpha = if (!isLight) 0.2f else 0.1f,
+                                    ),
+                                )
+                            } else Modifier
                         )
                         .clip(shape)
                         .drawBackdrop(
@@ -181,8 +319,8 @@ fun MiniPlayer(
                             shape = { shape },
                             effects = {
                                 applyBottomBarGlassEffect(
-                                    glassEffect = glassEffect,
-                                    blurRadius = 42f,
+                                    glassEffect = if (useGlassLayout) glassEffect else BottomBarGlassEffect.Blur,
+                                    blurRadius = if (useGlassLayout) 42f else 25f,
                                     liquidBlurRadius = liquidConfig.blurRadiusDp,
                                     liquidRefractionHeight = liquidConfig.refractionHeightDp,
                                     liquidRefractionAmount = liquidConfig.refractionAmountDp,
@@ -192,14 +330,20 @@ fun MiniPlayer(
                             },
                             highlight = {
                                 Highlight.Default.copy(
-                                    alpha = when (glassEffect) {
-                                        BottomBarGlassEffect.Blur -> if (isLight) 0.26f else 0.16f
-                                        BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.10f
-                                    }
+                                    alpha = if (useGlassLayout) {
+                                        when (glassEffect) {
+                                            BottomBarGlassEffect.Blur -> if (isLight) 0.26f else 0.16f
+                                            BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.10f
+                                        }
+                                    } else 0f
                                 )
                             },
                             onDrawSurface = {
-                                drawRect(glassSurface)
+                                drawRect(
+                                    if (useGlassLayout) glassSurface
+                                    else if (isLight) Color.White.copy(alpha = 0.65f)
+                                    else Color.Black.copy(alpha = 0.55f)
+                                )
                             }
                         )
                         .liquidGlassDepthOverlay(
@@ -218,19 +362,113 @@ fun MiniPlayer(
                     Modifier.background(surfaceColor ?: surfaceContainer)
                 }
             )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        MiniPlayerCoverProgress(
-            coverState = coverState,
-            isPlaying = isPlaying,
-            progress = progress,
-            coverRotationEnabled = coverRotationEnabled,
-            coverSize = 44.dp,
-            ringSize = 50.dp
-        )
+            .clip(shape)
+            .drawWithCache {
+                val chevron = 4.5.dp.toPx()
+                val chevronGap = 5.dp.toPx()
+                val edgePadding = 14.dp.toPx()
+                onDrawWithContent {
+                    drawContent()
+                    val travel = travelPx
+                    val strength = hintStrength
+                    if (strength <= 0.02f || travel == 0f) return@onDrawWithContent
+                    val towardsPrevious = travel > 0f
+                    val hint = if (towardsPrevious) previousHint else nextHint
+                    val eased = (strength * strength * (3f - 2f * strength)).coerceIn(0f, 1f)
+                    val textAlpha = 0.95f * eased
+                    val midY = size.height / 2f
+                    val direction = if (towardsPrevious) -1f else 1f
 
-        Spacer(modifier = Modifier.width(8.dp))
+                    val chevronX = if (towardsPrevious) {
+                        edgePadding + chevron
+                    } else {
+                        size.width - edgePadding - chevron
+                    }
+
+                    listOf(-chevron, chevron).forEach { dy ->
+                        drawLine(
+                            color = onSurfaceColor.copy(alpha = textAlpha),
+                            start = Offset(chevronX - direction * chevron, midY + dy),
+                            end = Offset(chevronX, midY),
+                            strokeWidth = 1.6.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+
+                    val titleHint = if (towardsPrevious) previousTitleHint else nextTitleHint
+                    val lineGap = 1.5.dp.toPx()
+                    if (titleHint != null) {
+                        val totalHeight = hint.size.height + titleHint.size.height + lineGap
+                        val startY = midY - totalHeight / 2f
+                        if (towardsPrevious) {
+                            val textX = chevronX + chevronGap + chevron
+                            drawText(
+                                textLayoutResult = hint,
+                                color = onSurfaceColor.copy(alpha = textAlpha),
+                                topLeft = Offset(textX, startY)
+                            )
+                            drawText(
+                                textLayoutResult = titleHint,
+                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                topLeft = Offset(textX, startY + hint.size.height + lineGap)
+                            )
+                        } else {
+                            val textRight = chevronX - chevronGap - chevron
+                            drawText(
+                                textLayoutResult = hint,
+                                color = onSurfaceColor.copy(alpha = textAlpha),
+                                topLeft = Offset(textRight - hint.size.width, startY)
+                            )
+                            drawText(
+                                textLayoutResult = titleHint,
+                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                topLeft = Offset(textRight - titleHint.size.width, startY + hint.size.height + lineGap)
+                            )
+                        }
+                    } else {
+                        val textX = if (towardsPrevious) {
+                            chevronX + chevronGap + chevron
+                        } else {
+                            chevronX - chevronGap - chevron - hint.size.width
+                        }
+                        drawText(
+                            textLayoutResult = hint,
+                            color = onSurfaceColor.copy(alpha = textAlpha),
+                            topLeft = Offset(textX, midY - hint.size.height / 2f)
+                        )
+                    }
+                }
+            }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { translationX = travelPx }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isFloating) {
+                    MiniPlayerCoverProgress(
+                        coverState = coverState,
+                        isPlaying = isPlaying,
+                        progress = progress,
+                        coverRotationEnabled = coverRotationEnabled,
+                        coverSize = 44.dp,
+                        ringSize = 50.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    MiniPlayerSquareCover(
+                        coverState = coverState,
+                        size = 44.dp,
+                        shape = RoundedCornerShape(6.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
 
         MiniPlayerAnimatedText(
             textState = textState,
@@ -298,7 +536,33 @@ fun MiniPlayer(
                 )
             }
         }
+        }
+
+        if (dockedAtBottom) {
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+        }
     }
+
+    if (!isFloating) {
+        val clampedProgress = progress.coerceIn(0f, 1f)
+        val trackColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+        val progressColor = MiuixTheme.colorScheme.primary
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .align(Alignment.TopCenter)
+        ) {
+            drawRect(color = trackColor)
+            if (clampedProgress > 0f) {
+                drawRect(
+                    color = progressColor,
+                    size = size.copy(width = size.width * clampedProgress)
+                )
+            }
+        }
+    }
+}
 }
 @Composable
 @OptIn(ExperimentalFoundationApi::class)

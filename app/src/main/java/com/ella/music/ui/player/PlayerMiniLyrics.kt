@@ -197,13 +197,10 @@ internal fun MiniLyricsPreview(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val miniScale by settingsManager.playerMiniLyricScale.collectAsState(initial = 100)
     val miniPrimarySize by settingsManager.playerMiniLyricPrimarySize.collectAsState(initial = 19)
-    val miniSecondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 16)
+    val miniSecondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 14)
     val miniLineSpacing by settingsManager.playerMiniLyricLineSpacing.collectAsState(initial = 7)
     val miniTextAlign by settingsManager.playerMiniLyricTextAlign.collectAsState(
         initial = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT
-    )
-    val miniVerticalAlign by settingsManager.playerMiniLyricVerticalAlign.collectAsState(
-        initial = SettingsManager.DEFAULT_PLAYER_MINI_LYRIC_VERTICAL_ALIGN
     )
     val safeIndex = currentIndex.takeIf { it in lyrics.indices }
         ?: lyrics.indexOfFirst { it.hasMiniLyric() }.takeIf { it >= 0 }
@@ -215,15 +212,14 @@ internal fun MiniLyricsPreview(
             lyrics,
             currentIndex,
             showTranslation,
-            showPronunciation,
-            miniVerticalAlign
+            showPronunciation
         ) {
             buildMiniLyricWindow(
                 lyrics = lyrics,
                 currentIndex = currentIndex,
                 showTranslation = showTranslation,
                 showPronunciation = showPronunciation,
-                verticalAlignment = miniVerticalAlign
+                verticalAlignment = SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER
             )
         }
     }
@@ -283,8 +279,7 @@ internal fun MiniLyricsPreview(
             legacyWindow && compact -> 0.02f
             legacyWindow -> 0.12f
             compact -> 0.02f
-            miniVerticalAlign == SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER -> 0.50f
-            else -> 0.12f
+            else -> 0.50f
         },
         contentColor = contentColor,
         onLineClick = onLineClick,

@@ -2,14 +2,16 @@ package com.ella.music.ui.player
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.net.Uri
 import android.util.Log
-import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -25,15 +27,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.EllaLoadingIndicator
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import com.ella.music.ui.components.ApplyHalcyonSystemBarsToCurrentWindow
 import java.net.URLEncoder
 
 @Composable
@@ -53,6 +59,7 @@ fun DynamicCoverWebViewSheet(
         title = context.getString(R.string.player_match_dynamic_cover),
         onDismissRequest = onDismissRequest
     ) {
+        ApplyHalcyonSystemBarsToCurrentWindow()
         DynamicCoverWebViewContent(
             song = song,
             onDownloadComplete = {
@@ -88,6 +95,7 @@ private fun DynamicCoverWebViewContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(true) }
+    var pendingDownloadUrl by remember { mutableStateOf<String?>(null) }
 
     val searchUrl = remember(song.title, song.artist, song.album) {
         val query = listOf(song.title, song.artist, song.album)
@@ -99,6 +107,9 @@ private fun DynamicCoverWebViewContent(
 
     val downloadHelper = remember(song) {
         DynamicCoverDownloadHelper(context, song)
+    }
+    val webMessageBridgeAvailable = remember {
+        WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
     }
 
     Column(
@@ -143,54 +154,38 @@ private fun DynamicCoverWebViewContent(
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 isLoading = false
-                                injectScripts(view, autofillScript)
+                                if (view?.url.isTrustedCoverPage()) {
+                                    injectScripts(view, autofillScript, webMessageBridgeAvailable)
+                                }
                             }
 
                             override fun shouldOverrideUrlLoading(
                                 view: WebView?,
                                 request: WebResourceRequest?
                             ): Boolean {
-                                return false // Let WebView handle all URLs
+                                if (request == null || !request.isForMainFrame) return request == null
+                                return !request.url.isTrustedCoverPage()
                             }
                         }
 
-                        // Bridge for JS to call Kotlin
-                        addJavascriptInterface(
-                            object {
-                                @JavascriptInterface
-                                fun onVideoUrlDetected(videoUrl: String) {
-                                    if (videoUrl.isBlank()) return
-                                    scope.launch(Dispatchers.IO) {
-                                        try {
-                                            downloadHelper.downloadVideo(videoUrl)
-                                            withContext(Dispatchers.Main) {
-                                                onDownloadComplete(videoUrl)
-                                            }
-                                        } catch (e: Exception) {
-                                            withContext(Dispatchers.Main) {
-                                                onDownloadFailed(e)
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            "AndroidBridge"
-                        )
+                        if (webMessageBridgeAvailable) {
+                            WebViewCompat.addWebMessageListener(
+                                this,
+                                "AndroidBridge",
+                                setOf("https://$TRUSTED_COVER_HOST")
+                            ) { _, message, sourceOrigin, isMainFrame, _ ->
+                                val videoUrl = message.data?.toSafeDynamicCoverUrl() ?: return@addWebMessageListener
+                                if (!isMainFrame || !sourceOrigin.isTrustedCoverPage()) return@addWebMessageListener
+                                scope.launch(Dispatchers.Main) { pendingDownloadUrl = videoUrl }
+                            }
+                        }
 
-                        // Set download listener for direct download buttons
+                        // Site-originated download requests only stage a URL; native confirmation is required.
                         setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
-                            if (url != null && mimeType?.contains("video") == true) {
-                                scope.launch(Dispatchers.IO) {
-                                    try {
-                                        downloadHelper.downloadVideo(url)
-                                        withContext(Dispatchers.Main) {
-                                            onDownloadComplete(url)
-                                        }
-                                    } catch (e: Exception) {
-                                        withContext(Dispatchers.Main) {
-                                            onDownloadFailed(e)
-                                        }
-                                    }
+                            val safeUrl = url?.toSafeDynamicCoverUrl()
+                            if (safeUrl != null && mimeType?.contains("video") == true) {
+                                scope.launch(Dispatchers.Main) {
+                                    pendingDownloadUrl = safeUrl
                                 }
                             }
                         }
@@ -208,7 +203,9 @@ private fun DynamicCoverWebViewContent(
                     webView.apply {
                         stopLoading()
                         setDownloadListener(null)
-                        removeJavascriptInterface("AndroidBridge")
+                        if (webMessageBridgeAvailable) {
+                            WebViewCompat.removeWebMessageListener(this, "AndroidBridge")
+                        }
                         clearHistory()
                         loadUrl("about:blank")
                         destroy()
@@ -225,11 +222,58 @@ private fun DynamicCoverWebViewContent(
             }
         }
     }
+
+    val requestedDownloadUrl = pendingDownloadUrl
+    EllaMiuixDialog(
+        show = requestedDownloadUrl != null,
+        title = stringResource(R.string.player_dynamic_cover_download_confirm_title),
+        summary = stringResource(
+            R.string.player_dynamic_cover_download_confirm_message,
+            requestedDownloadUrl.orEmpty()
+        ),
+        onDismissRequest = { pendingDownloadUrl = null }
+    ) {
+        EllaMiuixDialogActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.player_dynamic_cover_download_confirm),
+            onCancel = { pendingDownloadUrl = null },
+            onConfirm = {
+                val url = pendingDownloadUrl
+                pendingDownloadUrl = null
+                if (url != null) scope.launch(Dispatchers.IO) {
+                    try {
+                        downloadHelper.downloadVideo(url)
+                        withContext(Dispatchers.Main) { onDownloadComplete(url) }
+                    } catch (error: Exception) {
+                        withContext(Dispatchers.Main) { onDownloadFailed(error) }
+                    }
+                }
+            }
+        )
+    }
 }
 
-private fun injectScripts(view: WebView?, autofillScript: String) {
+private const val TRUSTED_COVER_HOST = "covers.musichoarders.xyz"
+
+private fun String.toSafeDynamicCoverUrl(): String? {
+    if (length > MAX_DYNAMIC_COVER_URL_CHARS) return null
+    val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return null
+    if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrBlank() || !uri.userInfo.isNullOrEmpty()) return null
+    return this
+}
+
+private const val MAX_DYNAMIC_COVER_URL_CHARS = 4_096
+
+private fun Uri?.isTrustedCoverPage(): Boolean =
+    this != null && scheme.equals("https", ignoreCase = true) &&
+        host.equals(TRUSTED_COVER_HOST, ignoreCase = true)
+
+private fun String?.isTrustedCoverPage(): Boolean =
+    this?.let { runCatching { Uri.parse(it).isTrustedCoverPage() }.getOrDefault(false) } ?: false
+
+private fun injectScripts(view: WebView?, autofillScript: String, injectVideoBridge: Boolean) {
     if (view == null) return
-    view.evaluateJavascript(VIDEO_INTERCEPT_JS, null)
+    if (injectVideoBridge) view.evaluateJavascript(VIDEO_INTERCEPT_JS, null)
     view.evaluateJavascript(autofillScript, null)
     view.postDelayed({ view.evaluateJavascript(autofillScript, null) }, 500)
     view.postDelayed({ view.evaluateJavascript(autofillScript, null) }, 1500)

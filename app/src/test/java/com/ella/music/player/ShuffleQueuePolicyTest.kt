@@ -71,6 +71,26 @@ class ShuffleQueuePolicyTest {
     }
 
     @Test
+    fun shuffleCycleDoesNotStartWithPreviousRoundLastSong() {
+        val songs = songs(5)
+        val plan = buildShuffleQueueForCycle(
+            sourceOrder = songs,
+            previousLast = songs.last(),
+            seed = 7L
+        )
+
+        assertEquals(songs.toSet(), plan?.queue?.toSet())
+        assertNotEquals(songs.last(), plan?.queue?.first())
+        assertEquals(0, plan?.currentIndex)
+    }
+
+    @Test
+    fun shuffleCycleReturnsNoPlanWhenEveryOccurrenceIsThePreviousSong() {
+        val song = song(1, "/music/same.flac")
+        assertNull(buildShuffleQueueForCycle(listOf(song, song), song, seed = 1L))
+    }
+
+    @Test
     fun duplicateSongsKeepCurrentIndexHint() {
         val duplicate = song(1, "/music/same.flac")
         val songs = listOf(song(0), duplicate, song(2), duplicate, song(4))

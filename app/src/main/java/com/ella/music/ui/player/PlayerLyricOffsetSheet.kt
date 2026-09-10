@@ -18,10 +18,13 @@ import top.yukonga.miuix.kmp.preference.SliderPreference
 internal fun LyricOffsetSheetContent(
     offsetMs: Long,
     onBack: () -> Unit,
-    onOffsetChange: (Long) -> Unit
+    onOffsetChange: (Long) -> Unit,
+    showHeader: Boolean = true
 ) {
-    HalfSheetTitle(title = stringResource(R.string.player_lyric_offset), onBack = onBack)
-    Spacer(modifier = Modifier.height(20.dp))
+    if (showHeader) {
+        HalfSheetTitle(title = stringResource(R.string.player_lyric_offset), onBack = onBack)
+        Spacer(modifier = Modifier.height(20.dp))
+    }
     SettingsCardGroup {
         SliderPreference(
             title = stringResource(R.string.player_lyric_offset),

@@ -34,6 +34,7 @@
         android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
@@ -67,7 +68,6 @@
         android:name=".EllaApp"
         android:allowBackup="true"
         android:requestLegacyExternalStorage="true"
-        android:enableOnBackInvokedCallback="true"
         android:largeHeap="true"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher"
@@ -107,7 +107,6 @@
         <service
             android:name=".shizuku.ShizukuShellService"
             android:exported="true"
-            android:permission="android.permission.BIND_JOB_SERVICE"
             tools:ignore="Instantiatable" />
 
         <provider
@@ -123,7 +122,6 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:enableOnBackInvokedCallback="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Ella">
@@ -147,7 +145,6 @@
             android:name=".LyricTimingEditorActivity"
             android:label="@string/song_more_lyric_timing"
             android:exported="true"
-            android:enableOnBackInvokedCallback="true"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Ella">
             <intent-filter>
@@ -176,7 +173,8 @@
             android:name=".SpectrumViewerActivity"
             android:label="@string/song_more_view_spectrum"
             android:exported="true"
-            android:enableOnBackInvokedCallback="true"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.Ella">
             <intent-filter>
                 <action android:name="com.ella.music.action.VIEW_SPECTRUM" />
@@ -199,7 +197,6 @@
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
-            android:enableOnBackInvokedCallback="true"
             android:theme="@style/Theme.Ella" />
 
         <activity-alias
@@ -265,7 +262,6 @@
         <activity
             android:name=".ExternalPlaybackActivity"
             android:exported="true"
-            android:enableOnBackInvokedCallback="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:theme="@style/Theme.Ella.ExternalPlayback">

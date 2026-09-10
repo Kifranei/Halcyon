@@ -1,9 +1,14 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.ella.music.ui.artist
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -31,12 +36,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -54,6 +66,8 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.ArtistCoverAsset
 import com.ella.music.data.ArtistCoverKind
+import com.ella.music.data.ArtistDescriptionSaveResult
+import com.ella.music.data.ArtistDescriptionStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
 import com.ella.music.data.lastfm.ARTIST_BIO_LANGUAGES
@@ -64,6 +78,8 @@ import com.ella.music.data.lastfm.shortLabel
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.data.lastfm.ArtistWikiSource
 import com.ella.music.data.lastfm.LastFmArtistWiki
+import com.ella.music.data.lastfm.LastFmCloudflareChallengeException
+import com.ella.music.data.lastfm.lastFmArtistWikiUrl
 import com.ella.music.data.lastfm.LastFmSecureStore
 import com.ella.music.data.lastfm.artistBioDownloadAllowed
 import com.ella.music.data.lastfm.fetchLastFmArtistWiki
@@ -151,12 +167,14 @@ internal fun openUrl(context: Context, url: String) {
 @Composable
 internal fun ArtistBiographyPanel(
     artistName: String,
+    songs: List<Song> = emptyList(),
     downloadMode: Int,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val descriptionStore = remember(context) { ArtistDescriptionStore.getInstance(context) }
     val lastFmApiKey by LastFmSecureStore.getInstance(context).credentials.collectAsState()
     val regionCode by settingsManager.artistBioLastFmLang.collectAsState(initial = DEFAULT_LAST_FM_WIKI_REGION)
     val bioSourceId by settingsManager.artistBioSource.collectAsState(initial = ArtistBioMenuSource.Wikipedia.id)
@@ -175,16 +193,25 @@ internal fun ArtistBiographyPanel(
     var wiki by remember(artistName, selectedRegion, selectedSource) { mutableStateOf<LastFmArtistWiki?>(null) }
     var loading by remember(artistName, selectedRegion, selectedSource) { mutableStateOf(allowed) }
     var failed by remember(artistName, selectedRegion, selectedSource) { mutableStateOf(false) }
-    LaunchedEffect(artistName, allowed, selectedRegion, selectedSource, lastFmApiKey.apiKey) {
+    var errorMessage by remember(artistName, selectedRegion, selectedSource) { mutableStateOf<String?>(null) }
+    var challengeUrl by remember(artistName, selectedRegion, selectedSource) { mutableStateOf<String?>(null) }
+    var showCloudflareSheet by remember { mutableStateOf(false) }
+    var retryTrigger by remember { mutableIntStateOf(0) }
+    var saving by remember(artistName, selectedRegion, selectedSource) { mutableStateOf(false) }
+    LaunchedEffect(artistName, allowed, selectedRegion, selectedSource, lastFmApiKey.apiKey, retryTrigger) {
         if (!allowed) {
             loading = false
             failed = false
+            errorMessage = null
+            challengeUrl = null
             wiki = null
             return@LaunchedEffect
         }
         loading = true
         failed = false
-        wiki = runCatching {
+        errorMessage = null
+        challengeUrl = null
+        val result = runCatching {
             fetchLastFmArtistWiki(
                 artistName = artistName,
                 regionCode = selectedRegion,
@@ -192,8 +219,21 @@ internal fun ArtistBiographyPanel(
                 preferredSource = selectedSource
             )
         }
-            .onFailure { failed = true }
-            .getOrNull()
+        result.onSuccess {
+            wiki = it
+            if (it.text.isBlank()) {
+                failed = true
+                errorMessage = context.getString(R.string.artist_biography_empty)
+            }
+        }.onFailure { error ->
+            failed = true
+            if (error is LastFmCloudflareChallengeException) {
+                challengeUrl = error.url
+            }
+            errorMessage = error.message?.takeIf { it.isNotBlank() }
+                ?: error.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: error.toString()
+        }
         loading = false
     }
     Column(
@@ -333,11 +373,57 @@ internal fun ArtistBiographyPanel(
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
             loading -> EllaCenteredLoadingIndicator()
-            failed -> Text(
-                text = stringResource(R.string.artist_biography_failed),
-                fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
+            failed -> {
+                val errText = errorMessage.orEmpty().ifBlank { stringResource(R.string.artist_biography_failed) }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                val clipboard = context.getSystemService(ClipboardManager::class.java)
+                                clipboard?.setPrimaryClip(ClipData.newPlainText("Biography Error", errText))
+                                Toast.makeText(
+                                    context,
+                                    R.string.artist_biography_error_copied,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                        .padding(14.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.artist_biography_failed),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MiuixTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = errText,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.artist_biography_error_hint),
+                        fontSize = 11.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    if (challengeUrl != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { showCloudflareSheet = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = stringResource(R.string.lastfm_cloudflare_verification_button))
+                        }
+                    }
+                }
+            }
             wiki?.text.isNullOrBlank() -> Text(
                 text = stringResource(R.string.artist_biography_empty),
                 fontSize = 14.sp,
@@ -367,8 +453,59 @@ internal fun ArtistBiographyPanel(
                         openUrl(context, wiki?.artistUrl.orEmpty())
                     }
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.artist_biography_save_to_introduction),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (saving) {
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    } else {
+                        MiuixTheme.colorScheme.primary
+                    },
+                    modifier = Modifier.clickable(enabled = !saving && wiki?.text.orEmpty().isNotBlank()) {
+                        val biography = wiki?.text.orEmpty().trim()
+                        if (biography.isBlank()) return@clickable
+                        saving = true
+                        scope.launch {
+                            val result = runCatching {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    descriptionStore.save(artistName, songs, biography)
+                                }
+                            }
+                            saving = false
+                            result.onSuccess { saveResult ->
+                                val message = when (saveResult) {
+                                    ArtistDescriptionSaveResult.SAVED_TO_NFO ->
+                                        R.string.artist_introduction_saved_nfo
+                                    ArtistDescriptionSaveResult.SAVED_LOCALLY ->
+                                        R.string.artist_introduction_saved_local
+                                    ArtistDescriptionSaveResult.CLEARED ->
+                                        R.string.artist_introduction_cleared
+                                }
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            }.onFailure {
+                                Toast.makeText(
+                                    context,
+                                    R.string.artist_introduction_save_failed,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+                )
             }
         }
+    }
+    if (showCloudflareSheet && challengeUrl != null) {
+        LastFmCloudflareVerificationSheet(
+            url = challengeUrl!!,
+            onDismissRequest = { showCloudflareSheet = false },
+            onVerified = {
+                showCloudflareSheet = false
+                retryTrigger++
+            }
+        )
     }
 }
 
@@ -426,29 +563,34 @@ internal fun ArtistHeader(
     val headerTextColor = Color.White
     val headerSubTextColor = Color.White.copy(alpha = 0.78f)
     val pageBackground = ellaPageBackground()
-    val dynamicCoverSource = remember(customCoverAssets, dynamicCoverEnabled) {
-        if (!dynamicCoverEnabled) {
-            null
-        } else {
-            customCoverAssets
-                .firstOrNull { it.kind == ArtistCoverKind.Video }
-                ?.let { asset ->
-                    DynamicCoverSource(
-                        uri = asset.uri,
-                        failureKey = "artist-video:${asset.uri}"
-                    )
-                }
+    val videoAsset = remember(customCoverAssets) {
+        customCoverAssets.firstOrNull { it.kind == ArtistCoverKind.Video }
+    }
+    val dynamicCoverSource = remember(videoAsset, dynamicCoverEnabled) {
+        if (!dynamicCoverEnabled) null
+        else videoAsset?.let { asset ->
+            DynamicCoverSource(
+                uri = asset.uri,
+                failureKey = "artist-video:${asset.uri}"
+            )
         }
     }
     val imageUris = remember(customCoverAssets) {
         customCoverAssets.filter { it.kind == ArtistCoverKind.Image }.map { it.uri }
     }
     var videoFailed by remember(dynamicCoverSource?.failureKey) { mutableStateOf(false) }
-    var visibleCoverModel by remember(customCoverAssets, fallbackCoverModel) {
+    var visibleCoverModel by remember(videoAsset, customCoverAssets, fallbackCoverModel, dynamicCoverEnabled) {
         mutableStateOf<Any?>(
-            customCoverAssets.firstOrNull { it.kind == ArtistCoverKind.Image }?.uri
+            (videoAsset?.uri.takeIf { dynamicCoverEnabled })
+                ?: customCoverAssets.firstOrNull { it.kind == ArtistCoverKind.Image }?.uri
                 ?: fallbackCoverModel
         )
+    }
+    LaunchedEffect(videoFailed) {
+        if (videoFailed && visibleCoverModel == videoAsset?.uri) {
+            visibleCoverModel = customCoverAssets.firstOrNull { it.kind == ArtistCoverKind.Image }?.uri
+                ?: fallbackCoverModel
+        }
     }
     val coverInteractionModifier = if (onPreviewCover == null) {
         Modifier.fillMaxSize()
@@ -460,18 +602,39 @@ internal fun ArtistHeader(
                 onLongClick = { onPreviewCover(visibleCoverModel) }
             )
     }
+    val useDynamicVideo = dynamicCoverSource != null && !videoFailed
+    // Apple Music / coneplayer: taller hero + earlier soft melt for dynamic video covers.
+    val headerHeight = if (useDynamicVideo) 560.dp else 468.dp
+    val meltFadeStart = if (useDynamicVideo) 0.62f else 0.70f
+    val softMeltModifier = Modifier
+        .fillMaxSize()
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.00f to Color.White,
+                        meltFadeStart to Color.White,
+                        0.88f to Color.White.copy(alpha = 0.55f),
+                        1.00f to Color.Transparent
+                    )
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(468.dp)
+            .height(headerHeight)
     ) {
         Box(modifier = coverInteractionModifier) {
-            if (dynamicCoverSource != null && !videoFailed) {
+            if (useDynamicVideo) {
                 DynamicCoverVideo(
                     source = dynamicCoverSource,
                     isPlaying = true,
                     onPlaybackError = { videoFailed = true },
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = softMeltModifier,
                     cornerRadiusDp = 0f,
                     resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 )
@@ -480,13 +643,13 @@ internal fun ArtistHeader(
                     imageUris = imageUris,
                     carousel = carousel,
                     onVisibleUriChange = { visibleCoverModel = it },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = softMeltModifier
                 )
             } else if (fallbackCoverModel != null) {
                 SafeCoverImage(
                     model = fallbackCoverModel,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = softMeltModifier,
                     contentScale = ContentScale.Crop,
                     sizePx = 3000,
                     loadOriginal = true
@@ -500,16 +663,17 @@ internal fun ArtistHeader(
             }
         }
 
+        // Light readability scrim — artwork already soft-melts via DstIn (AM player style).
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.12f),
-                            0.42f to Color.Black.copy(alpha = 0.28f),
-                            0.72f to Color.Black.copy(alpha = 0.58f),
-                            0.88f to pageBackground.copy(alpha = 0.82f),
+                            0.00f to Color.Black.copy(alpha = 0.10f),
+                            0.45f to Color.Transparent,
+                            0.72f to Color.Black.copy(alpha = 0.22f),
+                            0.90f to pageBackground.copy(alpha = 0.55f),
                             1.00f to pageBackground
                         )
                     )

@@ -2,6 +2,7 @@ package com.ella.music.player
 
 import android.content.Context
 import android.graphics.Color as AndroidColor
+import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -78,6 +80,8 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
     private var lyricFontItalic by mutableStateOf(false)
     private var wordLiftEnabled by mutableStateOf(true)
     private var compactLayout by mutableStateOf(false)
+    private var glowEnabled by mutableStateOf(false)
+    private var outlineEnabled by mutableStateOf(false)
 
     init {
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -158,8 +162,13 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         lyricFontPath: String = "",
         lyricFontWeight: Int = 800,
         lyricFontItalic: Boolean = false,
-        wordLiftEnabled: Boolean = true
+        wordLiftEnabled: Boolean = true,
+        glowEnabled: Boolean = false,
+        outlineEnabled: Boolean = false,
+        backgroundMode: Int = 0,
+        backgroundOpacity: Int = 58
     ) {
+        val outlineChanged = this.outlineEnabled != outlineEnabled
         this.fontScale = fontScale.coerceIn(0.8f, 2.2f)
         this.translationScale = translationScale.coerceIn(0.8f, 2.2f)
         this.opacityPercent = opacityPercent.coerceIn(35, 100)
@@ -174,7 +183,31 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         this.lyricFontWeight = lyricFontWeight.coerceIn(100, 900)
         this.lyricFontItalic = lyricFontItalic
         this.wordLiftEnabled = wordLiftEnabled
+        this.glowEnabled = glowEnabled
+        this.outlineEnabled = outlineEnabled
+        if (outlineChanged) refreshCurrentLyricRendering()
+        background = when (backgroundMode.coerceIn(0, 2)) {
+            1, 2 -> GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 18f * resources.displayMetrics.density
+                val baseColor = if (backgroundMode == 1) AndroidColor.BLACK else AndroidColor.rgb(92, 92, 92)
+                val alpha = backgroundOpacity.coerceIn(20, 90) * 255 / 100
+                setColor((baseColor and 0x00FFFFFF) or (alpha shl 24))
+            }
+            else -> null
+        }
 
+    }
+
+    fun refreshOutlineEnabled(enabled: Boolean) {
+        outlineEnabled = enabled
+        refreshCurrentLyricRendering()
+    }
+
+    private fun refreshCurrentLyricRendering() {
+        currentLine = currentLine.copy()
+        requestLayout()
+        postInvalidateOnAnimation()
     }
 
     fun setLyric(
@@ -345,37 +378,47 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 ),
             contentAlignment = verticalAlignment
         ) {
-            AppleMusicSingleLyricLine(
-                line = line,
-                currentPositionMs = smoothPositionMs,
-                // In status-bar mode the selected secondary source is rendered by the dedicated
-                // status-bar path below.  The normal lyric-line secondary slots stay reserved
-                // for the desktop floating-window renderer.
-                showTranslation = !statusBarMode,
-                showPronunciation = !statusBarMode,
-                fontFamily = fontFamily,
-                fontWeight = FontWeight(lyricFontWeight),
-                fontScale = fontScale,
-                secondaryFontScale = translationScale,
-                primaryTextSizeSp = if (statusBarMode) 12.5f else 24f,
-                secondaryTextSizeSp = if (statusBarMode) 9.5f else 14f,
-                lyricTextAlign = effectiveAlign,
-                contentColor = Color(textColor).let { color ->
-                    if (opacityPercent >= 100) color else color.copy(alpha = opacityPercent / 100f)
-                },
-                wordLiftEnabled = wordLiftEnabled,
-                singleLine = statusBarMode,
-                inlineStaticSecondaryText = if (statusBarMode) statusBarSecondaryText else "",
-                inlineStaticSecondaryWords = if (statusBarMode) statusBarSecondaryWords else emptyList(),
-                mergeInlineSecondary = statusBarMode && statusBarMergeSecondary,
-                statusBarMarquee = statusBarMode,
-                secondaryAlpha = if (statusBarMode) statusBarSecondaryOpacity / 100f else 0.74f,
-                modifier = if (compactLayout && !statusBarMode) {
-                    Modifier.wrapContentWidth()
-                } else {
-                    Modifier.fillMaxWidth()
-                }
-            )
+            key(outlineEnabled) {
+                AppleMusicSingleLyricLine(
+                    line = line,
+                    currentPositionMs = smoothPositionMs,
+                    // In status-bar mode the selected secondary source is rendered by the dedicated
+                    // status-bar path below. The normal lyric-line secondary slots stay reserved
+                    // for the desktop floating-window renderer.
+                    showTranslation = !statusBarMode,
+                    showPronunciation = !statusBarMode,
+                    fontFamily = fontFamily,
+                    fontWeight = FontWeight(lyricFontWeight),
+                    fontScale = fontScale,
+                    secondaryFontScale = translationScale,
+                    primaryTextSizeSp = if (statusBarMode) 12.5f else 24f,
+                    secondaryTextSizeSp = if (statusBarMode) 9.5f else 14f,
+                    lyricTextAlign = effectiveAlign,
+                    contentColor = Color(textColor).let { color ->
+                        if (opacityPercent >= 100) color else color.copy(alpha = opacityPercent / 100f)
+                    },
+                    wordLiftEnabled = wordLiftEnabled,
+                    primaryOutlineColor = if (outlineEnabled && !statusBarMode) {
+                        Color.Black.copy(alpha = 0.9f)
+                    } else null,
+                    primaryOutlineWidth = 1.25f * resources.displayMetrics.density,
+                    primaryGlowColor = if (glowEnabled && !statusBarMode) {
+                        Color(textColor).copy(alpha = 0.70f)
+                    } else null,
+                    primaryGlowRadius = 7f * resources.displayMetrics.density,
+                    singleLine = statusBarMode,
+                    inlineStaticSecondaryText = if (statusBarMode) statusBarSecondaryText else "",
+                    inlineStaticSecondaryWords = if (statusBarMode) statusBarSecondaryWords else emptyList(),
+                    mergeInlineSecondary = statusBarMode && statusBarMergeSecondary,
+                    statusBarMarquee = statusBarMode,
+                    secondaryAlpha = if (statusBarMode) statusBarSecondaryOpacity / 100f else 0.74f,
+                    modifier = if (compactLayout && !statusBarMode) {
+                        Modifier.wrapContentWidth()
+                    } else {
+                        Modifier.fillMaxWidth()
+                    }
+                )
+            }
         }
     }
 

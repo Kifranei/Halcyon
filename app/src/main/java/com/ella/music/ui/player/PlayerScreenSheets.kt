@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Typeface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
 import com.ella.music.R
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.model.LyricLine
@@ -12,6 +13,7 @@ import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.ArtistPickerContent
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.LyricSharePicker
+import com.ella.music.ui.components.LyricShareOptions
 import com.ella.music.ui.components.SongAiInterpretationSheet
 import com.ella.music.ui.components.SongInfoSheet
 import com.ella.music.ui.components.SongMoreTagActionSheets
@@ -20,7 +22,6 @@ import com.ella.music.ui.components.openSongWithMediaInfo
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 @Composable
 internal fun PlayerScreenSheetHost(
@@ -146,7 +147,7 @@ internal fun PlayerScreenSheetHost(
     )
 
     aiSheetSong?.let { currentSong ->
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.song_more_ai_title),
@@ -161,7 +162,7 @@ internal fun PlayerScreenSheetHost(
     }
 
     lyricMatchSong?.let { currentSong ->
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.player_match_online_lyrics),
@@ -170,9 +171,14 @@ internal fun PlayerScreenSheetHost(
             PluginLyricsMatchSheet(
                 song = currentSong,
                 mainViewModel = mainViewModel,
+                onWriteMetadata = { targetSong, tags ->
+                    playerViewModel.writeMetadataWithoutInterruptingPlayback(targetSong) {
+                        mainViewModel.writeSongMetadata(targetSong, tags)
+                    }
+                },
                 onDismiss = { onLyricMatchSongChange(null) },
                 onWritePermissionRequired = onWritePermissionRequired,
-                onSongUpdated = playerViewModel::refreshCurrentSongAfterExternalEdit
+                onSongUpdated = {}
             )
         }
     }
@@ -194,33 +200,43 @@ internal fun PlayerScreenSheetHost(
 
 @Composable
 internal fun PlayerLyricShareHost(
-    song: Song?,
-    lyrics: List<LyricLine>,
-    initialLine: LyricLine?,
-    embeddedCover: Bitmap?,
-    paletteBitmap: Bitmap?,
-    palette: PlayerPalette,
-    annotation: String,
-    customInfo: String,
-    shareTypeface: Typeface?,
+    request: LyricShareRequest?,
     onDismiss: () -> Unit,
-    onShare: (List<LyricLine>, Boolean) -> Unit,
-    onVideoShare: ((List<LyricLine>, Boolean) -> Unit)? = null
+    onShare: (List<LyricLine>, LyricShareOptions) -> Unit,
+    onCopy: (List<LyricLine>, LyricShareOptions) -> Unit,
+    onSaveImage: (List<LyricLine>, LyricShareOptions) -> Unit,
+    onVideoShare: ((List<LyricLine>, LyricShareOptions) -> Unit)? = null
 ) {
-    initialLine?.let { line ->
+    request?.let { shareRequest ->
         LyricSharePicker(
-            song = song,
-            lyrics = lyrics,
-            initialLine = line,
-            cover = embeddedCover ?: paletteBitmap,
-            backgroundColors = listOf(palette.top, palette.middle, palette.bottom),
-            contentColor = palette.onBackground,
-            annotation = annotation,
-            customInfo = customInfo,
-            shareTypeface = shareTypeface,
+            song = shareRequest.song,
+            lyrics = shareRequest.lyrics,
+            initialLine = shareRequest.initialLine,
+            cover = shareRequest.cover,
+            backgroundColors = shareRequest.backgroundColors,
+            contentColor = shareRequest.contentColor,
+            annotation = shareRequest.annotation,
+            customInfo = shareRequest.customInfo,
+            shareTypeface = shareRequest.shareTypeface,
             onDismiss = onDismiss,
             onShare = onShare,
+            onCopy = onCopy,
+            onSaveImage = onSaveImage,
             onVideoShare = onVideoShare
         )
     }
 }
+
+/** Immutable snapshot used by lyric sharing so a track switch cannot mutate the picker. */
+internal data class LyricShareRequest(
+    val song: Song?,
+    val lyrics: List<LyricLine>,
+    val initialLine: LyricLine,
+    val cover: Bitmap?,
+    val backgroundColors: List<Color>,
+    val contentColor: Color,
+    val annotation: String,
+    val customInfo: String,
+    val exportFolderUri: String,
+    val shareTypeface: Typeface?
+)

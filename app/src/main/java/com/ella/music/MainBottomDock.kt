@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -82,9 +83,13 @@ import com.ella.music.ui.components.simpleLuminance
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
+import androidx.compose.ui.graphics.luminance
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurColors
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Music
@@ -138,7 +143,8 @@ internal fun FloatingBottomControls(
     onExitSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
     useGlass: Boolean = true,
-    stabilizeOverWallpaper: Boolean = false
+    stabilizeOverWallpaper: Boolean = false,
+    mergeSearch: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var queueSheetExpanded by remember { mutableStateOf(false) }
@@ -149,6 +155,8 @@ internal fun FloatingBottomControls(
     val queueLocked by playerViewModel.queueLocked.collectAsState()
     val repeatMode by playerViewModel.repeatMode.collectAsState()
     val currentQueueIndex by playerViewModel.currentQueueIndex.collectAsState()
+    val previousSong by playerViewModel.previousSong.collectAsState()
+    val nextSong by playerViewModel.nextSong.collectAsState()
     val userPlaylists by mainViewModel.playlists.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
@@ -170,7 +178,11 @@ internal fun FloatingBottomControls(
         label = "BottomDockCompactProgress"
     )
     val searchDock = LocalLibrarySearchDockState.current
-    val inSearchDock = usesSearchBottomDock(currentRoute)
+    val inSearchDock = usesSearchBottomDock(
+        currentRoute = currentRoute,
+        mergeSearch = mergeSearch,
+        floatingBottomBar = bottomBarStyle != BottomBarStyle.Normal
+    )
     var lastTabRoute by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(currentTabRoute, currentRoute) {
         if (!currentRoute.isSearchRoute() && !currentTabRoute.isNullOrBlank() && !currentTabRoute.isSearchRoute()) {
@@ -189,7 +201,7 @@ internal fun FloatingBottomControls(
         effectiveMode == BottomDockMode.Compact && currentSong != null -> "compact"
         else -> "expanded"
     }
-    val dockBackdrop = if (useGlass && floatingBottomBar) backdrop else null
+    val dockBackdrop = if (useGlass) backdrop else null
     val dockLiquidGlass = useGlass && floatingBottomBar
     CompositionLocalProvider(
         LocalBottomBarCornerRadiusDp provides bottomBarCornerRadiusDp.toFloat(),
@@ -242,7 +254,7 @@ internal fun FloatingBottomControls(
             modifier = modifier
                 .fillMaxWidth()
                 .then(
-                    if (floatingBottomBar || !showBottomBar) {
+                    if (floatingBottomBar) {
                         // Keep a small visual lift even on OEMs that report a zero navigation inset
                         // while the gesture handle is visible (ColorOS does this in some modes).
                         Modifier
@@ -276,6 +288,8 @@ internal fun FloatingBottomControls(
                 disableRefraction = stabilizeOverWallpaper,
                 liquidGlass = dockLiquidGlass,
                 searchDock = searchDock,
+                previousSongTitle = previousSong?.title,
+                nextSongTitle = nextSong?.title,
                 onOpenPlayer = onNavigatePlayer,
                 onPlayPause = { playerViewModel.togglePlayPause() },
                 onSkipNext = { playerViewModel.skipToNext() },
@@ -312,6 +326,7 @@ internal fun FloatingBottomControls(
                 onNavigateSearch = onNavigateSearch,
                 onExpand = onExpand,
                 compactProgress = compactProgress,
+                mergeSearch = mergeSearch,
             )
         } else {
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -335,14 +350,18 @@ internal fun FloatingBottomControls(
                                 liquidGlass = dockLiquidGlass,
                                 glassEffect = glassEffect,
                                 disableRefraction = stabilizeOverWallpaper,
-                                surfaceColor = if (floatingBottomBar) null else normalDockSurfaceColor,
+                                surfaceColor = if (floatingBottomBar || dockBackdrop != null) null else normalDockSurfaceColor,
                                 compactProgress = compactProgress,
                                 showQueueButton = miniPlayerRightButton == SettingsManager.MINI_PLAYER_RIGHT_QUEUE,
                                 swipeUpToOpenPlayer = miniPlayerSwipeToOpenPlayer,
+                                isFloating = floatingBottomBar,
+                                dockedAtBottom = !floatingBottomBar && !showBottomBar,
                                 onClick = onNavigatePlayer,
                                 onPlayPause = { playerViewModel.togglePlayPause() },
                                 onSkipNext = { playerViewModel.skipToNext() },
                                 onSkipPrevious = { playerViewModel.skipToPrevious() },
+                                previousSongTitle = previousSong?.title,
+                                nextSongTitle = nextSong?.title,
                                 onShowQueue = { queueSheetExpanded = true },
                                 onLongClick = if (miniPlayerLongPressSource) onNavigatePlaybackSource else null,
                                 lyricProgress = lyricProgress,
@@ -363,8 +382,10 @@ internal fun FloatingBottomControls(
                                 currentTabRoute = currentTabRoute,
                                 currentRoute = currentRoute,
                                 color = normalDockSurfaceColor,
+                                backdrop = dockBackdrop,
                                 onNavigate = onNavigate,
-                                onNavigateSearch = onNavigateSearch
+                                onNavigateSearch = onNavigateSearch,
+                                mergeSearch = mergeSearch
                             )
                         } else if (useGlass) {
                             Row(
@@ -375,7 +396,7 @@ internal fun FloatingBottomControls(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (tabs.isNotEmpty()) {
-                                    Box(modifier = Modifier.weight(1f)) {
+                                    Box(modifier = if (mergeSearch) Modifier.fillMaxWidth() else Modifier.weight(1f)) {
                                         val selectedBottomTabIndex = tabs
                                             .indexOfFirst { currentTabRoute == it.route }
                                             .takeIf { it >= 0 }
@@ -393,11 +414,19 @@ internal fun FloatingBottomControls(
                                             mode = barMode,
                                             disableRefraction = stabilizeOverWallpaper
                                         ) {
+                                            val activeTabIndex = com.ella.music.ui.components.LocalFloatingBottomBarActiveIndex.current
+                                            val isDragging = com.ella.music.ui.components.LocalFloatingBottomBarIsDragging.current
                                             tabs.forEachIndexed { index, tab ->
-                                                val selected = currentTabRoute == tab.route
+                                                val selected = if (selectedBottomTabIndex == null && !isDragging) {
+                                                    false
+                                                } else if (activeTabIndex >= 0) {
+                                                    activeTabIndex == index
+                                                } else {
+                                                    currentTabRoute == tab.route
+                                                }
                                                 FloatingBottomBarItem(
                                                     onClick = {
-                                                        if (!selected) {
+                                                        if (currentTabRoute != tab.route) {
                                                             tabs.getOrNull(index)?.let { onNavigate(it.route) }
                                                         }
                                                     }
@@ -420,16 +449,18 @@ internal fun FloatingBottomControls(
                                         }
                                     }
                                 }
-                                BottomDockActionPill(
-                                    icon = MiuixIcons.Basic.Search,
-                                    label = stringResource(R.string.common_search),
-                                    selected = currentRoute.isSearchRoute(),
-                                    onClick = onNavigateSearch,
-                                    backdrop = backdrop,
-                                    glassEffect = glassEffect,
-                                    disableRefraction = stabilizeOverWallpaper,
-                                    modifier = Modifier.size(64.dp)
-                                )
+                                if (!mergeSearch) {
+                                    BottomDockActionPill(
+                                        icon = MiuixIcons.Basic.Search,
+                                        label = stringResource(R.string.common_search),
+                                        selected = currentRoute.isSearchRoute(),
+                                        onClick = onNavigateSearch,
+                                        backdrop = backdrop,
+                                        glassEffect = glassEffect,
+                                        disableRefraction = stabilizeOverWallpaper,
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -439,50 +470,48 @@ internal fun FloatingBottomControls(
     }
 
     if (queueSheetExpanded) {
-        androidx.compose.runtime.key(
-            com.ella.music.ui.player.queueSnapshotKey(playlist)
+        // Queue changes refresh PlayerQueueMenu's rows without changing the modal's identity.
+        // Re-keying the whole sheet here makes a remove/reorder look like dismiss + reopen.
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.player_queue_title),
+            onDismissRequest = { queueSheetExpanded = false }
         ) {
-            EllaMiuixBottomSheet(
-                show = true,
-                enableNestedScroll = false,
-                title = stringResource(R.string.player_queue_title),
-                onDismissRequest = { queueSheetExpanded = false }
-            ) {
-                com.ella.music.ui.player.PlayerQueueMenu(
-                    playlist = playlist,
-                    currentSongKey = currentSongKey,
-                    currentSongSourceKey = currentSong?.playbackSourceKey,
-                    currentQueueIndexHint = currentQueueIndex,
-                    shuffleEnabled = shuffleEnabled,
-                    repeatMode = repeatMode,
-                    queueLocked = queueLocked,
-                    favoriteSongKeys = favoriteSongKeys,
-                    loadSongRating = mainViewModel::getSongRating,
-                    ratingRevision = ratingRevision,
-                    onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
-                    onToggleQueueLock = { playerViewModel.toggleQueueLock() },
-                    onSongClick = { index ->
-                        queueSheetExpanded = false
-                        playerViewModel.playQueueIndex(index)
-                    },
-                    onRemoveSong = { index -> playerViewModel.removeFromPlaylist(index) },
-                    onMoveSong = { fromIndex, toIndex -> playerViewModel.movePlaylistItem(fromIndex, toIndex) },
-                    onRandomizeQueue = { playerViewModel.randomizePlaylistOrder() },
-                    onAddQueueToPlaylist = {
-                        queueSheetExpanded = false
-                        queueSongsToAdd = playlist
-                    },
-                    onClearQueue = {
-                        queueSheetExpanded = false
-                        playerViewModel.clearPlaylist()
-                    },
-                    onNavigateToPlaybackSource = {
-                        queueSheetExpanded = false
-                        onNavigatePlaybackSource()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            com.ella.music.ui.player.PlayerQueueMenu(
+                playlist = playlist,
+                currentSongKey = currentSongKey,
+                currentSongSourceKey = currentSong?.playbackSourceKey,
+                currentQueueIndexHint = currentQueueIndex,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                queueLocked = queueLocked,
+                favoriteSongKeys = favoriteSongKeys,
+                loadSongRating = mainViewModel::getSongRating,
+                ratingRevision = ratingRevision,
+                onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
+                onToggleQueueLock = { playerViewModel.toggleQueueLock() },
+                onSongClick = { index ->
+                    queueSheetExpanded = false
+                    playerViewModel.playQueueIndex(index)
+                },
+                onRemoveSong = { index -> playerViewModel.removeFromPlaylist(index) },
+                onMoveSong = { fromIndex, toIndex -> playerViewModel.movePlaylistItem(fromIndex, toIndex) },
+                onRandomizeQueue = { playerViewModel.randomizePlaylistOrder() },
+                onAddQueueToPlaylist = {
+                    queueSheetExpanded = false
+                    queueSongsToAdd = playlist
+                },
+                onClearQueue = {
+                    queueSheetExpanded = false
+                    playerViewModel.clearPlaylist()
+                },
+                onNavigateToPlaybackSource = {
+                    queueSheetExpanded = false
+                    onNavigatePlaybackSource()
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 
@@ -544,32 +573,65 @@ private fun NormalBottomNavigationBar(
     currentTabRoute: String?,
     currentRoute: String?,
     color: ComposeColor,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop? = null,
     onNavigate: (String) -> Unit,
-    onNavigateSearch: () -> Unit
+    onNavigateSearch: () -> Unit,
+    mergeSearch: Boolean = false
 ) {
-    NavigationBar(color = color) {
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val barColor = if (backdrop != null) ComposeColor.Transparent else color
+    val barModifier = if (backdrop != null) {
+        val tintColor = if (isDark) {
+            ComposeColor.Black.copy(alpha = 0.55f)
+        } else {
+            ComposeColor.White.copy(alpha = 0.65f)
+        }
+        Modifier.textureBlur(
+            backdrop = backdrop,
+            shape = RectangleShape,
+            blurRadius = 25f,
+            colors = BlurColors(
+                blendColors = listOf(BlendColorEntry(tintColor))
+            )
+        )
+    } else {
+        Modifier
+    }
+    NavigationBar(
+        modifier = barModifier,
+        color = barColor
+    ) {
         tabs.forEach { tab ->
-            val selected = !currentRoute.isSearchRoute() && currentTabRoute == tab.route
+            val selected = if (tab.route.isSearchRoute()) {
+                currentRoute.isSearchRoute()
+            } else {
+                !currentRoute.isSearchRoute() && currentTabRoute == tab.route
+            }
             NavigationBarItem(
                 selected = selected,
-                onClick = { if (!selected) onNavigate(tab.route) },
+                onClick = {
+                    if (selected) return@NavigationBarItem
+                    if (tab.route.isSearchRoute()) onNavigateSearch() else onNavigate(tab.route)
+                },
                 icon = tab.icon,
                 label = tab.label
             )
         }
-        NavigationBarItem(
-            selected = currentRoute.isSearchRoute(),
-            onClick = { if (!currentRoute.isSearchRoute()) onNavigateSearch() },
-            icon = MiuixIcons.Basic.Search,
-            label = stringResource(R.string.common_search)
-        )
+        if (!mergeSearch && tabs.none { it.route.isSearchRoute() }) {
+            NavigationBarItem(
+                selected = currentRoute.isSearchRoute(),
+                onClick = { if (!currentRoute.isSearchRoute()) onNavigateSearch() },
+                icon = MiuixIcons.Basic.Search,
+                label = stringResource(R.string.common_search)
+            )
+        }
     }
 }
 
 /**
- * Switches the configured normal bottom-dock tabs with a horizontal swipe on the page.
+ * Switches the configured bottom-dock tabs with a horizontal swipe on the page.
  *
- * The search destination is appended because it is always the last item in the normal
+ * The search destination is appended because it is always the last item in the
  * navigation bar, even though it is not part of the user-configurable tab list.
  */
 @Composable
@@ -582,7 +644,9 @@ internal fun normalBottomDockSwipeModifier(
 ): Modifier {
     val latestOnNavigate by rememberUpdatedState(onNavigate)
     val latestOnNavigateSearch by rememberUpdatedState(onNavigateSearch)
-    val swipeRoutes = tabs.map { it.route } + Screen.LibrarySearch.createRoute()
+    val swipeRoutes = tabs.map { it.route }.let { routes ->
+        if (routes.any { it.isSearchRoute() }) routes else routes + Screen.LibrarySearch.createRoute()
+    }
     val currentIndex = swipeRoutes.indexOfFirst { currentRoute.matchesRoute(it) }
 
     if (!enabled || currentIndex < 0 || swipeRoutes.size < 2) return Modifier
@@ -592,6 +656,9 @@ internal fun normalBottomDockSwipeModifier(
         val swipeThresholdPx = 72.dp.toPx()
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            if (currentRoute?.startsWith("library_search") == true && down.position.y < 240.dp.toPx()) {
+                return@awaitEachGesture
+            }
             var lockedHorizontal = false
             var lockedVertical = false
             var cancelled = false
@@ -599,7 +666,7 @@ internal fun normalBottomDockSwipeModifier(
             var totalDy = 0f
 
             do {
-                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val event = awaitPointerEvent(PointerEventPass.Main)
                 if (event.changes.count { it.pressed } > 1) {
                     // Do not compete with the library's two-finger pinch gesture.
                     cancelled = true
@@ -608,6 +675,12 @@ internal fun normalBottomDockSwipeModifier(
                 }
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                 if (!change.pressed) break
+
+                if (!lockedHorizontal && change.isConsumed) {
+                    // A child component (e.g. horizontal scroll bar or slider) has handled this gesture.
+                    cancelled = true
+                    break
+                }
 
                 val delta = change.position - change.previousPosition
                 totalDx += delta.x
@@ -667,6 +740,8 @@ private fun SearchBottomDock(
     disableRefraction: Boolean,
     liquidGlass: Boolean,
     searchDock: LibrarySearchDockState?,
+    previousSongTitle: String? = null,
+    nextSongTitle: String? = null,
     onOpenPlayer: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit,
@@ -702,6 +777,8 @@ private fun SearchBottomDock(
                     onPlayPause = onPlayPause,
                     onSkipNext = onSkipNext,
                     onSkipPrevious = onSkipPrevious,
+                    previousSongTitle = previousSongTitle,
+                    nextSongTitle = nextSongTitle,
                     onShowQueue = onShowQueue,
                     onLongClick = onLongClick,
                     lyricProgress = lyricProgress,
@@ -784,13 +861,14 @@ private fun CompactBottomDock(
     onExpand: () -> Unit,
     disableRefraction: Boolean,
     compactProgress: Float,
+    mergeSearch: Boolean = false,
 ) {
     val collapse = compactProgress.coerceIn(0f, 1f)
     // Side actions shrink with the compact spring. The centre mini-player keeps the remaining
     // width so it stays adjacent to both buttons instead of collapsing into a short island.
     val compactControlSize = androidx.compose.ui.unit.lerp(64.dp, 60.dp, collapse)
     val compactIconScale = 1f - 0.14f * collapse
-    val showCompactLyrics = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val showCompactLyrics = mergeSearch || LocalConfiguration.current.smallestScreenWidthDp >= 600
     val isHomeSelected = currentTabRoute == Screen.Home.route
     val leftIcon = currentTab?.icon ?: if (isHomeSelected) MiuixIcons.Regular.Home else MiuixIcons.Regular.Music
     val leftLabel = currentTab?.label ?: if (isHomeSelected) stringResource(R.string.tab_home) else stringResource(R.string.tab_library)
@@ -843,18 +921,20 @@ private fun CompactBottomDock(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        BottomDockActionPill(
-            icon = MiuixIcons.Basic.Search,
-            label = stringResource(R.string.common_search),
-            selected = isSearchSelected,
-            onClick = onNavigateSearch,
-            backdrop = backdrop,
-            glassEffect = glassEffect,
-            disableRefraction = disableRefraction,
-            modifier = Modifier.size(compactControlSize),
-            controlSize = compactControlSize,
-            contentScale = compactIconScale,
-        )
+        if (!mergeSearch) {
+            BottomDockActionPill(
+                icon = MiuixIcons.Basic.Search,
+                label = stringResource(R.string.common_search),
+                selected = isSearchSelected,
+                onClick = onNavigateSearch,
+                backdrop = backdrop,
+                glassEffect = glassEffect,
+                disableRefraction = disableRefraction,
+                modifier = Modifier.size(compactControlSize),
+                controlSize = compactControlSize,
+                contentScale = compactIconScale,
+            )
+        }
     }
 }
 

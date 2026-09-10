@@ -2,13 +2,19 @@ package com.ella.music.plugin.source
 
 import android.content.Context
 import android.net.Uri
+import com.ella.music.plugin.i18n.PluginLocales
+import com.ella.music.plugin.i18n.PluginStrings
 import com.ella.music.plugin.model.PluginManifest
 import com.ella.music.plugin.runtime.HostApiRegistry
+import com.ella.music.data.copyToBoundedOrThrow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileInputStream
+import java.security.MessageDigest
+import java.util.UUID
 import java.util.zip.ZipInputStream
 
 class CustomPluginStore(
@@ -16,6 +22,7 @@ class CustomPluginStore(
     private val json: Json = pluginJson
 ) {
     private val rootDir: File = File(context.filesDir, "lyrico_plugins")
+    private val configStore = PluginConfigStore(context.applicationContext)
 
     suspend fun loadPlugins(): List<LyricoPluginSource> = withContext(Dispatchers.IO) {
         val bundled = loadBundledPlugins()
@@ -43,8 +50,31 @@ class CustomPluginStore(
                 .map { pluginDir ->
                     val manifest = readAndValidateManifest(pluginDir)
                     val targetDir = File(rootDir, manifest.id.safeFileName())
-                    targetDir.deleteRecursively()
-                    copyDirectory(pluginDir, targetDir)
+                    val stagedDir = File(rootDir, ".${manifest.id.safeFileName()}.staging-${UUID.randomUUID()}")
+                    try {
+                        val oldFingerprint = targetDir.takeIf(File::isDirectory)
+                            ?.let { runCatching { directoryFingerprint(it) }.getOrNull() }
+                        copyDirectory(pluginDir, stagedDir)
+                        val newFingerprint = directoryFingerprint(stagedDir)
+                        val pluginCodeChanged = oldFingerprint == null || !oldFingerprint.contentEquals(newFingerprint)
+                        val backupDir = targetDir.takeIf(File::exists)?.let {
+                            File(rootDir, ".${manifest.id.safeFileName()}.previous-${UUID.randomUUID()}")
+                        }
+                        try {
+                            if (backupDir != null) require(targetDir.renameTo(backupDir)) { "Unable to stage current plugin" }
+                            require(stagedDir.renameTo(targetDir)) { "Unable to install plugin" }
+                            if (pluginCodeChanged) configStore.deleteConfig(manifest.id)
+                            backupDir?.deleteRecursively()
+                        } catch (error: Throwable) {
+                            if (backupDir?.exists() == true) {
+                                targetDir.deleteRecursively()
+                                backupDir.renameTo(targetDir)
+                            }
+                            throw error
+                        }
+                    } finally {
+                        stagedDir.deleteRecursively()
+                    }
                     manifest
                 }
             require(imported.isNotEmpty()) { "Plugin manifest.json not found" }
@@ -56,12 +86,15 @@ class CustomPluginStore(
 
     private fun loadPlugin(dir: File): LyricoPluginSource {
         val manifest = json.decodeFromString<PluginManifest>(File(dir, "manifest.json").readText())
-        validateManifest(manifest, dir)
+        val strings = runCatching { PluginStrings.load(dir, manifest) }.getOrNull()
+        validateManifest(manifest, dir, strings)
+        val localizedManifest = strings?.snapshot(PluginLocales.preferences.value)?.localize(manifest) ?: manifest
         return LyricoPluginSource(
-            manifest = manifest,
+            manifest = localizedManifest,
             assetDir = dir.absolutePath,
             script = buildScript(dir, manifest),
-            cacheRootDir = File(context.cacheDir, "lyrico_plugin_cache")
+            cacheRootDir = File(context.cacheDir, "lyrico_plugin_cache"),
+            strings = strings
         )
     }
 
@@ -76,8 +109,10 @@ class CustomPluginStore(
     private fun loadBundledPlugin(directoryName: String): LyricoPluginSource {
         val pluginRoot = "$BUNDLED_PLUGIN_ROOT/$directoryName"
         val manifest = json.decodeFromString<PluginManifest>(readAssetText("$pluginRoot/manifest.json"))
+        val strings = runCatching { PluginStrings.loadFromAssets(context.assets, pluginRoot, manifest) }.getOrNull()
         validateManifestBasics(manifest)
         require(assetExists("$pluginRoot/${manifest.entry}")) { "Missing plugin entry file" }
+        val localizedManifest = strings?.snapshot(PluginLocales.preferences.value)?.localize(manifest) ?: manifest
         val includeSources = manifest.includeDirs
             .flatMap { includeDir -> assetFilesUnder("$pluginRoot/$includeDir") }
             .filter { it.endsWith(".js", ignoreCase = true) }
@@ -89,7 +124,7 @@ class CustomPluginStore(
             }
             .sortedBy { it.path }
         return LyricoPluginSource(
-            manifest = manifest,
+            manifest = localizedManifest,
             assetDir = "asset://$pluginRoot",
             script = composeScript(
                 manifest = manifest,
@@ -97,7 +132,8 @@ class CustomPluginStore(
                 entryContent = readAssetText("$pluginRoot/${manifest.entry}")
             ),
             cacheRootDir = File(context.cacheDir, "lyrico_plugin_cache"),
-            bundled = true
+            bundled = true,
+            strings = strings
         )
     }
 
@@ -173,18 +209,26 @@ class CustomPluginStore(
     }
 
     private fun unzip(uri: Uri, targetDir: File) {
+        var entryCount = 0
+        var totalBytes = 0L
         context.contentResolver.openInputStream(uri).use { input ->
             requireNotNull(input) { "Unable to open plugin zip" }
             ZipInputStream(input).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
+                    entryCount++
+                    require(entryCount <= MAX_PLUGIN_ZIP_ENTRIES) { "Plugin archive contains too many entries" }
                     val target = File(targetDir, entry.name).canonicalFile
                     require(target.path.startsWith(targetDir.canonicalPath + File.separator)) { "Invalid zip entry" }
                     if (entry.isDirectory) {
                         target.mkdirs()
                     } else {
                         target.parentFile?.mkdirs()
-                        target.outputStream().use { output -> zip.copyTo(output) }
+                        val bytes = target.outputStream().use { output ->
+                            zip.copyToBoundedOrThrow(output, MAX_PLUGIN_ENTRY_BYTES)
+                        }
+                        totalBytes += bytes
+                        require(totalBytes <= MAX_PLUGIN_ARCHIVE_BYTES) { "Plugin archive expands beyond the size limit" }
                     }
                     zip.closeEntry()
                 }
@@ -202,13 +246,17 @@ class CustomPluginStore(
 
     private fun readAndValidateManifest(pluginDir: File): PluginManifest {
         val manifest = json.decodeFromString<PluginManifest>(File(pluginDir, "manifest.json").readText())
-        validateManifest(manifest, pluginDir)
-        return manifest
+        val strings = runCatching { PluginStrings.load(pluginDir, manifest) }.getOrNull()
+        validateManifest(manifest, pluginDir, strings)
+        return strings?.snapshot(PluginLocales.preferences.value)?.localize(manifest) ?: manifest
     }
 
-    private fun validateManifest(manifest: PluginManifest, pluginDir: File) {
+    private fun validateManifest(manifest: PluginManifest, pluginDir: File, strings: PluginStrings? = null) {
         validateManifestBasics(manifest)
         require(File(pluginDir, manifest.entry).isFile) { "Missing plugin entry file" }
+        if (manifest.i18n != null && strings == null) {
+            PluginStrings.load(pluginDir, manifest)
+        }
     }
 
     private fun validateManifestBasics(manifest: PluginManifest) {
@@ -233,6 +281,30 @@ class CustomPluginStore(
         }
     }
 
+    private fun directoryFingerprint(dir: File): ByteArray {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val files = dir.walkTopDown().filter(File::isFile).sortedBy { it.relativeTo(dir).invariantPath() }.toList()
+        require(files.size <= MAX_PLUGIN_ZIP_ENTRIES) { "Plugin contains too many files" }
+        var totalBytes = 0L
+        files.forEach { file ->
+            val size = file.length()
+            require(size <= MAX_PLUGIN_ENTRY_BYTES) { "Plugin file exceeds the size limit" }
+            totalBytes += size
+            require(totalBytes <= MAX_PLUGIN_ARCHIVE_BYTES) { "Plugin exceeds the size limit" }
+            digest.update(file.relativeTo(dir).invariantPath().toByteArray(Charsets.UTF_8))
+            digest.update(0.toByte())
+            FileInputStream(file).use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (count > 0) digest.update(buffer, 0, count)
+                }
+            }
+        }
+        return digest.digest()
+    }
+
     private fun File.invariantPath(): String = path.replace(File.separatorChar, '/')
 
     private fun String.safeFileName(): String =
@@ -242,5 +314,8 @@ class CustomPluginStore(
 
     private companion object {
         const val BUNDLED_PLUGIN_ROOT = "lyrico_plugins"
+        const val MAX_PLUGIN_ZIP_ENTRIES = 512
+        const val MAX_PLUGIN_ENTRY_BYTES = 16L * 1024L * 1024L
+        const val MAX_PLUGIN_ARCHIVE_BYTES = 64L * 1024L * 1024L
     }
 }

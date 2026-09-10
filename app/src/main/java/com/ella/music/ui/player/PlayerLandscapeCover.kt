@@ -103,6 +103,8 @@ internal fun LandscapeCoverPlayerPage(
     playerTitlePosition: Int,
     coverSwipeEnabled: Boolean,
     coverLongPressPreviewEnabled: Boolean,
+    previousSongTitle: String? = null,
+    nextSongTitle: String? = null,
     queueExpanded: Boolean,
     playlist: List<Song>,
     currentQueueIndexHint: Int = -1,
@@ -225,6 +227,8 @@ internal fun LandscapeCoverPlayerPage(
             showTotalDuration = showTotalDuration,
             playerTapSeekEnabled = playerTapSeekEnabled,
             coverSwipeEnabled = coverSwipeEnabled,
+            previousSongTitle = previousSongTitle,
+            nextSongTitle = nextSongTitle,
             audioSessionId = audioSessionId,
             visualizerEnabled = visualizerEnabled,
             visualizerOpacity = visualizerOpacity,
@@ -322,9 +326,7 @@ internal fun LandscapeCoverPlayerPage(
                         onToggleFavorite = onToggleFavorite,
                         onToggleMenu = onToggleMenu,
                         onSongInfo = onSongInfo,
-                        modifier = Modifier
-                            .fillMaxWidth(coverWidthFraction)
-                            .widthIn(max = coverMaxSize)
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(if (ultraWideLandscape) 14.dp else 16.dp))
                 }
@@ -353,7 +355,10 @@ internal fun LandscapeCoverPlayerPage(
                                     swipeEnabled = coverSwipeEnabled,
                                     onSwipePrevious = onSwipePrevious,
                                     onSwipeNext = onNext,
-                                    dismissHandle = LocalPlayerCoverDismiss.current
+                                    dismissHandle = LocalPlayerCoverDismiss.current,
+                                    hintColor = palette.onBackground,
+                                    previousSongTitle = previousSongTitle,
+                                    nextSongTitle = nextSongTitle
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -397,9 +402,7 @@ internal fun LandscapeCoverPlayerPage(
                         onToggleFavorite = onToggleFavorite,
                         onToggleMenu = onToggleMenu,
                         onSongInfo = onSongInfo,
-                        modifier = Modifier
-                            .fillMaxWidth(coverWidthFraction)
-                            .widthIn(max = coverMaxSize)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 Spacer(modifier = Modifier.height(if (ultraWideLandscape) 6.dp else 10.dp))
@@ -484,9 +487,11 @@ internal fun LandscapeCoverPlayerPage(
                                 bottomContentPadding = if (ultraWideLandscape) 32.dp else 44.dp,
                                 lineSpacing = if (ultraWideLandscape) 18.dp else 21.dp,
                                 focusOffsetRatio = if (ultraWideLandscape) 0.20f else 0.22f,
-                                // Perspective already supplies its own depth cue. A custom player
-                                // background must not disable the user's non-current-line blur.
-                                nonCurrentLineBlurEnabled = !lyricPerspectiveEffect,
+                                // Perspective and blur are independent lyric-style controls. The
+                                // landscape page used to disable the configured non-current-line
+                                // blur whenever perspective was enabled, making the setting look
+                                // broken in landscape (#632).
+                                nonCurrentLineBlurEnabled = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .fillMaxHeight()
@@ -545,6 +550,8 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     showTotalDuration: Boolean,
     playerTapSeekEnabled: Boolean,
     coverSwipeEnabled: Boolean,
+    previousSongTitle: String? = null,
+    nextSongTitle: String? = null,
     audioSessionId: Int,
     visualizerEnabled: Boolean,
     visualizerOpacity: Float,
@@ -576,7 +583,10 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
         swipeEnabled = coverSwipeEnabled,
         onSwipePrevious = onSwipePrevious,
         onSwipeNext = onNext,
-        dismissHandle = LocalPlayerCoverDismiss.current
+        dismissHandle = LocalPlayerCoverDismiss.current,
+        hintColor = palette.onBackground,
+        previousSongTitle = previousSongTitle,
+        nextSongTitle = nextSongTitle
     )
 
     Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
@@ -650,7 +660,6 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                 GlowSeekBar(
                     value = if (duration > 0L) currentPosition.toFloat() / duration.toFloat() else 0f,
                     onSeek = onSeek,
-                    accent = palette.accent,
                     allowTapSeek = playerTapSeekEnabled,
                     onPreviewProgressChange = { previewProgress = it },
                     modifier = Modifier
@@ -787,7 +796,9 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                                 bottomContentPadding = 28.dp,
                                 lineSpacing = 18.dp,
                                 focusOffsetRatio = 0.18f,
-                                nonCurrentLineBlurEnabled = !lyricPerspectiveEffect,
+                                // Keep the same blur preference in the compact landscape layout;
+                                // perspective must not silently turn it off (#632).
+                                nonCurrentLineBlurEnabled = true,
                                 modifier = Modifier.fillMaxSize()
                         )
                     } else if (!lyricsLoading) {

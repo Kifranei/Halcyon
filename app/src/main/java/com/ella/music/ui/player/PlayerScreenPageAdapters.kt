@@ -96,7 +96,6 @@ internal fun CoverPageContent(
     lyricPerspectiveEffect: Boolean,
     lyricPerspectiveYAngle: Int,
     lyricTextAlign: Int,
-    lyricPageVerticalAlignment: Int,
     playerTapSeekEnabled: Boolean,
     playerShowTotalDuration: Boolean,
     coverSwipeEnabled: Boolean,
@@ -110,6 +109,7 @@ internal fun CoverPageContent(
     queueExpanded: Boolean,
     onQueueExpandedChange: (Boolean) -> Unit,
     playlist: List<Song>,
+    librarySongs: List<Song> = emptyList(),
     favoriteSongKeys: Set<String> = emptySet(),
     loadSongRating: (Song) -> Int = { 0 },
     ratingRevision: Int = 0,
@@ -146,6 +146,7 @@ internal fun CoverPageContent(
     onNavigateToAlbum: (Long) -> Unit,
     onNavigateToArtist: (String) -> Unit,
     openLyricSharePicker: (LyricLine) -> Unit,
+    onLyricShare: () -> Unit,
     navigateToArtistOrChoose: (String) -> Unit,
     onShowLyrics: () -> Unit,
     onSwipePrevious: () -> Unit,
@@ -237,7 +238,6 @@ internal fun CoverPageContent(
         lyricPerspectiveEffect = lyricPerspectiveEffect,
         lyricPerspectiveYAngle = lyricPerspectiveYAngle,
         lyricTextAlign = lyricTextAlign,
-        lyricPageVerticalAlignment = lyricPageVerticalAlignment,
         playerTapSeekEnabled = playerTapSeekEnabled,
         playerShowTotalDuration = playerShowTotalDuration,
         coverSwipeEnabled = coverSwipeEnabled,
@@ -249,6 +249,7 @@ internal fun CoverPageContent(
         menuExpanded = menuExpanded,
         queueExpanded = queueExpanded,
         playlist = playlist,
+        librarySongs = librarySongs,
         currentQueueIndexHint = currentQueueIndex,
         favoriteSongKeys = favoriteSongKeys,
         loadSongRating = loadSongRating,
@@ -273,6 +274,10 @@ internal fun CoverPageContent(
         onShowLyrics = onShowLyrics,
         onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
         onLyricLineLongClick = openLyricSharePicker,
+        onLyricShare = {
+            onMenuExpandedChange(false)
+            onLyricShare()
+        },
         onTogglePronunciation = {
             playerViewModel.setLyricPagePronunciation(!showLyricPronunciation)
         },
@@ -549,7 +554,6 @@ internal fun LyricsPageContent(
     lyricPerspectiveEffect: Boolean,
     lyricPerspectiveYAngle: Int,
     lyricTextAlign: Int,
-    lyricPageVerticalAlignment: Int,
     lyricPalette: PlayerPalette,
     isPlaying: Boolean,
     playerBackgroundEnabled: Boolean,
@@ -606,7 +610,6 @@ internal fun LyricsPageContent(
         perspectiveEffect = lyricPerspectiveEffect,
         perspectiveYAngle = lyricPerspectiveYAngle,
         lyricTextAlign = lyricTextAlign,
-        lyricPageVerticalAlignment = lyricPageVerticalAlignment,
         palette = lyricPalette,
         flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
         currentPositionMs = currentPosition,

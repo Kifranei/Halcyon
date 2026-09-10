@@ -15,17 +15,42 @@ internal fun PlayerSystemBarsEffect(
     context: Context,
     view: View,
     trigger: Any?,
-    landscape: Boolean = false
+    landscape: Boolean = false,
+    isMusicVideoLandscape: Boolean = false
 ) {
     val settings = SettingsManager.getInstance(context)
     val hideLandscapeBars by settings.playerLandscapeHideSystemBars.collectAsState(initial = false)
+    val hideMusicVideoBars by settings.musicVideoImmersiveLyricsHideSystemBars.collectAsState(
+        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS
+    )
     val globalMode by settings.systemBarsMode.collectAsState(initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH)
-    DisposableEffect(view, trigger, landscape, hideLandscapeBars, globalMode) {
+    val reserveSystemBarSpace by settings.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
+    val playerMode by settings.playerSystemBarsMode.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_SYSTEM_BARS_MODE
+    )
+    DisposableEffect(
+        view,
+        trigger,
+        landscape,
+        isMusicVideoLandscape,
+        hideLandscapeBars,
+        hideMusicVideoBars,
+        globalMode,
+        playerMode,
+        reserveSystemBarSpace
+    ) {
         val activity = context.findActivity()
         fun applyBars() {
             val window = activity?.window ?: return
-            window.setPlayerImmersiveOverride(landscape && hideLandscapeBars)
-            window.applyHalcyonSystemBars(globalMode)
+            val effectiveMode = when {
+                isMusicVideoLandscape && hideMusicVideoBars -> SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                landscape && hideLandscapeBars -> SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                else -> SettingsManager.playerSystemBarsEffectiveMode(playerMode, globalMode)
+            }
+            window.setPlayerImmersiveOverride(effectiveMode == SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH)
+            window.applyHalcyonSystemBars(effectiveMode, reserveSystemBarSpace)
             setPlayerSystemBars(activity, view)
         }
         applyBars()
@@ -37,7 +62,7 @@ internal fun PlayerSystemBarsEffect(
             if (view.viewTreeObserver.isAlive) view.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
             activity?.window?.let {
                 it.setPlayerImmersiveOverride(false)
-                it.applyHalcyonSystemBars(globalMode)
+                it.applyHalcyonSystemBars(globalMode, reserveSystemBarSpace)
             }
         }
     }

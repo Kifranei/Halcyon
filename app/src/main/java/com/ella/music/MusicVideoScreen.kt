@@ -13,7 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -1268,7 +1269,7 @@ private fun MusicVideoCaptionSettingsOverlay(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 VideoTextButton("-100 ms", { onSyncOffsetChange(syncOffsetMs - 100L) })
-                BasicTextField(
+                TextField(
                     value = offsetInput,
                     onValueChange = { value ->
                         val filtered = value.filterIndexed { index, char ->
@@ -1284,11 +1285,12 @@ private fun MusicVideoCaptionSettingsOverlay(
                     ),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ComposeColor.White.copy(alpha = 0.10f))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                    insideMargin = androidx.compose.ui.unit.DpSize(12.dp, 8.dp),
+                    cornerRadius = 12.dp,
+                    colors = TextFieldDefaults.textFieldColors(
+                        backgroundColor = ComposeColor.White.copy(alpha = 0.12f)
+                    ),
+                    modifier = Modifier.weight(1f)
                 )
                 VideoTextButton("+100 ms", { onSyncOffsetChange(syncOffsetMs + 100L) })
             }
@@ -1557,7 +1559,6 @@ private fun VideoTransport(
         GlowSeekBar(
             value = position.toFloat() / duration.coerceAtLeast(1L).toFloat(),
             onSeek = { progress -> onSeek((progress * duration.coerceAtLeast(0L)).toLong()) },
-            accent = ComposeColor.White,
             allowTapSeek = true,
             modifier = Modifier
                 .weight(1f)

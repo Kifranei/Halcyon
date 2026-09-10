@@ -1,4 +1,8 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.player
+
+import androidx.compose.foundation.gestures.detectTapGestures
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -24,8 +28,10 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -35,6 +41,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -56,6 +65,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
@@ -65,6 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -77,6 +88,7 @@ import com.ella.music.ui.components.CoverPreviewDialog
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
 import com.ella.music.ui.components.PlayerQueueListIcon
+import com.ella.music.data.ActionMenuIds
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -88,6 +100,8 @@ import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.AbRepeatState
 import com.ella.music.viewmodel.PlayerViewModel
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -99,8 +113,12 @@ import top.yukonga.miuix.kmp.basic.Text
 internal val PlayerBottomClearanceFallback = 8.dp
 
 @Composable
-private fun PlayerBottomClearance() {
-    Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+private fun PlayerBottomClearance(
+    reserveNavigation: Boolean = true
+) {
+    if (reserveNavigation) {
+        Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+    }
     Spacer(modifier = Modifier.height(PlayerBottomClearanceFallback))
 }
 
@@ -163,7 +181,6 @@ internal fun CoverPlayerPage(
     lyricPerspectiveEffect: Boolean,
     lyricPerspectiveYAngle: Int,
     lyricTextAlign: Int,
-    lyricPageVerticalAlignment: Int,
     playerTapSeekEnabled: Boolean,
     playerShowTotalDuration: Boolean,
     coverSwipeEnabled: Boolean,
@@ -175,6 +192,7 @@ internal fun CoverPlayerPage(
     menuExpanded: Boolean,
     queueExpanded: Boolean,
     playlist: List<Song>,
+    librarySongs: List<Song> = emptyList(),
     currentQueueIndexHint: Int = -1,
     favoriteSongKeys: Set<String> = emptySet(),
     loadSongRating: (Song) -> Int = { 0 },
@@ -240,6 +258,7 @@ internal fun CoverPlayerPage(
     onSongInfo: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onShareSong: () -> Unit,
+    onLyricShare: () -> Unit,
     onAddToQueue: () -> Unit,
     onPlayNext: () -> Unit,
     onSetRating: () -> Unit,
@@ -264,26 +283,43 @@ internal fun CoverPlayerPage(
     modifier: Modifier = Modifier
 ) {
     val playWhenReady by playerViewModel.playWhenReady.collectAsState()
+    val previousSong by playerViewModel.previousSong.collectAsState()
+    val nextSong by playerViewModel.nextSong.collectAsState()
     val isActuallyPaused = !isPlaying && !playWhenReady
     // The transport glyph must reflect the player's actual transport state. playWhenReady only
     // describes the request/intent to play and remains true while buffering or after a stale
     // controller snapshot, which can make the icon disagree with the sound.
     val visualIsPlaying = isPlaying
     val staticCoverPreviewModel by produceState<Any?>(
-        initialValue = embeddedCover ?: resolveCoverPreviewModel(song, null),
+        initialValue = resolveCoverPreviewModel(song, null),
         song?.let {
             listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize, it.coverUrl).joinToString("|")
-        },
-        embeddedCover
+        }
     ) {
-        value = embeddedCover ?: withContext(Dispatchers.IO) {
-            song?.let(playerViewModel::getOriginalCoverModel)
-                ?: resolveCoverPreviewModel(song, null)
+        value = withContext(Dispatchers.IO) {
+            preferredCoverPreviewModel(
+                originalModel = song?.let(playerViewModel::getOriginalCoverModel),
+                decodedFallback = resolveCoverPreviewModel(song, null)
+            )
         }
     }
-    // The bitmap extracted from the local file always wins over a stale Media3/MediaStore URI
-    // that may have been present in the first composition of the page.
-    val resolvedStaticCoverPreviewModel = embeddedCover ?: staticCoverPreviewModel
+    // A decoded player bitmap is only a display fallback. Preview and the cover surface must
+    // keep the original file/embedded bytes, otherwise Coil's ORIGINAL request still shows the
+    // downsampled thumbnail (#609).
+    val resolvedStaticCoverPreviewModel = preferredCoverPreviewModel(
+        originalModel = staticCoverPreviewModel,
+        decodedFallback = embeddedCover
+    )
+    // Keep one painter alive above the Apple Music cover/lyrics switch. The two layouts use the
+    // same artwork at different bounds; recreating AsyncImage inside AnimatedContent briefly
+    // cleared the painter and produced a visible flash on tablets.
+    val stableArtworkRequest = remember(context, resolvedStaticCoverPreviewModel) {
+        ImageRequest.Builder(context)
+            .data(resolvedStaticCoverPreviewModel)
+            .size(2048)
+            .build()
+    }
+    val stableArtworkPainter = rememberAsyncImagePainter(model = stableArtworkRequest)
     // Keep an opened preview as a snapshot.  Changing tracks must update the player behind the
     // dialog, not dismiss or replace the artwork the user is currently inspecting.
     var previewCover by remember { mutableStateOf<PlayerCoverPreview?>(null) }
@@ -302,6 +338,28 @@ internal fun CoverPlayerPage(
     var showMusicVideoInfo by remember { mutableStateOf(false) }
     val immersiveLyricSwipeEnabled by playerViewModel.settingsManager.playerImmersiveLyricSwipe
         .collectAsState(initial = false)
+    val appleMusicImmersiveSquareCover by playerViewModel.settingsManager.appleMusicPlayerImmersiveCover
+        .collectAsState(initial = false)
+    val appleMusicUseAppleFavorite by playerViewModel.settingsManager.appleMusicUseAppleFavorite
+        .collectAsState(initial = false)
+    val systemBarsReserveSpace by playerViewModel.settingsManager.systemBarsReserveSpace
+        .collectAsState(initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE)
+    val playerSystemBarsMode by playerViewModel.settingsManager.playerSystemBarsMode
+        .collectAsState(initial = SettingsManager.DEFAULT_PLAYER_SYSTEM_BARS_MODE)
+    val globalSystemBarsMode by playerViewModel.settingsManager.systemBarsMode
+        .collectAsState(initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH)
+    val effectivePlayerSystemBarsMode = SettingsManager.playerSystemBarsEffectiveMode(
+        playerMode = playerSystemBarsMode,
+        globalMode = globalSystemBarsMode
+    )
+    val shouldReserveStatusBar = systemBarsReserveSpace || effectivePlayerSystemBarsMode !in setOf(
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+    )
+    val shouldReserveNavigationBar = systemBarsReserveSpace || effectivePlayerSystemBarsMode !in setOf(
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_NAVIGATION,
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+    )
     val bluetoothDeviceName = rememberBluetoothOutputName()
     val queueLocked by playerViewModel.queueLocked.collectAsState()
     val navidromeConfig by playerViewModel.settingsManager.navidromeConfig.collectAsState(
@@ -315,7 +373,57 @@ internal fun CoverPlayerPage(
         RemoteMusicProvider.OpenSubsonic.id -> openSubsonicConfig.streamMaxBitRate
         else -> null
     }
+    val rawNonImmersiveShortcuts by playerViewModel.settingsManager.nonImmersivePlayerShortcutItems
+        .collectAsState(initial = SettingsManager.DEFAULT_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS)
+    val nonImmersiveShortcutIds = remember(rawNonImmersiveShortcuts) {
+        if (rawNonImmersiveShortcuts.isBlank()) {
+            emptyList()
+        } else {
+            rawNonImmersiveShortcuts.split(',')
+                .filter { it.isNotBlank() && (it in ActionMenuIds.playerShortcutCatalog || it == ActionMenuIds.REMOTE_QUALITY) }
+                .distinct()
+                .take(SettingsManager.MAX_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS)
+        }
+    }
+    var localActionMenuPage by remember { mutableStateOf<PlayerActionSheetPage?>(null) }
+    val executePlayerAction: (String) -> Unit = { actionId ->
+        when (actionId) {
+            ActionMenuIds.SPEED -> localActionMenuPage = PlayerActionSheetPage.Speed
+            ActionMenuIds.EQUALIZER -> onOpenEqualizer()
+            ActionMenuIds.TIMER -> localActionMenuPage = PlayerActionSheetPage.Timer
+            ActionMenuIds.ADD_TO_PLAYLIST -> onAddToPlaylist()
+            ActionMenuIds.PLAY_NEXT -> onPlayNext()
+            ActionMenuIds.ADD_TO_QUEUE -> onAddToQueue()
+            ActionMenuIds.SHARE -> onShareSong()
+            ActionMenuIds.AI -> onAiInterpret()
+            ActionMenuIds.INFO -> onSongInfo()
+            ActionMenuIds.AUDIO_OUTPUT -> localActionMenuPage = PlayerActionSheetPage.AudioOutput
+            ActionMenuIds.CASTING -> openSystemOutputSwitcher(context)
+            ActionMenuIds.AB_REPEAT -> onAbRepeat()
+            ActionMenuIds.LANDSCAPE -> onLandscape()
+            ActionMenuIds.LYRICS_DISPLAY -> localActionMenuPage = PlayerActionSheetPage.LyricDisplay
+            ActionMenuIds.SPECTRUM -> onSpectrum()
+            ActionMenuIds.RATING -> onSetRating()
+            ActionMenuIds.DYNAMIC_COVER -> onMatchDynamicCover()
+            ActionMenuIds.VISUALIZER -> localActionMenuPage = PlayerActionSheetPage.Visualizer
+            ActionMenuIds.EDIT_TAGS -> onOpenMetadataEditor()
+            ActionMenuIds.LYRIC_TIMING -> onLyricTiming()
+            ActionMenuIds.ONLINE_LYRICS -> onMatchOnlineLyrics()
+            ActionMenuIds.LYRIC_OFFSET -> localActionMenuPage = PlayerActionSheetPage.LyricOffset
+            ActionMenuIds.KEEP_SCREEN_ON -> if (showPlayerKeepScreenOnAction) onPlayerKeepScreenOnChange(!playerKeepScreenOn)
+            ActionMenuIds.DOWNLOAD -> onDownload()
+            ActionMenuIds.DELETE -> onDeleteSong()
+        }
+    }
     val dynamicCoverSongKey = song?.dynamicCoverResolutionKey().orEmpty()
+    val syncMusicVideoPlayPause = {
+        // Pause the silent MV decoder immediately. Waiting for isPlaying to propagate lets a
+        // stale audio callback restart the video after a brief pause (#605).
+        if (musicVideoVisible) {
+            MusicVideoPlaybackBridge.setPlaying(dynamicCoverSongKey, !playWhenReady)
+        }
+        onPlayPause()
+    }
     // Resolving a dynamic cover scans many candidate files and probes media tracks; doing that in
     // composition janked every song change (even when no cover exists). Resolve it off the main
     // thread, only while the player page is shown. Clear the previous source first so a song
@@ -380,44 +488,76 @@ internal fun CoverPlayerPage(
     val skipCoverSwipeModifier = rememberCoverSwipeModifier(
         swipeEnabled = coverSwipeEnabled,
         onSwipePrevious = onSwipePrevious,
-        onSwipeNext = onNext
+        onSwipeNext = onNext,
+        hintColor = palette.onBackground,
+        previousSongTitle = previousSong?.title,
+        nextSongTitle = nextSong?.title
     )
     val coverSwipeModifier = skipCoverSwipeModifier
     val immersiveLyricSwipeModifier = rememberCoverSwipeModifier(
         swipeEnabled = immersiveLyricSwipeEnabled,
         onSwipePrevious = onSwipePrevious,
         onSwipeNext = onNext,
+        hintColor = palette.onBackground,
+        previousSongTitle = previousSong?.title,
+        nextSongTitle = nextSong?.title,
         dismissEnabled = false
     )
     val defaultAppleMusicLyrics = defaultAppleMusicShowLyrics &&
         com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle) ==
         com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
     var appleMusicShowLyrics by remember(defaultAppleMusicLyrics) { mutableStateOf(defaultAppleMusicLyrics) }
-    var appleMusicChromeVisible by remember { mutableStateOf(true) }
+    var appleMusicShowQueue by remember { mutableStateOf(false) }
+    // Start hidden while lyrics are on 鈥?show chrome on enter, auto-hide after 3s; bottom third reveals it.
+    var appleMusicChromeVisible by remember(defaultAppleMusicLyrics) {
+        mutableStateOf(true)
+    }
     var appleMusicChromeGeneration by remember { mutableIntStateOf(0) }
     fun revealAppleMusicChrome() {
         appleMusicChromeVisible = true
         appleMusicChromeGeneration++
     }
+    fun hideAppleMusicChrome() {
+        appleMusicChromeVisible = false
+    }
+    LaunchedEffect(appleMusicShowLyrics) {
+        if (appleMusicShowLyrics) {
+            // Entering lyrics: keep transport visible, then auto-hide after delay.
+            appleMusicChromeVisible = true
+            appleMusicChromeGeneration++
+        } else {
+            appleMusicChromeVisible = true
+            appleMusicChromeGeneration++
+        }
+    }
     LaunchedEffect(appleMusicShowLyrics, appleMusicChromeVisible, appleMusicChromeGeneration) {
         if (!appleMusicShowLyrics || !appleMusicChromeVisible) return@LaunchedEffect
-        delay(2_000)
+        delay(3_000)
         appleMusicChromeVisible = false
     }
     BackHandler(
-        enabled = shouldInterceptAppleMusicLyricsBack(
+        enabled = appleMusicShowQueue || shouldInterceptAppleMusicLyricsBack(
             showLyrics = appleMusicShowLyrics,
             playerPageStyle = playerPageStyle,
             preserveLyricsOnBack = defaultAppleMusicLyrics
         )
     ) {
-        appleMusicShowLyrics = false
-        revealAppleMusicChrome()
+        if (appleMusicShowQueue) {
+            appleMusicShowQueue = false
+            revealAppleMusicChrome()
+        } else {
+            appleMusicShowLyrics = false
+            revealAppleMusicChrome()
+        }
     }
 
     BoxWithConstraints(modifier = modifier) {
         val rootPlayerWidth = maxWidth
+        val rootPlayerHeight = maxHeight
         val useWidePlayer = maxWidth > maxHeight && maxWidth >= 700.dp
+        // A phone in landscape can also exceed the wide-player dp threshold. Keep its previous
+        // landscape composition independent from the tablet-specific centered column below.
+        val isLargeScreenDevice = LocalConfiguration.current.smallestScreenWidthDp >= 600
         val isSmallWindow = maxWidth < 300.dp || (maxWidth < 420.dp && maxHeight < 560.dp)
         // Tall-but-narrow or short floating windows: the lyric preview overflows and the bottom
         // transport controls get clipped. Compact the lyrics (smaller, single line) and drop the
@@ -449,7 +589,7 @@ internal fun CoverPlayerPage(
         val showCustomPlayerBackground =
             playerBackgroundEnabled && playerBackgroundUri.isNotBlank() &&
                 (useWidePlayer || !immersiveAlbumCover || usesAlternatePortraitPage)
-        if (drawBackground && !useWidePlayer && (!immersiveAlbumCover || usesAlternatePortraitPage)) {
+        if (drawBackground && !useWidePlayer) {
             SharedPlayerPageBackground(
                 song = song,
                 embeddedCover = embeddedCover,
@@ -472,6 +612,7 @@ internal fun CoverPlayerPage(
         fun StyledPlayerArtwork(
             cornerRadius: androidx.compose.ui.unit.Dp,
             modifier: Modifier = Modifier,
+            contentScale: ContentScale = ContentScale.Fit,
             showOverlayBadges: Boolean = true,
             swipeModifier: Modifier = coverSwipeModifier
         ) {
@@ -515,19 +656,24 @@ internal fun CoverPlayerPage(
             ) {
                 val musicVideoSource = displayedMusicVideo
                 val dynamicCoverSource = displayedDynamicCover
-                val hideArtworkBehindMusicVideo =
-                    selectedPlayerPageStyle ==
-                        com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC &&
-                        musicVideoVisible && musicVideoSource != null
-                if (!hideArtworkBehindMusicVideo) {
+                val hasDynamicSource = (musicVideoVisible && musicVideoSource != null) || (!musicVideoVisible && dynamicCoverSource != null)
+                val hideArtworkBehindDynamic = hasDynamicSource
+                if (!hideArtworkBehindDynamic) {
                     AlbumArtView(
                         song = song,
                         embeddedCover = embeddedCover,
                         coverModel = resolvedStaticCoverPreviewModel,
+                        artworkPainter = stableArtworkPainter,
                         cornerRadius = cornerRadius,
+                        contentScale = contentScale,
                         showHiResLogo = false,
                         modifier = Modifier.fillMaxSize()
                     )
+                }
+                val dynamicResizeMode = if (contentScale == ContentScale.Crop) {
+                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                } else {
+                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
                 when {
                     videoPlaybackActive && musicVideoVisible && musicVideoSource != null -> {
@@ -538,7 +684,8 @@ internal fun CoverPlayerPage(
                             syncDurationMs = duration,
                             onPlaybackError = { onDynamicCoverFailed(musicVideoSource.failureKey) },
                             modifier = Modifier.fillMaxSize(),
-                            cornerRadiusDp = cornerRadius.value
+                            cornerRadiusDp = cornerRadius.value,
+                            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                         )
                     }
                     videoPlaybackActive && !musicVideoVisible && dynamicCoverSource != null -> {
@@ -547,7 +694,8 @@ internal fun CoverPlayerPage(
                             isPlaying = isPlaying,
                             onPlaybackError = { onDynamicCoverFailed(dynamicCoverSource.failureKey) },
                             modifier = Modifier.fillMaxSize(),
-                            cornerRadiusDp = cornerRadius.value
+                            cornerRadiusDp = cornerRadius.value,
+                            resizeMode = dynamicResizeMode
                         )
                     }
                 }
@@ -603,6 +751,7 @@ internal fun CoverPlayerPage(
 
         @Composable
         fun AppleMusicFooterActions(height: androidx.compose.ui.unit.Dp = 56.dp) {
+            val audioOutputState = rememberAudioOutputDeviceState()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -613,34 +762,75 @@ internal fun CoverPlayerPage(
                 PlayerTransportIconButton(onClick = {
                     if (selectedPlayerPageStyle == com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC) {
                         appleMusicShowLyrics = !appleMusicShowLyrics
-                        if (appleMusicShowLyrics) revealAppleMusicChrome()
+                        if (appleMusicShowLyrics) {
+                            appleMusicShowQueue = false
+                            revealAppleMusicChrome()
+                        }
                     } else {
                         onShowLyrics()
                     }
                 }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_lyrics),
-                        contentDescription = stringResource(R.string.player_lyrics_display),
-                        tint = pagePalette.onBackground.copy(alpha = 0.90f),
-                        modifier = Modifier.size(34.dp)
+                    AppleLyricsIcon(
+                        color = pagePalette.onBackground.copy(alpha = if (appleMusicShowLyrics) 1f else 0.72f),
+                        active = appleMusicShowLyrics,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
-                PlayerTransportIconButton(onClick = {
-                    revealAppleMusicChrome()
-                    onCyclePlaybackMode()
-                }) {
-                    PlaybackModeIcon(
-                        shuffleEnabled = shuffleEnabled,
-                        repeatMode = repeatMode,
-                        color = pagePalette.onBackground.copy(alpha = 0.90f),
-                        modifier = Modifier.size(34.dp)
-                    )
+                val isConnectedAudio = audioOutputState.isBluetooth || audioOutputState.isHeadphones
+                val connectedDeviceName = audioOutputState.deviceName
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.playerNoIndicationClick {
+                        revealAppleMusicChrome()
+                        openSystemOutputSwitcher(context)
+                    }
+                ) {
+                    if (isConnectedAudio) {
+                        val iconRes = if (audioOutputState.isBluetoothSpeaker) {
+                            R.drawable.ic_speaker
+                        } else {
+                            R.drawable.ic_earphone
+                        }
+                        Icon(
+                            painter = painterResource(iconRes),
+                            contentDescription = connectedDeviceName,
+                            tint = pagePalette.onBackground.copy(alpha = 0.90f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    } else {
+                        AppleChromecastIcon(
+                            color = pagePalette.onBackground.copy(alpha = 0.90f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    if (isConnectedAudio && !connectedDeviceName.isNullOrBlank()) {
+                        Text(
+                            text = connectedDeviceName,
+                            color = pagePalette.onBackground.copy(alpha = 0.72f),
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                 }
                 Box(contentAlignment = Alignment.Center) {
-                    PlayerTransportIconButton(onClick = onToggleQueue) {
-                        PlayerQueueListIcon(
-                            color = pagePalette.onBackground.copy(alpha = 0.90f),
-                            modifier = Modifier.size(34.dp)
+                    PlayerTransportIconButton(onClick = {
+                        if (selectedPlayerPageStyle == com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC) {
+                            appleMusicShowQueue = !appleMusicShowQueue
+                            if (appleMusicShowQueue) {
+                                appleMusicShowLyrics = false
+                                revealAppleMusicChrome()
+                            }
+                        } else {
+                            onToggleQueue()
+                        }
+                    }) {
+                        AppleQueueIcon(
+                            color = pagePalette.onBackground.copy(alpha = if (appleMusicShowQueue) 1f else 0.90f),
+                            active = appleMusicShowQueue,
+                            modifier = Modifier.size(30.dp)
                         )
                     }
                     PlayerQueueSheet(
@@ -669,95 +859,177 @@ internal fun CoverPlayerPage(
         }
 
         @Composable
-        fun AppleMusicCoverPage(coverModifier: Modifier = Modifier) {
+        fun AppleMusicCoverPage(
+            modifier: Modifier = Modifier.fillMaxSize(),
+            coverModifier: Modifier = Modifier,
+            coverScale: Float = 1f,
+            forceNonImmersive: Boolean = false
+        ) {
+            val hasDynamicCover = (musicVideoVisible && displayedMusicVideo != null) ||
+                (!musicVideoVisible && displayedDynamicCover != null)
+            // Keep immersive chrome for dynamic covers too 鈥?previously !hasDynamicCover forced
+            // the card layout and produced a hard horizontal edge on 1:1 video covers.
+            val isAppleMusicImmersive = immersiveAlbumCover && !forceNonImmersive
+            val activeDynamicAspect = when {
+                musicVideoVisible -> displayedMusicVideo?.aspectRatio
+                else -> displayedDynamicCover?.aspectRatio
+            }
+            // Tall/portrait matched covers (aspect < ~0.95) use a taller soft-melt column like
+            // coneplayer / Apple Music dynamic covers; square 1:1 stays aspectRatio(1f).
+            val tallDynamicImmersive = hasDynamicCover &&
+                (activeDynamicAspect?.let { it > 0f && it < 0.95f } == true)
+            val useSquareImmersiveSlot = appleMusicImmersiveSquareCover && !tallDynamicImmersive
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 28.dp),
+                modifier = modifier,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(if (compactWindow) 8.dp else 16.dp))
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val coverSize = minOf(maxWidth, maxHeight)
-                    StyledPlayerArtwork(
-                        cornerRadius = 24.dp,
+                if (isAppleMusicImmersive) {
+                    Box(
                         modifier = Modifier
-                            .size(coverSize)
-                            .then(coverModifier)
+                            .fillMaxWidth()
+                            .then(
+                                when {
+                                    tallDynamicImmersive -> Modifier.weight(0.92f)
+                                    useSquareImmersiveSlot -> Modifier.aspectRatio(1f)
+                                    else -> Modifier.weight(0.92f)
+                                }
+                            )
+                    ) {
+                        StyledPlayerArtwork(
+                            cornerRadius = 0.dp,
+                            contentScale = ContentScale.Crop,
+                            showOverlayBadges = false,
+                            modifier = coverModifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    compositingStrategy = CompositingStrategy.Offscreen
+                                }
+                                .drawWithContent {
+                                    drawContent()
+                                    // Soft bottom melt into the shared flow canvas 鈥?same curve
+                                    // for static and 1:1 / tall dynamic video covers.
+                                    val fadeStart = if (tallDynamicImmersive) 0.62f else 0.70f
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            colorStops = arrayOf(
+                                                0.00f to Color.White,
+                                                fadeStart to Color.White,
+                                                0.88f to Color.White.copy(alpha = 0.55f),
+                                                1.00f to Color.Transparent
+                                            )
+                                        ),
+                                        blendMode = BlendMode.DstIn
+                                    )
+                                }
+                        )
+                    }
+                    Spacer(
+                        modifier = when {
+                            tallDynamicImmersive -> Modifier.weight(0.08f)
+                            useSquareImmersiveSlot -> Modifier.weight(1f)
+                            else -> Modifier.weight(0.08f)
+                        }
                     )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PlayerSongMetaText(
-                        song = song,
-                        annotation = annotation,
-                        titleFontSize = 25.sp,
-                        artistFontSize = 18.sp,
-                        artistAlpha = 0.64f,
-                        showArtistWithAnnotation = true,
-                        contentColor = pagePalette.onBackground,
-                        fontFamily = fontFamily,
-                         onArtistClick = onArtist,
-                         onTitleLongClick = onSongInfo,
-                        titleMarqueeEnabled = true,
-                        artistMarqueeEnabled = true,
+                } else {
+                    if (shouldReserveStatusBar) {
+                        Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBarsIgnoringVisibility))
+                    }
+                    Spacer(modifier = Modifier.height(if (compactWindow) 8.dp else 16.dp))
+                    BoxWithConstraints(
                         modifier = Modifier
                             .weight(1f)
-                            .widthIn(min = 0.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    PlayerHeaderAction(
-                        kind = PlayerHeaderActionKind.Favorite,
-                        selected = isFavorite,
-                        onClick = onToggleFavorite
-                    )
-                    PlayerHeaderAction(
-                        kind = PlayerHeaderActionKind.More,
-                        onClick = onToggleMenu
-                    )
+                            .fillMaxWidth()
+                            .padding(horizontal = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val baseCoverSize = minOf(maxWidth, maxHeight)
+                        val currentCoverSize = baseCoverSize * coverScale
+                        StyledPlayerArtwork(
+                            cornerRadius = playerAlbumCoverCornerRadius.dp,
+                            modifier = Modifier
+                                .size(currentCoverSize)
+                                .then(coverModifier)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(if (compactWindow) 12.dp else 18.dp))
-                PlayerProgressBlock(
-                    currentPosition = currentPosition,
-                    duration = duration,
-                    song = song,
-                    audioInfo = audioInfo,
-                    bluetoothDeviceName = bluetoothDeviceName,
-                    playbackModeLabel = if (musicVideoVisible) "MV" else null,
-                    palette = pagePalette,
-                    allowTapSeek = playerTapSeekEnabled,
-                    showTotalDuration = playerShowTotalDuration,
-                    onSeek = onSeek,
-                    fontFamily = fontFamily,
-                    onInfoLongPress = onMusicVideoInfoLongPress
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                LandscapeTransportControls(
-                    isPlaying = visualIsPlaying,
-                    shuffleEnabled = shuffleEnabled,
-                    repeatMode = repeatMode,
-                    palette = pagePalette,
-                    onCyclePlaybackMode = onCyclePlaybackMode,
-                    onPrevious = onPrevious,
-                    onPlayPause = onPlayPause,
-                    onNext = onNext,
-                    controlHeight = if (compactWindow) 70.dp else 96.dp,
-                    sideIconSize = if (compactWindow) 34.dp else 40.dp,
-                    playButtonSize = if (compactWindow) 66.dp else 78.dp,
-                    playIconSize = if (compactWindow) 40.dp else 48.dp
-                )
-                Spacer(modifier = Modifier.height(if (compactWindow) 4.dp else 8.dp))
-                AppleMusicFooterActions(height = if (compactWindow) 68.dp else 88.dp)
-                PlayerBottomClearance()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        PlayerSongMetaText(
+                            song = song,
+                            annotation = annotation,
+                            titleFontSize = 25.sp,
+                            artistFontSize = 18.sp,
+                            artistAlpha = 0.64f,
+                            showArtistWithAnnotation = true,
+                            contentColor = pagePalette.onBackground,
+                            fontFamily = fontFamily,
+                            onArtistClick = onArtist,
+                            onTitleLongClick = onSongInfo,
+                            titleMarqueeEnabled = true,
+                            artistMarqueeEnabled = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(min = 0.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.Favorite,
+                            selected = isFavorite,
+                            useAppleIcons = appleMusicUseAppleFavorite,
+                            onClick = onToggleFavorite
+                        )
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.More,
+                            useAppleIcons = appleMusicUseAppleFavorite,
+                            onClick = onToggleMenu
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(if (compactWindow) 12.dp else 18.dp))
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        song = song,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        isAppleMusic = true,
+                        palette = pagePalette,
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = onSeek,
+                        fontFamily = fontFamily,
+                        onInfoLongPress = onMusicVideoInfoLongPress
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    LandscapeTransportControls(
+                        isPlaying = visualIsPlaying,
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
+                        palette = pagePalette,
+                        onCyclePlaybackMode = onCyclePlaybackMode,
+                        onPrevious = onPrevious,
+                        onPlayPause = syncMusicVideoPlayPause,
+                        onNext = onNext,
+                        controlHeight = if (compactWindow) 68.dp else 88.dp,
+                        sideIconSize = if (compactWindow) 30.dp else 36.dp,
+                        playButtonSize = if (compactWindow) 58.dp else 68.dp,
+                        playIconSize = if (compactWindow) 34.dp else 40.dp,
+                        useAppleMusicIcons = true
+                    )
+                    Spacer(modifier = Modifier.height(if (compactWindow) 4.dp else 8.dp))
+                    AppleMusicFooterActions(height = if (compactWindow) 68.dp else 88.dp)
+                    PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
+                }
             }
         }
 
@@ -784,13 +1056,27 @@ internal fun CoverPlayerPage(
                     onToggleFavorite = onToggleFavorite,
                     onShowMenu = { lyricMenuExpanded = true },
                     fontFamily = fontFamily,
-                    coverModifier = coverModifier
+                    coverModifier = coverModifier,
+                    artworkPainter = stableArtworkPainter,
+                    useAppleIcons = appleMusicUseAppleFavorite
                 )
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
+                    var anchoredFocusOffset by remember { mutableStateOf<androidx.compose.ui.unit.Dp?>(null) }
+                    LaunchedEffect(maxHeight, appleMusicChromeVisible) {
+                        if (appleMusicChromeVisible || anchoredFocusOffset == null) {
+                            anchoredFocusOffset = maxHeight * 0.22f
+                        }
+                    }
+                    val effectiveFocusOffset = if (appleMusicChromeVisible) {
+                        maxHeight * 0.22f
+                    } else {
+                        anchoredFocusOffset ?: (maxHeight * 0.22f)
+                    }
+
                     AppleMusicLyricsView(
                         lyrics = lyrics,
                         currentIndex = currentLyricIndex,
@@ -811,17 +1097,31 @@ internal fun CoverPlayerPage(
                         contentColor = pagePalette.onBackground,
                         wordLiftEnabled = appleMusicWordLiftEnabled,
                         onLineClick = { line ->
-                            revealAppleMusicChrome()
                             onLyricLineClick(line)
                         },
-                        onLineDoubleClick = { revealAppleMusicChrome() },
+                        onLineDoubleClick = { /* lyrics surface: do not reveal chrome */ },
                         onLineLongClick = onLyricLineLongClick,
                         topContentPadding = 16.dp,
                         bottomContentPadding = if (compactWindow) 56.dp else 72.dp,
                         lineSpacing = if (compactWindow) 14.dp else 20.dp,
                         focusOffsetRatio = 0.22f,
+                        focusOffsetDp = effectiveFocusOffset,
                         modifier = Modifier.fillMaxSize()
                     )
+                    // Bottom ~1/4: tap reveals chrome while hidden (upper area stays lyrics-only).
+                    if (appleMusicShowLyrics && !appleMusicChromeVisible) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .fillMaxHeight(1f / 4f)
+                                .pointerInput(Unit) {
+                                    detectTapGestures {
+                                        revealAppleMusicChrome()
+                                    }
+                                }
+                        )
+                    }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = PlayerMotion.lyricsCornerActionsVisible(appleMusicChromeVisible),
                         enter = fadeIn(),
@@ -850,6 +1150,7 @@ internal fun CoverPlayerPage(
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
                             playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                            isAppleMusic = true,
                             palette = pagePalette,
                             allowTapSeek = playerTapSeekEnabled,
                             showTotalDuration = playerShowTotalDuration,
@@ -860,7 +1161,7 @@ internal fun CoverPlayerPage(
                             fontFamily = fontFamily,
                             onInfoLongPress = onMusicVideoInfoLongPress
                         )
-                        Spacer(modifier = Modifier.height(if (compactWindow) 8.dp else 12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                         LandscapeTransportControls(
                             isPlaying = visualIsPlaying,
                             shuffleEnabled = shuffleEnabled,
@@ -876,21 +1177,23 @@ internal fun CoverPlayerPage(
                             },
                             onPlayPause = {
                                 revealAppleMusicChrome()
-                                onPlayPause()
+                                syncMusicVideoPlayPause()
                             },
                             onNext = {
                                 revealAppleMusicChrome()
                                 onNext()
                             },
-                            controlHeight = if (compactWindow) 64.dp else 84.dp,
-                            sideIconSize = if (compactWindow) 32.dp else 38.dp,
-                            playButtonSize = if (compactWindow) 60.dp else 72.dp,
-                            playIconSize = if (compactWindow) 36.dp else 44.dp
+                            controlHeight = if (compactWindow) 68.dp else 88.dp,
+                            sideIconSize = if (compactWindow) 30.dp else 36.dp,
+                            playButtonSize = if (compactWindow) 58.dp else 68.dp,
+                            playIconSize = if (compactWindow) 34.dp else 40.dp,
+                            useAppleMusicIcons = true
                         )
-                        AppleMusicFooterActions(height = if (compactWindow) 56.dp else 64.dp)
+                        Spacer(modifier = Modifier.height(if (compactWindow) 4.dp else 8.dp))
+                        AppleMusicFooterActions(height = if (compactWindow) 68.dp else 88.dp)
                     }
                 }
-                PlayerBottomClearance()
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
             }
             LyricsPlayerMenuSheet(
                 show = lyricMenuExpanded,
@@ -939,28 +1242,161 @@ internal fun CoverPlayerPage(
             }
         }
 
+        @Composable
+        fun AppleMusicQueueSessionPageWrapper(coverModifier: Modifier = Modifier) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AppleMusicQueueSessionPage(
+                    song = song,
+                    embeddedCover = embeddedCover,
+                    playlist = playlist,
+                    currentQueueIndexHint = currentQueueIndexHint,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    isFavorite = isFavorite,
+                    pagePalette = pagePalette,
+                    fontFamily = fontFamily,
+                    compactWindow = compactWindow,
+                    useAppleIcons = appleMusicUseAppleFavorite,
+                    coverModifier = coverModifier,
+                    artworkPainter = stableArtworkPainter,
+                    annotation = annotation,
+                    onArtist = onArtist,
+                    onToggleFavorite = onToggleFavorite,
+                    onSongInfo = onToggleMenu,
+                    onClearQueue = onClearQueue,
+                    onToggleRepeat = { playerViewModel.toggleRepeat() },
+                    onToggleShuffle = { playerViewModel.toggleShuffle() },
+                    onSongClick = onQueueSongClick,
+                    onMoveSong = onMoveQueueSong,
+                    onRemoveSong = onRemoveQueueSong,
+                    onDismissQueue = {
+                        appleMusicShowQueue = false
+                        revealAppleMusicChrome()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        song = song,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        isAppleMusic = true,
+                        palette = pagePalette,
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = {
+                            revealAppleMusicChrome()
+                            onSeek(it)
+                        },
+                        fontFamily = fontFamily,
+                        onInfoLongPress = onMusicVideoInfoLongPress
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    LandscapeTransportControls(
+                        isPlaying = visualIsPlaying,
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
+                        palette = pagePalette,
+                        onCyclePlaybackMode = {
+                            revealAppleMusicChrome()
+                            onCyclePlaybackMode()
+                        },
+                        onPrevious = {
+                            revealAppleMusicChrome()
+                            onPrevious()
+                        },
+                        onPlayPause = {
+                            revealAppleMusicChrome()
+                            syncMusicVideoPlayPause()
+                        },
+                        onNext = {
+                            revealAppleMusicChrome()
+                            onNext()
+                        },
+                        controlHeight = if (compactWindow) 68.dp else 88.dp,
+                        sideIconSize = if (compactWindow) 30.dp else 36.dp,
+                        playButtonSize = if (compactWindow) 58.dp else 68.dp,
+                        playIconSize = if (compactWindow) 34.dp else 40.dp,
+                        useAppleMusicIcons = true
+                    )
+                    Spacer(modifier = Modifier.height(if (compactWindow) 4.dp else 8.dp))
+                    AppleMusicFooterActions(height = if (compactWindow) 68.dp else 88.dp)
+                }
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
+            }
+        }
+
         @OptIn(ExperimentalSharedTransitionApi::class)
         @Composable
         fun AppleMusicPlayerPage() {
             SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
                 val sharedCoverState = rememberSharedContentState(key = "appleMusicCover")
+                val appleMusicCoverScale by animateFloatAsState(
+                    targetValue = if (visualIsPlaying) 1.0f else 0.82f,
+                    animationSpec = spring(
+                        dampingRatio = 0.8f,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "AppleMusicCoverScale"
+                )
+                val targetSession = when {
+                    appleMusicShowQueue -> AppleMusicSessionPage.Queue
+                    appleMusicShowLyrics -> AppleMusicSessionPage.Lyrics
+                    else -> AppleMusicSessionPage.Cover
+                }
                 AnimatedContent(
-                    targetState = appleMusicShowLyrics,
+                    targetState = targetSession,
                     transitionSpec = {
-                        fadeIn(
-                            animationSpec = tween(
-                                durationMillis = PlayerMotion.CoverMorphDurationMs,
-                                easing = PlayerMotion.CoverMorphEasing
+                        if (isLargeScreenDevice) {
+                            // Keep the tablet artwork slot opaque while its shared bounds morph;
+                            // otherwise the cover flashes between the left column and lyrics.
+                            fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = PlayerMotion.CoverMorphDurationMs,
+                                    easing = PlayerMotion.CoverMorphEasing
+                                ),
+                                initialAlpha = 1f
+                            ) togetherWith fadeOut(
+                                animationSpec = tween(
+                                    durationMillis = PlayerMotion.CoverMorphDurationMs / 2,
+                                    easing = PlayerMotion.CoverMorphEasing
+                                ),
+                                targetAlpha = 1f
                             )
-                        ) togetherWith fadeOut(
-                            animationSpec = tween(
-                                durationMillis = PlayerMotion.CoverMorphDurationMs / 2,
-                                easing = PlayerMotion.CoverMorphEasing
+                        } else {
+                            // Restore the phone transition. The fully opaque outgoing cover page
+                            // briefly exposed its title/actions over the lyric page (#635).
+                            fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = PlayerMotion.CoverMorphDurationMs,
+                                    easing = PlayerMotion.CoverMorphEasing
+                                )
+                            ) togetherWith fadeOut(
+                                animationSpec = tween(
+                                    durationMillis = PlayerMotion.CoverMorphDurationMs / 2,
+                                    easing = PlayerMotion.CoverMorphEasing
+                                )
                             )
-                        )
+                        }
                     },
-                    label = "AppleMusicLyricsSession"
-                ) { showLyrics ->
+                    label = "AppleMusicSession"
+                ) { session ->
                     val coverModifier = Modifier.sharedElement(
                         sharedContentState = sharedCoverState,
                         animatedVisibilityScope = this,
@@ -971,10 +1407,19 @@ internal fun CoverPlayerPage(
                             )
                         }
                     )
-                    if (showLyrics) {
-                        AppleMusicLyricsSessionPage(coverModifier = coverModifier)
-                    } else {
-                        AppleMusicCoverPage(coverModifier = coverModifier)
+                    when (session) {
+                        AppleMusicSessionPage.Lyrics -> {
+                            AppleMusicLyricsSessionPage(coverModifier = coverModifier)
+                        }
+                        AppleMusicSessionPage.Queue -> {
+                            AppleMusicQueueSessionPageWrapper(coverModifier = coverModifier)
+                        }
+                        AppleMusicSessionPage.Cover -> {
+                            AppleMusicCoverPage(
+                                coverModifier = coverModifier,
+                                coverScale = appleMusicCoverScale
+                            )
+                        }
                     }
                 }
             }
@@ -997,6 +1442,7 @@ internal fun CoverPlayerPage(
                 ) {
                     StyledPlayerArtwork(
                         cornerRadius = 0.dp,
+                        contentScale = ContentScale.Crop,
                         showOverlayBadges = false,
                         swipeModifier = skipCoverSwipeModifier,
                         modifier = Modifier
@@ -1048,7 +1494,7 @@ internal fun CoverPlayerPage(
                                 .size(44.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(pagePalette.onBackground.copy(alpha = 0.20f))
-                                .playerNoIndicationClick(onPlayPause),
+                                .playerNoIndicationClick(syncMusicVideoPlayPause),
                             contentAlignment = Alignment.Center
                         ) {
                             CenteredPlayPauseGlyph(
@@ -1095,7 +1541,7 @@ internal fun CoverPlayerPage(
                         contentColor = pagePalette.onBackground,
                         wordLiftEnabled = appleMusicWordLiftEnabled,
                         onLineClick = onLyricLineClick,
-                        onLineDoubleClick = onPlayPause,
+                        onLineDoubleClick = syncMusicVideoPlayPause,
                         onLineLongClick = onLyricLineLongClick,
                         topContentPadding = 8.dp,
                         bottomContentPadding = if (compactWindow) 56.dp else 72.dp,
@@ -1118,7 +1564,7 @@ internal fun CoverPlayerPage(
                         )
                     }
                 }
-                PlayerBottomClearance()
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
             }
         }
 
@@ -1149,28 +1595,44 @@ internal fun CoverPlayerPage(
                 @Composable
                 fun AppleMusicWideNowPlayingColumn(
                     modifier: Modifier,
-                    extraTopPadding: androidx.compose.ui.unit.Dp = 12.dp
+                    extraTopPadding: androidx.compose.ui.unit.Dp = 12.dp,
+                    showCover: Boolean = true,
+                    applySystemInsets: Boolean = true
                 ) {
                     Column(
                         modifier = modifier
-                            .windowInsetsPadding(WindowInsets.statusBars)
-                            .windowInsetsPadding(WindowInsets.navigationBars)
-                            .padding(start = 20.dp, end = 20.dp, top = extraTopPadding, bottom = 12.dp),
+                            .then(
+                                if (applySystemInsets) {
+                                    Modifier
+                                        .windowInsetsPadding(WindowInsets.statusBars)
+                                        .windowInsetsPadding(WindowInsets.navigationBars)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .padding(
+                                start = if (showCover) 20.dp else 8.dp,
+                                end = 20.dp,
+                                top = extraTopPadding,
+                                bottom = 12.dp
+                            ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        BoxWithConstraints(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val coverSize = minOf(maxWidth * 0.86f, maxHeight)
-                            StyledPlayerArtwork(
-                                cornerRadius = 18.dp,
-                                modifier = Modifier.size(coverSize)
-                            )
+                        if (showCover) {
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val coverSize = minOf(maxWidth * 0.86f, maxHeight)
+                                StyledPlayerArtwork(
+                                    cornerRadius = 18.dp,
+                                    modifier = Modifier.size(coverSize)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
                         }
-                        Spacer(modifier = Modifier.height(14.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -1195,12 +1657,17 @@ internal fun CoverPlayerPage(
                             PlayerHeaderAction(
                                 kind = PlayerHeaderActionKind.Favorite,
                                 selected = isFavorite,
+                                useAppleIcons = appleMusicUseAppleFavorite,
                                 onClick = onToggleFavorite
                             )
                             PlayerHeaderAction(
                                 kind = PlayerHeaderActionKind.More,
+                                useAppleIcons = appleMusicUseAppleFavorite,
                                 onClick = onToggleMenu
                             )
+                        }
+                        if (!showCover) {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         PlayerProgressBlock(
@@ -1210,6 +1677,7 @@ internal fun CoverPlayerPage(
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
                             playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                            isAppleMusic = true,
                             palette = pagePalette,
                             allowTapSeek = playerTapSeekEnabled,
                             showTotalDuration = playerShowTotalDuration,
@@ -1225,17 +1693,73 @@ internal fun CoverPlayerPage(
                             palette = pagePalette,
                             onCyclePlaybackMode = onCyclePlaybackMode,
                             onPrevious = onPrevious,
-                            onPlayPause = onPlayPause,
+                            onPlayPause = syncMusicVideoPlayPause,
                             onNext = onNext,
                             controlHeight = 78.dp,
                             sideIconSize = 36.dp,
                             playButtonSize = 68.dp,
-                            playIconSize = 42.dp
+                            playIconSize = 42.dp,
+                            useAppleMusicIcons = true
                         )
+                        if (!showCover) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                         AppleMusicFooterActions(height = 72.dp)
                     }
                 }
-                if (appleMusicShowLyrics) {
+                if (appleMusicShowQueue) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppleMusicWideNowPlayingColumn(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .weight(0.40f),
+                            extraTopPadding = 20.dp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(0.60f)
+                                .fillMaxHeight()
+                                .padding(start = 20.dp)
+                                .windowInsetsPadding(WindowInsets.statusBars)
+                                .windowInsetsPadding(WindowInsets.navigationBars)
+                        ) {
+                            AppleMusicQueueSessionPage(
+                                song = song,
+                                embeddedCover = embeddedCover,
+                                playlist = playlist,
+                                currentQueueIndexHint = currentQueueIndexHint,
+                                shuffleEnabled = shuffleEnabled,
+                                repeatMode = repeatMode,
+                                isFavorite = isFavorite,
+                                pagePalette = pagePalette,
+                                fontFamily = fontFamily,
+                                compactWindow = false,
+                                useAppleIcons = appleMusicUseAppleFavorite,
+                                artworkPainter = stableArtworkPainter,
+                                annotation = annotation,
+                                onArtist = onArtist,
+                                onToggleFavorite = onToggleFavorite,
+                                onSongInfo = onToggleMenu,
+                                onClearQueue = onClearQueue,
+                                onToggleRepeat = { playerViewModel.toggleRepeat() },
+                                onToggleShuffle = { playerViewModel.toggleShuffle() },
+                                onSongClick = onQueueSongClick,
+                                onMoveSong = onMoveQueueSong,
+                                onRemoveSong = onRemoveQueueSong,
+                                onDismissQueue = {
+                                    appleMusicShowQueue = false
+                                    revealAppleMusicChrome()
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                } else if (appleMusicShowLyrics) {
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1276,10 +1800,9 @@ internal fun CoverPlayerPage(
                                 contentColor = pagePalette.onBackground,
                                 wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { line ->
-                                    revealAppleMusicChrome()
                                     onLyricLineClick(line)
                                 },
-                                onLineDoubleClick = { revealAppleMusicChrome() },
+                                onLineDoubleClick = { /* lyrics surface: do not reveal chrome */ },
                                 onLineLongClick = onLyricLineLongClick,
                                 topContentPadding = 8.dp,
                                 bottomContentPadding = 72.dp,
@@ -1287,6 +1810,20 @@ internal fun CoverPlayerPage(
                                 focusOffsetRatio = 0.22f,
                                 modifier = Modifier.fillMaxSize()
                             )
+                            // Bottom ~1/4: tap reveals chrome while hidden (upper area stays lyrics-only).
+                            if (appleMusicShowLyrics && !appleMusicChromeVisible) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .fillMaxHeight(1f / 4f)
+                                        .pointerInput(Unit) {
+                                            detectTapGestures {
+                                                revealAppleMusicChrome()
+                                            }
+                                        }
+                                )
+                            }
                             androidx.compose.animation.AnimatedVisibility(
                                 visible = PlayerMotion.lyricsCornerActionsVisible(appleMusicChromeVisible),
                                 enter = fadeIn(),
@@ -1307,17 +1844,62 @@ internal fun CoverPlayerPage(
                             }
                         }
                     }
-                } else {
-                    Box(
+                } else if (isLargeScreenDevice) {
+                    // The no-lyrics tablet state follows the portrait Apple Music composition:
+                    // artwork, metadata and transport controls stay in one centered vertical
+                    // rhythm. The split landscape treatment is reserved for the lyrics session.
+                    BoxWithConstraints(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Match the left column of the lyrics layout (40% of the usable tablet
+                        // width). The landscape wallpaper remains behind it, while both sides
+                        // stay intentionally empty instead of stretching the player controls.
+                        val lyricsLeftColumnWidth =
+                            ((maxWidth - 40.dp).coerceAtLeast(0.dp) * 0.40f)
+                        val centeredContentWidth = minOf(
+                            lyricsLeftColumnWidth,
+                            maxHeight * 0.78f
+                        )
+                        AppleMusicCoverPage(
+                            modifier = Modifier
+                                .width(centeredContentWidth)
+                                .fillMaxHeight(),
+                            forceNonImmersive = true
+                        )
+                    }
+                } else {
+                    // This is the pre-tablet phone-landscape layout. Keep the artwork on the
+                    // left and the compact metadata/transport column on the right; the centered
+                    // narrow column is intentionally tablet-only.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                            .padding(start = 24.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .weight(0.5f)
+                                .fillMaxHeight()
+                                .padding(end = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val coverSize = minOf(maxWidth, maxHeight) * 0.90f
+                            StyledPlayerArtwork(
+                                cornerRadius = 18.dp,
+                                modifier = Modifier.size(coverSize)
+                            )
+                        }
                         AppleMusicWideNowPlayingColumn(
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .fillMaxWidth(0.44f)
-                                .widthIn(max = 520.dp),
-                            extraTopPadding = 48.dp
+                                .weight(0.5f),
+                            extraTopPadding = 8.dp,
+                            showCover = false,
+                            applySystemInsets = false
                         )
                     }
                 }
@@ -1365,6 +1947,8 @@ internal fun CoverPlayerPage(
                 playerTapSeekEnabled = playerTapSeekEnabled,
                 playerTitlePosition = playerTitlePosition,
                 coverSwipeEnabled = coverSwipeEnabled,
+                previousSongTitle = previousSong?.title,
+                nextSongTitle = nextSong?.title,
                 coverLongPressPreviewEnabled = coverLongPressPreviewEnabled &&
                     resolvedStaticCoverPreviewModel != null,
                 queueExpanded = queueExpanded,
@@ -1400,7 +1984,7 @@ internal fun CoverPlayerPage(
                         )
                     }
                 },
-                onPlayPause = onPlayPause,
+                onPlayPause = syncMusicVideoPlayPause,
                 onNext = onNext,
                 onQueueSongClick = onQueueSongClick,
                 onRemoveQueueSong = onRemoveQueueSong,
@@ -1437,13 +2021,7 @@ internal fun CoverPlayerPage(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(
-                                if (portraitDynamicCover) {
-                                    Modifier.weight(1f)
-                                } else {
-                                    Modifier.height(immersiveCoverHeight)
-                                }
-                            )
+                            .height(immersiveCoverHeight)
                             .graphicsLayer {
                                 shape = immersiveCoverShape
                                 clip = true
@@ -1453,20 +2031,24 @@ internal fun CoverPlayerPage(
                                 compositingStrategy = CompositingStrategy.Offscreen
                             }
                             .clip(immersiveCoverShape)
-                            .drawWithContent {
-                                drawContent()
-                                drawRect(
-                                    brush = Brush.verticalGradient(
-                                        colorStops = arrayOf(
-                                            0.00f to Color.White,
-                                            0.70f to Color.White,
-                                            0.88f to Color.White.copy(alpha = 0.62f),
-                                            1.00f to Color.Transparent
-                                        )
-                                    ),
-                                    blendMode = BlendMode.DstIn
-                                )
-                            }
+                            .then(
+                                // Soft bottom fade into the shared flow canvas 閳?same for static and
+                                // dynamic covers so immersive mode does not hard-cut video artwork.
+                                Modifier.drawWithContent {
+                                    drawContent()
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            colorStops = arrayOf(
+                                                0.00f to Color.White,
+                                                0.70f to Color.White,
+                                                0.88f to Color.White.copy(alpha = 0.62f),
+                                                1.00f to Color.Transparent
+                                            )
+                                        ),
+                                        blendMode = BlendMode.DstIn
+                                    )
+                                }
+                            )
                             .then(
                                 when {
                                     musicVideoVisible && displayedMusicVideo != null &&
@@ -1506,11 +2088,7 @@ internal fun CoverPlayerPage(
                                     .fillMaxSize()
                                     .graphicsLayer { alpha = if (musicVideoVisible) 1f else 0.001f },
                                 cornerRadiusDp = 0f,
-                                resizeMode = if (portraitDynamicCover) {
-                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                } else {
-                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                }
+                                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                             )
                         }
                         if (videoPlaybackActive && !musicVideoVisible && displayedDynamicCover != null) {
@@ -1520,13 +2098,12 @@ internal fun CoverPlayerPage(
                                 onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 0f,
-                                resizeMode = if (portraitDynamicCover) {
-                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                } else {
-                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                }
+                                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                             )
-                        } else if (!musicVideoVisible || displayedMusicVideo == null) {
+                        }
+                        val hideStaticArtworkBehindDynamic = (musicVideoVisible && displayedMusicVideo != null) ||
+                            (!musicVideoVisible && displayedDynamicCover != null)
+                        if (!hideStaticArtworkBehindDynamic) {
                             FullBleedCover(
                                 song = song,
                                 embeddedCover = embeddedCover,
@@ -1535,45 +2112,18 @@ internal fun CoverPlayerPage(
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = if (pagePalette.isLight) {
-                                        listOf(
-                                            Color.White.copy(alpha = 0.20f),
-                                            Color.White.copy(alpha = 0.12f),
-                                            Color.White.copy(alpha = 0.34f)
-                                        )
-                                    } else {
-                                        listOf(
-                                            Color.Black.copy(alpha = 0.22f),
-                                            Color.Black.copy(alpha = 0.12f),
-                                            Color.Black.copy(alpha = 0.38f)
-                                        )
-                                    }
-                                )
-                            )
-                        )
                     }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(
-                                if (portraitDynamicCover) {
-                                    Modifier
-                                } else {
-                                    Modifier.weight(1f)
-                                }
-                            )
+                            .weight(1f)
                             // The root PlayerScreen owns one full-screen flow renderer. Keeping
                             // this surface transparent makes the mini-lyric area the exact lower
                             // crop of the canvas that remains visible on the immersive lyric page.
                             .padding(horizontal = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        val useFlexibleMiniLyricsViewport = !portraitDynamicCover && !compactWindow
+                        val useFlexibleMiniLyricsViewport = !compactWindow
                         val hasMiniLyricsViewport = effectiveMiniLyricLine != null ||
                             (lyrics.isEmpty() && !lyricsLoading)
                         Row(
@@ -1624,7 +2174,7 @@ internal fun CoverPlayerPage(
                                 contentColor = pagePalette.onBackground,
                                 wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
-                                onLineDoubleClick = onPlayPause,
+                                onLineDoubleClick = syncMusicVideoPlayPause,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .then(immersiveLyricSwipeModifier)
@@ -1672,9 +2222,7 @@ internal fun CoverPlayerPage(
                             )
                         }
 
-                        if (portraitDynamicCover) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                        } else if (!hasMiniLyricsViewport || !useFlexibleMiniLyricsViewport) {
+                        if (!hasMiniLyricsViewport || !useFlexibleMiniLyricsViewport) {
                             Spacer(modifier = Modifier.weight(1f))
                         }
                         PlayerProgressBlock(
@@ -1708,7 +2256,7 @@ internal fun CoverPlayerPage(
                             onCyclePlaybackMode = onCyclePlaybackMode,
                             onToggleQueueLock = playerViewModel::toggleQueueLock,
                             onPrevious = onPrevious,
-                            onPlayPause = onPlayPause,
+                            onPlayPause = syncMusicVideoPlayPause,
                             onNext = onNext,
                             onToggleQueue = onToggleQueue,
                             onDismissQueue = onDismissQueue,
@@ -1733,13 +2281,19 @@ internal fun CoverPlayerPage(
                                     .height(30.dp)
                             )
                         }
-                        PlayerBottomClearance()
+                        PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
                     }
                 } else {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .then(
+                                if (shouldReserveStatusBar) {
+                                    Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                                } else {
+                                    Modifier
+                                }
+                            )
                             .padding(horizontal = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -1826,7 +2380,8 @@ internal fun CoverPlayerPage(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .graphicsLayer { alpha = if (musicVideoVisible) 1f else 0.001f },
-                                    cornerRadiusDp = musicVideoCornerRadius.value
+                                    cornerRadiusDp = musicVideoCornerRadius.value,
+                                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 )
                             }
                             if (videoPlaybackActive && !musicVideoVisible && displayedDynamicCover != null) {
@@ -1835,7 +2390,8 @@ internal fun CoverPlayerPage(
                                     isPlaying = isPlaying && videoPlaybackActive,
                                     onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                     modifier = Modifier.fillMaxSize(),
-                                    cornerRadiusDp = albumCoverCornerRadius.value
+                                    cornerRadiusDp = albumCoverCornerRadius.value,
+                                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                                 )
                                 if (showHiResLogo) {
                                     HiResLogoBadge(
@@ -1950,7 +2506,7 @@ internal fun CoverPlayerPage(
                                 contentColor = pagePalette.onBackground,
                                 wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
-                                onLineDoubleClick = onPlayPause,
+                                onLineDoubleClick = syncMusicVideoPlayPause,
                                 modifier = Modifier
                                     .width(nonImmersiveCoverSize)
                                     .align(Alignment.CenterHorizontally)
@@ -1997,11 +2553,10 @@ internal fun CoverPlayerPage(
                         }
                         }
                         PlayerQuickActionRow(
-                            onSongInfo = onSongInfo,
-                            onShareSong = onShareSong,
-                            onTimer = onOpenTimer,
-                            onEditMetadata = onOpenMetadataEditor,
+                            shortcutIds = nonImmersiveShortcutIds,
+                            onAction = executePlayerAction,
                             onMore = onToggleMenu,
+                            sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -2036,7 +2591,7 @@ internal fun CoverPlayerPage(
                             onCyclePlaybackMode = onCyclePlaybackMode,
                             onToggleQueueLock = playerViewModel::toggleQueueLock,
                             onPrevious = onPrevious,
-                            onPlayPause = onPlayPause,
+                            onPlayPause = syncMusicVideoPlayPause,
                             onNext = onNext,
                             onToggleQueue = onToggleQueue,
                             onDismissQueue = onDismissQueue,
@@ -2049,7 +2604,7 @@ internal fun CoverPlayerPage(
                             modifier = Modifier.requiredHeight(92.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        PlayerBottomClearance()
+                        PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
                     }
                 }
             }
@@ -2058,7 +2613,7 @@ internal fun CoverPlayerPage(
         }
 
         PlayerCoverActionSheet(
-            show = menuExpanded,
+            show = menuExpanded || localActionMenuPage != null,
             song = song,
             embeddedCover = embeddedCover,
             showLyricsDisplayEntry = true,
@@ -2093,7 +2648,10 @@ internal fun CoverPlayerPage(
             onCyclePlaybackMode = onCyclePlaybackMode,
             abRepeatState = abRepeatState,
             onAbRepeat = onAbRepeat,
-            onDismiss = onDismissMenu,
+            onDismiss = {
+                localActionMenuPage = null
+                onDismissMenu()
+            },
             onAlbum = onAlbum,
             onArtist = onArtist,
             onDownload = onDownload,
@@ -2103,6 +2661,7 @@ internal fun CoverPlayerPage(
             onAddToQueue = onAddToQueue,
             onPlayNext = onPlayNext,
             onShareSong = onShareSong,
+            onLyricShare = onLyricShare,
             onSetRating = onSetRating,
             onAiInterpret = onAiInterpret,
             onSpectrum = onSpectrum,
@@ -2135,7 +2694,7 @@ internal fun CoverPlayerPage(
             onPlayerKeepScreenOnChange = onPlayerKeepScreenOnChange,
             onCycleRemoteStreamQuality = playerViewModel::cycleRemoteStreamQuality,
             onPreviewCover = {
-                resolvedStaticCoverPreviewModel?.let { model ->
+                (resolvedStaticCoverPreviewModel ?: resolveCoverPreviewModel(song, embeddedCover))?.let { model ->
                     previewCover = PlayerCoverPreview(
                         model = model,
                         title = song?.coverPreviewDisplayTitle().orEmpty(),
@@ -2143,7 +2702,7 @@ internal fun CoverPlayerPage(
                     )
                 }
             },
-            initialPage = actionMenuInitialPage
+            initialPage = localActionMenuPage ?: actionMenuInitialPage
         )
         if (showMusicVideoInfo && displayedMusicVideo != null) {
             MusicVideoInfoDialog(
@@ -2171,6 +2730,12 @@ internal fun shouldInterceptAppleMusicLyricsBack(
     !preserveLyricsOnBack &&
     com.ella.music.data.SettingsManager.normalizePlayerPageStyle(playerPageStyle) ==
     com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
+
+private enum class AppleMusicSessionPage {
+    Cover,
+    Lyrics,
+    Queue
+}
 
 private data class PlayerCoverPreview(
     val model: Any,
@@ -2238,6 +2803,9 @@ private fun rememberCoverSwipeModifier(
     swipeEnabled: Boolean,
     onSwipePrevious: () -> Unit,
     onSwipeNext: () -> Unit,
+    hintColor: Color,
+    previousSongTitle: String? = null,
+    nextSongTitle: String? = null,
     dismissEnabled: Boolean = true
 ): Modifier {
     val dismissHandle = LocalPlayerCoverDismiss.current.takeIf { dismissEnabled }
@@ -2245,6 +2813,9 @@ private fun rememberCoverSwipeModifier(
         swipeEnabled = swipeEnabled,
         onSwipePrevious = onSwipePrevious,
         onSwipeNext = onSwipeNext,
-        dismissHandle = dismissHandle
+        dismissHandle = dismissHandle,
+        hintColor = hintColor,
+        previousSongTitle = previousSongTitle,
+        nextSongTitle = nextSongTitle
     )
 }

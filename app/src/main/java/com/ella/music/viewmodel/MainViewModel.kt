@@ -26,12 +26,16 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.repository.RemoteAudioCache
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.metadata.AudioCoverInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.remote.NavidromeService
 import com.ella.music.data.remote.OpenSubsonicCollectionsStore
+import com.ella.music.data.remote.RemoteMusicProvider
+import com.ella.music.data.remote.isSubsonicLike
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.analytics.prewarmLibraryAnalysisCache
@@ -101,7 +105,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     /** Immediate sessions used by the home-page "recently played" list. */
     val recentPlaybackHistory: StateFlow<List<PlaybackHistoryEntry>> = combine(
-        playbackStatsStore.history,
+        playbackStatsStore.recentHistory,
         lastFmHistoryStore.history,
         listeningHistorySource,
         playbackStatsStore.hiddenRemoteHistoryEntryIds
@@ -150,6 +154,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             playbackStatsStore.hideRemoteHistoryEntry(entry.entryId)
         }
     }
+
+    suspend fun removeRecentPlaybackHistoryEntry(entry: PlaybackHistoryEntry) {
+        if (entry.source == PlaybackHistorySource.LOCAL) {
+            playbackStatsStore.removeRecentHistoryEntry(entry)
+        } else if (entry.source == PlaybackHistorySource.LAST_FM) {
+            playbackStatsStore.hideRemoteHistoryEntry(entry.entryId)
+        }
+    }
+
+    suspend fun removeRecentPlaybackHistoryEntries(entries: Collection<PlaybackHistoryEntry>) {
+        playbackStatsStore.removeRecentHistoryEntries(entries)
+    }
     val playlists: StateFlow<List<UserPlaylist>> = combine(
         playlistStore.playlists,
         openSubsonicCollectionsStore.playlists
@@ -186,11 +202,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedTab.value = index
     }
 
-    fun scanMusic(fullRescan: Boolean = false, deepRescan: Boolean? = null) {
+    fun scanMusic(
+        fullRescan: Boolean = false,
+        deepRescan: Boolean? = null,
+        refreshMediaStore: Boolean = true
+    ) {
         if (scanJob?.isActive == true || isScanning.value) {
             if (!fullRescan) return
-            // A long-press complete scan must replace an in-flight incremental pass; otherwise
-            // newly copied files in custom folders stay invisible until MediaStore catches up.
+            // A complete scan must replace an in-flight incremental pass; otherwise newly
+            // copied files in custom folders stay invisible until MediaStore catches up.
             scanJob?.cancel()
         }
         scanJob = viewModelScope.launch {
@@ -202,7 +222,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             val effectiveDeepRescan = deepRescan ?: (fullRescan || settingsManager.fullTagSearchEnabled.first())
-            scanFromCurrentSettings(fullRescan = fullRescan, deepRescan = effectiveDeepRescan)
+            scanFromCurrentSettings(
+                fullRescan = fullRescan,
+                deepRescan = effectiveDeepRescan,
+                refreshMediaStore = refreshMediaStore
+            )
         }
     }
 
@@ -356,12 +380,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cachedLibraryLoadJob?.join()
     }
 
-    private suspend fun scanFromCurrentSettings(fullRescan: Boolean = false, deepRescan: Boolean = fullRescan) {
+    private suspend fun scanFromCurrentSettings(
+        fullRescan: Boolean = false,
+        deepRescan: Boolean = fullRescan,
+        refreshMediaStore: Boolean = false
+    ) {
         val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
         scanWithIncludeFolders(
             includeFolders = includeFolders,
             fullRescan = fullRescan,
-            deepRescan = deepRescan
+            deepRescan = deepRescan,
+            refreshMediaStore = refreshMediaStore
         )
     }
 
@@ -369,7 +398,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         includeFolders: List<String>,
         preferExplicitFolders: Boolean = false,
         fullRescan: Boolean = false,
-        deepRescan: Boolean = fullRescan
+        deepRescan: Boolean = fullRescan,
+        refreshMediaStore: Boolean = false
     ) {
         val ownerJob = currentCoroutineContext()[Job]
         repository.startScanning()
@@ -405,7 +435,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 deepRescan = effectiveDeepRescan,
                 deepMetadataEnabled = fullRescan || fullTagSearchEnabled,
                 filesystemFallbackFolders = filesystemFallbackFolders,
-                filterVideoFiles = filterVideoFiles
+                filterVideoFiles = filterVideoFiles,
+                refreshMediaStore = refreshMediaStore
             )
             if (!preferExplicitFolders && summary.total == 0 && includeFolders.isNotEmpty() && (fullRescan || useAndroidMediaLibrary)) {
                 summary = repository.scanMusic(
@@ -415,7 +446,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     fullRescan = fullRescan,
                     deepRescan = effectiveDeepRescan,
                     deepMetadataEnabled = fullRescan || fullTagSearchEnabled,
-                    filterVideoFiles = filterVideoFiles
+                    filterVideoFiles = filterVideoFiles,
+                    refreshMediaStore = refreshMediaStore
                 )
             }
             val usbFolderUris = settingsManager.usbFolderUris.first()
@@ -671,6 +703,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearOnlineMetadataCache() {
         repository.clearRemoteMetadataCache()
     }
+
+    fun clearRemoteAudioCache() {
+        repository.clearRemoteAudioCache()
+    }
+
+    fun cacheSongsToLocal(songs: List<Song>): kotlinx.coroutines.Job =
+        viewModelScope.launch {
+            RemoteAudioCache.cacheSongs(resolveRemoteCacheSongs(songs), viewModelScope)
+        }
+
+    private suspend fun resolveRemoteCacheSongs(songs: List<Song>): List<Song> {
+        val needsFreshStream = songs.any { song ->
+            song.onlineId.isNotBlank() && RemoteMusicProvider.fromId(song.onlineSource).isSubsonicLike
+        }
+        if (!needsFreshStream) return songs
+        val service = NavidromeService(getApplication())
+        val navidrome = settingsManager.navidromeConfig.first()
+        val openSubsonic = settingsManager.openSubsonicConfig.first()
+        return songs.map { song ->
+            val provider = RemoteMusicProvider.fromId(song.onlineSource)
+            val config = when (provider) {
+                RemoteMusicProvider.Navidrome -> navidrome
+                RemoteMusicProvider.OpenSubsonic -> openSubsonic
+                else -> return@map song
+            }
+            if (song.onlineId.isBlank() || !config.isConfigured) song
+            else song.copy(path = service.streamUrl(config, song.onlineId, config.downloadMaxBitRate))
+        }
+    }
+
+    fun cancelRemoteAudioCache() {
+        RemoteAudioCache.cancel()
+    }
+
+    val remoteAudioCacheProgress = RemoteAudioCache.progress
 
     suspend fun clearDownloadedArtistImageCache() {
         ArtistImageRepository.clearDownloadedCache(getApplication())

@@ -32,6 +32,9 @@ data class ActionMenuLayout(
 }
 
 object ActionMenuIds {
+    const val SPEED = "speed"
+    const val EQUALIZER = "equalizer"
+    const val TIMER = "timer"
     const val ADD_TO_PLAYLIST = "add_to_playlist"
     const val ADD_TO_QUEUE = "add_to_queue"
     const val PLAY_NEXT = "play_next"
@@ -44,6 +47,9 @@ object ActionMenuIds {
     const val LYRIC_TIMING = "lyric_timing"
     const val AUDIO_TOOLS = "audio_tools"
     const val REMOVE_FROM_PLAYLIST = "remove_from_playlist"
+    const val REMOVE_FROM_RECENT_PLAYBACK = "remove_from_recent_playback"
+    const val DELETE_SINGLE_RECENT_PLAYBACK = "delete_single_recent_playback" // legacy
+    const val CLEAR_RECENT_PLAYBACK = "clear_recent_playback" // legacy
     const val DELETE = "delete"
     const val AUDIO_OUTPUT = "audio_output"
     const val CASTING = "casting"
@@ -58,9 +64,22 @@ object ActionMenuIds {
     const val KEEP_SCREEN_ON = "keep_screen_on"
     const val DOWNLOAD = "download"
 
+    val playerShortcutDefaults = listOf(
+        SPEED, EQUALIZER, TIMER, ADD_TO_PLAYLIST, PLAY_NEXT
+    )
+
+    val playerShortcutCatalog = listOf(
+        SPEED, EQUALIZER, TIMER, ADD_TO_PLAYLIST, PLAY_NEXT,
+        ADD_TO_QUEUE, SHARE, AI, INFO, AUDIO_OUTPUT, CASTING,
+        AB_REPEAT, LANDSCAPE, LYRICS_DISPLAY, SPECTRUM, RATING,
+        DYNAMIC_COVER, VISUALIZER, EDIT_TAGS, LYRIC_TIMING,
+        ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, DELETE
+    )
+
     val listDefaults = listOf(
         ADD_TO_PLAYLIST, ADD_TO_QUEUE, PLAY_NEXT, SHARE, SPECTRUM, AI, INFO, RATING,
-        EDIT_TAGS, LYRIC_TIMING, AUDIO_TOOLS, REMOVE_FROM_PLAYLIST, DELETE
+        EDIT_TAGS, LYRIC_TIMING, AUDIO_TOOLS, REMOVE_FROM_PLAYLIST,
+        REMOVE_FROM_RECENT_PLAYBACK, DELETE
     )
 
     val playerDefaults = listOf(

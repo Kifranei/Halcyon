@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Environment
 import android.util.Log
 import android.util.LruCache
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewOutlineProvider
 import androidx.documentfile.provider.DocumentFile
@@ -345,7 +346,11 @@ internal fun DynamicCoverVideo(
                         alpha = if (hasFirstFrame || previewFrame == null) 1f else 0f
                     },
                     factory = { viewContext ->
-                        PlayerView(viewContext).apply {
+                        // Inflate TextureView-backed PlayerView so Compose drawWithContent /
+                        // BlendMode.DstIn soft melts apply to dynamic covers (SurfaceView cannot).
+                        (LayoutInflater.from(viewContext)
+                            .inflate(com.ella.music.R.layout.dynamic_cover_player_view, null, false)
+                            as PlayerView).apply {
                             useController = false
                             controllerAutoShow = false
                             controllerHideOnTouch = false

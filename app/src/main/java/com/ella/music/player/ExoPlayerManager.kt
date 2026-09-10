@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -36,14 +37,29 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
 import kotlin.random.Random
 
 class ExoPlayerManager(private val context: Context) {
+    internal data class MetadataWritePlaybackToken(
+        val songKey: String,
+        val positionMs: Long,
+        val shouldResume: Boolean
+    )
+
+    private data class MetadataWritePauseRequest(
+        val token: MetadataWritePlaybackToken,
+        val controller: MediaController?
+    )
+
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
@@ -95,6 +111,10 @@ class ExoPlayerManager(private val context: Context) {
     private var lastQueueSaveMs = 0L
     private var lastStateSaveMs = 0L
     private var shuffleMode = SettingsManager.SHUFFLE_MODE_PSEUDO
+    @Volatile
+    private var reshuffleOnStartup = false
+    @Volatile
+    private var disableSequentialPlayback = false
     private var playNextMode = SettingsManager.PLAY_NEXT_MODE_REVERSE_STACK
     private var virtualPlaylistCurrentIndex: Int? = null
     private var pendingOptimisticSongKey: String? = null
@@ -111,7 +131,13 @@ class ExoPlayerManager(private val context: Context) {
     private var reorderingPlaylistForShuffle = false
     private var suppressSongIdentityUntilElapsedRealtime = 0L
     private var playlistBeforeShuffle: List<Song>? = null
+    // Keep the last materialized pseudo-random order independently from the temporary source
+    // order used while shuffle is enabled. This is what lets random -> ordered -> random restore
+    // the same queue instead of silently generating a new one (#633).
+    private var lastShuffleQueue: List<Song>? = null
+    private var lastShuffleSourceOrder: List<Song>? = null
     private var pendingShuffleReorder = false
+    private var isRestoringSavedQueue = false
     private var playNextAnchorKey: String? = null
     private var playNextForwardCount = 0
     private var replayGainVolume = 1f
@@ -128,6 +154,8 @@ class ExoPlayerManager(private val context: Context) {
     }
     private val missingNotificationArtworkKeys = mutableSetOf<String>()
     private var notificationArtworkJob: Job? = null
+    private var deferredCurrentItemMetadataSong: Song? = null
+    private var deferredCurrentItemMetadataMediaId: String? = null
     private var currentSongRefreshJob: Job? = null
     private var deferredSeekStateSaveJob: Job? = null
     private var deferredSeekCommandJob: Job? = null
@@ -149,9 +177,17 @@ class ExoPlayerManager(private val context: Context) {
     private var suppressExternalSnapshotsUntilMs = 0L
     private var presentationMetadataPatchSongKey: String? = null
     private var presentationMetadataPatchUntilMs = 0L
+    private var startupMediaTransitionGuardUntilMs = 0L
 
     init {
+        // Resolve queue-policy switches before the asynchronous MediaController can restore the
+        // persisted queue. This avoids applying them one frame after a cold-start restore.
+        runBlocking(Dispatchers.IO) {
+            reshuffleOnStartup = settingsManager.shuffleReshuffleOnStartup.first()
+            disableSequentialPlayback = settingsManager.disableSequentialPlayback.first()
+        }
         _shuffleEnabled.value = loadAppShuffleEnabled()
+        _repeatMode.value = loadAppRepeatMode()
         // Keep the player surface populated while MediaController reconnects on a cold process
         // start. The actual service state still wins once connected; this is only a persisted
         // visual snapshot, matching the no-flash restoration used by native players.
@@ -249,7 +285,11 @@ class ExoPlayerManager(private val context: Context) {
         )
         _playWhenReady.value = projection.playWhenReady
         _isPlaying.value = projection.isPlaying
-        if (pending != null && projection.acknowledged) clearPendingTransportCommand()
+        if (pending != null && projection.acknowledged &&
+            SystemClock.elapsedRealtime() - pendingTransportIssuedAtMs >= MIN_TRANSPORT_HOLD_MS
+        ) {
+            clearPendingTransportCommand()
+        }
     }
 
     /** Issue one transport command and immediately publish its projected state to the UI. */
@@ -366,11 +406,19 @@ class ExoPlayerManager(private val context: Context) {
 
     fun isConnected(): Boolean = mediaController?.isConnected == true
 
-    suspend fun recreatePlaybackService(resumePlayback: Boolean = _isPlaying.value) {
+    suspend fun recreatePlaybackService(
+        // `isPlaying` is false during buffering and while a decoder is being rebuilt.  Using it
+        // as the restart decision turned a settings-only change (audio focus/output) into an
+        // unexpected pause. `playWhenReady` is the stable user intent and remains true across
+        // those transient states.
+        resumePlayback: Boolean = _playWhenReady.value || _isPlaying.value
+    ) {
         withContext(Dispatchers.Main.immediate) {
             savePlaybackQueue(force = true)
             savePlaybackState(force = true)
             playWhenConnected = resumePlayback
+            pendingTransportTarget = resumePlayback
+            pendingTransportIssuedAtMs = SystemClock.elapsedRealtime()
             AppLogStore.info(context, "PlayerDecoder", "Recreate playback service for decoder change")
 
             disconnect()
@@ -399,12 +447,14 @@ class ExoPlayerManager(private val context: Context) {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (!isCurrentController()) return
                 publishTransportState(isPlaying, controller.playWhenReady)
+                applyDeferredCurrentItemMetadataIfSafe(controller)
                 savePlaybackState(force = true)
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (!isCurrentController()) return
                 publishTransportState(controller.isPlaying, playWhenReady)
+                applyDeferredCurrentItemMetadataIfSafe(controller)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -416,6 +466,7 @@ class ExoPlayerManager(private val context: Context) {
                     Player.STATE_READY -> Log.d(TIMING_TAG, "controller state READY mediaId=${controller.currentMediaItem?.mediaId}")
                     Player.STATE_ENDED -> Log.d(TIMING_TAG, "controller state ENDED mediaId=${controller.currentMediaItem?.mediaId}")
                 }
+                applyDeferredCurrentItemMetadataIfSafe(controller)
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -424,9 +475,32 @@ class ExoPlayerManager(private val context: Context) {
                 externalSnapshotGuard = null
                 clearPresentationMetadataPatchGuard()
                 resetBluetoothMetadataPatchStateForSong(mediaItem?.toSongFromMediaItemExtras())
-                if (pendingShuffleReorder && reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                val previousQueueLast = playlist.lastOrNull()
+                val inStartupGuard = SystemClock.elapsedRealtime() < startupMediaTransitionGuardUntilMs
+                if (
+                    pendingShuffleReorder &&
+                    !reorderingPlaylistForShuffle &&
+                    reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
+                    !isRestoringSavedQueue &&
+                    !inStartupGuard
+                ) {
                     performPendingShuffleReorder(trigger = "transition", seekToNextAfterReorder = false)
                 }
+                if (
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT &&
+                    _shuffleEnabled.value &&
+                    controller.repeatMode == Player.REPEAT_MODE_ALL &&
+                    !reorderingPlaylistForShuffle &&
+                    !isRestoringSavedQueue &&
+                    !inStartupGuard
+                ) {
+                    // Some Media3/OEM players report a loop as a media-item transition with
+                    // reason REPEAT instead of the position-discontinuity callback handled
+                    // below. Cover both paths so a shuffled round never starts with its previous
+                    // final song (#634).
+                    reshuffleAtCycleBoundary(controller, previousQueueLast)
+                }
+                applyDeferredCurrentItemMetadataAfterTransition(controller, mediaItem)
                 updateCurrentSong()
             }
 
@@ -474,6 +548,20 @@ class ExoPlayerManager(private val context: Context) {
                 if (ignorePresentationDiscontinuity || ignoreMarkedDiscontinuity) {
                     return
                 }
+                if (
+                    reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION &&
+                    _shuffleEnabled.value &&
+                    controller.repeatMode == Player.REPEAT_MODE_ALL &&
+                    oldPosition.mediaItemIndex == playlist.lastIndex &&
+                    newPosition.mediaItemIndex == 0 &&
+                    !isRestoringSavedQueue
+                ) {
+                    // A shuffled round should not simply loop back to its first item. Start a
+                    // fresh round at the boundary, keeping the previous round's final song away
+                    // from the new round's first slot (#634).
+                    reshuffleAtCycleBoundary(controller, playlist.getOrNull(oldPosition.mediaItemIndex))
+                    return
+                }
                 _currentPosition.value = newPosition.positionMs.coerceAtLeast(0L)
                 _duration.value = controller.duration.coerceAtLeast(0)
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
@@ -500,6 +588,12 @@ class ExoPlayerManager(private val context: Context) {
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 if (!isCurrentController()) return
+                if (isRestoringSavedQueue || SystemClock.elapsedRealtime() < startupMediaTransitionGuardUntilMs) {
+                    if (shuffleModeEnabled) {
+                        controller.shuffleModeEnabled = false
+                    }
+                    return
+                }
                 if (_queueLocked.value) {
                     if (shuffleModeEnabled) {
                         _shuffleEnabled.value = true
@@ -522,7 +616,14 @@ class ExoPlayerManager(private val context: Context) {
 
             override fun onRepeatModeChanged(repeatMode: Int) {
                 if (!isCurrentController()) return
-                _repeatMode.value = repeatMode
+                val normalizedRepeatMode = normalizeRepeatMode(repeatMode)
+                if (repeatMode != normalizedRepeatMode) {
+                    controller.repeatMode = normalizedRepeatMode
+                    _repeatMode.value = normalizedRepeatMode
+                    persistAppRepeatMode(normalizedRepeatMode)
+                    return
+                }
+                _repeatMode.value = normalizedRepeatMode
                 // The combined playback-mode button in the media notification changes the app-level
                 // shuffle flag (persisted, not part of Media3 state) together with the repeat mode.
                 // Re-read it here so the player page stays in sync with notification-driven changes.
@@ -573,9 +674,14 @@ class ExoPlayerManager(private val context: Context) {
                 resetQueueLock = pending.resetQueueLock
             )
         } else {
-            restoreSavedQueueIfNeeded()
+            isRestoringSavedQueue = true
+            try {
+                restoreSavedQueueIfNeeded()
+                refreshStateFromController(controller)
+            } finally {
+                isRestoringSavedQueue = false
+            }
         }
-        refreshStateFromController(controller)
         val pendingTransport = pendingTransportTargetOrNull()
         if (pendingTransport != null) {
             reconcilePendingTransport(controller)
@@ -583,19 +689,29 @@ class ExoPlayerManager(private val context: Context) {
             playWhenConnected = false
             requestTransportState(target = true, controller = controller)
         }
+        applyDeferredCurrentItemMetadataIfSafe(controller)
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
         setPlaylist(songs, startIndex, honorShuffle = true, resetQueueLock = true)
     }
 
-    fun setPlaylistForShuffleAll(songs: List<Song>, startIndex: Int = 0) {
+    fun setPlaylistForShuffleAll(
+        songs: List<Song>,
+        startIndex: Int = 0,
+        preserveOrder: Boolean = false
+    ) {
         if (songs.isEmpty()) return
         _shuffleEnabled.value = true
         _repeatMode.value = Player.REPEAT_MODE_ALL
         persistAppShuffleEnabled(true)
         persistAppRepeatMode(Player.REPEAT_MODE_ALL)
-        setPlaylist(songs, startIndex, honorShuffle = true, resetQueueLock = true)
+        setPlaylist(
+            songs,
+            startIndex,
+            honorShuffle = !preserveOrder,
+            resetQueueLock = true
+        )
         mediaController?.let { controller ->
             controller.shuffleModeEnabled = false
             controller.repeatMode = Player.REPEAT_MODE_ALL
@@ -626,6 +742,7 @@ class ExoPlayerManager(private val context: Context) {
         pendingOptimisticPreviousSongKey = null
         clearStaleTransitionGuard()
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+        clearShuffleReuseCache()
         resetPlayNextForwardStack()
         notificationArtworkJob?.cancel()
         notificationArtworkJob = null
@@ -639,10 +756,24 @@ class ExoPlayerManager(private val context: Context) {
         val queueSongs = prepared.songs
         val safeIndex = prepared.startIndex
         val startPositionMs = queueSongs.getOrNull(safeIndex)?.let(::resumePositionFor) ?: 0L
+        // Repeat-OFF is the app's sequential mode.  The old implementation replaced it with
+        // repeat-all whenever a new queue was attached, so selecting a song or rebuilding the
+        // queue silently cancelled sequential playback (#634).
+        val requestedRepeatMode = normalizeRepeatMode(_repeatMode.value)
         playlistBeforeShuffle = prepared.sourceOrderBeforeShuffle
+        if (prepared.sourceOrderBeforeShuffle != null) {
+            lastShuffleQueue = queueSongs.toList()
+            lastShuffleSourceOrder = prepared.sourceOrderBeforeShuffle.toList()
+        }
         playlist.clear()
         playlist.addAll(queueSongs)
         _playlist.value = playlist.toList()
+
+        val startSong = queueSongs.getOrNull(safeIndex)
+        if (startSong != null) {
+            applyOptimisticSong(startSong, startPositionMs, safeIndex)
+        }
+        suppressSongIdentityUntilElapsedRealtime = 0L
 
         val mediaItems = queueSongs.map(::songToMediaItem)
         val controller = activeController()
@@ -657,21 +788,19 @@ class ExoPlayerManager(private val context: Context) {
                 honorShuffle = false,
                 resetQueueLock = resetQueueLock
             )
-            _currentSong.value = queueSongs.getOrNull(safeIndex)
-            _currentQueueIndex.value = safeIndex
-            _duration.value = queueSongs.getOrNull(safeIndex)?.duration ?: 0L
-            _repeatMode.value = Player.REPEAT_MODE_ALL
+            _repeatMode.value = requestedRepeatMode
+            persistAppRepeatMode(requestedRepeatMode)
             savePlaybackQueue(force = true)
             return
         }
 
         controller.apply {
-            if (repeatMode == Player.REPEAT_MODE_OFF) {
-                repeatMode = Player.REPEAT_MODE_ALL
-            }
+            repeatMode = requestedRepeatMode
             setMediaItems(mediaItems, safeIndex, startPositionMs)
             prepare()
         }
+        _repeatMode.value = requestedRepeatMode
+        persistAppRepeatMode(requestedRepeatMode)
         requestTransportState(target = true, controller = controller)
         updateCurrentSong()
         savePlaybackQueue(force = true)
@@ -731,6 +860,7 @@ class ExoPlayerManager(private val context: Context) {
         AppLogStore.debug(context, "PlayerQueue", "playResolvedVirtual size=${songs.size} index=$currentIndex title=${sourceAwareResolvedSong.title}")
         virtualPlaylistCurrentIndex = safeIndex
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+        clearShuffleReuseCache()
         resetPlayNextForwardStack()
         notificationArtworkJob?.cancel()
         notificationArtworkJob = null
@@ -771,6 +901,7 @@ class ExoPlayerManager(private val context: Context) {
         }
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+        clearShuffleReuseCache()
         resetPlayNextForwardStack()
         AppLogStore.debug(context, "PlayerQueue", "addMany size=${songs.size}")
         playlist.addAll(songs)
@@ -798,6 +929,7 @@ class ExoPlayerManager(private val context: Context) {
         }
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+        clearShuffleReuseCache()
         AppLogStore.debug(context, "PlayerQueue", "playNextMany size=${songs.size} index=$insertIndex mode=$playNextMode")
         playlist.addAll(insertIndex, songs)
         _playlist.value = playlist.toList()
@@ -873,6 +1005,12 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     private fun reconcileNativeShuffleState(controller: MediaController) {
+        if (isRestoringSavedQueue || SystemClock.elapsedRealtime() < startupMediaTransitionGuardUntilMs) {
+            if (controller.shuffleModeEnabled) {
+                controller.shuffleModeEnabled = false
+            }
+            return
+        }
         val persistedShuffle = loadAppShuffleEnabled()
         if (_shuffleEnabled.value != persistedShuffle) {
             _shuffleEnabled.value = persistedShuffle
@@ -928,6 +1066,7 @@ class ExoPlayerManager(private val context: Context) {
         if (_queueLocked.value || index !in playlist.indices) return
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+        clearShuffleReuseCache()
         resetPlayNextForwardStack()
         AppLogStore.debug(context, "PlayerQueue", "remove index=$index title=${playlist[index].title}")
         if (playlist.size == 1) {
@@ -957,6 +1096,7 @@ class ExoPlayerManager(private val context: Context) {
         if (_queueLocked.value || fromIndex !in playlist.indices || toIndex !in playlist.indices || fromIndex == toIndex) return
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+        clearShuffleReuseCache()
         resetPlayNextForwardStack()
         val currentIndexBeforeMove = currentQueueIndex(null)
         val movedSong = playlist.removeAt(fromIndex)
@@ -992,6 +1132,7 @@ class ExoPlayerManager(private val context: Context) {
     fun randomizePlaylistOrder(): Boolean {
         if (_queueLocked.value || playlist.size < 2 || virtualPlaylistCurrentIndex != null) return false
         val controller = activeController() ?: return false
+        val previousOrder = playlist.toList()
         val currentIndexBeforeShuffle = currentQueueIndex(controller)
             .takeIf { it in playlist.indices }
             ?: return false
@@ -1023,6 +1164,7 @@ class ExoPlayerManager(private val context: Context) {
         reorderingPlaylistForShuffle = true
         try {
             clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+            clearShuffleReuseCache()
             // Random order is a concrete queue operation, not a playback-mode toggle. Preserve
             // the user's shuffle preference while Media3 itself remains in ordered traversal.
             controller.shuffleModeEnabled = false
@@ -1031,6 +1173,8 @@ class ExoPlayerManager(private val context: Context) {
             playlist.clear()
             playlist.addAll(shuffled)
             _playlist.value = shuffled
+            lastShuffleQueue = shuffled.toList()
+            lastShuffleSourceOrder = previousOrder
             updateCurrentSong()
             savePlaybackQueue(force = true)
             return true
@@ -1051,6 +1195,7 @@ class ExoPlayerManager(private val context: Context) {
         pendingOptimisticPreviousSongKey = null
         clearStaleTransitionGuard()
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
+        clearShuffleReuseCache()
         resetPlayNextForwardStack()
         playlist.clear()
         _playlist.value = emptyList()
@@ -1145,25 +1290,122 @@ class ExoPlayerManager(private val context: Context) {
         requestTransportState(target = false, controller = activeController())
     }
 
-    fun skipToNext() {
+    internal suspend fun pauseForMetadataWrite(song: Song): MetadataWritePlaybackToken? {
+        val request = withContext(Dispatchers.Main.immediate) {
+            val current = _currentSong.value ?: return@withContext null
+            if (!current.isSamePlaybackIdentity(song)) return@withContext null
+
+            val controller = mediaController
+            val controllerIntendsPlayback = controller?.playWhenReady == true || controller?.isPlaying == true
+            val shouldResume = controllerIntendsPlayback ||
+                (pendingTransportTargetOrNull() ?: (_playWhenReady.value || _isPlaying.value))
+            val token = MetadataWritePlaybackToken(
+                songKey = current.playbackStackKey(),
+                positionMs = controller?.currentPosition?.coerceAtLeast(0L)
+                    ?: _currentPosition.value.coerceAtLeast(0L),
+                shouldResume = shouldResume
+            )
+            if (shouldResume) {
+                if (controller?.isConnected != true) {
+                    throw IllegalStateException("播放器尚未连接，无法安全写入当前歌曲")
+                }
+                requestTransportState(target = false, controller = controller)
+            }
+            MetadataWritePauseRequest(token, controller)
+        } ?: return null
+
+        if (!request.token.shouldResume) return request.token
+        val controller = request.controller
+            ?: throw IllegalStateException("播放器尚未连接，无法安全写入当前歌曲")
+        val paused = try {
+            withContext(Dispatchers.Main.immediate) {
+                awaitPlayWhenReady(controller, target = false)
+            }
+        } catch (error: Throwable) {
+            restorePlaybackAfterMetadataPauseFailure(controller)
+            throw error
+        }
+        if (!paused) {
+            restorePlaybackAfterMetadataPauseFailure(controller)
+            throw IllegalStateException("暂停当前歌曲超时，已取消歌词写入")
+        }
+        return request.token
+    }
+
+    internal suspend fun resumeAfterMetadataWrite(token: MetadataWritePlaybackToken?) {
+        if (token?.shouldResume != true) return
+        withContext(NonCancellable + Dispatchers.Main.immediate) {
+            val controller = mediaController ?: return@withContext
+            val current = _currentSong.value ?: return@withContext
+            if (!controller.isConnected || current.playbackStackKey() != token.songKey) return@withContext
+            if (controller.playWhenReady) return@withContext
+            controller.seekTo(token.positionMs)
+            requestTransportState(target = true, controller = controller)
+        }
+    }
+
+    private suspend fun awaitPlayWhenReady(controller: MediaController, target: Boolean): Boolean {
+        if (!controller.isConnected) return false
+        if (controller.playWhenReady == target) return true
+        return withTimeoutOrNull(2_000L) {
+            suspendCancellableCoroutine { continuation ->
+                val listener = object : Player.Listener {
+                    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                        if (playWhenReady != target || !continuation.isActive) return
+                        controller.removeListener(this)
+                        continuation.resume(true)
+                    }
+                }
+                continuation.invokeOnCancellation { controller.removeListener(listener) }
+                controller.addListener(listener)
+                if (controller.playWhenReady == target && continuation.isActive) {
+                    controller.removeListener(listener)
+                    continuation.resume(true)
+                }
+            }
+        } ?: false
+    }
+
+    private suspend fun restorePlaybackAfterMetadataPauseFailure(controller: MediaController) {
+        withContext(NonCancellable + Dispatchers.Main.immediate) {
+            if (mediaController === controller && controller.isConnected && !controller.playWhenReady) {
+                requestTransportState(target = true, controller = controller)
+            }
+        }
+    }
+
+    fun skipToNext(autoPlayIfPaused: Boolean = false) {
         val controller = mediaController ?: return
+        val startPlayback = autoPlayIfPaused && !controller.playWhenReady
         cancelPendingSeekCommand()
         rememberCurrentSongResumePosition()
-        performPendingShuffleReorder(trigger = "skipNext", seekToNextAfterReorder = false)
+        // Enabling shuffle is initially bridged through Media3 so notification/headset commands
+        // can still be received. If this UI command materializes that pending reorder, the
+        // reorder itself must also perform the single next transition. Running the normal
+        // adjacent-item path afterwards used the stale pre-reorder index and could skip twice or
+        // leave the page on the previous album while audio had already advanced.
+        if (performPendingShuffleReorder(trigger = "skipNext", seekToNextAfterReorder = true)) {
+            if (startPlayback) requestTransportState(target = true, controller = controller)
+            savePlaybackQueue(force = true)
+            return
+        }
         if (!seekAdjacentPlaylistItem(controller, offset = 1, startPositionMs = { 0L })) {
             controller.seekToNextMediaItem()
         }
+        if (startPlayback) requestTransportState(target = true, controller = controller)
         savePlaybackQueue(force = true)
     }
 
-    fun skipToPrevious() {
+    fun skipToPrevious(autoPlayIfPaused: Boolean = false) {
         val controller = mediaController ?: return
+        val startPlayback = autoPlayIfPaused && !controller.playWhenReady
         cancelPendingSeekCommand()
         rememberCurrentSongResumePosition()
         if (!seekAdjacentPlaylistItem(controller, offset = -1, startPositionMs = { song -> resumePositionFor(song) })) {
             controller.seekToPreviousMediaItem()
             scheduleCurrentSongRefresh()
         }
+        if (startPlayback) requestTransportState(target = true, controller = controller)
         savePlaybackQueue(force = true)
     }
 
@@ -1202,14 +1444,16 @@ class ExoPlayerManager(private val context: Context) {
         _duration.value = song.duration.coerceAtLeast(0L)
     }
 
-    fun restartCurrent() {
+    fun restartCurrent(autoPlayIfPaused: Boolean = false) {
         cancelPendingSeekCommand()
         pendingOptimisticSongKey = null
         pendingOptimisticPreviousSongKey = null
         clearStaleTransitionGuard()
         activeController()?.run {
             seekToDefaultPosition(currentMediaItemIndex.coerceAtLeast(0))
-            requestTransportState(target = true, controller = this)
+            if (playWhenReady || autoPlayIfPaused) {
+                requestTransportState(target = true, controller = this)
+            }
         }
         _currentPosition.value = 0L
         updateCurrentSong()
@@ -1271,9 +1515,15 @@ class ExoPlayerManager(private val context: Context) {
 
     fun toggleShuffle() {
         val nextShuffle = !_shuffleEnabled.value
+        val currentRepeat = mediaController?.repeatMode ?: _repeatMode.value
+        val nextRepeat = if (disableSequentialPlayback && currentRepeat == Player.REPEAT_MODE_OFF) {
+            Player.REPEAT_MODE_ALL
+        } else {
+            currentRepeat
+        }
         applyPlaybackMode(
             shuffle = nextShuffle,
-            repeatMode = if (nextShuffle) Player.REPEAT_MODE_ALL else mediaController?.repeatMode ?: _repeatMode.value,
+            repeatMode = nextRepeat,
             reorderForShuffleChange = true
         )
     }
@@ -1283,6 +1533,21 @@ class ExoPlayerManager(private val context: Context) {
             SettingsManager.SHUFFLE_MODE_PSEUDO,
             SettingsManager.SHUFFLE_MODE_TRUE_RANDOM
         )
+    }
+
+    fun setShuffleReshuffleOnStartup(enabled: Boolean) {
+        reshuffleOnStartup = enabled
+    }
+
+    fun setDisableSequentialPlayback(enabled: Boolean) {
+        disableSequentialPlayback = enabled
+        if (enabled && _repeatMode.value == Player.REPEAT_MODE_OFF) {
+            applyPlaybackMode(
+                shuffle = _shuffleEnabled.value,
+                repeatMode = Player.REPEAT_MODE_ALL,
+                reorderForShuffleChange = false
+            )
+        }
     }
 
     fun setPlayNextMode(mode: Int) {
@@ -1334,11 +1599,11 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun toggleRepeat() {
-        val current = mediaController?.repeatMode ?: Player.REPEAT_MODE_OFF
+        val current = mediaController?.repeatMode ?: _repeatMode.value
         val next = when (current) {
             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
+            else -> if (disableSequentialPlayback) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
         }
         applyPlaybackMode(
             shuffle = _shuffleEnabled.value,
@@ -1352,6 +1617,9 @@ class ExoPlayerManager(private val context: Context) {
         val currentShuffle = _shuffleEnabled.value
         val currentRepeat = controller.repeatMode
         val (nextShuffle, nextRepeat) = when {
+            disableSequentialPlayback && currentShuffle -> false to Player.REPEAT_MODE_ALL
+            disableSequentialPlayback && currentRepeat == Player.REPEAT_MODE_ALL -> false to Player.REPEAT_MODE_ONE
+            disableSequentialPlayback -> true to Player.REPEAT_MODE_ALL
             currentShuffle -> false to Player.REPEAT_MODE_OFF
             currentRepeat == Player.REPEAT_MODE_OFF -> false to Player.REPEAT_MODE_ALL
             currentRepeat == Player.REPEAT_MODE_ALL -> false to Player.REPEAT_MODE_ONE
@@ -1370,7 +1638,11 @@ class ExoPlayerManager(private val context: Context) {
             (!shuffle && playlistBeforeShuffle != null)
         applyPlaybackMode(
             shuffle = shuffle,
-            repeatMode = repeatMode,
+            repeatMode = if (disableSequentialPlayback && repeatMode == Player.REPEAT_MODE_OFF) {
+                Player.REPEAT_MODE_ALL
+            } else {
+                repeatMode
+            },
             reorderForShuffleChange = needsQueueReorder
         )
     }
@@ -1381,18 +1653,29 @@ class ExoPlayerManager(private val context: Context) {
         reorderForShuffleChange: Boolean
     ) {
         val controller = mediaController ?: return
+        val effectiveRepeatMode = normalizeRepeatMode(repeatMode)
         val previousShuffle = _shuffleEnabled.value
         val queueOrderCanChange = reorderForShuffleChange && !_queueLocked.value
         var keepNativeShuffleUntilReorder = pendingShuffleReorder && shuffle && !_queueLocked.value
         if (queueOrderCanChange) {
             if (shuffle) {
                 if (!previousShuffle || playlistBeforeShuffle == null) {
-                    keepNativeShuffleUntilReorder = markPendingShuffleReorder()
+                    // Re-entering random mode after a temporary ordered mode should reuse the
+                    // previous concrete queue when it still describes this exact set of queue
+                    // occurrences. A newly selected library/queue has no reusable cache and keeps
+                    // the existing deferred materialization behavior.
+                    val reused = !previousShuffle && reuseLastShuffleQueueKeepingCurrent(controller)
+                    keepNativeShuffleUntilReorder = !reused && markPendingShuffleReorder()
                 }
             } else {
                 if (pendingShuffleReorder) {
                     clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
                 } else {
+                    // The native shuffle cursor must be disabled before moving the timeline back
+                    // to source order. Leaving it on while issuing moveMediaItem calls lets
+                    // Media3 select a different current occurrence and makes the next command
+                    // appear to repeat the previous album.
+                    controller.shuffleModeEnabled = false
                     restorePlaylistOrderAfterShuffle()
                 }
                 keepNativeShuffleUntilReorder = false
@@ -1400,13 +1683,23 @@ class ExoPlayerManager(private val context: Context) {
         }
         _shuffleEnabled.value = shuffle
         persistAppShuffleEnabled(shuffle)
-        persistAppRepeatMode(repeatMode)
+        persistAppRepeatMode(effectiveRepeatMode)
         controller.shuffleModeEnabled = keepNativeShuffleUntilReorder
         // Media3 reports repeat changes asynchronously. Publish the requested mode immediately
         // so the player page cannot render the previous icon for one frame after a tap.
-        _repeatMode.value = repeatMode
-        if (controller.repeatMode != repeatMode) {
-            controller.repeatMode = repeatMode
+        _repeatMode.value = effectiveRepeatMode
+        if (controller.repeatMode != effectiveRepeatMode) {
+            controller.repeatMode = effectiveRepeatMode
+        }
+        val syncCommandArgs = Bundle().apply {
+            putBoolean(PlaybackService.EXTRA_PLAYBACK_MODE_SHUFFLE, shuffle)
+            putInt(PlaybackService.EXTRA_PLAYBACK_MODE_REPEAT, effectiveRepeatMode)
+        }
+        runCatching {
+            controller.sendCustomCommand(
+                SessionCommand(PlaybackService.ACTION_SYNC_PLAYBACK_MODE, Bundle.EMPTY),
+                syncCommandArgs
+            )
         }
         savePlaybackQueue(force = true)
     }
@@ -1515,7 +1808,11 @@ class ExoPlayerManager(private val context: Context) {
 
         publishTransportState(controller.isPlaying, controller.playWhenReady)
         _playbackState.value = controller.playbackState
-        _repeatMode.value = controller.repeatMode
+        val normalizedRepeatMode = normalizeRepeatMode(controller.repeatMode)
+        if (controller.repeatMode != normalizedRepeatMode) {
+            controller.repeatMode = normalizedRepeatMode
+        }
+        _repeatMode.value = normalizedRepeatMode
         _playbackSpeed.value = controller.playbackParameters.speed
         _playbackPitch.value = controller.playbackParameters.pitch
         _currentPosition.value = controller.currentPosition.coerceAtLeast(0)
@@ -1607,9 +1904,12 @@ class ExoPlayerManager(private val context: Context) {
             return
         }
 
-        publishTransportState(snapshot.isPlaying, snapshot.playWhenReady)
+        val pending = pendingTransportTargetOrNull()
+        if (pending == null || snapshot.playWhenReady == pending) {
+            publishTransportState(snapshot.isPlaying, snapshot.playWhenReady)
+        }
         _playbackState.value = snapshot.playbackState
-        _repeatMode.value = snapshot.repeatMode
+        _repeatMode.value = normalizeRepeatMode(snapshot.repeatMode)
         _currentPosition.value = snapshot.positionMs.coerceAtLeast(0L)
         _duration.value = snapshot.durationMs.coerceAtLeast(0L)
 
@@ -1730,10 +2030,24 @@ class ExoPlayerManager(private val context: Context) {
         sessionMetadataSongKey = null
 
         if (controller != null && controller.currentMediaItemIndex >= 0) {
-            refreshCurrentSessionMetadata(controller, sourceAwareUpdatedSong)
-            refreshCurrentNotificationArtwork(sourceAwareUpdatedSong)
+            // Keep the UI and saved queue fresh immediately, but avoid replacing the currently
+            // decoded MediaItem while it is playing; some sources briefly stall on that refresh.
+            if (shouldDeferCurrentItemMetadata(controller)) {
+                deferredCurrentItemMetadataSong = sourceAwareUpdatedSong
+                deferredCurrentItemMetadataMediaId = controller.currentMediaItem?.mediaId
+                Log.d(TIMING_TAG, "defer current metadata update while playing mediaId=${sourceAwareUpdatedSong.id}")
+            } else {
+                deferredCurrentItemMetadataSong = null
+                deferredCurrentItemMetadataMediaId = null
+                refreshCurrentMetadataAndArtwork(controller, sourceAwareUpdatedSong)
+            }
         }
         savePlaybackQueue(force = true)
+    }
+
+    internal suspend fun updateCurrentSongMetadataAndAwaitArtwork(updatedSong: Song) {
+        updateCurrentSongMetadata(updatedSong)
+        notificationArtworkJob?.join()
     }
 
     private fun songToMediaItem(song: Song): MediaItem {
@@ -1809,11 +2123,12 @@ class ExoPlayerManager(private val context: Context) {
         val itemSong = currentItem?.toSongFromMediaItemExtras() ?: currentItem?.toSong()
         val playlistIndex = virtualPlaylistCurrentIndex?.takeIf { it in playlist.indices } ?: currentIndex
         val playlistSong = playlist.getOrNull(playlistIndex)
-        val restoredSong = if (currentIndex in playlist.indices) {
-            itemSong?.takeUnless { it.isSamePlaybackIdentity(playlistSong) } ?: playlistSong
-        } else {
-            itemSong
-        }
+        val restoredSong = resolveControllerPlaylistSong(
+            currentIndex = playlistIndex,
+            playlistSize = playlist.size,
+            itemSong = itemSong,
+            playlistSong = playlistSong
+        )
         val previousSong = _currentSong.value
         val pendingKey = pendingOptimisticSongKey
         var acceptedOptimisticTransition = false
@@ -1855,6 +2170,8 @@ class ExoPlayerManager(private val context: Context) {
         _currentSong.value = restoredSong
         _duration.value = controller.duration.coerceAtLeast(0)
         if (!previousSong.isSamePlaybackIdentity(restoredSong)) {
+            deferredCurrentItemMetadataSong = null
+            deferredCurrentItemMetadataMediaId = null
             if (!acceptedOptimisticTransition) {
                 rememberAcceptedSongTransition(previousSong, restoredSong)
             }
@@ -1906,8 +2223,9 @@ class ExoPlayerManager(private val context: Context) {
             "PlayerDecoder",
             "Retry ${song.title} with FFmpeg after playback failure"
         )
+        val shouldResume = _playWhenReady.value || _isPlaying.value
         withContext(Dispatchers.Main.immediate) {
-            recreatePlaybackService(resumePlayback = true)
+            recreatePlaybackService(resumePlayback = shouldResume)
         }
         return true
     }
@@ -1922,6 +2240,9 @@ class ExoPlayerManager(private val context: Context) {
         }
         val sourceOrder = playlistBeforeShuffle ?: playlist.toList()
         val current = resolveCurrentPlaybackSong(controller) ?: return false
+        if (reuseLastShuffleQueueKeepingCurrent(controller, sourceOrder)) {
+            return true
+        }
         val shuffleSeed = if (shuffleMode == SettingsManager.SHUFFLE_MODE_TRUE_RANDOM) {
             SystemClock.elapsedRealtimeNanos()
         } else {
@@ -1949,6 +2270,68 @@ class ExoPlayerManager(private val context: Context) {
             playlist.clear()
             playlist.addAll(newPlaylist)
             _playlist.value = newPlaylist
+            lastShuffleQueue = newPlaylist.toList()
+            lastShuffleSourceOrder = sourceOrder.toList()
+            updateCurrentSong()
+            return true
+        } finally {
+            reorderingPlaylistForShuffle = false
+        }
+    }
+
+    private fun clearShuffleReuseCache() {
+        lastShuffleQueue = null
+        lastShuffleSourceOrder = null
+    }
+
+    /**
+     * Restores the previously materialized shuffle order without changing which queue
+     * occurrence is currently playing. The occurrence token (identity + ordinal) matters here:
+     * the same file can deliberately appear more than once in a queue.
+     */
+    private fun reuseLastShuffleQueueKeepingCurrent(
+        controller: MediaController,
+        sourceOrder: List<Song>? = null
+    ): Boolean {
+        val cachedOrder = lastShuffleQueue ?: return false
+        val source = sourceOrder ?: lastShuffleSourceOrder ?: return false
+        if (source.queueOccurrenceTokens().toSet() != playlist.queueOccurrenceTokens().toSet()) {
+            return false
+        }
+        if (cachedOrder.queueOccurrenceTokens().toSet() != source.queueOccurrenceTokens().toSet()) {
+            return false
+        }
+        val currentIndex = currentQueueIndex(controller)
+            .takeIf { it in playlist.indices }
+            ?: playlist.indexOfFirst { it.isSamePlaybackIdentity(_currentSong.value) }
+                .takeIf { it >= 0 }
+            ?: return false
+        val currentToken = playlist.queueOccurrenceTokens().getOrNull(currentIndex) ?: return false
+        val targetTokens = cachedOrder.queueOccurrenceTokens()
+        val targetIndex = targetTokens.indexOf(currentToken)
+        if (targetIndex < 0) return false
+
+        playlistBeforeShuffle = source.toList()
+        if (playlist == cachedOrder) {
+            _currentQueueIndex.value = targetIndex
+            return true
+        }
+
+        val positionMs = controller.currentPosition.coerceAtLeast(0L)
+        val wasPlaying = controller.isPlaying || controller.playWhenReady
+        reorderingPlaylistForShuffle = true
+        try {
+            controller.shuffleModeEnabled = false
+            applyControllerPlaylistOrder(
+                controller = controller,
+                targetOrder = cachedOrder,
+                targetIndex = targetIndex,
+                positionMs = positionMs,
+                wasPlaying = wasPlaying
+            )
+            playlist.clear()
+            playlist.addAll(cachedOrder)
+            _playlist.value = cachedOrder
             updateCurrentSong()
             return true
         } finally {
@@ -2001,6 +2384,16 @@ class ExoPlayerManager(private val context: Context) {
             return false
         }
         if (seekToNextAfterReorder) {
+            val currentIndex = currentQueueIndex(controller)
+            val nextIndex = adjacentPlaylistIndex(
+                currentIndex = currentIndex,
+                offset = 1,
+                queueSize = playlist.size,
+                wrap = controller.repeatMode != Player.REPEAT_MODE_OFF
+            )
+            nextIndex?.let { index ->
+                applyOptimisticSong(playlist[index], 0L, index)
+            }
             controller.seekToNextMediaItem()
         }
         return true
@@ -2042,30 +2435,133 @@ class ExoPlayerManager(private val context: Context) {
 
         reorderingPlaylistForShuffle = true
         try {
-            applyControllerPlaylistOrder(
+            // Disabling shuffle is a mode change, not a request to reload the current media. Move
+            // the existing queue entries in place so the audio renderer keeps its decoder and
+            // playWhenReady state. setMediaItems here was the short pause reported when users
+            // switched away from random playback.
+            val reorderedInPlace = moveControllerPlaylistOrderWithoutReset(
                 controller = controller,
-                targetOrder = original,
-                targetIndex = targetIndex,
-                positionMs = positionMs,
-                wasPlaying = wasPlaying
+                targetOrder = original
             )
+            if (!reorderedInPlace) {
+                // A controller window can differ from the local queue after a reconnect. Keep a
+                // correct fallback for that case; ordinary mode toggles use the in-place path.
+                applyControllerPlaylistOrder(
+                    controller = controller,
+                    targetOrder = original,
+                    targetIndex = targetIndex,
+                    positionMs = positionMs,
+                    wasPlaying = wasPlaying
+                )
+            }
             playlist.clear()
             playlist.addAll(original)
             _playlist.value = original
-            updateCurrentSong()
+            _currentQueueIndex.value = targetIndex
+            _currentSong.value = original.getOrNull(targetIndex)
+            _currentPosition.value = positionMs
+            _duration.value = controller.duration.coerceAtLeast(0L).takeIf { it > 0L }
+                ?: original.getOrNull(targetIndex)?.duration
+                ?: 0L
             playlistBeforeShuffle = null
         } finally {
             reorderingPlaylistForShuffle = false
         }
     }
 
+    private fun reshuffleAtCycleBoundary(controller: MediaController, previousLast: Song?): Boolean {
+        if (previousLast == null || reorderingPlaylistForShuffle || playlist.size <= 1) return false
+        val sourceOrder = playlistBeforeShuffle ?: playlist.toList()
+        val plan = buildShuffleQueueForCycle(
+            sourceOrder = sourceOrder,
+            previousLast = previousLast,
+            seed = SystemClock.elapsedRealtimeNanos()
+        ) ?: return false
+        val wasPlaying = controller.isPlaying || controller.playWhenReady
+        reorderingPlaylistForShuffle = true
+        try {
+            controller.shuffleModeEnabled = false
+            applyControllerPlaylistOrder(
+                controller = controller,
+                targetOrder = plan.queue,
+                targetIndex = plan.currentIndex,
+                positionMs = 0L,
+                wasPlaying = wasPlaying
+            )
+            playlist.clear()
+            playlist.addAll(plan.queue)
+            _playlist.value = plan.queue
+            _currentQueueIndex.value = plan.currentIndex
+            _currentSong.value = plan.queue.firstOrNull()
+            _currentPosition.value = 0L
+            _duration.value = plan.queue.firstOrNull()?.duration ?: 0L
+            playlistBeforeShuffle = sourceOrder
+            lastShuffleQueue = plan.queue.toList()
+            lastShuffleSourceOrder = sourceOrder.toList()
+            savePlaybackQueue(force = true)
+            return true
+        } finally {
+            reorderingPlaylistForShuffle = false
+        }
+    }
+
+    /**
+     * Reorders the current Media3 timeline with moveMediaItem calls. Unlike setMediaItems this
+     * does not tear down/re-prepare the current renderer, so turning shuffle off remains audible
+     * and visually continuous. Occurrence tokens keep duplicate paths distinguishable.
+     */
+    private fun moveControllerPlaylistOrderWithoutReset(
+        controller: MediaController,
+        targetOrder: List<Song>
+    ): Boolean {
+        if (targetOrder.size != playlist.size || controller.mediaItemCount != playlist.size) return false
+        val workingSongs = playlist.toMutableList()
+        val workingTokens = playlist.queueOccurrenceTokens().toMutableList()
+        val targetTokens = targetOrder.queueOccurrenceTokens()
+        if (workingTokens.toSet() != targetTokens.toSet()) return false
+
+        return runCatching {
+            targetTokens.forEachIndexed { targetIndex, token ->
+                val fromIndex = workingTokens.indexOf(token)
+                check(fromIndex >= 0) { "queue occurrence missing while restoring shuffle" }
+                if (fromIndex == targetIndex) return@forEachIndexed
+                controller.moveMediaItem(fromIndex, targetIndex)
+                val song = workingSongs.removeAt(fromIndex)
+                workingSongs.add(targetIndex, song)
+                val movedToken = workingTokens.removeAt(fromIndex)
+                workingTokens.add(targetIndex, movedToken)
+            }
+            check(workingTokens == targetTokens) { "queue occurrence order was not restored" }
+        }.isSuccess
+    }
+
+    private data class QueueOccurrenceToken(
+        val identity: String,
+        val ordinal: Int
+    )
+
+    private fun List<Song>.queueOccurrenceTokens(): List<QueueOccurrenceToken> {
+        val seen = mutableMapOf<String, Int>()
+        return map { song ->
+            val identity = "${song.playbackStackKey()}|source=${song.playbackSourceKey.orEmpty()}"
+            val ordinal = seen.getOrDefault(identity, 0)
+            seen[identity] = ordinal + 1
+            QueueOccurrenceToken(identity, ordinal)
+        }
+    }
+
+
     private fun resolveCurrentPlaybackSong(controller: MediaController): Song? {
         val controllerIndex = currentQueueIndex(controller)
         val itemSong = controller.currentMediaItem?.toSongFromMediaItemExtras()
             ?: controller.currentMediaItem?.toSong()
         if (controllerIndex in playlist.indices) {
-            val playlistSong = playlist[controllerIndex]
-            return itemSong?.takeUnless { it.isSamePlaybackIdentity(playlistSong) } ?: playlistSong
+            return resolveControllerPlaylistSong(
+                currentIndex = controllerIndex,
+                playlistSize = playlist.size,
+                itemSong = itemSong,
+                playlistSong = playlist[controllerIndex]
+            )
         }
         return itemSong
             ?: _currentSong.value
@@ -2080,6 +2576,10 @@ class ExoPlayerManager(private val context: Context) {
     ) {
         if (targetOrder.isEmpty()) return
         val safeIndex = targetIndex.coerceIn(targetOrder.indices)
+        // setMediaItems may publish a transient index 0 before its timeline callback reaches the
+        // controller. Project the selected occurrence first so a following next/previous command
+        // and the player page both use the same queue cursor during that Binder window.
+        applyOptimisticSong(targetOrder[safeIndex], positionMs, safeIndex)
         // Always use setMediaItems (single IPC call) instead of N moveMediaItem calls
         // to avoid main-thread freezes with large playlists
         controller.setMediaItems(targetOrder.map(::songToMediaItem), safeIndex, positionMs)
@@ -2117,6 +2617,17 @@ class ExoPlayerManager(private val context: Context) {
                     .build()
             )
             Log.d(TIMING_TAG, "base metadata updated mediaId=${song.id}")
+        }
+    }
+
+    private fun refreshCurrentMetadataAndArtwork(controller: MediaController, song: Song) {
+        if (song.coverUrl.isNotBlank() && !song.coverUrl.isMediaStoreAlbumArtworkUri()) {
+            refreshCurrentSessionMetadata(controller, song)
+            refreshCurrentNotificationArtwork(song)
+        } else {
+            // For embedded/local artwork, the artwork refresh also publishes all base media
+            // fields; doing both passes used to replace the active MediaItem twice in succession.
+            refreshCurrentNotificationArtwork(song)
         }
     }
 
@@ -2179,6 +2690,61 @@ class ExoPlayerManager(private val context: Context) {
         }
     }
 
+    private fun shouldDeferCurrentItemMetadata(controller: MediaController): Boolean =
+        controller.playWhenReady &&
+            controller.playbackState != Player.STATE_IDLE &&
+            controller.playbackState != Player.STATE_ENDED
+
+    private fun applyDeferredCurrentItemMetadataIfSafe(controller: MediaController) {
+        if (mediaController !== controller || shouldDeferCurrentItemMetadata(controller)) return
+        val pendingSong = deferredCurrentItemMetadataSong ?: return
+        if (!_currentSong.value.isSamePlaybackIdentity(pendingSong)) {
+            deferredCurrentItemMetadataSong = null
+            deferredCurrentItemMetadataMediaId = null
+            return
+        }
+        if (controller.currentMediaItem?.matchesSong(pendingSong) != true) return
+
+        deferredCurrentItemMetadataSong = null
+        deferredCurrentItemMetadataMediaId = null
+        refreshCurrentMetadataAndArtwork(controller, pendingSong)
+    }
+
+    private fun applyDeferredCurrentItemMetadataAfterTransition(
+        controller: MediaController,
+        transitionedItem: MediaItem?
+    ) {
+        val pendingSong = deferredCurrentItemMetadataSong ?: return
+        val transitionedSong = transitionedItem?.toSongFromMediaItemExtras() ?: return
+        if (pendingSong.isSamePlaybackIdentity(transitionedSong)) return
+
+        val pendingMediaId = deferredCurrentItemMetadataMediaId
+        val pendingIndex = pendingMediaId?.let { mediaId ->
+            (0 until controller.mediaItemCount).firstOrNull { index ->
+                controller.getMediaItemAt(index).mediaId == mediaId
+            }
+        }
+        if (pendingIndex != null && pendingIndex != controller.currentMediaItemIndex) {
+            val oldItem = controller.getMediaItemAt(pendingIndex)
+            if (oldItem.matchesSong(pendingSong)) {
+                val cachedArtwork = notificationArtworkCache.get(pendingSong.notificationArtworkKey())
+                val metadata = pendingSong.mediaMetadata(
+                    artworkData = cachedArtwork,
+                    includeArtworkUri = cachedArtwork == null,
+                    includeAlbumArtworkUri = false
+                ).withPatchedExtrasFrom(oldItem, PATCH_REASON_BASE_SESSION_METADATA)
+                runCatching {
+                    controller.replaceMediaItem(
+                        pendingIndex,
+                        oldItem.buildUpon().setMediaMetadata(metadata).build()
+                    )
+                }
+            }
+        }
+        deferredCurrentItemMetadataSong = null
+        deferredCurrentItemMetadataMediaId = null
+    }
+
     private fun notificationArtworkBytes(data: ByteArray): ByteArray? {
         if (data.size <= MAX_NOTIFICATION_ARTWORK_BYTES) return data
         return runCatching {
@@ -2223,6 +2789,7 @@ class ExoPlayerManager(private val context: Context) {
             )
                 .withPatchedExtrasFrom(latestItem, PATCH_REASON_NOTIFICATION_ARTWORK)
             if (latestItem.mediaMetadata.matchesNotificationDisplay(targetMetadata)) {
+                sessionMetadataSongKey = song.playbackStackKey()
                 Log.d(TIMING_TAG, "artwork metadata already current mediaId=${song.id}")
                 return@runCatching
             }
@@ -2232,6 +2799,7 @@ class ExoPlayerManager(private val context: Context) {
                     .setMediaMetadata(targetMetadata)
                     .build()
             )
+            sessionMetadataSongKey = song.playbackStackKey()
             Log.d(TIMING_TAG, "artwork metadata updated mediaId=${song.id}")
         }
     }
@@ -2254,29 +2822,67 @@ class ExoPlayerManager(private val context: Context) {
         val saved = loadSavedQueue() ?: return
         if (saved.songs.isEmpty()) return
 
-        val requestedIndex = saved.index.coerceIn(saved.songs.indices)
-        val (queueSongs, safeIndex) = saved.songs.windowedForController(requestedIndex)
-        playlist.clear()
-        playlist.addAll(queueSongs)
-        _playlist.value = playlist.toList()
+        isRestoringSavedQueue = true
+        try {
+            clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = false)
+            pendingShuffleReorder = false
+            startupMediaTransitionGuardUntilMs = SystemClock.elapsedRealtime() + 3000L
+            val requestedIndex = saved.index.coerceIn(saved.songs.indices)
+            val reshuffledSongs = if (saved.shuffle && reshuffleOnStartup && saved.songs.size > 1) {
+                // Shuffle occurrences rather than identities so duplicate queue entries remain
+                // distinct, while keeping the previously playing occurrence selected for resume.
+                val shuffledOccurrences = saved.songs
+                    .mapIndexed { index, song -> index to song }
+                    .shuffled(Random(SystemClock.elapsedRealtimeNanos()))
+                shuffledOccurrences.map { it.second } to
+                    shuffledOccurrences.indexOfFirst { it.first == requestedIndex }
+            } else {
+                saved.songs to requestedIndex
+            }
+            val (restoredOrder, restoredIndex) = reshuffledSongs
+            val (queueSongs, safeIndex) = restoredOrder.windowedForController(restoredIndex)
+            val restoredRepeatMode = if (disableSequentialPlayback && saved.repeatMode == Player.REPEAT_MODE_OFF) {
+                Player.REPEAT_MODE_ALL
+            } else {
+                saved.repeatMode
+            }
+            val wasReshuffled = restoredOrder !== saved.songs
+            playlist.clear()
+            playlist.addAll(queueSongs)
+            _playlist.value = playlist.toList()
+            if (saved.shuffle) {
+                lastShuffleQueue = queueSongs.toList()
+                lastShuffleSourceOrder = queueSongs.toList()
+            }
 
-        controller.setMediaItems(queueSongs.map(::songToMediaItem), safeIndex, saved.positionMs.coerceAtLeast(0L))
-        controller.repeatMode = saved.repeatMode
-        controller.shuffleModeEnabled = false
-        controller.playbackParameters = PlaybackParameters(saved.speed.coerceIn(0.5f, 2f), saved.pitch.coerceIn(0.5f, 2f))
-        controller.prepare()
+            // Restoring a queue is a data operation, not an implicit play request. Pause before
+            // attaching the first media item: some Media3/OEM service recreations retain
+            // playWhenReady across setMediaItems(), and prepare() may start decoding immediately.
+            // If an explicit startup-resume/Bluetooth/decoder request is pending, setupListener()
+            // reapplies it after this restore returns.
+            controller.pause()
+            controller.setMediaItems(queueSongs.map(::songToMediaItem), safeIndex, saved.positionMs.coerceAtLeast(0L))
+            controller.repeatMode = restoredRepeatMode
+            controller.shuffleModeEnabled = false
+            controller.playbackParameters = PlaybackParameters(saved.speed.coerceIn(0.5f, 2f), saved.pitch.coerceIn(0.5f, 2f))
+            controller.prepare()
 
-        _currentSong.value = playlist.getOrNull(safeIndex)
-        _currentQueueIndex.value = safeIndex
-        _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
-        _repeatMode.value = saved.repeatMode
-        _shuffleEnabled.value = saved.shuffle
-        _queueLocked.value = saved.queueLocked
-        persistAppShuffleEnabled(saved.shuffle)
-        persistAppRepeatMode(saved.repeatMode)
-        _playbackSpeed.value = saved.speed
-        _playbackPitch.value = saved.pitch
-        if (saved.songs.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) savePlaybackQueue(force = true)
+            _currentSong.value = playlist.getOrNull(safeIndex)
+            _currentQueueIndex.value = safeIndex
+            _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
+            _repeatMode.value = restoredRepeatMode
+            _shuffleEnabled.value = saved.shuffle
+            _queueLocked.value = saved.queueLocked
+            persistAppShuffleEnabled(saved.shuffle)
+            persistAppRepeatMode(restoredRepeatMode)
+            _playbackSpeed.value = saved.speed
+            _playbackPitch.value = saved.pitch
+            if (wasReshuffled || saved.songs.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) {
+                savePlaybackQueue(force = true)
+            }
+        } finally {
+            isRestoringSavedQueue = false
+        }
     }
 
     private fun seedSavedPlaybackPreview() {
@@ -2290,8 +2896,13 @@ class ExoPlayerManager(private val context: Context) {
         _currentQueueIndex.value = index
         _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
         _duration.value = current.duration.coerceAtLeast(0L)
-        _repeatMode.value = saved.repeatMode
+        val previewRepeatMode = normalizeRepeatMode(saved.repeatMode)
+        _repeatMode.value = previewRepeatMode
         _shuffleEnabled.value = saved.shuffle
+        if (saved.shuffle) {
+            lastShuffleQueue = saved.songs.toList()
+            lastShuffleSourceOrder = saved.songs.toList()
+        }
         _queueLocked.value = saved.queueLocked
         _playbackSpeed.value = saved.speed.coerceIn(0.5f, 2f)
         _playbackPitch.value = saved.pitch.coerceIn(0.5f, 2f)
@@ -2388,7 +2999,7 @@ class ExoPlayerManager(private val context: Context) {
         return PlaybackStateSnapshot(
             index = index.coerceAtLeast(0),
             positionMs = positionOverrideMs ?: controller?.currentPosition?.coerceAtLeast(0) ?: _currentPosition.value,
-            repeatMode = controller?.repeatMode ?: _repeatMode.value,
+            repeatMode = normalizeRepeatMode(controller?.repeatMode ?: _repeatMode.value),
             shuffle = _shuffleEnabled.value,
             speed = controller?.playbackParameters?.speed ?: _playbackSpeed.value,
             pitch = controller?.playbackParameters?.pitch ?: _playbackPitch.value,
@@ -2423,6 +3034,31 @@ class ExoPlayerManager(private val context: Context) {
     private fun loadAppShuffleEnabled(): Boolean =
         context.getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
             .getBoolean(KEY_APP_SHUFFLE, _shuffleEnabled.value)
+
+    private fun loadAppRepeatMode(): Int {
+        val stored = context.getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
+            .getInt(KEY_APP_REPEAT, Player.REPEAT_MODE_ALL)
+        return when (stored) {
+            Player.REPEAT_MODE_OFF,
+            Player.REPEAT_MODE_ONE,
+            Player.REPEAT_MODE_ALL -> stored
+            else -> Player.REPEAT_MODE_ALL
+        }
+    }
+
+    private fun normalizeRepeatMode(repeatMode: Int): Int {
+        val valid = when (repeatMode) {
+            Player.REPEAT_MODE_OFF,
+            Player.REPEAT_MODE_ONE,
+            Player.REPEAT_MODE_ALL -> repeatMode
+            else -> Player.REPEAT_MODE_ALL
+        }
+        return if (disableSequentialPlayback && valid == Player.REPEAT_MODE_OFF) {
+            Player.REPEAT_MODE_ALL
+        } else {
+            valid
+        }
+    }
 
     private fun loadSavedQueue(): SavedQueue? {
         val prefs = context.getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
@@ -2475,6 +3111,7 @@ class ExoPlayerManager(private val context: Context) {
         const val MAX_RESUME_POSITION_ENTRIES = 256
         const val CLEAR_EXTERNAL_SNAPSHOT_SUPPRESSION_MS = 3_000L
         const val TRANSPORT_COMMAND_GUARD_MS = 3_000L
+        const val MIN_TRANSPORT_HOLD_MS = 200L
         const val EXTRA_ONLINE_SOURCE = "com.ella.music.extra.ONLINE_SOURCE"
         const val EXTRA_ONLINE_ID = "com.ella.music.extra.ONLINE_ID"
         const val EXTRA_SONG_JSON = "com.ella.music.extra.SONG_JSON"

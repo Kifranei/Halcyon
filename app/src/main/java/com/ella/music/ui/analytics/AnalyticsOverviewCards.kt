@@ -1,6 +1,7 @@
 package com.ella.music.ui.analytics
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,13 +15,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,74 +35,219 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.LibraryNormalizer
 import com.ella.music.viewmodel.MainViewModel
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.layout.ContentScale
+import com.ella.music.ui.artist.rememberArtistCoverModel
+import com.ella.music.ui.components.SafeCoverImage
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.foundation.lazy.itemsIndexed
+import top.yukonga.miuix.kmp.icon.extended.Music
+
+internal data class ReplayPalette(
+    val isDark: Boolean,
+    val surface: Color,
+    val content: Color,
+    val mutedContent: Color,
+    val accent: Color
+)
 
 @Composable
-internal fun MonthlyListeningReportCard(report: MonthlyListeningReport) {
+internal fun replayPalette(): ReplayPalette {
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val content = if (isDark) Color.White else MiuixTheme.colorScheme.onBackground
+    return ReplayPalette(
+        isDark = isDark,
+        surface = if (isDark) Color.Black else Color.Transparent,
+        content = content,
+        mutedContent = content.copy(alpha = if (isDark) 0.70f else 0.62f),
+        accent = MiuixTheme.colorScheme.primary
+    )
+}
+
+@Composable
+internal fun MonthlyListeningReportCard(
+    report: MonthlyListeningReport,
+    monthTabs: List<ReplayMonthTab> = emptyList(),
+    selectedMonthOffset: Int = 0,
+    onMonthSelected: (Int) -> Unit = {}
+) {
     val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = analyticsWallpaperCardColors()
+    val palette = replayPalette()
+    val monthListState = rememberLazyListState()
+    LaunchedEffect(monthTabs, selectedMonthOffset) {
+        val selectedIndex = monthTabs.indexOfFirst {
+            it.offsetFromCurrent == selectedMonthOffset
+        }
+        if (selectedIndex >= 0) monthListState.animateScrollToItem(selectedIndex)
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(palette.surface)
     ) {
+        // Replay keeps an artwork-like continuous wash, but the light theme fades back into the
+        // page instead of forcing a black canvas behind the rest of the statistics.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.linearGradient(
+                        if (palette.isDark) {
+                            listOf(
+                                palette.accent.copy(alpha = 0.28f),
+                                Color(0xFF6D3A90).copy(alpha = 0.18f),
+                                Color.Black.copy(alpha = 0.94f),
+                                Color.Black
+                            )
+                        } else {
+                            listOf(
+                                palette.accent.copy(alpha = 0.20f),
+                                Color(0xFF8F6DE4).copy(alpha = 0.10f),
+                                Color.Transparent
+                            )
+                        }
+                    )
+                )
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            Color(0xFF2B4CFF).copy(alpha = 0.78f),
-                            Color(0xFF8A4DFF).copy(alpha = 0.62f),
-                            Color(0xFFFF6F91).copy(alpha = 0.46f)
-                        )
-                    )
-                )
-                .padding(18.dp)
+                .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "REPLAY",
+                    fontSize = 13.sp,
+                    letterSpacing = 2.2.sp,
+                    color = palette.mutedContent,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(palette.content.copy(alpha = if (palette.isDark) 0.14f else 0.08f))
+                        .padding(horizontal = 15.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = if (report.year > 0) report.year.toString() else report.monthTitle,
+                        fontSize = 16.sp,
+                        color = palette.content,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (report.year > 0) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.ArrowRight,
+                            contentDescription = null,
+                            tint = palette.content,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .rotate(90f)
+                        )
+                    }
+                }
+            }
+            if (monthTabs.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(18.dp))
+                LazyRow(
+                    state = monthListState,
+                    horizontalArrangement = Arrangement.spacedBy(17.dp),
+                    contentPadding = PaddingValues(horizontal = 1.dp)
+                ) {
+                    items(monthTabs) { tab ->
+                        val selected = tab.offsetFromCurrent == selectedMonthOffset
+                        Column(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .clickable { onMonthSelected(tab.offsetFromCurrent) },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = tab.label,
+                                fontSize = 15.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selected) palette.content else palette.mutedContent.copy(alpha = 0.68f)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .width(28.dp)
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(
+                                        if (selected) palette.content else Color.Transparent
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(22.dp))
+            Text(
+                text = stringResource(
+                    R.string.analytics_replay_listened_sentence,
+                    report.monthLabel,
+                    formatListenDuration(context, report.listenedMs)
+                ),
+                fontSize = 34.sp,
+                lineHeight = 40.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = palette.content
+            )
             Text(
                 text = stringResource(R.string.analytics_month_report_title),
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.82f),
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.analytics_month_report_summary, report.monthTitle, report.uniqueSongCount),
-                fontSize = 25.sp,
-                lineHeight = 31.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+                fontSize = 19.sp,
+                color = palette.content,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 2.dp)
             )
             Text(
-                text = stringResource(R.string.analytics_month_report_subtitle, formatListenDuration(context, report.listenedMs), report.activeDays),
+                text = stringResource(
+                    R.string.analytics_month_report_summary,
+                    report.monthTitle,
+                    report.uniqueSongCount
+                ),
                 fontSize = 13.sp,
-                color = Color.White.copy(alpha = 0.78f),
+                color = palette.mutedContent,
                 modifier = Modifier.padding(top = 6.dp)
             )
-            Spacer(modifier = Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MonthlyMetricPill(
-                    label = stringResource(R.string.analytics_month_total_listen),
-                    value = formatListenDuration(context, report.listenedMs),
-                    modifier = Modifier.weight(1f)
-                )
-                MonthlyMetricPill(
-                    label = stringResource(R.string.analytics_month_total_plays),
+            Spacer(modifier = Modifier.height(30.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ReplayMetric(
                     value = stringResource(R.string.analytics_times_count, report.playCount),
+                    label = stringResource(R.string.analytics_month_total_plays),
+                    contentColor = palette.content,
+                    mutedColor = palette.mutedContent,
                     modifier = Modifier.weight(1f)
                 )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MonthlyMetricPill(
-                    label = stringResource(R.string.analytics_month_active_days),
+                ReplayMetric(
                     value = stringResource(R.string.analytics_day_count, report.activeDays),
+                    label = stringResource(R.string.analytics_month_active_days),
+                    contentColor = palette.content,
+                    mutedColor = palette.mutedContent,
                     modifier = Modifier.weight(1f)
                 )
-                MonthlyMetricPill(
-                    label = stringResource(R.string.analytics_month_unique_songs),
+                ReplayMetric(
                     value = stringResource(R.string.analytics_song_count_value, report.uniqueSongCount),
+                    label = stringResource(R.string.analytics_month_unique_songs),
+                    contentColor = palette.content,
+                    mutedColor = palette.mutedContent,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -106,29 +256,26 @@ internal fun MonthlyListeningReportCard(report: MonthlyListeningReport) {
 }
 
 @Composable
-private fun MonthlyMetricPill(
-    label: String,
+private fun ReplayMetric(
     value: String,
+    label: String,
+    contentColor: Color,
+    mutedColor: Color,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.16f))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) {
+    Column(modifier = modifier) {
         Text(
             text = value,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = contentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             text = label,
             fontSize = 11.sp,
-            color = Color.White.copy(alpha = 0.78f),
+            color = mutedColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -286,50 +433,55 @@ internal fun MonthlyFavoritesCard(
     report: MonthlyListeningReport,
     mainViewModel: MainViewModel
 ) {
-    val insights = listOfNotNull(
-        report.favoriteArtist,
-        report.favoriteSong,
-        report.favoriteAlbum
-    )
+    val palette = replayPalette()
+    val insights = report.favoriteArtists.ifEmpty {
+        listOfNotNull(report.favoriteArtist)
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 28.dp,
         colors = analyticsWallpaperCardColors()
     ) {
-        Column(modifier = Modifier.padding(vertical = 16.dp)) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                Text(
-                    text = stringResource(R.string.analytics_month_favorites_title),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.analytics_month_favorites_summary, report.monthTitle),
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(top = 3.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            if (insights.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.analytics_month_favorites_empty),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            } else {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(insights) { insight ->
-                        FavoriteInsightCard(
-                            insight = insight,
-                            mainViewModel = mainViewModel
-                        )
-                    }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 20.dp)
+        ) {
+        Text(
+            text = stringResource(R.string.analytics_month_favorites_title),
+            fontSize = 24.sp,
+            lineHeight = 29.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = palette.content,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+        Text(
+            text = stringResource(R.string.analytics_month_favorites_summary, report.monthTitle),
+            fontSize = 13.sp,
+            color = palette.mutedContent.copy(alpha = 0.86f),
+            modifier = Modifier.padding(start = 20.dp, top = 4.dp, end = 20.dp)
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        if (insights.isEmpty()) {
+            Text(
+                text = stringResource(R.string.analytics_month_favorites_empty),
+                color = palette.mutedContent,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                itemsIndexed(insights) { index, insight ->
+                    FavoriteInsightCard(
+                        insight = insight,
+                        rank = index + 1,
+                        mainViewModel = mainViewModel
+                    )
                 }
             }
+        }
         }
     }
 }
@@ -337,6 +489,7 @@ internal fun MonthlyFavoritesCard(
 @Composable
 private fun FavoriteInsightCard(
     insight: ListeningInsight,
+    rank: Int,
     mainViewModel: MainViewModel
 ) {
     val context = LocalContext.current
@@ -347,49 +500,106 @@ private fun FavoriteInsightCard(
     } else {
         insight.title
     }
+    val isArtist = insight.labelRes == R.string.analytics_month_favorite_artist
+    val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
+    val artistCoverModel = if (isArtist) {
+        rememberArtistCoverModel(
+            artistName = insight.title,
+            representativeSong = insight.song,
+            folderLocation = artistCoverFolderUri,
+            mainViewModel = mainViewModel,
+            coversEnabled = true,
+            includeLibraryArtwork = true
+        )
+    } else null
+
     Card(
         modifier = Modifier
             .width(168.dp)
-            .height(226.dp),
+            .height(244.dp),
+        cornerRadius = 20.dp,
         colors = analyticsWallpaperCardColors(alpha = 0.55f)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            AnalyticsSongCover(
-                song = insight.song,
-                mainViewModel = mainViewModel,
-                modifier = Modifier.fillMaxSize(),
-                coverSize = 512,
-                loadOriginal = insight.labelRes == R.string.analytics_month_favorite_album
-            )
+            if (isArtist) {
+                if (artistCoverModel != null) {
+                    SafeCoverImage(
+                        model = artistCoverModel,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        sizePx = 512,
+                        showDefaultPlaceholder = false
+                    )
+                }
+                if (artistCoverModel == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF3C315A), Color(0xFF0C0A14))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Music,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.75f),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+            } else {
+                AnalyticsSongCover(
+                    song = insight.song,
+                    mainViewModel = mainViewModel,
+                    modifier = Modifier.fillMaxSize(),
+                    coverSize = 512,
+                    loadOriginal = insight.labelRes == R.string.analytics_month_favorite_album
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Black.copy(alpha = 0.08f),
+                                    Color.Black.copy(alpha = 0.28f),
+                                    Color.Black.copy(alpha = 0.78f)
+                                )
+                            )
+                    )
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Black.copy(alpha = 0.08f),
-                                Color.Black.copy(alpha = 0.28f),
-                                Color.Black.copy(alpha = 0.78f)
+                                Color.Black.copy(alpha = 0.04f),
+                                Color.Black.copy(alpha = 0.12f),
+                                Color.Black.copy(alpha = 0.86f)
                             )
                         )
                     )
             )
             Text(
-                text = stringResource(insight.labelRes),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
+                text = rank.toString(),
+                fontSize = 46.sp,
+                lineHeight = 48.sp,
+                fontWeight = FontWeight.ExtraBold,
                 color = Color.White,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.18f))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                    .padding(start = 14.dp, top = 10.dp)
             )
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(12.dp)
+                    .padding(14.dp)
             ) {
                 Text(
                     text = displayTitle,
@@ -400,21 +610,15 @@ private fun FavoriteInsightCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = stringResource(R.string.analytics_month_favorite_play_count, insight.playCount),
+                    text = if (insight.listenedMs > 0L) {
+                        formatListenDuration(context, insight.listenedMs)
+                    } else {
+                        stringResource(R.string.analytics_month_favorite_play_count, insight.playCount)
+                    },
                     fontSize = 12.sp,
                     color = Color.White.copy(alpha = 0.82f),
                     modifier = Modifier.padding(top = 4.dp)
                 )
-                if (insight.subtitle.isNotBlank()) {
-                    Text(
-                        text = insight.subtitle,
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.72f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
             }
         }
     }

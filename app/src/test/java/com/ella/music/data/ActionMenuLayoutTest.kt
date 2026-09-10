@@ -80,4 +80,12 @@ class ActionMenuLayoutTest {
             layout.order
         )
     }
+
+    @Test
+    fun listDefaultsIncludesRemoveFromRecentPlayback() {
+        // #653 rewrite: single/clear recent actions collapsed into remove_from_recent_playback.
+        assertTrue(ActionMenuIds.REMOVE_FROM_RECENT_PLAYBACK in ActionMenuIds.listDefaults)
+        assertTrue(ActionMenuIds.DELETE_SINGLE_RECENT_PLAYBACK !in ActionMenuIds.listDefaults)
+        assertTrue(ActionMenuIds.CLEAR_RECENT_PLAYBACK !in ActionMenuIds.listDefaults)
+    }
 }

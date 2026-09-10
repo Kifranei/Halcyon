@@ -1,7 +1,6 @@
 package com.ella.music.ui.player
 
 import android.os.SystemClock
-import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -47,8 +46,7 @@ internal fun PlayerDismissMotionHost(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     backEnabled: Boolean = true,
-    predictiveBackEnabled: Boolean = false,
-    overlayContent: @Composable () -> Unit = {},
+        overlayContent: @Composable () -> Unit = {},
     content: @Composable (dismissingPlayer: Boolean) -> Unit
 ) {
     val density = LocalDensity.current
@@ -57,10 +55,10 @@ internal fun PlayerDismissMotionHost(
     val latestOnDismiss by rememberUpdatedState(onDismiss)
     val dragDismissOffset = remember { Animatable(0f) }
     var dismissingPlayer by remember { mutableStateOf(false) }
-    var predictiveGestureGeneration by remember { mutableIntStateOf(0) }
     val topDragLimitPx = with(density) { 132.dp.toPx() }
     val dismissThresholdPx = with(density) { 240.dp.toPx() }
     val dismissVelocityThresholdPx = with(density) { 1250.dp.toPx() }
+    val cancelVelocityThresholdPx = with(density) { 420.dp.toPx() }
     val dismissTargetPx = remember(view.height) {
         view.height.takeIf { it > 0 }?.toFloat() ?: with(density) { 760.dp.toPx() }
     }
@@ -110,6 +108,7 @@ internal fun PlayerDismissMotionHost(
     val latestDismissTargetPx by rememberUpdatedState(dismissTargetPx)
     val latestDismissThresholdPx by rememberUpdatedState(dismissThresholdPx)
     val latestDismissVelocityPx by rememberUpdatedState(dismissVelocityThresholdPx)
+    val latestCancelVelocityPx by rememberUpdatedState(cancelVelocityThresholdPx)
     val coverDismissHandle = remember {
         PlayerCoverDismissHandle(
             begin = {
@@ -120,15 +119,22 @@ internal fun PlayerDismissMotionHost(
             onVerticalDrag = { dy ->
                 if (dismissingPlayer) return@PlayerCoverDismissHandle
                 scope.launch {
-                    val next = (dragDismissOffset.value + if (dy > 0f) dy else dy * 0.36f)
-                        .coerceIn(0f, latestDismissTargetPx)
+                    // 1:1 follow-finger both ways so reversing upward can cancel a deep drag.
+                    val next = (dragDismissOffset.value + dy).coerceIn(0f, latestDismissTargetPx)
                     dragDismissOffset.snapTo(next)
                 }
             },
             onDragEnd = { velocityY ->
                 val gestureOffset = dragDismissOffset.value
                 scope.launch {
-                    if (gestureOffset >= latestDismissThresholdPx || velocityY >= latestDismissVelocityPx) {
+                    // Prefer finger intent: strong upward fling always recovers; only commit
+                    // dismiss when still past threshold without an upward cancel, or flung down.
+                    val shouldDismiss = when {
+                        velocityY <= -latestCancelVelocityPx -> false
+                        velocityY >= latestDismissVelocityPx -> true
+                        else -> gestureOffset >= latestDismissThresholdPx
+                    }
+                    if (shouldDismiss) {
                         if (!dismissingPlayer) {
                             dismissingPlayer = true
                             dragDismissOffset.animateTo(
@@ -162,44 +168,7 @@ internal fun PlayerDismissMotionHost(
         )
     }
 
-    if (!predictiveBackEnabled) {
-        BackHandler(enabled = backEnabled) { dismissWithMotion() }
-    } else PredictiveBackHandler(enabled = backEnabled) { progress ->
-        val gestureGeneration = ++predictiveGestureGeneration
-        try {
-            dragDismissOffset.stop()
-            progress.collect { backEvent ->
-                // Reuse the player's existing vertical-dismiss motion so the destination below
-                // the resident overlay is revealed continuously during the system back gesture.
-                dragDismissOffset.snapTo(
-                    dismissTargetPx * FastOutSlowInEasing.transform(backEvent.progress)
-                )
-            }
-            if (!dismissingPlayer) {
-                dismissingPlayer = true
-                dragDismissOffset.animateTo(
-                    targetValue = dismissTargetPx,
-                    animationSpec = tween(durationMillis = 120, easing = LinearOutSlowInEasing)
-                )
-                latestOnDismiss()
-            }
-        } catch (_: CancellationException) {
-            // Do not use NonCancellable here. On ColorOS a cancelled predictive gesture can be
-            // followed immediately by another one; a non-cancellable rebound held the handler
-            // on the old gesture and left the player frozen on the system's last preview frame.
-            scope.launch {
-                dragDismissOffset.stop()
-                if (gestureGeneration != predictiveGestureGeneration || dismissingPlayer) return@launch
-                dragDismissOffset.animateTo(
-                    targetValue = 0f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
-            }
-        }
-    }
+    BackHandler(enabled = backEnabled) { dismissWithMotion() }
 
     Box(
         modifier = modifier
@@ -221,11 +190,8 @@ internal fun PlayerDismissMotionHost(
                     },
                     onDrag = { change, dragAmount ->
                         if (!closeGesture) return@detectDragGestures
-                        gestureOffset = (gestureOffset + if (dragAmount.y > 0f) {
-                            dragAmount.y
-                        } else {
-                            dragAmount.y * 0.36f
-                        }).coerceIn(0f, dismissTargetPx)
+                        // 1:1 follow-finger; upward reverse must be able to pull back under threshold.
+                        gestureOffset = (gestureOffset + dragAmount.y).coerceIn(0f, dismissTargetPx)
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                         scope.launch { dragDismissOffset.snapTo(gestureOffset) }
                         if (gestureOffset > 0f) change.consume()
@@ -247,7 +213,12 @@ internal fun PlayerDismissMotionHost(
                         closeGesture = false
                         val velocityY = velocityTracker.calculateVelocity().y
                         scope.launch {
-                            if (gestureOffset >= dismissThresholdPx || velocityY >= dismissVelocityThresholdPx) {
+                            val shouldDismiss = when {
+                                velocityY <= -cancelVelocityThresholdPx -> false
+                                velocityY >= dismissVelocityThresholdPx -> true
+                                else -> gestureOffset >= dismissThresholdPx
+                            }
+                            if (shouldDismiss) {
                                 if (!dismissingPlayer) {
                                     dismissingPlayer = true
                                     dragDismissOffset.animateTo(

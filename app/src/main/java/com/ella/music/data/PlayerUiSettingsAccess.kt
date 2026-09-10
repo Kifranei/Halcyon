@@ -17,6 +17,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_DYNAMIC_COVER_CUSTOM_FO
 import com.ella.music.data.SettingsManager.Companion.KEY_DYNAMIC_COVER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HIDE_SYSTEM_BARS
 import com.ella.music.data.SettingsManager.Companion.KEY_SYSTEM_BARS_MODE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SYSTEM_BARS_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_SYSTEM_BARS_RESERVE_SPACE
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_COVER_ROTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_MINI_PLAYER_LYRIC_SECONDARY
@@ -29,6 +30,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CAPTURE_SUB
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_FULLSCREEN_BUTTON_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_LONG_PRESS_INFO_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED
+import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_ORIENTATION
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_CUSTOM_FOLDERS
 import com.ella.music.data.SettingsManager.Companion.KEY_MUSIC_VIDEO_OFFSETS_JSON
@@ -48,17 +50,21 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_ALBUM_COVER_CORN
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MUSIC_VIDEO_CORNER_RADIUS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_SWIPE_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED
-import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PREDICTIVE_BACK_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_NON_CURRENT_BLUR_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_DYNAMIC_FLOW_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_APPLE_FLOW_SPEED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_HDR_GLOW
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_COVER
+import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_PLAYER_IMMERSIVE_COVER
+import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_USE_APPLE_FAVORITE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_FAVORITE_HEART_PINK
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_KEEP_SCREEN_ON
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LANDSCAPE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PAGE_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRICS_CORNER_ACTIONS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_ACTION_MENU_LAYOUT
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHORTCUT_ITEMS
+import com.ella.music.data.SettingsManager.Companion.KEY_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS
 import com.ella.music.data.SettingsManager.Companion.KEY_LIST_ACTION_MENU_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_SONG_INFO_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_QUEUE_TOOLBAR_LAYOUT
@@ -67,6 +73,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_QUALITY
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_PRIORITY
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_PROGRESS_INFO_SEPARATED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_WORD_SEEK_ENABLED
@@ -76,7 +83,6 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_PRIMA
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_LINE_SPACING
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN
-import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAUSE_CURRENT_ONLY
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_IMMERSIVE_LYRIC_SWIPE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTATION
@@ -110,6 +116,7 @@ interface PlayerUiSettingsAccess {
     val playerProgressShowQuality: Flow<Boolean>
     val playerProgressShowAudioInfo: Flow<Boolean>
     val playerProgressShowOutputDevice: Flow<Boolean>
+    val playerProgressInfoPriority: Flow<String>
     val playerProgressLongPressCycle: Flow<Boolean>
     val playerProgressInfoSeparated: Flow<Boolean>
     val transportButtonOutlines: Flow<Boolean>
@@ -118,7 +125,6 @@ interface PlayerUiSettingsAccess {
     val playerShowSongAnnotation: Flow<Boolean>
     val playerCoverSwipeEnabled: Flow<Boolean>
     val playerCoverLongPressPreviewEnabled: Flow<Boolean>
-    val playerPredictiveBackEnabled: Flow<Boolean>
     val lyricNonCurrentBlurPercent: Flow<Int>
     val lyricWordSeekEnabled: Flow<Boolean>
     val lyricTouchFeedbackEnabled: Flow<Boolean>
@@ -127,13 +133,18 @@ interface PlayerUiSettingsAccess {
     val playerMiniLyricSecondarySize: Flow<Int>
     val playerMiniLyricLineSpacing: Flow<Int>
     val playerMiniLyricTextAlign: Flow<Int>
-    val playerMiniLyricVerticalAlign: Flow<Int>
     val lyricPauseCurrentOnly: Flow<Boolean>
     val playerImmersiveLyricSwipe: Flow<Boolean>
     val playerTitlePosition: Flow<Int>
     val playerPageStyle: Flow<Int>
     val playerLyricsCornerActionsEnabled: Flow<Boolean>
     val playerActionMenuLayout: Flow<String>
+    val playerShortcutItems: Flow<String>
+    suspend fun setPlayerShortcutItems(items: List<String>)
+    suspend fun resetPlayerShortcutItems()
+    val nonImmersivePlayerShortcutItems: Flow<String>
+    suspend fun setNonImmersivePlayerShortcutItems(items: List<String>)
+    suspend fun resetNonImmersivePlayerShortcutItems()
     val listActionMenuLayout: Flow<String>
     val songInfoLayout: Flow<String>
     val queueToolbarLayout: Flow<String>
@@ -143,10 +154,15 @@ interface PlayerUiSettingsAccess {
     val playerKeepScreenOn: Flow<Boolean>
     val playerHdrGlow: Flow<Boolean>
     val playerImmersiveCover: Flow<Boolean>
+    val appleMusicPlayerImmersiveCover: Flow<Boolean>
+    val appleMusicUseAppleFavorite: Flow<Boolean>
+    val playerFavoriteHeartPink: Flow<Boolean>
+    suspend fun setPlayerFavoriteHeartPink(pink: Boolean)
     val playerCoverContentColor: Flow<Boolean>
     val playerAlbumCoverCornerRadius: Flow<Int>
     val playerMusicVideoCornerRadius: Flow<Int>
     val systemBarsMode: Flow<Int>
+    val playerSystemBarsMode: Flow<Int>
     val systemBarsReserveSpace: Flow<Boolean>
     val playerDynamicFlowEnabled: Flow<Boolean>
     val playerAppleFlowSpeed: Flow<Int>
@@ -162,6 +178,7 @@ interface PlayerUiSettingsAccess {
     val musicVideoFullscreenButtonEnabled: Flow<Boolean>
     val musicVideoLongPressInfoEnabled: Flow<Boolean>
     val musicVideoLongPressImmersiveLyricsEnabled: Flow<Boolean>
+    val musicVideoImmersiveLyricsHideSystemBars: Flow<Boolean>
     val musicVideoOffsetsJson: Flow<String>
     val dynamicCoverCustomFoldersRaw: Flow<String>
     val dynamicCoverCustomFolders: Flow<List<String>>
@@ -188,14 +205,18 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerProgressShowQuality(enabled: Boolean)
     suspend fun setPlayerProgressShowAudioInfo(enabled: Boolean)
     suspend fun setPlayerProgressShowOutputDevice(enabled: Boolean)
+    suspend fun setPlayerProgressInfoPriority(priority: String)
     suspend fun setPlayerProgressLongPressCycle(enabled: Boolean)
     suspend fun setPlayerProgressInfoSeparated(enabled: Boolean)
     suspend fun setTransportButtonOutlines(enabled: Boolean)
     suspend fun setPlayerHdrGlow(enabled: Boolean)
     suspend fun setPlayerImmersiveCover(enabled: Boolean)
+    suspend fun setAppleMusicPlayerImmersiveCover(enabled: Boolean)
+    suspend fun setAppleMusicUseAppleFavorite(enabled: Boolean)
     suspend fun setPlayerAlbumCoverCornerRadius(value: Int)
     suspend fun setPlayerMusicVideoCornerRadius(value: Int)
     suspend fun setSystemBarsMode(mode: Int)
+    suspend fun setPlayerSystemBarsMode(mode: Int)
     suspend fun setSystemBarsReserveSpace(enabled: Boolean)
     suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean)
     suspend fun setPlayerAppleFlowSpeed(value: Int)
@@ -211,6 +232,7 @@ interface PlayerUiSettingsAccess {
     suspend fun setMusicVideoFullscreenButtonEnabled(enabled: Boolean)
     suspend fun setMusicVideoLongPressInfoEnabled(enabled: Boolean)
     suspend fun setMusicVideoLongPressImmersiveLyricsEnabled(enabled: Boolean)
+    suspend fun setMusicVideoImmersiveLyricsHideSystemBars(enabled: Boolean)
     suspend fun setMusicVideoOffsetsJson(json: String)
     suspend fun setDynamicCoverCustomFolders(folders: String)
     suspend fun setMusicVideoCustomFolders(folders: String)
@@ -227,7 +249,6 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerShowSongAnnotation(enabled: Boolean)
     suspend fun setPlayerCoverSwipeEnabled(enabled: Boolean)
     suspend fun setPlayerCoverLongPressPreviewEnabled(enabled: Boolean)
-    suspend fun setPlayerPredictiveBackEnabled(enabled: Boolean)
     suspend fun setLyricNonCurrentBlurPercent(percent: Int)
     suspend fun setLyricWordSeekEnabled(enabled: Boolean)
     suspend fun setLyricTouchFeedbackEnabled(enabled: Boolean)
@@ -236,7 +257,6 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerMiniLyricSecondarySize(value: Int)
     suspend fun setPlayerMiniLyricLineSpacing(value: Int)
     suspend fun setPlayerMiniLyricTextAlign(value: Int)
-    suspend fun setPlayerMiniLyricVerticalAlign(value: Int)
     suspend fun setLyricPauseCurrentOnly(enabled: Boolean)
     suspend fun setPlayerImmersiveLyricSwipe(enabled: Boolean)
     suspend fun setPlayerTitlePosition(position: Int)
@@ -284,6 +304,15 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO] ?: true }
     override val playerProgressShowOutputDevice: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE] ?: true }
+    override val playerProgressInfoPriority: Flow<String> =
+        context.dataStore.data.map { prefs ->
+            SettingsManager.migratePlayerProgressInfoPriority(
+                stored = prefs[KEY_PLAYER_PROGRESS_INFO_PRIORITY],
+                showQuality = prefs[KEY_PLAYER_PROGRESS_SHOW_QUALITY],
+                showAudioInfo = prefs[KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO],
+                showOutputDevice = prefs[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE]
+            )
+        }
     override val playerProgressLongPressCycle: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE] ?: false }
     override val playerProgressInfoSeparated: Flow<Boolean> =
@@ -306,10 +335,8 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_PLAYER_COVER_SWIPE_ENABLED] ?: false }
     override val playerCoverLongPressPreviewEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED] ?: true }
-    override val playerPredictiveBackEnabled: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYER_PREDICTIVE_BACK_ENABLED] ?: false }
     override val lyricNonCurrentBlurPercent: Flow<Int> =
-        context.dataStore.data.map { (it[KEY_LYRIC_NON_CURRENT_BLUR_PERCENT] ?: 40).coerceIn(0, 100) }
+        context.dataStore.data.map { (it[KEY_LYRIC_NON_CURRENT_BLUR_PERCENT] ?: 70).coerceIn(0, 100) }
     override val lyricWordSeekEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_WORD_SEEK_ENABLED] ?: false }
     override val lyricTouchFeedbackEnabled: Flow<Boolean> =
@@ -319,20 +346,11 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     override val playerMiniLyricPrimarySize: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_PRIMARY_SIZE] ?: 19).coerceIn(12, 32) }
     override val playerMiniLyricSecondarySize: Flow<Int> =
-        context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE] ?: 16).coerceIn(10, 28) }
+        context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_SECONDARY_SIZE] ?: 14).coerceIn(10, 28) }
     override val playerMiniLyricLineSpacing: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_LINE_SPACING] ?: 7).coerceIn(0, 24) }
     override val playerMiniLyricTextAlign: Flow<Int> =
         context.dataStore.data.map { (it[KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN] ?: 0).coerceIn(0, 2) }
-    override val playerMiniLyricVerticalAlign: Flow<Int> =
-        context.dataStore.data.map {
-            (it[KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN]
-                ?: SettingsManager.DEFAULT_PLAYER_MINI_LYRIC_VERTICAL_ALIGN)
-                .coerceIn(
-                    SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_TOP,
-                    SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER
-                )
-        }
     override val lyricPauseCurrentOnly: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PAUSE_CURRENT_ONLY] ?: true }
     override val playerImmersiveLyricSwipe: Flow<Boolean> =
@@ -349,6 +367,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map { it[KEY_PLAYER_LYRICS_CORNER_ACTIONS] ?: true }
     override val playerActionMenuLayout: Flow<String> =
         context.dataStore.data.map { it[KEY_PLAYER_ACTION_MENU_LAYOUT].orEmpty() }
+    override val playerShortcutItems: Flow<String> =
+        context.dataStore.data.map { it[KEY_PLAYER_SHORTCUT_ITEMS] ?: SettingsManager.DEFAULT_PLAYER_SHORTCUT_ITEMS }
+    override val nonImmersivePlayerShortcutItems: Flow<String> =
+        context.dataStore.data.map { it[KEY_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS] ?: SettingsManager.DEFAULT_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS }
     override val listActionMenuLayout: Flow<String> =
         context.dataStore.data.map { it[KEY_LIST_ACTION_MENU_LAYOUT].orEmpty() }
     override val songInfoLayout: Flow<String> =
@@ -366,7 +388,13 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     }
     override val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     override val playerImmersiveCover: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: false }
+        context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: true }
+    override val appleMusicPlayerImmersiveCover: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_APPLE_MUSIC_PLAYER_IMMERSIVE_COVER] ?: false }
+    override val appleMusicUseAppleFavorite: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_APPLE_MUSIC_USE_APPLE_FAVORITE] ?: false }
+    override val playerFavoriteHeartPink: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_FAVORITE_HEART_PINK] ?: false }
     override val playerCoverContentColor: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_COVER_CONTENT_COLOR] ?: false }
     override val playerAlbumCoverCornerRadius: Flow<Int> =
@@ -394,6 +422,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
                 storedMode = it[KEY_SYSTEM_BARS_MODE],
                 legacyHideSystemBars = it[KEY_HIDE_SYSTEM_BARS] ?: false
             )
+        }
+    override val playerSystemBarsMode: Flow<Int> =
+        context.dataStore.data.map {
+            SettingsManager.resolvePlayerSystemBarsMode(it[KEY_PLAYER_SYSTEM_BARS_MODE])
         }
     override val systemBarsReserveSpace: Flow<Boolean> =
         context.dataStore.data.map {
@@ -457,6 +489,11 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.data.map {
             it[KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED]
                 ?: SettingsManager.DEFAULT_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED
+        }
+    override val musicVideoImmersiveLyricsHideSystemBars: Flow<Boolean> =
+        context.dataStore.data.map {
+            it[KEY_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS]
+                ?: SettingsManager.DEFAULT_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS
         }
     override val musicVideoOffsetsJson: Flow<String> =
         context.dataStore.data.map { it[KEY_MUSIC_VIDEO_OFFSETS_JSON].orEmpty() }
@@ -542,6 +579,20 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE] = enabled }
     }
 
+    override suspend fun setPlayerProgressInfoPriority(priority: String) {
+        val normalized = SettingsManager.normalizePlayerProgressInfoPriority(priority)
+        val enabled = normalized.split(',').map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        context.dataStore.edit {
+            it[KEY_PLAYER_PROGRESS_INFO_PRIORITY] = normalized
+            it[KEY_PLAYER_PROGRESS_SHOW_QUALITY] =
+                SettingsManager.PLAYER_PROGRESS_INFO_QUALITY in enabled
+            it[KEY_PLAYER_PROGRESS_SHOW_AUDIO_INFO] =
+                SettingsManager.PLAYER_PROGRESS_INFO_AUDIO in enabled
+            it[KEY_PLAYER_PROGRESS_SHOW_OUTPUT_DEVICE] =
+                SettingsManager.PLAYER_PROGRESS_INFO_OUTPUT in enabled
+        }
+    }
+
     override suspend fun setPlayerProgressLongPressCycle(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_PROGRESS_LONG_PRESS_CYCLE] = enabled }
     }
@@ -560,6 +611,18 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setPlayerImmersiveCover(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_IMMERSIVE_COVER] = enabled }
+    }
+
+    override suspend fun setAppleMusicPlayerImmersiveCover(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APPLE_MUSIC_PLAYER_IMMERSIVE_COVER] = enabled }
+    }
+
+    override suspend fun setAppleMusicUseAppleFavorite(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APPLE_MUSIC_USE_APPLE_FAVORITE] = enabled }
+    }
+
+    override suspend fun setPlayerFavoriteHeartPink(pink: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_FAVORITE_HEART_PINK] = pink }
     }
 
     override suspend fun setPlayerAlbumCoverCornerRadius(value: Int) {
@@ -587,6 +650,12 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
             it[KEY_SYSTEM_BARS_MODE] = normalized
             it[KEY_HIDE_SYSTEM_BARS] =
                 normalized == SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+        }
+    }
+
+    override suspend fun setPlayerSystemBarsMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_SYSTEM_BARS_MODE] = SettingsManager.resolvePlayerSystemBarsMode(mode)
         }
     }
 
@@ -653,6 +722,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setMusicVideoLongPressImmersiveLyricsEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED] = enabled }
+    }
+
+    override suspend fun setMusicVideoImmersiveLyricsHideSystemBars(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS] = enabled }
     }
 
     override suspend fun setMusicVideoOffsetsJson(json: String) {
@@ -739,10 +812,6 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_COVER_LONG_PRESS_PREVIEW_ENABLED] = enabled }
     }
 
-    override suspend fun setPlayerPredictiveBackEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_PLAYER_PREDICTIVE_BACK_ENABLED] = enabled }
-    }
-
     override suspend fun setLyricNonCurrentBlurPercent(percent: Int) {
         context.dataStore.edit { it[KEY_LYRIC_NON_CURRENT_BLUR_PERCENT] = percent.coerceIn(0, 100) }
     }
@@ -775,15 +844,6 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_PLAYER_MINI_LYRIC_TEXT_ALIGN] = value.coerceIn(0, 2) }
     }
 
-    override suspend fun setPlayerMiniLyricVerticalAlign(value: Int) {
-        context.dataStore.edit {
-            it[KEY_PLAYER_MINI_LYRIC_VERTICAL_ALIGN] = value.coerceIn(
-                SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_TOP,
-                SettingsManager.PLAYER_MINI_LYRIC_VERTICAL_ALIGN_CENTER
-            )
-        }
-    }
-
     override suspend fun setLyricPauseCurrentOnly(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LYRIC_PAUSE_CURRENT_ONLY] = enabled }
     }
@@ -813,6 +873,30 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setPlayerActionMenuLayout(layout: String) {
         context.dataStore.edit { it[KEY_PLAYER_ACTION_MENU_LAYOUT] = layout }
+    }
+
+    override suspend fun setPlayerShortcutItems(items: List<String>) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_SHORTCUT_ITEMS] = items.take(SettingsManager.MAX_PLAYER_SHORTCUT_ITEMS).joinToString(",")
+        }
+    }
+
+    override suspend fun resetPlayerShortcutItems() {
+        context.dataStore.edit {
+            it.remove(KEY_PLAYER_SHORTCUT_ITEMS)
+        }
+    }
+
+    override suspend fun setNonImmersivePlayerShortcutItems(items: List<String>) {
+        context.dataStore.edit {
+            it[KEY_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS] = items.take(SettingsManager.MAX_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS).joinToString(",")
+        }
+    }
+
+    override suspend fun resetNonImmersivePlayerShortcutItems() {
+        context.dataStore.edit {
+            it.remove(KEY_NON_IMMERSIVE_PLAYER_SHORTCUT_ITEMS)
+        }
     }
 
     override suspend fun setListActionMenuLayout(layout: String) {

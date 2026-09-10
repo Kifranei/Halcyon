@@ -14,7 +14,7 @@ internal const val VIDEO_INTERCEPT_JS = """
                 if (src && src.length > 0) {
                     e.preventDefault();
                     e.stopPropagation();
-                    AndroidBridge.onVideoUrlDetected(src);
+                    AndroidBridge.postMessage(src);
                     return;
                 }
                 // Check child source elements
@@ -24,7 +24,7 @@ internal const val VIDEO_INTERCEPT_JS = """
                     if (s && s.length > 0) {
                         e.preventDefault();
                         e.stopPropagation();
-                        AndroidBridge.onVideoUrlDetected(s);
+                        AndroidBridge.postMessage(s);
                         return;
                     }
                 }
@@ -35,7 +35,7 @@ internal const val VIDEO_INTERCEPT_JS = """
                 if (href.match(/\.mp4/i)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    AndroidBridge.onVideoUrlDetected(href);
+                    AndroidBridge.postMessage(href);
                     return;
                 }
             }
@@ -50,7 +50,7 @@ internal const val VIDEO_INTERCEPT_JS = """
         if (blob && blob.type && blob.type.indexOf('video') >= 0) {
             var reader = new FileReader();
             reader.onloadend = function() {
-                AndroidBridge.onVideoUrlDetected(reader.result);
+                AndroidBridge.postMessage(reader.result);
             };
             reader.readAsDataURL(blob);
         }

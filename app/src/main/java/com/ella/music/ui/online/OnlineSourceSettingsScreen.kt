@@ -38,7 +38,8 @@ import com.ella.music.R
 import com.ella.music.data.LxSourceConfig
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lx.LxOnlineService
-import com.ella.music.ui.components.EllaMiuixTextField
+import com.ella.music.data.lx.readLxSourceText
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,6 +48,9 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import androidx.compose.ui.graphics.Color
+import com.ella.music.ui.components.wallpaperAwareCardColors
+import com.ella.music.ui.settings.SettingsCardGroup
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -82,7 +86,7 @@ fun LxSourceSettingsScreen(onBack: () -> Unit) {
             runCatching {
                 val script = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.bufferedReader(Charsets.UTF_8).readText()
+                        input.readLxSourceText()
                     }.orEmpty()
                 }
                 val (name, normalizedScript) = service.importSourceScript(script, allowRuntimeInspect = false)
@@ -183,7 +187,7 @@ private fun SourceSettingsScaffold(
     ) {
         EllaSmallTopAppBar(
             title = title,
-            color = ellaPageBackground(),
+            color = Color.Transparent,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -204,9 +208,9 @@ private fun SourceSettingsScaffold(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
             SmallTitle(text = stringResource(R.string.lx_source_import_section))
-            Card(modifier = Modifier.fillMaxWidth()) {
+            SettingsCardGroup {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                    EllaMiuixTextField(
+                    TextField(
                         value = importUrl,
                         onValueChange = onImportUrlChange,
                         label = importPlaceholder,
@@ -276,6 +280,7 @@ private fun SourceManageRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp),
+        colors = wallpaperAwareCardColors(defaultAlpha = 0.42f),
         onClick = { if (enabled && !selected) onSelect() }
     ) {
         Row(

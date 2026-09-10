@@ -43,5 +43,7 @@ private fun String.toHalcyonLocale(): Locale? = when (this) {
     SettingsManager.APP_LANGUAGE_DE -> Locale.GERMAN
     SettingsManager.APP_LANGUAGE_FR -> Locale.FRENCH
     SettingsManager.APP_LANGUAGE_RU -> Locale.forLanguageTag("ru")
+    SettingsManager.APP_LANGUAGE_TR -> Locale.forLanguageTag("tr")
+    SettingsManager.APP_LANGUAGE_AR -> Locale.forLanguageTag("ar")
     else -> null
 }

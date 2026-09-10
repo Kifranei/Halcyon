@@ -101,6 +101,18 @@ internal fun SettingsMaintenanceScreen(
                         }
                     )
                     ArrowPreference(
+                        title = stringResource(R.string.settings_clear_remote_audio_cache),
+                        summary = stringResource(R.string.settings_clear_remote_audio_cache_summary),
+                        onClick = {
+                            mainViewModel.clearRemoteAudioCache()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_clear_remote_audio_cache_done),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    )
+                    ArrowPreference(
                         title = stringResource(R.string.settings_performance_diagnostics),
                         summary = stringResource(R.string.settings_performance_diagnostics_summary),
                         onClick = onNavigateToPerformanceDiagnostics

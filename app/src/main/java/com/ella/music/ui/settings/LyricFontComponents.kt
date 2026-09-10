@@ -38,6 +38,7 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.ella.music.ui.components.wallpaperAwareCardColors
 
 @Composable
 internal fun LyricFontTargetCard(
@@ -48,6 +49,8 @@ internal fun LyricFontTargetCard(
 ) {
     Card(
         modifier = Modifier.padding(vertical = 4.dp),
+        colors = wallpaperAwareCardColors(defaultAlpha = 0.42f),
+        cornerRadius = 16.dp,
         onClick = onClick
     ) {
         BasicComponent(
@@ -74,6 +77,8 @@ internal fun SystemDefaultFontCard(
 ) {
     Card(
         modifier = Modifier.padding(vertical = 4.dp),
+        colors = wallpaperAwareCardColors(defaultAlpha = 0.42f),
+        cornerRadius = 16.dp,
         onClick = onClick
     ) {
         BasicComponent(
@@ -124,9 +129,7 @@ internal fun LyricFontWeightCard(
         }.getOrNull()
     }
     val previewFamily = previewTypeface?.let { FontFamily(it) }
-    Card(
-        modifier = Modifier.padding(vertical = 4.dp)
-    ) {
+    SettingsCardGroup(modifier = Modifier.padding(vertical = 4.dp)) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -188,10 +191,7 @@ internal fun SystemFontEntryCard(
     val previewFamily = remember(currentSystemFontPath, currentWeight) {
         currentSystemFontPath?.toFontFamilyOrNull(currentWeight, false)
     }
-    Card(
-        modifier = Modifier.padding(vertical = 4.dp),
-        onClick = onClick
-    ) {
+    SettingsCardGroup(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -257,10 +257,7 @@ internal fun FontChoiceItem(
         font.path.toFontFamilyOrNull(currentWeight, italic)
     }
 
-    Card(
-        modifier = Modifier.padding(vertical = 4.dp),
-        onClick = onClick
-    ) {
+    SettingsCardGroup(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

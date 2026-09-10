@@ -1,34 +1,55 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.settings
 
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import com.ella.music.ui.player.ensureBundledInterPath
+import com.ella.music.ui.player.ensureBundledMiSansBoldPath
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.LocalInBottomSheet
+import com.ella.music.ui.components.LocalSettingsCardFrosting
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -44,10 +65,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -79,15 +102,14 @@ fun LyricFontScreen(
     val translationCjkFontPath by settingsManager.lyricTranslationCjkFontPath.collectAsState(initial = "")
     val lyricFontWeight by settingsManager.lyricFontWeight.collectAsState(initial = 800)
     val lyricFontItalic by settingsManager.lyricFontItalic.collectAsState(initial = false)
-    val lyricShareUseLyricFont by settingsManager.lyricShareUseLyricFont.collectAsState(initial = false)
+    val lyricShareUseLyricFont by settingsManager.lyricShareUseLyricFont.collectAsState(initial = true)
     val lyricFontApplyToPage by settingsManager.lyricFontApplyToPage.collectAsState(initial = true)
     val lyricFontApplyToDesktop by settingsManager.lyricFontApplyToDesktop.collectAsState(initial = true)
     var fonts by remember { mutableStateOf<List<FontChoice>>(emptyList()) }
     var systemFonts by remember { mutableStateOf<List<FontChoice>>(emptyList()) }
     var showSystemFontPicker by remember { mutableStateOf(false) }
     var activeTarget by remember { mutableStateOf(LyricFontTarget.GlobalWestern) }
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
     val selectedFontPath = when (activeTarget) {
         LyricFontTarget.GlobalWestern -> globalWesternFontPath.ifBlank { legacyWesternFontPath }
         LyricFontTarget.GlobalCjk -> globalCjkFontPath
@@ -99,12 +121,33 @@ fun LyricFontScreen(
     val currentSystemFont = remember(selectedFontPath, systemFonts) {
         systemFonts.firstOrNull { it.path == selectedFontPath }
     }
-    val globalWesternDisplayName = globalWesternFontName.ifBlank { legacyWesternFontName.ifBlank { "系统默认" } }
-    val globalCjkDisplayName = globalCjkFontName.ifBlank { "系统补缺" }
-    val originalWesternDisplayName = originalWesternFontName.ifBlank { legacyWesternFontName.ifBlank { "Inter" } }
-    val originalCjkDisplayName = originalCjkFontName.ifBlank { legacyCjkFontName.ifBlank { "MiSans Bold" } }
-    val translationWesternDisplayName = translationWesternFontName.ifBlank { legacyWesternFontName.ifBlank { "Inter" } }
-    val translationCjkDisplayName = translationCjkFontName.ifBlank { legacyCjkFontName.ifBlank { "MiSans Bold" } }
+    val bundledInterPath = remember(context) { ensureBundledInterPath(context) }
+    val bundledMiSansPath = remember(context) { ensureBundledMiSansBoldPath(context) }
+    val systemDefaultTitle = stringResource(R.string.settings_lyric_font_system_default)
+    val globalWesternDisplayName = when {
+        globalWesternFontPath == SYSTEM_FONT_PATH -> systemDefaultTitle
+        else -> globalWesternFontName.ifBlank { legacyWesternFontName.ifBlank { "Inter Bold" } }
+    }
+    val globalCjkDisplayName = when {
+        globalCjkFontPath == SYSTEM_FONT_PATH -> systemDefaultTitle
+        else -> globalCjkFontName.ifBlank { legacyCjkFontName.ifBlank { "MiSans Bold" } }
+    }
+    val originalWesternDisplayName = when {
+        originalWesternFontPath == SYSTEM_FONT_PATH -> systemDefaultTitle
+        else -> originalWesternFontName.ifBlank { legacyWesternFontName.ifBlank { "Inter Bold" } }
+    }
+    val originalCjkDisplayName = when {
+        originalCjkFontPath == SYSTEM_FONT_PATH -> systemDefaultTitle
+        else -> originalCjkFontName.ifBlank { legacyCjkFontName.ifBlank { "MiSans Bold" } }
+    }
+    val translationWesternDisplayName = when {
+        translationWesternFontPath == SYSTEM_FONT_PATH -> systemDefaultTitle
+        else -> translationWesternFontName.ifBlank { legacyWesternFontName.ifBlank { "Inter Bold" } }
+    }
+    val translationCjkDisplayName = when {
+        translationCjkFontPath == SYSTEM_FONT_PATH -> systemDefaultTitle
+        else -> translationCjkFontName.ifBlank { legacyCjkFontName.ifBlank { "MiSans Bold" } }
+    }
     val listState = rememberSettingsLazyListState("settings_lyric_font")
 
     suspend fun applyFont(font: FontChoice) {
@@ -158,11 +201,13 @@ fun LyricFontScreen(
         }
     }
 
+    var currentTab by remember { mutableStateOf(LyricFontTab.Global) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
     ) {
         EllaSmallTopAppBar(
             title = stringResource(R.string.settings_font_screen_title),
@@ -184,8 +229,63 @@ fun LyricFontScreen(
                     )
                 }
             },
-            color = pageBackground
+            color = Color.Transparent
         )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .background(
+                    color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            LyricFontTab.entries.forEach { tab ->
+                val isSelected = currentTab == tab
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            color = if (isSelected) MiuixTheme.colorScheme.surface else Color.Transparent,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            currentTab = tab
+                            when (tab) {
+                                LyricFontTab.Global -> if (activeTarget != LyricFontTarget.GlobalWestern && activeTarget != LyricFontTarget.GlobalCjk) {
+                                    activeTarget = LyricFontTarget.GlobalWestern
+                                }
+                                LyricFontTab.Original -> if (activeTarget != LyricFontTarget.OriginalWestern && activeTarget != LyricFontTarget.OriginalCjk) {
+                                    activeTarget = LyricFontTarget.OriginalWestern
+                                }
+                                LyricFontTab.Translation -> if (activeTarget != LyricFontTarget.TranslationWestern && activeTarget != LyricFontTarget.TranslationCjk) {
+                                    activeTarget = LyricFontTarget.TranslationWestern
+                                }
+                                LyricFontTab.Apply -> {}
+                            }
+                        }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(tab.titleRes),
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
 
         LazyColumn(
             state = listState,
@@ -196,188 +296,398 @@ fun LyricFontScreen(
                 .asPaddingValues()
                 .let { PaddingValues(bottom = it.calculateBottomPadding() + 96.dp) }
         ) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                LyricFontTargetCard(
-                    title = stringResource(R.string.settings_font_global_western),
-                    currentName = globalWesternDisplayName,
-                    selected = activeTarget == LyricFontTarget.GlobalWestern,
-                    onClick = { activeTarget = LyricFontTarget.GlobalWestern }
-                )
-                LyricFontTargetCard(
-                    title = stringResource(R.string.settings_font_global_cjk),
-                    currentName = globalCjkDisplayName,
-                    selected = activeTarget == LyricFontTarget.GlobalCjk,
-                    onClick = { activeTarget = LyricFontTarget.GlobalCjk }
-                )
-                LyricFontTargetCard(
-                    title = stringResource(R.string.settings_font_original_western),
-                    currentName = originalWesternDisplayName,
-                    selected = activeTarget == LyricFontTarget.OriginalWestern,
-                    onClick = { activeTarget = LyricFontTarget.OriginalWestern }
-                )
-                LyricFontTargetCard(
-                    title = stringResource(R.string.settings_font_original_cjk),
-                    currentName = originalCjkDisplayName,
-                    selected = activeTarget == LyricFontTarget.OriginalCjk,
-                    onClick = { activeTarget = LyricFontTarget.OriginalCjk }
-                )
-                LyricFontTargetCard(
-                    title = stringResource(R.string.settings_font_translation_western),
-                    currentName = translationWesternDisplayName,
-                    selected = activeTarget == LyricFontTarget.TranslationWestern,
-                    onClick = { activeTarget = LyricFontTarget.TranslationWestern }
-                )
-                LyricFontTargetCard(
-                    title = stringResource(R.string.settings_font_translation_cjk),
-                    currentName = translationCjkDisplayName,
-                    selected = activeTarget == LyricFontTarget.TranslationCjk,
-                    onClick = { activeTarget = LyricFontTarget.TranslationCjk }
-                )
-                SettingsCardGroup {
-                    SwitchPreference(
-                        title = stringResource(R.string.settings_lyric_share_use_lyric_font),
-                        summary = stringResource(R.string.settings_lyric_share_use_lyric_font_summary),
-                        checked = lyricShareUseLyricFont,
-                        onCheckedChange = { value ->
-                            scope.launch { settingsManager.setLyricShareUseLyricFont(value) }
-                        }
-                    )
-                    SwitchPreference(
-                        title = stringResource(R.string.settings_lyric_font_apply_to_page),
-                        summary = stringResource(R.string.settings_lyric_font_apply_to_page_summary),
-                        checked = lyricFontApplyToPage,
-                        onCheckedChange = { value ->
-                            scope.launch { settingsManager.setLyricFontApplyToPage(value) }
-                        }
-                    )
-                    SwitchPreference(
-                        title = stringResource(R.string.settings_lyric_font_apply_to_desktop),
-                        summary = stringResource(R.string.settings_lyric_font_apply_to_desktop_summary),
-                        checked = lyricFontApplyToDesktop,
-                        onCheckedChange = { value ->
-                            scope.launch {
-                                settingsManager.setLyricFontApplyToDesktop(value)
-                                notifyDesktopLyricFontChanged(context, settingsManager)
-                            }
-                        }
-                    )
-                }
-                LyricFontWeightCard(
-                    westernFontPath = originalWesternFontPath.ifBlank { legacyWesternFontPath },
-                    cjkFontPath = originalCjkFontPath.ifBlank { legacyCjkFontPath },
-                    lyricFontWeight = lyricFontWeight,
-                    onWeightChange = { weight ->
-                        scope.launch {
-                            settingsManager.setLyricFontWeight(weight)
-                            notifyDesktopLyricFontChanged(context, settingsManager)
-                        }
-                    }
-                )
-                LyricFontListTitle()
-            }
-
-            items(fonts, key = { it.path }) { font ->
-                FontChoiceItem(
-                    font = font,
-                    currentWeight = lyricFontWeight,
-                    italic = false,
-                    selected = selectedFontPath == font.path,
-                    onClick = {
-                        scope.launch {
-                            applyFont(font)
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.settings_lyric_font_applied, font.name),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    },
-                    onDelete = if (font.sourceRank == FONT_SOURCE_IMPORTED) {
-                        {
-                            scope.launch {
-                                val deleted = withContext(Dispatchers.IO) {
-                                    deleteImportedFont(font)
+            when (currentTab) {
+                LyricFontTab.Global -> {
+                    item {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LyricFontWeightCard(
+                            westernFontPath = globalWesternFontPath.ifBlank { legacyWesternFontPath.ifBlank { bundledInterPath } },
+                            cjkFontPath = globalCjkFontPath.ifBlank { bundledMiSansPath },
+                            lyricFontWeight = lyricFontWeight,
+                            onWeightChange = { weight ->
+                                scope.launch {
+                                    settingsManager.setLyricFontWeight(weight)
+                                    notifyDesktopLyricFontChanged(context, settingsManager)
                                 }
-
-                                clearImportedFontReferences(settingsManager, font.path)
-                                notifyDesktopLyricFontChanged(context, settingsManager)
-
-                                fonts = withContext(Dispatchers.IO) { collectFontChoices(context) }
-
-                                Toast.makeText(
-                                    context,
-                                    if (deleted) {
-                                        context.getString(R.string.settings_lyric_font_deleted)
-                                    } else {
-                                        context.getString(R.string.settings_lyric_font_delete_failed)
-                                    },
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            }
+                        )
+                        val westernPath = globalWesternFontPath.ifBlank { legacyWesternFontPath }
+                        val westernOptions = remember(fonts, westernPath, globalWesternDisplayName, systemDefaultTitle) {
+                            buildFontDropdownOptions(
+                                fonts = fonts,
+                                currentPath = westernPath,
+                                currentName = globalWesternDisplayName,
+                                defaultTitle = "Inter Bold",
+                                systemDefaultTitle = systemDefaultTitle
+                            )
+                        }
+                        val cjkPath = globalCjkFontPath
+                        val cjkOptions = remember(fonts, cjkPath, globalCjkDisplayName, systemDefaultTitle) {
+                            buildFontDropdownOptions(
+                                fonts = fonts,
+                                currentPath = cjkPath,
+                                currentName = globalCjkDisplayName,
+                                defaultTitle = "MiSans Bold",
+                                systemDefaultTitle = systemDefaultTitle
+                            )
+                        }
+                        SettingsCardGroup(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Column {
+                                WindowSpinnerPreference(
+                                    title = stringResource(R.string.settings_font_global_western),
+                                    summary = globalWesternDisplayName,
+                                    items = westernOptions.map { DropdownItem(title = it.name) },
+                                    selectedIndex = resolveFontDropdownSelectedIndex(westernOptions, westernPath, "Inter Bold"),
+                                    onSelectedIndexChange = { index ->
+                                        val chosen = westernOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        scope.launch {
+                                            settingsManager.setGlobalFont(chosen.name, chosen.path, globalCjkFontName, globalCjkFontPath)
+                                            notifyDesktopLyricFontChanged(context, settingsManager)
+                                        }
+                                    }
+                                )
+                                WindowSpinnerPreference(
+                                    title = stringResource(R.string.settings_font_global_cjk),
+                                    summary = globalCjkDisplayName,
+                                    items = cjkOptions.map { DropdownItem(title = it.name) },
+                                    selectedIndex = resolveFontDropdownSelectedIndex(cjkOptions, cjkPath, "MiSans Bold"),
+                                    onSelectedIndexChange = { index ->
+                                        val chosen = cjkOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        scope.launch {
+                                            settingsManager.setGlobalFont(globalWesternFontName, globalWesternFontPath, chosen.name, chosen.path)
+                                            notifyDesktopLyricFontChanged(context, settingsManager)
+                                        }
+                                    }
+                                )
                             }
                         }
-                    } else {
-                        null
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
-                )
-            }
-
-            item {
-                SystemFontEntryCard(
-                    currentSystemFontName = currentSystemFont?.name,
-                    currentSystemFontPath = currentSystemFont?.path,
-                    currentWeight = lyricFontWeight,
-                    onClick = { showSystemFontPicker = true }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
+                }
+                LyricFontTab.Original -> {
+                    item {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LyricFontWeightCard(
+                            westernFontPath = originalWesternFontPath.ifBlank { legacyWesternFontPath.ifBlank { bundledInterPath } },
+                            cjkFontPath = originalCjkFontPath.ifBlank { legacyCjkFontPath.ifBlank { bundledMiSansPath } },
+                            lyricFontWeight = lyricFontWeight,
+                            onWeightChange = { weight ->
+                                scope.launch {
+                                    settingsManager.setLyricFontWeight(weight)
+                                    notifyDesktopLyricFontChanged(context, settingsManager)
+                                }
+                            }
+                        )
+                        val westernPath = originalWesternFontPath.ifBlank { legacyWesternFontPath }
+                        val westernOptions = remember(fonts, westernPath, originalWesternDisplayName, systemDefaultTitle) {
+                            buildFontDropdownOptions(
+                                fonts = fonts,
+                                currentPath = westernPath,
+                                currentName = originalWesternDisplayName,
+                                defaultTitle = "Inter Bold",
+                                systemDefaultTitle = systemDefaultTitle
+                            )
+                        }
+                        val cjkPath = originalCjkFontPath.ifBlank { legacyCjkFontPath }
+                        val cjkOptions = remember(fonts, cjkPath, originalCjkDisplayName, systemDefaultTitle) {
+                            buildFontDropdownOptions(
+                                fonts = fonts,
+                                currentPath = cjkPath,
+                                currentName = originalCjkDisplayName,
+                                defaultTitle = "MiSans Bold",
+                                systemDefaultTitle = systemDefaultTitle
+                            )
+                        }
+                        SettingsCardGroup(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Column {
+                                WindowSpinnerPreference(
+                                    title = stringResource(R.string.settings_font_original_western),
+                                    summary = originalWesternDisplayName,
+                                    items = westernOptions.map { DropdownItem(title = it.name) },
+                                    selectedIndex = resolveFontDropdownSelectedIndex(westernOptions, westernPath, "Inter Bold"),
+                                    onSelectedIndexChange = { index ->
+                                        val chosen = westernOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        scope.launch {
+                                            settingsManager.setLyricOriginalFont(chosen.name, chosen.path, originalCjkFontName, originalCjkFontPath)
+                                            notifyDesktopLyricFontChanged(context, settingsManager)
+                                        }
+                                    }
+                                )
+                                WindowSpinnerPreference(
+                                    title = stringResource(R.string.settings_font_original_cjk),
+                                    summary = originalCjkDisplayName,
+                                    items = cjkOptions.map { DropdownItem(title = it.name) },
+                                    selectedIndex = resolveFontDropdownSelectedIndex(cjkOptions, cjkPath, "MiSans Bold"),
+                                    onSelectedIndexChange = { index ->
+                                        val chosen = cjkOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        scope.launch {
+                                            settingsManager.setLyricOriginalFont(originalWesternFontName, originalWesternFontPath, chosen.name, chosen.path)
+                                            notifyDesktopLyricFontChanged(context, settingsManager)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
+                LyricFontTab.Translation -> {
+                    item {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LyricFontWeightCard(
+                            westernFontPath = translationWesternFontPath.ifBlank { legacyWesternFontPath.ifBlank { bundledInterPath } },
+                            cjkFontPath = translationCjkFontPath.ifBlank { legacyCjkFontPath.ifBlank { bundledMiSansPath } },
+                            lyricFontWeight = lyricFontWeight,
+                            onWeightChange = { weight ->
+                                scope.launch {
+                                    settingsManager.setLyricFontWeight(weight)
+                                    notifyDesktopLyricFontChanged(context, settingsManager)
+                                }
+                            }
+                        )
+                        val westernPath = translationWesternFontPath.ifBlank { legacyWesternFontPath }
+                        val westernOptions = remember(fonts, westernPath, translationWesternDisplayName, systemDefaultTitle) {
+                            buildFontDropdownOptions(
+                                fonts = fonts,
+                                currentPath = westernPath,
+                                currentName = translationWesternDisplayName,
+                                defaultTitle = "Inter Bold",
+                                systemDefaultTitle = systemDefaultTitle
+                            )
+                        }
+                        val cjkPath = translationCjkFontPath.ifBlank { legacyCjkFontPath }
+                        val cjkOptions = remember(fonts, cjkPath, translationCjkDisplayName, systemDefaultTitle) {
+                            buildFontDropdownOptions(
+                                fonts = fonts,
+                                currentPath = cjkPath,
+                                currentName = translationCjkDisplayName,
+                                defaultTitle = "MiSans Bold",
+                                systemDefaultTitle = systemDefaultTitle
+                            )
+                        }
+                        SettingsCardGroup(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Column {
+                                WindowSpinnerPreference(
+                                    title = stringResource(R.string.settings_font_translation_western),
+                                    summary = translationWesternDisplayName,
+                                    items = westernOptions.map { DropdownItem(title = it.name) },
+                                    selectedIndex = resolveFontDropdownSelectedIndex(westernOptions, westernPath, "Inter Bold"),
+                                    onSelectedIndexChange = { index ->
+                                        val chosen = westernOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        scope.launch {
+                                            settingsManager.setLyricTranslationFont(chosen.name, chosen.path, translationCjkFontName, translationCjkFontPath)
+                                            notifyDesktopLyricFontChanged(context, settingsManager)
+                                        }
+                                    }
+                                )
+                                WindowSpinnerPreference(
+                                    title = stringResource(R.string.settings_font_translation_cjk),
+                                    summary = translationCjkDisplayName,
+                                    items = cjkOptions.map { DropdownItem(title = it.name) },
+                                    selectedIndex = resolveFontDropdownSelectedIndex(cjkOptions, cjkPath, "MiSans Bold"),
+                                    onSelectedIndexChange = { index ->
+                                        val chosen = cjkOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        scope.launch {
+                                            settingsManager.setLyricTranslationFont(translationWesternFontName, translationWesternFontPath, chosen.name, chosen.path)
+                                            notifyDesktopLyricFontChanged(context, settingsManager)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
+                LyricFontTab.Apply -> {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SettingsCardGroup {
+                            SwitchPreference(
+                                title = stringResource(R.string.settings_lyric_share_use_lyric_font),
+                                summary = stringResource(R.string.settings_lyric_share_use_lyric_font_summary),
+                                checked = lyricShareUseLyricFont,
+                                onCheckedChange = { value ->
+                                    scope.launch { settingsManager.setLyricShareUseLyricFont(value) }
+                                }
+                            )
+                            SwitchPreference(
+                                title = stringResource(R.string.settings_lyric_font_apply_to_page),
+                                summary = stringResource(R.string.settings_lyric_font_apply_to_page_summary),
+                                checked = lyricFontApplyToPage,
+                                onCheckedChange = { value ->
+                                    scope.launch { settingsManager.setLyricFontApplyToPage(value) }
+                                }
+                            )
+                            SwitchPreference(
+                                title = stringResource(R.string.settings_lyric_font_apply_to_desktop),
+                                summary = stringResource(R.string.settings_lyric_font_apply_to_desktop_summary),
+                                checked = lyricFontApplyToDesktop,
+                                onCheckedChange = { value ->
+                                    scope.launch {
+                                        settingsManager.setLyricFontApplyToDesktop(value)
+                                        notifyDesktopLyricFontChanged(context, settingsManager)
+                                    }
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SystemFontEntryCard(
+                            currentSystemFontName = currentSystemFont?.name,
+                            currentSystemFontPath = currentSystemFont?.path,
+                            currentWeight = lyricFontWeight,
+                            onClick = { showSystemFontPicker = true }
+                        )
+                        val importedFonts = remember(fonts) { fonts.filter { it.sourceRank == FONT_SOURCE_IMPORTED } }
+                        if (importedFonts.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = stringResource(R.string.settings_lyric_font_source_imported),
+                                fontSize = 14.sp,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                            )
+                            importedFonts.forEach { font ->
+                                FontChoiceItem(
+                                    font = font,
+                                    currentWeight = lyricFontWeight,
+                                    italic = false,
+                                    selected = false,
+                                    onClick = {},
+                                    onDelete = {
+                                        scope.launch {
+                                            val deleted = withContext(Dispatchers.IO) { deleteImportedFont(font) }
+                                            clearImportedFontReferences(settingsManager, font.path)
+                                            notifyDesktopLyricFontChanged(context, settingsManager)
+                                            fonts = withContext(Dispatchers.IO) { collectFontChoices(context) }
+                                            Toast.makeText(
+                                                context,
+                                                if (deleted) context.getString(R.string.settings_lyric_font_deleted)
+                                                else context.getString(R.string.settings_lyric_font_delete_failed),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
             }
         }
     }
 
     if (showSystemFontPicker) {
-        WindowBottomSheet(
+        EllaMiuixBottomSheet(
             show = true,
             enableNestedScroll = false,
             title = stringResource(R.string.settings_font_system_pick_title),
             onDismissRequest = { showSystemFontPicker = false }
         ) {
-            if (systemFonts.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.settings_font_system_empty),
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(18.dp)
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .heightIn(max = 480.dp)
-                        .padding(horizontal = 12.dp)
-                ) {
-                    items(systemFonts, key = { it.path }) { font ->
-                        FontChoiceItem(
-                            font = font,
-                            currentWeight = lyricFontWeight,
-                            italic = false,
-                            selected = selectedFontPath == font.path,
-                            onClick = {
-                                scope.launch {
-                                    applyFont(font)
-                                    showSystemFontPicker = false
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.settings_lyric_font_applied, font.name),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+            CompositionLocalProvider(
+                LocalSettingsCardFrosting provides null,
+                LocalInBottomSheet provides true
+            ) {
+                if (systemFonts.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.settings_font_system_empty),
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(18.dp)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .navigationBarsPadding()
+                            .heightIn(max = 480.dp)
+                    ) {
+                        items(systemFonts, key = { it.path }) { font ->
+                            FontChoiceItem(
+                                font = font,
+                                currentWeight = lyricFontWeight,
+                                italic = false,
+                                selected = selectedFontPath == font.path,
+                                onClick = {
+                                    scope.launch {
+                                        applyFont(font)
+                                        showSystemFontPicker = false
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.settings_lyric_font_applied, font.name),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+internal data class FontDropdownOption(
+    val name: String,
+    val path: String
+)
+
+internal fun buildFontDropdownOptions(
+    fonts: List<FontChoice>,
+    currentPath: String,
+    currentName: String,
+    defaultTitle: String,
+    systemDefaultTitle: String = "系统默认"
+): List<FontDropdownOption> {
+    val result = mutableListOf<FontDropdownOption>()
+    result.add(FontDropdownOption(defaultTitle, ""))
+    result.add(FontDropdownOption(systemDefaultTitle, SYSTEM_FONT_PATH))
+    fonts.forEach { font ->
+        if (!font.name.equals(defaultTitle, ignoreCase = true) &&
+            font.path != SYSTEM_FONT_PATH &&
+            !font.name.equals(systemDefaultTitle, ignoreCase = true)
+        ) {
+            result.add(FontDropdownOption(font.name, font.path))
+        }
+    }
+    if (currentPath.isNotBlank() && result.none { it.path == currentPath }) {
+        val displayName = currentName.ifBlank { currentPath.substringAfterLast('/') }
+        if (result.none { it.name.equals(displayName, ignoreCase = true) }) {
+            result.add(FontDropdownOption(displayName, currentPath))
+        }
+    }
+    return result
+}
+
+internal fun resolveFontDropdownSelectedIndex(
+    options: List<FontDropdownOption>,
+    currentPath: String,
+    defaultTitle: String
+): Int {
+    if (currentPath.isBlank()) return 0
+    val exactMatch = options.indexOfFirst { it.path == currentPath }
+    if (exactMatch >= 0) return exactMatch
+    if (isBundledFontMatch(currentPath, defaultTitle)) return 0
+    return 0
+}
+
+internal fun isBundledFontMatch(path: String, fontName: String): Boolean {
+    if (path.isBlank()) return true
+    val normalized = path.replace('\\', '/')
+    return when {
+        fontName.equals("Inter Bold", ignoreCase = true) ->
+            normalized.endsWith("/Inter-Bold.ttf") || normalized == "Inter-Bold.ttf"
+        fontName.equals("MiSans Bold", ignoreCase = true) ->
+            normalized.endsWith("/MiSans-Bold.ttf") || normalized == "MiSans-Bold.ttf"
+        else -> false
+    }
+}
+
+private enum class LyricFontTab(val titleRes: Int) {
+    Global(R.string.settings_font_tab_global),
+    Original(R.string.settings_font_tab_original),
+    Translation(R.string.settings_font_tab_translation),
+    Apply(R.string.settings_font_tab_apply)
 }
 
 private enum class LyricFontTarget {

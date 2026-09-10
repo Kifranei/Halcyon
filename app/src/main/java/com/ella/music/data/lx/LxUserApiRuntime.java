@@ -72,6 +72,8 @@ public final class LxUserApiRuntime implements AutoCloseable {
     public JSONObject load(String script, String id, String name, String url) throws Exception {
         QuickJSLoader.init();
         jsContext = QuickJSContext.create();
+        jsContext.setMemoryLimit(64 * 1024 * 1024);
+        jsContext.setMaxStackSize(512 * 1024);
         jsContext.setConsole(new QuickJSContext.Console() {
             @Override
             public void log(String message) {

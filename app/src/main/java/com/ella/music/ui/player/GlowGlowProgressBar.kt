@@ -81,6 +81,21 @@ class GlowGlowProgressBar @JvmOverloads constructor(
             invalidate()
         }
 
+    /**
+     * When true, applies Lyricon-style ~1.5× SDR luminance/bloom boost to the progress glow
+     * (same preference as Settings → Lyrics → lyric HDR highlight). Off keeps the default look.
+     */
+    var hdrBoostEnabled: Boolean = false
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
+    private val hdrBoostRatio: Float
+        get() = if (hdrBoostEnabled) HDR_BRIGHTNESS_RATIO else 1f
+
     private val shaderPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val fallbackPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var runtimeShader: RuntimeShader? = null
@@ -178,10 +193,34 @@ class GlowGlowProgressBar @JvmOverloads constructor(
 
     private fun createHeadBitmapShader(): BitmapShader {
         val bytes = Base64.decode(HEAD_PNG_BASE64, Base64.DEFAULT)
-        val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
-        headWidth = bitmap.width.toFloat()
-        headHeight = bitmap.height.toFloat()
-        return BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        val originalBitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+        val w = originalBitmap.width
+        val h = originalBitmap.height
+
+        // Clear outer border pixels to ensure transparent edges, preventing any clamping bleed
+        val cleanBitmap = originalBitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+        val pixels = IntArray(w * h)
+        cleanBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        for (y in 0 until h) {
+            for (x in 0 until 3) {
+                pixels[y * w + x] = 0
+            }
+            pixels[y * w + (w - 1)] = 0
+        }
+        for (x in 0 until w) {
+            pixels[x] = 0
+            pixels[(h - 1) * w + x] = 0
+        }
+        cleanBitmap.setPixels(pixels, 0, w, 0, 0, w, h)
+
+        headWidth = w.toFloat()
+        headHeight = h.toFloat()
+        val tileMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Shader.TileMode.DECAL
+        } else {
+            Shader.TileMode.CLAMP
+        }
+        return BitmapShader(cleanBitmap, tileMode, tileMode)
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -199,12 +238,14 @@ class GlowGlowProgressBar @JvmOverloads constructor(
         shader.setFloatUniform("uHeadSize", headSize)
         shader.setFloatUniform("uTrackProgress", progressFraction)
         shader.setFloatUniform("uHeadGlowAlpha", headGlowAlpha)
+        shader.setFloatUniform("uHdrBoost", hdrBoostRatio)
         shader.setIntUniform("uIsRtl", if (layoutDirection == LAYOUT_DIRECTION_RTL) 1 else 0)
+        val boosted = hdrBoostedRgb(glowColor)
         shader.setFloatUniform(
             "uContentColor",
-            Color.red(glowColor) / 255f,
-            Color.green(glowColor) / 255f,
-            Color.blue(glowColor) / 255f
+            boosted[0],
+            boosted[1],
+            boosted[2]
         )
     }
 
@@ -222,7 +263,7 @@ class GlowGlowProgressBar @JvmOverloads constructor(
         val progressWidth = (right - left) * progressFraction
         if (progressWidth <= 0f) return
 
-        fallbackPaint.color = fallbackProgressColor
+        fallbackPaint.color = hdrBoostedArgb(fallbackProgressColor)
         if (layoutDirection == LAYOUT_DIRECTION_RTL) {
             canvas.drawRoundRect(right - progressWidth, top, right, bottom, radius, radius, fallbackPaint)
         } else {
@@ -230,9 +271,45 @@ class GlowGlowProgressBar @JvmOverloads constructor(
         }
     }
 
+
+    /** Mix channel toward 1.0 by (1 - 1/ratio), matching Color.withHdrHighlightBoost. */
+    private fun hdrBoostedRgb(color: Int): FloatArray {
+        val ratio = hdrBoostRatio
+        val r = Color.red(color) / 255f
+        val g = Color.green(color) / 255f
+        val b = Color.blue(color) / 255f
+        if (ratio <= 1f) return floatArrayOf(r, g, b)
+        val t = (1f - 1f / ratio).coerceIn(0f, 1f)
+        return floatArrayOf(
+            (r + (1f - r) * t).coerceIn(0f, 1f),
+            (g + (1f - g) * t).coerceIn(0f, 1f),
+            (b + (1f - b) * t).coerceIn(0f, 1f)
+        )
+    }
+
+    private fun hdrBoostedArgb(color: Int): Int {
+        val rgb = hdrBoostedRgb(color)
+        val a = Color.alpha(color)
+        // Slightly raise opacity so the SDR bloom reads brighter, capped.
+        val boostedA = if (hdrBoostEnabled) {
+            (a * HDR_BRIGHTNESS_RATIO).roundToInt().coerceAtMost(255)
+        } else {
+            a
+        }
+        return Color.argb(
+            boostedA,
+            (rgb[0] * 255f).roundToInt().coerceIn(0, 255),
+            (rgb[1] * 255f).roundToInt().coerceIn(0, 255),
+            (rgb[2] * 255f).roundToInt().coerceIn(0, 255)
+        )
+    }
+
     private fun dp(value: Float): Float = value * resources.displayMetrics.density
 
     companion object {
+        /** Lyricon-style HDR highlight brightness ratio (BasicStyle hdrBrightnessRatio default). */
+        const val HDR_BRIGHTNESS_RATIO: Float = 1.5f
+
         private const val HEAD_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAEsAAAAmCAQAAAAmLa7lAAAD9UlEQVRYw+2YvY7dNhBGz1CU7rpNkyJd3v8l7JcIkARxkSBO5WKdhe31ipOCI2r4p12nCBDAurgSRVHi0TfD4VDwbfuPNpW+XB9VfI2Kv+Nqk38PcvFMrY59A81PEv0KLBXRy+4F0HJn7jzXjV9TG0A9kWdg8gIlZPoaHm3eSu1/nKmHHYPJBKo/azUSe7BUeDQq4vZaALW6NkCLF/qcGkj51wAygJHOkKmYMaEFCQ82BFAZIM330p0diNJA1jplqFRqnGatXnGoEhcI/b8vhWLcZEDZARKJUOmlY72i02qmTVv2GL5WuutKAJREAhJiaI0Bh75VhYORMnNNapizlNU6/UkIBhYA2MtzFAG9MKJMwKQpn2gey/9CFd8CyUwpCLtBK8mekUZmjJXD9+NMOnPVMBSUFu70noSS2FGUgAKB3bS0ENzqFQfu3YLkt/JqBDsPpRxYSimwNIgZ7JEPPPCZZEYV03Lg9lG9DocaR2dL6Th3u1jNSrSajZWFhciNyMLCSuSOaPdEghlTeeB3fuJPPpVxKsX9OyOK63KxR8XSxVbOVzY7rtxYWdiI3NjK8Y7VSq9YWVkJBKKNQeUjv/Ga1/xhY1K7GaEy4kJkJbKxWrcrWzluhpQBcruboRzl3G6zFhlwYyMgxaOEL3zPzjvec1+0Or2sU0uKIrE8+EBaXWd1/Vp0OtocLxaLsRcLFHm78R0/8gN3fCjjfWLE4JKPNvWQKharywRSGbWhuRMLoPl6KnMik1xDxxlftMEr5poHQiKx80Qi8cTGbjUbSmIDdvZm+lWHFoAFWFyu8MR73vKOjxVUmmHtQGLns8l/7LPHLY3Db9xKKRsze9idtX9lnhe5YytYAeFvfuUNv/DJAqzOU5soqgk1vagiUg4QUoa62HEpNZsLChsLwUZibnNjNZcXFoR73vIzf/HFQeWYJiqjcKrWIE8OMgioZ1ANLqjm7gJi0MECjQCL+a2apyUeueeBR8snzrwCXpAGamV5sf05saZqPsRhSjM5qfPUw1t3K2mXdeEVi91i4Myz68UDnaNKidPB2oaCSYnt5xDK++Rqq0Dqzeiz0+cyTumm8HkWcQSDFmw3rL261rl8nTT3YEwzriPm9flWndhkJIpax1maQ5VU5tkM9Tpvl2HCSAm9HuwEPf1rrNY052Ky3JJhukiVy3u1ai9TB+uWsd7lx+tEmayDdIpWZ+/iBk+9RtQSHs4sS6dGHK6qZbh+brG1Wyd6z6KDa5awz6yqLxb8Mvz4IdU6+/wcQjXF+2vJxibXK+qLLzYZ7/iy0qyOZh9Jrr4AHZFe6rj+gk8jX/cxqQVtzqvUzl/LIO0cOKv7tv2Pt38A9nPaiTc6xcoAAAAASUVORK5CYII="
 
         private val HIGH_END_SHADER = """
@@ -244,6 +321,7 @@ class GlowGlowProgressBar @JvmOverloads constructor(
             uniform vec2 uTrackCanvasSize;
             uniform vec2 uHeadSize;
             uniform float uHeadGlowAlpha;
+            uniform float uHdrBoost;
             uniform int uIsRtl;
             uniform vec3 uContentColor;
 
@@ -281,7 +359,9 @@ class GlowGlowProgressBar @JvmOverloads constructor(
                 vec2 size = uTrackSize;
                 size.x = mix(m, uTrackSize.x, progress);
                 float d = capsule(uv, vec2(uTrackPosition.x, uResolution.y - uTrackPosition.y - uTrackSize.y / 2.0), size);
-                float a = smoothstep(1.0 / uResolution.y, -1.0 / uResolution.y, d) * 0.6;
+                // HDR on: scale fill opacity by ~1.5× (capped) for Lyricon-like bloom.
+                float fillGain = clamp(uHdrBoost, 1.0, 1.65);
+                float a = smoothstep(1.0 / uResolution.y, -1.0 / uResolution.y, d) * 0.6 * fillGain;
 
                 vec2 hsize = vec2(75.0, 38.0) * 2.7551020408;
                 float thight = 6.0 * 2.7551020408;
@@ -293,13 +373,21 @@ class GlowGlowProgressBar @JvmOverloads constructor(
                 float startFade = smoothstep(0.0, uTrackSize.y / uTrackSize.x * (hsize.x / hsize.y) * 1.5, st.x);
                 st.x -= mix(uTrackSize.y / 2.0, uTrackSize.x - uTrackSize.y / 2.0, progress) / uTrackSize.x;
                 st.y -= 0.5;
-                st.x /= (uTrackSize.y / thight) * (hsize.x / uTrackSize.x);
-                st.y /= (uTrackSize.y / thight) * (hsize.y / uTrackSize.y);
+                float headScale = clamp(uTrackSize.y / thight, 0.75, 1.15);
+                st.x /= headScale * (hsize.x / uTrackSize.x);
+                st.y /= headScale * (hsize.y / uTrackSize.y);
                 st.y += 0.5;
                 st.x -= -xoffset / hsize.x;
-                vec4 head = uTex.eval(st * uHeadSize);
-                head *= startFade * uHeadGlowAlpha;
-                return alphaBlend(head, vec4(a));
+                vec2 clampedSt = clamp(st, 0.0, 1.0);
+                float inBounds = step(0.0, st.x) * step(st.x, 1.0) * step(0.0, st.y) * step(st.y, 1.0);
+                vec4 head = uTex.eval(clampedSt * uHeadSize) * (startFade * uHeadGlowAlpha * inBounds * fillGain);
+                vec4 blended = alphaBlend(head, vec4(a));
+                // Toward-white luminance boost on the progress/head (track stays untouched).
+                float t = clamp(1.0 - 1.0 / max(uHdrBoost, 1.0), 0.0, 1.0);
+                blended.rgb = mix(blended.rgb, vec3(1.0) * blended.a + blended.rgb * (1.0 - blended.a), t);
+                blended.rgb = min(blended.rgb, vec3(1.0));
+                blended.a = min(blended.a, 1.0);
+                return blended;
             }
 
             vec4 main(vec2 fragCoord) {

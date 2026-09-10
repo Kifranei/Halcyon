@@ -27,6 +27,9 @@ import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
+import com.ella.music.ui.components.LocalSettingsCardFrosting
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import com.ella.music.ui.playlist.wallpaperAwarePlaylistCardColor
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -54,14 +57,17 @@ internal fun FolderPlaylistCard(
     onMore: () -> Unit,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
+    val frosting = LocalSettingsCardFrosting.current
+    val baseModifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    val cardModifier = frostedCardModifier(modifier = baseModifier, cornerRadius = 16.dp, frosting = frosting)
     Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        modifier = cardModifier,
         cornerRadius = 16.dp,
         colors = CardDefaults.defaultColors(
             color = if (selected) {
-                MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
+                MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
             } else {
-                wallpaperAwarePlaylistCardColor()
+                frostedCardColor(frosting = frosting, defaultAlpha = 0.42f)
             }
         )
     ) {

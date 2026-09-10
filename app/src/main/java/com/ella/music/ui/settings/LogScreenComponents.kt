@@ -25,11 +25,8 @@ import com.ella.music.data.AppLogEntry
 import com.ella.music.data.AppLogStore
 import com.ella.music.ui.components.EllaMiuixBadge
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -42,7 +39,7 @@ internal fun AppLogItem(
     entry: AppLogEntry,
     onClick: () -> Unit
 ) {
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+    DiagnosticsCard {
         BasicComponent(
             insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             onClick = onClick
@@ -64,7 +61,7 @@ internal fun AppLogItem(
                     )
                 }
                 Text(
-                    text = formatTimeOnly(entry.time),
+                    text = formatDiagnosticsTimeOnly(entry.time),
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1
@@ -276,6 +273,3 @@ internal fun AppLogEntry.formatForCopy(context: Context): String = buildString {
         appendLine(it)
     }
 }
-
-private fun formatTimeOnly(timestamp: Long): String =
-    SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))

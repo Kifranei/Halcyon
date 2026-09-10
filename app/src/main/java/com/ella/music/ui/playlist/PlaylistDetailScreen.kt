@@ -59,7 +59,6 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.toFastIndexSection
 import com.ella.music.ui.home.HomeRatingFilterUiState
-import com.ella.music.ui.home.StarRatingFilterRow
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
@@ -93,8 +92,8 @@ fun PlaylistDetailScreen(
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val showRemoveFromPlaylistButton by mainViewModel.settingsManager.showRemoveFromPlaylistButton.collectAsState(initial = true)
-    val showRatingFilter by mainViewModel.settingsManager.playlistShowRatingFilter.collectAsState(initial = true)
-    val showFavoriteFilter by mainViewModel.settingsManager.playlistShowFavoriteFilter.collectAsState(initial = true)
+    val showRatingFilter by mainViewModel.settingsManager.playlistShowRatingFilter.collectAsState(initial = false)
+    val showFavoriteFilter by mainViewModel.settingsManager.playlistShowFavoriteFilter.collectAsState(initial = false)
     val isFiveStarPlaylist = playlistId == FIVE_STAR_PLAYLIST_ID
     val storedPlaylist = playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
     val fiveStarSongs by produceState(initialValue = emptyList(), isFiveStarPlaylist, librarySongs, ratingRevision) {
@@ -123,7 +122,7 @@ fun PlaylistDetailScreen(
     var searchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
-    var ratingFilterExpanded by remember { mutableStateOf(false) }
+
     RestoreListScrollAfterSearch(
         searchExpanded = searchExpanded,
         query = searchQuery,
@@ -158,7 +157,7 @@ fun PlaylistDetailScreen(
     val playCountBySongId = remember(playbackStats) {
         playbackStats.associate { it.songId to it.playCount }
     }
-    val sortedSongs = remember(ratingFilteredSongs, sortMode, playCountBySongId) {
+    val sortedSongs = remember(ratingFilteredSongs, sortMode, playCountBySongId, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         ratingFilteredSongs.sortedForPlaylistDetail(sortMode, playCountBySongId)
     }
     LaunchedEffect(playlist?.id, songs) {
@@ -261,14 +260,13 @@ fun PlaylistDetailScreen(
     val selectedSongsForDrag = remember(displayedSongs, selection.selectedIds) {
         displayedSongs.filter { it.playlistIdentityKey() in selection.selectedIds }
     }
-    BackHandler(enabled = selection.selectionMode || searchExpanded || ratingFilterExpanded) {
+    BackHandler(enabled = selection.selectionMode || searchExpanded) {
         when {
             selection.selectionMode -> finishSelectionMode()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
             }
-            ratingFilterExpanded -> ratingFilterExpanded = false
         }
     }
     val displayedSongIndexByKey = remember(displayedSongs) {
@@ -356,8 +354,11 @@ fun PlaylistDetailScreen(
             showExport = playlist != null && !isFiveStarPlaylist,
             showRatingFilter = showRatingFilter,
             showFavoriteFilter = showFavoriteFilter,
-            ratingFilterActive = ratingFilter.hasRatingConstraint() || ratingFilterExpanded,
-            favoriteFilterActive = ratingFilter.hasFavoriteFilterMemory(),
+            ratingFilter = ratingFilter,
+            onRatingFilterChange = {
+                ratingFilter = it
+                HomeRatingFilterUiState.selection = it
+            },
             onNavigationClick = {
                 if (selection.selectionMode) finishSelectionMode() else onBack()
             },
@@ -395,11 +396,7 @@ fun PlaylistDetailScreen(
                     selection.rangeTargetId = null
                 }
             },
-            onRatingFilterClick = { ratingFilterExpanded = !ratingFilterExpanded },
-            onFavoriteFilterClick = {
-                ratingFilter = ratingFilter.toggleFavoriteFilter()
-                HomeRatingFilterUiState.selection = ratingFilter
-            },
+
             onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } }
         )
 
@@ -409,20 +406,6 @@ fun PlaylistDetailScreen(
             onQueryChange = { searchQuery = it },
             onSearch = { searchExpanded = false }
         )
-
-        androidx.compose.animation.AnimatedVisibility(
-            visible = songs.isNotEmpty() && !selection.selectionMode && ratingFilterExpanded,
-            enter = androidx.compose.animation.expandVertically(),
-            exit = androidx.compose.animation.shrinkVertically()
-        ) {
-            StarRatingFilterRow(
-                selection = ratingFilter,
-                onSelectionChange = {
-                    ratingFilter = it
-                    HomeRatingFilterUiState.selection = it
-                }
-            )
-        }
 
         if (playlist == null) {
             PlaylistDetailNotFoundState()
@@ -451,10 +434,18 @@ fun PlaylistDetailScreen(
                         } else {
                             {
                                 if (displayedSongs.isNotEmpty()) {
+                                    val queueSongs = if (sortMode == PlaylistSongSortMode.Random) {
+                                        val seed = com.ella.music.ui.LibrarySortUiState.reshuffleRandomSort()
+                                        scope.launch { mainViewModel.settingsManager.setRandomSortSeed(seed) }
+                                        com.ella.music.ui.LibrarySortUiState.randomizedSongs(displayedSongs, seed)
+                                    } else {
+                                        displayedSongs.shuffled()
+                                    }
                                     playerViewModel.setShuffledPlaylist(
-                                        displayedSongs,
+                                        queueSongs,
                                         0,
-                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId),
+                                        preserveOrder = true
                                     )
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
@@ -469,11 +460,20 @@ fun PlaylistDetailScreen(
                         sortLabel = com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending()),
                         onPlayAll = {
                             if (displayedSongs.isNotEmpty()) {
-                                playerViewModel.setPlaylist(
-                                    displayedSongs,
-                                    0,
-                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
-                                )
+                                if (sortMode == PlaylistSongSortMode.Random) {
+                                    playerViewModel.setShuffledPlaylist(
+                                        displayedSongs,
+                                        0,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId),
+                                        preserveOrder = true
+                                    )
+                                } else {
+                                    playerViewModel.setPlaylist(
+                                        displayedSongs,
+                                        0,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                                    )
+                                }
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         },
@@ -531,6 +531,14 @@ fun PlaylistDetailScreen(
                                 scope.launch { mainViewModel.settingsManager.setPlaylistDetailSongSortIndex(mode.ordinal) }
                                 scope.launch { listState.animateScrollToItem(0) }
                             }
+                        ) + listOf(
+                            com.ella.music.ui.components.randomSortDropdownItem(
+                                selected = sortMode == PlaylistSongSortMode.Random,
+                                onSelect = {
+                                    scope.launch { mainViewModel.settingsManager.setPlaylistDetailSongSortIndex(PlaylistSongSortMode.Random.ordinal) }
+                                    scope.launch { listState.animateScrollToItem(0) }
+                                }
+                            )
                         )
                     )
                 }
@@ -542,11 +550,20 @@ fun PlaylistDetailScreen(
                         playbackStats = playbackStats,
                         currentSong = currentSong,
                         onContinue = { index ->
-                            playerViewModel.setPlaylist(
-                                displayedSongs,
-                                index,
-                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
-                            )
+                            if (sortMode == PlaylistSongSortMode.Random) {
+                                playerViewModel.setShuffledPlaylist(
+                                    displayedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId),
+                                    preserveOrder = true
+                                )
+                            } else {
+                                playerViewModel.setPlaylist(
+                                    displayedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                                )
+                            }
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     )
@@ -613,11 +630,20 @@ fun PlaylistDetailScreen(
                                 if (selection.selectionMode) {
                                     selection.toggleSelection(songKey)
                                 } else {
-                                    playerViewModel.setPlaylist(
-                                        displayedSongs,
-                                        index,
-                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
-                                    )
+                                    if (sortMode == PlaylistSongSortMode.Random) {
+                                        playerViewModel.setShuffledPlaylist(
+                                            displayedSongs,
+                                            index,
+                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId),
+                                            preserveOrder = true
+                                        )
+                                    } else {
+                                        playerViewModel.setPlaylist(
+                                            displayedSongs,
+                                            index,
+                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId)
+                                        )
+                                    }
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             },

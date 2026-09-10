@@ -9,13 +9,6 @@ import java.util.Locale
 class ArtistCoverRepository private constructor(
     private val context: Context
 ) {
-    @Volatile
-    private var cachedFolderLocation: String? = null
-    @Volatile
-    private var cachedIgnoreCase: Boolean? = null
-    @Volatile
-    private var cachedIndex: Map<String, List<ArtistCoverAsset>> = emptyMap()
-    private val indexLock = Any()
 
     fun getArtistCoverUri(
         artistName: String,
@@ -48,23 +41,24 @@ class ArtistCoverRepository private constructor(
         return ensureIndex(safeFolderLocation, ignoreCase)[artistKey].orEmpty()
     }
 
+    private val indexLock = Any()
+    private val cachedIndices = mutableMapOf<Pair<String, Boolean>, Map<String, List<ArtistCoverAsset>>>()
+
+    fun clearCache() {
+        synchronized(indexLock) {
+            cachedIndices.clear()
+        }
+    }
+
     private fun ensureIndex(
         folderLocation: String,
         ignoreCase: Boolean
     ): Map<String, List<ArtistCoverAsset>> {
-        cachedFolderLocation
-            ?.takeIf { it == folderLocation && cachedIgnoreCase == ignoreCase }
-            ?.let { return cachedIndex }
-
+        val key = folderLocation to ignoreCase
         synchronized(indexLock) {
-            cachedFolderLocation
-                ?.takeIf { it == folderLocation && cachedIgnoreCase == ignoreCase }
-                ?.let { return cachedIndex }
-
+            cachedIndices[key]?.let { return it }
             val built = buildIndex(folderLocation, ignoreCase)
-            cachedFolderLocation = folderLocation
-            cachedIgnoreCase = ignoreCase
-            cachedIndex = built
+            cachedIndices[key] = built
             return built
         }
     }
@@ -188,8 +182,13 @@ private class ArtistCoverAccumulator {
 
     fun build(): Map<String, List<ArtistCoverAsset>> =
         entries.mapValues { (_, list) ->
-            // sortedBy 稳定：同一 order（如重复编号）保持发现顺序。
-            list.sortedBy { it.order }.map { it.asset }
+            val videos = list.filter { it.asset.kind == ArtistCoverKind.Video }
+                .sortedBy { it.order }
+                .map { it.asset }
+            val images = list.filter { it.asset.kind == ArtistCoverKind.Image }
+                .sortedBy { it.order }
+                .map { it.asset }
+            videos + images
         }
 
     private data class OrderedAsset(val order: Int, val asset: ArtistCoverAsset)

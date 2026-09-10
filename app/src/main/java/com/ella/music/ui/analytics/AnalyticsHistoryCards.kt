@@ -205,7 +205,8 @@ internal fun HistoryCard(
                 history.forEach { entry ->
                     HistoryRow(
                         entry = entry,
-                        song = libraryById[entry.songId] ?: libraryByStatsKey[entry.analyticsStatsKey()],
+                        song = libraryByStatsKey[entry.analyticsStatsKey()]
+                            ?: libraryById[entry.songId],
                         mainViewModel = mainViewModel
                     )
                 }

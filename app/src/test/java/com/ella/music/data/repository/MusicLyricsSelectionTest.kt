@@ -33,4 +33,40 @@ class MusicLyricsSelectionTest {
 
         assertEquals(rich, tags.embeddedLyricsContent(preferTtml = true))
     }
+
+    @Test
+    fun dualLyricsCoexistAndSelectRespectively() {
+        val plainLrc = "[00:01.00]Hello Standard Car Player"
+        val ttml = "<tt xmlns=\"http://www.w3.org/ns/ttml\"><body><p begin=\"1s\">Hello TTML</p></body></tt>"
+        val tags = AudioTagInfo(
+            lyrics = plainLrc,
+            ttmlLyrics = ttml
+        )
+
+        // When requesting TTML, the ttmlLyrics is extracted
+        assertEquals(ttml, tags.embeddedLyricsContent(preferTtml = true))
+        // When requesting plain/standard LRC, the lyrics is extracted without conflict
+        assertEquals(plainLrc, tags.embeddedLyricsContent(preferTtml = false))
+    }
+
+    @Test
+    fun txxxPrefixMatchesTtmlTag() {
+        val plainLrc = "[00:01.00]Hello"
+        val ttml = "<tt><body><p begin=\"1s\">Hello</p></body></tt>"
+        val tags = AudioTagInfo(
+            lyrics = plainLrc,
+            customTags = mapOf("TXXX/TTMLLYRIC" to listOf(ttml))
+        )
+
+        assertEquals(ttml, tags.embeddedLyricsContent(preferTtml = true))
+        assertEquals(plainLrc, tags.embeddedLyricsContent(preferTtml = false))
+    }
+
+    @Test
+    fun normalizedTagNameStripsTxxxAndItunesPrefixes() {
+        assertEquals("TTMLLYRIC", "TXXX/TTMLLYRIC".normalizedTagName())
+        assertEquals("TTMLLYRIC", "TXXX:TTMLLYRIC".normalizedTagName())
+        assertEquals("TTMLLYRIC", "TXXX TTMLLYRIC".normalizedTagName())
+        assertEquals("LYRICS", "----:com.apple.iTunes:Lyrics".normalizedTagName())
+    }
 }

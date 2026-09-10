@@ -50,6 +50,7 @@ private fun Uri.toHalcyonRoute(): String? {
         "player" -> Screen.Player.route
         "shortcut" -> getQueryParameter("route")?.takeIf { it.isNotBlank() }
         "analytics" -> Screen.Analytics.route
+        "recent_play" -> Screen.RecentPlayback.createRoute(getQueryParameter("type") ?: "collection")
         "settings" -> Screen.Settings.createRoute()
         "scan_settings" -> Screen.ScanSettings.createRoute()
         "library" -> Screen.Library.route
@@ -123,6 +124,11 @@ internal fun String?.toCurrentTabRoute(): String? {
     }
 }
 
+internal fun String?.isSettingsHomeRoute(): Boolean {
+    val path = this?.substringBefore('?') ?: return false
+    return path.isTopLevelRoute(Screen.Settings.baseRoute)
+}
+
 internal fun String?.isSettingsGraphRoute(): Boolean {
     val path = this?.substringBefore('?') ?: return false
     return path.isTopLevelRoute(Screen.Settings.baseRoute) ||
@@ -136,6 +142,7 @@ internal fun String?.isSettingsGraphRoute(): Boolean {
         path == "lyric_settings" ||
         path == "lyric_plugin_sources" ||
         path == "lyric_font" ||
+        path == "settings_player_shortcut" ||
         path == "audio_settings" ||
         path == "equalizer" ||
         path == "backup_settings" ||
@@ -145,6 +152,8 @@ internal fun String?.isSettingsGraphRoute(): Boolean {
         path == "navidrome_server_settings" ||
         path == "opensubsonic_server_settings" ||
         path == "emby_server_settings" ||
+        path == "remote_server_editor" ||
+        path.startsWith("remote_server_editor/") ||
         path == "lx_source_settings" ||
         path == "webdav" ||
         path == "logs" ||
@@ -178,6 +187,16 @@ internal fun String?.isBottomDockRoute(): Boolean {
 
 internal fun shouldRestoreBottomDockState(route: String, currentRoute: String?): Boolean =
     route.isBottomDockRoute() && !currentRoute.isSettingsGraphRoute()
+
+internal fun shouldPopStackedSourceToDockSettings(
+    dockRoute: String,
+    currentRoute: String?,
+    previousRoute: String?
+): Boolean {
+    if (!dockRoute.isDockSettingsRoute()) return false
+    if (currentRoute.isSettingsGraphRoute()) return false
+    return previousRoute.isSettingsGraphRoute()
+}
 
 internal fun String?.matchesRoute(route: String): Boolean {
     return when {
@@ -316,6 +335,15 @@ internal fun NavHostController.navigateBottomDockRoute(
     }
     if (route.startsWith(Screen.LibrarySearch.baseRoute) && !leavingSearch) {
         navigate(route) { launchSingleTop = true }
+        return
+    }
+    if (shouldPopStackedSourceToDockSettings(
+            dockRoute = route,
+            currentRoute = currentRoute,
+            previousRoute = previousBackStackEntry?.destination?.route
+        )
+    ) {
+        popBackStack()
         return
     }
     val restoringDockState = shouldRestoreBottomDockState(route, currentRoute)

@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -97,6 +98,8 @@ import top.yukonga.miuix.kmp.theme.LocalContentColor as MiuixLocalContentColor
 
 val LocalFloatingBottomBarContentColor = staticCompositionLocalOf { Color.Unspecified }
 val LocalFloatingBottomBarTabScale = staticCompositionLocalOf { { 1f } }
+val LocalFloatingBottomBarActiveIndex = compositionLocalOf { -1 }
+val LocalFloatingBottomBarIsDragging = compositionLocalOf { false }
 
 // State class holding all colors for the bottom bar
 @Immutable
@@ -253,9 +256,7 @@ fun FloatingBottomBar(
 ) {
     val context = LocalContext.current
     val televisionDevice = remember(context) {
-        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
-            (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
-            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+        com.ella.music.util.isTelevisionDevice(context)
     }
     val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val isInDark = !isLight
@@ -372,6 +373,18 @@ fun FloatingBottomBar(
         }
     }
 
+    val activeTabIndex by remember(tabsCount) {
+        derivedStateOf {
+            if (tabsCount <= 0) -1
+            else dampedDragAnimation.value.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
+        }
+    }
+    val isDragging by remember {
+        derivedStateOf {
+            dampedDragAnimation.pressProgress > 0.01f
+        }
+    }
+
     // Keep the same compatibility guard as the old InstallerX implementation.
     // If your InteractiveHighlight has already been made safe on older Android versions,
     // this can be simplified to KernelSU's unguarded version.
@@ -410,7 +423,11 @@ fun FloatingBottomBar(
     ) {
         // Base layer (Unselected state)
         // Provide the default content color to this layer
-        CompositionLocalProvider(LocalFloatingBottomBarContentColor provides colors.contentColor) {
+        CompositionLocalProvider(
+            LocalFloatingBottomBarContentColor provides colors.contentColor,
+            LocalFloatingBottomBarActiveIndex provides activeTabIndex,
+            LocalFloatingBottomBarIsDragging provides isDragging
+        ) {
             Row(
                 Modifier
                     .focusGroup()
@@ -493,7 +510,9 @@ fun FloatingBottomBar(
                 LocalFloatingBottomBarTabScale provides {
                     lerp(1f, 1.2f, dampedDragAnimation.pressProgress)
                 },
-                LocalFloatingBottomBarContentColor provides colors.activeContentColor
+                LocalFloatingBottomBarContentColor provides colors.activeContentColor,
+                LocalFloatingBottomBarActiveIndex provides activeTabIndex,
+                LocalFloatingBottomBarIsDragging provides isDragging
             ) {
                 Row(
                     Modifier
@@ -606,7 +625,11 @@ fun FloatingBottomBar(
                     contentAlignment = Alignment.CenterStart
                 ) {
                     // Provide the active content color to the non-blur active layer
-                    CompositionLocalProvider(LocalFloatingBottomBarContentColor provides colors.activeContentColor) {
+                    CompositionLocalProvider(
+                        LocalFloatingBottomBarContentColor provides colors.activeContentColor,
+                        LocalFloatingBottomBarActiveIndex provides activeTabIndex,
+                        LocalFloatingBottomBarIsDragging provides isDragging
+                    ) {
                         Row(
                             Modifier
                                 .clearAndSetSemantics {}

@@ -44,10 +44,29 @@ internal fun loadScriptAwareTypeface(
     val safeWeight = weight.coerceIn(100, 900)
     val slant = if (italic) FontStyle.FONT_SLANT_ITALIC else FontStyle.FONT_SLANT_UPRIGHT
 
-    // Build Font objects with the exact weight so variable fonts (e.g. Inter Variable)
-    // select the correct weight axis instead of falling back to synthetic bolding.
-    val customFamilies = listOf(paths.western, paths.cjk)
-        .mapNotNull { path -> fontFamilyFromPath(path, safeWeight, slant) }
+    val isWesternSystem = paths.western.isBlank() || paths.western == SYSTEM_FONT_SENTINEL
+    val isCjkSystem = paths.cjk.isBlank() || paths.cjk == SYSTEM_FONT_SENTINEL
+
+    if (isWesternSystem && isCjkSystem) {
+        val fallback = if (boldFallback) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        return Typeface.create(fallback, safeWeight, italic)
+    }
+
+    val customFamilies = mutableListOf<FontFamily>()
+    if (isWesternSystem && !isCjkSystem) {
+        // Western uses system default font, while CJK uses custom font fallback
+        systemSansSerifFontFile()?.let { file ->
+            fontFamilyFromPath(file.absolutePath, safeWeight, slant)?.let { customFamilies.add(it) }
+        }
+        fontFamilyFromPath(paths.cjk, safeWeight, slant)?.let { customFamilies.add(it) }
+    } else {
+        if (!isWesternSystem) {
+            fontFamilyFromPath(paths.western, safeWeight, slant)?.let { customFamilies.add(it) }
+        }
+        if (!isCjkSystem) {
+            fontFamilyFromPath(paths.cjk, safeWeight, slant)?.let { customFamilies.add(it) }
+        }
+    }
 
     if (customFamilies.isEmpty()) {
         val fallback = if (boldFallback) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -95,6 +114,27 @@ private fun fontFamilyFromPath(path: String, weight: Int, slant: Int): FontFamil
             .build()
         FontFamily.Builder(font).build()
     }.getOrNull()
+}
+
+private fun systemSansSerifFontFile(): File? {
+    val candidates = listOf(
+        "/system/fonts/Roboto-Regular.ttf",
+        "/system/fonts/RobotoStatic-Regular.ttf",
+        "/product/fonts/Roboto-Regular.ttf"
+    )
+    for (path in candidates) {
+        val file = File(path)
+        if (file.isFile && file.canRead()) return file
+    }
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        runCatching {
+            android.graphics.fonts.SystemFonts.getAvailableFonts().firstOrNull { font ->
+                val name = font.file?.name.orEmpty()
+                name.contains("roboto", ignoreCase = true) && !name.contains("italic", ignoreCase = true)
+            }?.file
+        }.getOrNull()?.let { return it }
+    }
+    return null
 }
 
 private fun isReadableFontPath(path: String): Boolean =

@@ -1,6 +1,7 @@
 package com.ella.music.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -119,7 +120,8 @@ internal fun LandscapeTransportControls(
     controlHeight: androidx.compose.ui.unit.Dp = 58.dp,
     sideIconSize: androidx.compose.ui.unit.Dp = 30.dp,
     playButtonSize: androidx.compose.ui.unit.Dp = 54.dp,
-    playIconSize: androidx.compose.ui.unit.Dp = 34.dp
+    playIconSize: androidx.compose.ui.unit.Dp = 34.dp,
+    useAppleMusicIcons: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -129,12 +131,19 @@ internal fun LandscapeTransportControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         PlayerTransportIconButton(onClick = onPrevious) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_skip_previous),
-                contentDescription = stringResource(R.string.common_previous),
-                tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(sideIconSize)
-            )
+            if (useAppleMusicIcons) {
+                AppleSkipPreviousIcon(
+                    color = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            } else {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_skip_previous),
+                    contentDescription = stringResource(R.string.common_previous),
+                    tint = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -143,19 +152,34 @@ internal fun LandscapeTransportControls(
                 .playerNoIndicationClick(onPlayPause),
             contentAlignment = Alignment.Center
         ) {
-            CenteredPlayPauseGlyph(
-                isPlaying = isPlaying,
-                tint = palette.onBackground.copy(alpha = 0.96f),
-                modifier = Modifier.size(playIconSize)
-            )
+            if (useAppleMusicIcons) {
+                ApplePlayPauseIcon(
+                    isPlaying = isPlaying,
+                    color = palette.onBackground.copy(alpha = 0.96f),
+                    modifier = Modifier.size(playIconSize)
+                )
+            } else {
+                CenteredPlayPauseGlyph(
+                    isPlaying = isPlaying,
+                    tint = palette.onBackground.copy(alpha = 0.96f),
+                    modifier = Modifier.size(playIconSize)
+                )
+            }
         }
         PlayerTransportIconButton(onClick = onNext) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_skip_next),
-                contentDescription = stringResource(R.string.common_next),
-                tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(sideIconSize)
-            )
+            if (useAppleMusicIcons) {
+                AppleSkipNextIcon(
+                    color = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            } else {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_skip_next),
+                    contentDescription = stringResource(R.string.common_next),
+                    tint = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            }
         }
     }
 }
@@ -168,6 +192,7 @@ internal fun PlayerProgressBlock(
     audioInfo: AudioInfo?,
     bluetoothDeviceName: String?,
     playbackModeLabel: String? = null,
+    isAppleMusic: Boolean = false,
     palette: PlayerPalette,
     allowTapSeek: Boolean,
     showTotalDuration: Boolean,
@@ -182,9 +207,9 @@ internal fun PlayerProgressBlock(
     val progressStyle by settingsManager.playerProgressStyle.collectAsState(
         initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE
     )
-    val showQuality by settingsManager.playerProgressShowQuality.collectAsState(initial = true)
-    val showAudioInfo by settingsManager.playerProgressShowAudioInfo.collectAsState(initial = true)
-    val showOutputDevice by settingsManager.playerProgressShowOutputDevice.collectAsState(initial = true)
+    val progressInfoPriority by settingsManager.playerProgressInfoPriority.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_INFO_PRIORITY
+    )
     val longPressCyclesInfo by settingsManager.playerProgressLongPressCycle.collectAsState(initial = false)
     val separateGainChip by settingsManager.playerProgressInfoSeparated.collectAsState(initial = false)
     var infoMode by remember { mutableIntStateOf(0) }
@@ -211,26 +236,36 @@ internal fun PlayerProgressBlock(
         bluetoothDeviceName,
         playbackModeLabel,
         replayGainLabel,
-        showQuality,
-        showAudioInfo,
-        showOutputDevice,
-        separateGainChip
+        progressInfoPriority,
+        separateGainChip,
+        isAppleMusic
     ) {
+        val enabledIds = SettingsManager.normalizePlayerProgressInfoPriority(progressInfoPriority)
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
         buildList {
             playbackModeLabel?.takeIf { it.isNotBlank() }
                 ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.PlaybackMode)) }
                 ?: run {
-                if (showQuality) qualityLabel?.let {
-                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.Quality))
+                enabledIds.forEach { id ->
+                    when (id) {
+                        SettingsManager.PLAYER_PROGRESS_INFO_QUALITY -> qualityLabel?.let {
+                            add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.Quality))
+                        }
+                        SettingsManager.PLAYER_PROGRESS_INFO_AUDIO -> qualitySummary?.detailLabel
+                            ?.takeIf { text -> text.isNotBlank() }
+                            ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
+                        SettingsManager.PLAYER_PROGRESS_INFO_OUTPUT ->
+                            if (!isAppleMusic) {
+                                bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
+                                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
+                                }
+                            }
+                    }
                 }
-                if (showAudioInfo) qualitySummary?.detailLabel
-                    ?.takeIf { text -> text.isNotBlank() }
-                    ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
                 if (separateGainChip) replayGainLabel?.takeIf { it.isNotBlank() }?.let {
                     add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.ReplayGain))
-                }
-                if (showOutputDevice) bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
-                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
                 }
             }
         }.distinctBy { it.text }
@@ -324,6 +359,7 @@ internal fun PlayerProgressBlock(
                             qualitySummary?.showWaveform == true,
                         showDolbyLogo = infoItem?.kind == PlayerProgressInfoKind.Quality &&
                             qualitySummary?.showDolbyLogo == true,
+                        isAppleMusic = isAppleMusic,
                         palette = palette,
                         fontFamily = fontFamily,
                         onTap = { if (!longPressCyclesInfo) cycleInfo() },
@@ -385,22 +421,27 @@ private fun PlayerQualityInfoChip(
     text: String,
     showWaveform: Boolean,
     showDolbyLogo: Boolean = false,
+    isAppleMusic: Boolean = false,
     palette: PlayerPalette,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     fontFamily: FontFamily? = null
 ) {
+    val shape = if (isAppleMusic) RoundedCornerShape(5.dp) else RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(palette.onBackground.copy(alpha = 0.10f))
+            .clip(shape)
+            .background(palette.onBackground.copy(alpha = if (isAppleMusic) 0.12f else 0.10f))
             .pointerInput(onTap, onLongPress) {
                 detectTapGestures(
                     onTap = { onTap() },
                     onLongPress = { onLongPress() }
                 )
             }
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+            .padding(
+                horizontal = if (isAppleMusic) 7.dp else 10.dp,
+                vertical = if (isAppleMusic) 2.5.dp else 3.dp
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -418,7 +459,7 @@ private fun PlayerQualityInfoChip(
                 Icon(
                     painter = painterResource(R.drawable.ic_audio_lossless),
                     contentDescription = null,
-                    tint = palette.onBackground.copy(alpha = 0.72f),
+                    tint = palette.onBackground.copy(alpha = 0.78f),
                     modifier = Modifier.size(12.dp)
                 )
             }
@@ -426,7 +467,7 @@ private fun PlayerQualityInfoChip(
                 text = text,
                 fontSize = 12.sp,
                 fontFamily = fontFamily,
-                color = palette.onBackground.copy(alpha = 0.62f)
+                color = palette.onBackground.copy(alpha = 0.78f)
             )
         }
     }

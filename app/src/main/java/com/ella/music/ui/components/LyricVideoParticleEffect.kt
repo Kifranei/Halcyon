@@ -11,7 +11,7 @@ internal class LyricVideoParticleEffect(
     private val destX: Float,
     private val destY: Float,
     private val totalFrames: Int = DISSOLVE_FRAMES
-) {
+) : LyricVideoDissolveEffect {
     companion object {
         const val DISSOLVE_FRAMES = 18
         private const val SAMPLE_SIZE = 4
@@ -64,9 +64,9 @@ internal class LyricVideoParticleEffect(
         particles = list
     }
 
-    val isFinished: Boolean get() = currentFrame >= totalFrames
+    override val isFinished: Boolean get() = currentFrame >= totalFrames
 
-    fun advanceFrame() {
+    override fun advanceFrame() {
         if (isFinished) return
         currentFrame++
         val progress = currentFrame.toFloat() / totalFrames
@@ -79,7 +79,7 @@ internal class LyricVideoParticleEffect(
         }
     }
 
-    fun draw(canvas: Canvas) {
+    override fun draw(canvas: Canvas) {
         if (particles.isEmpty()) return
         for (p in particles) {
             if (p.alpha <= 0.01f) continue
@@ -90,7 +90,7 @@ internal class LyricVideoParticleEffect(
         }
     }
 
-    fun reset() {
+    override fun reset() {
         currentFrame = 0
     }
 }

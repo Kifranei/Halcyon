@@ -145,3 +145,22 @@ internal fun File.toFallbackAudioItem(): MediaStoreAudioItem {
         discNumber = 0
     )
 }
+
+internal fun MediaStoreAudioItem.withLocalFileSnapshot(): MediaStoreAudioItem {
+    if (path.isBlank() || path.startsWith("content:", ignoreCase = true) ||
+        path.startsWith("http://", ignoreCase = true) ||
+        path.startsWith("https://", ignoreCase = true)
+    ) {
+        return this
+    }
+    val file = File(path)
+    val size = runCatching { file.length() }.getOrDefault(0L)
+    val modified = runCatching { file.lastModified() }.getOrDefault(0L)
+    if (size <= 0L && modified <= 0L) return this
+    if ((size <= 0L || size == fileSize) && (modified <= 0L || modified == dateModified)) return this
+    return copy(
+        fileSize = size.takeIf { it > 0L } ?: fileSize,
+        dateModified = modified.takeIf { it > 0L } ?: dateModified
+    )
+}
+

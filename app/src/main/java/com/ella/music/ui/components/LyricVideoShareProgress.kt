@@ -18,7 +18,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
-import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -36,19 +38,27 @@ internal fun LyricVideoShareProgressOverlay(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             VideoShareProgressBar(fraction = progress?.fraction ?: 0f)
             Spacer(modifier = Modifier.height(12.dp))
-            top.yukonga.miuix.kmp.basic.Text(
+            Text(
                 text = "${((progress?.fraction ?: 0f) * 100).toInt()}%"
             )
             Spacer(modifier = Modifier.height(18.dp))
-            TextButton(
-                text = stringResource(R.string.lyric_video_share_cancel),
-                onClick = onCancel
-            )
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    color = MiuixTheme.colorScheme.secondaryContainer,
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                )
+            ) {
+                Text(
+                    text = stringResource(R.string.lyric_video_share_cancel)
+                )
+            }
         }
     }
 }

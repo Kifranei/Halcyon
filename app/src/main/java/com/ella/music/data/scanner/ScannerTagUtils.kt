@@ -180,23 +180,63 @@ internal fun String.normalizedTrackNumberFromTag(): Int =
 internal fun String.normalizedDiscNumberFromTag(): Int =
     substringBefore('/').trim().toIntOrNull() ?: 0
 
+internal fun String.canonicalizeStoragePath(): String {
+    val normalized = replace('\\', '/').trim()
+    val lower = normalized.lowercase(java.util.Locale.ROOT)
+    val trimmedLower = lower.trimEnd('/')
+    return when {
+        trimmedLower == "/sdcard" || trimmedLower == "sdcard" -> "/storage/emulated/0"
+        trimmedLower.startsWith("/sdcard/") -> "/storage/emulated/0/" + trimmedLower.removePrefix("/sdcard/")
+        trimmedLower.startsWith("sdcard/") -> "/storage/emulated/0/" + trimmedLower.removePrefix("sdcard/")
+        trimmedLower == "/storage/self/primary" || trimmedLower == "storage/self/primary" -> "/storage/emulated/0"
+        trimmedLower.startsWith("/storage/self/primary/") -> "/storage/emulated/0/" + trimmedLower.removePrefix("/storage/self/primary/")
+        trimmedLower.startsWith("storage/self/primary/") -> "/storage/emulated/0/" + trimmedLower.removePrefix("storage/self/primary/")
+        trimmedLower == "/storage/emulated/legacy" || trimmedLower == "storage/emulated/legacy" -> "/storage/emulated/0"
+        trimmedLower.startsWith("/storage/emulated/legacy/") -> "/storage/emulated/0/" + trimmedLower.removePrefix("/storage/emulated/legacy/")
+        trimmedLower.startsWith("storage/emulated/legacy/") -> "/storage/emulated/0/" + trimmedLower.removePrefix("storage/emulated/legacy/")
+        trimmedLower == "primary" -> "/storage/emulated/0"
+        trimmedLower.startsWith("primary/") -> "/storage/emulated/0/" + trimmedLower.removePrefix("primary/")
+        else -> trimmedLower
+    }
+}
+
+internal fun String.isPathInsideFolder(folder: String): Boolean {
+    if (folder.isBlank() || folder == "__ella_no_custom_folder__") return false
+    val canPath = canonicalizeStoragePath()
+    val canFolder = folder.canonicalizeStoragePath()
+    if (canPath == canFolder || canPath.startsWith("$canFolder/")) {
+        return true
+    }
+    // Also handle relative folder names (e.g. "Download", "Music", "Download/Sub")
+    val cleanFolder = folder.trim().replace('\\', '/').trim('/').lowercase(java.util.Locale.ROOT)
+    if (cleanFolder.isNotBlank()) {
+        if (canPath.startsWith("/storage/emulated/0/$cleanFolder/") || canPath == "/storage/emulated/0/$cleanFolder") {
+            return true
+        }
+        if (!cleanFolder.contains('/') && (canPath.contains("/$cleanFolder/") || canPath.endsWith("/$cleanFolder"))) {
+            return true
+        }
+    }
+    return false
+}
+
 internal fun String.normalizedFolderPath(): String? {
-    val normalized = trim().replace('\\', '/').trimEnd('/')
-    return normalized.takeIf { it.isNotBlank() }?.lowercase()
+    val normalized = canonicalizeStoragePath()
+    return normalized.takeIf { it.isNotBlank() }
 }
 
 internal fun String.isAllowedByFolderFilters(
     includeFolders: List<String>,
     excludeFolders: List<String>
 ): Boolean {
-    val normalizedPath = replace('\\', '/').lowercase()
-    val included = includeFolders.isEmpty() || includeFolders.any { folder ->
-        normalizedPath == folder || normalizedPath.startsWith("$folder/")
+    val cleanIncludes = includeFolders.filter { it.isNotBlank() && it != "__ella_no_custom_folder__" }
+    val included = cleanIncludes.isEmpty() || cleanIncludes.any { folder ->
+        isPathInsideFolder(folder)
     }
     if (!included) return false
 
     return excludeFolders.none { folder ->
-        normalizedPath == folder || normalizedPath.startsWith("$folder/")
+        folder.isNotBlank() && isPathInsideFolder(folder)
     }
 }
 

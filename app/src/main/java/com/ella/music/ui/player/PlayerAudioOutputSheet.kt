@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
@@ -90,10 +92,11 @@ internal fun AudioOutputInfoSheetContent(
         info.outputChannelCount.takeIf { it > 0 }?.let { "$it ch" }
     ).joinToString(" · ").ifBlank { "—" }
     val requestedOutput = listOf(
-        requestedSampleRate.takeIf { it > 0 }?.let(::formatAudioRate) ?: "自动采样率",
+        requestedSampleRate.takeIf { it > 0 }?.let(::formatAudioRate)
+            ?: stringResource(R.string.player_audio_output_auto_sample_rate),
         requestedBitDepth.takeIf { it > 0 }?.let {
             if (it == SettingsManager.AUDIO_OUTPUT_BIT_DEPTH_FLOAT32) "Float32" else "$it-bit PCM"
-        } ?: "自动位深"
+        } ?: stringResource(R.string.player_audio_output_auto_bit_depth)
     ).joinToString(" · ")
     val sourceToOutputRate = listOf(
         info.sourceSampleRate.takeIf { it > 0 }?.let(::formatAudioRate) ?: "—",
@@ -104,16 +107,16 @@ internal fun AudioOutputInfoSheetContent(
         playbackPcmEncodingLabel(info.outputEncoding)
     ).joinToString(" → ")
     val dsp = buildList {
-        if (eqEnabled) add("均衡器")
-        if (bassBoostEnabled) add("低音增强")
-        if (virtualizerEnabled) add("虚拟器")
-        if (reverbPreset > 0) add("混响")
+        if (eqEnabled) add(stringResource(R.string.equalizer_master))
+        if (bassBoostEnabled) add(stringResource(R.string.equalizer_bass_boost))
+        if (virtualizerEnabled) add(stringResource(R.string.equalizer_virtualizer))
+        if (reverbPreset > 0) add(stringResource(R.string.equalizer_reverb))
         if (replayGainMode != SettingsManager.REPLAY_GAIN_OFF) add("ReplayGain")
-    }.joinToString(" · ").ifBlank { "旁路（无效果）" }
+    }.joinToString(" · ").ifBlank { stringResource(R.string.player_audio_output_dsp_bypass) }
     val decoder = when (decoderMode) {
-        0 -> "Android 系统解码"
-        1 -> "FFmpeg 解码优先"
-        else -> "自动（系统 / FFmpeg 回退）"
+        0 -> stringResource(R.string.settings_audio_decoder_system)
+        1 -> stringResource(R.string.settings_audio_decoder_ffmpeg)
+        else -> stringResource(R.string.settings_audio_decoder_auto)
     }
     val formatRequiresConversion = playbackFormatRequiresConversion(
         sourceSampleRate = info.sourceSampleRate,
@@ -136,33 +139,48 @@ internal fun AudioOutputInfoSheetContent(
             HalfSheetTitle(title = stringResource(R.string.player_audio_output_info), onBack = onBack)
             Spacer(modifier = Modifier.height(18.dp))
         }
-        AudioOutputInfoSection("媒体源") {
-            AudioOutputInfoRow("文件", song?.fileName?.ifBlank { song.path }.orEmpty().ifBlank { "—" })
-            AudioOutputInfoRow("编码 / 容器", codec)
-            AudioOutputInfoRow("原始音频格式", source)
-            AudioOutputInfoRow("ReplayGain 标签", resolvedAudioInfo?.replayGainDb?.let { "%+.2f dB".format(it) } ?: "—")
+        AudioOutputInfoSection(stringResource(R.string.player_audio_output_section_source)) {
+            AudioOutputInfoRow(
+                stringResource(R.string.player_audio_output_file),
+                song?.fileName?.ifBlank { song.path }.orEmpty().ifBlank { "—" },
+                forceLtrValue = true
+            )
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_codec_container), codec, forceLtrValue = true)
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_source_format), source, forceLtrValue = true)
+            AudioOutputInfoRow(
+                stringResource(R.string.player_audio_output_replaygain_tag),
+                resolvedAudioInfo?.replayGainDb?.let { "%+.2f dB".format(it) } ?: "—",
+                forceLtrValue = true
+            )
         }
-        AudioOutputInfoSection("解码") {
-            AudioOutputInfoRow(stringResource(R.string.settings_decoder), decoder)
-            AudioOutputInfoRow("解码后 PCM", decodedPcm)
+        AudioOutputInfoSection(stringResource(R.string.player_audio_output_section_decoder)) {
+            AudioOutputInfoRow(stringResource(R.string.settings_decoder), decoder, forceLtrValue = false)
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_decoded_pcm), decodedPcm, forceLtrValue = true)
         }
-        AudioOutputInfoSection("重采样") {
-            AudioOutputInfoRow("采样率", sourceToOutputRate)
-            AudioOutputInfoRow("位深", sourceToOutputDepth)
+        AudioOutputInfoSection(stringResource(R.string.player_audio_output_resampling)) {
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_sample_rate), sourceToOutputRate, forceLtrValue = true)
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_bit_depth), sourceToOutputDepth, forceLtrValue = true)
             AudioOutputInfoRow(
                 stringResource(R.string.player_audio_output_resampling),
                 stringResource(
                     if (formatRequiresConversion) R.string.player_audio_output_resampling_active
                     else R.string.player_audio_output_resampling_none
-                )
+                ),
+                forceLtrValue = false
             )
         }
-        AudioOutputInfoSection("DSP") { AudioOutputInfoRow("处理链", dsp) }
-        AudioOutputInfoSection("输出") {
-            AudioOutputInfoRow("请求格式", requestedOutput)
-            AudioOutputInfoRow(stringResource(R.string.player_audio_output_path), output)
-            AudioOutputInfoRow(stringResource(R.string.player_audio_output_device), outputDevice)
-            AudioOutputInfoRow("音频会话 ID", audioSessionId.takeIf { it > 0 }?.toString() ?: "—")
+        AudioOutputInfoSection(stringResource(R.string.player_audio_output_section_dsp)) {
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_dsp_chain), dsp, forceLtrValue = false)
+        }
+        AudioOutputInfoSection(stringResource(R.string.player_audio_output_section_output)) {
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_requested_format), requestedOutput, forceLtrValue = true)
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_path), output, forceLtrValue = true)
+            AudioOutputInfoRow(stringResource(R.string.player_audio_output_device), outputDevice, forceLtrValue = false)
+            AudioOutputInfoRow(
+                stringResource(R.string.player_audio_output_audio_session_id),
+                audioSessionId.takeIf { it > 0 }?.toString() ?: "—",
+                forceLtrValue = true
+            )
         }
     }
 }
@@ -180,7 +198,11 @@ private fun AudioOutputInfoSection(title: String, content: @Composable ColumnSco
 }
 
 @Composable
-private fun AudioOutputInfoRow(label: String, value: String) {
+private fun AudioOutputInfoRow(
+    label: String,
+    value: String,
+    forceLtrValue: Boolean = false
+) {
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp)) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -194,6 +216,9 @@ private fun AudioOutputInfoRow(label: String, value: String) {
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onSurface,
+                style = TextStyle(
+                    textDirection = if (forceLtrValue) TextDirection.Ltr else TextDirection.Content
+                ),
                 modifier = Modifier.padding(top = 3.dp)
             )
         }

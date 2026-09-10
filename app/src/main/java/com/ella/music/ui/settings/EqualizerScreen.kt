@@ -61,8 +61,7 @@ fun EqualizerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
 
     val capabilities by AudioEffectState.capabilities.collectAsState()
     val eqEnabled by settingsManager.eqEnabled.collectAsState(initial = false)

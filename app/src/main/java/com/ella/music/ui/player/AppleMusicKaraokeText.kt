@@ -9,34 +9,49 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.sp
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricWord
+import com.ella.music.data.parser.isKanjiOrHangul
+import com.ella.music.data.parser.isRtlText
 import kotlin.math.cos
 import kotlin.math.PI
 import kotlin.math.sin
@@ -45,7 +60,7 @@ internal fun isInlineRubyPronunciation(text: String): Boolean {
     val compact = text.filterNot { it.isWhitespace() }
     if (compact.isEmpty()) return false
     if (compact.any { it.isAppleMusicLatinLetter() }) return false
-    return compact.any { it.isAppleMusicCjkIdeograph() || it.isAppleMusicKana() }
+    return compact.any { it.isAppleMusicKana() || it.isKanjiOrHangul() }
 }
 
 private fun Char.isAppleMusicKana(): Boolean {
@@ -84,7 +99,12 @@ internal fun TimedLyricText(
     rubyBelow: Boolean = false,
     splitRubyByCharacter: Boolean = false,
     rubyStyle: TextStyle? = null,
+    outlineColor: Color? = null,
+    outlineWidth: Float = 0f,
+    glowColor: Color? = null,
+    glowRadius: Float = 0f,
     onWordClick: ((Long) -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // TTML may encode the blank before a word as part of that word. Move it to the prior
@@ -107,14 +127,45 @@ internal fun TimedLyricText(
         )
     }
     if (timedWords.isEmpty()) {
-        BasicText(
-            text = text,
-            style = style,
-            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
-            softWrap = !singleLine,
-            overflow = TextOverflow.Clip,
-            modifier = modifier.then(if (singleLine && statusBarMarquee) Modifier.basicMarquee() else Modifier)
-        )
+        val textModifier = Modifier
+            .fillMaxWidth()
+            .then(if (singleLine && statusBarMarquee) Modifier.basicMarquee() else Modifier)
+        val textGlow = if (glowColor != null && glowRadius > 0f) {
+            Shadow(
+                color = glowColor.copy(alpha = glowColor.alpha * style.color.alpha),
+                offset = Offset.Zero,
+                blurRadius = glowRadius
+            )
+        } else null
+        if (outlineColor != null && outlineWidth > 0f) {
+            Box(modifier = modifier) {
+                BasicText(
+                    text = text,
+                    style = style.copy(color = outlineColor, drawStyle = Stroke(width = outlineWidth), shadow = null),
+                    maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                    softWrap = !singleLine,
+                    overflow = TextOverflow.Clip,
+                    modifier = textModifier
+                )
+                BasicText(
+                    text = text,
+                    style = style.copy(shadow = textGlow),
+                    maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                    softWrap = !singleLine,
+                    overflow = TextOverflow.Clip,
+                    modifier = textModifier
+                )
+            }
+        } else {
+            BasicText(
+                text = text,
+                style = style.copy(shadow = textGlow),
+                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                softWrap = !singleLine,
+                overflow = TextOverflow.Clip,
+                modifier = modifier.then(if (singleLine && statusBarMarquee) Modifier.basicMarquee() else Modifier)
+            )
+        }
         return
     }
     // Keep the timed units as individual layout children. This is the same important distinction
@@ -125,21 +176,43 @@ internal fun TimedLyricText(
         TextAlign.Center -> Arrangement.Center
         else -> Arrangement.Start
     }
+    // The clock ticks every frame. Hand the words a State they read in the draw/layer phase
+    // instead of a value they take as a parameter, so a frame no longer recomposes the whole
+    // line's worth of word subtrees just to move one feathered edge.
+    val context = LocalContext.current
+    val rainbowEnabled by remember(context) {
+        SettingsManager.getInstance(context).lyricRainbowEnabled
+    }.collectAsState(initial = false)
+    val fullTrailBreath by remember(context) {
+        SettingsManager.getInstance(context).appleMusicLyricsFullTrailBreath
+    }.collectAsState(initial = false)
+    val hdrHighlightEnabled by remember(context) {
+        SettingsManager.getInstance(context).lyricHdrHighlightEnabled
+    }.collectAsState(initial = false)
+    val positionState = rememberUpdatedState(positionMs)
     val content: @Composable () -> Unit = {
         timedWords.forEachIndexed { index, renderWord ->
             AppleMusicKaraokeWord(
                 renderWord = renderWord,
-                positionMs = positionMs,
+                positionMs = positionState,
                 active = active,
                 baseStyle = style,
                 contentColor = contentColor,
                 wordLiftEnabled = wordLiftEnabled,
                 wordLiftScale = wordLiftScale,
                 sustainGlowScale = sustainGlowScale,
+                outlineColor = outlineColor,
+                outlineWidth = outlineWidth,
+                glowColor = glowColor,
+                glowRadius = glowRadius,
+                rainbowEnabled = rainbowEnabled,
+                fullTrailBreath = fullTrailBreath,
+                hdrHighlightEnabled = hdrHighlightEnabled,
                 ruby = rubies.getOrNull(index).orEmpty(),
                 rubyStyle = rubyStyle,
                 rubyBelow = rubyBelow,
-                onWordClick = onWordClick
+                onWordClick = onWordClick,
+                onLongPress = onLongPress
             )
         }
     }
@@ -150,6 +223,7 @@ internal fun TimedLyricText(
                 positionMs = positionMs,
                 active = active,
                 horizontalArrangement = horizontalArrangement,
+                rubyBelow = rubyBelow,
                 modifier = modifier,
                 content = content
             )
@@ -157,7 +231,7 @@ internal fun TimedLyricText(
             Row(
                 modifier = modifier.then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
                 horizontalArrangement = horizontalArrangement,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = if (rubyBelow) Alignment.Top else Alignment.Bottom
             ) {
                 content()
             }
@@ -169,6 +243,8 @@ internal fun TimedLyricText(
         // the full line width so every row shares the exact same alignment anchor.
         AppleMusicTimedWordRows(
             textAlign = style.textAlign,
+            rubyBelow = rubyBelow,
+            breakBefore = lyricUnitBreakAllowedBefore(timedWords.map { it.word.text }),
             modifier = modifier
         ) {
             content()
@@ -187,6 +263,7 @@ private fun AppleMusicFocusedTimedRow(
     positionMs: Long,
     active: Boolean,
     horizontalArrangement: Arrangement.Horizontal,
+    rubyBelow: Boolean = false,
     modifier: Modifier,
     content: @Composable () -> Unit
 ) {
@@ -209,17 +286,18 @@ private fun AppleMusicFocusedTimedRow(
         LaunchedEffect(targetOffset) {
             animatedOffset.animateTo(
                 targetValue = targetOffset,
-                animationSpec = tween(durationMillis = 180)
+                animationSpec = tween(durationMillis = 90)
             )
         }
+        val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
         Row(
             modifier = Modifier
                 .width(IntrinsicSize.Max)
                 .wrapContentWidth(unbounded = true)
                 .onSizeChanged { contentWidthPx = it.width }
-                .graphicsLayer { translationX = -animatedOffset.value },
+                .graphicsLayer { translationX = if (isRtl) animatedOffset.value else -animatedOffset.value },
             horizontalArrangement = horizontalArrangement,
-            verticalAlignment = Alignment.Bottom
+            verticalAlignment = if (rubyBelow) Alignment.Top else Alignment.Bottom
         ) {
             content()
         }
@@ -229,6 +307,8 @@ private fun AppleMusicFocusedTimedRow(
 @Composable
 private fun AppleMusicTimedWordRows(
     textAlign: TextAlign,
+    rubyBelow: Boolean = false,
+    breakBefore: BooleanArray = BooleanArray(0),
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -240,29 +320,20 @@ private fun AppleMusicTimedWordRows(
             .takeUnless { it == androidx.compose.ui.unit.Constraints.Infinity }
             ?: measurables.sumOf { it.maxIntrinsicWidth(constraints.maxHeight) }
         val childConstraints = constraints.copy(minWidth = 0, minHeight = 0, maxWidth = availableWidth)
-        val rows = mutableListOf<MutableList<androidx.compose.ui.layout.Placeable>>()
-        val rowWidths = mutableListOf<Int>()
-        val rowHeights = mutableListOf<Int>()
-
-        measurables.forEach { measurable ->
-            val placeable = measurable.measure(childConstraints)
-            val rowIndex = rows.lastIndex
-            val currentWidth = rowWidths.getOrElse(rowIndex) { 0 }
-            val shouldWrap = rowIndex >= 0 && currentWidth > 0 && currentWidth + placeable.width > availableWidth
-            if (shouldWrap) {
-                rows += mutableListOf(placeable)
-                rowWidths += placeable.width
-                rowHeights += placeable.height
-            } else if (rowIndex >= 0) {
-                rows[rowIndex] += placeable
-                rowWidths[rowIndex] = currentWidth + placeable.width
-                rowHeights[rowIndex] = maxOf(rowHeights[rowIndex], placeable.height)
-            } else {
-                rows += mutableListOf(placeable)
-                rowWidths += placeable.width
-                rowHeights += placeable.height
-            }
+        val placeables = measurables.map { it.measure(childConstraints) }
+        val breaks = if (breakBefore.size == placeables.size) {
+            breakBefore
+        } else {
+            BooleanArray(placeables.size) { true }
         }
+        val rowRanges = wrapLyricUnitRows(
+            widths = placeables.map { it.width }.toIntArray(),
+            breakBefore = breaks,
+            availableWidth = availableWidth
+        )
+        val rows = rowRanges.map { range -> placeables.slice(range) }
+        val rowWidths = rows.map { row -> row.sumOf { it.width } }
+        val rowHeights = rows.map { row -> row.maxOf { it.height } }
 
         val layoutWidth = availableWidth.coerceIn(constraints.minWidth, constraints.maxWidth)
         val layoutHeight = rowHeights.sum().coerceIn(constraints.minHeight, constraints.maxHeight)
@@ -276,8 +347,10 @@ private fun AppleMusicTimedWordRows(
                     else -> 0
                 }
                 rows[rowIndex].forEach { placeable ->
-                    // Bottom-align so furigana grows upward instead of dropping the kanji.
-                    placeable.placeRelative(x, y + rowHeights[rowIndex] - placeable.height)
+                    // Bottom-align when ruby is above so furigana grows upward without dropping the kanji.
+                    // Top-align when ruby is below so furigana grows downward without raising the kanji.
+                    val placeableY = if (rubyBelow) y else y + rowHeights[rowIndex] - placeable.height
+                    placeable.placeRelative(x, placeableY)
                     x += placeable.width
                 }
                 y += rowHeights[rowIndex]
@@ -289,42 +362,45 @@ private fun AppleMusicTimedWordRows(
 @Composable
 private fun AppleMusicKaraokeWord(
     renderWord: AppleMusicRenderWord,
-    positionMs: Long,
+    positionMs: State<Long>,
     active: Boolean,
     baseStyle: TextStyle,
     contentColor: Color,
     wordLiftEnabled: Boolean,
     wordLiftScale: Float = 1f,
     sustainGlowScale: Float = 1f,
+    outlineColor: Color? = null,
+    outlineWidth: Float = 0f,
+    glowColor: Color? = null,
+    glowRadius: Float = 0f,
+    rainbowEnabled: Boolean = false,
+    fullTrailBreath: Boolean = false,
+    hdrHighlightEnabled: Boolean = false,
     ruby: String = "",
     rubyStyle: TextStyle? = null,
     rubyBelow: Boolean = false,
-    onWordClick: ((Long) -> Unit)? = null
+    onWordClick: ((Long) -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null
 ) {
     val word = renderWord.word
-    val progress = if (active) ((positionMs - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1L))
-        .coerceIn(0f, 1f)
-    else 0f
-    val bright = contentColor.copy(alpha = baseStyle.color.alpha)
-    val dim = contentColor.copy(alpha = baseStyle.color.alpha * 0.36f)
-    val sustainGlow = renderWord.sustainGlowAlpha(positionMs, active)
-    val visibleSustainGlow = sustainGlow * sustainGlowScale.coerceIn(0f, 1f)
-    val sustainDurationMs = renderWord.sustainDurationMs
-    val textSizePx = with(LocalDensity.current) { baseStyle.fontSize.toPx() }
-    // The reference renderer moves each word independently by 6% of the text size (at least
-    // 5 px), then adds only a 3% bottom-anchored scale during the held-note phase. Keeping the
-    // transform on the word rather than the whole line is what creates the floating vocal feel.
-    val liftPx = appleMusicKaraokeLiftPx(
-        wordLiftEnabled = wordLiftEnabled,
-        textSizePx = textSizePx,
-        progress = progress,
-        wordLiftScale = wordLiftScale
-    )
     val rubyContent: @Composable () -> Unit = {
         if (ruby.isNotBlank() && rubyStyle != null) {
+            val tracking = when {
+                ruby.length >= 5 -> (-0.55).sp
+                ruby.length >= 4 -> (-0.30).sp
+                else -> (-0.10).sp
+            }
+            val scaledRubyStyle = if (ruby.length >= 5) {
+                rubyStyle.copy(
+                    fontSize = rubyStyle.fontSize * 0.88f,
+                    letterSpacing = tracking
+                )
+            } else {
+                rubyStyle.copy(letterSpacing = tracking)
+            }
             BasicText(
                 text = ruby,
-                style = rubyStyle,
+                style = scaledRubyStyle,
                 maxLines = 1,
                 overflow = TextOverflow.Clip
             )
@@ -335,104 +411,502 @@ private fun AppleMusicKaraokeWord(
         modifier = Modifier
             .then(
                 if (onWordClick != null) {
-                    Modifier.pointerInput(word.startMs, onWordClick) {
-                        detectTapGestures(onTap = { onWordClick(word.startMs) })
+                    Modifier.pointerInput(word.startMs, onWordClick, onLongPress) {
+                        detectTapGestures(
+                            onTap = { onWordClick(word.startMs) },
+                            onLongPress = onLongPress?.let { press -> { press() } }
+                        )
                     }
                 } else Modifier
             )
+            // The reference renderer moves each word independently by 6% of the text size (at
+            // least 5 px), then adds only a 3% bottom-anchored scale during the held-note phase.
+            // Keeping the transform on the word rather than the whole line is what creates the
+            // floating vocal feel. Reading the clock inside the layer block keeps the lift on the
+            // layer phase, so a 20-word line no longer recomposes 20 subtrees per frame.
             .graphicsLayer {
-                translationY = -liftPx
-                // Keep the glyph box stable during a held note. Pulsing scale changes are perceived
-                // as character jitter on the desktop overlay, especially with long TTML spans.
-                transformOrigin = TransformOrigin(0.5f, 1f)
+                translationY = -appleMusicKaraokeLiftPx(
+                    wordLiftEnabled = wordLiftEnabled,
+                    textSizePx = baseStyle.fontSize.toPx(),
+                    progress = renderWord.karaokeProgress(positionMs.value, active),
+                    wordLiftScale = wordLiftScale
+                )
+                transformOrigin = TransformOrigin(0.5f, if (rubyBelow) 0f else 1f)
             }
     ) {
         if (!rubyBelow) rubyContent()
-        Box {
-        if (visibleSustainGlow > 0f) {
-            val durationScale = ((sustainDurationMs - 600L).coerceAtLeast(0L) / 2_400f)
-                .coerceIn(0f, 1f)
-            val haloAlpha = (0.12f + durationScale * 0.16f) * visibleSustainGlow * baseStyle.color.alpha
-            BasicText(
-                text = word.text,
-                style = baseStyle.copy(
-                    color = contentColor.copy(alpha = haloAlpha),
-                    shadow = Shadow(
-                        color = contentColor.copy(alpha = (0.72f + durationScale * 0.20f) * visibleSustainGlow),
-                        offset = Offset.Zero,
-                        blurRadius = (14f + durationScale * 12f) * visibleSustainGlow
-                    )
-                )
-            )
-        }
-        val glowShadow = visibleSustainGlow.takeIf { it > 0f }?.let { glowAlpha ->
-            Shadow(
-                color = contentColor.copy(alpha = baseStyle.color.alpha * glowAlpha),
-                offset = Offset.Zero,
-                blurRadius = 10f * glowAlpha
-            )
-        }
-        val dimStyle = remember(baseStyle, dim) { baseStyle.copy(color = dim) }
-        val brightStyle = remember(baseStyle, bright, glowShadow) {
-            baseStyle.copy(color = bright, shadow = glowShadow)
-        }
-        when {
-            progress <= 0f -> BasicText(text = word.text, style = dimStyle)
-            progress >= 1f -> BasicText(
-                text = word.text,
-                style = brightStyle
-            )
-            else -> {
-                BasicText(text = word.text, style = dimStyle)
-                // Use a real alpha gradient for the karaoke edge. A hard clip makes the sweep
-                // disappear on devices where BasicText is rendered through a cached paragraph;
-                // the brush keeps the soft feathered/逐字扫过效果 visible while preserving the
-                // dim text underneath.
-                BasicText(
-                    text = word.text,
-                    style = baseStyle.copy(
-                        brush = Brush.horizontalGradient(
-                            colorStops = arrayOf(
-                                0f to bright,
-                                (progress - 0.15f).coerceAtLeast(0f) to bright,
-                                progress to Color.Transparent,
-                                1f to Color.Transparent
-                            )
-                        ),
-                        shadow = glowShadow
-                    )
-                )
-                // A narrow material sheen follows the karaoke edge. Long-held words strengthen
-                // that band and add a restrained halo; ordinary words keep the feathered fill
-                // without inheriting a permanent outline around the entire active line.
-                // A second moving highlight on every short syllable can be perceived as two
-                // independent karaoke progress bars. Reserve the material sheen for an actual
-                // held note; ordinary syllables now have one unambiguous feathered edge.
-                if (visibleSustainGlow > 0.05f) {
-                    val sheenStart = (progress - 0.20f).coerceAtLeast(0f)
-                    val sheenPeak = (progress - 0.055f).coerceIn(sheenStart, progress)
-                    val sheenEnd = (progress + 0.045f).coerceAtMost(1f)
-                    val sheenAlpha = (0.20f + visibleSustainGlow * 0.42f) * baseStyle.color.alpha
-                    BasicText(
-                        text = word.text,
-                        style = baseStyle.copy(
-                            brush = Brush.horizontalGradient(
-                                colorStops = arrayOf(
-                                    0f to Color.Transparent,
-                                    sheenStart to Color.Transparent,
-                                    sheenPeak to contentColor.copy(alpha = sheenAlpha),
-                                    sheenEnd to Color.Transparent,
-                                    1f to Color.Transparent
-                                )
-                            )
-                        )
-                    )
-                }
-            }
-        }
+        AppleMusicKaraokeGlyphs(
+            renderWord = renderWord,
+            positionMs = positionMs,
+            active = active,
+            baseStyle = baseStyle,
+            contentColor = contentColor,
+            sustainGlowScale = sustainGlowScale,
+            outlineColor = outlineColor,
+            outlineWidth = outlineWidth,
+            glowColor = glowColor,
+            glowRadius = glowRadius,
+            rainbowEnabled = rainbowEnabled,
+            fullTrailBreath = fullTrailBreath,
+            hdrHighlightEnabled = hdrHighlightEnabled
+        )
         if (rubyBelow) rubyContent()
     }
 }
+
+/** Holds the last measured paragraph so the draw phase can reuse it without re-laying out text. */
+private class KaraokeGlyphLayout {
+    var value: TextLayoutResult? = null
+}
+
+/**
+ * One karaoke unit, measured once and repainted from the playback clock.
+ *
+ * The previous renderer stacked up to four [BasicText] children per word and rebuilt their
+ * [TextStyle]s from `positionMs` on every frame, so an active line re-entered composition — and
+ * the sweeping word re-entered text layout — 120 times a second. Every visual pass is kept here
+ * (dim base, feathered sweep, sustain halo and its travelling sheen, held-note glow); they are
+ * simply issued as `drawText` calls against one cached [TextLayoutResult], which is the one thing
+ * that must not be recomputed per frame.
+ */
+@Composable
+private fun AppleMusicKaraokeGlyphs(
+    renderWord: AppleMusicRenderWord,
+    positionMs: State<Long>,
+    active: Boolean,
+    baseStyle: TextStyle,
+    contentColor: Color,
+    sustainGlowScale: Float,
+    outlineColor: Color? = null,
+    outlineWidth: Float = 0f,
+    glowColor: Color? = null,
+    glowRadius: Float = 0f,
+    rainbowEnabled: Boolean = false,
+    fullTrailBreath: Boolean = false,
+    hdrHighlightEnabled: Boolean = false
+) {
+    val word = renderWord.word
+    val measurer = rememberTextMeasurer()
+    val cache = remember { KaraokeGlyphLayout() }
+    val baseAlpha = baseStyle.color.alpha
+    val bright = contentColor.copy(alpha = baseAlpha)
+    // QZ-style experimental trail: unsung dim ≈ 0.35; Halcyon default stays 0.36.
+    val dimFactor = if (fullTrailBreath) QzKaraokeDimAlphaFactor else DefaultKaraokeDimAlphaFactor
+    val dim = contentColor.copy(alpha = baseAlpha * dimFactor)
+    val sustainDurationMs = renderWord.sustainDurationMs
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl || word.text.isRtlText()
+    val useRainbow = rainbowEnabled && active
+    val trailSustainGlowScale = if (fullTrailBreath) {
+        (sustainGlowScale * 1.25f).coerceAtMost(1.5f)
+    } else {
+        sustainGlowScale
+    }
+    // lyric_hdr_highlight_enabled: ~1.5× sustain glow / bright highlight (settings summary).
+    val effectiveSustainGlowScale = if (hdrHighlightEnabled) {
+        (trailSustainGlowScale * LyricHdrBrightnessRatio).coerceAtMost(2.2f)
+    } else {
+        trailSustainGlowScale
+    }
+    val glowCap = if (hdrHighlightEnabled) 2.2f else 1.5f
+
+    Layout(
+        modifier = Modifier.drawBehind {
+            val layout = cache.value ?: return@drawBehind
+            val clock = positionMs.value
+            val progress = renderWord.karaokeProgress(clock, active)
+            if (outlineColor != null && outlineWidth > 0f) {
+                drawText(
+                    textLayoutResult = layout,
+                    color = outlineColor,
+                    drawStyle = Stroke(width = outlineWidth)
+                )
+            }
+            if (glowColor != null && glowRadius > 0f) {
+                drawText(
+                    textLayoutResult = layout,
+                    color = Color.Transparent,
+                    shadow = Shadow(
+                        color = glowColor.copy(alpha = glowColor.alpha * baseAlpha),
+                        offset = Offset.Zero,
+                        blurRadius = glowRadius
+                    )
+                )
+            }
+            val glow = renderWord.sustainGlowAlpha(clock, active) * effectiveSustainGlowScale.coerceIn(0f, glowCap)
+            val fontSizePx = baseStyle.fontSize.toPx().coerceAtLeast(1f)
+            val feather = karaokeTrailFeather(
+                fullTrailBreath = fullTrailBreath,
+                wordWidthPx = layout.size.width.toFloat().coerceAtLeast(1f),
+                fontSizePx = fontSizePx
+            )
+            // QZ trail has no metallic travelling sheen — keep sheen only on the default path.
+            val trailSheenGlow = if (fullTrailBreath) 0f else glow
+
+            if (glow > 0f) {
+                // A long held note grows a soft halo around the glyph before the fill reaches it.
+                val durationScale = ((sustainDurationMs - 600L).coerceAtLeast(0L) / 2_400f)
+                    .coerceIn(0f, 1f)
+                val haloColor = contentColor.withHdrHighlightBoost(hdrHighlightEnabled && active)
+                drawText(
+                    textLayoutResult = layout,
+                    color = haloColor.copy(
+                        alpha = ((0.05f + durationScale * 0.08f) * glow * baseAlpha).coerceIn(0f, 1f)
+                    ),
+                    shadow = Shadow(
+                        color = haloColor.copy(
+                            alpha = ((0.32f + durationScale * 0.14f) * glow * baseAlpha).coerceIn(0f, 1f)
+                        ),
+                        offset = Offset.Zero,
+                        blurRadius = (8f + durationScale * 6f) * glow
+                    )
+                )
+            }
+            val glowShadow = glow.takeIf { it > 0.05f }?.let { glowAlpha ->
+                val shadowBase = contentColor.withHdrHighlightBoost(hdrHighlightEnabled && active)
+                Shadow(
+                    color = shadowBase.copy(alpha = 0.24f * baseAlpha * glowAlpha),
+                    offset = Offset.Zero,
+                    blurRadius = 6f * glowAlpha
+                )
+            }
+            val wordWidth = layout.size.width.toFloat().coerceAtLeast(1f)
+            val fillColor = if (useRainbow) {
+                karaokeRainbowColor(0.5f, baseAlpha).withHdrHighlightBoost(hdrHighlightEnabled)
+            } else {
+                bright.withHdrHighlightBoost(hdrHighlightEnabled && active)
+            }
+            val rainbowAlpha = if (hdrHighlightEnabled) {
+                (baseAlpha * LyricHdrBrightnessRatio).coerceAtMost(1f)
+            } else {
+                baseAlpha
+            }
+            when {
+                progress <= 0f -> drawText(textLayoutResult = layout, color = dim)
+                progress >= 1f -> {
+                    if (useRainbow) {
+                        drawText(
+                            textLayoutResult = layout,
+                            brush = karaokeRainbowBrush(
+                                alpha = rainbowAlpha,
+                                wordWidth = wordWidth,
+                                isRtl = isRtl
+                            ),
+                            shadow = glowShadow
+                        )
+                    } else {
+                        drawText(
+                            textLayoutResult = layout,
+                            color = fillColor,
+                            shadow = glowShadow
+                        )
+                    }
+                }
+                else -> {
+                    drawText(textLayoutResult = layout, color = dim)
+                    // A real alpha gradient rather than a hard clip: the sweep keeps its soft
+                    // feathered edge while the dim glyph stays legible underneath it.
+                    drawText(
+                        textLayoutResult = layout,
+                        brush = if (useRainbow) {
+                            Brush.horizontalGradient(
+                                colorStops = karaokeRainbowFillStops(
+                                    progress = progress,
+                                    baseAlpha = rainbowAlpha,
+                                    isRtl = isRtl,
+                                    feather = feather
+                                ),
+                                startX = 0f,
+                                endX = wordWidth
+                            )
+                        } else {
+                            Brush.horizontalGradient(
+                                colorStops = karaokeFillStops(
+                                    progress,
+                                    fillColor,
+                                    isRtl,
+                                    feather,
+                                    qzCentered = false
+                                ),
+                                startX = 0f,
+                                endX = wordWidth
+                            )
+                        },
+                        shadow = glowShadow
+                    )
+                    // A narrow material sheen follows the karaoke edge. Reserve it for an actual
+                    // held note: on every short syllable a second moving highlight reads as two
+                    // independent progress bars. Trail ON keeps sheen off (QZ path).
+                    if (trailSheenGlow > 0.05f) {
+                        drawText(
+                            textLayoutResult = layout,
+                            brush = Brush.horizontalGradient(
+                                colorStops = karaokeSheenStops(
+                                    progress = progress,
+                                    contentColor = if (useRainbow) {
+                                        karaokeRainbowColor(progress, baseAlpha)
+                                            .withHdrHighlightBoost(hdrHighlightEnabled)
+                                    } else {
+                                        contentColor.withHdrHighlightBoost(hdrHighlightEnabled && active)
+                                    },
+                                    glow = trailSheenGlow,
+                                    baseAlpha = baseAlpha,
+                                    isRtl = isRtl,
+                                    trailWidth = 0.20f
+                                ),
+                                startX = 0f,
+                                endX = wordWidth
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    ) { _, constraints ->
+        val cached = cache.value
+        val layout = if (
+            cached != null &&
+            cached.layoutInput.text.text == word.text &&
+            cached.layoutInput.style == baseStyle &&
+            cached.layoutInput.constraints == constraints &&
+            cached.layoutInput.layoutDirection == layoutDirection &&
+            cached.layoutInput.density.density == density &&
+            cached.layoutInput.density.fontScale == fontScale
+        ) {
+            cached
+        } else {
+            measurer.measure(
+                text = word.text,
+                style = baseStyle,
+                overflow = TextOverflow.Clip,
+                constraints = constraints,
+                layoutDirection = layoutDirection,
+                density = this
+            ).also { cache.value = it }
+        }
+        layout(layout.size.width, layout.size.height) {}
+    }
+}
+
+private fun AppleMusicRenderWord.karaokeProgress(positionMs: Long, active: Boolean): Float =
+    if (active) {
+        ((positionMs - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1L))
+            .coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+/**
+ * Soft trailing feather ≈ 2–3 English letters as a fraction of em.
+ * Latin advance ≈ 0.5em, so 2.5 letters ≈ 1.25em at the active lyric font size.
+ */
+internal const val QzKaraokeSoftEdgeChars = 2.5f
+internal const val QzKaraokeLatinAdvanceEm = 0.5f
+/** Soft-edge width in em (= SoftEdgeChars × LatinAdvanceEm). */
+internal const val QzKaraokeSoftEdgeEm = QzKaraokeSoftEdgeChars * QzKaraokeLatinAdvanceEm
+/** Unsung dim when experimental QZ-style trail is on (raised from 0.20 toward video match). */
+internal const val QzKaraokeDimAlphaFactor = 0.35f
+internal const val DefaultKaraokeDimAlphaFactor = 0.36f
+internal const val DefaultKaraokeFeather = 0.15f
+
+/**
+ * Trail feather width as a fraction of the painted span.
+ * When [fullTrailBreath] is on: character-relative soft edge (~2.5 Latin letters / ~1.25em)
+ * trailing behind progress (not centered).
+ */
+internal fun karaokeTrailFeather(
+    fullTrailBreath: Boolean,
+    wordWidthPx: Float,
+    fontSizePx: Float = 0f
+): Float {
+    if (!fullTrailBreath) return DefaultKaraokeFeather
+    val softPx = if (fontSizePx > 0f) {
+        fontSizePx * QzKaraokeSoftEdgeEm
+    } else {
+        // Unit-test fallback when font size is omitted: ~2.5 letters at a mid AM lyric size.
+        40f * QzKaraokeSoftEdgeEm
+    }
+    return (softPx / wordWidthPx.coerceAtLeast(1f)).coerceIn(0.12f, 0.72f)
+}
+
+
+/**
+ * Classic 七彩 / ROYGBIV spectrum anchors (赤橙黄绿青蓝紫).
+ * Used as brush colorStops; [karaokeRainbowColor] samples a continuous HSV sweep.
+ */
+internal val LyricSpectrumRainbowColors: List<Color> = listOf(
+    Color(0xFFFF3B30), // 赤 red
+    Color(0xFFFF9500), // 橙 orange
+    Color(0xFFFFCC00), // 黄 yellow
+    Color(0xFF34C759), // 绿 green
+    Color(0xFF5AC8FA), // 青 cyan
+    Color(0xFF007AFF), // 蓝 blue
+    Color(0xFFAF52DE)  // 紫 violet
+)
+
+/** Lyricon-style HDR highlight brightness ratio (BasicStyle hdrBrightnessRatio default). */
+internal const val LyricHdrBrightnessRatio: Float = 1.5f
+
+/**
+ * Sample a continuous 七彩 spectrum at position t in 0..1.
+ * HSV hue sweeps 0°→300° (red→violet) so karaoke fill looks like a real rainbow.
+ */
+internal fun karaokeRainbowColor(position: Float, alpha: Float): Color {
+    val t = position.coerceIn(0f, 1f)
+    return Color.hsv(
+        hue = t * 300f,
+        saturation = 0.88f,
+        value = 1f,
+        alpha = alpha.coerceIn(0f, 1f)
+    )
+}
+
+/**
+ * Static soft multi-stop horizontal 七彩 rainbow across [wordWidth].
+ * Seven HSV-sampled stops (ROYGBIV) for a continuous spectrum brush.
+ */
+internal fun karaokeRainbowBrush(
+    alpha: Float,
+    wordWidth: Float,
+    isRtl: Boolean
+): Brush {
+    val stopCount = LyricSpectrumRainbowColors.size.coerceAtLeast(2)
+    val stops = Array(stopCount) { i ->
+        val p = i / (stopCount - 1).toFloat()
+        val sample = if (isRtl) 1f - p else p
+        p to karaokeRainbowColor(sample, alpha)
+    }
+    return Brush.horizontalGradient(colorStops = stops, startX = 0f, endX = wordWidth.coerceAtLeast(1f))
+}
+
+/**
+ * SDR stand-in for Lyricon HDR highlight boost (~1.5× luminance).
+ * Compose text does not practically wire DesiredHdrHeadroom; we brighten toward white.
+ */
+internal fun Color.withHdrHighlightBoost(enabled: Boolean, ratio: Float = LyricHdrBrightnessRatio): Color {
+    if (!enabled || ratio <= 1f) return this
+    val t = (1f - 1f / ratio).coerceIn(0f, 1f)
+    return Color(
+        red = (red + (1f - red) * t).coerceIn(0f, 1f),
+        green = (green + (1f - green) * t).coerceIn(0f, 1f),
+        blue = (blue + (1f - blue) * t).coerceIn(0f, 1f),
+        alpha = alpha
+    )
+}
+
+internal fun karaokeRainbowFillStops(
+    progress: Float,
+    baseAlpha: Float,
+    isRtl: Boolean,
+    feather: Float = DefaultKaraokeFeather
+): Array<Pair<Float, Color>> {
+    val soft = feather.coerceIn(0.05f, 0.85f)
+    val leading = karaokeRainbowColor(0.15f, baseAlpha)
+    val mid = karaokeRainbowColor(0.5f, baseAlpha)
+    val edge = karaokeRainbowColor(0.85f, baseAlpha)
+    return if (isRtl) {
+        arrayOf(
+            0f to Color.Transparent,
+            (1f - progress).coerceAtLeast(0f) to Color.Transparent,
+            (1f - (progress - soft * 0.45f)).coerceIn(0f, 1f) to edge,
+            (1f - (progress - soft)).coerceIn(0f, 1f) to mid,
+            1f to leading
+        )
+    } else {
+        arrayOf(
+            0f to leading,
+            (progress - soft).coerceAtLeast(0f) to mid,
+            (progress - soft * 0.45f).coerceAtLeast(0f) to edge,
+            progress to Color.Transparent,
+            1f to Color.Transparent
+        )
+    }
+}
+
+/**
+ * Karaoke fill color stops.
+ * Default / experimental trail: all-behind soft edge of [feather] (soft zone trails progress).
+ * [qzCentered]: legacy soft zone centered on progress (half ahead / half behind) with
+ * expanded domain so the edge fully clears at 0 and 1 — unused by the trail toggle.
+ */
+internal fun karaokeFillStops(
+    progress: Float,
+    bright: Color,
+    isRtl: Boolean,
+    feather: Float = DefaultKaraokeFeather,
+    qzCentered: Boolean = false
+): Array<Pair<Float, Color>> {
+    val soft = feather.coerceIn(0.05f, 0.85f)
+    if (!qzCentered) {
+        return if (isRtl) {
+            arrayOf(
+                0f to Color.Transparent,
+                (1f - progress).coerceAtLeast(0f) to Color.Transparent,
+                (1f - (progress - soft)).coerceIn(0f, 1f) to bright,
+                1f to bright
+            )
+        } else {
+            arrayOf(
+                0f to bright,
+                (progress - soft).coerceAtLeast(0f) to bright,
+                progress to Color.Transparent,
+                1f to Color.Transparent
+            )
+        }
+    }
+    // QZ: softNorm = min(100/w,1); center = ((1+soft)*p) - soft/2; solid..dim = center ± soft/2
+    val half = soft * 0.5f
+    val center = ((1f + soft) * progress.coerceIn(0f, 1f)) - half
+    val solidEnd = center - half
+    val dimStart = center + half
+    return if (isRtl) {
+        val a = (1f - dimStart).coerceIn(0f, 1f)
+        val b = (1f - solidEnd).coerceIn(a, 1f)
+        arrayOf(
+            0f to Color.Transparent,
+            a to Color.Transparent,
+            b to bright,
+            1f to bright
+        )
+    } else {
+        val a = solidEnd.coerceIn(0f, 1f)
+        val b = dimStart.coerceIn(a, 1f)
+        arrayOf(
+            0f to bright,
+            a to bright,
+            b to Color.Transparent,
+            1f to Color.Transparent
+        )
+    }
+}
+
+internal fun karaokeSheenStops(
+    progress: Float,
+    contentColor: Color,
+    glow: Float,
+    baseAlpha: Float,
+    isRtl: Boolean,
+    trailWidth: Float = 0.20f
+): Array<Pair<Float, Color>> {
+    val sheenAlpha = (0.10f + glow * 0.20f) * baseAlpha
+    val trail = trailWidth.coerceIn(0.12f, 0.55f)
+    return if (isRtl) {
+        arrayOf(
+            0f to Color.Transparent,
+            (1f - (progress + 0.045f)).coerceAtLeast(0f) to Color.Transparent,
+            (1f - (progress - 0.055f)).coerceIn(0f, 1f) to contentColor.copy(alpha = sheenAlpha),
+            (1f - (progress - trail)).coerceAtMost(1f) to Color.Transparent,
+            1f to Color.Transparent
+        )
+    } else {
+        val sheenStart = (progress - trail).coerceAtLeast(0f)
+        arrayOf(
+            0f to Color.Transparent,
+            sheenStart to Color.Transparent,
+            (progress - 0.055f).coerceIn(sheenStart, progress) to contentColor.copy(alpha = sheenAlpha),
+            (progress + 0.045f).coerceAtMost(1f) to Color.Transparent,
+            1f to Color.Transparent
+        )
+    }
 }
 
 internal fun rubiesForTimedWords(
@@ -488,9 +962,132 @@ internal fun assignRubySpansToWords(
     return result
 }
 
+private fun attachRubyBySyllables(words: List<LyricWord>, reading: String): List<String> {
+    val tokens = reading.trim().split(Regex("""\s+""")).filter { it.isNotBlank() }
+    if (tokens.isEmpty()) return List(words.size) { "" }
+
+    val charToWord = mutableListOf<Int>()
+    val surface = buildString {
+        words.forEachIndexed { index, word ->
+            word.text.forEach { character ->
+                append(character)
+                charToWord += index
+            }
+        }
+    }
+    val rubyByWord = MutableList(words.size) { mutableListOf<String>() }
+    var sIdx = 0
+    var tIdx = 0
+
+    while (sIdx < surface.length) {
+        val character = surface[sIdx]
+        if (character.isWhitespace()) {
+            sIdx++
+            continue
+        }
+
+        if (character.isKanjiOrHangul()) {
+            var runEnd = sIdx + 1
+            while (runEnd < surface.length && surface[runEnd].isKanjiOrHangul()) {
+                runEnd++
+            }
+            val runLength = runEnd - sIdx
+
+            // Look ahead for the next Latin anchor in surface
+            var nextLatinMatch: Int? = null
+            var restIdx = runEnd
+            while (restIdx < surface.length) {
+                val restChar = surface[restIdx]
+                if (restChar.isAppleMusicLatinLetter()) {
+                    var wordEnd = restIdx + 1
+                    while (wordEnd < surface.length && (surface[wordEnd].isAppleMusicLatinLetter() || surface[wordEnd] in "'’-")) {
+                        wordEnd++
+                    }
+                    val latinWord = surface.substring(restIdx, wordEnd).filter { it.isAppleMusicLatinLetter() }.lowercase()
+                    if (latinWord.isNotEmpty()) {
+                        for (tokI in tIdx until tokens.size) {
+                            val normTok = tokens[tokI].filter { it.isAppleMusicLatinLetter() }.lowercase()
+                            if (normTok == latinWord) {
+                                nextLatinMatch = tokI
+                                break
+                            }
+                        }
+                    }
+                    break
+                }
+                restIdx++
+            }
+
+            val consumed = if (nextLatinMatch != null) {
+                maxOf(1, nextLatinMatch - tIdx)
+            } else {
+                val remTokens = tokens.size - tIdx
+                val remKanji = (runEnd until surface.length).count { surface[it].isKanjiOrHangul() }
+                if (remKanji > 0) {
+                    maxOf(1, minOf(runLength, remTokens - remKanji))
+                } else {
+                    remTokens
+                }
+            }
+
+            val tokEnd = minOf(tokens.size, tIdx + consumed)
+            val assignedTokens = tokens.subList(tIdx, tokEnd)
+            tIdx = tokEnd
+
+            if (assignedTokens.size == runLength) {
+                assignedTokens.forEachIndexed { i, tok ->
+                    rubyByWord[charToWord[sIdx + i]].add(tok)
+                }
+            } else if (assignedTokens.size == 1) {
+                rubyByWord[charToWord[sIdx]].add(assignedTokens[0])
+            } else {
+                for (i in 0 until minOf(runLength, assignedTokens.size)) {
+                    val tok = if (i == runLength - 1 && assignedTokens.size > runLength) {
+                        assignedTokens.subList(i, assignedTokens.size).joinToString(" ")
+                    } else {
+                        assignedTokens[i]
+                    }
+                    rubyByWord[charToWord[sIdx + i]].add(tok)
+                }
+            }
+            sIdx = runEnd
+        } else if (character.isAppleMusicLatinLetter()) {
+            var wordEnd = sIdx + 1
+            while (wordEnd < surface.length && (surface[wordEnd].isAppleMusicLatinLetter() || surface[wordEnd] in "'’-")) {
+                wordEnd++
+            }
+            val latinWord = surface.substring(sIdx, wordEnd).filter { it.isAppleMusicLatinLetter() }.lowercase()
+            if (tIdx < tokens.size) {
+                val normTok = tokens[tIdx].filter { it.isAppleMusicLatinLetter() }.lowercase()
+                if (normTok == latinWord) {
+                    tIdx++
+                }
+            }
+            sIdx = wordEnd
+        } else {
+            if (tIdx < tokens.size && tokens[tIdx] == character.toString()) {
+                tIdx++
+            }
+            sIdx++
+        }
+    }
+
+    return rubyByWord.map { it.joinToString(" ") }
+}
+
 internal fun attachRubyByCorrespondence(words: List<LyricWord>, reading: String): List<String> {
     if (words.isEmpty()) return emptyList()
-    val readingChars = reading.filterNot { it.isWhitespace() }.toList()
+    val cleanReading = reading.trim()
+    if (cleanReading.isBlank()) return List(words.size) { "" }
+
+    if (cleanReading.contains(' ') || cleanReading.any { it.isAppleMusicLatinLetter() }) {
+        val syllableAligned = attachRubyBySyllables(words, cleanReading)
+        if (syllableAligned.any { it.isNotBlank() }) {
+            return syllableAligned
+        }
+    }
+
+    val readingChars = cleanReading.filterNot { it.isWhitespace() }.toList()
     if (readingChars.isEmpty()) return List(words.size) { "" }
 
     val charToWord = mutableListOf<Int>()
@@ -621,12 +1218,7 @@ private fun timedRangesOverlap(first: LyricWord, second: LyricWord): Boolean =
 private fun overlapMs(first: LyricWord, second: LyricWord): Long =
     (minOf(first.endMs, second.endMs) - maxOf(first.startMs, second.startMs)).coerceAtLeast(0L)
 
-private fun Char.isAppleMusicCjkIdeograph(): Boolean {
-    val block = Character.UnicodeBlock.of(this)
-    return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
-        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
-        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
-}
+private fun Char.isAppleMusicCjkIdeograph(): Boolean = isKanjiOrHangul()
 
 private fun AppleMusicRenderWord.sustainGlowAlpha(positionMs: Long, active: Boolean): Float {
     val sustainEndMs = sustainEndMs ?: return 0f
@@ -714,10 +1306,83 @@ internal fun LyricWord.shouldSplitForAppleMusicCharacters(
     sustainThresholdMs: Int = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
 ): Boolean {
     if (endMs - startMs < sustainThresholdMs.coerceAtLeast(0).toLong() || text.length <= 1) return false
-    return text.any { it.isAppleMusicLatinLetter() || it.isAppleMusicCjkCharacter() }
+    // Latin words should never be split into characters across line wraps.
+    // Whole words are kept intact so that "stranger" never breaks into "stra" and "nger".
+    if (text.any { it.isAppleMusicLatinLetter() }) return false
+    return text.any { it.isAppleMusicCjkCharacter() }
 }
 
 private fun Char.isAppleMusicLatinLetter(): Boolean = this in 'a'..'z' || this in 'A'..'Z'
+
+/**
+ * Apple word-timed lyrics split English into sung syllables (`heart` / `brea` / `ker`).
+ * Those pieces must wrap as one word. A break is allowed only at whitespace or where a
+ * Latin word starts, so CJK can still wrap per character.
+ */
+internal fun lyricUnitBreakAllowedBefore(texts: List<String>): BooleanArray =
+    BooleanArray(texts.size) { index ->
+        index == 0 || !continuesLatinWord(texts[index - 1], texts[index])
+    }
+
+private fun continuesLatinWord(previous: String, current: String): Boolean {
+    if (previous.isEmpty() || current.isEmpty()) return false
+    if (previous.last().isWhitespace() || current.first().isWhitespace()) return false
+    val prevChar = previous.last()
+    val nextChar = current.first()
+    val prevJoins = prevChar.isAppleMusicLatinLetter() || prevChar == '\'' || prevChar == '’' || prevChar == '-'
+    val nextJoins = nextChar.isAppleMusicLatinLetter() || nextChar == '\'' || nextChar == '’' || nextChar == '-'
+    return prevJoins && nextJoins &&
+        (prevChar.isAppleMusicLatinLetter() || nextChar.isAppleMusicLatinLetter())
+}
+
+/**
+ * @return inclusive index ranges, one per visual row.
+ * A Latin syllable run moves to the next row together when it fits there. A run wider than
+ * the row still breaks, so one enormous word cannot overflow the screen.
+ */
+internal fun wrapLyricUnitRows(
+    widths: IntArray,
+    breakBefore: BooleanArray,
+    availableWidth: Int
+): List<IntRange> {
+    if (widths.isEmpty()) return emptyList()
+    val rows = mutableListOf<IntRange>()
+    var rowStart = 0
+    var rowWidth = 0
+    var index = 0
+    while (index < widths.size) {
+        val width = widths[index]
+        if (rowWidth == 0 || rowWidth + width <= availableWidth) {
+            rowWidth += width
+            index++
+            continue
+        }
+        if (index > rowStart && index < breakBefore.size && !breakBefore[index]) {
+            var runStart = index
+            while (runStart > rowStart && !breakBefore[runStart]) runStart--
+            var runWidth = width
+            for (cursor in runStart until index) runWidth += widths[cursor]
+            if (runStart > rowStart && runWidth <= availableWidth) {
+                rows += rowStart until runStart
+                rowStart = runStart
+                rowWidth = runWidth - width
+                continue
+            }
+        }
+        if (index > rowStart) {
+            rows += rowStart until index
+            rowStart = index
+            rowWidth = 0
+            continue
+        }
+        rows += index..index
+        index++
+        rowStart = index
+        rowWidth = 0
+    }
+    if (rowStart < widths.size) rows += rowStart until widths.size
+    return rows
+}
 
 private fun Char.isAppleMusicCjkCharacter(): Boolean {
     val block = Character.UnicodeBlock.of(this)

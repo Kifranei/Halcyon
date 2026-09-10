@@ -3,8 +3,10 @@ package com.ella.music.ui.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,18 +18,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -42,9 +48,18 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.BottomDockTab
 import com.ella.music.R
 import com.ella.music.bottomDockTabCatalog
+import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.SettingsManager
+import com.ella.music.ui.components.BottomBarLiquidGlassConfig
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.GlassPill
+import com.ella.music.ui.components.ReorderableSelectionItem
+import com.ella.music.ui.components.ReorderableSelectionSheet
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -55,6 +70,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -63,6 +79,8 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
     val storedItems by settingsManager.bottomDockItems.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
     )
+    val mergeSearch by settingsManager.bottomDockMergeSearch.collectAsState(initial = true)
+    val maxSelectableItems = SettingsManager.maxBottomDockItems(mergeSearch)
     val startupItem by settingsManager.bottomDockStartupItem.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_STARTUP_ITEM
     )
@@ -82,13 +100,12 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
         initial = SettingsManager.DEFAULT_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_PERCENT
     )
     val catalog = bottomDockTabCatalog()
-    val selectedIds = storedItems
-        .filter { it in catalog }
-        .distinct()
-        .take(SettingsManager.MAX_BOTTOM_DOCK_ITEMS)
-        .ifEmpty { SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',') }
+    val selectedIds = SettingsManager.visibleBottomDockItems(
+        storedItems.filter { it in catalog }.distinct(),
+        mergeSearch
+    ).ifEmpty { SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',') }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
 
     fun save(items: List<String>) {
         scope.launch { settingsManager.setBottomDockItems(items) }
@@ -101,39 +118,58 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    Column(
+    val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
+        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
+    val shouldReserveStatus = systemBarsReserveSpace || systemBarsMode !in setOf(
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+    )
+    val statusBarHeight = if (shouldReserveStatus) {
+        WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    } else {
+        0.dp
+    }
+    val topBarHeight = 56.dp + statusBarHeight
+    val previewBackdrop = rememberLayerBackdrop()
+    val previewLiquidGlassConfig = remember(
+        bottomBarLiquidBlurRadius,
+        bottomBarLiquidRefractionHeight,
+        bottomBarLiquidRefractionAmount,
+        bottomBarLiquidChromaticAberration
+    ) {
+        BottomBarLiquidGlassConfig(
+            blurRadiusDp = bottomBarLiquidBlurRadius.toFloat(),
+            refractionHeightDp = bottomBarLiquidRefractionHeight.toFloat(),
+            refractionAmountDp = bottomBarLiquidRefractionAmount.toFloat(),
+            chromaticAberration = bottomBarLiquidChromaticAberration / 100f
+        )
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        EllaSmallTopAppBar(
-            title = stringResource(R.string.settings_bottom_dock_items),
-            color = pageBackground,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = stringResource(R.string.common_back),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberSettingsScrollState("settings_bottom_navigation"))
                 .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
 
             SmallTitle(text = stringResource(R.string.settings_bottom_dock_preview))
             SettingsCardGroup {
                 BottomDockPreview(
-                    tabs = selectedIds.mapNotNull(catalog::get)
+                    tabs = selectedIds.mapNotNull(catalog::get),
+                    mergeSearch = mergeSearch,
+                    cornerRadiusDp = bottomBarCornerRadius.toFloat(),
+                    liquidGlassConfig = previewLiquidGlassConfig,
+                    backdrop = previewBackdrop
                 )
             }
 
@@ -280,151 +316,232 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                 }
             }
 
+            var showReorderSheet by remember { mutableStateOf(false) }
+
             SmallTitle(text = stringResource(R.string.settings_bottom_dock_selected))
             SettingsCardGroup {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    Text(
-                        text = stringResource(
-                            R.string.settings_bottom_dock_selection_count,
-                            selectedIds.size,
-                            SettingsManager.MAX_BOTTOM_DOCK_ITEMS
-                        ),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
-                    selectedIds.forEachIndexed { index, id ->
-                        catalog[id]?.let { tab ->
-                            SelectedDockRow(
-                                tab = tab,
-                                position = index + 1,
-                                canMoveUp = index > 0,
-                                canMoveDown = index < selectedIds.lastIndex,
-                                canRemove = selectedIds.size > 1,
-                                onMoveUp = {
-                                    val updated = selectedIds.toMutableList()
-                                    java.util.Collections.swap(updated, index, index - 1)
-                                    save(updated)
-                                },
-                                onMoveDown = {
-                                    val updated = selectedIds.toMutableList()
-                                    java.util.Collections.swap(updated, index, index + 1)
-                                    save(updated)
-                                },
-                                onRemove = { save(selectedIds - id) }
-                            )
-                        }
+                SwitchPreference(
+                    title = stringResource(R.string.settings_bottom_dock_merge_search),
+                    summary = stringResource(R.string.settings_bottom_dock_merge_search_summary),
+                    checked = mergeSearch,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsManager.setBottomDockMergeSearch(enabled) }
                     }
-                }
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_bottom_dock_items),
+                    summary = stringResource(
+                        R.string.settings_bottom_dock_selection_count,
+                        selectedIds.size,
+                        maxSelectableItems
+                    ),
+                    onClick = { showReorderSheet = true }
+                )
             }
 
-            SmallTitle(text = stringResource(R.string.settings_bottom_dock_available))
-            SettingsCardGroup {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_bottom_dock_available_summary),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+            val allDockItems = remember(catalog, mergeSearch) {
+                catalog.entries
+                    .filter { mergeSearch || it.key != SettingsManager.BOTTOM_DOCK_ITEM_SEARCH }
+                    .map { (id, tab) ->
+                    ReorderableSelectionItem(
+                        id = id,
+                        title = tab.label,
+                        enabled = false
                     )
-                    catalog.entries.chunked(2).forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowItems.forEach { (id, tab) ->
-                                val selected = id in selectedIds
-                                val enabled = selected || selectedIds.size < SettingsManager.MAX_BOTTOM_DOCK_ITEMS
-                                AvailableDockTile(
-                                    tab = tab,
-                                    selected = selected,
-                                    enabled = enabled,
-                                    onClick = {
-                                        when {
-                                            selected && selectedIds.size > 1 -> save(selectedIds - id)
-                                            !selected && enabled -> save(selectedIds + id)
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
                 }
+            }
+            val currentDockSheetItems = remember(selectedIds, allDockItems) {
+                val selected = selectedIds.mapNotNull { id ->
+                    allDockItems.find { it.id == id }?.copy(enabled = true)
+                }
+                val unselected = allDockItems.filter { it.id !in selectedIds }
+                selected + unselected
+            }
+            val defaultDockIds = remember {
+                SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
+            }
+            val defaultDockSheetItems = remember(defaultDockIds, allDockItems) {
+                val defSelected = defaultDockIds.mapNotNull { id ->
+                    allDockItems.find { it.id == id }?.copy(enabled = true)
+                }
+                val defUnselected = allDockItems.filter { it.id !in defaultDockIds }
+                defSelected + defUnselected
             }
 
-            SettingsCardGroup {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            reset()
-                        }
-                        .padding(vertical = 17.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_bottom_dock_reset),
-                        color = MiuixTheme.colorScheme.primary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            ReorderableSelectionSheet(
+                show = showReorderSheet,
+                title = stringResource(R.string.settings_bottom_dock_items),
+                subtitle = stringResource(R.string.settings_bottom_dock_available_summary),
+                items = currentDockSheetItems,
+                defaultItems = defaultDockSheetItems,
+                maxSelectCount = maxSelectableItems,
+                onExceedMaxSelect = {
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_bottom_dock_selection_count, maxSelectableItems, maxSelectableItems),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                },
+                onDismissRequest = { showReorderSheet = false },
+                onSave = { updated ->
+                    val newSelected = updated.filter { it.enabled }.map { it.id }.take(maxSelectableItems)
+                    if (newSelected.isNotEmpty()) {
+                        save(newSelected)
+                    }
+                    showReorderSheet = false
+                },
+                onReset = {
+                    reset()
                 }
-            }
+            )
             // The always-visible mini-player is drawn above this route. Leave enough scrollable
             // tail space so the reset action can be brought fully above it on every OEM.
             Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
             Spacer(modifier = Modifier.height(96.dp))
         }
+
+        EllaSmallTopAppBar(
+            title = stringResource(R.string.settings_bottom_dock_items),
+            color = pageBackground,
+            defaultWindowInsetsPadding = shouldReserveStatus,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 }
 
 @Composable
-private fun BottomDockPreview(tabs: List<BottomDockTab>) {
-    Row(
+private fun BottomDockPreview(
+    tabs: List<BottomDockTab>,
+    mergeSearch: Boolean,
+    cornerRadiusDp: Float,
+    liquidGlassConfig: BottomBarLiquidGlassConfig,
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop?
+) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(16.dp))
+            .padding(vertical = 4.dp)
     ) {
-        Row(
+        // Underlay backdrop with vibrant gradient and shapes so refraction and lens distortion are visible
+        Box(
             modifier = Modifier
-                .weight(1f)
-                .height(58.dp)
-                .background(
-                    color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                    shape = RoundedCornerShape(29.dp)
+                .matchParentSize()
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .then(
+                    if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier
                 )
-                .padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MiuixTheme.colorScheme.primary.copy(alpha = 0.32f),
+                            Color(0xFFE91E63).copy(alpha = 0.28f),
+                            Color(0xFF2196F3).copy(alpha = 0.30f),
+                            Color(0xFFFF9800).copy(alpha = 0.26f),
+                            MiuixTheme.colorScheme.primary.copy(alpha = 0.36f)
+                        )
+                    )
+                )
         ) {
-            tabs.forEachIndexed { index, tab ->
-                PreviewItem(
-                    icon = tab.icon,
-                    label = tab.label,
-                    selected = index == 0,
-                    modifier = Modifier.weight(1f)
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.45f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xFF00E676).copy(alpha = 0.4f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFFF5722).copy(alpha = 0.45f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF9C27B0).copy(alpha = 0.4f))
                 )
             }
         }
-        Box(
+
+        // Live dock and search button preview rendered with GlassPill and liquid glass shader
+        Row(
             modifier = Modifier
-                .size(58.dp)
-                .background(
-                    color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                    shape = RoundedCornerShape(29.dp)
-                ),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = MiuixIcons.Basic.Search,
-                contentDescription = stringResource(R.string.common_search),
-                tint = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.size(24.dp)
-            )
+            GlassPill(
+                backdrop = backdrop,
+                modifier = Modifier
+                    .then(if (mergeSearch) Modifier.fillMaxWidth() else Modifier.weight(1f))
+                    .height(58.dp),
+                cornerRadiusDp = cornerRadiusDp,
+                glassEffect = BottomBarGlassEffect.LiquidGlass,
+                liquidGlassConfig = liquidGlassConfig
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    tabs.forEachIndexed { index, tab ->
+                        PreviewItem(
+                            icon = tab.icon,
+                            label = tab.label,
+                            selected = index == 0,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+            if (!mergeSearch) {
+                GlassPill(
+                    backdrop = backdrop,
+                    modifier = Modifier.size(58.dp),
+                    cornerRadiusDp = cornerRadiusDp,
+                    glassEffect = BottomBarGlassEffect.LiquidGlass,
+                    liquidGlassConfig = liquidGlassConfig
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = stringResource(R.string.common_search),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

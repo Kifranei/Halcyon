@@ -2,6 +2,7 @@ package com.ella.music.data
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.ella.music.data.model.Song
 
@@ -14,6 +15,20 @@ class ArtistNameUtilsTest {
         NameSplitConfigStore.genreProtectedNames = emptyList()
         NameSplitConfigStore.tagIgnoreCase = false
         NameSplitConfigStore.parseFeaturedArtists = false
+    }
+
+    @Test
+    fun defaultArtistSeparatorsIncludeIdeographicComma() {
+        assertEquals(
+            SettingsManager.DEFAULT_ARTIST_SEPARATORS,
+            resolvedArtistSeparators(null)
+        )
+        assertEquals(
+            SettingsManager.DEFAULT_ARTIST_SEPARATORS,
+            resolvedArtistSeparators(SettingsManager.LEGACY_DEFAULT_ARTIST_SEPARATORS)
+        )
+        assertEquals(" / \nfeat.", resolvedArtistSeparators(" / \nfeat."))
+        assertTrue(SettingsManager.DEFAULT_ARTIST_SEPARATORS.split('\n').contains("、"))
     }
 
     @Test

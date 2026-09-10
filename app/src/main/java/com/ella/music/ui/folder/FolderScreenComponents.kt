@@ -29,6 +29,10 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.ui.components.FolderOutlineIcon
+import com.ella.music.data.ActionMenuIds
+import com.ella.music.ui.components.ActionMenuCommonIcons
+import com.ella.music.ui.components.actionMenuIcon
+import com.ella.music.ui.components.EllaMiuixActionMenuGroup
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.EllaSearchBar
@@ -42,6 +46,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
+import androidx.compose.foundation.layout.PaddingValues
+import com.ella.music.ui.components.LocalSettingsCardFrosting
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -56,74 +64,94 @@ internal fun FolderListRow(
     onLongClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val rowColor = wallpaperAwarePlaylistCardColor()
-    Row(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 6.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(rowColor)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .padding(horizontal = 18.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    val cardColor = frostedCardColor(frosting = frosting, defaultAlpha = 0.42f)
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(0.dp),
+        colors = CardDefaults.defaultColors(color = cardColor)
     ) {
-        FolderOutlineIcon(
-            tint = MiuixTheme.colorScheme.primary,
-            modifier = Modifier.size(42.dp)
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = folder.name,
-                    fontSize = 17.sp,
-                    lineHeight = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
                 )
-                if (isPinned) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Pin,
-                        contentDescription = stringResource(R.string.common_pin_to_top),
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .size(16.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            FolderOutlineIcon(
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(42.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = folder.name,
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+                    if (isPinned) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Pin,
+                            contentDescription = stringResource(R.string.common_pin_to_top),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .size(16.dp)
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${folder.summaryFor(context, sortMode)} · ${folder.path}",
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${folder.summaryFor(context, sortMode)} · ${folder.path}",
-                fontSize = 13.sp,
-                lineHeight = 17.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+            Icon(
+                imageVector = MiuixIcons.Basic.ArrowRight,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.size(22.dp)
             )
         }
-        Icon(
-            imageVector = MiuixIcons.Basic.ArrowRight,
-            contentDescription = null,
-            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier.size(22.dp)
-        )
     }
 }
 
 @Composable
 internal fun LibraryAnalysisEntryCard(onClick: () -> Unit) {
-    Card(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp),
-        colors = CardDefaults.defaultColors(color = wallpaperAwarePlaylistCardColor()),
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    val cardColor = frostedCardColor(frosting = frosting, defaultAlpha = 0.42f)
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
+        colors = CardDefaults.defaultColors(color = cardColor),
         onClick = onClick
     ) {
         Row(
@@ -168,11 +196,19 @@ internal fun WebDavBrowserCard(
     onAddToQueue: (WebDavItem) -> Unit,
     onItemLongClick: (WebDavItem) -> Unit = {}
 ) {
-    Card(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp),
-        colors = wallpaperAwareCardColors(defaultAlpha = 0.50f)
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    val cardColor = frostedCardColor(frosting = frosting, defaultAlpha = 0.42f)
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
+        colors = CardDefaults.defaultColors(color = cardColor)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -264,50 +300,19 @@ internal fun FolderActionSheet(
     onAddShortcut: () -> Unit,
     onBlock: () -> Unit
 ) {
-    EllaMiuixBottomSheet(
+    com.ella.music.ui.components.LibraryEntityActionSheet(
         show = true,
-        enableNestedScroll = false,
         title = title,
-        onDismissRequest = onDismiss
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            EllaMiuixMenuItem(
-                text = stringResource(if (isPinned) R.string.common_unpin else R.string.common_pin_to_top),
-                onClick = onTogglePin
-            )
-            EllaMiuixMenuItem(
-                text = stringResource(R.string.common_share),
-                onClick = onShare
-            )
-            EllaMiuixMenuItem(
-                text = stringResource(R.string.folder_playlist_associate),
-                onClick = onAssociate
-            )
-            EllaMiuixMenuItem(
-                text = stringResource(R.string.song_more_add_to_playlist),
-                onClick = onAddToPlaylist
-            )
-            EllaMiuixMenuItem(
-                text = stringResource(R.string.common_add_to_queue),
-                onClick = onAddToQueue
-            )
-            EllaMiuixMenuItem(
-                text = stringResource(R.string.song_more_play_next),
-                onClick = onPlayNext
-            )
-            EllaMiuixMenuItem(
-                text = stringResource(R.string.common_add_desktop_shortcut),
-                onClick = onAddShortcut
-            )
-            EllaMiuixMenuItem(
-                text = stringResource(R.string.folder_block_folder),
-                onClick = onBlock
-            )
-        }
-    }
+        onDismissRequest = onDismiss,
+        actions = listOf(
+            com.ella.music.ui.components.LibraryEntityActions.pin(isPinned = isPinned, onClick = onTogglePin),
+            com.ella.music.ui.components.LibraryEntityActions.share(onClick = onShare),
+            com.ella.music.ui.components.LibraryEntityActions.associate(onClick = onAssociate),
+            com.ella.music.ui.components.LibraryEntityActions.addToPlaylist(onClick = onAddToPlaylist),
+            com.ella.music.ui.components.LibraryEntityActions.addToQueue(onClick = onAddToQueue),
+            com.ella.music.ui.components.LibraryEntityActions.playNext(onClick = onPlayNext),
+            com.ella.music.ui.components.LibraryEntityActions.desktopShortcut(onClick = onAddShortcut),
+            com.ella.music.ui.components.LibraryEntityActions.block(onClick = onBlock)
+        )
+    )
 }

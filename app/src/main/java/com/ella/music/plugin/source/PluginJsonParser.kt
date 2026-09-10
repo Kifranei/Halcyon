@@ -172,7 +172,7 @@ class PluginJsonParser(
             tags = tags,
             original = original,
             translated = obj.array("translated", "translation", "translations").parseTextLines().takeIf { it.isNotEmpty() },
-            romanization = obj.array("romanization", "romanized", "roma").parseTextLines().takeIf { it.isNotEmpty() }
+            romanization = obj.array("romanization", "romanized", "roma").parseWordLines().takeIf { it.isNotEmpty() }
         )
     }
 }

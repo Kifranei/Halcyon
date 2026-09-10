@@ -58,10 +58,19 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
         eventListener: AudioRendererEventListener,
         out: ArrayList<Renderer>
     ) {
+        val safeMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            val decoders = mediaCodecSelector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+            decoders.filterNot { decoder ->
+                // c2.qti.alac.sw.decoder on Qualcomm/Xiaomi devices is broken and crashes immediately.
+                // Filter out broken system ALAC decoders so ExoPlayer seamlessly falls back to FFmpeg.
+                decoder.name.equals("c2.qti.alac.sw.decoder", ignoreCase = true) ||
+                    (mimeType.contains("alac", ignoreCase = true) && decoder.name.contains("alac", ignoreCase = true))
+            }
+        }
         super.buildAudioRenderers(
             context,
             extensionRendererMode,
-            mediaCodecSelector,
+            safeMediaCodecSelector,
             enableDecoderFallback,
             audioSink,
             eventHandler,
@@ -114,7 +123,8 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
                 audioApi = audioApi,
                 exclusive = usbExclusive,
                 processors = processors,
-                deviceId = deviceId
+                deviceId = deviceId,
+                appContext = context.applicationContext
             )
         }
 

@@ -3,6 +3,8 @@ package com.ella.music.data.lastfm
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.webkit.CookieManager
+import com.ella.music.data.blockCredentialedHttpRequests
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,6 +14,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -474,13 +479,15 @@ internal suspend fun fetchLastFmArtistWiki(
         if (wiki != null && wiki.text.isNotBlank()) return@withContext wiki
     }
 
-    if (errors.isNotEmpty()) throw errors.first()
-    LastFmArtistWiki(
-        text = "",
-        artistUrl = lastFmArtistPageUrl(artistName, region),
-        wikiUrl = lastFmArtistWikiUrl(artistName, region),
-        source = ArtistWikiSource.LastFmHtml
-    )
+    if (errors.isNotEmpty()) {
+        val cfError = errors.filterIsInstance<LastFmCloudflareChallengeException>().firstOrNull()
+        if (cfError != null) throw cfError
+        val details = errors.joinToString("\n") { err ->
+            err.message?.takeIf(String::isNotBlank) ?: err.localizedMessage?.takeIf(String::isNotBlank) ?: err.toString()
+        }
+        throw IllegalStateException(details, errors.first())
+    }
+    error("未获取到该艺术家的传记内容")
 }
 
 /**
@@ -561,11 +568,52 @@ private fun fetchNeteaseArtistWiki(
     )
 }
 
+internal class LastFmCloudflareChallengeException(
+    val url: String,
+    message: String = "Cloudflare verification required"
+) : Exception(message)
+
+private class WebkitCookieJar : CookieJar {
+    override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        val cookieManager = runCatching { CookieManager.getInstance() }.getOrNull() ?: return
+        val urlStr = url.toString()
+        for (cookie in cookies) {
+            cookieManager.setCookie(urlStr, cookie.toString())
+        }
+        cookieManager.flush()
+    }
+
+    override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        val cookieManager = runCatching { CookieManager.getInstance() }.getOrNull() ?: return emptyList()
+        val cookieHeader = cookieManager.getCookie(url.toString()) ?: return emptyList()
+        return cookieHeader.split(";").mapNotNull { raw ->
+            Cookie.parse(url, raw.trim())
+        }
+    }
+}
+
 private fun wikiHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    .cookieJar(WebkitCookieJar())
     .connectTimeout(12, TimeUnit.SECONDS)
     .readTimeout(20, TimeUnit.SECONDS)
     .followRedirects(true)
+    .blockCredentialedHttpRequests()
     .build()
+
+internal fun isBotChallengeHtml(html: String): Boolean {
+    return html.contains("<title>Client Challenge</title>", ignoreCase = true) ||
+        html.contains("Client Challenge", ignoreCase = true) ||
+        html.contains("JavaScript is disabled in your browser", ignoreCase = true) ||
+        html.contains("cf-browser-verification", ignoreCase = true) ||
+        html.contains("px-captcha", ignoreCase = true) ||
+        html.contains("PerimeterX", ignoreCase = true) ||
+        html.contains("HUMAN Security", ignoreCase = true) ||
+        html.contains("Just a moment...", ignoreCase = true) ||
+        html.contains("challenges.cloudflare.com", ignoreCase = true) ||
+        html.contains("cf-chl-widget", ignoreCase = true) ||
+        html.contains("Attention Required! | Cloudflare", ignoreCase = true) ||
+        (html.contains("cloudflare", ignoreCase = true) && html.contains("turnstile", ignoreCase = true))
+}
 
 private fun fetchLastFmArtistWikiFromApi(
     artistName: String,
@@ -573,6 +621,7 @@ private fun fetchLastFmArtistWikiFromApi(
     apiKey: String,
     client: OkHttpClient
 ): LastFmArtistWiki {
+    var lastError: String? = null
     for ((autocorrect, ignoreCase) in listOf("0" to false, "1" to true)) {
         val url = LAST_FM_API_ROOT.toHttpUrl().newBuilder()
             .addQueryParameter("method", "artist.getinfo")
@@ -582,14 +631,20 @@ private fun fetchLastFmArtistWikiFromApi(
             .addQueryParameter("autocorrect", autocorrect)
             .addQueryParameter("format", "json")
             .build()
-        parseLastFmArtistGetInfoJson(
-            raw = client.executeText(url.toString()),
+        val raw = client.executeText(url.toString())
+        val parsed = parseLastFmArtistGetInfoJson(
+            raw = raw,
             regionCode = region,
             requestedArtistName = artistName,
             ignoreCase = ignoreCase
-        )?.let { return it }
+        )
+        if (parsed != null && parsed.text.isNotBlank()) return parsed
+        val root = runCatching { JSONObject(raw) }.getOrNull()
+        if (root?.has("message") == true) {
+            lastError = "Last.fm API 错误 (code ${root.optInt("error")}): ${root.optString("message")}"
+        }
     }
-    error("Last.fm artist.getInfo returned no matching biography")
+    error(lastError ?: "Last.fm API (artist.getinfo) 未返回该艺术家的有效传记")
 }
 
 private fun fetchLastFmArtistWikiFromHtml(
@@ -600,16 +655,26 @@ private fun fetchLastFmArtistWikiFromHtml(
     // Keep the selected provider explicit. A blocked Last.fm endpoint should not silently switch
     // the biography to another provider.
     val htmlClient = client.newBuilder()
-        .connectTimeout(4, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .build()
     val wikiUrl = lastFmArtistWikiUrl(artistName, region)
     val html = htmlClient.executeText(
         url = wikiUrl,
         acceptLanguage = lastFmAcceptLanguage(region)
     )
+    if (isBotChallengeHtml(html)) {
+        throw LastFmCloudflareChallengeException(
+            url = wikiUrl,
+            message = "Last.fm 网页返回了防爬人机验证 (Cloudflare Challenge)，无法抓取传记内容 (URL: $wikiUrl)"
+        )
+    }
+    val wikiText = parseLastFmWikiHtml(html)
+    if (wikiText.isBlank()) {
+        error("Last.fm 页面未包含该艺术家的传记内容 (未匹配到 wiki-content，URL: $wikiUrl)")
+    }
     return LastFmArtistWiki(
-        text = parseLastFmWikiHtml(html),
+        text = wikiText,
         artistUrl = lastFmArtistPageUrl(artistName, region),
         wikiUrl = wikiUrl,
         source = ArtistWikiSource.LastFmHtml
@@ -675,8 +740,18 @@ private fun OkHttpClient.executeText(
         }
         .build()
     return newCall(request).execute().use { response ->
-        if (!response.isSuccessful) error("HTTP ${response.code} for $url")
-        response.body?.string().orEmpty()
+        val code = response.code
+        val body = response.body?.string().orEmpty()
+        if (code in listOf(403, 503) || isBotChallengeHtml(body)) {
+            if (isBotChallengeHtml(body) || code == 403 || code == 503) {
+                throw LastFmCloudflareChallengeException(
+                    url = url,
+                    message = "Last.fm 触发了 Cloudflare 安全验证 (HTTP $code)"
+                )
+            }
+        }
+        if (!response.isSuccessful) error("HTTP $code for $url")
+        body
     }
 }
 
@@ -752,7 +827,7 @@ internal fun lastFmAcceptLanguage(regionCode: String): String = when (normalizeL
 
 private const val LAST_FM_API_ROOT = "https://ws.audioscrobbler.com/2.0/"
 private const val HALCYON_WIKI_USER_AGENT =
-    "Halcyon/1.2 (https://github.com/Kifranei/Halcyon; artist biographies)"
+    "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
 private fun wikiHtmlBlock(html: String): String? {
     val patterns = listOf(

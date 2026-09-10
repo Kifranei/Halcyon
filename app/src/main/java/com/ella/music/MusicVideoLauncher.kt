@@ -19,6 +19,7 @@ internal object MusicVideoLauncher {
 
     fun open(context: Context, song: Song?, source: DynamicCoverSource) {
         val resolvedSong = song ?: return
+        com.ella.music.player.PlaybackService.pausePlayback()
         context.startActivity(
             Intent(context, MusicVideoActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)

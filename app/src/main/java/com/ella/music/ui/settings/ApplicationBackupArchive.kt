@@ -42,7 +42,7 @@ import java.util.zip.ZipOutputStream
 internal const val APPLICATION_BACKUP_ZIP_MIME = "application/zip"
 
 private const val BACKUP_JSON_ENTRY = "backup.json"
-private const val PORTABLE_ASSETS_FIELD = "portableAssets"
+internal const val PORTABLE_ASSETS_FIELD = "portableAssets"
 private const val ARCHIVE_REFERENCE_PREFIX = "archive://"
 private const val EXTRACTED_ASSET_FILES_FIELD = "_portableAssetFiles"
 private const val EXTRACTED_ASSET_DIR_FIELD = "_portableAssetDir"
@@ -66,7 +66,7 @@ private val portableImageSettingKeys = setOf(
     KEY_HI_RES_LOGO_URI.name
 )
 
-private val portableFontSettingKeys = setOf(
+internal val portableFontSettingKeys = setOf(
     KEY_LYRIC_FONT_PATH.name,
     KEY_LYRIC_WESTERN_FONT_PATH.name,
     KEY_LYRIC_CJK_FONT_PATH.name,
@@ -113,11 +113,16 @@ internal suspend fun buildApplicationBackupZipFile(
             val value = settings.optString(key, "")
             if (value.isBlank()) return@forEach
 
-            val entryName = portableAssetEntryName(context, key, value)
+            if (key in portableFontSettingKeys && isBundledFontPath(value)) {
+                // Built-in fonts exist on all devices and must not be packed into archive
+                settings.put(key, "")
+                return@forEach
+            }
             if (key in portableFontSettingKeys && isKeepableUnpackedFontPath(value)) {
                 // System / default fonts exist on the target device. Keep the path as-is.
                 return@forEach
             }
+            val entryName = portableAssetEntryName(context, key, value)
             val copied = when {
                 key in portableImageSettingKeys || key in portableFontSettingKeys ->
                     context.copySettingFileToZip(value, zip, entryName)
@@ -138,8 +143,11 @@ internal suspend fun buildApplicationBackupZipFile(
                 settings.remove(key)
             }
         }
-        packImportedFontDirectory(context, zip, manifest)
+        packImportedFontDirectory(context, zip, manifest, selectedTypes)
         packLyricoPlugins(context, zip, selectedTypes)
+        packCustomLauncherIcons(context, zip, selectedTypes)
+        packDescriptions(context, zip, selectedTypes)
+        packArtistImages(context, zip, selectedTypes)
 
         root.put("version", 2)
         if (manifest.length() > 0) {
@@ -200,11 +208,14 @@ private fun readApplicationBackupZip(context: Context, input: InputStream): JSON
                 }
                 val isLyricoPluginEntry = name.startsWith(LYRICO_PLUGIN_ZIP_PREFIX) ||
                     name == LYRICO_PLUGIN_CONFIG_ENTRY
+                val isLauncherIconEntry = name.startsWith(CUSTOM_LAUNCHER_ICONS_ZIP_PREFIX)
+                val isDescriptionEntry = name.startsWith(DESCRIPTIONS_ZIP_PREFIX)
+                val isArtistImageEntry = name.startsWith(ARTIST_IMAGES_ZIP_PREFIX)
                 when {
                     name == BACKUP_JSON_ENTRY -> {
                         backupJson = readUtf8Bounded(zip, MAX_BACKUP_JSON_BYTES)
                     }
-                    name.startsWith("assets/") || name.startsWith("scripts/") || isLyricoPluginEntry -> {
+                    name.startsWith("assets/") || name.startsWith("scripts/") || isLyricoPluginEntry || isLauncherIconEntry || isDescriptionEntry || isArtistImageEntry -> {
                         val target = safeExtractedFile(extractionDir, name)
                         target.parentFile?.mkdirs()
                         val written = target.outputStream().use { output ->
@@ -231,7 +242,10 @@ private fun readApplicationBackupZip(context: Context, input: InputStream): JSON
         val manifest = root.optJSONObject(PORTABLE_ASSETS_FIELD)
         val hasLyricoPlugins = pluginDirNames.isNotEmpty() ||
             File(extractionDir, LYRICO_PLUGIN_CONFIG_ENTRY).isFile
-        if ((manifest == null || manifest.length() == 0) && !hasLyricoPlugins) {
+        val hasLauncherIcons = File(extractionDir, CUSTOM_LAUNCHER_ICONS_DIR_EXTRACTED).isDirectory
+        val hasDescriptions = File(extractionDir, DESCRIPTIONS_DIR_EXTRACTED).isDirectory
+        val hasArtistImages = File(extractionDir, ARTIST_IMAGES_DIR_EXTRACTED).isDirectory
+        if ((manifest == null || manifest.length() == 0) && !hasLyricoPlugins && !hasLauncherIcons && !hasDescriptions && !hasArtistImages) {
             extractionDir.deleteRecursively()
             return root
         }
@@ -269,6 +283,9 @@ internal suspend fun materializeApplicationBackupAssets(
 ) = withContext(Dispatchers.IO) {
     val extractedFiles = root.optJSONObject(EXTRACTED_ASSET_FILES_FIELD) ?: return@withContext
     restoreLyricoPluginsFromArchive(context, root, selectedTypes)
+    restoreCustomLauncherIconsFromArchive(context, root, selectedTypes)
+    restoreDescriptionsFromArchive(context, root, selectedTypes)
+    restoreArtistImagesFromArchive(context, root, selectedTypes)
     val manifest = root.optJSONObject(PORTABLE_ASSETS_FIELD) ?: return@withContext
     val settings = root.optJSONObject("settings") ?: root
     val keys = manifest.keys()
@@ -365,6 +382,17 @@ internal fun isKeepableUnpackedFontPath(path: String): Boolean {
     return path.startsWith("/system/") || path.startsWith("/product/")
 }
 
+internal fun isBundledFontPath(path: String): Boolean {
+    if (path.isBlank()) return false
+    val normalized = path.replace('\\', '/')
+    return normalized.contains("/lyric_builtin_fonts/") ||
+        normalized.endsWith("/Inter-Bold.ttf") ||
+        normalized == "Inter-Bold.ttf" ||
+        normalized.endsWith("/MiSans-Bold.ttf") ||
+        normalized == "MiSans-Bold.ttf" ||
+        normalized.endsWith("/MiSansVF.ttf")
+}
+
 private fun portableAssetEntryName(context: Context, key: String, value: String): String {
     return when {
         key in portableImageSettingKeys ->
@@ -390,11 +418,182 @@ private fun sourceExtension(context: Context, value: String, fallback: String): 
     return fromMime ?: fallback
 }
 
+private const val CUSTOM_LAUNCHER_ICONS_DIR = "custom_launcher_icons"
+private const val CUSTOM_LAUNCHER_ICONS_ZIP_PREFIX = "launcher_icons/"
+private const val CUSTOM_LAUNCHER_ICONS_DIR_EXTRACTED = "launcher_icons"
+
+private fun packCustomLauncherIcons(
+    context: Context,
+    zip: ZipOutputStream,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.Personalization !in selectedTypes && BackupType.WallpapersAndImages !in selectedTypes) return
+    val dir = File(context.filesDir, CUSTOM_LAUNCHER_ICONS_DIR)
+    dir.listFiles()
+        ?.asSequence()
+        ?.filter { it.isFile && it.canRead() && it.length() in 1..MAX_PORTABLE_ASSET_BYTES }
+        ?.forEach { file ->
+            val entryName = "$CUSTOM_LAUNCHER_ICONS_ZIP_PREFIX${file.name}"
+            runCatching {
+                file.inputStream().use { input ->
+                    zip.writeEntry(entryName) { output -> input.copyTo(output) }
+                }
+            }
+        }
+}
+
+private fun restoreCustomLauncherIconsFromArchive(
+    context: Context,
+    root: JSONObject,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.Personalization !in selectedTypes && BackupType.WallpapersAndImages !in selectedTypes) return
+    val extractionDirPath = root.optString(EXTRACTED_ASSET_DIR_FIELD, "")
+    if (extractionDirPath.isBlank()) return
+    val iconsExtractedDir = File(extractionDirPath, CUSTOM_LAUNCHER_ICONS_DIR_EXTRACTED)
+    if (!iconsExtractedDir.isDirectory) return
+    val targetDir = File(context.filesDir, CUSTOM_LAUNCHER_ICONS_DIR).apply { mkdirs() }
+    iconsExtractedDir.listFiles()?.filter { it.isFile && it.canRead() }?.forEach { file ->
+        runCatching {
+            val target = File(targetDir, file.name)
+            file.copyTo(target, overwrite = true)
+        }
+    }
+}
+
+private const val ARTIST_DESCRIPTIONS_FILE = "artist_descriptions.properties"
+private const val ALBUM_DESCRIPTIONS_FILE = "album_descriptions.properties"
+private const val DESCRIPTIONS_ZIP_PREFIX = "descriptions/"
+private const val DESCRIPTIONS_DIR_EXTRACTED = "descriptions"
+private const val ARTIST_IMAGES_DIR = "artist_images"
+private const val ARTIST_IMAGES_ZIP_PREFIX = "artist_images/"
+private const val ARTIST_IMAGES_DIR_EXTRACTED = "artist_images"
+
+private fun packDescriptions(
+    context: Context,
+    zip: ZipOutputStream,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.LibraryAndScan !in selectedTypes) return
+    listOf(ARTIST_DESCRIPTIONS_FILE, ALBUM_DESCRIPTIONS_FILE).forEach { fileName ->
+        val file = File(context.filesDir, fileName)
+        if (file.isFile && file.canRead() && file.length() in 1..MAX_PORTABLE_ASSET_BYTES) {
+            runCatching {
+                file.inputStream().use { input ->
+                    zip.writeEntry("$DESCRIPTIONS_ZIP_PREFIX$fileName") { output -> input.copyTo(output) }
+                }
+            }
+        }
+    }
+}
+
+private fun restoreDescriptionsFromArchive(
+    context: Context,
+    root: JSONObject,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.LibraryAndScan !in selectedTypes) return
+    val extractionDirPath = root.optString(EXTRACTED_ASSET_DIR_FIELD, "")
+    if (extractionDirPath.isBlank()) return
+    val descriptionsExtractedDir = File(extractionDirPath, DESCRIPTIONS_DIR_EXTRACTED)
+    if (!descriptionsExtractedDir.isDirectory) return
+    listOf(ARTIST_DESCRIPTIONS_FILE, ALBUM_DESCRIPTIONS_FILE).forEach { fileName ->
+        val extracted = File(descriptionsExtractedDir, fileName)
+        if (extracted.isFile && extracted.canRead() && extracted.length() in 1..MAX_PORTABLE_ASSET_BYTES) {
+            runCatching {
+                val target = File(context.filesDir, fileName)
+                mergePropertiesFiles(source = extracted, target = target)
+            }
+        }
+    }
+}
+
+private fun packArtistImages(
+    context: Context,
+    zip: ZipOutputStream,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.LibraryAndScan !in selectedTypes && BackupType.WallpapersAndImages !in selectedTypes) return
+    val dir = File(context.filesDir, ARTIST_IMAGES_DIR)
+    dir.listFiles()
+        ?.asSequence()
+        ?.filter { it.isFile && it.canRead() && it.length() in 1..MAX_PORTABLE_ASSET_BYTES }
+        ?.filter { file ->
+            val ext = file.extension.lowercase(Locale.ROOT)
+            ext in setOf("jpg", "jpeg", "png", "webp")
+        }
+        ?.forEach { file ->
+            val entryName = "$ARTIST_IMAGES_ZIP_PREFIX${file.name}"
+            runCatching {
+                file.inputStream().use { input ->
+                    zip.writeEntry(entryName) { output -> input.copyTo(output) }
+                }
+            }
+        }
+}
+
+private fun restoreArtistImagesFromArchive(
+    context: Context,
+    root: JSONObject,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.LibraryAndScan !in selectedTypes && BackupType.WallpapersAndImages !in selectedTypes) return
+    val extractionDirPath = root.optString(EXTRACTED_ASSET_DIR_FIELD, "")
+    if (extractionDirPath.isBlank()) return
+    val imagesExtractedDir = File(extractionDirPath, ARTIST_IMAGES_DIR_EXTRACTED)
+    if (!imagesExtractedDir.isDirectory) return
+    val targetDir = File(context.filesDir, ARTIST_IMAGES_DIR).apply { mkdirs() }
+    val noMedia = File(targetDir, ".nomedia")
+    if (!noMedia.exists()) runCatching { noMedia.createNewFile() }
+    imagesExtractedDir.listFiles()?.filter { it.isFile && it.canRead() }?.forEach { file ->
+        runCatching {
+            val target = File(targetDir, file.name)
+            file.copyTo(target, overwrite = true)
+        }
+    }
+}
+
+internal fun mergePropertiesFiles(source: File, target: File) {
+    val sourceProps = java.util.Properties().apply {
+        source.reader(Charsets.UTF_8).use { reader -> load(reader) }
+    }
+    if (sourceProps.isEmpty) return
+    val merged = if (target.isFile) {
+        runCatching {
+            java.util.Properties().apply {
+                target.reader(Charsets.UTF_8).use { reader -> load(reader) }
+            }
+        }.getOrDefault(java.util.Properties())
+    } else {
+        java.util.Properties()
+    }
+    sourceProps.forEach { (key, value) ->
+        if (key != null && value != null) {
+            merged[key] = value
+        }
+    }
+    target.parentFile?.mkdirs()
+    val temp = File(target.parentFile, "${target.name}.tmp_${System.currentTimeMillis()}")
+    temp.writer(Charsets.UTF_8).buffered().use { writer ->
+        merged.store(writer, null)
+    }
+    if (!temp.renameTo(target)) {
+        temp.copyTo(target, overwrite = true)
+        temp.delete()
+    }
+}
+
 private const val IMPORTED_FONTS_DIR = "lyric_fonts"
 private const val BUNDLED_FONTS_DIR = "lyric_builtin_fonts"
 private const val IMPORTED_FONTS_ZIP_PREFIX = "assets/imported_fonts/"
 
-private fun packImportedFontDirectory(context: Context, zip: ZipOutputStream, manifest: JSONObject) {
+private fun packImportedFontDirectory(
+    context: Context,
+    zip: ZipOutputStream,
+    manifest: JSONObject,
+    selectedTypes: Set<BackupType>
+) {
+    if (BackupType.Fonts !in selectedTypes) return
     val dir = File(context.filesDir, IMPORTED_FONTS_DIR)
     val packedNames = buildSet {
         val keys = manifest.keys()

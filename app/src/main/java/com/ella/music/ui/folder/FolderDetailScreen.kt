@@ -192,8 +192,26 @@ fun FolderDetailScreen(
                 it.fileName.contains(searchQuery, ignoreCase = true)
         }
     }
-    val sortedSongs = remember(filteredSongs, sortMode) {
+    val sortedSongs = remember(filteredSongs, sortMode, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         filteredSongs.sortedForFolderDetail(sortMode)
+    }
+    fun shuffleFolderAndStart() {
+        val queueSongs = if (sortMode == FolderSongSortMode.Random) {
+            val seed = com.ella.music.ui.LibrarySortUiState.reshuffleRandomSort()
+            scope.launch { mainViewModel.settingsManager.setRandomSortSeed(seed) }
+            com.ella.music.ui.LibrarySortUiState.randomizedSongs(filteredSongs, seed)
+        } else {
+            filteredSongs.shuffled()
+        }
+        if (queueSongs.isNotEmpty()) {
+            playerViewModel.setShuffledPlaylist(
+                queueSongs,
+                0,
+                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath),
+                preserveOrder = true
+            )
+            if (openPlayerOnPlay) onNavigateToPlayer()
+        }
     }
     val sortedSongIdsForSelection = remember(sortedSongs) { sortedSongs.map { it.id } }
     val sortedSongIndexByIdForSelection = remember(sortedSongs) {
@@ -407,6 +425,11 @@ fun FolderDetailScreen(
                             ),
                             selectedMode = sortMode,
                             onSelect = ::updateSortMode
+                        ) + listOf(
+                            com.ella.music.ui.components.randomSortDropdownItem(
+                                selected = sortMode == FolderSongSortMode.Random,
+                                onSelect = { updateSortMode(FolderSongSortMode.Random) }
+                            )
                         )
                     )
                 }
@@ -590,14 +613,7 @@ fun FolderDetailScreen(
                         leadingContent = {
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
-                                onClick = {
-                                    playerViewModel.setShuffledPlaylist(
-                                        sortedSongs,
-                                        0,
-                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
-                                    )
-                                    if (openPlayerOnPlay) onNavigateToPlayer()
-                                }
+                                onClick = ::shuffleFolderAndStart
                             )
                         }
                     )
@@ -607,11 +623,20 @@ fun FolderDetailScreen(
                         playbackStats = playbackStats,
                         currentSong = currentSong,
                         onContinue = { index ->
-                            playerViewModel.setPlaylist(
-                                sortedSongs,
-                                index,
-                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
-                            )
+                            if (sortMode == FolderSongSortMode.Random) {
+                                playerViewModel.setShuffledPlaylist(
+                                    sortedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath),
+                                    preserveOrder = true
+                                )
+                            } else {
+                                playerViewModel.setPlaylist(
+                                    sortedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
+                                )
+                            }
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     )
@@ -662,11 +687,20 @@ fun FolderDetailScreen(
                                     if (selection.selectionMode) {
                                         selection.toggleSelection(song.id)
                                     } else {
-                                        playerViewModel.setPlaylist(
-                                            sortedSongs,
-                                            index,
-                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
-                                        )
+                                        if (sortMode == FolderSongSortMode.Random) {
+                                            playerViewModel.setShuffledPlaylist(
+                                                sortedSongs,
+                                                index,
+                                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath),
+                                                preserveOrder = true
+                                            )
+                                        } else {
+                                            playerViewModel.setPlaylist(
+                                                sortedSongs,
+                                                index,
+                                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
+                                            )
+                                        }
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 },

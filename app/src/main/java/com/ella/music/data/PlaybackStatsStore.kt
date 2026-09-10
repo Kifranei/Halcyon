@@ -58,6 +58,7 @@ class PlaybackStatsStore private constructor(context: Context) {
         File(context.applicationContext.filesDir, "playback_active_session.json")
     )
     private val hiddenRemoteHistoryFile = AtomicFile(File(context.applicationContext.filesDir, "hidden_remote_history.json"))
+    private val recentPlaybackStore = RecentPlaybackStore.getInstance(context)
     private val persistenceMutex = Mutex()
     private val _stats = MutableStateFlow<List<SongPlaybackStats>>(emptyList())
     val stats: StateFlow<List<SongPlaybackStats>> = _stats.asStateFlow()
@@ -74,7 +75,11 @@ class PlaybackStatsStore private constructor(context: Context) {
         loadHistory()
         loadDailyStats()
         migrateLegacyHistoryListenDurations()
+        recentPlaybackStore.migrateFromHistoryIfNeeded(_history.value)
     }
+
+    /** Immediate playback feed used by the home page and recent-play screen. */
+    val recentHistory: StateFlow<List<PlaybackHistoryEntry>> = recentPlaybackStore.history
 
     /** Adds a recent-listening session as soon as playback actually starts. */
     suspend fun recordRecent(song: Song): String = withContext(Dispatchers.IO) {
@@ -109,6 +114,7 @@ class PlaybackStatsStore private constructor(context: Context) {
             activePlaybackSession = ActivePlaybackSession(song.id, entry.entryId, now)
             saveActivePlaybackSession(activePlaybackSession)
             publishLocked(_stats.value, updatedHistory)
+            recentPlaybackStore.add(entry)
             entry.entryId
         }
     }
@@ -183,6 +189,7 @@ class PlaybackStatsStore private constructor(context: Context) {
     suspend fun restoreJson(payload: JSONObject) = withContext(Dispatchers.IO) {
         if (payload.has("sessions")) {
             restoreSollinSessions(payload.optJSONArray("sessions") ?: JSONArray())
+            recentPlaybackStore.replace(_history.value)
             return@withContext
         }
         val stats = payload.optJSONArray("stats")?.toStatsList().orEmpty()
@@ -190,9 +197,74 @@ class PlaybackStatsStore private constructor(context: Context) {
         val daily = payload.optJSONObject("dailyListenMs")?.toDailyStatsMap().orEmpty()
 
         persistenceMutex.withLock {
-            publishLocked(stats, history.assignLegacyListenDurations(daily))
+            val restoredHistory = history.assignLegacyListenDurations(daily)
+            publishLocked(stats, restoredHistory)
+            recentPlaybackStore.replace(restoredHistory)
         }
     }
+
+    /**
+     * Adds records from another player's history without replacing the local archive.
+     *
+     * Transfer adapters give every imported listen a deterministic entry id.  Keeping the merge
+     * here, next to the persistence mutex, makes importing the same backup twice harmless and
+     * keeps the per-song totals in sync with the newly added history rows.
+     */
+    suspend fun mergeImportedHistory(entries: List<PlaybackHistoryEntry>): Int =
+        withContext(Dispatchers.IO) {
+            val candidates = entries
+                .asSequence()
+                .filter { it.entryId.isNotBlank() && it.playedAt > 0L }
+                .map { it.copy(playCounted = true) }
+                .distinctBy(PlaybackHistoryEntry::entryId)
+                .toList()
+            if (candidates.isEmpty()) return@withContext 0
+
+            persistenceMutex.withLock {
+                val existingIds = _history.value.asSequence()
+                    .map(PlaybackHistoryEntry::entryId)
+                    .toHashSet()
+                val additions = candidates.filterNot { it.entryId in existingIds }
+                if (additions.isEmpty()) return@withLock 0
+
+                val mergedStats = _stats.value.associateBy { it.songId }.toMutableMap()
+                additions.groupBy { it.songId }.forEach { (songId, songEntries) ->
+                    val latest = songEntries.maxByOrNull { it.playedAt } ?: return@forEach
+                    val previous = mergedStats[songId]
+                    mergedStats[songId] = if (previous == null) {
+                        SongPlaybackStats(
+                            songId = songId,
+                            title = latest.title,
+                            artist = latest.artist,
+                            album = latest.album,
+                            playCount = songEntries.size,
+                            listenedMs = songEntries.sumOf { it.listenedMs.coerceAtLeast(0L) },
+                            lastPlayedAt = songEntries.maxOf { it.playedAt }
+                        )
+                    } else {
+                        previous.copy(
+                            title = latest.title,
+                            artist = latest.artist,
+                            album = latest.album,
+                            playCount = (previous.playCount.toLong() + songEntries.size)
+                                .coerceAtMost(Int.MAX_VALUE.toLong())
+                                .toInt(),
+                            listenedMs = previous.listenedMs + songEntries.sumOf {
+                                it.listenedMs.coerceAtLeast(0L)
+                            },
+                            lastPlayedAt = maxOf(previous.lastPlayedAt, songEntries.maxOf { it.playedAt })
+                        )
+                    }
+                }
+
+                publishLocked(
+                    stats = mergedStats.values.sortedByDescending { it.lastPlayedAt },
+                    history = _history.value + additions
+                )
+                recentPlaybackStore.merge(additions)
+                additions.size
+            }
+        }
 
     private fun updateStatsLocked(
         song: Song,
@@ -228,6 +300,40 @@ class PlaybackStatsStore private constructor(context: Context) {
                 saveActivePlaybackSession(null)
             }
             publishLocked(_stats.value, updatedHistory)
+        }
+    }
+
+    /** Removes a recent-feed row without touching analytics or per-song totals. */
+    suspend fun removeRecentHistoryEntry(entry: PlaybackHistoryEntry) = withContext(Dispatchers.IO) {
+        if (entry.source == PlaybackHistorySource.LOCAL) {
+            recentPlaybackStore.remove(entry.entryId)
+        }
+    }
+
+    /** Removes multiple recent-feed rows in a single batch. */
+    suspend fun removeRecentHistoryEntries(entries: Collection<PlaybackHistoryEntry>) = withContext(Dispatchers.IO) {
+        if (entries.isEmpty()) return@withContext
+        val localIds = entries.asSequence()
+            .filter { it.source == PlaybackHistorySource.LOCAL }
+            .map { it.entryId }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val remoteIds = entries.asSequence()
+            .filter { it.source == PlaybackHistorySource.LAST_FM }
+            .map { it.entryId }
+            .filter { it.isNotBlank() }
+            .toSet()
+        if (localIds.isNotEmpty()) {
+            recentPlaybackStore.removeAll(localIds)
+        }
+        if (remoteIds.isNotEmpty()) {
+            persistenceMutex.withLock {
+                val updated = _hiddenRemoteHistoryEntryIds.value + remoteIds
+                if (updated != _hiddenRemoteHistoryEntryIds.value) {
+                    saveHiddenRemoteHistoryEntryIds(updated)
+                    _hiddenRemoteHistoryEntryIds.value = updated
+                }
+            }
         }
     }
 
@@ -455,7 +561,10 @@ class PlaybackStatsStore private constructor(context: Context) {
             array.put(
                 JSONObject()
                     .put("uid", entry.entryId)
-                    .put("songId", entry.songId)
+                    // A restored/imported record may carry Halcyon's synthetic id.  Keep the
+                    // receiver from binding it to an unrelated song; matched library entries
+                    // use the current MediaStore id and unmatched entries fall back to metadata.
+                    .put("songId", song?.id ?: 0L)
                     .put("title", entry.title)
                     .put("artist", entry.artist)
                     .put("album", entry.album)

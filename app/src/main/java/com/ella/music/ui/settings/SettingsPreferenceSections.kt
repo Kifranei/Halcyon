@@ -1,9 +1,13 @@
 package com.ella.music.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -26,17 +30,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.repository.MusicRepository
+import com.ella.music.data.ai.AiProviderClient
+import com.ella.music.data.ai.OpenAiSongInterpretationConfig
+import com.ella.music.data.ai.resolveAiApiProtocol
 import com.ella.music.ui.components.TagEditorOptionIds
+import com.ella.music.ui.components.ellaOverlayCardColor
 import com.ella.music.ui.components.SpectrumViewerLauncher
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun SettingsHomeCustomizeSection(
@@ -47,11 +66,13 @@ internal fun SettingsHomeCustomizeSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(initial = "")
-    val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = true)
     val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
     val homeFeatureWallpaperPicker = rememberAppearanceImagePicker(
         currentUri = homeFeatureWallpaperUri,
         imageName = "home_feature_wallpaper",
+        cropTitle = stringResource(R.string.settings_home_feature_wallpaper),
+        enableCrop = true,
+        defaultRatio = 16f / 9f,
         onImagePersisted = settingsManager::setHomeFeatureWallpaperUri
     )
 
@@ -82,14 +103,6 @@ internal fun SettingsHomeCustomizeSection(
                     }
                 )
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_ai_mix),
-                summary = stringResource(R.string.settings_ai_mix_summary),
-                checked = homeAiMixVisible,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setHomeAiMixVisible(it) }
-                }
-            )
             SwitchPreference(
                 title = stringResource(R.string.settings_continue_playback_row),
                 summary = stringResource(R.string.settings_continue_playback_row_summary),
@@ -163,17 +176,17 @@ internal fun SettingsLibrarySourceSection(
             )
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_navidrome)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_navidrome_summary),
                 onClick = { onOpenNavidromeConfig?.invoke() }
             )
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_opensubsonic)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_opensubsonic_summary),
                 onClick = { onOpenOpenSubsonicConfig?.invoke() }
             )
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_emby)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_emby_summary),
                 onClick = { onOpenEmbyConfig?.invoke() }
             )
             ArrowPreference(
@@ -195,6 +208,19 @@ internal fun SettingsAiInterpretationSection(
     val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
     val openAiBaseUrl by settingsManager.openAiBaseUrl.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_BASE_URL)
     val openAiModel by settingsManager.openAiModel.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_MODEL)
+    val aiApiProtocol by settingsManager.aiApiProtocol.collectAsState(
+        initial = SettingsManager.AI_API_PROTOCOL_COMPATIBLE
+    )
+    var fetchingModels by remember { mutableStateOf(false) }
+    var modelSheetVisible by remember { mutableStateOf(false) }
+    var fetchedModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    val protocolLabels = listOf(
+        stringResource(R.string.settings_ai_protocol_compatible),
+        stringResource(R.string.settings_ai_protocol_anthropic)
+    )
+    val protocolEntries = remember(protocolLabels) { protocolLabels.map { DropdownItem(title = it) } }
+    val selectedProtocol = aiApiProtocol.coerceIn(protocolLabels.indices)
+    val canFetchModels = openAiApiKey.isNotBlank() && openAiBaseUrl.isNotBlank() && !fetchingModels
 
     SmallTitle(text = stringResource(R.string.settings_ai_interpretation))
 
@@ -202,24 +228,122 @@ internal fun SettingsAiInterpretationSection(
         Column {
             SettingsFocusAnchor(active = highlightKey == "ai") {
                 SplitSettingTextField(
-                    label = "OpenAI API Key",
+                    label = stringResource(R.string.settings_ai_api_key),
                     value = openAiApiKey,
                     summary = stringResource(R.string.settings_openai_api_key_summary),
+                    isPassword = true,
+                    singleLine = true,
                     onValueChange = { value -> scope.launch { settingsManager.setOpenAiApiKey(value) } }
                 )
             }
             SplitSettingTextField(
-                label = "OpenAI Base URL",
+                label = stringResource(R.string.settings_ai_base_url),
                 value = openAiBaseUrl,
                 summary = stringResource(R.string.settings_openai_base_url_summary),
+                singleLine = true,
                 onValueChange = { value -> scope.launch { settingsManager.setOpenAiBaseUrl(value) } }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_ai_protocol),
+                summary = protocolLabels[selectedProtocol],
+                items = protocolEntries,
+                selectedIndex = selectedProtocol,
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setAiApiProtocol(index) }
+                }
             )
             SplitSettingTextField(
                 label = stringResource(R.string.settings_openai_model),
                 value = openAiModel,
                 summary = stringResource(R.string.settings_openai_model_summary, SettingsManager.DEFAULT_OPENAI_MODEL),
+                singleLine = true,
+                endAction = {
+                    IconButton(
+                        onClick = {
+                            if (!canFetchModels) return@IconButton
+                            fetchingModels = true
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        AiProviderClient(context).listModels(
+                                            OpenAiSongInterpretationConfig(
+                                                apiKey = openAiApiKey,
+                                                baseUrl = openAiBaseUrl,
+                                                model = openAiModel,
+                                                protocol = resolveAiApiProtocol(aiApiProtocol, openAiBaseUrl)
+                                            )
+                                        )
+                                    }
+                                }.onSuccess { models ->
+                                    fetchedModels = models
+                                    if (models.isEmpty()) {
+                                        Toast.makeText(
+                                            context,
+                                            R.string.settings_ai_models_empty,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        modelSheetVisible = true
+                                    }
+                                }.onFailure { error ->
+                                    Toast.makeText(
+                                        context,
+                                        error.message.orEmpty().ifBlank {
+                                            context.getString(R.string.settings_ai_models_fetch_failed)
+                                        },
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                fetchingModels = false
+                            }
+                        },
+                        enabled = canFetchModels
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = stringResource(R.string.settings_ai_fetch_models),
+                            tint = if (canFetchModels) {
+                                MiuixTheme.colorScheme.primary
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            }
+                        )
+                    }
+                },
                 onValueChange = { value -> scope.launch { settingsManager.setOpenAiModel(value) } }
             )
+        }
+    }
+
+    EllaMiuixBottomSheet(
+        show = modelSheetVisible,
+        title = stringResource(R.string.settings_ai_select_model),
+        onDismissRequest = { modelSheetVisible = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 720.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            fetchedModels.forEach { modelId ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 16.dp,
+                    colors = CardDefaults.defaultColors(
+                        color = ellaOverlayCardColor()
+                    )
+                ) {
+                    BasicComponent(
+                        title = modelId,
+                        onClick = {
+                            scope.launch { settingsManager.setOpenAiModel(modelId) }
+                            modelSheetVisible = false
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -259,6 +383,16 @@ internal fun SettingsMcpSection(
                     }
                 )
             }
+            ArrowPreference(
+                title = stringResource(R.string.settings_mcp_auth_token),
+                summary = stringResource(R.string.settings_mcp_auth_token_summary),
+                onClick = {
+                    val token = com.ella.music.mcp.McpServerService.getOrCreateAuthToken(context)
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Halcyon MCP bearer token", "Bearer $token"))
+                    Toast.makeText(context, R.string.settings_mcp_auth_token_copied, Toast.LENGTH_SHORT).show()
+                }
+            )
         }
     }
 
@@ -324,6 +458,16 @@ internal fun SettingsLyricShareSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val lyricShareCustomInfo by settingsManager.lyricShareCustomInfo.collectAsState(initial = "")
+    val lyricShareExportFolderUri by settingsManager.lyricShareExportFolderUri.collectAsState(initial = "")
+    val lyricShareExportFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val readWrite = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, readWrite) }
+        scope.launch { settingsManager.setLyricShareExportFolderUri(uri.toString()) }
+        Toast.makeText(context, context.getString(R.string.settings_lyric_share_folder_saved), Toast.LENGTH_SHORT).show()
+    }
 
     SmallTitle(text = stringResource(R.string.settings_lyric_share_card))
 
@@ -335,6 +479,25 @@ internal fun SettingsLyricShareSection(
                 summary = stringResource(R.string.settings_lyric_share_custom_info_summary),
                 onValueChange = { value -> scope.launch { settingsManager.setLyricShareCustomInfo(value) } }
             )
+            ArrowPreference(
+                title = stringResource(R.string.settings_lyric_share_folder),
+                summary = if (lyricShareExportFolderUri.isBlank()) {
+                    stringResource(R.string.settings_lyric_share_folder_summary)
+                } else {
+                    stringResource(R.string.settings_lyric_share_folder_selected)
+                },
+                onClick = { lyricShareExportFolderPicker.launch(null) }
+            )
+            if (lyricShareExportFolderUri.isNotBlank()) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_lyric_share_folder_remove),
+                    summary = stringResource(R.string.settings_lyric_share_folder_remove_summary),
+                    onClick = {
+                        scope.launch { settingsManager.setLyricShareExportFolderUri("") }
+                        Toast.makeText(context, context.getString(R.string.settings_lyric_share_folder_cleared), Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
         }
     }
 }
@@ -440,30 +603,6 @@ internal fun SettingsTagScrapingSection(
     }
 }
 
-@Composable
-internal fun SettingsDesktopShortcutSection(
-    highlightKey: String? = null
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val settingsManager = remember { SettingsManager.getInstance(context) }
-    val appShortcutOrder by settingsManager.appShortcutOrder.collectAsState(
-        initial = SettingsManager.DEFAULT_APP_SHORTCUT_ORDER
-    )
-
-    SmallTitle(text = stringResource(R.string.settings_desktop_shortcuts))
-
-    SettingsCardGroup(highlight = highlightKey == "desktop_shortcuts") {
-        Column {
-            SettingsAppShortcutsPreference(
-                shortcutIds = appShortcutOrder,
-                onShortcutIdsChange = { ids ->
-                    scope.launch { settingsManager.setAppShortcutOrder(ids) }
-                }
-            )
-        }
-    }
-}
 
 private enum class ScanAdvancedSheet {
     SplitRules,
@@ -480,6 +619,7 @@ internal fun SettingsScanSection(
     val autoScanLocalPlaylists by settingsManager.autoScanLocalPlaylists.collectAsState(initial = false)
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
     val filterVideoFiles by settingsManager.filterVideoFiles.collectAsState(initial = true)
+    val folderNameAsAlbumWhenMissing by settingsManager.folderNameAsAlbumWhenMissing.collectAsState(initial = false)
     var confirmAutoPlaylistScan by remember { mutableStateOf(false) }
     val artistSeparators by settingsManager.artistSeparators.collectAsState(
         initial = SettingsManager.DEFAULT_ARTIST_SEPARATORS
@@ -552,6 +692,18 @@ internal fun SettingsScanSection(
                     summary = stringResource(R.string.settings_filter_video_files_summary),
                     checked = filterVideoFiles,
                     onCheckedChange = { scope.launch { settingsManager.setFilterVideoFiles(it) } }
+                )
+            }
+
+            SettingsFocusAnchor(active = highlightKey == "folder_name_as_album_when_missing") {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_folder_name_as_album_when_missing),
+                    summary = stringResource(R.string.settings_folder_name_as_album_when_missing_summary),
+                    checked = folderNameAsAlbumWhenMissing,
+                    onCheckedChange = { scope.launch {
+                        settingsManager.setFolderNameAsAlbumWhenMissing(it)
+                        MusicRepository.getInstance(context).rematerializeFolderAlbumFallbacks()
+                    } }
                 )
             }
             SettingsFocusAnchor(active = highlightKey == "tag_ignore_case") {
@@ -724,21 +876,25 @@ internal fun SettingsScanSection(
                 .heightIn(max = 560.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsFocusAnchor(active = highlightKey == "search_all_categories") {
-                SearchAllCategoryTypesPreference(
-                    enabledTypes = searchAllCategoryTypes,
-                    onEnabledChange = { type, enabled ->
-                        scope.launch { settingsManager.setSearchAllCategoryTypeEnabled(type, enabled) }
-                    }
-                )
+            SettingsCardGroup {
+                SettingsFocusAnchor(active = highlightKey == "search_all_categories") {
+                    SearchAllCategoryTypesPreference(
+                        enabledTypes = searchAllCategoryTypes,
+                        onEnabledChange = { type, enabled ->
+                            scope.launch { settingsManager.setSearchAllCategoryTypeEnabled(type, enabled) }
+                        }
+                    )
+                }
             }
-            SettingsFocusAnchor(active = highlightKey == "search_all_song_match_types") {
-                SearchAllSongMatchTypesPreference(
-                    enabledTypes = searchAllSongMatchTypes,
-                    onEnabledChange = { type, enabled ->
-                        scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
-                    }
-                )
+            SettingsCardGroup {
+                SettingsFocusAnchor(active = highlightKey == "search_all_song_match_types") {
+                    SearchAllSongMatchTypesPreference(
+                        enabledTypes = searchAllSongMatchTypes,
+                        onEnabledChange = { type, enabled ->
+                            scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
+                        }
+                    )
+                }
             }
         }
     }

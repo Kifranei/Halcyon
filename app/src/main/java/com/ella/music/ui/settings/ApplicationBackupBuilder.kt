@@ -26,6 +26,12 @@ internal suspend fun buildApplicationBackupJson(
             selectedTypes = selectedTypes,
             includeDeviceLocalAssets = includeDeviceLocalAssets
         )
+    portableFontSettingKeys.forEach { key ->
+        val path = filteredSettings.optString(key, "")
+        if (isBundledFontPath(path)) {
+            filteredSettings.put(key, "")
+        }
+    }
     JSONObject()
         .put("version", if (includeDeviceLocalAssets) 2 else 1)
         .put("exportedAt", System.currentTimeMillis())
@@ -40,5 +46,25 @@ internal suspend fun buildApplicationBackupJson(
             if (BackupType.AiConfigAndChat in selectedTypes) {
                 put("aiChat", exportAiChatBackupJson(context))
             }
+            if (BackupType.LibraryAndScan in selectedTypes) {
+                // Descriptions are packed as separate files in descriptions/*.properties; omitted from root JSON to avoid duplication
+            }
         }
+}
+
+internal fun exportDescriptionsJson(context: Context, fileName: String): JSONObject? =
+    exportDescriptionsJson(context.filesDir, fileName)
+
+internal fun exportDescriptionsJson(filesDir: java.io.File, fileName: String): JSONObject? {
+    val file = java.io.File(filesDir, fileName)
+    if (!file.isFile || !file.canRead() || file.length() == 0L) return null
+    return runCatching {
+        val props = java.util.Properties().apply {
+            file.reader(Charsets.UTF_8).use { reader -> load(reader) }
+        }
+        if (props.isEmpty) return null
+        JSONObject().apply {
+            props.forEach { (k, v) -> put(k.toString(), v.toString()) }
+        }
+    }.getOrNull()
 }

@@ -1,14 +1,20 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -24,6 +30,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
+import com.ella.music.data.SettingsManager
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
@@ -40,6 +55,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * keeps ordinary (non-settings) top bars unchanged.
  */
 val LocalSettingsCloseAction = staticCompositionLocalOf<(() -> Unit)?> { null }
+val LocalTopBarBlurStyle = staticCompositionLocalOf { SettingsManager.TOP_BAR_BLUR_OFF }
+val LocalBackdrop = staticCompositionLocalOf<top.yukonga.miuix.kmp.blur.LayerBackdrop?> { null }
 
 @Composable
 fun EllaSmallTopAppBar(
@@ -59,11 +76,12 @@ fun EllaSmallTopAppBar(
     centeredTitle: Boolean = false,
     titleStartPadding: Dp = 64.dp,
     titleEndPadding: Dp = 128.dp,
-    titleWindowInsetsPadding: Boolean = true,
+    titleWindowInsetsPadding: Boolean = defaultWindowInsetsPadding,
     onDoubleTapTitle: (() -> Unit)? = null,
     bottomContent: @Composable () -> Unit = {},
 ) {
     val settingsCloseAction = LocalSettingsCloseAction.current
+
     val effectiveActions: @Composable RowScope.() -> Unit = {
         actions()
         settingsCloseAction?.let { close ->
@@ -89,18 +107,29 @@ fun EllaSmallTopAppBar(
             this
         }
 
+    val topInset = if (defaultWindowInsetsPadding) {
+        WindowInsets.statusBarsIgnoringVisibility.only(WindowInsetsSides.Top)
+    } else {
+        WindowInsets(0, 0, 0, 0)
+    }
+
     if (centeredTitle) {
-        Box(modifier = modifier) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(color)
+                .windowInsetsPadding(topInset)
+        ) {
             SmallTopAppBar(
                 title = title,
-                color = color,
+                color = Color.Transparent,
                 titleColor = titleColor,
                 subtitle = subtitle,
                 subtitleColor = subtitleColor,
                 navigationIcon = navigationIcon,
                 actions = effectiveActions,
                 scrollBehavior = scrollBehavior,
-                defaultWindowInsetsPadding = defaultWindowInsetsPadding,
+                defaultWindowInsetsPadding = false,
                 titlePadding = titlePadding,
                 navigationIconPadding = navigationIconPadding,
                 actionIconPadding = actionIconPadding,
@@ -110,7 +139,6 @@ fun EllaSmallTopAppBar(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .then(if (defaultWindowInsetsPadding) Modifier.windowInsetsPadding(WindowInsets.systemBars) else Modifier)
                         .width(220.dp)
                         .height(56.dp)
                         .doubleTapTitle()
@@ -121,22 +149,26 @@ fun EllaSmallTopAppBar(
     }
 
     BoxWithConstraints(
-        modifier = modifier.then(
-            if (title.isBlank()) Modifier.doubleTapTitle() else Modifier
-        )
+        modifier = modifier
+            .fillMaxWidth()
+            .background(color)
+            .windowInsetsPadding(topInset)
+            .then(
+                if (title.isBlank()) Modifier.doubleTapTitle() else Modifier
+            )
     ) {
         val availableTitleWidth =
             (maxWidth - titleStartPadding - titleEndPadding).coerceAtLeast(0.dp)
         SmallTopAppBar(
             title = "",
-            color = color,
+            color = Color.Transparent,
             titleColor = titleColor,
             subtitle = subtitle,
             subtitleColor = subtitleColor,
             navigationIcon = navigationIcon,
             actions = effectiveActions,
             scrollBehavior = scrollBehavior,
-            defaultWindowInsetsPadding = defaultWindowInsetsPadding,
+            defaultWindowInsetsPadding = false,
             titlePadding = titlePadding,
             navigationIconPadding = navigationIconPadding,
             actionIconPadding = actionIconPadding,
@@ -152,10 +184,6 @@ fun EllaSmallTopAppBar(
             softWrap = false,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .then(if (titleWindowInsetsPadding) Modifier.windowInsetsPadding(WindowInsets.systemBars) else Modifier)
-                // Give the gesture node an explicit width. A fill-width Text with content padding
-                // still participates in hit testing across the padded action area on Compose,
-                // which can swallow the left-most top-bar button (#267).
                 .padding(start = titleStartPadding, top = 12.dp)
                 .width(availableTitleWidth)
                 .then(if (title.isNotBlank()) Modifier.doubleTapTitle() else Modifier)

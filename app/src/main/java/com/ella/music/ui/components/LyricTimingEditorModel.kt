@@ -3,6 +3,7 @@ package com.ella.music.ui.components
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.Song
+import com.ella.music.ui.player.rubiesForTimedWords
 
 /** The editable form preserves the rich TTML information that the lyric parser already exposes. */
 internal data class LyricTimingLine(
@@ -44,6 +45,10 @@ internal fun LyricLine.toLyricTimingLine() = LyricTimingLine(
     backgroundEndMs = backgroundEndMs,
     endMs = endMs
 )
+
+/** Word-timed LRC/ELRC (and TTML carrying the same word spans) should open in word mode. */
+internal fun List<LyricLine>.containsWordTiming(): Boolean =
+    any { it.words.isNotEmpty() || it.backgroundWords.isNotEmpty() }
 
 internal fun String.toLyricTimingLines(existing: List<LyricTimingLine>): List<LyricTimingLine> {
     val previousByIndex = existing.withIndex().associate { it.index to it.value }
@@ -117,7 +122,7 @@ internal fun List<LyricTimingLine>.toEmbeddedTtml(song: Song): String {
 
     return buildString {
         appendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
-        appendLine("<tt xmlns=\"http://www.w3.org/ns/ttml\" xmlns:itunes=\"http://music.apple.com/lyric-ttml-internal\" xmlns:ttm=\"http://www.w3.org/ns/ttml#metadata\" itunes:timing=\"Word\">")
+        appendLine("<tt xmlns=\"http://www.w3.org/ns/ttml\" xmlns:tts=\"http://www.w3.org/ns/ttml#styling\" xmlns:itunes=\"http://music.apple.com/lyric-ttml-internal\" xmlns:ttm=\"http://www.w3.org/ns/ttml#metadata\" itunes:timing=\"Word\">")
         appendLine("  <head>")
         appendLine("    <metadata>")
         appendLine("      <ttm:title>${song.title.xmlEscape()}</ttm:title>")
@@ -135,7 +140,7 @@ internal fun List<LyricTimingLine>.toEmbeddedTtml(song: Song): String {
             val end = line.resolvedEnd(lines.getOrNull(index + 1)?.timeMs)
             val agent = line.agent?.trim()?.takeIf { it in agents }?.let { " ttm:agent=\"${it.xmlEscape()}\"" }.orEmpty()
             append("      <p begin=\"${start.toTtmlTimestamp()}\" end=\"${end.toTtmlTimestamp()}\"$agent>")
-            append(line.words.toTtmlSpans(line.text, start, end))
+            append(line.words.toTtmlSpans(line.pronunciationWords, line.pronunciation, line.text, start, end))
             line.translation?.takeIf(String::isNotBlank)?.let {
                 append("<span ttm:role=\"x-translation\" xml:lang=\"zh-CN\">${it.xmlEscape()}</span>")
             }
@@ -146,7 +151,7 @@ internal fun List<LyricTimingLine>.toEmbeddedTtml(song: Song): String {
                 val backgroundStart = line.backgroundStartMs ?: start
                 val backgroundEnd = line.backgroundEndMs ?: end
                 append("<span ttm:role=\"x-bg\" begin=\"${backgroundStart.toTtmlTimestamp()}\" end=\"${backgroundEnd.toTtmlTimestamp()}\">")
-                append(line.backgroundWords.toTtmlSpans(background, backgroundStart, backgroundEnd))
+                append(line.backgroundWords.toTtmlSpans(emptyList(), null, background, backgroundStart, backgroundEnd))
                 line.backgroundTranslation?.takeIf(String::isNotBlank)?.let {
                     append("<span ttm:role=\"x-translation\" xml:lang=\"zh-CN\">${it.xmlEscape()}</span>")
                 }
@@ -201,12 +206,35 @@ private fun List<LyricWord>.toElrcTokens(text: String, start: Long, end: Long): 
     }
 }
 
-private fun List<LyricWord>.toTtmlSpans(text: String, start: Long, end: Long): String {
+private fun List<LyricWord>.toTtmlSpans(
+    pronunciationWords: List<LyricWord>,
+    pronunciation: String?,
+    text: String,
+    start: Long,
+    end: Long
+): String {
     val timedWords = if (isNotEmpty()) this else listOf(LyricWord(text, start, end))
-    return timedWords.joinToString(separator = "") { word ->
-        "<span begin=\"${word.startMs.toTtmlTimestamp()}\" end=\"${word.endMs.toTtmlTimestamp()}\">${word.text.xmlEscape()}</span>"
-    }
+    val rubies = rubiesForTimedWords(timedWords, pronunciationWords, pronunciation.orEmpty())
+    return timedWords.mapIndexed { index, word ->
+        var wordText = word.text
+        if (!wordText.endsWith(" ") && index < timedWords.lastIndex && !timedWords[index + 1].text.startsWith(" ")) {
+            val combinedTrimmed = "${wordText.trim()} ${timedWords[index + 1].text.trim()}"
+            if (text.contains(combinedTrimmed) || (wordText.hasLatinChars() && timedWords[index + 1].text.hasLatinChars())) {
+                wordText = "$wordText "
+            }
+        }
+        val ruby = rubies.getOrNull(index)?.trim().orEmpty()
+        val beginAttr = word.startMs.toTtmlTimestamp()
+        val endAttr = word.endMs.toTtmlTimestamp()
+        if (ruby.isNotBlank()) {
+            "<span tts:ruby=\"container\"><span tts:ruby=\"base\"><span begin=\"$beginAttr\" end=\"$endAttr\">${wordText.xmlEscape()}</span></span><span tts:ruby=\"text\" begin=\"$beginAttr\" end=\"$endAttr\">${ruby.xmlEscape()}</span></span>"
+        } else {
+            "<span begin=\"$beginAttr\" end=\"$endAttr\">${wordText.xmlEscape()}</span>"
+        }
+    }.joinToString(separator = "")
 }
+
+private fun String.hasLatinChars(): Boolean = any { it in 'a'..'z' || it in 'A'..'Z' }
 
 private fun String.xmlEscape(): String = replace("&", "&amp;")
     .replace("<", "&lt;")

@@ -1,8 +1,13 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.player
 
 import android.app.Activity
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -11,7 +16,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +55,13 @@ import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.player.PlaybackAudioSession
 import com.ella.music.ui.components.LyricVideoProgress
 import com.ella.music.ui.components.LyricVideoShareProgressOverlay
+import com.ella.music.ui.components.LyricVideoEffect
+import com.ella.music.ui.components.LyricVideoEffectDialog
+import com.ella.music.ui.components.LyricVideoCompletedSheet
 import com.ella.music.ui.components.generateLyricVideo
+import com.ella.music.ui.components.copySelectedLyricText
+import com.ella.music.ui.components.LyricShareOptions
+import com.ella.music.ui.components.saveLyricCardToPictures
 import com.ella.music.ui.components.shareLyricCard
 import com.ella.music.ui.components.shareLyricVideoFile
 import com.ella.music.viewmodel.MainViewModel
@@ -75,8 +93,22 @@ fun PlayerScreen(
     val isLargeScreenDevice = configuration.smallestScreenWidthDp >= 600
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    val globalSystemBarsMode by settingsManager.systemBarsMode.collectAsState(
+        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
+    val playerSystemBarsMode by settingsManager.playerSystemBarsMode.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_SYSTEM_BARS_MODE
+    )
+    val hideLandscapeSystemBars by settingsManager.playerLandscapeHideSystemBars.collectAsState(
+        initial = false
+    )
+    val hideMusicVideoSystemBars by settingsManager.musicVideoImmersiveLyricsHideSystemBars.collectAsState(
+        initial = SettingsManager.DEFAULT_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS
+    )
     val playerSettings = rememberPlayerScreenSettings(settingsManager)
-    val predictiveBackEnabled by settingsManager.playerPredictiveBackEnabled.collectAsState(initial = false)
     val playerTapSeekEnabled = playerSettings.playerTapSeekEnabled
     val playerShowTotalDuration = playerSettings.playerShowTotalDuration
     val coverSwipeEnabled = playerSettings.coverSwipeEnabled
@@ -159,6 +191,8 @@ fun PlayerScreen(
     val hiResLogoEnabled = playerSettings.hiResLogoEnabled
     val hiResLogoUri = playerSettings.hiResLogoUri
     val lyricShareCustomInfo = playerSettings.lyricShareCustomInfo
+    val lyricShareExportFolderUri by settingsManager.lyricShareExportFolderUri.collectAsState(initial = "")
+    val lyricShareLongPressEnabled by settingsManager.lyricShareLongPressEnabled.collectAsState(initial = true)
     val metadataEditorId = playerSettings.metadataEditorId
     val lyricTimingEditorId = playerSettings.lyricTimingEditorId
     val sleepTimerCustomMinutes = playerSettings.sleepTimerCustomMinutes
@@ -202,7 +236,80 @@ fun PlayerScreen(
             landscapeState.expanded = true
         }
     }
+    val song = currentSong
+    val musicVideoSongKey = song?.dynamicCoverResolutionKey().orEmpty()
+    val musicVideoVisibleForCurrentSong = song != null &&
+        uiState.musicVideoVisible &&
+        uiState.musicVideoOwnerKey == musicVideoSongKey
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    val isMusicVideoLandscape = (landscapeState.expanded && musicVideoVisibleForCurrentSong) ||
+        (isLandscape && playerLandscapeStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO && musicVideoVisibleForCurrentSong)
+    val effectivePlayerSystemBarsMode = when {
+        isMusicVideoLandscape && hideMusicVideoSystemBars -> SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+        (isLandscape || landscapeState.expanded) && hideLandscapeSystemBars -> SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+        else -> SettingsManager.playerSystemBarsEffectiveMode(
+            playerMode = playerSystemBarsMode,
+            globalMode = globalSystemBarsMode
+        )
+    }
+    // The cover/background must remain full-window. When the user asks to keep a hidden bar's
+    // area unused, apply the stable (ignoring-visibility) insets to the foreground pager only;
+    // padding the whole PlayerScreen is what produced the dark bands around the cover.
+    val playerForegroundSystemBarsModifier = Modifier
+        .then(
+            if (systemBarsReserveSpace && effectivePlayerSystemBarsMode in setOf(
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                )
+            ) {
+                Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+            } else {
+                Modifier
+            }
+        )
+        .then(
+            if (systemBarsReserveSpace && effectivePlayerSystemBarsMode in setOf(
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_NAVIGATION,
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                )
+            ) {
+                Modifier.windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)
+            } else {
+                Modifier
+            }
+        )
+    // HyperOS hides the icons/gesture handle while keeping the system-bar insets visible.  In
+    // that mode `windowInsetsPadding(WindowInsets.statusBars)` in the individual player pages
+    // would still reserve a black/white strip even when the user explicitly chose to use the
+    // hidden pixels. Consume those insets at the player root so every page (including the
+    // landscape host) can paint its background all the way to the window edge.
+    val playerHiddenSystemBarsConsumptionModifier = Modifier
+        .then(
+            if (!systemBarsReserveSpace && effectivePlayerSystemBarsMode in setOf(
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                )
+            ) {
+                Modifier
+                    .consumeWindowInsets(WindowInsets.statusBars)
+                    .consumeWindowInsets(WindowInsets.statusBarsIgnoringVisibility)
+            } else {
+                Modifier
+            }
+        )
+        .then(
+            if (!systemBarsReserveSpace && effectivePlayerSystemBarsMode in setOf(
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_NAVIGATION,
+                    SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                )
+            ) {
+                Modifier
+                    .consumeWindowInsets(WindowInsets.navigationBars)
+                    .consumeWindowInsets(WindowInsets.navigationBarsIgnoringVisibility)
+            } else {
+                Modifier
+            }
+        )
     LaunchedEffect(openToken, playerVisible, isLandscape, playerLandscapeStyle) {
         if (!playerVisible) {
             landscapeState.expanded = false
@@ -244,8 +351,9 @@ fun PlayerScreen(
         PlayerSystemBarsEffect(
             context = context,
             view = view,
-            trigger = landscapeState.expanded,
-            landscape = isLandscape || landscapeState.expanded
+            trigger = landscapeState.expanded to isMusicVideoLandscape,
+            landscape = isLandscape || landscapeState.expanded,
+            isMusicVideoLandscape = isMusicVideoLandscape
         )
         PlayerSurfaceKeepScreenOnEffect(
             view = view,
@@ -256,14 +364,6 @@ fun PlayerScreen(
         )
     }
 
-    val song = currentSong
-    val musicVideoSongKey = song?.dynamicCoverResolutionKey().orEmpty()
-    // Visibility is scoped to the current song instance. The resident player survives queue
-    // changes, so a plain Boolean can otherwise leave the previous song's MV badge/surface on
-    // screen until the new source scan finishes.
-    val musicVideoVisibleForCurrentSong = song != null &&
-        uiState.musicVideoVisible &&
-        uiState.musicVideoOwnerKey == musicVideoSongKey
     val isCurrentSongFavorite = song?.playlistIdentityKey()?.let { it in favoriteSongKeys } == true
     fun requestDeleteSong(targetSong: Song) {
         uiState.deleteConfirmSong = targetSong
@@ -301,43 +401,93 @@ fun PlayerScreen(
     val lyricVideoShareEnabled = remember(song?.path, song?.mimeType, audioInfo?.format, audioInfo?.sampleRate, audioInfo?.bitDepth) {
         !isLyricVideoShareUnsupported(song, audioInfo)
     }
-    var lyricShareInitialLine by remember { mutableStateOf<LyricLine?>(null) }
+    var lyricShareRequest by remember { mutableStateOf<LyricShareRequest?>(null) }
     fun openLyricSharePicker(line: LyricLine) {
-        lyricShareInitialLine = line
-    }
-    fun shareSelectedLyrics(lines: List<LyricLine>, includeTranslation: Boolean) {
-        shareLyricCard(
-            context = context,
+        lyricShareRequest = LyricShareRequest(
             song = song,
-            lines = lines,
+            lyrics = lyrics.toList(),
+            initialLine = line,
             cover = embeddedCover ?: paletteBitmap,
-            backgroundColors = listOf(
-                palette.top.toArgb(),
-                palette.middle.toArgb(),
-                palette.bottom.toArgb()
-            ),
+            backgroundColors = listOf(palette.top, palette.middle, palette.bottom),
+            contentColor = palette.onBackground,
             annotation = songAnnotation,
             customInfo = lyricShareCustomInfo,
-            shareTypeface = lyricShareTypeface,
-            includeTranslation = includeTranslation
+            exportFolderUri = lyricShareExportFolderUri,
+            shareTypeface = lyricShareTypeface
         )
-        lyricShareInitialLine = null
+    }
+    fun shareSelectedLyrics(lines: List<LyricLine>, options: LyricShareOptions) {
+        val request = lyricShareRequest ?: return
+        shareLyricCard(
+            context = context,
+            song = request.song,
+            lines = lines,
+            cover = request.cover,
+            backgroundColors = request.backgroundColors.map { it.toArgb() },
+            annotation = request.annotation,
+            customInfo = request.customInfo,
+            shareTypeface = request.shareTypeface,
+            includeOriginal = options.includeOriginal,
+            includeTranslation = options.includeTranslation,
+            includePronunciation = options.includePronunciation,
+            appendEllipsis = options.appendEllipsis,
+            style = options.style
+        )
+        lyricShareRequest = null
+    }
+    fun copySelectedLyrics(lines: List<LyricLine>, options: LyricShareOptions) {
+        val text = copySelectedLyricText(lines, options)
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        clipboard?.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.lyric_share_copy), text))
+        Toast.makeText(context, context.getString(R.string.lyric_share_copied), Toast.LENGTH_SHORT).show()
+    }
+    fun saveSelectedLyrics(lines: List<LyricLine>, options: LyricShareOptions) {
+        val request = lyricShareRequest ?: return
+        if (saveLyricCardToPictures(
+                context = context,
+                song = request.song,
+                lines = lines,
+                cover = request.cover,
+                backgroundColors = request.backgroundColors.map { it.toArgb() },
+                annotation = request.annotation,
+                customInfo = request.customInfo,
+                exportFolderUri = request.exportFolderUri,
+                shareTypeface = request.shareTypeface,
+                options = options
+            )
+        ) {
+            Toast.makeText(context, context.getString(R.string.lyric_share_saved), Toast.LENGTH_SHORT).show()
+        }
     }
     var videoShareProgress by remember { mutableStateOf<LyricVideoProgress?>(null) }
     var videoShareGenerating by remember { mutableStateOf(false) }
     var videoShareJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    fun shareSelectedLyricsVideo(lines: List<LyricLine>, includeTranslation: Boolean) {
-        lyricShareInitialLine = null
+    var showLyricVideoEffectDialog by remember { mutableStateOf(false) }
+    var selectedLyricVideoEffect by remember { mutableStateOf(LyricVideoEffect.Particle) }
+    var pendingVideoLines by remember { mutableStateOf<List<LyricLine>?>(null) }
+    var pendingVideoOptions by remember { mutableStateOf<LyricShareOptions?>(null) }
+    var pendingVideoRequest by remember { mutableStateOf<LyricShareRequest?>(null) }
+    var completedVideoUri by remember { mutableStateOf<Uri?>(null) }
+    var completedVideoSong by remember { mutableStateOf<Song?>(null) }
+    var completedVideoExportFolderUri by remember { mutableStateOf("") }
+
+    fun startGeneratingLyricVideo(effect: LyricVideoEffect) {
+        val request = pendingVideoRequest ?: return
+        val lines = pendingVideoLines ?: return
+        val options = pendingVideoOptions ?: return
         videoShareGenerating = true
         videoShareProgress = LyricVideoProgress(0, 1)
         videoShareJob = scope.launch {
             val uri = generateLyricVideo(
                 context = context,
-                song = song,
+                song = request.song,
                 lines = lines,
-                cover = embeddedCover ?: paletteBitmap,
-                includeTranslation = includeTranslation,
-                typeface = lyricShareTypeface,
+                cover = request.cover,
+                includeOriginal = options.includeOriginal,
+                includeTranslation = options.includeTranslation,
+                includePronunciation = options.includePronunciation,
+                typeface = request.shareTypeface,
+                effect = effect,
                 onProgress = { progress -> videoShareProgress = progress }
             )
             videoShareGenerating = false
@@ -345,7 +495,9 @@ fun PlayerScreen(
             videoShareJob = null
             if (uri != null) {
                 withContext(Dispatchers.Main) {
-                    shareLyricVideoFile(context, uri)
+                    completedVideoUri = uri
+                    completedVideoSong = request.song
+                    completedVideoExportFolderUri = request.exportFolderUri
                 }
             } else {
                 withContext(Dispatchers.Main) {
@@ -354,6 +506,16 @@ fun PlayerScreen(
             }
         }
     }
+
+    fun shareSelectedLyricsVideo(lines: List<LyricLine>, options: LyricShareOptions) {
+        val request = lyricShareRequest ?: return
+        lyricShareRequest = null
+        pendingVideoLines = lines
+        pendingVideoOptions = options
+        pendingVideoRequest = request
+        showLyricVideoEffectDialog = true
+    }
+
     fun navigateToArtistOrChoose(artistText: String) {
         val artists = if (song != null && artistText == song.artist) {
             artistNamesForSong(song)
@@ -367,6 +529,7 @@ fun PlayerScreen(
             else -> uiState.artistChoices = artists
         }
     }
+
     fun openNetease(url: String?) {
         if (url.isNullOrBlank()) {
             Toast.makeText(context, context.getString(R.string.player_no_netease_jump), Toast.LENGTH_SHORT).show()
@@ -383,12 +546,19 @@ fun PlayerScreen(
             playerPagerState.scrollToPage(PLAYER_PAGE_COVER)
         }
     }
+    // Only clear remembered cover/MV positions when the track identity actually changes.
+    // Remounting PlayerScreen (lyrics page / AM playlist leave→return) must NOT wipe
+    // DynamicCoverPlaybackMemory, or the video restarts from 0.
+    var previousDynamicCoverKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(song?.dynamicCoverResolutionKey()) {
+        val key = song?.dynamicCoverResolutionKey()
         uiState.musicVideoVisible = false
         uiState.musicVideoOwnerKey = null
-        // Clear all remembered video positions so the next/previous song's MV or
-        // dynamic cover starts from the beginning instead of resuming a stale position.
-        DynamicCoverPlaybackMemory.clearAll()
+        val prev = previousDynamicCoverKey
+        if (prev != null && prev != key) {
+            DynamicCoverPlaybackMemory.clearAll()
+        }
+        previousDynamicCoverKey = key
     }
     PlayerPagerSyncEffects(
         immersiveAlbumCover = immersiveAlbumCover,
@@ -404,24 +574,17 @@ fun PlayerScreen(
         // Always retain an in-app back handler while the player overlay is visible. Disabling
         // it made Android fall through to MainActivity's default back action and finish the app.
         backEnabled = playerDismissBackEnabled(playerVisible, restorePlayerOnBack),
-        predictiveBackEnabled = predictiveBackEnabled,
         onDismiss = {
             playerViewModel.setShowLyrics(false)
             onBack()
         },
         overlayContent = {
             PlayerLyricShareHost(
-                song = song,
-                lyrics = lyrics,
-                initialLine = lyricShareInitialLine,
-                embeddedCover = embeddedCover,
-                paletteBitmap = paletteBitmap,
-                palette = palette,
-                annotation = songAnnotation,
-                customInfo = lyricShareCustomInfo,
-                shareTypeface = lyricShareTypeface,
-                onDismiss = { lyricShareInitialLine = null },
+                request = lyricShareRequest,
+                onDismiss = { lyricShareRequest = null },
                 onShare = ::shareSelectedLyrics,
+                onCopy = ::copySelectedLyrics,
+                onSaveImage = ::saveSelectedLyrics,
                 onVideoShare = if (lyricVideoShareEnabled) ::shareSelectedLyricsVideo else null
             )
             LyricVideoShareProgressOverlay(
@@ -434,9 +597,34 @@ fun PlayerScreen(
                     videoShareProgress = null
                 }
             )
+            LyricVideoEffectDialog(
+                show = showLyricVideoEffectDialog,
+                currentEffect = selectedLyricVideoEffect,
+                onDismiss = {
+                    showLyricVideoEffectDialog = false
+                    pendingVideoLines = null
+                    pendingVideoOptions = null
+                    pendingVideoRequest = null
+                },
+                onSelectEffect = { effect ->
+                    selectedLyricVideoEffect = effect
+                    startGeneratingLyricVideo(effect)
+                }
+            )
+            LyricVideoCompletedSheet(
+                show = completedVideoUri != null,
+                videoUri = completedVideoUri,
+                song = completedVideoSong,
+                destinationTreeUri = completedVideoExportFolderUri,
+                onDismiss = { completedVideoUri = null }
+            )
         }
     ) { dismissingPlayer ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(playerHiddenSystemBarsConsumptionModifier)
+        ) {
           CompositionLocalProvider(
               // With cover colouring off, palette is the neutral variant: dark content on a
               // light player background, white on a dark one (the pre-1.2.3 behaviour). A
@@ -573,7 +761,6 @@ fun PlayerScreen(
                         lyricPerspectiveEffect = lyricPerspectiveEffect,
                         lyricPerspectiveYAngle = lyricPerspectiveYAngle,
                         lyricTextAlign = playerLyricTextAlign,
-                        lyricPageVerticalAlignment = playerSettings.lyricPageVerticalAlignment,
                         playerTapSeekEnabled = playerTapSeekEnabled,
                         playerShowTotalDuration = playerShowTotalDuration,
                         coverSwipeEnabled = coverSwipeEnabled,
@@ -587,6 +774,7 @@ fun PlayerScreen(
                         queueExpanded = uiState.queueExpanded,
                         onQueueExpandedChange = { uiState.queueExpanded = it },
                         playlist = playlist,
+                        librarySongs = librarySongs,
                         favoriteSongKeys = favoriteSongKeys,
                         loadSongRating = mainViewModel::getSongRating,
                         ratingRevision = ratingRevision,
@@ -647,7 +835,20 @@ fun PlayerScreen(
                         onRequestDeleteSong = ::requestDeleteSong,
                         onNavigateToAlbum = onNavigateToAlbum,
                         onNavigateToArtist = onNavigateToArtist,
-                        openLyricSharePicker = ::openLyricSharePicker,
+                        openLyricSharePicker = if (lyricShareLongPressEnabled) {
+                            ::openLyricSharePicker
+                        } else {
+                            { }
+                        },
+                        onLyricShare = {
+                            currentLyricLine?.let(::openLyricSharePicker)
+                                ?: lyrics.firstOrNull()?.let(::openLyricSharePicker)
+                                ?: Toast.makeText(
+                                    context,
+                                    context.getString(R.string.player_no_song_playing),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                        },
                         navigateToArtistOrChoose = ::navigateToArtistOrChoose,
                         onShowLyrics = onShowLyrics,
                         onSwipePrevious = { playerViewModel.skipToPreviousTrack() },
@@ -684,7 +885,6 @@ fun PlayerScreen(
                         lyricPerspectiveEffect = lyricPerspectiveEffect,
                         lyricPerspectiveYAngle = lyricPerspectiveYAngle,
                         lyricTextAlign = playerLyricTextAlign,
-                        lyricPageVerticalAlignment = playerSettings.lyricPageVerticalAlignment,
                         lyricPalette = palette,
                         isPlaying = isPlaying,
                         playerBackgroundEnabled = playerBackgroundEnabled,
@@ -700,7 +900,11 @@ fun PlayerScreen(
                         playerViewModel = playerViewModel,
                         settingsManager = settingsManager,
                         scope = scope,
-                        openLyricSharePicker = ::openLyricSharePicker,
+                        openLyricSharePicker = if (lyricShareLongPressEnabled) {
+                            ::openLyricSharePicker
+                        } else {
+                            { }
+                        },
                         navigateToArtistOrChoose = ::navigateToArtistOrChoose,
                         onDismissLyrics = onDismissLyrics,
                         enableSwipeDismiss = enableSwipeDismiss,
@@ -753,7 +957,10 @@ fun PlayerScreen(
                     )
                 },
                 playerVisible = playerVisible,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(playerHiddenSystemBarsConsumptionModifier)
+                    .then(playerForegroundSystemBarsModifier)
             )
 
             PlayerLandscapeOverlayHost(
@@ -813,7 +1020,11 @@ fun PlayerScreen(
                 onToggleQueue = { uiState.queueExpanded = !uiState.queueExpanded },
                 onDismissQueue = { uiState.queueExpanded = false },
                 onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
-                onLyricLineLongClick = ::openLyricSharePicker,
+                onLyricLineLongClick = if (lyricShareLongPressEnabled) {
+                    ::openLyricSharePicker
+                } else {
+                    { }
+                },
                 onSeekProgress = { progress ->
                     playerViewModel.seekToProgress(progress, duration)
                 },

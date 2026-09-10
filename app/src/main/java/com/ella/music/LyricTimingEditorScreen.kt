@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ella.music.ui.components.containsWordTiming
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.metadata.AudioTagInfo
@@ -56,7 +58,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.ui.components.EllaMiuixChip
 import com.ella.music.ui.components.EllaMiuixDialog
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.LyricTimingFormat
@@ -70,6 +72,7 @@ import com.ella.music.ui.components.toLyricTimingLines
 import com.ella.music.ui.components.writeLyricTimingSidecar
 import com.ella.music.ui.components.toTimingDisplay
 import com.ella.music.ui.components.withGeneratedWords
+import com.ella.music.ui.player.rubiesForTimedWords
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -162,14 +165,26 @@ internal fun LyricTimingEditorScreen(
     var redoSnapshots by remember(song.path) { mutableStateOf(emptyList<List<LyricTimingLine>>()) }
     var followPlayback by remember(song.path) { mutableStateOf(true) }
     var pendingDeleteTarget by remember(song.path) { mutableStateOf<TimingDeleteTarget?>(null) }
+    var playbackSpeed by remember { mutableStateOf(1.0f) }
     val lyricListState = rememberLazyListState()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            playerViewModel.setPlaybackSpeed(1.0f)
+        }
+    }
 
     LaunchedEffect(sourceLyrics, initialized) {
         if (!initialized && sourceLyrics.isNotEmpty()) {
             timedLines = sourceLyrics.map(LyricLine::toLyricTimingLine)
             lyricText = sourceLyrics.mapNotNull { it.text.takeIf(String::isNotBlank) }.joinToString("\n")
+            timingMode = if (sourceLyrics.containsWordTiming()) {
+                TimingMode.Word
+            } else {
+                TimingMode.Line
+            }
             embedFormat = if (sourceLyrics.any { it.isTtml }) LyricTimingFormat.Ttml
-            else if (sourceLyrics.any { it.words.isNotEmpty() || it.backgroundWords.isNotEmpty() }) LyricTimingFormat.Elrc
+            else if (sourceLyrics.containsWordTiming()) LyricTimingFormat.Elrc
             else LyricTimingFormat.Lrc
             initialized = true
         }
@@ -424,10 +439,13 @@ internal fun LyricTimingEditorScreen(
             }
         }
         val tags = when (embedFormat) {
-            LyricTimingFormat.Ttml -> AudioTagInfo(customTags = mapOf("TTMLLYRIC" to listOf(contentFor(embedFormat))))
+            LyricTimingFormat.Ttml -> AudioTagInfo(
+                lyrics = contentFor(LyricTimingFormat.Lrc),
+                ttmlLyrics = contentFor(embedFormat),
+                customTags = mapOf("TTMLLYRIC" to listOf(contentFor(embedFormat)))
+            )
             else -> AudioTagInfo(
-                lyrics = contentFor(embedFormat),
-                customTags = ttmlTagAliases.associateWith { listOf("") }
+                lyrics = contentFor(embedFormat)
             )
         }
         val result = mainViewModel.writeSongMetadata(song, tags)
@@ -501,10 +519,6 @@ internal fun LyricTimingEditorScreen(
                 }
             }
         )
-        EditorSongInfo(
-            title = song.title.ifBlank { song.fileName },
-            artist = song.artist
-        )
         EditorModeAndFormatBar(
             timingMode = timingMode,
             onTimingModeChange = { timingMode = it },
@@ -518,7 +532,7 @@ internal fun LyricTimingEditorScreen(
             onRedo = ::redo
         )
         if (lines.isEmpty()) {
-            EllaMiuixTextField(
+            TextField(
                 value = lyricText,
                 onValueChange = { lyricText = it; timedLines = emptyList() },
                 label = stringResource(R.string.lyric_timing_editor_text),
@@ -593,6 +607,9 @@ internal fun LyricTimingEditorScreen(
                                     selectedIndex,
                                     selectedWordIndex
                                 )
+                            },
+                            onLineUpdate = { updatedLine ->
+                                updateSelected { updatedLine }
                             }
                         )
                     }
@@ -607,6 +624,16 @@ internal fun LyricTimingEditorScreen(
             timingMode = timingMode,
             lineAvailable = selected != null,
             wordsAvailable = selectedWords.isNotEmpty(),
+            playbackSpeed = playbackSpeed,
+            onToggleSpeed = {
+                val next = when (playbackSpeed) {
+                    1.0f -> 0.75f
+                    0.75f -> 0.5f
+                    else -> 1.0f
+                }
+                playbackSpeed = next
+                playerViewModel.setPlaybackSpeed(next)
+            },
             onTogglePlay = playerViewModel::togglePlayPause,
             onSeekBack = { playerViewModel.seekTo((currentPosition - 2_000L).coerceAtLeast(0L)) },
             onSeekForward = { playerViewModel.seekTo((currentPosition + 2_000L).coerceAtMost(song.duration)) },
@@ -828,7 +855,8 @@ private fun TimingLineEditor(
     onBackgroundStart: () -> Unit,
     onBackgroundEnd: () -> Unit,
     onBackgroundChange: (String) -> Unit,
-    onGenerateWords: () -> Unit
+    onGenerateWords: () -> Unit,
+    onLineUpdate: (LyricTimingLine) -> Unit
 ) {
     Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -837,28 +865,28 @@ private fun TimingLineEditor(
             EllaMiuixChip("v2", line.agent == "v2", { onRoleChange("v2") })
             EllaMiuixChip("v1000", line.agent == "v1000", { onRoleChange("v1000") })
         }
-        EllaMiuixTextField(
+        TextField(
             value = line.agent.orEmpty(),
             onValueChange = { onRoleChange(it.trim().takeIf(String::isNotBlank)) },
             label = stringResource(R.string.lyric_timing_editor_agent),
             singleLine = true,
             modifier = Modifier.padding(top = 8.dp)
         )
-        EllaMiuixTextField(
+        TextField(
             value = line.text,
             onValueChange = onLineChange,
             label = stringResource(R.string.lyric_timing_editor_line_text),
             singleLine = false,
             modifier = Modifier.padding(top = 8.dp)
         )
-        EllaMiuixTextField(
+        TextField(
             value = line.pronunciation.orEmpty(),
             onValueChange = onPronunciationChange,
             label = stringResource(R.string.lyric_timing_editor_pronunciation),
             singleLine = true,
             modifier = Modifier.padding(top = 8.dp)
         )
-        EllaMiuixTextField(
+        TextField(
             value = line.translation.orEmpty(),
             onValueChange = onTranslationChange,
             label = stringResource(R.string.lyric_timing_editor_translation),
@@ -866,7 +894,11 @@ private fun TimingLineEditor(
             modifier = Modifier.padding(top = 8.dp)
         )
         if (timingMode == TimingMode.Word) {
-            val displayWords = line.withGeneratedWords(line.timeMs ?: 0L, line.endMs ?: (line.timeMs ?: 0L) + 3_000L).words
+            val displayLine = line.withGeneratedWords(line.timeMs ?: 0L, line.endMs ?: (line.timeMs ?: 0L) + 3_000L)
+            val displayWords = displayLine.words
+            val rubies = remember(displayWords, line.pronunciationWords, line.pronunciation) {
+                rubiesForTimedWords(displayWords, line.pronunciationWords, line.pronunciation.orEmpty())
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -888,13 +920,53 @@ private fun TimingLineEditor(
             }
             WordTimingGrid(
                 words = displayWords,
+                rubies = rubies,
                 selectedWord = selectedWord,
                 activeWord = activeWord,
                 onSelectWord = onSelectWord,
                 onWordLongClick = onWordLongClick
             )
+            if (selectedWord in displayWords.indices) {
+                val curWord = displayWords[selectedWord]
+                val curRuby = rubies.getOrNull(selectedWord).orEmpty()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextField(
+                        value = curWord.text,
+                        onValueChange = { newText ->
+                            val newWords = displayWords.toMutableList()
+                            newWords[selectedWord] = curWord.copy(text = newText)
+                            val newFullText = newWords.joinToString("") { it.text }
+                            onLineUpdate(line.copy(text = newFullText, words = newWords))
+                        },
+                        label = stringResource(R.string.lyric_timing_editor_selected_word),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextField(
+                        value = curRuby,
+                        onValueChange = { newRuby ->
+                            val updatedRubies = rubies.toMutableList().also {
+                                while (it.size < displayWords.size) it.add("")
+                                it[selectedWord] = newRuby
+                            }
+                            val newPronunciationWords = displayWords.mapIndexedNotNull { i, w ->
+                                val r = updatedRubies.getOrNull(i).orEmpty().trim()
+                                if (r.isNotBlank()) LyricWord(r, w.startMs, w.endMs) else null
+                            }
+                            val newPronunciation = updatedRubies.filter { it.isNotBlank() }.joinToString(" ").takeIf { it.isNotBlank() }
+                            onLineUpdate(line.copy(pronunciationWords = newPronunciationWords, pronunciation = newPronunciation ?: line.pronunciation))
+                        },
+                        label = stringResource(R.string.lyric_timing_editor_selected_pronunciation),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
-        EllaMiuixTextField(
+        TextField(
             value = line.backgroundText.orEmpty(),
             onValueChange = onBackgroundChange,
             label = stringResource(R.string.lyric_timing_editor_background_text),
@@ -913,6 +985,7 @@ private fun TimingLineEditor(
 @Composable
 private fun WordTimingGrid(
     words: List<LyricWord>,
+    rubies: List<String> = emptyList(),
     selectedWord: Int,
     activeWord: Int?,
     onSelectWord: (Int) -> Unit,
@@ -923,6 +996,7 @@ private fun WordTimingGrid(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                 rowWords.forEachIndexed { cell, word ->
                     val index = row * 3 + cell
+                    val ruby = rubies.getOrNull(index)?.trim().orEmpty()
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -941,6 +1015,9 @@ private fun WordTimingGrid(
                             .padding(vertical = 7.dp, horizontal = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        if (ruby.isNotBlank()) {
+                            Text(ruby, color = MiuixTheme.colorScheme.primary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                         Text(word.startMs.toTimingDisplay(), color = Color(0xFF65B978), fontSize = 10.sp)
                         Text(word.text, color = MiuixTheme.colorScheme.onSurface, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(word.endMs.toTimingDisplay(), color = Color(0xFFE06C75), fontSize = 10.sp)
@@ -960,6 +1037,8 @@ private fun TimingTransportBar(
     timingMode: TimingMode,
     lineAvailable: Boolean,
     wordsAvailable: Boolean,
+    playbackSpeed: Float,
+    onToggleSpeed: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
@@ -1001,6 +1080,10 @@ private fun TimingTransportBar(
                 modifier = Modifier.padding(start = 2.dp)
             )
             Spacer(Modifier.weight(1f))
+            EditorTransportTextButton(
+                text = "${if (playbackSpeed == 1.0f) "1.0" else playbackSpeed.toString()}x",
+                onClick = onToggleSpeed
+            )
             IconButton(onClick = onLocatePlayback) {
                 Icon(
                     painter = androidx.compose.ui.res.painterResource(R.drawable.ic_my_location),

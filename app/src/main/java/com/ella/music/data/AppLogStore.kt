@@ -115,6 +115,76 @@ object AppLogStore {
             message = throwable.message ?: throwable.javaClass.name,
             detail = throwable.stackTraceToString()
         )
+        recordCrash(context, threadName, throwable)
+    }
+
+    fun recordCrash(context: Context, threadName: String, throwable: Throwable) {
+        val appContext = context.applicationContext
+        val crashDir = File(appContext.filesDir, "crash_logs").apply { mkdirs() }
+        val now = System.currentTimeMillis()
+        val crashFile = File(crashDir, "crash-$now.log")
+
+        val report = buildString {
+            appendLine("=== Halcyon 闪退崩溃日志 ===")
+            appendLine("时间: ${formatTime(now)}")
+            appendLine("应用版本: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+            appendLine("包名: ${appContext.packageName}")
+            appendLine("设备: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})")
+            appendLine("系统: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+            appendLine("崩溃线程: $threadName")
+            appendLine("异常类型: ${throwable.javaClass.name}")
+            appendLine("异常信息: ${throwable.message ?: "无详细信息"}")
+            appendLine()
+            appendLine("=== 异常堆栈 ===")
+            appendLine(throwable.stackTraceToString())
+            appendLine()
+            appendLine("=== 内存状态 ===")
+            val runtime = Runtime.getRuntime()
+            val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+            val maxMem = runtime.maxMemory() / (1024 * 1024)
+            appendLine("JVM Heap: ${usedMem}MB / ${maxMem}MB")
+            appendLine("Native Heap: ${android.os.Debug.getNativeHeapAllocatedSize() / (1024 * 1024)}MB")
+            appendLine()
+            appendLine("=== 近期系统 Logcat 缓冲 ===")
+            val logcatDump = runCatching { AppLogcatCollector.dumpRaw() }.getOrElse { "读取 Logcat 失败: ${it.message}" }
+            appendLine(logcatDump)
+        }
+
+        runCatching {
+            java.io.FileOutputStream(crashFile).use { fos ->
+                fos.write(report.toByteArray(Charsets.UTF_8))
+                fos.flush()
+                fos.fd.sync()
+            }
+        }
+
+        runCatching {
+            val existing = crashDir.listFiles { file -> file.isFile && file.name.startsWith("crash-") } ?: emptyArray()
+            if (existing.size > 10) {
+                existing.sortedBy { it.lastModified() }
+                    .take(existing.size - 10)
+                    .forEach { it.delete() }
+            }
+        }
+    }
+
+    fun getCrashLogs(context: Context): List<File> {
+        val crashDir = File(context.applicationContext.filesDir, "crash_logs")
+        if (!crashDir.exists()) return emptyList()
+        return crashDir.listFiles { file -> file.isFile && file.name.startsWith("crash-") }
+            ?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
+    }
+
+    fun readCrashLog(file: File): String {
+        return runCatching { file.readText() }.getOrDefault("读取崩溃日志失败")
+    }
+
+    fun clearCrashLogs(context: Context) {
+        val crashDir = File(context.applicationContext.filesDir, "crash_logs")
+        if (crashDir.exists()) {
+            crashDir.listFiles()?.forEach { it.delete() }
+        }
     }
 
     fun network(tag: String, message: String, detail: String? = null, level: String = "WARNING") {

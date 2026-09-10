@@ -8,6 +8,12 @@ import android.media.MediaRouter2
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -16,11 +22,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -31,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.AudioQualitySummary
 import com.ella.music.data.DOLBY_MARK
 import com.ella.music.data.model.formatPlaybackDuration
@@ -40,12 +49,13 @@ import top.yukonga.miuix.kmp.basic.Icon
 @Composable
 internal fun PlayerTransportIconButton(
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
         modifier = Modifier
             .size(56.dp)
-            .playerNoIndicationClick(onClick),
+            .playerNoIndicationClick(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center,
         content = content
     )
@@ -97,14 +107,30 @@ internal fun PlaybackModeIcon(
 internal fun GlowSeekBar(
     value: Float,
     onSeek: (Float) -> Unit,
-    accent: Color,
+    accent: Color = LocalPlayerContentColor.current,
     allowTapSeek: Boolean,
     onPreviewProgressChange: (Float?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val safeProgress = value.coerceIn(0f, 1f)
     var draggingProgress by remember { mutableStateOf<Float?>(null) }
+    var progressPressed by remember { mutableStateOf(false) }
     val displayProgress = draggingProgress ?: safeProgress
+    val isInteracting = progressPressed || draggingProgress != null
+    val trackHeight by animateDpAsState(
+        targetValue = if (isInteracting) 9.5.dp else 4.5.dp,
+        animationSpec = spring(
+            dampingRatio = 0.85f,
+            stiffness = 400f
+        ),
+        label = "GlowSeekBarTrackHeight"
+    )
+    val density = LocalDensity.current
+    val context = LocalContext.current
+    // Same Settings → Lyrics HDR toggle that boosts karaoke / sustained-note highlight.
+    val lyricHdrHighlightEnabled by remember(context) {
+        SettingsManager.getInstance(context).lyricHdrHighlightEnabled
+    }.collectAsState(initial = false)
     val glowArgb = LocalPlayerContentColor.current.toArgb()
     val trackArgb = LocalPlayerContentColor.current.copy(alpha = 0.19f).toArgb()
 
@@ -113,7 +139,7 @@ internal fun GlowSeekBar(
     }
 
     Box(
-        modifier = modifier.height(30.dp)
+        modifier = modifier.height(36.dp)
     ) {
         AndroidView(
             factory = { ctx ->
@@ -129,12 +155,29 @@ internal fun GlowSeekBar(
                 view.glowColor = glowArgb
                 view.trackColor = trackArgb
                 view.fallbackProgressColor = accent.copy(alpha = 0.82f).toArgb()
+                view.trackHeightPx = with(density) { trackHeight.toPx() }
+                view.hdrBoostEnabled = lyricHdrHighlightEnabled
             },
             modifier = Modifier.fillMaxSize()
         )
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        progressPressed = true
+                        try {
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Final)
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                    ?: break
+                            } while (change.pressed)
+                        } finally {
+                            progressPressed = false
+                        }
+                    }
+                }
                 .pointerInput(allowTapSeek) {
                     if (!allowTapSeek) return@pointerInput
                     detectTapGestures { offset ->
@@ -144,15 +187,18 @@ internal fun GlowSeekBar(
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { offset ->
+                            progressPressed = true
                             draggingProgress = progressAt(size.width.toFloat(), offset.x).also(onPreviewProgressChange)
                         },
                         onDragEnd = {
                             draggingProgress?.let(onSeek)
                             draggingProgress = null
+                            progressPressed = false
                             onPreviewProgressChange(null)
                         },
                         onDragCancel = {
                             draggingProgress = null
+                            progressPressed = false
                             onPreviewProgressChange(null)
                         }
                     ) { change, _ ->

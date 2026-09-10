@@ -1,11 +1,16 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.settings
 
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.documentfile.provider.DocumentFile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -16,13 +21,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +48,8 @@ import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
 import com.ella.music.data.lastfm.LAST_FM_WIKI_REGIONS
 import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.ReorderableSelectionItem
+import com.ella.music.ui.components.ReorderableSelectionSheet
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,8 +63,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import sh.calvin.reorderable.ReorderableColumn
-import sh.calvin.reorderable.ReorderableItem
 
 @Composable
 fun CoverMediaSettingsScreen(
@@ -62,16 +70,49 @@ fun CoverMediaSettingsScreen(
     highlightKey: String? = null
 ) {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
-    Column(
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
+        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
+    val shouldReserveStatus = systemBarsReserveSpace || systemBarsMode !in setOf(
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+    )
+    val statusBarHeight = if (shouldReserveStatus) {
+        WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    } else {
+        0.dp
+    }
+    val topBarHeight = 56.dp + statusBarHeight
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberSettingsScrollState("settings_cover_media"))
+                .padding(horizontal = 12.dp)
+        ) {
+            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
+            SettingsArtistCoverSection(highlightKey = highlightKey)
+            SettingsArtistImageSection(highlightKey = highlightKey)
+            SettingsDynamicCoverSection(highlightKey = highlightKey)
+            SettingsMusicVideoSection(highlightKey = highlightKey)
+            Spacer(modifier = Modifier.height(160.dp))
+        }
+
         EllaSmallTopAppBar(
             title = stringResource(R.string.settings_cover_media),
             color = pageBackground,
+            defaultWindowInsetsPadding = shouldReserveStatus,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -81,21 +122,9 @@ fun CoverMediaSettingsScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-            }
+            },
+            modifier = Modifier.align(Alignment.TopCenter)
         )
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberSettingsScrollState("settings_cover_media"))
-                .padding(horizontal = 12.dp)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            SettingsArtistCoverSection(highlightKey = highlightKey)
-            SettingsArtistImageSection(highlightKey = highlightKey)
-            SettingsDynamicCoverSection(highlightKey = highlightKey)
-            SettingsMusicVideoSection(highlightKey = highlightKey)
-            Spacer(modifier = Modifier.height(160.dp))
-        }
     }
 }
 
@@ -143,15 +172,36 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
     val sourceLabels = remember(sourceOptions) { sourceOptions.toMap() }
     val enabledSourceIds = sourceOrderPreference.filter { it in sourceIds }.distinct()
     val disabledSourceIds = sourceIds.filterNot { it in enabledSourceIds }
+    var showArtistSourceSheet by remember { mutableStateOf(false) }
 
     fun saveSourceOrder(next: List<String>) {
         scope.launch { settingsManager.setArtistImageSourceOrder(next) }
     }
 
-    fun moveSource(sourceList: List<String>, fromIndex: Int, toIndex: Int): List<String> {
-        if (fromIndex !in sourceList.indices || toIndex !in sourceList.indices) return sourceList
-        return sourceList.toMutableList().apply {
-            add(toIndex, removeAt(fromIndex))
+    val artistSourceSelectionItems = remember(enabledSourceIds, disabledSourceIds, sourceLabels) {
+        enabledSourceIds.map { id ->
+            ReorderableSelectionItem(
+                id = id,
+                title = sourceLabels[id] ?: id,
+                enabled = true
+            )
+        } + disabledSourceIds.map { id ->
+            ReorderableSelectionItem(
+                id = id,
+                title = sourceLabels[id] ?: id,
+                enabled = false
+            )
+        }
+    }
+    val defaultArtistSourceItems = remember(sourceLabels) {
+        SettingsManager.DEFAULT_ARTIST_IMAGE_SOURCES.mapNotNull { id ->
+            sourceLabels[id]?.let { label ->
+                ReorderableSelectionItem(
+                    id = id,
+                    title = label,
+                    enabled = true
+                )
+            }
         }
     }
 
@@ -188,64 +238,15 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
                     }
                 )
             }
+            val artistSourceSummary = remember(enabledSourceIds, sourceLabels) {
+                enabledSourceIds.mapNotNull { sourceLabels[it] }.joinToString(" · ")
+            }
             SettingsFocusAnchor(active = highlightKey == "artist_image_sources") {
-                Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_artist_image_sources),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_artist_image_sources_summary),
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    if (enabledSourceIds.isNotEmpty()) {
-                        ReorderableColumn(
-                            list = enabledSourceIds,
-                            onSettle = { fromIndex, toIndex ->
-                                saveSourceOrder(moveSource(enabledSourceIds, fromIndex, toIndex))
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { _, sourceId, isDragging ->
-                            val sourceIndex = enabledSourceIds.indexOf(sourceId)
-                            ReorderableItem {
-                                ArtistImageSourceRow(
-                                    label = sourceLabels[sourceId].orEmpty(),
-                                    enabled = true,
-                                    canMoveUp = sourceIndex > 0,
-                                    canMoveDown = sourceIndex < enabledSourceIds.lastIndex,
-                                    isDragging = isDragging,
-                                    onToggle = {
-                                        saveSourceOrder(enabledSourceIds - sourceId)
-                                    },
-                                    onMoveUp = {
-                                        saveSourceOrder(moveSource(enabledSourceIds, sourceIndex, sourceIndex - 1))
-                                    },
-                                    onMoveDown = {
-                                        saveSourceOrder(moveSource(enabledSourceIds, sourceIndex, sourceIndex + 1))
-                                    },
-                                    modifier = Modifier.longPressDraggableHandle()
-                                )
-                            }
-                        }
-                    }
-                    disabledSourceIds.forEach { sourceId ->
-                        ArtistImageSourceRow(
-                            label = sourceLabels[sourceId].orEmpty(),
-                            enabled = false,
-                            canMoveUp = false,
-                            canMoveDown = false,
-                            isDragging = false,
-                            onToggle = { saveSourceOrder(enabledSourceIds + sourceId) },
-                            onMoveUp = {},
-                            onMoveDown = {}
-                        )
-                    }
-                }
+                ArrowPreference(
+                    title = stringResource(R.string.settings_artist_image_sources),
+                    summary = artistSourceSummary.ifBlank { stringResource(R.string.settings_artist_image_sources_summary) },
+                    onClick = { showArtistSourceSheet = true }
+                )
             }
             SettingsFocusAnchor(active = highlightKey == "artist_image_sources") {
                 Column {
@@ -272,77 +273,21 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
             }
         }
     }
-}
-
-@Composable
-private fun ArtistImageSourceRow(
-    label: String,
-    enabled: Boolean,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    isDragging: Boolean,
-    onToggle: () -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                if (isDragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
-            )
-            .padding(horizontal = 16.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = label,
-            fontSize = 15.sp,
-            color = if (enabled) {
-                MiuixTheme.colorScheme.onSurface
-            } else {
-                MiuixTheme.colorScheme.onSurfaceVariantSummary
-            },
-            modifier = Modifier.weight(1f)
-        )
-        if (enabled) {
-            ArtistImageSourceAction(
-                text = "↑",
-                description = stringResource(R.string.settings_artist_image_source_move_up),
-                enabled = canMoveUp,
-                onClick = onMoveUp
-            )
-            ArtistImageSourceAction(
-                text = "↓",
-                description = stringResource(R.string.settings_artist_image_source_move_down),
-                enabled = canMoveDown,
-                onClick = onMoveDown
-            )
+    ReorderableSelectionSheet(
+        show = showArtistSourceSheet,
+        title = stringResource(R.string.settings_artist_image_sources),
+        subtitle = stringResource(R.string.settings_artist_image_sources_summary),
+        items = artistSourceSelectionItems,
+        defaultItems = defaultArtistSourceItems,
+        onDismissRequest = { showArtistSourceSheet = false },
+        onSave = { updated ->
+            saveSourceOrder(updated.filter { it.enabled }.map { it.id })
+            showArtistSourceSheet = false
+        },
+        onReset = {
+            saveSourceOrder(SettingsManager.DEFAULT_ARTIST_IMAGE_SOURCES)
+            showArtistSourceSheet = false
         }
-        Switch(
-            checked = enabled,
-            onCheckedChange = { onToggle() }
-        )
-    }
-}
-
-@Composable
-private fun ArtistImageSourceAction(
-    text: String,
-    description: String,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Text(
-        text = text,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        color = if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
-        modifier = Modifier
-            .size(36.dp)
-            .semantics { contentDescription = description }
-            .clickable(enabled = enabled, onClick = onClick)
     )
 }
 
@@ -352,6 +297,7 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectCachedAsState("artistCoverFolderUri", "")
+    val artistCoverDownloadFolderUri by settingsManager.artistCoverDownloadFolderUri.collectCachedAsState("artistCoverDownloadFolderUri", "")
     val artistCoverCarousel by settingsManager.artistCoverCarousel.collectCachedAsState("artistCoverCarousel", true)
     val coverExportFolderUri by settingsManager.coverExportFolderUri.collectCachedAsState("coverExportFolderUri", "")
     val artistCoverFolderPicker = rememberLauncherForActivityResult(
@@ -365,8 +311,31 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
         }.recoverCatching {
             context.contentResolver.takePersistableUriPermission(uri, readOnly)
         }
+        runCatching {
+            DocumentFile.fromTreeUri(context, uri)?.let { root ->
+                if (root.findFile(".nomedia") == null) {
+                    root.createFile("application/octet-stream", ".nomedia")
+                }
+            }
+        }
         scope.launch { settingsManager.setArtistCoverFolderUri(uri.toString()) }
         Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_saved), Toast.LENGTH_SHORT).show()
+    }
+    val artistCoverDownloadFolderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val readWrite = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, readWrite) }
+        runCatching {
+            DocumentFile.fromTreeUri(context, uri)?.let { root ->
+                if (root.findFile(".nomedia") == null) {
+                    root.createFile("application/octet-stream", ".nomedia")
+                }
+            }
+        }
+        scope.launch { settingsManager.setArtistCoverDownloadFolderUri(uri.toString()) }
+        Toast.makeText(context, context.getString(R.string.settings_artist_cover_download_folder_saved), Toast.LENGTH_SHORT).show()
     }
     val coverExportFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -380,7 +349,7 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
 
     SmallTitle(text = stringResource(R.string.settings_artist_cover_folder))
     SettingsCardGroup(
-        highlight = highlightKey in setOf("artist_cover_folder", "artist_cover_carousel", "cover_export_folder", "cover_media")
+        highlight = highlightKey in setOf("artist_cover_folder", "artist_cover_download_folder", "artist_cover_carousel", "cover_export_folder", "cover_media")
     ) {
         Column {
             ArrowPreference(
@@ -405,6 +374,25 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
                     onClick = {
                         scope.launch { settingsManager.setArtistCoverFolderUri("") }
                         Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_cleared), Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+            ArrowPreference(
+                title = stringResource(R.string.settings_artist_cover_download_folder),
+                summary = if (artistCoverDownloadFolderUri.isBlank()) {
+                    stringResource(R.string.settings_artist_cover_download_folder_summary)
+                } else {
+                    stringResource(R.string.settings_artist_cover_download_folder_selected)
+                },
+                onClick = { artistCoverDownloadFolderPicker.launch(null) }
+            )
+            if (artistCoverDownloadFolderUri.isNotBlank()) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_artist_cover_download_folder_remove),
+                    summary = stringResource(R.string.settings_artist_cover_download_folder_remove_summary),
+                    onClick = {
+                        scope.launch { settingsManager.setArtistCoverDownloadFolderUri("") }
+                        Toast.makeText(context, context.getString(R.string.settings_artist_cover_download_folder_cleared), Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -517,6 +505,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
     val musicVideoLongPressImmersiveLyricsEnabled by settingsManager.musicVideoLongPressImmersiveLyricsEnabled.collectCachedAsState(
         "musicVideoLongPressImmersiveLyricsEnabled",
         SettingsManager.DEFAULT_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED
+    )
+    val musicVideoImmersiveLyricsHideSystemBars by settingsManager.musicVideoImmersiveLyricsHideSystemBars.collectCachedAsState(
+        "musicVideoImmersiveLyricsHideSystemBars",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS
     )
     val playerAlbumCoverCornerRadius by settingsManager.playerAlbumCoverCornerRadius.collectCachedAsState(
         "playerAlbumCoverCornerRadius",
@@ -642,6 +634,14 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                 checked = musicVideoLongPressImmersiveLyricsEnabled,
                 onCheckedChange = {
                     scope.launch { settingsManager.setMusicVideoLongPressImmersiveLyricsEnabled(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_immersive_lyrics_hide_system_bars),
+                summary = stringResource(R.string.settings_music_video_immersive_lyrics_hide_system_bars_summary),
+                checked = musicVideoImmersiveLyricsHideSystemBars,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setMusicVideoImmersiveLyricsHideSystemBars(it) }
                 }
             )
             SettingsIntSliderPreference(

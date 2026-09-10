@@ -16,7 +16,8 @@ internal enum class AlbumDetailSongSortMode(val labelRes: Int) {
     TrackDesc(R.string.album_sort_track),
     TitleDesc(R.string.playlist_song_sort_title),
     FileNameDesc(R.string.playlist_song_sort_file_name),
-    DurationAsc(R.string.playlist_song_sort_duration)
+    DurationAsc(R.string.playlist_song_sort_duration),
+    Random(R.string.common_sort_random)
 }
 
 internal fun AlbumDetailSongSortMode.isDescending(): Boolean = when (this) {
@@ -72,5 +73,28 @@ internal fun List<Song>.sortedForAlbumDetail(mode: AlbumDetailSongSortMode): Lis
         AlbumDetailSongSortMode.DateAddedAsc -> sortedBy { it.dateAdded }
         AlbumDetailSongSortMode.DateModified -> sortedByDescending { it.dateModified }
         AlbumDetailSongSortMode.DateModifiedAsc -> sortedBy { it.dateModified }
+        AlbumDetailSongSortMode.Random -> shuffled(kotlin.random.Random(com.ella.music.ui.LibrarySortUiState.randomSortSeed))
+    }
+}
+
+/**
+ * Pre-navigation hint so AlbumDetail can pick Compact vs Immersive on first frame.
+ * Only set true when a sidecar dynamic cover is confirmed (e.g. song folder has cover.mp4).
+ * Name-index / custom-folder matches are resolved asynchronously after enter — those must
+ * not force immersive until a DynamicCoverSource is actually resolved.
+ */
+internal object AlbumDetailLayoutHint {
+    @Volatile
+    private var pending: Pair<Long, Boolean>? = null
+
+    fun rememberForNavigation(albumId: Long, hasConfirmedDynamicCover: Boolean) {
+        pending = albumId to hasConfirmedDynamicCover
+    }
+
+    fun consume(albumId: Long): Boolean? {
+        val current = pending ?: return null
+        if (current.first != albumId) return null
+        pending = null
+        return current.second
     }
 }

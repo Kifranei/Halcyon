@@ -44,6 +44,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
     }
 
     SmallTitle(text = stringResource(R.string.settings_xiaomi_super_island_display_section))
+    SettingsCardGroup {
 
     val contentLabels = listOf(
         stringResource(R.string.settings_live_update_lyric_original),
@@ -162,8 +163,10 @@ internal fun SettingsXiaomiSuperIslandControls() {
             }
         }
     }
+    }
 
     SmallTitle(text = stringResource(R.string.settings_xiaomi_super_island_notification_section))
+    SettingsCardGroup {
     SwitchPreference(
         title = stringResource(R.string.settings_xiaomi_super_island_progress_color),
         checked = settings.progressColorEnabled,
@@ -181,32 +184,22 @@ internal fun SettingsXiaomiSuperIslandControls() {
         onSelected = { update(settings.copy(actionStyle = it)) }
     )
     if (settings.actionStyle == XiaomiSuperIslandSettings.ACTION_STYLE_MEDIA_CONTROLS) {
-        val notificationStyleLabels = listOf(
-            stringResource(R.string.settings_xiaomi_super_island_style_standard),
-            stringResource(R.string.settings_xiaomi_super_island_style_advanced)
+        val mediaLayoutLabels = listOf(
+            stringResource(R.string.settings_xiaomi_super_island_buttons_two),
+            stringResource(R.string.settings_xiaomi_super_island_buttons_three)
         )
         SuperIslandSpinner(
-            title = stringResource(R.string.settings_xiaomi_super_island_notification_style),
-            summary = stringResource(R.string.settings_xiaomi_super_island_notification_style_summary),
-            labels = notificationStyleLabels,
-            selectedIndex = settings.notificationStyle,
-            onSelected = { update(settings.copy(notificationStyle = it)) }
+            title = stringResource(R.string.settings_xiaomi_super_island_button_layout),
+            summary = stringResource(R.string.settings_xiaomi_super_island_button_layout_summary),
+            labels = mediaLayoutLabels,
+            selectedIndex = settings.mediaButtonLayout,
+            onSelected = { update(settings.copy(mediaButtonLayout = it)) }
         )
-        if (settings.notificationStyle == XiaomiSuperIslandSettings.NOTIFICATION_STYLE_STANDARD) {
-            val mediaLayoutLabels = listOf(
-                stringResource(R.string.settings_xiaomi_super_island_buttons_two),
-                stringResource(R.string.settings_xiaomi_super_island_buttons_three)
-            )
-            SuperIslandSpinner(
-                title = stringResource(R.string.settings_xiaomi_super_island_button_layout),
-                summary = stringResource(R.string.settings_xiaomi_super_island_button_layout_summary),
-                labels = mediaLayoutLabels,
-                selectedIndex = settings.mediaButtonLayout,
-                onSelected = { update(settings.copy(mediaButtonLayout = it)) }
-            )
-        }
     }
+    }
+
     SmallTitle(text = stringResource(R.string.settings_xiaomi_super_island_compat_section))
+    SettingsCardGroup {
     val xmsfLabels = listOf(
         stringResource(R.string.settings_xiaomi_super_island_xmsf_disabled),
         stringResource(R.string.settings_xiaomi_super_island_xmsf_standard),
@@ -258,6 +251,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
         selectedIndex = dismissValues.indexOf(settings.dismissDelayMs).coerceAtLeast(0),
         onSelected = { index -> update(settings.copy(dismissDelayMs = dismissValues[index])) }
     )
+    }
 }
 
 @Composable

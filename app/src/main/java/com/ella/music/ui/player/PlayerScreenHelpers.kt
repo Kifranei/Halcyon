@@ -245,6 +245,81 @@ internal fun setPlayerSystemBars(activity: Activity?, view: View) {
     }
 }
 
+internal data class PlaybackAudioOutputState(
+    val isBluetooth: Boolean = false,
+    val isHeadphones: Boolean = false,
+    val isBluetoothSpeaker: Boolean = false,
+    val deviceName: String? = null
+)
+
+internal val BLUETOOTH_SPEAKER_KEYWORDS = listOf(
+    "音箱",
+    "音响",
+    "音響",
+    "喇叭",
+    "speaker",
+    "soundbox",
+    "soundbar",
+    "subwoofer",
+    "loudspeaker"
+)
+
+internal fun sanitizeAudioDeviceName(name: String): String {
+    var cleaned = name.trim()
+    val prefixes = listOf(
+        "dontapplycevolume",
+        "dontapplyvolume",
+        "applycevolume",
+        "applyvolume"
+    )
+    var changed = true
+    while (changed) {
+        changed = false
+        for (prefix in prefixes) {
+            if (cleaned.startsWith(prefix, ignoreCase = true)) {
+                cleaned = cleaned.substring(prefix.length).trim()
+                changed = true
+            }
+        }
+    }
+    return cleaned
+}
+
+internal fun isBluetoothSpeakerKeyword(name: String?): Boolean {
+    if (name.isNullOrBlank()) return false
+    val sanitized = sanitizeAudioDeviceName(name)
+    val lower = sanitized.lowercase(java.util.Locale.ROOT)
+    return BLUETOOTH_SPEAKER_KEYWORDS.any { lower.contains(it) }
+}
+
+@Composable
+internal fun rememberAudioOutputDeviceState(): PlaybackAudioOutputState {
+    val context = LocalContext.current
+    var state by remember(context) { mutableStateOf(context.currentAudioOutputState()) }
+    DisposableEffect(context) {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        if (audioManager == null) {
+            state = PlaybackAudioOutputState()
+            return@DisposableEffect onDispose {}
+        }
+        state = context.currentAudioOutputState(audioManager)
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                state = context.currentAudioOutputState(audioManager)
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                state = context.currentAudioOutputState(audioManager)
+            }
+        }
+        audioManager.registerAudioDeviceCallback(callback, null)
+        onDispose {
+            audioManager.unregisterAudioDeviceCallback(callback)
+        }
+    }
+    return state
+}
+
 @Composable
 internal fun rememberBluetoothOutputName(): String? {
     val context = LocalContext.current
@@ -316,6 +391,93 @@ private fun Context.currentOutputDisplayName(audioManager: AudioManager?): Strin
     }
 }
 
+private fun Context.currentAudioOutputState(audioManager: AudioManager? = getSystemService(Context.AUDIO_SERVICE) as? AudioManager): PlaybackAudioOutputState {
+    val devices = runCatching {
+        audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS).orEmpty()
+    }.getOrDefault(emptyArray())
+    val bluetooth = devices.firstOrNull(::isBluetoothOutputDevice)
+    val headphones = devices.firstOrNull { device ->
+        device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+    }
+    return when {
+        bluetooth != null -> {
+            val displayName = bluetooth.outputDisplayName(this, R.string.player_output_bluetooth)
+            val isSpeaker = isBluetoothSpeakerDevice(bluetooth, displayName)
+            PlaybackAudioOutputState(
+                isBluetooth = true,
+                isHeadphones = false,
+                isBluetoothSpeaker = isSpeaker,
+                deviceName = displayName
+            )
+        }
+        headphones != null -> PlaybackAudioOutputState(
+            isBluetooth = false,
+            isHeadphones = true,
+            isBluetoothSpeaker = false,
+            deviceName = headphones.outputDisplayName(this, R.string.player_output_headphones)
+        )
+        else -> PlaybackAudioOutputState(
+            isBluetooth = false,
+            isHeadphones = false,
+            isBluetoothSpeaker = false,
+            deviceName = null
+        )
+    }
+}
+
+private fun Context.isBluetoothSpeakerDevice(
+    bluetooth: AudioDeviceInfo,
+    displayName: String?
+): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        bluetooth.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+    ) {
+        return true
+    }
+    if (isBluetoothSpeakerKeyword(displayName) ||
+        isBluetoothSpeakerKeyword(bluetooth.productName?.toString())
+    ) {
+        return true
+    }
+    if (com.ella.music.player.BluetoothAutoPlayReceiver.hasBluetoothConnectPermission(this)) {
+        runCatching {
+            val bm = getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+            @Suppress("DEPRECATION")
+            val adapter = bm?.adapter ?: android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+            if (adapter?.isEnabled == true) {
+                val namesToCheck = listOfNotNull(displayName, bluetooth.productName?.toString())
+                val deviceAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    bluetooth.address.orEmpty()
+                } else {
+                    ""
+                }
+                val bonded = adapter.bondedDevices.orEmpty()
+                for (device in bonded) {
+                    val devName = device.name.orEmpty()
+                    val isAddressMatch = deviceAddress.isNotBlank() &&
+                        deviceAddress.equals(device.address, ignoreCase = true)
+                    val isNameMatch = namesToCheck.any {
+                        it.isNotBlank() && (it.equals(devName, ignoreCase = true) ||
+                            devName.contains(it, ignoreCase = true) ||
+                            it.contains(devName, ignoreCase = true))
+                    }
+                    if (isAddressMatch || isNameMatch) {
+                        val deviceClass = device.bluetoothClass?.deviceClass
+                        val isSpeakerClass = deviceClass == android.bluetooth.BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER ||
+                            deviceClass == android.bluetooth.BluetoothClass.Device.AUDIO_VIDEO_SET_TOP_BOX ||
+                            deviceClass == android.bluetooth.BluetoothClass.Device.AUDIO_VIDEO_HIFI_AUDIO
+                        if (isSpeakerClass || isBluetoothSpeakerKeyword(devName)) {
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false
+}
+
 private fun isBluetoothOutputDevice(device: AudioDeviceInfo): Boolean {
     val type = device.type
     if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
@@ -330,13 +492,62 @@ private fun isBluetoothOutputDevice(device: AudioDeviceInfo): Boolean {
         type == AudioDeviceInfo.TYPE_BLE_BROADCAST
 }
 
-private fun AudioDeviceInfo.outputDisplayName(context: Context, fallbackRes: Int): String =
-    productName
-        ?.toString()
-        ?.trim()
-        ?.takeIf { it.isNotBlank() }
+private fun findBondedBluetoothDeviceName(
+    context: Context,
+    deviceInfo: AudioDeviceInfo,
+    cleanedRawName: String?
+): String? {
+    if (!com.ella.music.player.BluetoothAutoPlayReceiver.hasBluetoothConnectPermission(context)) {
+        return null
+    }
+    return runCatching {
+        val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+        @Suppress("DEPRECATION")
+        val adapter = bm?.adapter ?: android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+        if (adapter?.isEnabled != true) return@runCatching null
+
+        val deviceAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            deviceInfo.address.orEmpty()
+        } else {
+            ""
+        }
+        val bonded = adapter.bondedDevices.orEmpty()
+        if (deviceAddress.isNotBlank()) {
+            val matchByAddress = bonded.firstOrNull { it.address.equals(deviceAddress, ignoreCase = true) }
+            if (matchByAddress != null && !matchByAddress.name.isNullOrBlank()) {
+                return@runCatching sanitizeAudioDeviceName(matchByAddress.name)
+            }
+        }
+        if (!cleanedRawName.isNullOrBlank()) {
+            val matchByName = bonded.firstOrNull { dev ->
+                val name = dev.name.orEmpty()
+                name.isNotBlank() && (name.equals(cleanedRawName, ignoreCase = true) ||
+                    name.contains(cleanedRawName, ignoreCase = true) ||
+                    cleanedRawName.contains(name, ignoreCase = true))
+            }
+            if (matchByName != null && !matchByName.name.isNullOrBlank()) {
+                return@runCatching sanitizeAudioDeviceName(matchByName.name)
+            }
+        }
+        null
+    }.getOrNull()
+}
+
+private fun AudioDeviceInfo.outputDisplayName(context: Context, fallbackRes: Int): String {
+    val rawName = productName?.toString()?.trim()
+    val sanitizedRaw = rawName?.let { sanitizeAudioDeviceName(it) }?.takeIf { it.isNotBlank() }
+    val pairedName = if (isBluetoothOutputDevice(this)) {
+        findBondedBluetoothDeviceName(context, this, sanitizedRaw)
+    } else null
+
+    val resolvedName = pairedName?.takeIf { it.isNotBlank() }
+        ?: sanitizedRaw
+        ?: rawName?.takeIf { it.isNotBlank() }
+
+    return resolvedName
         ?.takeUnless { it.isLikelyLocalDeviceModelName() }
         ?: context.getString(fallbackRes)
+}
 
 private fun String.isLikelyLocalDeviceModelName(): Boolean {
     val normalized = trim()

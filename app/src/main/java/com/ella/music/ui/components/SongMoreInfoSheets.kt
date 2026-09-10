@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,8 +25,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
+import top.yukonga.miuix.kmp.basic.TextField
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -234,10 +240,30 @@ fun SongInfoSheet(
         PlaybackStatsStore.getInstance(context).stats.value.firstOrNull { it.songId == song.id }
     }
     val modifiedLabel = stringResource(R.string.song_more_detail_modified_time)
-    SongSheetColumn {
-        leadingContent()
-        for (fieldId in visibleInfoFields) {
-            when (fieldId) {
+    val mediaInfoIndex = visibleInfoFields.indexOf(ActionMenuIds.SONG_INFO_MEDIA_INFO)
+    val mediaInfoVisible = mediaInfoIndex >= 0
+    val mediaInfoAtStart = mediaInfoVisible && mediaInfoIndex == 0
+    val mediaInfoAtEnd = mediaInfoVisible && mediaInfoIndex == visibleInfoFields.lastIndex
+    EllaMiuixSheetColumn(
+        verticalPadding = 8.dp,
+        spacing = 8.dp,
+        showHandle = false
+    ) {
+        if (mediaInfoAtStart) {
+            EllaMiuixActionMenuGroup {
+                SongMenuItem(stringResource(R.string.song_more_open_media_info), onOpenMediaInfo)
+            }
+        }
+        EllaMiuixActionMenuGroup {
+            leadingContent()
+            for (fieldId in visibleInfoFields) {
+                if (fieldId == ActionMenuIds.SONG_INFO_MEDIA_INFO) {
+                    if (!mediaInfoAtStart && !mediaInfoAtEnd) {
+                        SongMenuItem(stringResource(R.string.song_more_open_media_info), onOpenMediaInfo)
+                    }
+                    continue
+                }
+                when (fieldId) {
                 ActionMenuIds.SONG_INFO_TITLE ->
                     SongInfoRow(stringResource(R.string.player_detail_song), tagInfo?.title?.ifBlank { song.title } ?: song.title)
                 ActionMenuIds.SONG_INFO_ARTIST ->
@@ -330,8 +356,12 @@ fun SongInfoSheet(
                     SongInfoRow(pathLabel, song.path, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Path, song)) })
                 ActionMenuIds.SONG_INFO_DIRECTORY ->
                     SongInfoRow(directoryLabel, directoryValue, onClick = { jumpTo(songInfoJumpRoute(SongInfoJump.Directory, song)) })
-                ActionMenuIds.SONG_INFO_MEDIA_INFO ->
-                    SongMenuItem(stringResource(R.string.song_more_open_media_info), onOpenMediaInfo)
+                }
+            }
+        }
+        if (mediaInfoAtEnd && !mediaInfoAtStart) {
+            EllaMiuixActionMenuGroup {
+                SongMenuItem(stringResource(R.string.song_more_open_media_info), onOpenMediaInfo)
             }
         }
     }
@@ -347,12 +377,14 @@ fun SongInfoSheet(
                 runCatching { modifiedFocus.requestFocus() }
             }
         }
-        EllaMiuixTextField(
+        TextField(
             value = modifiedTimeDraft,
             onValueChange = { modifiedTimeDraft = it },
             label = "yyyy-MM-dd HH:mm:ss",
-            selectAllOnStart = true,
-            focusRequester = modifiedFocus,
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(modifiedFocus),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 imeAction = androidx.compose.ui.text.input.ImeAction.Done
             )
@@ -394,26 +426,70 @@ internal fun SongAiInterpretationSheet(
     mainViewModel: MainViewModel,
     onDismiss: () -> Unit
 ) {
-    val result by produceState<Result<String>?>(initialValue = null, song.id) {
-        value = runCatching { mainViewModel.interpretSongWithOpenAi(song) }
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
+    val aiFailedText = stringResource(R.string.song_more_ai_failed)
+    var requestKey by remember(song.id) { mutableStateOf(0) }
+    var isLoading by remember(song.id) { mutableStateOf(false) }
+    var resultText by remember(song.id) { mutableStateOf("") }
+    var errorText by remember(song.id) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(song.id, requestKey, openAiApiKey) {
+        if (openAiApiKey.isBlank()) {
+            Toast.makeText(context, R.string.library_ai_missing_api_key, Toast.LENGTH_SHORT).show()
+            onDismiss()
+            return@LaunchedEffect
+        }
+        isLoading = true
+        errorText = null
+        resultText = ""
+        runCatching {
+            mainViewModel.interpretSongWithOpenAi(song)
+        }.onSuccess {
+            resultText = it
+        }.onFailure {
+            errorText = it.message ?: aiFailedText
+        }
+        isLoading = false
     }
-    SongSheetColumn {
-        Text(
-            text = when {
-                result == null -> stringResource(R.string.song_more_loading_ai)
-                result?.isSuccess == true -> result?.getOrNull().orEmpty()
-                else -> result?.exceptionOrNull()?.message ?: stringResource(R.string.song_more_ai_failed)
-            },
-            fontSize = 14.sp,
-            lineHeight = 22.sp,
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
-                .padding(horizontal = 16.dp, vertical = 14.dp)
-        )
-        SongMenuItem(stringResource(R.string.common_close), onDismiss)
+
+    EllaMiuixSheetColumn(
+        verticalPadding = 8.dp,
+        spacing = 10.dp,
+        showHandle = false
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 16.dp,
+            colors = CardDefaults.defaultColors(color = ellaOverlayCardColor())
+        ) {
+            val displayText = when {
+                isLoading -> stringResource(R.string.song_more_loading_ai)
+                errorText != null -> errorText.orEmpty()
+                resultText.isNotBlank() -> resultText
+                else -> ""
+            }
+            Text(
+                text = displayText,
+                fontSize = 14.sp,
+                lineHeight = 22.sp,
+                color = MiuixTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+            )
+        }
+        if (errorText != null) {
+            EllaMiuixActionMenuGroup {
+                SongMenuItem(stringResource(R.string.library_retry), onClick = { requestKey++ })
+            }
+        } else if (resultText.isNotBlank()) {
+            EllaMiuixActionMenuGroup {
+                SongMenuItem(stringResource(R.string.library_reinterpret), onClick = { requestKey++ })
+            }
+        }
+        EllaMiuixActionMenuGroup {
+            SongMenuItem(stringResource(R.string.common_close), onDismiss)
+        }
     }
 }
 
@@ -424,7 +500,7 @@ private data class SongInfoNamePicker(
 )
 
 @Composable
-private fun SongInfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
+internal fun SongInfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     if (value.isBlank()) return
     val context = LocalContext.current
     BasicComponent(
@@ -476,7 +552,7 @@ private fun SongInfoActionRow(label: String, value: String, onClick: () -> Unit)
     }
 }
 
-private fun copySongInfoValue(context: Context, label: String, value: String) {
+internal fun copySongInfoValue(context: Context, label: String, value: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
     Toast.makeText(context, context.getString(R.string.song_more_copied, label), Toast.LENGTH_SHORT).show()

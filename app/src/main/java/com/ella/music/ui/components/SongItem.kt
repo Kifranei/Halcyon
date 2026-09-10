@@ -101,9 +101,7 @@ fun SongItem(
     val onlineMusicVideoDescription = stringResource(R.string.online_mv)
     val context = androidx.compose.ui.platform.LocalContext.current
     val televisionDevice = remember(context) {
-        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
-            (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
-            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+        com.ella.music.util.isTelevisionDevice(context)
     }
     val sourceView = LocalView.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }

@@ -68,14 +68,29 @@ internal fun parseTtml(content: String): LrcParser.LrcResult? {
             val bg = p.childrenElements()
                 .firstOrNull { it.hasRole("x-bg") }
                 ?.parseTtmlBackground(end, translations[key])
-            val linePronunciation = p.childrenElements()
+            val inlinePronunciationElement = p.allElements()
                 .firstOrNull { it.hasAnyRole("x-roman", "x-romanization") }
+            val linePronunciation = inlinePronunciationElement
                 ?.textContent
                 ?.cleanLyricSecondaryText()
+            val inlinePronunciationWords = inlinePronunciationElement
+                ?.collectTimedPronunciationWords(end)
             val transliteration = transliterations[key]
             val pronunciationWords = when {
                 transliteration?.words?.isNotEmpty() == true ->
-                    transliteration.words.alignPronunciationWords(displayWords, text)
+                    transliteration.words.alignPronunciationWords(
+                        mainWords = displayWords,
+                        mainText = displayText,
+                        lineStart = start,
+                        lineEnd = end
+                    )
+                inlinePronunciationWords?.isNotEmpty() == true ->
+                    inlinePronunciationWords.alignPronunciationWords(
+                        mainWords = displayWords,
+                        mainText = displayText,
+                        lineStart = start,
+                        lineEnd = end
+                    )
                 rubyPronunciationWords.isNotEmpty() -> rubyPronunciationWords
                 else -> emptyList()
             }
@@ -403,6 +418,35 @@ private fun Element.collectRubyPronunciationWords(fallbackEnd: Long?): List<Lyri
     return result
 }
 
+/**
+ * Some Apple Music TTML providers put timed romanization directly inside an `x-roman` role
+ * span instead of the metadata `transliterations` table.  Keeping those timestamps is
+ * important for CJK lines whose main text is one long span: a plain concatenated romanization
+ * cannot tell which reading belongs below which character.
+ */
+private fun Element.collectTimedPronunciationWords(fallbackEnd: Long?): List<LyricWord> {
+    val timedSpans = allElements()
+        .filter { it.localTagName() == "span" && it.attr("begin").parseTtmlTime() != null }
+        .filter { candidate ->
+            candidate.allElements().drop(1).none { it.attr("begin").parseTtmlTime() != null }
+        }
+    val candidates = if (timedSpans.isNotEmpty()) timedSpans else listOf(this)
+    return candidates.mapNotNull { span ->
+        val value = span.textContent
+            .orEmpty()
+            .cleanLyricSecondaryText()
+            .takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val begin = span.attr("begin").parseTtmlTime() ?: return@mapNotNull null
+        LyricWord(
+            text = value,
+            startMs = begin,
+            endMs = span.attr("end").parseTtmlTime()
+                ?: fallbackEnd
+                ?: begin + estimateDuration(value)
+        )
+    }
+}
+
 private fun Element.parseTtmlBackground(fallbackEnd: Long?, fallbackTranslation: String?): TtmlBackground {
     val words = mutableListOf<LyricWord>()
     val translation = childrenElements()
@@ -415,16 +459,24 @@ private fun Element.parseTtmlBackground(fallbackEnd: Long?, fallbackTranslation:
         .removeBackgroundParentheses()
         .cleanLyricText()
     val cleanedWords = words
-        .map { it.copy(text = it.text.removeBackgroundParentheses()) }
+        .map { word ->
+            val cleaned = word.text.removeBackgroundParentheses()
+            if (cleaned.endsWith('-') && cleaned.length > 1) {
+                word.copy(text = cleaned.dropLast(1).trimEnd() + " - ")
+            } else {
+                word.copy(text = cleaned)
+            }
+        }
         .filter { it.text.isNotBlank() }
     // If the collected text has no spaces but we have multiple words, the spans were
     // likely adjacent without inter-span whitespace. Rebuild the display text by
     // joining the individual word texts with spaces so it renders correctly.
-    val displayText = if (cleanedWords.size > 1 && text.isNotBlank() && !text.hasCjk() && !text.contains(' ')) {
+    val rawDisplayText = if (cleanedWords.size > 1 && text.isNotBlank() && !text.hasCjk() && !text.contains(' ')) {
         cleanedWords.joinToString(" ") { it.text.cleanLyricText() }.cleanLyricText()
     } else {
         text
     }
+    val displayText = rawDisplayText.replace(Regex("""(\S+)-\s*(\S+)"""), "$1 - $2")
     val bgStart = attr("begin").parseTtmlTime() ?: cleanedWords.minOfOrNull { it.startMs }
     val bgEnd = attr("end").parseTtmlTime() ?: cleanedWords.maxOfOrNull { it.endMs } ?: fallbackEnd
     // When x-bg has no inner timed spans but has overall begin/end timing,
@@ -488,44 +540,144 @@ private data class TtmlPronunciation(
     val words: List<LyricWord>
 )
 
+private fun List<LyricWord>.expandSyllableWords(mainText: String): List<LyricWord> {
+    val hasSyllableSpans = any { word ->
+        word.text.trim().contains(' ') && word.text.any { it in 'a'..'z' || it in 'A'..'Z' }
+    }
+    if (!hasSyllableSpans) return this
+
+    return flatMap { word ->
+        val rawTokens = word.text.trim().split(Regex("""\s+""")).filter { it.isNotBlank() }
+        if (rawTokens.size <= 1) return@flatMap listOf(word)
+
+        val duration = (word.endMs - word.startMs).coerceAtLeast(rawTokens.size.toLong())
+        rawTokens.mapIndexed { index, token ->
+            val cleanToken = token.trim { !it.isLetterOrDigit() && it != '\'' }
+            val start = word.startMs + duration * index / rawTokens.size
+            val end = if (index == rawTokens.lastIndex) {
+                word.endMs
+            } else {
+                word.startMs + duration * (index + 1) / rawTokens.size
+            }
+            LyricWord(
+                text = cleanToken.ifBlank { token },
+                startMs = start,
+                endMs = end.coerceAtLeast(start + 1L)
+            )
+        }
+    }
+}
+
 private fun List<LyricWord>.alignPronunciationWords(
     mainWords: List<LyricWord>,
-    mainText: String
+    mainText: String,
+    lineStart: Long? = null,
+    lineEnd: Long? = null
 ): List<LyricWord> {
     if (isEmpty()) return emptyList()
-    if (mainWords.isEmpty()) return this
-
-    if (size == mainWords.size) {
-        return mainWords.mapIndexed { index, word -> word.copy(text = this[index].text) }
+    val expandedWords = expandSyllableWords(mainText)
+    val timedWords = expandedWords.filter { it.endMs > it.startMs }
+    if (timedWords.isEmpty()) {
+        if (mainWords.size == expandedWords.size) {
+            return mainWords.mapIndexed { index, word -> word.copy(text = expandedWords[index].text) }
+        }
+        val kanjiWordIndices = mainWords.mapIndexedNotNull { index, word ->
+            index.takeIf { word.text.any(Char::isKanjiOrHangul) }
+        }
+        if (kanjiWordIndices.size == expandedWords.size) {
+            return kanjiWordIndices.mapIndexed { rubyIndex, wordIndex ->
+                mainWords[wordIndex].copy(text = expandedWords[rubyIndex].text)
+            }
+        }
+        return expandedWords
     }
 
-    // Apple Music TTML only annotates kanji, so there are fewer ruby spans than syllables.
-    // Keep the provider's begin/end so the player can sit each reading on the overlapping word
-    // instead of concatenating かぜ+か into one pile.
-    if (any { it.endMs > it.startMs }) return this
-
-    val kanjiWordIndices = mainWords.mapIndexedNotNull { index, word ->
-        index.takeIf { word.text.any { character -> character.isKanjiChar() } }
+    // When a line has one timing span for the whole phrase, toTtmlDisplayWords intentionally
+    // omits that redundant span. Recreate it as an alignment anchor so each timed reading can
+    // still be projected onto its CJK/Hangul character (the same midpoint mapping used by LunaBeat).
+    val effectiveMainWords = if (mainWords.isEmpty() && timedWords.isNotEmpty() && mainText.isNotBlank()) {
+        val start = lineStart ?: timedWords.minOfOrNull { it.startMs } ?: return expandedWords
+        val end = lineEnd
+            ?: timedWords.maxOfOrNull { it.endMs }
+            ?: (start + estimateDuration(mainText))
+        listOf(LyricWord(mainText, start, end.coerceAtLeast(start + 1L)))
+    } else {
+        mainWords
     }
-    if (kanjiWordIndices.size == size) {
-        return kanjiWordIndices.mapIndexed { rubyIndex, wordIndex ->
-            mainWords[wordIndex].copy(text = this[rubyIndex].text)
+    if (effectiveMainWords.isEmpty()) return expandedWords
+
+    val characterSlots = effectiveMainWords.flatMap { word ->
+        val characters = word.text.toList()
+        if (characters.isEmpty()) return@flatMap emptyList()
+        val duration = (word.endMs - word.startMs).coerceAtLeast(characters.size.toLong())
+        characters.mapIndexedNotNull { index, character ->
+            if (!character.isKanjiOrHangul()) return@mapIndexedNotNull null
+            val slotStart = word.startMs + duration * index / characters.size
+            val slotEnd = if (index == characters.lastIndex) {
+                word.endMs
+            } else {
+                word.startMs + duration * (index + 1) / characters.size
+            }
+            LyricWord(character.toString(), slotStart, slotEnd.coerceAtLeast(slotStart + 1L))
+        }
+    }
+    if (characterSlots.isEmpty()) {
+        return if (mainText.any(Char::isKanjiOrHangul)) expandedWords else emptyList()
+    }
+
+    // Filter out English tokens that match words in mainText
+    val englishTokensInMain = Regex("""[A-Za-z0-9']+""").findAll(mainText)
+        .map { it.value.lowercase() }
+        .toSet()
+    val phoneticWords = timedWords.filter { word ->
+        val clean = word.text.lowercase().trim { !it.isLetterOrDigit() && it != '\'' }
+        clean !in englishTokensInMain
+    }
+
+    if (phoneticWords.size == characterSlots.size) {
+        return characterSlots.mapIndexed { index, slot ->
+            LyricWord(
+                text = phoneticWords[index].text,
+                startMs = slot.startMs,
+                endMs = slot.endMs
+            )
         }
     }
 
-    val kanjiCharCount = mainText.count { it.isKanjiChar() }
-    if (kanjiCharCount == size && mainWords.size == 1) {
-        val word = mainWords.first()
-        val duration = (word.endMs - word.startMs).coerceAtLeast(size * 120L)
-        return mapIndexed { index, ruby ->
-            val start = word.startMs + duration * index / size
-            val end = word.startMs + duration * (index + 1) / size
-            LyricWord(ruby.text, start, end)
+    val used = BooleanArray(characterSlots.size)
+    var lastSlotIndex = -1
+    val mapped = phoneticWords.mapNotNull { pronunciation ->
+        val midpoint = pronunciation.startMs +
+            (pronunciation.endMs - pronunciation.startMs).coerceAtLeast(1L) / 2L
+        val forwardCandidates = characterSlots.indices.filter { index ->
+            !used[index] && index >= lastSlotIndex
         }
+        val candidates = forwardCandidates.ifEmpty {
+            characterSlots.indices.filterNot { used[it] }
+        }
+        val best = candidates.minWithOrNull(
+            compareBy<Int> { index ->
+                if (ttmlRangesOverlap(characterSlots[index], pronunciation)) 0 else 1
+            }.thenBy { index ->
+                abs(
+                    characterSlots[index].startMs +
+                        (characterSlots[index].endMs - characterSlots[index].startMs) / 2L - midpoint
+                )
+            }.thenBy { index -> abs(characterSlots[index].startMs - pronunciation.startMs) }
+        ) ?: return@mapNotNull null
+        used[best] = true
+        lastSlotIndex = best
+        pronunciation.copy(
+            startMs = characterSlots[best].startMs,
+            endMs = characterSlots[best].endMs
+        )
     }
-
-    return this
+    return mapped.takeIf { it.size == phoneticWords.size } ?: expandedWords
 }
+
+
+private fun ttmlRangesOverlap(first: LyricWord, second: LyricWord): Boolean =
+    minOf(first.endMs, second.endMs) > maxOf(first.startMs, second.startMs)
 
 private fun String.parseTtmlTime(): Long? {
     if (isBlank()) return null

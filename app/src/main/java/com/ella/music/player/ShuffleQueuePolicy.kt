@@ -31,6 +31,25 @@ internal fun buildShuffleQueueKeepingCurrent(
     )
 }
 
+/** Builds the next pseudo-shuffle round without repeating the previous round's last song first. */
+internal fun buildShuffleQueueForCycle(
+    sourceOrder: List<Song>,
+    previousLast: Song,
+    seed: Long
+): ShuffleQueuePlan? {
+    if (sourceOrder.size <= 1) return null
+    val occurrences = sourceOrder.mapIndexed { index, song -> index to song }
+        .shuffled(Random(seed))
+    val first = occurrences.firstOrNull { (_, song) ->
+        !song.isSamePlaybackIdentity(previousLast)
+    } ?: return null
+    val queue = buildList {
+        add(first.second)
+        occurrences.filterNot { it.first == first.first }.forEach { add(it.second) }
+    }
+    return ShuffleQueuePlan(queue = queue, currentIndex = 0)
+}
+
 internal fun shouldDeferShuffleReorder(
     enableShuffle: Boolean,
     previousShuffle: Boolean,

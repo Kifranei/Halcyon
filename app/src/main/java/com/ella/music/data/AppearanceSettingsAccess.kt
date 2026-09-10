@@ -10,12 +10,15 @@ import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_JA
 import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_KO
 import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_RU
 import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_SYSTEM
+import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_TR
+import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_AR
 import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_ZH_CN
 import com.ella.music.data.SettingsManager.Companion.APP_LANGUAGE_ZH_TW
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_APP_SHORTCUT_ORDER
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_BOTTOM_DOCK_ITEMS
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_LIBRARY_TILE_ORDER
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_ONLINE_TILE_ORDER
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_CARD_OPACITY
 import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_SECTION_ORDER
 import com.ella.music.data.SettingsManager.Companion.HOME_RECENT_SECTION_MODE_ADDED
 import com.ella.music.data.SettingsManager.Companion.HOME_RECENT_SECTION_MODE_PLAYED
@@ -26,14 +29,18 @@ import com.ella.music.data.SettingsManager.Companion.DEFAULT_STARTUP_POSTER_DURA
 import com.ella.music.data.SettingsManager.Companion.normalizeAppShortcutOrder
 import com.ella.music.data.SettingsManager.Companion.normalizeBottomDockItems
 import com.ella.music.data.SettingsManager.Companion.normalizeBottomDockStartupItem
+import com.ella.music.data.SettingsManager.Companion.visibleBottomDockItems
 import com.ella.music.data.SettingsManager.Companion.STARTUP_POSTER_DURATION_MAX_MS
 import com.ella.music.data.SettingsManager.Companion.STARTUP_POSTER_DURATION_MIN_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_ICON_STYLE
+import com.ella.music.data.SettingsManager.Companion.KEY_WIDGET_SAFE_LAYOUT
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_FONT_SCALE_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_DISPLAY_SCALE_PERCENT
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_LANGUAGE
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_SHORTCUT_ORDER
-import com.ella.music.data.SettingsManager.Companion.KEY_WIDGET_SAFE_LAYOUT
+import com.ella.music.data.SettingsManager.Companion.KEY_BG_EFFECT_VERSION
+import com.ella.music.data.SettingsManager.Companion.KEY_TOP_BAR_BLUR_STYLE
+import com.ella.music.data.SettingsManager.Companion.TOP_BAR_BLUR_OFF
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_CONTENT_OVERLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_DIM
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_ENABLED
@@ -42,6 +49,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_APP_WALLPAPER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_APP_NOW_PLAYING_FLOW_BACKGROUND
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_COVER_CAROUSEL
 import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_COVER_FOLDER_URI
+import com.ella.music.data.SettingsManager.Companion.KEY_ARTIST_COVER_DOWNLOAD_FOLDER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_STYLE
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_GLASS_EFFECT
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_CORNER_RADIUS
@@ -51,6 +59,11 @@ import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_LIQUID_REFRA
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_DOCK_ITEMS
 import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_DOCK_STARTUP_ITEM
+import com.ella.music.data.SettingsManager.Companion.KEY_BOTTOM_DOCK_MERGE_SEARCH
+import com.ella.music.data.SettingsManager.Companion.KEY_CUSTOM_ACCENT_COLOR
+import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TOP_BAR_ACTION_ORDER
+import com.ella.music.data.SettingsManager.Companion.KEY_HOME_HIDDEN_TOP_BAR_ACTIONS
+import com.ella.music.data.SettingsManager.Companion.DEFAULT_HOME_TOP_BAR_ACTION_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_HI_RES_LOGO_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HI_RES_LOGO_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_AI_MIX_VISIBLE
@@ -58,6 +71,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_CONTINUE_PLAYBACK_ROW_V
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_CARD_COLOR
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_CARD_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_DAILY_MIX_VISIBLE
+import com.ella.music.data.SettingsManager.Companion.KEY_HOME_NOSTALGIA_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_FEATURE_WALLPAPER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_HIDDEN_LIBRARY_TILES
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_HIDDEN_ONLINE_TILES
@@ -66,9 +80,6 @@ import com.ella.music.data.SettingsManager.Companion.KEY_HOME_LIBRARY_TILE_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_ONLINE_TILE_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_SECTION_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_RECENT_SECTION_MODE
-import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_COLORS
-import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_GRADIENT_ENABLED
-import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_GRADIENT_START_COLOR
 import com.ella.music.data.SettingsManager.Companion.KEY_HOME_TILE_PIN_BUTTONS_VISIBLE
 import com.ella.music.data.SettingsManager.Companion.KEY_MONET_COLOR_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_SHORTCUT_FOLDER_LABEL
@@ -79,10 +90,8 @@ import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_POSTER_DURATION
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_POSTER_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_POSTER_URI
 import com.ella.music.data.SettingsManager.Companion.KEY_THEME_MODE
-import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.json.JSONObject
 
 /**
  * App-wide appearance and home customisation: theme, language, icon style, bottom dock,
@@ -111,11 +120,18 @@ interface AppearanceSettingsAccess {
     val bottomBarLiquidChromaticAberration: Flow<Int>
     val bottomDockItems: Flow<List<String>>
     val bottomDockStartupItem: Flow<String>
+    val bottomDockMergeSearch: Flow<Boolean>
     val artistCoverFolderUri: Flow<String>
+    val artistCoverDownloadFolderUri: Flow<String>
+    suspend fun setArtistCoverDownloadFolderUri(uri: String)
     val artistCoverCarousel: Flow<Boolean>
     val startupPosterEnabled: Flow<Boolean>
     val startupPosterUri: Flow<String>
     val startupPosterDurationMs: Flow<Int>
+    val bgEffectVersion: Flow<Int>
+    val defaultBgEffectVersion: Int get() = HyperOsDetector.defaultBgEffectVersion()
+    val topBarBlurStyle: Flow<Int>
+    suspend fun setTopBarBlurStyle(style: Int)
     val appWallpaperEnabled: Flow<Boolean>
     val appWallpaperUri: Flow<String>
     val appWallpaperOpacity: Flow<Int>
@@ -124,9 +140,6 @@ interface AppearanceSettingsAccess {
     val appNowPlayingFlowBackground: Flow<Boolean>
     val homeCardColor: Flow<String>
     val homeCardOpacity: Flow<Int>
-    val homeTileColors: Flow<String>
-    val homeTileGradientEnabled: Flow<Boolean>
-    val homeTileGradientStartColor: Flow<String>
     val hiResLogoEnabled: Flow<Boolean>
     val hiResLogoUri: Flow<String>
     val shortcutLibraryLabel: Flow<String>
@@ -135,6 +148,8 @@ interface AppearanceSettingsAccess {
     val appShortcutOrder: Flow<List<String>>
     val settingsSearchHistory: Flow<List<String>>
     val homeDailyMixVisible: Flow<Boolean>
+    val homeNostalgiaEnabled: Flow<Boolean>
+    suspend fun setHomeNostalgiaEnabled(enabled: Boolean)
     val homeFeatureWallpaperUri: Flow<String>
     val homeAiMixVisible: Flow<Boolean>
     val continuePlaybackRowVisible: Flow<Boolean>
@@ -146,6 +161,12 @@ interface AppearanceSettingsAccess {
     val homeOnlineTileOrder: Flow<String>
     val homeHiddenOnlineTiles: Flow<String>
     val homeTilePinButtonsVisible: Flow<Boolean>
+    val customAccentColor: Flow<String>
+    suspend fun setCustomAccentColor(color: String)
+    val homeTopBarActionOrder: Flow<String>
+    val homeHiddenTopBarActions: Flow<String>
+    suspend fun setHomeTopBarActionOrder(order: String)
+    suspend fun setHomeHiddenTopBarActions(actions: String)
     suspend fun setThemeMode(mode: Int)
     suspend fun setMonetColorMode(mode: Int)
     suspend fun setAppLanguage(languageTag: String)
@@ -162,11 +183,13 @@ interface AppearanceSettingsAccess {
     suspend fun setBottomBarLiquidChromaticAberration(percent: Int)
     suspend fun setBottomDockItems(items: List<String>)
     suspend fun setBottomDockStartupItem(itemId: String)
+    suspend fun setBottomDockMergeSearch(enabled: Boolean)
     suspend fun setArtistCoverCarousel(carousel: Boolean)
     suspend fun setArtistCoverFolderUri(uri: String)
     suspend fun setStartupPosterEnabled(enabled: Boolean)
     suspend fun setStartupPosterUri(uri: String)
     suspend fun setStartupPosterDurationMs(durationMs: Int)
+    suspend fun setBgEffectVersion(version: Int)
     suspend fun setAppWallpaperEnabled(enabled: Boolean)
     suspend fun setAppWallpaperUri(uri: String)
     suspend fun setAppWallpaperOpacity(opacity: Int)
@@ -175,9 +198,6 @@ interface AppearanceSettingsAccess {
     suspend fun setAppNowPlayingFlowBackground(enabled: Boolean)
     suspend fun setHomeCardColor(color: String)
     suspend fun setHomeCardOpacity(opacity: Int)
-    suspend fun setHomeTileColor(tileId: String, color: String)
-    suspend fun setHomeTileGradientEnabled(enabled: Boolean)
-    suspend fun setHomeTileGradientStartColor(color: String)
     suspend fun setHiResLogoEnabled(enabled: Boolean)
     suspend fun setHiResLogoUri(uri: String)
     suspend fun setShortcutLibraryLabel(label: String)
@@ -233,20 +253,20 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
             ?: runCatching {
                 when (
                     BottomBarGlassEffect.valueOf(
-                        preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.LiquidGlass.name
+                        preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.Blur.name
                     )
                 ) {
                     BottomBarGlassEffect.Blur -> BottomBarStyle.Floating
                     BottomBarGlassEffect.LiquidGlass -> BottomBarStyle.LiquidGlass
                 }
-            }.getOrDefault(BottomBarStyle.LiquidGlass)
+            }.getOrDefault(BottomBarStyle.Floating)
     }
     override val bottomBarGlassEffect: Flow<BottomBarGlassEffect> = context.dataStore.data.map { preferences ->
         runCatching {
             BottomBarGlassEffect.valueOf(
-                preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.LiquidGlass.name
+                preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.Blur.name
             )
-        }.getOrDefault(BottomBarGlassEffect.LiquidGlass)
+        }.getOrDefault(BottomBarGlassEffect.Blur)
     }
     override val bottomBarCornerRadius: Flow<Int> = context.dataStore.data.map { preferences ->
         (preferences[KEY_BOTTOM_BAR_CORNER_RADIUS]
@@ -288,6 +308,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
                 SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MAX_PERCENT,
             )
     }
+    override val bottomDockMergeSearch: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_BOTTOM_DOCK_MERGE_SEARCH] ?: true }
     override val bottomDockItems: Flow<List<String>> =
         context.dataStore.data.map {
             normalizeBottomDockItems(it[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS)
@@ -296,9 +318,13 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         }
     override val bottomDockStartupItem: Flow<String> =
         context.dataStore.data.map { preferences ->
-            val configuredItems = normalizeBottomDockItems(
-                preferences[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS
-            ).split(',').filter(String::isNotBlank)
+            val mergeSearch = preferences[KEY_BOTTOM_DOCK_MERGE_SEARCH] ?: true
+            val configuredItems = visibleBottomDockItems(
+                normalizeBottomDockItems(
+                    preferences[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS
+                ).split(',').filter(String::isNotBlank),
+                mergeSearch
+            )
             normalizeBottomDockStartupItem(
                 value = preferences[KEY_BOTTOM_DOCK_STARTUP_ITEM],
                 configuredItems = configuredItems
@@ -312,6 +338,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override val artistCoverFolderUri: Flow<String> =
         context.dataStore.data.map { it[KEY_ARTIST_COVER_FOLDER_URI].orEmpty() }
+    override val artistCoverDownloadFolderUri: Flow<String> =
+        context.dataStore.data.map { it[KEY_ARTIST_COVER_DOWNLOAD_FOLDER_URI].orEmpty() }
     // 当某位艺术家有多张封面图时：true=多图轮播，false=随机取一张。
     override val artistCoverCarousel: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_ARTIST_COVER_CAROUSEL] ?: true }
@@ -325,6 +353,10 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
             (it[KEY_STARTUP_POSTER_DURATION_MS] ?: DEFAULT_STARTUP_POSTER_DURATION_MS)
                 .coerceIn(STARTUP_POSTER_DURATION_MIN_MS, STARTUP_POSTER_DURATION_MAX_MS)
         }
+    override val bgEffectVersion: Flow<Int> =
+        context.dataStore.data.map { it[KEY_BG_EFFECT_VERSION] ?: defaultBgEffectVersion }
+    override val topBarBlurStyle: Flow<Int> =
+        context.dataStore.data.map { it[KEY_TOP_BAR_BLUR_STYLE] ?: TOP_BAR_BLUR_OFF }
     override val appWallpaperEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_APP_WALLPAPER_ENABLED] ?: false }
     override val appWallpaperUri: Flow<String> =
@@ -341,13 +373,7 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
     override val homeCardColor: Flow<String> =
         context.dataStore.data.map { it[KEY_HOME_CARD_COLOR] ?: "" }
     override val homeCardOpacity: Flow<Int> =
-        context.dataStore.data.map { it[KEY_HOME_CARD_OPACITY]?.coerceIn(20, 100) ?: 58 }
-    override val homeTileColors: Flow<String> =
-        context.dataStore.data.map { it[KEY_HOME_TILE_COLORS] ?: "" }
-    override val homeTileGradientEnabled: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_HOME_TILE_GRADIENT_ENABLED] ?: false }
-    override val homeTileGradientStartColor: Flow<String> =
-        context.dataStore.data.map { it[KEY_HOME_TILE_GRADIENT_START_COLOR] ?: "" }
+        context.dataStore.data.map { it[KEY_HOME_CARD_OPACITY]?.coerceIn(20, 100) ?: DEFAULT_HOME_CARD_OPACITY }
     override val hiResLogoEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HI_RES_LOGO_ENABLED] ?: false }
     override val hiResLogoUri: Flow<String> =
@@ -368,6 +394,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override val homeDailyMixVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HOME_DAILY_MIX_VISIBLE] ?: true }
+    override val homeNostalgiaEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_HOME_NOSTALGIA_ENABLED] ?: false }
     override val homeFeatureWallpaperUri: Flow<String> =
         context.dataStore.data.map { it[KEY_HOME_FEATURE_WALLPAPER_URI] ?: "" }
     override val homeAiMixVisible: Flow<Boolean> =
@@ -380,7 +408,9 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
                 .coerceIn(HOME_RECENT_SECTION_MODE_PLAYED, HOME_RECENT_SECTION_MODE_ADDED)
         }
     override val homeSectionOrder: Flow<String> =
-        context.dataStore.data.map { it[KEY_HOME_SECTION_ORDER] ?: DEFAULT_HOME_SECTION_ORDER }
+        context.dataStore.data.map {
+            it[KEY_HOME_SECTION_ORDER] ?: DEFAULT_HOME_SECTION_ORDER
+        }
     override val homeHiddenSections: Flow<String> =
         context.dataStore.data.map { it[KEY_HOME_HIDDEN_SECTIONS] ?: "" }
     override val homeLibraryTileOrder: Flow<String> =
@@ -393,6 +423,24 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         context.dataStore.data.map { it[KEY_HOME_HIDDEN_ONLINE_TILES] ?: "" }
     override val homeTilePinButtonsVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HOME_TILE_PIN_BUTTONS_VISIBLE] ?: false }
+    override val customAccentColor: Flow<String> =
+        context.dataStore.data.map { it[KEY_CUSTOM_ACCENT_COLOR] ?: "" }
+    override val homeTopBarActionOrder: Flow<String> =
+        context.dataStore.data.map { it[KEY_HOME_TOP_BAR_ACTION_ORDER] ?: DEFAULT_HOME_TOP_BAR_ACTION_ORDER }
+    override val homeHiddenTopBarActions: Flow<String> =
+        context.dataStore.data.map { it[KEY_HOME_HIDDEN_TOP_BAR_ACTIONS] ?: "" }
+
+    override suspend fun setCustomAccentColor(color: String) {
+        context.dataStore.edit { it[KEY_CUSTOM_ACCENT_COLOR] = color }
+    }
+
+    override suspend fun setHomeTopBarActionOrder(order: String) {
+        context.dataStore.edit { it[KEY_HOME_TOP_BAR_ACTION_ORDER] = order }
+    }
+
+    override suspend fun setHomeHiddenTopBarActions(actions: String) {
+        context.dataStore.edit { it[KEY_HOME_HIDDEN_TOP_BAR_ACTIONS] = actions }
+    }
 
     override suspend fun setThemeMode(mode: Int) {
         context.dataStore.edit { it[KEY_THEME_MODE] = mode }
@@ -412,6 +460,8 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
             APP_LANGUAGE_DE -> APP_LANGUAGE_DE
             APP_LANGUAGE_FR -> APP_LANGUAGE_FR
             APP_LANGUAGE_RU -> APP_LANGUAGE_RU
+            APP_LANGUAGE_TR -> APP_LANGUAGE_TR
+            APP_LANGUAGE_AR -> APP_LANGUAGE_AR
             else -> APP_LANGUAGE_SYSTEM
         }
         context.dataStore.edit { it[KEY_APP_LANGUAGE] = normalized }
@@ -509,6 +559,23 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         }
     }
 
+    override suspend fun setBottomDockMergeSearch(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_BOTTOM_DOCK_MERGE_SEARCH] = enabled
+            if (enabled) {
+                val current = normalizeBottomDockItems(
+                    preferences[KEY_BOTTOM_DOCK_ITEMS] ?: DEFAULT_BOTTOM_DOCK_ITEMS
+                ).split(',').filter(String::isNotBlank)
+                if (SettingsManager.BOTTOM_DOCK_ITEM_SEARCH !in current &&
+                    current.size < SettingsManager.MAX_BOTTOM_DOCK_ITEMS_WITH_SEARCH
+                ) {
+                    preferences[KEY_BOTTOM_DOCK_ITEMS] =
+                        (current + SettingsManager.BOTTOM_DOCK_ITEM_SEARCH).joinToString(",")
+                }
+            }
+        }
+    }
+
     override suspend fun setBottomDockItems(items: List<String>) {
         context.dataStore.edit { preferences ->
             val normalizedItems = normalizeBottomDockItems(items.joinToString(","))
@@ -547,6 +614,17 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         }
     }
 
+    override suspend fun setArtistCoverDownloadFolderUri(uri: String) {
+        context.dataStore.edit { prefs ->
+            val safeUri = uri.trim()
+            if (safeUri.isBlank()) {
+                prefs.remove(KEY_ARTIST_COVER_DOWNLOAD_FOLDER_URI)
+            } else {
+                prefs[KEY_ARTIST_COVER_DOWNLOAD_FOLDER_URI] = safeUri
+            }
+        }
+    }
+
     override suspend fun setStartupPosterEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_STARTUP_POSTER_ENABLED] = enabled }
     }
@@ -565,6 +643,14 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
                 STARTUP_POSTER_DURATION_MAX_MS
             )
         }
+    }
+
+    override suspend fun setBgEffectVersion(version: Int) {
+        context.dataStore.edit { it[KEY_BG_EFFECT_VERSION] = version.coerceIn(0, 2) }
+    }
+
+    override suspend fun setTopBarBlurStyle(style: Int) {
+        context.dataStore.edit { it[KEY_TOP_BAR_BLUR_STYLE] = style.coerceIn(0, 2) }
     }
 
     override suspend fun setAppWallpaperEnabled(enabled: Boolean) {
@@ -603,27 +689,6 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setHomeCardOpacity(opacity: Int) {
         context.dataStore.edit { it[KEY_HOME_CARD_OPACITY] = opacity.coerceIn(20, 100) }
-    }
-
-    override suspend fun setHomeTileColor(tileId: String, color: String) {
-        val safeId = tileId.trim().lowercase(Locale.ROOT).takeIf { it.matches(Regex("""[a-z0-9_]+""")) } ?: return
-        val safeColor = color.trim().takeIf { it.isBlank() || it.matches(Regex("""#[0-9A-Fa-f]{8}""")) } ?: return
-        context.dataStore.edit { prefs ->
-            val json = runCatching { JSONObject(prefs[KEY_HOME_TILE_COLORS].orEmpty()) }.getOrElse { JSONObject() }
-            if (safeColor.isBlank()) json.remove(safeId) else json.put(safeId, safeColor.uppercase(Locale.ROOT))
-            if (json.length() == 0) prefs.remove(KEY_HOME_TILE_COLORS) else prefs[KEY_HOME_TILE_COLORS] = json.toString()
-        }
-    }
-
-    override suspend fun setHomeTileGradientEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_HOME_TILE_GRADIENT_ENABLED] = enabled }
-    }
-
-    override suspend fun setHomeTileGradientStartColor(color: String) {
-        context.dataStore.edit {
-            val safeColor = color.trim()
-            if (safeColor.isBlank()) it.remove(KEY_HOME_TILE_GRADIENT_START_COLOR) else it[KEY_HOME_TILE_GRADIENT_START_COLOR] = safeColor
-        }
     }
 
     override suspend fun setHiResLogoEnabled(enabled: Boolean) {
@@ -685,6 +750,10 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setHomeDailyMixVisible(visible: Boolean) {
         context.dataStore.edit { it[KEY_HOME_DAILY_MIX_VISIBLE] = visible }
+    }
+
+    override suspend fun setHomeNostalgiaEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_HOME_NOSTALGIA_ENABLED] = enabled }
     }
 
     override suspend fun setHomeFeatureWallpaperUri(uri: String) {

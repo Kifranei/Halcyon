@@ -56,8 +56,11 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.ExplicitSongTitle
+import com.ella.music.ui.components.AudioQualityListBadge
 import com.ella.music.ui.components.SongRatingIndicator
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.data.audioQualitySummary
+import com.ella.music.data.model.AudioInfo
 import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -68,11 +71,12 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.AddFolder
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Unlock
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private data class QueueEntry(
+internal data class QueueEntry(
     val stableKey: String,
     val song: Song
 )
@@ -92,7 +96,7 @@ internal fun resolveQueueMoveCommit(
     return QueueMoveCommit(fromIndex, toIndex)
 }
 
-private fun buildQueueEntries(items: List<Song>): List<QueueEntry> {
+internal fun buildQueueEntries(items: List<Song>): List<QueueEntry> {
     val occurrenceByIdentity = linkedMapOf<String, Int>()
     return items.map { song ->
         val identity = song.playlistIdentityKey()
@@ -163,6 +167,13 @@ internal fun PlayerQueueMenu(
     val queueToolbarLayout by settingsManager.queueToolbarLayout.collectAsState(initial = "")
     val ratingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
         initial = com.ella.music.data.SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
+    )
+    val listQualityMode by settingsManager.listQualityDisplayMode.collectAsState(
+        initial = com.ella.music.data.SettingsManager.LIST_QUALITY_DISPLAY_TABLET
+    )
+    val showQueueQuality = com.ella.music.data.SettingsManager.shouldShowListQuality(
+        listQualityMode,
+        queueContext.resources.configuration.smallestScreenWidthDp
     )
     val queueActions = remember(queueToolbarLayout) {
         com.ella.music.data.ActionMenuLayout.parse(
@@ -371,7 +382,7 @@ internal fun PlayerQueueMenu(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_delete),
+                                    imageVector = MiuixIcons.Regular.Delete,
                                     contentDescription = stringResource(R.string.player_clear_queue),
                                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     modifier = Modifier.size(22.dp)
@@ -437,6 +448,20 @@ internal fun PlayerQueueMenu(
                                 loadSongRating(queueSong).coerceIn(0, 5)
                             }
                         }
+                        val audioInfo by androidx.compose.runtime.produceState<AudioInfo?>(
+                            initialValue = null,
+                            queueSong.id,
+                            showQueueQuality
+                        ) {
+                            value = if (!showQueueQuality) {
+                                null
+                            } else {
+                                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    MusicRepository.getInstance(queueContext).getAudioInfo(queueSong)
+                                }
+                            }
+                        }
+                        val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -482,23 +507,28 @@ internal fun PlayerQueueMenu(
                                         Spacer(modifier = Modifier.width(5.dp))
                                         SongRatingIndicator(
                                             rating = rating,
-                                            displayMode = ratingDisplayMode,
-                                            iconSize = 13.dp,
-                                            numberSize = 11.sp
+                                            displayMode = ratingDisplayMode
                                         )
                                     }
                                 }
-                                Text(
-                                    text = listOf(queueSong.artist, queueSong.album)
-                                        .map { it.trim() }
-                                        .filter { it.isNotBlank() }
-                                        .joinToString(" · ")
-                                        .ifBlank { queueSong.artist },
-                                    fontSize = 11.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (qualityTag != null) {
+                                        AudioQualityListBadge(qualityTag)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = listOf(queueSong.artist, queueSong.album)
+                                            .map { it.trim() }
+                                            .filter { it.isNotBlank() }
+                                            .joinToString(" · ")
+                                            .ifBlank { queueSong.artist },
+                                        fontSize = 11.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                             if (rowCanNavigate) {
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -616,9 +646,10 @@ private object LongPressDragHandleGestureDetector : DragGestureDetector {
 }
 
 @Composable
-private fun QueueAlbumArtView(
+internal fun QueueAlbumArtView(
     song: Song,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    overrideModel: Any? = null
 ) {
     val context = LocalContext.current
     val repository = remember(context) { MusicRepository.getInstance(context) }
@@ -629,7 +660,7 @@ private fun QueueAlbumArtView(
         loadCoverArt = { target -> repository.getCoverArtBitmap(target, 512, CoverUsage.Player) },
         usage = ArtworkUsage.ListThumbnail
     )
-    val model = artworkState.model
+    val model = overrideModel ?: artworkState.model
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))

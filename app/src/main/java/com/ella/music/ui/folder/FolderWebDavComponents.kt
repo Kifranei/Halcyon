@@ -1,9 +1,13 @@
 package com.ella.music.ui.folder
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,18 +24,24 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.data.webdav.WebDavItem
+import com.ella.music.data.webdav.WebDavHeader
 import com.ella.music.ui.components.EllaMiuixAction
 import com.ella.music.ui.components.EllaMiuixActionRow
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.wallpaperAwareCardColors
+import com.ella.music.ui.components.LocalSettingsCardFrosting
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -45,16 +55,19 @@ internal fun WebDavItemRow(
     onAddToQueue: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
+    val frosting = LocalSettingsCardFrosting.current
+    val baseModifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp, vertical = 4.dp)
+        .combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+    val cardModifier = frostedCardModifier(modifier = baseModifier, cornerRadius = 16.dp, frosting = frosting)
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+        modifier = cardModifier,
         cornerRadius = 16.dp,
-        colors = wallpaperAwareCardColors(defaultAlpha = 0.50f)
+        colors = CardDefaults.defaultColors(color = frostedCardColor(frosting = frosting, defaultAlpha = 0.42f))
     ) {
         Row(
             modifier = Modifier
@@ -110,9 +123,11 @@ internal fun WebDavSettingsDialog(
     url: String,
     username: String,
     password: String,
+    customHeaders: List<WebDavHeader>,
     onUrlChange: (String) -> Unit,
     onUsernameChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
+    onCustomHeadersChange: (List<WebDavHeader>) -> Unit,
     testStatus: String?,
     onDismiss: () -> Unit,
     onTest: () -> Unit,
@@ -128,20 +143,89 @@ internal fun WebDavSettingsDialog(
             modifier = Modifier.padding(bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            WebDavTextField(stringResource(R.string.webdav_url), url, onUrlChange)
-            WebDavTextField(stringResource(R.string.webdav_username), username, onUsernameChange)
-            WebDavTextField(
-                label = stringResource(R.string.webdav_password),
-                value = password,
-                onValueChange = onPasswordChange,
-                visualTransformation = PasswordVisualTransformation()
-            )
-            if (!testStatus.isNullOrBlank()) {
-                Text(
-                    text = testStatus,
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.primary
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                WebDavTextField(stringResource(R.string.webdav_url), url, onUrlChange)
+                WebDavTextField(stringResource(R.string.webdav_username), username, onUsernameChange)
+                WebDavTextField(
+                    label = stringResource(R.string.webdav_password),
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    visualTransformation = PasswordVisualTransformation()
                 )
+                Text(
+                    text = stringResource(R.string.webdav_custom_headers),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.webdav_custom_headers_hint),
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+                customHeaders.forEachIndexed { index, header ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        WebDavTextField(
+                            label = stringResource(R.string.webdav_header_name),
+                            value = header.name,
+                            onValueChange = { name ->
+                                onCustomHeadersChange(
+                                    customHeaders.toMutableList().also {
+                                        it[index] = header.copy(name = name)
+                                    }
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        WebDavTextField(
+                            label = stringResource(R.string.webdav_header_value),
+                            value = header.value,
+                            onValueChange = { value ->
+                                onCustomHeadersChange(
+                                    customHeaders.toMutableList().also {
+                                        it[index] = header.copy(value = value)
+                                    }
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = {
+                                onCustomHeadersChange(customHeaders.filterIndexed { i, _ -> i != index })
+                            }
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Delete,
+                                contentDescription = stringResource(R.string.common_delete),
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+                EllaMiuixListLikeAddHeaderButton(
+                    text = stringResource(R.string.webdav_add_header),
+                    onClick = {
+                        onCustomHeadersChange(customHeaders + WebDavHeader(name = "User-Agent", value = ""))
+                    }
+                )
+                if (!testStatus.isNullOrBlank()) {
+                    Text(
+                        text = testStatus,
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.primary
+                    )
+                }
             }
             EllaMiuixActionRow(
                 actions = listOf(
@@ -157,18 +241,48 @@ internal fun WebDavSettingsDialog(
 }
 
 @Composable
+private fun EllaMiuixListLikeAddHeaderButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = MiuixIcons.Regular.Add,
+            contentDescription = text,
+            tint = MiuixTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp)
+        )
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            color = MiuixTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
 internal fun WebDavTextField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    visualTransformation: VisualTransformation = VisualTransformation.None
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    modifier: Modifier = Modifier.fillMaxWidth()
 ) {
-    EllaMiuixTextField(
+    TextField(
         value = value,
         onValueChange = onValueChange,
         label = label,
+        singleLine = true,
         visualTransformation = visualTransformation,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
     )
 }
 

@@ -6,16 +6,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Canvas
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import android.widget.RemoteViews
 import androidx.compose.ui.graphics.toArgb
 import com.ella.music.MainActivity
 import com.ella.music.R
@@ -27,8 +23,6 @@ import com.ella.music.ui.navigation.EXTRA_SHORTCUT_ROUTE
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.player.PlayerPalette
 import com.xzakota.hyper.notification.focus.FocusNotification
-import com.xzakota.hyper.notification.focus.template.CustomFocusTemplate
-import com.xzakota.hyper.notification.focus.template.CustomFocusTemplateV3
 import com.xzakota.hyper.notification.island.model.BigIslandArea
 import com.xzakota.hyper.notification.island.model.TextInfo
 import kotlinx.coroutines.CancellationException
@@ -41,7 +35,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 /** Publishes Xiaomi HyperOS Super Island lyrics without coupling them to Android Live Update. */
 internal class XiaomiSuperIslandLyricBridge(
@@ -110,9 +103,7 @@ internal class XiaomiSuperIslandLyricBridge(
         val avatar: Icon,
         val island: Icon,
         val smallIsland: Icon,
-        val share: Icon,
-        val expandBitmap: Bitmap,
-        val tinyBitmap: Bitmap
+        val share: Icon
     )
 
     private var artworkResources: ArtworkResources? = null
@@ -127,9 +118,7 @@ internal class XiaomiSuperIslandLyricBridge(
             avatar = Icon.createWithBitmap(scaleArtwork(artwork, 480)),
             island = Icon.createWithBitmap(scaleArtwork(artwork, 120)),
             smallIsland = Icon.createWithBitmap(scaleArtwork(artwork, 88)),
-            share = Icon.createWithBitmap(scaleArtwork(artwork, 224)),
-            expandBitmap = scaleArtwork(artwork, 116),
-            tinyBitmap = scaleArtwork(artwork, 64)
+            share = Icon.createWithBitmap(scaleArtwork(artwork, 224))
         )
         artworkResources = resources
         return resources
@@ -414,8 +403,7 @@ internal class XiaomiSuperIslandLyricBridge(
             if (activeSettings.actionStyle == XiaomiSuperIslandSettings.ACTION_STYLE_MEDIA_CONTROLS) {
                 actions {
                     val useThreeButtons =
-                        activeSettings.notificationStyle == XiaomiSuperIslandSettings.NOTIFICATION_STYLE_ADVANCED ||
-                            activeSettings.mediaButtonLayout == XiaomiSuperIslandSettings.MEDIA_BUTTON_LAYOUT_THREE
+                        activeSettings.mediaButtonLayout == XiaomiSuperIslandSettings.MEDIA_BUTTON_LAYOUT_THREE
                     if (useThreeButtons) {
                         addActionInfo {
                             type = 0
@@ -517,34 +505,11 @@ internal class XiaomiSuperIslandLyricBridge(
                 }
             }
         }
-        // HyperOS accepts the standard Focus payload for lyric-only and progress layouts.
-        // Custom Focus is reserved for the explicit advanced media-controls configuration;
-        // treating every non-control state as custom causes the system to reject the package.
-        val useAdvancedFocus = activeSettings.notificationStyle == XiaomiSuperIslandSettings.NOTIFICATION_STYLE_ADVANCED &&
-            activeSettings.actionStyle == XiaomiSuperIslandSettings.ACTION_STYLE_MEDIA_CONTROLS
-        val notificationExtras = if (useAdvancedFocus) {
-            buildAdvancedFocusExtras(
-                song = song,
-                displayLyric = displayLyric,
-                fullLyric = fullLyric,
-                subText = subText,
-                progressPercent = progressPercent,
-                accentColor = accentColor,
-                artwork = artwork,
-                activeSettings = activeSettings,
-                standardExtras = focusExtras
-            )
-        } else {
-            focusExtras
-        }
+        val notificationExtras = focusExtras
         if (!actionBundle.isEmpty) {
             notificationExtras.putBundle("miui.focus.actions", actionBundle)
         }
-        Log.d(
-            TAG,
-            "Publishing Super Island lyric advanced=$useAdvancedFocus " +
-                "text=${displayLyric.take(48)}"
-        )
+        Log.d(TAG, "Publishing Super Island lyric text=${displayLyric.take(48)}")
 
         val builder = Notification.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_music_note)
@@ -567,243 +532,6 @@ internal class XiaomiSuperIslandLyricBridge(
         return builder.build()
     }
 
-    /**
-     * FocusNotification's standard compact island API can only draw an image and a progress
-     * strip. HyperOS renders it as the cover-plus-waveform card seen in the original report.
-     * The custom Focus template is the supported path for a lyric-bearing compact island.
-     */
-    private fun buildAdvancedFocusExtras(
-        song: Song,
-        displayLyric: String,
-        fullLyric: String,
-        subText: String,
-        progressPercent: Int,
-        accentColor: Int,
-        artwork: Bitmap?,
-        activeSettings: XiaomiSuperIslandSettings,
-        standardExtras: Bundle
-    ): Bundle {
-        val trackTitle = song.title.ifBlank { song.fileName }.ifBlank { "♪" }
-        val hexColor = String.format("#FF%06X", 0xFFFFFF and accentColor)
-        val progressColor = if (activeSettings.progressColorEnabled) hexColor else "#FF757575"
-        val cachedArtwork = cachedArtworkResources(artwork)
-        val customExtras = FocusNotification.buildCustomV3 {
-            business = "lyric_display"
-            isShowNotification = true
-            enableFloat = false
-            updatable = true
-            islandFirstFloat = false
-            hideDeco = true
-            aodTitle = displayLyric.take(20).ifBlank { "♪" }
-
-            val avatarKey = cachedArtwork?.avatar?.let { createPicture("miui.focus.pic_avatar", it) }
-            val islandKey = cachedArtwork?.island?.let { createPicture("miui.focus.pic_island", it) }
-            val smallIslandKey = cachedArtwork?.smallIsland?.let { createPicture("miui.land.pic_island", it) }
-            val shareKey = cachedArtwork?.share?.let { createPicture("miui.focus.pic_share", it) }
-            val appKey = createPicture(
-                "miui.focus.pic_app",
-                appIcon
-            )
-
-            ticker = displayLyric.ifBlank { fullLyric.ifBlank { trackTitle } }
-            tickerPic = appKey
-            val customLightViews = createAdvancedExpandViews(
-                lyric = displayLyric,
-                subText = subText,
-                progressPercent = progressPercent,
-                accentColor = accentColor,
-                artwork = cachedArtwork?.expandBitmap ?: artwork,
-                darkMode = false,
-                showControls = activeSettings.actionStyle == XiaomiSuperIslandSettings.ACTION_STYLE_MEDIA_CONTROLS
-            )
-            val customDarkViews = createAdvancedExpandViews(
-                lyric = displayLyric,
-                subText = subText,
-                progressPercent = progressPercent,
-                accentColor = accentColor,
-                artwork = cachedArtwork?.expandBitmap ?: artwork,
-                darkMode = true,
-                showControls = activeSettings.actionStyle == XiaomiSuperIslandSettings.ACTION_STYLE_MEDIA_CONTROLS
-            )
-            val tinyViews = createAdvancedTinyViews(
-                lyric = displayLyric,
-                subText = subText,
-                progressPercent = progressPercent,
-                accentColor = accentColor,
-                artwork = cachedArtwork?.tinyBitmap ?: artwork
-            )
-            createRemoteViews(CustomFocusTemplate.LAYOUT, customLightViews)
-            createRemoteViews(CustomFocusTemplate.LAYOUT_NIGHT, customDarkViews)
-            createRemoteViews(CustomFocusTemplate.LAYOUT_FLIP_TINY, tinyViews)
-            createRemoteViews(CustomFocusTemplate.LAYOUT_FLIP_TINY_NIGHT, tinyViews)
-            createRemoteViews(CustomFocusTemplateV3.LAYOUT_ISLAND_EXPAND, customDarkViews)
-
-            island {
-                islandProperty = 1
-                if (activeSettings.textColorEnabled) highlightColor = hexColor
-                bigIslandArea {
-                    applyLyrics(
-                        settings = activeSettings,
-                        displayLyric = displayLyric,
-                        fullLyric = fullLyric,
-                        song = song,
-                        islandKey = islandKey,
-                        showHighlightColor = activeSettings.textColorEnabled
-                    )
-                }
-                if (activeSettings.shareEnabled) {
-                    shareData {
-                        pic = shareKey
-                        title = trackTitle
-                        content = fullLyric
-                        this.shareContent = this@XiaomiSuperIslandLyricBridge.shareContent(
-                            song,
-                            fullLyric,
-                            activeSettings.shareFormat
-                        )
-                    }
-                }
-                smallIslandArea {
-                    combinePicInfo {
-                        if (smallIslandKey != null) {
-                            picInfo {
-                                type = 1
-                                pic = smallIslandKey
-                            }
-                        }
-                        progressInfo {
-                            progress = progressPercent
-                            colorReach = progressColor
-                            colorUnReach = "#333333"
-                        }
-                    }
-                }
-            }
-        }
-        return mergeCustomFocusWithStandardIsland(customExtras, standardExtras)
-    }
-
-    private fun createAdvancedTinyViews(
-        lyric: String,
-        subText: String,
-        progressPercent: Int,
-        accentColor: Int,
-        artwork: Bitmap?
-    ): RemoteViews {
-        return RemoteViews(appContext.packageName, R.layout.super_island_custom_tiny).apply {
-            setTextViewText(R.id.super_island_tiny_lyric, lyric.ifBlank { "♪" })
-            setTextViewText(R.id.super_island_tiny_subtitle, subText)
-            setTextColor(R.id.super_island_tiny_lyric, Color.WHITE)
-            setTextColor(R.id.super_island_tiny_subtitle, Color.argb(180, 255, 255, 255))
-            setImageViewBitmap(R.id.super_island_tiny_progress, createProgressBitmap(44, 4, progressPercent, accentColor, true))
-            applyArtwork(R.id.super_island_tiny_cover, artwork, 64)
-            setOnClickPendingIntent(R.id.super_island_tiny_lyric, createContentIntent(XiaomiSuperIslandSettings.CLICK_STYLE_OPEN_APP))
-        }
-    }
-
-    private fun createAdvancedExpandViews(
-        lyric: String,
-        subText: String,
-        progressPercent: Int,
-        accentColor: Int,
-        artwork: Bitmap?,
-        darkMode: Boolean,
-        showControls: Boolean
-    ): RemoteViews {
-        val primaryColor = if (darkMode) Color.WHITE else Color.rgb(17, 17, 17)
-        val secondaryColor = if (darkMode) Color.argb(180, 255, 255, 255) else Color.argb(150, 0, 0, 0)
-        return RemoteViews(appContext.packageName, R.layout.super_island_custom_expand).apply {
-            setTextViewText(R.id.super_island_expand_lyric, lyric.ifBlank { "♪" })
-            setTextViewText(R.id.super_island_expand_subtitle, subText)
-            setTextColor(R.id.super_island_expand_lyric, primaryColor)
-            setTextColor(R.id.super_island_expand_subtitle, secondaryColor)
-            setImageViewBitmap(R.id.super_island_expand_progress, createProgressBitmap(320, 6, progressPercent, accentColor, darkMode))
-            applyArtwork(R.id.super_island_expand_cover, artwork, 116)
-            setViewVisibility(
-                R.id.super_island_expand_controls,
-                if (showControls) android.view.View.VISIBLE else android.view.View.GONE
-            )
-            if (showControls) {
-                val buttonColor = superIslandControlButtonColor(darkMode)
-                setImageViewBitmap(
-                    R.id.super_island_expand_previous,
-                    controlButtonBitmap(R.drawable.ic_skip_previous, buttonColor)
-                )
-                setImageViewBitmap(
-                    R.id.super_island_expand_play_pause,
-                    controlButtonBitmap(R.drawable.ic_player_pause, buttonColor)
-                )
-                setImageViewBitmap(
-                    R.id.super_island_expand_next,
-                    controlButtonBitmap(R.drawable.ic_skip_next, buttonColor)
-                )
-                setOnClickPendingIntent(
-                    R.id.super_island_expand_previous,
-                    createMediaCommandIntent(3610, PlaybackService.ACTION_SKIP_PREVIOUS)
-                )
-                setOnClickPendingIntent(
-                    R.id.super_island_expand_play_pause,
-                    createMediaCommandIntent(3611, PlaybackService.ACTION_PLAY_PAUSE)
-                )
-                setOnClickPendingIntent(
-                    R.id.super_island_expand_next,
-                    createMediaCommandIntent(3612, PlaybackService.ACTION_SKIP_NEXT)
-                )
-            }
-            setOnClickPendingIntent(
-                R.id.super_island_expand_lyric,
-                createContentIntent(XiaomiSuperIslandSettings.CLICK_STYLE_OPEN_APP)
-            )
-        }
-    }
-
-    private fun RemoteViews.applyArtwork(viewId: Int, artwork: Bitmap?, sizePx: Int) {
-        if (artwork == null) {
-            setImageViewResource(viewId, R.drawable.ic_music_note)
-        } else {
-            setImageViewBitmap(viewId, Bitmap.createScaledBitmap(artwork, sizePx, sizePx, true))
-        }
-    }
-
-    private fun createProgressBitmap(
-        width: Int,
-        height: Int,
-        progressPercent: Int,
-        accentColor: Int,
-        darkMode: Boolean
-    ): Bitmap {
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val radius = height / 2f
-        val background = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (darkMode) Color.argb(85, 255, 255, 255) else Color.argb(56, 0, 0, 0)
-        }
-        val foreground = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accentColor }
-        canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, background)
-        val completedWidth = width * (progressPercent.coerceIn(0, 100) / 100f)
-        if (completedWidth > 0f) {
-            canvas.drawRoundRect(0f, 0f, completedWidth, height.toFloat(), radius, radius, foreground)
-        }
-        return bitmap
-    }
-
-    private fun mergeCustomFocusWithStandardIsland(customExtras: Bundle, standardExtras: Bundle): Bundle {
-        val merged = Bundle(customExtras)
-        val customJson = customExtras.getString("miui.focus.param.custom") ?: return merged
-        val standardJson = standardExtras.getString("miui.focus.param") ?: return merged
-        runCatching {
-            val customRoot = JSONObject(customJson)
-            val standardRoot = JSONObject(standardJson)
-            val island = standardRoot.optJSONObject("param_v2")?.optJSONObject("param_island")
-            if (island != null) {
-                customRoot.put("param_island", island)
-                merged.putString("miui.focus.param.custom", customRoot.toString())
-            }
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to merge standard island parameters into custom Focus payload", error)
-        }
-        return merged
-    }
 
     private fun BigIslandArea.applyLyrics(
         settings: XiaomiSuperIslandSettings,

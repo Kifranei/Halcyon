@@ -26,9 +26,24 @@ class CoverArtworkPolicyTest {
         ).map { it.path.replace('\\', '/') }
 
         assertTrue(candidates.contains("/music/Album/Track 01.jpg"))
+        assertFalse(candidates.contains("/music/.thumbnails/Track 01.jpg"))
+        assertFalse(candidates.contains("/music/.thumbnails/7.jpg"))
+        assertFalse(candidates.contains("/music/Album/cover.jpg"))
+    }
+
+    @Test
+    fun songThumbnailCandidatesCheckThumbnailDirectories() {
+        val candidates = songThumbnailCoverFileCandidates(
+            songDirectory = File("/music/Album"),
+            fileName = "Track 01.flac",
+            path = "/music/Album/Track 01.flac",
+            songId = 7L,
+            musicThumbnailsDir = File("/music/.thumbnails")
+        ).map { it.path.replace('\\', '/') }
+
         assertTrue(candidates.contains("/music/.thumbnails/Track 01.jpg"))
         assertTrue(candidates.contains("/music/.thumbnails/7.jpg"))
-        assertFalse(candidates.contains("/music/Album/cover.jpg"))
+        assertFalse(candidates.contains("/music/Album/Track 01.jpg"))
     }
 
     @Test

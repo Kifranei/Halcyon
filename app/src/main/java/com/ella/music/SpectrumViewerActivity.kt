@@ -42,10 +42,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.copyToBoundedOrThrow
 import com.ella.music.data.isContentAudioSource
 import com.ella.music.data.isFileUriAudioSource
 import com.ella.music.data.isHttpAudioSource
@@ -76,6 +82,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Shows an offline spectrogram generated from the selected local audio file. */
 class SpectrumViewerActivity : ComponentActivity() {
@@ -99,6 +106,9 @@ class SpectrumViewerActivity : ComponentActivity() {
 @Composable
 private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val activity = context as? ComponentActivity
     var scanToken by remember { mutableIntStateOf(0) }
     var scanState by remember { mutableStateOf<SpectrumScanState>(SpectrumScanState.Loading) }
 
@@ -112,32 +122,48 @@ private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
         )
     }
 
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF10131C), Color(0xFF202A40), Color(0xFF0B0D14))
-                )
-            )
+            .background(MiuixTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
             title = stringResource(R.string.song_more_view_spectrum),
             color = Color.Transparent,
+            titleColor = MiuixTheme.colorScheme.onSurface,
             defaultWindowInsetsPadding = false,
             titleWindowInsetsPadding = false,
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back), tint = Color.White)
+                    Icon(
+                        MiuixIcons.Regular.Back,
+                        stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
                 }
             },
             actions = {
+                IconButton(onClick = {
+                    activity?.requestedOrientation = if (isLandscape) {
+                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    }
+                }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_screen_rotation),
+                        contentDescription = stringResource(R.string.rotate_screen),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                }
                 IconButton(onClick = { scanToken++ }) {
                     Icon(
                         MiuixIcons.Regular.Refresh,
                         stringResource(R.string.spectrum_rescan),
-                        tint = Color.White
+                        tint = MiuixTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -145,37 +171,80 @@ private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = if (isLandscape) 16.dp else 24.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isLandscape) 8.dp else 12.dp)
         ) {
-            Text(
-                text = song.title.ifBlank { song.fileName },
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = song.artist,
-                color = Color.White.copy(alpha = 0.62f),
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (isLandscape) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = song.title.ifBlank { song.fileName },
+                            color = MiuixTheme.colorScheme.onSurface,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Text(
+                            text = "· ${song.artist}",
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        EllaMiuixChip(
+                            stringResource(R.string.spectrum_open_aspect_pro),
+                            selected = false,
+                            onClick = { openSongSpectrumWithAspectPro(context, song) }
+                        )
+                        EllaMiuixChip(
+                            stringResource(R.string.spectrum_open_kaspek),
+                            selected = false,
+                            onClick = { openSongSpectrumWithKaspek(context, song) }
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = song.title.ifBlank { song.fileName },
+                    color = MiuixTheme.colorScheme.onSurface,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = song.artist,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .height(360.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color.Black.copy(alpha = 0.34f)),
+                    .background(MiuixTheme.colorScheme.surfaceContainer),
                 contentAlignment = Alignment.Center
             ) {
                 when (val state = scanState) {
                     SpectrumScanState.Loading -> Text(
                         text = stringResource(R.string.spectrum_scanning),
-                        color = Color.White.copy(alpha = 0.70f),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         fontSize = 15.sp
                     )
 
@@ -183,6 +252,7 @@ private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
                         bitmap = state.spectrogram.bitmap,
                         maxFrequencyHz = state.spectrogram.maxFrequencyHz,
                         duration = song.duration,
+                        isDark = isDark,
                         modifier = Modifier.fillMaxSize().padding(12.dp)
                     )
 
@@ -193,7 +263,7 @@ private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
                     ) {
                         Text(
                             text = state.message,
-                            color = Color.White.copy(alpha = 0.72f),
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             fontSize = 14.sp
                         )
                         EllaMiuixChip(
@@ -204,22 +274,24 @@ private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
                     }
                 }
             }
-            androidx.compose.foundation.layout.Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
-            ) {
-                EllaMiuixChip(
-                    stringResource(R.string.spectrum_open_aspect_pro),
-                    selected = false,
-                    onClick = { openSongSpectrumWithAspectPro(context, song) }
-                )
-                EllaMiuixChip(
-                    stringResource(R.string.spectrum_open_kaspek),
-                    selected = false,
-                    onClick = { openSongSpectrumWithKaspek(context, song) }
-                )
+            if (!isLandscape) {
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
+                ) {
+                    EllaMiuixChip(
+                        stringResource(R.string.spectrum_open_aspect_pro),
+                        selected = false,
+                        onClick = { openSongSpectrumWithAspectPro(context, song) }
+                    )
+                    EllaMiuixChip(
+                        stringResource(R.string.spectrum_open_kaspek),
+                        selected = false,
+                        onClick = { openSongSpectrumWithKaspek(context, song) }
+                    )
+                }
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(if (isLandscape) 8.dp else 18.dp))
         }
     }
 }
@@ -323,9 +395,14 @@ private fun prepareSpectrumSource(context: Context, song: Song): SpectrumSource 
     if (song.path.isContentAudioSource()) {
         val extension = song.fileName.substringAfterLast('.', "audio").ifBlank { "audio" }
         val copied = File(context.cacheDir, "spectrum-source-${UUID.randomUUID()}.$extension")
-        context.contentResolver.openInputStream(Uri.parse(song.path))?.use { input ->
-            copied.outputStream().use(input::copyTo)
-        } ?: throw IllegalStateException("Cannot open the selected audio file")
+        try {
+            context.contentResolver.openInputStream(Uri.parse(song.path))?.use { input ->
+                copied.outputStream().use { output -> input.copyToBoundedOrThrow(output, MAX_SPECTRUM_SOURCE_BYTES) }
+            } ?: throw IllegalStateException("Cannot open the selected audio file")
+        } catch (error: Throwable) {
+            copied.delete()
+            throw error
+        }
         return SpectrumSource(copied, temporary = true)
     }
     val file = if (song.path.isFileUriAudioSource()) File(Uri.parse(song.path).path.orEmpty()) else File(song.path)
@@ -333,18 +410,23 @@ private fun prepareSpectrumSource(context: Context, song: Song): SpectrumSource 
     return SpectrumSource(file, temporary = false)
 }
 
+private const val MAX_SPECTRUM_SOURCE_BYTES = 512L * 1024L * 1024L
+
 @Composable
 private fun SpectrumChart(
     bitmap: Bitmap,
     maxFrequencyHz: Int?,
     duration: Long,
+    isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val axisTextColor = if (isDark) Color.White.copy(alpha = 0.62f) else MiuixTheme.colorScheme.onSurfaceVariantSummary
     Column(modifier = modifier) {
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             SpectrumFrequencyAxis(
                 maxFrequencyHz = maxFrequencyHz,
                 unknownFrequencyLabel = stringResource(R.string.spectrum_frequency_unknown),
+                isDark = isDark,
                 modifier = Modifier.fillMaxHeight().width(54.dp)
             )
             Image(
@@ -381,7 +463,7 @@ private fun SpectrumChart(
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
                     listOf("0", "-30", "-60", "-90", "-120").forEach { level ->
-                        Text(level, color = Color.White.copy(alpha = 0.62f), fontSize = 9.sp)
+                        Text(level, color = axisTextColor, fontSize = 9.sp)
                     }
                 }
             }
@@ -390,8 +472,8 @@ private fun SpectrumChart(
             modifier = Modifier.fillMaxWidth().padding(start = 54.dp, end = 42.dp, top = 5.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("0:00", color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
-            Text(duration.formatSpectrumTime(), color = Color.White.copy(alpha = 0.62f), fontSize = 10.sp)
+            Text("0:00", color = axisTextColor, fontSize = 10.sp)
+            Text(duration.formatSpectrumTime(), color = axisTextColor, fontSize = 10.sp)
         }
     }
 }
@@ -400,12 +482,27 @@ private fun SpectrumChart(
 private fun SpectrumFrequencyAxis(
     maxFrequencyHz: Int?,
     unknownFrequencyLabel: String,
+    isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
     val label = maxFrequencyHz?.formatSpectrumFrequency() ?: unknownFrequencyLabel
+    val onSurface = MiuixTheme.colorScheme.onSurface
+    val onSurfaceSummary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val axisLineColor = if (isDark) Color.White.copy(alpha = 0.92f) else onSurface.copy(alpha = 0.6f)
+    val tickLineColor = if (isDark) Color.White.copy(alpha = 0.78f) else onSurface.copy(alpha = 0.45f)
+    val textNativeColor = if (isDark) {
+        android.graphics.Color.argb((255 * 0.62f).toInt(), 255, 255, 255)
+    } else {
+        android.graphics.Color.argb(
+            (255 * onSurfaceSummary.alpha).toInt(),
+            (onSurfaceSummary.red * 255).toInt(),
+            (onSurfaceSummary.green * 255).toInt(),
+            (onSurfaceSummary.blue * 255).toInt()
+        )
+    }
     Canvas(modifier = modifier) {
         val labelPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.argb((255 * 0.62f).toInt(), 255, 255, 255)
+            color = textNativeColor
             textSize = 10.sp.toPx()
             textAlign = android.graphics.Paint.Align.RIGHT
             typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
@@ -414,7 +511,7 @@ private fun SpectrumFrequencyAxis(
         val axisTop = 27.dp.toPx()
         val axisBottom = size.height - 27.dp.toPx()
         drawLine(
-            color = Color.White.copy(alpha = 0.92f),
+            color = axisLineColor,
             start = androidx.compose.ui.geometry.Offset(axisX, axisTop),
             end = androidx.compose.ui.geometry.Offset(axisX, axisBottom),
             strokeWidth = 3.dp.toPx(),
@@ -431,7 +528,7 @@ private fun SpectrumFrequencyAxis(
                 val fraction = frequency.toFloat() / maximum.toFloat()
                 val y = axisBottom - (axisBottom - axisTop) * fraction
                 drawLine(
-                    color = Color.White.copy(alpha = 0.78f),
+                    color = tickLineColor,
                     start = androidx.compose.ui.geometry.Offset(axisX - 5.dp.toPx(), y),
                     end = androidx.compose.ui.geometry.Offset(axisX + 3.dp.toPx(), y),
                     strokeWidth = 1.5.dp.toPx(),

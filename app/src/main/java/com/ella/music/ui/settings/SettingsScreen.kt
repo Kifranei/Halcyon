@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -15,12 +16,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,6 +58,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -69,6 +75,7 @@ fun SettingsScreen(
     onNavigateToBackupSettings: () -> Unit,
     onNavigateToLogs: () -> Unit,
     onNavigateToBottomNavigationSettings: () -> Unit = onNavigateToAppearanceSettings,
+    onNavigateToPlayerShortcutSettings: (String) -> Unit = { onNavigateToAppearanceSettings() },
     onNavigateToHomeDisplaySettings: (String) -> Unit = { onNavigateToAppearanceSettings() },
     onNavigateToScanFolders: () -> Unit = onNavigateToLibrarySettings,
     onNavigateToHighlightedScanFolders: (String) -> Unit = { onNavigateToScanFolders() },
@@ -98,12 +105,14 @@ fun SettingsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchFocused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val inSearchMode = searchFocused || searchQuery.isNotBlank()
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
     val searchEntries = settingsSearchEntries(
         onNavigateToAppearanceSettings = onNavigateToAppearanceSettings,
         onNavigateToBottomNavigationSettings = onNavigateToBottomNavigationSettings,
+        onNavigateToPlayerShortcutSettings = onNavigateToPlayerShortcutSettings,
         onNavigateToHomeDisplaySettings = onNavigateToHomeDisplaySettings,
         onNavigateToLibrarySettings = onNavigateToLibrarySettings,
         onNavigateToScanFolders = onNavigateToScanFolders,
@@ -141,36 +150,35 @@ fun SettingsScreen(
                 .take(24)
         }
     }
-    Column(
+    val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
+        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
+    val shouldReserveStatus = systemBarsReserveSpace || systemBarsMode !in setOf(
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+    )
+    val statusBarHeight = if (shouldReserveStatus) {
+        WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    } else {
+        0.dp
+    }
+    val topBarHeight = 56.dp + statusBarHeight
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        EllaSmallTopAppBar(
-            title = stringResource(R.string.settings),
-            color = pageBackground,
-            centeredTitle = showBackButton,
-            navigationIcon = {
-                if (showBackButton) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Back,
-                            contentDescription = stringResource(R.string.common_back)
-                        )
-                    }
-                }
-            },
-            titleStartPadding = if (showBackButton) 64.dp else 20.dp
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberSettingsScrollState("settings_root"))
                 .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -248,7 +256,13 @@ fun SettingsScreen(
                             EllaMiuixChip(
                                 text = query,
                                 selected = false,
-                                onClick = { searchQuery = query },
+                                onClick = {
+                                    searchQuery = query
+                                    searchFocused = false
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
+                                    scope.launch { settingsManager.recordSettingsSearchQuery(query) }
+                                },
                                 modifier = Modifier.widthIn(max = 220.dp),
                                 horizontalPadding = 16.dp,
                                 verticalPadding = 9.dp
@@ -357,6 +371,25 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(160.dp))
         }
+
+        EllaSmallTopAppBar(
+            title = stringResource(R.string.settings),
+            color = pageBackground,
+            centeredTitle = showBackButton,
+            defaultWindowInsetsPadding = shouldReserveStatus,
+            navigationIcon = {
+                if (showBackButton) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Back,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                }
+            },
+            titleStartPadding = if (showBackButton) 64.dp else 20.dp,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 }
 
@@ -383,6 +416,7 @@ private data class SettingsSearchEntry(
 private fun settingsSearchEntries(
     onNavigateToAppearanceSettings: () -> Unit,
     onNavigateToBottomNavigationSettings: () -> Unit,
+    onNavigateToPlayerShortcutSettings: (String) -> Unit,
     onNavigateToHomeDisplaySettings: (String) -> Unit,
     onNavigateToLibrarySettings: () -> Unit,
     onNavigateToScanFolders: () -> Unit,
@@ -414,7 +448,11 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_setup_wizard), stringResource(R.string.settings_setup_wizard_summary), "向导 引导 初始设置 新手") { onNavigateToSetupWizard() },
         entry(stringResource(R.string.settings_appearance_home), stringResource(R.string.settings_appearance_home_summary), "主题 深色 浅色 跟随系统 语言 图标 壁纸 启动画面 底栏 沉浸 播放页 背景") { onNavigateToHighlightedAppearanceSettings("appearance") },
         entry(stringResource(R.string.settings_bottom_dock_items), stringResource(R.string.settings_bottom_dock_items_summary), "底栏 底部导航 导航栏 入口 顺序 预览 搜索") { onNavigateToBottomNavigationSettings() },
+        entry(stringResource(R.string.settings_bottom_dock_merge_search), stringResource(R.string.settings_bottom_dock_merge_search_summary), "底栏 搜索 合并 收缩 迷你播放条 歌词") { onNavigateToBottomNavigationSettings() },
+        entry(stringResource(R.string.settings_player_shortcut_items), stringResource(R.string.settings_player_shortcut_items_summary), "播放页 快捷操作 快捷功能 菜单 预览 排序") { onNavigateToPlayerShortcutSettings("horizontal") },
+        entry(stringResource(R.string.settings_non_immersive_player_shortcuts), stringResource(R.string.settings_non_immersive_player_shortcuts_summary), "非沉浸 播放页 快捷操作 快捷功能 底部 4项") { onNavigateToPlayerShortcutSettings("non_immersive") },
         entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 功能块 宫格 顺序 隐藏 二级页") { onNavigateToHomeDisplaySettings("home_sections") },
+        entry(stringResource(R.string.settings_home_nostalgia), stringResource(R.string.settings_home_nostalgia_summary), "首页 home 怀旧 nostalgia 每日 daily 随机 shuffle 30 50") { onNavigateToHomeDisplaySettings("home_nostalgia") },
         entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 功能块 颜色 卡片 透明度") { onNavigateToHomeDisplaySettings("home_tile_colors") },
         entry(stringResource(R.string.settings_auto_show_search_keyboard), stringResource(R.string.settings_auto_show_search_keyboard_summary), "搜索 输入法 键盘 自动弹出") { onNavigateToHighlightedAppearanceSettings("auto_show_search_keyboard") },
         entry(stringResource(R.string.settings_search_reopen_behavior), stringResource(R.string.settings_search_reopen_behavior_summary), "搜索 搜索框 清空 保留 选择 上次") { onNavigateToHighlightedAppearanceSettings("search_reopen_behavior") },
@@ -433,7 +471,10 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_transport_button_outlines), stringResource(R.string.settings_transport_button_outlines_summary), "播放页 控制 按钮 轮廓 外框 描边") { onNavigateToHighlightedAppearanceSettings("transport_button_outlines") },
         entry(stringResource(R.string.settings_player_immersive_cover), stringResource(R.string.settings_player_immersive_cover_summary), "沉浸 播放页 封面 全屏") { onNavigateToHighlightedAppearanceSettings("player_immersive") },
         entry(stringResource(R.string.settings_player_page_style), stringResource(R.string.settings_player_page_style_summary), "播放页 Apple Music 封面 歌词 样式") { onNavigateToHighlightedAppearanceSettings("player_page") },
+        entry(stringResource(R.string.settings_apple_music_player_immersive_cover), stringResource(R.string.settings_apple_music_player_immersive_cover_summary), "Apple Music 1:1 正方形 沉浸 封面") { onNavigateToHighlightedAppearanceSettings("player_apple_music_immersive_cover") },
         entry(stringResource(R.string.settings_system_bars_mode), stringResource(R.string.settings_system_bars_mode_summary, ""), "沉浸模式 全屏 状态栏 导航栏 隐藏 显示 车机") { onNavigateToHighlightedAppearanceSettings("system_bars") },
+        entry(stringResource(R.string.settings_player_immersive_mode), stringResource(R.string.settings_player_immersive_mode_summary, ""), "播放页 沉浸 状态栏 导航栏") { onNavigateToHighlightedAppearanceSettings("player_system_bars") },
+        entry(stringResource(R.string.settings_player_landscape_hide_system_bars), stringResource(R.string.settings_player_landscape_hide_system_bars_summary), "播放页 横屏 状态栏 导航栏 手势条 隐藏") { onNavigateToHighlightedAppearanceSettings("player_landscape_hide_system_bars") },
         entry(stringResource(R.string.settings_player_landscape_style), stringResource(R.string.settings_player_landscape_style_summary, ""), "横屏播放 宽屏 歌词 CoverFlow MV 流光") { onNavigateToHighlightedAppearanceSettings("player_landscape") },
         entry(stringResource(R.string.settings_beautiful_lyrics_background), stringResource(R.string.settings_beautiful_lyrics_background_summary), "Apple Music 动态背景 歌词页 流光 取色") { onNavigateToHighlightedAppearanceSettings("beautiful_lyrics") },
         entry(stringResource(R.string.settings_player_dynamic_flow), stringResource(R.string.settings_player_dynamic_flow_summary), "Apple Music 流光 动态 背景 流动") { onNavigateToHighlightedAppearanceSettings("player_dynamic_flow") },
@@ -447,6 +488,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_library_scan), stringResource(R.string.settings_library_scan_summary), "音乐库 扫描 标签 全标签 搜索 分隔符 艺术家 歌手") { onNavigateToHighlightedLibrarySettings("scan") },
         entry(stringResource(R.string.settings_scan_folders), stringResource(R.string.settings_scan_folders_summary), "文件夹 USB 隐藏目录 三级页") { onNavigateToHighlightedScanFolders("scan_folders") },
         entry(stringResource(R.string.settings_full_tag_search), stringResource(R.string.settings_full_tag_search_summary_on), "全字段 全字段搜索 全标签 标签 元数据 作曲 作词 注释 别名 自定义标签 扫描 速度") { onNavigateToHighlightedScanFolders("scan_media_source") },
+        entry(stringResource(R.string.folder_force_full_rescan), stringResource(R.string.folder_force_full_rescan_summary), "强制重扫 全量扫描 标签 缓存") { onNavigateToHighlightedScanFolders("scan_media_source") },
         entry(stringResource(R.string.settings_show_album_artists), stringResource(R.string.settings_show_album_artists_summary), "艺术家 歌手 歌者 artist singer performer 专辑艺术家 发行专辑") { onNavigateToHighlightedLibrarySettings("show_album_artists") },
         entry(stringResource(R.string.settings_show_artist_introduction), stringResource(R.string.settings_show_artist_introduction_summary), "艺术家 歌手 介绍 简介 artist introduction biography") { onNavigateToHighlightedLibrarySettings("show_artist_introduction") },
         entry(stringResource(R.string.settings_artist_bio_download), stringResource(R.string.settings_artist_bio_download_summary), "艺术家 传记 Last.fm wiki 自动下载 Wi-Fi") { onNavigateToHighlightedLibrarySettings("artist_bio_download") },
@@ -477,7 +519,7 @@ private fun settingsSearchEntries(
         entry(stringResource(R.string.settings_decoder), stringResource(R.string.settings_audio_decoder_auto_summary), "解码 FFmpeg 系统 音频焦点") { onNavigateToHighlightedAudioSettings("audio_system") },
         entry(stringResource(R.string.equalizer_screen_title), stringResource(R.string.settings_audio_equalizer_summary), "均衡器 EQ 低音 高音 压缩器 立体声 360 环绕音 混响") { onNavigateToHighlightedEqualizer("equalizer") },
         entry(stringResource(R.string.equalizer_surround_360_enable), stringResource(R.string.equalizer_surround_360_summary), "360 环绕音 空间音频 spatial 音场 强度 旋转") { onNavigateToHighlightedEqualizer("equalizer") },
-        entry(stringResource(R.string.settings_integrations), stringResource(R.string.settings_integrations_summary), "AI OpenAI MCP Last.fm 集成 API") { onNavigateToHighlightedIntegrationSettings("ai") },
+        entry(stringResource(R.string.settings_integrations), stringResource(R.string.settings_integrations_summary), "AI Anthropic DeepSeek MCP Last.fm 集成 API") { onNavigateToHighlightedIntegrationSettings("ai") },
         entry(stringResource(R.string.settings_mcp_server), stringResource(R.string.settings_mcp_server_summary), "MCP 服务 本地 端口 集成") { onNavigateToHighlightedIntegrationSettings("mcp") },
         entry(stringResource(R.string.web_music_beta_title), stringResource(R.string.web_music_beta_summary), "Web 网页 局域网 上传 播放 Beta") { onNavigateToHighlightedIntegrationSettings("web_music") },
         entry(stringResource(R.string.settings_backup), stringResource(R.string.settings_backup_summary), "备份 恢复 WebDAV 自动备份 播放记录 设置") { onNavigateToHighlightedBackupSettings("backup_settings") },
@@ -539,57 +581,31 @@ private fun settingsSearchFallbackEntries(
             val id = runCatching { field.getInt(null) }.getOrNull() ?: return@mapNotNull null
             val title = runCatching { resources.getString(id) }.getOrNull()?.trim().orEmpty()
             if (title.isBlank() || title.contains("%")) return@mapNotNull null
-            val appearanceKey = name.removePrefix("settings_")
-            val route = when {
-                name == "settings_enable_live_update_lyric" -> { { onLyrics("live_update_lyric") } }
-                name == "settings_live_update_lyric_content" -> { { onLyrics("live_update_lyric_content") } }
-                name == "settings_live_update_lyric_display" -> { { onLyrics("live_update_lyric_display") } }
-                name == "settings_live_update_lyric_secondary" -> { { onLyrics("live_update_lyric_secondary") } }
-                name == "settings_enable_vivo_atom_walkman_whitelist" -> { { onLyrics("vivo_atom_walkman_whitelist") } }
-                name.contains("beautiful_lyrics") || name.contains("apple_flow") ||
-                    name.contains("player_dynamic_flow") || name.contains("app_wallpaper") ||
-                    name.contains("now_playing_flow") || name.contains("player_background") ||
-                    name.contains("system_bars") || name.contains("startup_poster") ||
-                    name.contains("player_bg_theme") -> { { onAppearance(appearanceKey) } }
-                name.contains("category_grid") || name.contains("search_click") ||
-                    name.contains("search_reopen") || name.contains("auto_show_search") ||
-                    name.contains("playlist_special") || name.contains("playlist_show_") ||
-                    name.contains("mini_player_long_press") || name.contains("open_player_on_play") ||
-                    name.contains("song_info_layout") || name.contains("queue_toolbar") ||
-                    name.contains("list_action") || name.contains("exclude_search") ||
-                    name.contains("play_next_in_lists") || name.contains("remove_from_playlist") -> {
-                    { onAppearance(appearanceKey) }
+            val route = when (val destination = settingsSearchFallbackDestination(name)) {
+                is SettingsSearchFallbackDestination.Appearance -> {
+                    { onAppearance(destination.highlight) }
                 }
-                (name.contains("player_") && !name.contains("lyric") && !name.contains("mini_player")) ||
-                    name.contains("hi_res") || name.contains("transport_button") ||
-                    name.contains("open_player_from_notification") -> {
-                    { onAppearance(appearanceKey) }
+                is SettingsSearchFallbackDestination.Home -> {
+                    { onHome(destination.highlight) }
                 }
-                name.contains("theme_mode") || name.contains("monet") || name.contains("app_icon") ||
-                    name.contains("font_scale") || name.contains("display_scale") ||
-                    name.contains("widget_safe") || name.contains("bottom_bar_style") ||
-                    name == "settings_language" -> { { onAppearance(appearanceKey) } }
-                name.contains("backup") -> { { onBackup("backup_settings") } }
-                name.contains("openai") || name.contains("mcp") || name.contains("lastfm") ||
-                    name.contains("ai_") -> { { onIntegration("ai") } }
-                name.contains("lyric") || name.contains("desktop") || name.contains("status_") ||
-                    name.contains("coloros") || name.contains("flyme") -> { { onLyrics("lyric_basic") } }
-                name.contains("audio") || name.contains("decoder") || name.contains("usb") ||
-                    name.contains("crossfade") || name.contains("replay") || name.contains("gapless") ||
-                    name.contains("karaoke") || name.contains("accompaniment") ||
-                    name.contains("shuffle") || name.contains("playback") || name.contains("previous_button") ||
-                    name.contains("resume_") || name.contains("startup_play") -> { { onAudio("audio_playback") } }
-                name.contains("dynamic_cover") || name.contains("music_video") ||
-                    name.contains("artist_cover") || name.contains("cover_export") ||
-                    name.contains("artist_image") || name.contains("spotify_client") ||
-                    name.contains("cover_media") -> { { onCoverMedia("cover_media") } }
-                name.contains("scan") || name.contains("library") || name.contains("metadata") ||
-                    name.contains("tag_") || name.contains("artist_") || name.contains("genre_") ||
-                    name.contains("full_tag") -> { { onLibrary("scan") } }
-                name.contains("home_") || name.contains("bottom_dock") -> {
-                    { onHome("home_sections") }
+                is SettingsSearchFallbackDestination.Library -> {
+                    { onLibrary(destination.highlight) }
                 }
-                else -> { { onAppearance(appearanceKey) } }
+                is SettingsSearchFallbackDestination.Lyrics -> {
+                    { onLyrics(destination.highlight) }
+                }
+                is SettingsSearchFallbackDestination.Audio -> {
+                    { onAudio(destination.highlight) }
+                }
+                is SettingsSearchFallbackDestination.Backup -> {
+                    { onBackup(destination.highlight) }
+                }
+                is SettingsSearchFallbackDestination.Integration -> {
+                    { onIntegration(destination.highlight) }
+                }
+                is SettingsSearchFallbackDestination.CoverMedia -> {
+                    { onCoverMedia(destination.highlight) }
+                }
             }
             val summaryId = resources.getIdentifier("${name}_summary", "string", resources.getResourcePackageName(id))
             val summary = if (summaryId != 0) resources.getString(summaryId) else ""
@@ -618,15 +634,20 @@ private fun settingsSearchAliases(
     entry(stringResource(R.string.settings_app_wallpaper), stringResource(R.string.settings_app_wallpaper_summary), "壁纸 图片 背景 模糊 毛玻璃 透明") { onAppearance("wallpaper") },
     entry(stringResource(R.string.settings_app_now_playing_flow_background), stringResource(R.string.settings_app_now_playing_flow_background_summary), "首页 音乐库 艺术家 专辑 歌单 文件夹 当前歌曲 流光 动态背景") { onAppearance("wallpaper") },
     entry(stringResource(R.string.settings_app_icon), stringResource(R.string.settings_app_icon_summary), "图标 启动器 图标包 anime loli") { onAppearance("app_icon") },
+    entry(stringResource(R.string.settings_custom_launcher_icon), stringResource(R.string.settings_custom_launcher_icon_summary), "图标 自定义 快捷方式 桌面 shortcut launcher icon") { onAppearance("app_icon") },
     entry(stringResource(R.string.settings_player_immersive_cover), stringResource(R.string.settings_player_immersive_cover_summary), "沉浸播放页 封面取色 文字 图标 背景 动态背景") { onAppearance("player_immersive") },
     entry(stringResource(R.string.settings_player_page_style), stringResource(R.string.settings_player_page_style_summary), "播放页 Apple Music 封面 歌词 样式") { onAppearance("player_page") },
+    entry(stringResource(R.string.settings_apple_music_player_immersive_cover), stringResource(R.string.settings_apple_music_player_immersive_cover_summary), "Apple Music 1:1 正方形 沉浸 封面") { onAppearance("player_apple_music_immersive_cover") },
     entry(stringResource(R.string.settings_search_reopen_behavior), stringResource(R.string.settings_search_reopen_behavior_summary), "搜索 搜索框 清空 保留 选择 上次") { onAppearance("search_reopen_behavior") },
+    entry(stringResource(R.string.settings_list_quality_display), stringResource(R.string.settings_list_quality_display_tablet), "播放列表 音质 平板 手机 显示") { onAppearance("list_quality_display") },
     entry(stringResource(R.string.settings_karaoke_accompaniment), stringResource(R.string.settings_karaoke_accompaniment_summary), "伴奏 人声 原曲 karaoke 跟唱") { onAudio("audio_playback") },
     entry(stringResource(R.string.settings_system_bars_mode), stringResource(R.string.settings_system_bars_mode_summary, ""), "沉浸模式 全屏 状态栏 导航栏 隐藏 显示 车机") { onAppearance("system_bars") },
+    entry(stringResource(R.string.settings_player_immersive_mode), stringResource(R.string.settings_player_immersive_mode_summary, ""), "播放页 沉浸 状态栏 导航栏") { onAppearance("player_system_bars") },
+    entry(stringResource(R.string.settings_player_landscape_hide_system_bars), stringResource(R.string.settings_player_landscape_hide_system_bars_summary), "播放页 横屏 状态栏 导航栏 手势条 隐藏") { onAppearance("player_landscape_hide_system_bars") },
     entry(stringResource(R.string.settings_player_landscape_style), stringResource(R.string.settings_player_landscape_style_summary, ""), "横屏播放 宽屏 歌词 CoverFlow MV 流光") { onAppearance("player_landscape") },
     entry(stringResource(R.string.settings_dynamic_cover), stringResource(R.string.settings_dynamic_cover_summary), "动态封面 视频封面 MV mp4") { onCoverMedia("dynamic_cover") },
     entry(stringResource(R.string.settings_home_display), stringResource(R.string.settings_home_display_items_summary), "首页 显示 项目 排序 隐藏 宫格") { onHome("home_sections") },
-    entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 卡片 颜色 渐变 置顶") { onHome("home_tile_colors") },
+    entry(stringResource(R.string.settings_home_tile_colors_title), stringResource(R.string.settings_home_tile_colors_summary), "首页 卡片 颜色 透明度") { onHome("home_tile_colors") },
     entry(stringResource(R.string.settings_scan_folders), stringResource(R.string.settings_scan_folders_summary), "扫描 文件夹 排除 隐藏目录 存储权限") { onLibrary("scan") },
     entry(stringResource(R.string.settings_auto_scan_local_playlists), stringResource(R.string.settings_auto_scan_local_playlists_summary), "自动扫描 本地歌单 m3u 播放列表") { onLibrary("auto_scan_local_playlists") },
     entry(stringResource(R.string.settings_min_duration_filter), stringResource(R.string.settings_min_duration_filter_summary), "扫描 最小时长 过滤 短音频") { onLibrary("min_duration_filter") },
@@ -639,7 +660,9 @@ private fun settingsSearchAliases(
     entry(stringResource(R.string.settings_lyric_plugin_sources), stringResource(R.string.settings_lyric_plugin_sources_summary), "歌词 源 插件 导入 在线 匹配") { onLyricPlugins() },
     entry(stringResource(R.string.settings_lyric_line_blacklist), stringResource(R.string.settings_lyric_line_blacklist_summary), "歌词 黑名单 过滤 行") { onLyrics("lyric_basic") },
     entry(stringResource(R.string.settings_player_lyric_text_align), stringResource(R.string.settings_lyric_scale_summary), "歌词 对齐 左 中 右 大小 缩放") { onLyrics("lyric_basic") },
-    entry(stringResource(R.string.settings_mini_player_cover_rotation), stringResource(R.string.settings_mini_player_cover_rotation_summary), "迷你播放器 封面 旋转") { onLyrics("mini_lyrics") },
+    entry(stringResource(R.string.settings_mini_player_cover_rotation), stringResource(R.string.settings_mini_player_cover_rotation_summary), "迷你播放器 封面 旋转") { onLyrics("mini_player_cover_rotation") },
+    entry(stringResource(R.string.settings_mini_player_swipe_to_open_player), stringResource(R.string.settings_mini_player_swipe_to_open_player_summary), "迷你播放条 上滑 播放页 手势") { onLyrics("mini_player_swipe_to_open_player") },
+    entry(stringResource(R.string.settings_mini_player_right_button), stringResource(R.string.settings_mini_player_right_button_summary), "迷你播放条 右侧 下一首 队列") { onLyrics("mini_player_right_button") },
     entry(stringResource(R.string.settings_enable_bluetooth_lyric), stringResource(R.string.settings_enable_bluetooth_lyric_summary), "蓝牙 歌词 设备") { onLyrics("lyric_output") },
     entry(stringResource(R.string.settings_enable_flyme_ticker), stringResource(R.string.settings_enable_flyme_ticker_summary), "Flyme 魅族 状态栏 歌词") { onLyrics("lyric_output") },
     entry(stringResource(R.string.settings_enable_lyric_getter), stringResource(R.string.settings_enable_lyric_getter_summary), "歌词 获取器 广播") { onLyrics("lyric_output") },
@@ -650,7 +673,7 @@ private fun settingsSearchAliases(
     entry(stringResource(R.string.equalizer_surround_360_enable), stringResource(R.string.equalizer_surround_360_summary), "360 环绕音 空间音频 全景") { onEqualizer("equalizer") },
     entry(stringResource(R.string.equalizer_crossfeed_enable), stringResource(R.string.equalizer_crossfeed_summary), "串音 耳机 crossfeed") { onEqualizer("equalizer") },
     entry(stringResource(R.string.equalizer_compressor_enable), "压缩器动态范围控制", "压缩器 compressor 阈值 比率") { onEqualizer("equalizer") },
-    entry(stringResource(R.string.settings_openai_model), stringResource(R.string.settings_openai_model_summary), "OpenAI AI 模型 GPT API") { onIntegration("ai") },
+    entry(stringResource(R.string.settings_ai_interpretation), stringResource(R.string.settings_openai_api_key_summary), "AI 供应商 模型 API Anthropic DeepSeek") { onIntegration("ai") },
     entry(stringResource(R.string.settings_mcp_server), stringResource(R.string.settings_mcp_server_summary), "MCP 服务 本地 端口") { onIntegration("mcp") },
     entry(stringResource(R.string.web_music_beta_title), stringResource(R.string.web_music_beta_summary), "Web 网页 局域网 上传 播放 Beta") { onIntegration("web_music") },
     entry(stringResource(R.string.settings_lastfm), stringResource(R.string.settings_lastfm_summary), "Last.fm scrobble 听歌记录") { onIntegration("lastfm") },

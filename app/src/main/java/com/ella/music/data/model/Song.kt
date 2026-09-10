@@ -1,8 +1,10 @@
 package com.ella.music.data.model
 
+import androidx.compose.runtime.Immutable
 import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.NameSplitConfigStore
 
+@Immutable
 data class Song(
     val id: Long,
     val title: String,

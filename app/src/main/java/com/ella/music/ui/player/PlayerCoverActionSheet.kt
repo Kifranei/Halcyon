@@ -3,8 +3,15 @@ package com.ella.music.ui.player
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
@@ -12,6 +19,11 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.viewmodel.AbRepeatState
 import com.ella.music.ui.components.EllaMiuixBottomSheet
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun PlayerCoverActionSheet(
@@ -60,6 +72,7 @@ internal fun PlayerCoverActionSheet(
     onAddToQueue: () -> Unit,
     onPlayNext: () -> Unit,
     onShareSong: () -> Unit,
+    onLyricShare: () -> Unit,
     onSetRating: () -> Unit,
     onAiInterpret: () -> Unit,
     onSpectrum: () -> Unit,
@@ -94,16 +107,59 @@ internal fun PlayerCoverActionSheet(
     onPreviewCover: () -> Unit,
     initialPage: PlayerActionSheetPage
 ) {
+    var page by remember { mutableStateOf(initialPage) }
+    LaunchedEffect(show, initialPage) {
+        if (show) page = initialPage
+    }
+
+    val currentTitle = when (page) {
+        PlayerActionSheetPage.Main -> stringResource(R.string.player_more_actions)
+        PlayerActionSheetPage.Timer -> stringResource(R.string.player_sleep_timer_title)
+        PlayerActionSheetPage.Speed -> stringResource(R.string.player_speed_pitch)
+        PlayerActionSheetPage.LyricOffset -> stringResource(R.string.player_lyric_offset)
+        PlayerActionSheetPage.Visualizer -> stringResource(R.string.player_visualizer_settings)
+        PlayerActionSheetPage.AudioOutput -> stringResource(R.string.player_audio_output_info)
+        PlayerActionSheetPage.LyricDisplay -> stringResource(R.string.player_lyrics_display)
+        PlayerActionSheetPage.LyricStyle -> stringResource(R.string.player_lyric_style_settings)
+    }
+
+    val startAction: @Composable (() -> Unit)? = if (page != PlayerActionSheetPage.Main) {
+        {
+            IconButton(
+                onClick = {
+                    page = if (page == PlayerActionSheetPage.LyricStyle) {
+                        PlayerActionSheetPage.LyricDisplay
+                    } else {
+                        PlayerActionSheetPage.Main
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Back,
+                    contentDescription = stringResource(R.string.common_back),
+                    tint = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    } else null
+
+    val configuration = LocalConfiguration.current
+    val maxSheetHeight = (configuration.screenHeightDp * 0.88f).dp
+
     EllaMiuixBottomSheet(
         show = show,
         enableNestedScroll = false,
-        title = stringResource(R.string.player_more_actions),
+        title = currentTitle,
+        startAction = startAction,
         onDismissRequest = onDismiss
     ) {
         PlayerActionMenu(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 560.dp, max = 680.dp),
+                .heightIn(max = maxSheetHeight),
+            page = page,
+            onPageChange = { page = it },
             song = song,
             embeddedCover = embeddedCover,
             showLyricsDisplayEntry = showLyricsDisplayEntry,

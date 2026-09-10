@@ -25,13 +25,41 @@ internal object EllaLyricsParser {
 
     fun parse(content: String, ignoreHeaderTags: Boolean = false): LrcParser.LrcResult {
         parseTtml(content)?.let { return it }
-        if (content.lineSequence().any { krcLinePattern.matches(it.trim()) }) {
-            return parseKrc(content)
+        val normalized = preprocessLyricContent(content)
+        if (normalized.lineSequence().any { krcLinePattern.matches(it.trim()) }) {
+            return parseKrc(normalized)
         }
-        if (lyricifySyllablePattern.containsMatchIn(content)) {
-            parseLyricify(content)?.let { return it }
+        if (lyricifySyllablePattern.containsMatchIn(normalized)) {
+            parseLyricify(normalized)?.let { return it }
         }
-        return parseLrc(content, ignoreHeaderTags)
+        return parseLrc(normalized, ignoreHeaderTags)
+    }
+
+    private fun preprocessLyricContent(content: String): String {
+        var text = content
+        val hasHtmlWrapper = text.contains("<html", ignoreCase = true) ||
+            text.contains("<body", ignoreCase = true) ||
+            text.contains("<br", ignoreCase = true)
+        if (hasHtmlWrapper) {
+            text = text.replace(Regex("""<br\s*/?>""", RegexOption.IGNORE_CASE), "\n")
+            text = text.replace(Regex("""<style[\s\S]*?</style>""", RegexOption.IGNORE_CASE), "")
+            text = text.replace(Regex("""<script[\s\S]*?</script>""", RegexOption.IGNORE_CASE), "")
+            text = text.replace(Regex("""</?(?:html|body|div|p|span|head|style|script)[^>]*>""", RegexOption.IGNORE_CASE), "")
+        }
+        if (text.contains('&')) {
+            text = text
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&apos;", "'")
+                .replace("&amp;", "&")
+                .replace(Regex("""&#(\d+);""")) { match ->
+                    val code = match.groupValues[1].toIntOrNull()
+                    if (code != null && code in 32..65535) code.toChar().toString() else match.value
+                }
+        }
+        return text
     }
 
     private data class KrcMetadata(
@@ -159,7 +187,7 @@ internal object EllaLyricsParser {
                 companionTargetIndexes = emptyList()
                 return@forEach
             }
-            if (lrcGenericMetaPattern.matches(line)) {
+            if (lrcGenericMetaPattern.matches(line) && !backgroundLinePattern.matches(line)) {
                 companionTargetIndexes = emptyList()
                 return@forEach
             }
@@ -240,7 +268,9 @@ internal object EllaLyricsParser {
                     timeMs = words.firstOrNull()?.startMs ?: 0L,
                     text = "",
                     backgroundText = text,
-                    backgroundWords = words,
+                    backgroundWords = words.toDisplayWords(text),
+                    backgroundStartMs = words.firstOrNull()?.startMs ?: 0L,
+                    backgroundEndMs = words.lastOrNull()?.endMs,
                     endMs = words.lastOrNull()?.endMs
                 )
             )
@@ -274,6 +304,8 @@ internal object EllaLyricsParser {
                     text = "",
                     backgroundText = text,
                     backgroundWords = words.toDisplayWords(text),
+                    backgroundStartMs = words.firstOrNull()?.startMs ?: start,
+                    backgroundEndMs = words.lastOrNull()?.endMs,
                     agent = agent,
                     endMs = words.lastOrNull()?.endMs
                 )
@@ -445,26 +477,56 @@ internal object EllaLyricsParser {
                 if (group.shouldKeepIndependentDuetLines()) {
                     return@flatMap group.sortedBy { it.agentSortOrder() }
                 }
+                val cjkCandidates = group.filter {
+                    it.text.cleanLyricText().hasCjk() && it.text.isUsefulMainText()
+                }
+                val latinPronunciationCandidate = group.firstOrNull {
+                    it.text.isLatinPronunciationLine()
+                }
+                // A line-level LRC/ELRC pronunciation is often stored as a second line with
+                // the exact same timestamp. With only two lines there is no separate
+                // translation row to identify it, so use a conservative romaji/pinyin shape
+                // check (Japanese kana in the primary is an unambiguous signal) instead of
+                // treating every English translation as pronunciation.
+                val hasTwoLineLatinPronunciation = group.size == 2 &&
+                    cjkCandidates.firstOrNull()?.let { primaryCandidate ->
+                        latinPronunciationCandidate != null &&
+                            latinPronunciationCandidate !== primaryCandidate &&
+                            latinPronunciationCandidate.text.isLikelyWholeLinePronunciation(
+                                primaryCandidate.text
+                            )
+                    } == true
                 val hasPronunciationCompanion = group.any { it.text.isKanaPronunciationLine() } ||
-                    (group.size >= 3 && group.any { it.text.isLatinPronunciationLine() })
+                    (group.size >= 3 && latinPronunciationCandidate != null) ||
+                    hasTwoLineLatinPronunciation
                 val primary = if (hasPronunciationCompanion) {
                     group.firstOrNull { it.text.cleanLyricText().hasCjk() && it.text.isUsefulMainText() }
                 } else {
-                    val cjkCandidates = group.filter { it.text.cleanLyricText().hasCjk() && it.text.isUsefulMainText() }
                     if (cjkCandidates.size >= 2) {
                         cjkCandidates.firstOrNull {
                             val t = it.text.cleanLyricText()
                             t.hasJapaneseKana() && !t.isLyricCreditLine()
                         } ?: cjkCandidates.firstOrNull { it.text.cleanLyricText().hasJapaneseKana() }
                     } else null
-                } ?: group.firstOrNull { it.text.isUsefulMainText() } ?: group.first()
+                }
+                    // The sung row is the one carrying karaoke timings; a companion translation
+                    // is a single untimed block. Preferring it keeps the lyric rather than its
+                    // translation as the primary row when neither rule above decided.
+                    ?: group.firstOrNull { it.words.size > 1 && it.text.isUsefulMainText() }
+                    ?: group.firstOrNull { it.text.isUsefulMainText() }
+                    ?: group.first()
                 val primaryText = primary.text.cleanLyricText()
                 val pronunciation = group
                     .takeIf { primaryText.hasCjk() }
                     ?.firstOrNull { it !== primary && it.text.isKanaPronunciationLine() }
                     ?: group
-                        .takeIf { it.size >= 3 && primaryText.hasCjk() }
-                        ?.firstOrNull { it !== primary && it.text.isLatinPronunciationLine() }
+                        .takeIf {
+                            primaryText.hasCjk() &&
+                                (group.size >= 3 || hasTwoLineLatinPronunciation)
+                        }
+                        ?.firstOrNull {
+                            it !== primary && it.text.isLatinPronunciationLine()
+                        }
                 val translationCandidates = group
                     .asSequence()
                     .filter { it !== primary && it !== pronunciation }
@@ -478,12 +540,18 @@ internal object EllaLyricsParser {
                     .distinct()
                     .joinToString("\n")
                     .takeIf { it.isNotBlank() }
+                val bgCandidate = group.firstOrNull { it !== primary && !it.backgroundText.isNullOrBlank() }
                 listOf(
                     primary.copy(
                         translation = primary.translation.mergeLyricCompanionText(translation),
                         pronunciation = primary.pronunciation ?: pronunciation?.text?.cleanLyricText(),
                         pronunciationWords = primary.pronunciationWords.ifEmpty { pronunciation?.words.orEmpty() },
-                        endMs = primary.endMs ?: group.mapNotNull { it.endMs }.maxOrNull()
+                        backgroundText = primary.backgroundText ?: bgCandidate?.backgroundText,
+                        backgroundWords = primary.backgroundWords.ifEmpty { bgCandidate?.backgroundWords.orEmpty() },
+                        backgroundStartMs = primary.backgroundStartMs ?: bgCandidate?.backgroundStartMs ?: bgCandidate?.backgroundWords?.firstOrNull()?.startMs ?: bgCandidate?.words?.firstOrNull()?.startMs ?: bgCandidate?.timeMs,
+                        backgroundEndMs = primary.backgroundEndMs ?: bgCandidate?.backgroundEndMs ?: bgCandidate?.backgroundWords?.lastOrNull()?.endMs ?: bgCandidate?.words?.lastOrNull()?.endMs ?: bgCandidate?.endMs,
+                        backgroundTranslation = primary.backgroundTranslation ?: bgCandidate?.backgroundTranslation,
+                        endMs = listOfNotNull(primary.endMs, bgCandidate?.endMs, group.mapNotNull { it.endMs }.maxOrNull()).maxOrNull()
                     )
                 )
             }
@@ -517,7 +585,12 @@ internal object EllaLyricsParser {
         val result = mutableListOf<LyricLine>()
         lines.sortedBy { it.timeMs }.forEach { line ->
             if (line.text.isBlank() && !line.backgroundText.isNullOrBlank()) {
-                val targetIndex = result.indexOfLast { abs(it.timeMs - line.timeMs) <= 350L }
+                val targetIndex = result.indexOfLast { target ->
+                    target.text.isNotBlank() && target.backgroundText.isNullOrBlank() && (
+                        abs(target.timeMs - line.timeMs) <= 1500L ||
+                        (line.timeMs >= target.timeMs && line.timeMs <= (target.endMs ?: (target.timeMs + 4000L)))
+                    )
+                }
                 if (targetIndex >= 0) {
                     val target = result[targetIndex]
                     result[targetIndex] = target.copy(
@@ -633,6 +706,10 @@ internal object EllaLyricsParser {
     private fun String.isLatinPronunciationLine(): Boolean {
         val text = cleanLyricText()
         if (text.isBlank() || text.hasCjk() || text.isMusicSymbolOnly()) return false
+        // A reading may only carry the accents pinyin/romaji/romaja emit. Vietnamese shares
+        // acute and grave with pinyin but never `đ ơ ư ă` or the hook/dot-below vowels, so this
+        // keeps a sung Vietnamese row from being read as the pronunciation of its translation.
+        if (!text.usesOnlyRomanizationLetters()) return false
         val letters = text.count { it.isLetter() }
         return letters >= 2 && text.all {
             it.isLetter() ||
@@ -640,6 +717,35 @@ internal object EllaLyricsParser {
                 it in "-'`.:,;!?/()[]{}" ||
                 it in setOf('‘', '’', '“', '”', 'ʼ', '・', '·')
         }
+    }
+
+    private fun String.isLikelyWholeLinePronunciation(primaryText: String): Boolean {
+        val text = cleanLyricText()
+        if (!isLatinPronunciationLine()) return false
+        val words = text.split(Regex("\\s+")).filter(String::isNotBlank)
+        if (words.size < 2) return false
+        val normalized = text.lowercase()
+        val obviousEnglishWords = setOf(
+            "a", "an", "and", "are", "can", "for", "from", "i", "in", "is", "it",
+            "me", "my", "not", "of", "on", "that", "the", "this", "to", "we", "what",
+            "when", "will", "with", "you", "your"
+        )
+        if (words.any { it.lowercase() in obviousEnglishWords }) return false
+        if (primaryText.hasJapaneseKana()) return true
+
+        // Without kana in the primary there is no unambiguous signal left, and the pair is only
+        // two rows, so the reading has to prove itself: its tokens must decompose into pinyin or
+        // romaji syllables. A tone mark alone is not proof — `màn` is pinyin-shaped, but the
+        // `khi`/`vừa`/`buông` around it in the same Vietnamese line are not (#lyrics ruby).
+        if (!text.looksLikeCjkReading()) return false
+
+        // Untagged romaji/pinyin is normally lower-case and syllable-spaced, with short tokens
+        // rather than natural sentence words; a tone mark makes it decisive on its own.
+        val hasToneMark = text.any { it in "āēīōūǖáéíóúǎěǐǒǔàèìòùǜ" }
+        return hasToneMark || (
+            text == normalized &&
+                words.all { word -> word.count(Char::isLetter) in 1..8 }
+            )
     }
 
     private fun Char.isCjkIdeograph(): Boolean {

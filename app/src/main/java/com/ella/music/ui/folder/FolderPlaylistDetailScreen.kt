@@ -52,9 +52,15 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaMiuixActionMenuGroup
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.ActionMenuCommonIcons
+import com.ella.music.ui.components.actionMenuIcon
+import com.ella.music.data.ActionMenuIds
+import top.yukonga.miuix.kmp.icon.extended.Hide
+import top.yukonga.miuix.kmp.icon.extended.Show
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.UserPlaylist
@@ -80,7 +86,7 @@ import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.home.HomeRatingFilterUiState
-import com.ella.music.ui.home.StarRatingFilterRow
+import com.ella.music.ui.home.RatingFilterMenu
 import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
 import com.ella.music.ui.playlist.PlaylistDragHandle
 import com.ella.music.ui.playlist.moveSelectedItemsAsBlock
@@ -128,8 +134,8 @@ fun FolderPlaylistDetailScreen(
     val playlists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
-    val showRatingFilter by mainViewModel.settingsManager.playlistShowRatingFilter.collectAsState(initial = true)
-    val showFavoriteFilter by mainViewModel.settingsManager.playlistShowFavoriteFilter.collectAsState(initial = true)
+    val showRatingFilter by mainViewModel.settingsManager.playlistShowRatingFilter.collectAsState(initial = false)
+    val showFavoriteFilter by mainViewModel.settingsManager.playlistShowFavoriteFilter.collectAsState(initial = false)
     val currentSong by playerViewModel.currentSong.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
@@ -158,7 +164,7 @@ fun FolderPlaylistDetailScreen(
     var searchExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
     var searchQuery by rememberSaveable(playlistId) { mutableStateOf("") }
     var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
-    var ratingFilterExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
+
     var selectionMode by rememberSaveable(playlistId) { mutableStateOf(false) }
     var handledLocateTabRequest by remember { mutableIntStateOf(locateCurrentSongRequest) }
     LaunchedEffect(locateCurrentSongRequest) {
@@ -228,7 +234,7 @@ fun FolderPlaylistDetailScreen(
             }
         }
     }
-    val sortedPlaylistSongs = remember(ratingFilteredPlaylistSongs, songSortMode, playlist?.songOrder) {
+    val sortedPlaylistSongs = remember(ratingFilteredPlaylistSongs, songSortMode, playlist?.songOrder, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         ratingFilteredPlaylistSongs.sortedForFolderPlaylistDetail(songSortMode, playlist?.songOrder.orEmpty())
     }
     val sortedFolderEntries = remember(folderEntries, folderSortMode, playlist?.folderOrder) {
@@ -548,14 +554,13 @@ fun FolderPlaylistDetailScreen(
         }
     }
 
-    BackHandler(enabled = selectionMode || searchExpanded || ratingFilterExpanded) {
+    BackHandler(enabled = selectionMode || searchExpanded) {
         when {
             selectionMode -> exitSelection()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
             }
-            ratingFilterExpanded -> ratingFilterExpanded = false
         }
     }
 
@@ -577,7 +582,7 @@ fun FolderPlaylistDetailScreen(
             titleEndPadding = when {
                 selectionMode -> 168.dp
                 selectedTab == FolderPlaylistTab.Songs ->
-                    (168 + 48 * (if (showRatingFilter) 1 else 0) + 48 * (if (showFavoriteFilter) 1 else 0)).dp
+                    (168 + 48 * (if (showRatingFilter || showFavoriteFilter) 1 else 0)).dp
                 else -> 168.dp
             },
             onDoubleTapTitle = {
@@ -647,29 +652,15 @@ fun FolderPlaylistDetailScreen(
                     }
                 } else {
                 if (selectedTab == FolderPlaylistTab.Songs) {
-                    if (showRatingFilter) IconButton(onClick = { ratingFilterExpanded = !ratingFilterExpanded }) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_rating_star_half),
-                            contentDescription = stringResource(R.string.song_more_set_rating),
-                            tint = if (ratingFilter.hasRatingConstraint() || ratingFilterExpanded) {
-                                MiuixTheme.colorScheme.primary
-                            } else MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    if (showFavoriteFilter) IconButton(onClick = {
-                        ratingFilter = ratingFilter.toggleFavoriteFilter()
-                        HomeRatingFilterUiState.selection = ratingFilter
-                    }) {
-                        Icon(
-                            painter = painterResource(
-                                if (ratingFilter.hasFavoriteFilterMemory()) R.drawable.ic_notification_favorite_filled
-                                else R.drawable.ic_notification_favorite
-                            ),
-                            contentDescription = stringResource(R.string.favorite_filter),
-                            tint = if (ratingFilter.hasFavoriteFilterMemory()) Color(0xFFFF4D6D)
-                            else MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
+                    if (showRatingFilter || showFavoriteFilter) {
+                        RatingFilterMenu(
+                            selection = ratingFilter,
+                            onSelectionChange = {
+                                ratingFilter = it
+                                HomeRatingFilterUiState.selection = it
+                            },
+                            showFavorite = showFavoriteFilter,
+                            showRating = showRatingFilter
                         )
                     }
                 }
@@ -740,6 +731,13 @@ fun FolderPlaylistDetailScreen(
                             onSelect = { mode ->
                                 scope.launch { mainViewModel.settingsManager.setFolderPlaylistDetailSongSortIndex(mode.ordinal) }
                             }
+                        ) + listOf(
+                            com.ella.music.ui.components.randomSortDropdownItem(
+                                selected = songSortMode == FolderPlaylistSongSortMode.Random,
+                                onSelect = {
+                                    scope.launch { mainViewModel.settingsManager.setFolderPlaylistDetailSongSortIndex(FolderPlaylistSongSortMode.Random.ordinal) }
+                                }
+                            )
                         )
                         FolderPlaylistTab.Folders -> directionalSortModeDropdownItems(
                             fields = listOf(
@@ -802,7 +800,6 @@ fun FolderPlaylistDetailScreen(
                 onSearch = {
                     keyboardController?.hide()
                     focusManager.clearFocus()
-                    searchExpanded = false
                 },
                 placeholder = when (selectedTab) {
                     FolderPlaylistTab.Songs -> stringResource(R.string.folder_detail_search_placeholder)
@@ -810,22 +807,7 @@ fun FolderPlaylistDetailScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
-        androidx.compose.animation.AnimatedVisibility(
-            visible = selectedTab == FolderPlaylistTab.Songs &&
-                playlistSongs.isNotEmpty() && !selectionMode && ratingFilterExpanded,
-            enter = androidx.compose.animation.expandVertically(),
-            exit = androidx.compose.animation.shrinkVertically()
-        ) {
-            StarRatingFilterRow(
-                selection = ratingFilter,
-                onSelectionChange = {
-                    ratingFilter = it
-                    HomeRatingFilterUiState.selection = it
-                }
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             )
         }
 
@@ -870,12 +852,22 @@ fun FolderPlaylistDetailScreen(
                             ShuffleAllSummaryButton(
                                 visible = !selectionMode && displayedSongs.isNotEmpty(),
                                 onClick = {
-                                    playerViewModel.setShuffledPlaylist(
-                                        displayedSongs,
-                                        0,
-                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
-                                    )
-                                    if (openPlayerOnPlay) onNavigateToPlayer()
+                                    val queueSongs = if (songSortMode == FolderPlaylistSongSortMode.Random) {
+                                        val seed = com.ella.music.ui.LibrarySortUiState.reshuffleRandomSort()
+                                        scope.launch { mainViewModel.settingsManager.setRandomSortSeed(seed) }
+                                        com.ella.music.ui.LibrarySortUiState.randomizedSongs(displayedSongs, seed)
+                                    } else {
+                                        displayedSongs.shuffled()
+                                    }
+                                    if (queueSongs.isNotEmpty()) {
+                                        playerViewModel.setShuffledPlaylist(
+                                            queueSongs,
+                                            0,
+                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId),
+                                            preserveOrder = true
+                                        )
+                                        if (openPlayerOnPlay) onNavigateToPlayer()
+                                    }
                                 }
                             )
                             Text(
@@ -893,11 +885,20 @@ fun FolderPlaylistDetailScreen(
                             playbackStats = playbackStats,
                             currentSong = currentSong,
                             onContinue = { index ->
-                                playerViewModel.setPlaylist(
-                                    displayedSongs,
-                                    index,
-                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
-                                )
+                                if (songSortMode == FolderPlaylistSongSortMode.Random) {
+                                    playerViewModel.setShuffledPlaylist(
+                                        displayedSongs,
+                                        index,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId),
+                                        preserveOrder = true
+                                    )
+                                } else {
+                                    playerViewModel.setPlaylist(
+                                        displayedSongs,
+                                        index,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
+                                    )
+                                }
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         )
@@ -957,11 +958,20 @@ fun FolderPlaylistDetailScreen(
                                     if (selectionMode) {
                                         toggleKey(songKey)
                                     } else {
-                                        playerViewModel.setPlaylist(
-                                            displayedSongs,
-                                            index,
-                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
-                                        )
+                                        if (songSortMode == FolderPlaylistSongSortMode.Random) {
+                                            playerViewModel.setShuffledPlaylist(
+                                                displayedSongs,
+                                                index,
+                                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId),
+                                                preserveOrder = true
+                                            )
+                                        } else {
+                                            playerViewModel.setPlaylist(
+                                                displayedSongs,
+                                                index,
+                                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folderPlaylist(playlistId)
+                                            )
+                                        }
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 },
@@ -1174,104 +1184,117 @@ fun FolderPlaylistDetailScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.common_pin_to_top),
-                        onClick = {
-                            scope.launch {
-                                mainViewModel.settingsManager.setFolderPlaylistFolderOrder(
-                                    targetPlaylist.id,
-                                    (listOf(entry.path) + folderEntries.map(FolderPlaylistFolderEntry::path)).distinct()
-                                )
-                            }
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(
-                            if (targetPlaylist.hiddenFolders.any { it.equals(entry.path, ignoreCase = true) }) {
-                                R.string.folder_playlist_show
-                            } else {
-                                R.string.folder_playlist_hide
-                            }
-                        ),
-                        onClick = {
-                            val hidden = targetPlaylist.hiddenFolders.toMutableList()
-                            val existing = hidden.indexOfFirst { it.equals(entry.path, ignoreCase = true) }
-                            if (existing >= 0) hidden.removeAt(existing) else hidden += entry.path
-                            scope.launch {
-                                mainViewModel.settingsManager.setFolderPlaylistHiddenFolders(targetPlaylist.id, hidden)
-                            }
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.common_remove),
-                        onClick = {
-                            val remaining = targetPlaylist.folders.filterNot { it.equals(entry.path, ignoreCase = true) }
-                            scope.launch {
-                                if (remaining.isEmpty()) {
-                                    mainViewModel.settingsManager.deleteFolderPlaylist(targetPlaylist.id)
-                                    onBack()
-                                } else {
-                                    mainViewModel.settingsManager.upsertFolderPlaylist(
+                    val isHidden = targetPlaylist.hiddenFolders.any { it.equals(entry.path, ignoreCase = true) }
+                    EllaMiuixActionMenuGroup {
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.common_pin_to_top),
+                            icon = ActionMenuCommonIcons.pin,
+                            onClick = {
+                                scope.launch {
+                                    mainViewModel.settingsManager.setFolderPlaylistFolderOrder(
                                         targetPlaylist.id,
-                                        targetPlaylist.name,
-                                        remaining
+                                        (listOf(entry.path) + folderEntries.map(FolderPlaylistFolderEntry::path)).distinct()
                                     )
                                 }
+                                folderActionTarget = null
                             }
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.folder_playlist_associate),
-                        onClick = {
-                            associateFolderPaths = listOf(entry.path)
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.common_share),
-                        onClick = {
-                            shareLocalSongs(context, folderSongs)
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.song_more_add_to_playlist),
-                        onClick = {
-                            playlistPickerSongs = folderSongs
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.common_add_to_queue),
-                        onClick = {
-                            playerViewModel.addToPlaylist(folderSongs)
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.song_more_play_next),
-                        onClick = {
-                            playerViewModel.playNext(folderSongs)
-                            folderActionTarget = null
-                        }
-                    )
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.common_add_desktop_shortcut),
-                        onClick = {
-                            requestPinnedEllaShortcut(
-                                context = context,
-                                id = "folder_${entry.path.tagIdentityKey()}",
-                                label = entry.displayName,
-                                route = Screen.FolderDetail.createRoute(entry.path)
-                            )
-                            folderActionTarget = null
-                        }
-                    )
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(
+                                if (isHidden) {
+                                    R.string.folder_playlist_show
+                                } else {
+                                    R.string.folder_playlist_hide
+                                }
+                            ),
+                            icon = if (isHidden) MiuixIcons.Regular.Show else MiuixIcons.Regular.Hide,
+                            onClick = {
+                                val hidden = targetPlaylist.hiddenFolders.toMutableList()
+                                val existing = hidden.indexOfFirst { it.equals(entry.path, ignoreCase = true) }
+                                if (existing >= 0) hidden.removeAt(existing) else hidden += entry.path
+                                scope.launch {
+                                    mainViewModel.settingsManager.setFolderPlaylistHiddenFolders(targetPlaylist.id, hidden)
+                                }
+                                folderActionTarget = null
+                            }
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.common_remove),
+                            icon = ActionMenuCommonIcons.delete,
+                            danger = true,
+                            onClick = {
+                                val remaining = targetPlaylist.folders.filterNot { it.equals(entry.path, ignoreCase = true) }
+                                scope.launch {
+                                    if (remaining.isEmpty()) {
+                                        mainViewModel.settingsManager.deleteFolderPlaylist(targetPlaylist.id)
+                                        onBack()
+                                    } else {
+                                        mainViewModel.settingsManager.upsertFolderPlaylist(
+                                            targetPlaylist.id,
+                                            targetPlaylist.name,
+                                            remaining
+                                        )
+                                    }
+                                }
+                                folderActionTarget = null
+                            }
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.folder_playlist_associate),
+                            icon = ActionMenuCommonIcons.link,
+                            onClick = {
+                                associateFolderPaths = listOf(entry.path)
+                                folderActionTarget = null
+                            }
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.common_share),
+                            icon = ActionMenuCommonIcons.share,
+                            onClick = {
+                                shareLocalSongs(context, folderSongs)
+                                folderActionTarget = null
+                            }
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.song_more_add_to_playlist),
+                            icon = actionMenuIcon(ActionMenuIds.ADD_TO_PLAYLIST),
+                            onClick = {
+                                playlistPickerSongs = folderSongs
+                                folderActionTarget = null
+                            }
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.common_add_to_queue),
+                            icon = ActionMenuCommonIcons.playlist,
+                            onClick = {
+                                playerViewModel.addToPlaylist(folderSongs)
+                                folderActionTarget = null
+                            }
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.song_more_play_next),
+                            icon = actionMenuIcon(ActionMenuIds.PLAY_NEXT),
+                            onClick = {
+                                playerViewModel.playNext(folderSongs)
+                                folderActionTarget = null
+                            }
+                        )
+                        EllaMiuixMenuItem(
+                            text = stringResource(R.string.common_add_desktop_shortcut),
+                            icon = ActionMenuCommonIcons.home,
+                            onClick = {
+                                requestPinnedEllaShortcut(
+                                    context = context,
+                                    id = "folder_${entry.path.tagIdentityKey()}",
+                                    label = entry.displayName,
+                                    route = Screen.FolderDetail.createRoute(entry.path)
+                                )
+                                folderActionTarget = null
+                            }
+                        )
+                    }
                 }
             }
         }

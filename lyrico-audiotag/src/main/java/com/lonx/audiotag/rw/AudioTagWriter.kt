@@ -1,6 +1,8 @@
 package com.lonx.audiotag.rw
 
 import android.os.ParcelFileDescriptor
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import com.lonx.audiotag.TagLib
 import com.lonx.audiotag.internal.FdUtils
@@ -9,7 +11,6 @@ import com.lonx.audiotag.model.Picture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.HashMap
-import kotlin.collections.iterator
 
 object AudioTagWriter {
     private const val TAG = "AudioTagWriter"
@@ -21,12 +22,14 @@ object AudioTagWriter {
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
+                runCatching { Os.lseek(pfd.fileDescriptor, 0, OsConstants.SEEK_SET) }
                 val fd = FdUtils.getNativeFd(pfd)
                 val mapToSave = HashMap<String, Array<String>>()
 
                 if (preserveOldTags) {
                     val oldFd = FdUtils.getNativeFd(pfd)
                     val oldMeta = TagLib.getMetadata(oldFd, false)
+                    runCatching { Os.lseek(pfd.fileDescriptor, 0, OsConstants.SEEK_SET) }
                     if (oldMeta != null) {
                         mapToSave.putAll(oldMeta.propertyMap)
                     }
@@ -37,9 +40,11 @@ object AudioTagWriter {
                 }
 
                 mapToSave.forEach { (string, strings) ->
-                    Log.d(TAG, "Write tag: $string = $strings")
+                    Log.d(TAG, "Write tag: $string = ${strings.contentToString()}")
                 }
-                return@withContext TagLib.savePropertyMap(fd, mapToSave)
+                val result = TagLib.savePropertyMap(fd, mapToSave)
+                runCatching { Os.lseek(pfd.fileDescriptor, 0, OsConstants.SEEK_SET) }
+                return@withContext result
             } catch (e: Exception) {
                 Log.e(TAG, "Write tags error", e)
                 return@withContext false
@@ -51,6 +56,7 @@ object AudioTagWriter {
     suspend fun writePictures(pfd: ParcelFileDescriptor, pictures: List<AudioPicture>): Boolean {
         return withContext(Dispatchers.IO) {
             try {
+                runCatching { Os.lseek(pfd.fileDescriptor, 0, OsConstants.SEEK_SET) }
                 val fd = FdUtils.getNativeFd(pfd)
                 val libPics = ArrayList<Picture>()
                 for (p in pictures) {
@@ -62,7 +68,9 @@ object AudioTagWriter {
                     ))
                 }
                 val arr = libPics.toTypedArray()
-                return@withContext TagLib.savePictures(fd, arr)
+                val result = TagLib.savePictures(fd, arr)
+                runCatching { Os.lseek(pfd.fileDescriptor, 0, OsConstants.SEEK_SET) }
+                return@withContext result
             } catch (e: Exception) {
                 Log.e(TAG, "Write pictures error", e)
                 return@withContext false

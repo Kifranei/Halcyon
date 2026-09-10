@@ -43,12 +43,29 @@ internal fun renderOpeningLyricTemplate(template: String, song: Song): String {
         .trim(' ', '-', '–', '—', '·', '|', '/')
 }
 
-internal fun List<LyricLine>.withOpeningMetadataLine(song: Song, template: String): List<LyricLine> {
-    if (isEmpty() || template.isBlank()) return this
-    val firstStartMs = first().timeMs
-    if (firstStartMs <= 0L) return this
+internal fun List<LyricLine>.withOpeningMetadataLine(
+    song: Song,
+    template: String,
+    fallbackWhenEmpty: Boolean = false
+): List<LyricLine> {
+    if (template.isBlank()) return this
     val text = renderOpeningLyricTemplate(template, song)
     if (text.isBlank()) return this
+    if (isEmpty()) {
+        if (!fallbackWhenEmpty) return this
+        val endMs = song.duration.coerceAtLeast(1L)
+        return listOf(
+            LyricLine(
+                timeMs = 0L,
+                text = text,
+                words = listOf(LyricWord(text = text, startMs = 0L, endMs = endMs)),
+                endMs = endMs,
+                isOpeningMetadata = true
+            )
+        )
+    }
+    val firstStartMs = first().timeMs
+    if (firstStartMs <= 0L) return this
     val opening = LyricLine(
         timeMs = 0L,
         text = text,

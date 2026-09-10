@@ -32,10 +32,8 @@ import com.ella.music.data.metadata.LyricoAudioTagReaderWriter
 import com.ella.music.data.metadata.WavMetadataReader
 import com.ella.music.data.scanner.MediaStoreAudioItem
 import com.ella.music.data.scanner.MusicScanner
-import com.ella.music.data.scanner.needsUpdateAgainst
-import com.ella.music.data.scanner.hasSameFileSnapshot
-import com.ella.music.data.scanner.quickLocalFileFingerprint
-import com.ella.music.data.scanner.toLibraryScanFingerprint
+import com.ella.music.data.scanner.TwoStageScanCoordinator
+import com.ella.music.data.scanner.TwoStageScanEvent
 import com.ella.music.data.scanner.toShallowSong
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
@@ -126,6 +124,9 @@ class MusicRepository(private val context: Context) {
         .build()
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
+
+    /** Cached #655 toggle; refreshed at the start of each library load. */
+    @Volatile private var folderNameAsAlbumWhenMissingEnabled: Boolean = false
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
     private val _webDavMetadataRevision = MutableStateFlow(0L)
     val webDavMetadataRevision: StateFlow<Long> = _webDavMetadataRevision.asStateFlow()
@@ -191,8 +192,11 @@ class MusicRepository(private val context: Context) {
         deepRescan: Boolean = fullRescan,
         deepMetadataEnabled: Boolean = true,
         filesystemFallbackFolders: List<String> = includeFolders,
-        filterVideoFiles: Boolean = true
+        filterVideoFiles: Boolean = true,
+        refreshMediaStore: Boolean = false
     ): MusicScanSummary {
+        refreshFolderAlbumSetting()
+
         val mode = if (includeFolders.isEmpty()) "media_library" else "custom_folders"
         val previousSongs = libraryCacheStore.readLocalScanBaselineSongs().ifEmpty { _songs.value }
         AppLogStore.info(
@@ -208,71 +212,99 @@ class MusicRepository(private val context: Context) {
             clearScanMetadataCaches()
             if (fullRescan) snapshotManager.clearLibraryCache()
         }
-        val scanResult = if (fullRescan || effectiveDeepRescan) {
-            val scannedSongs = scanner.scanAllSongs(
-                minDurationMs = minDurationMs,
-                includeFolders = includeFolders,
-                excludeFolders = excludeFolders,
-                deepMetadata = effectiveDeepRescan,
-                filterVideoFiles = filterVideoFiles,
-                onProgress = { count -> scanProgressState.update(count) },
-                filesystemFallbackFolders = filesystemFallbackFolders
-            )
-            LibraryScanResult(
-                songs = scannedSongs,
-                summary = buildFullScanSummary(previousSongs, scannedSongs, fullRescan = true)
-            )
-        } else {
-            synchronizeLibrary(
-                minDurationMs = minDurationMs,
-                includeFolders = includeFolders,
-                excludeFolders = excludeFolders,
-                previousSummarySongs = previousSongs,
-                deepMetadataEnabled = deepMetadataEnabled,
-                filesystemFallbackFolders = filesystemFallbackFolders,
-                filterVideoFiles = filterVideoFiles
-            )
-        }
-        val scannedSongs = scanResult.songs
-        // A transient MediaStore/provider failure must not overwrite both on-disk snapshots with
-        // an empty library during an ordinary refresh. A deliberate full scan still owns the
-        // result, including an intentionally empty library.
-        val preservePreviousLibrary = !fullRescan && scannedSongs.isEmpty() && previousSongs.isNotEmpty()
-        val resolvedSongs = if (preservePreviousLibrary) previousSongs else scannedSongs
-        if (preservePreviousLibrary) {
-            AppLogStore.warn(
-                context,
-                "MusicScanner",
-                "Ignoring unexpected empty incremental scan and preserving ${previousSongs.size} cached songs",
-                type = AppLogType.LIBRARY
-            )
-        }
-        val resolvedSummary = if (preservePreviousLibrary) {
-            MusicScanSummary(total = resolvedSongs.size, failed = scanResult.summary.failed)
-        } else {
-            scanResult.summary.copy(total = resolvedSongs.size)
-        }
-        val clearedRatingSnapshots = snapshotManager.clearMissingFileSnapshots(resolvedSongs.map { it.path }.toSet())
-        val albums = resolvedSongs.toAlbums()
-        _songs.value = resolvedSongs
-        _albums.value = albums
-        if (fullRescan || effectiveDeepRescan) {
-            val fingerprints = resolvedSongs.mapNotNull { song ->
-                song.path.localFingerprintKeyOrNull()?.let { key ->
-                    quickLocalFileFingerprint(song.path)?.let { key to it }
+
+        var finalSummary: MusicScanSummary? = null
+
+        TwoStageScanCoordinator.scan(
+            context = context,
+            scanner = scanner,
+            minDurationMs = minDurationMs,
+            includeFolders = includeFolders,
+            excludeFolders = excludeFolders,
+            filesystemFallbackFolders = filesystemFallbackFolders,
+            filterVideoFiles = filterVideoFiles,
+            refreshMediaStore = refreshMediaStore,
+            deepMetadataEnabled = effectiveDeepRescan,
+            forceClearCache = fullRescan,
+            previousSongs = previousSongs,
+            enrichSong = { song -> song.withRepositoryTags() }
+        ).collect { event ->
+            when (event) {
+                is TwoStageScanEvent.Started -> {
+                    scanProgressState.start()
                 }
-            }.toMap()
-            libraryCacheStore.saveLocalFileFingerprints(fingerprints)
+                is TwoStageScanEvent.QuickProgress -> {
+                    scanProgressState.update(event.scanned)
+                }
+                is TwoStageScanEvent.QuickCompleted -> {
+                    val songs = event.songs
+                    val preservePreviousLibrary = !fullRescan && songs.isEmpty() && previousSongs.isNotEmpty()
+                    val resolvedQuickSongs = if (preservePreviousLibrary) previousSongs else songs
+                    val albums = resolvedQuickSongs.toAlbums()
+                    _songs.value = resolvedQuickSongs
+                    _albums.value = albums
+                    scanProgressState.update(resolvedQuickSongs.size)
+                    libraryCacheStore.saveLibraryCache(resolvedQuickSongs, albums)
+                    AppLogStore.info(
+                        context,
+                        "MusicScanner",
+                        "Stage 1 (Quick) completed: found=${resolvedQuickSongs.size} in ${event.timeMs}ms",
+                        AppLogType.LIBRARY
+                    )
+                }
+                is TwoStageScanEvent.EnrichBatchCompleted -> {
+                    val currentSongs = _songs.value
+                    val batchMap = event.enrichedBatch.associateBy { it.path }
+                    val updatedSongs = currentSongs.map { song -> batchMap[song.path] ?: song }
+                    _songs.value = updatedSongs
+                    scanProgressState.update(event.processed)
+                }
+                is TwoStageScanEvent.EnrichProgress -> {
+                    scanProgressState.update(event.processed)
+                }
+                is TwoStageScanEvent.FullyCompleted -> {
+                    val preservePreviousLibrary = !fullRescan && event.allSongs.isEmpty() && previousSongs.isNotEmpty()
+                    val resolvedSongs = if (preservePreviousLibrary) previousSongs else event.allSongs
+                    if (preservePreviousLibrary) {
+                        AppLogStore.warn(
+                            context,
+                            "MusicScanner",
+                            "Ignoring unexpected empty incremental scan and preserving ${previousSongs.size} cached songs",
+                            type = AppLogType.LIBRARY
+                        )
+                    }
+                    val clearedRatingSnapshots = snapshotManager.clearMissingFileSnapshots(resolvedSongs.map { it.path }.toSet())
+                    val albums = resolvedSongs.toAlbums()
+                    _songs.value = resolvedSongs
+                    _albums.value = albums
+                    libraryCacheStore.saveLibraryCache(resolvedSongs, albums)
+                    libraryCacheStore.saveLocalScanBaseline(resolvedSongs, albums)
+
+                    val summary = if (preservePreviousLibrary) {
+                        MusicScanSummary(total = resolvedSongs.size)
+                    } else {
+                        buildFullScanSummary(previousSongs, resolvedSongs, fullRescan = fullRescan)
+                            .copy(total = resolvedSongs.size)
+                    }
+                    finalSummary = summary
+                    AppLogStore.info(
+                        context,
+                        "MusicScanner",
+                        "Scan finished mode=$mode songs=${resolvedSongs.size} albums=${albums.size} added=${summary.added} removed=${summary.deleted} updated=${summary.updated} ratingSnapshotsCleared=$clearedRatingSnapshots preservedPrevious=$preservePreviousLibrary totalTime=${event.totalTimeMs}ms cacheHits=${event.cacheHits} enriched=${event.enrichedCount}",
+                        AppLogType.LIBRARY
+                    )
+                }
+                is TwoStageScanEvent.Error -> {
+                    AppLogStore.warn(
+                        context,
+                        "MusicScanner",
+                        "TwoStageScan error: ${event.message}",
+                        type = AppLogType.LIBRARY
+                    )
+                }
+            }
         }
-        libraryCacheStore.saveLibraryCache(resolvedSongs, albums)
-        libraryCacheStore.saveLocalScanBaseline(resolvedSongs, albums)
-        AppLogStore.info(
-            context,
-            "MusicScanner",
-            "Scan finished mode=$mode songs=${resolvedSongs.size} albums=${_albums.value.size} added=${resolvedSummary.added} removed=${resolvedSummary.deleted} updated=${resolvedSummary.updated} ratingSnapshotsCleared=$clearedRatingSnapshots preservedPrevious=$preservePreviousLibrary",
-            AppLogType.LIBRARY
-        )
-        return resolvedSummary
+        return finalSummary ?: MusicScanSummary(total = _songs.value.size)
     }
 
     /**
@@ -309,7 +341,6 @@ class MusicRepository(private val context: Context) {
         val merged = existingSongs + usbSongs
             _songs.value = merged
             _albums.value = merged.toAlbums()
-            updateLocalFileFingerprints(usbSongs)
             libraryCacheStore.saveLibraryCache(merged, _albums.value)
             AppLogStore.info(
                 context,
@@ -345,14 +376,28 @@ class MusicRepository(private val context: Context) {
         val existingByPath = existingSongs.associateBy { it.path }
         val existingPaths = existingByPath.keys
 
-        // Scan only the specified folders.
-        val scannedSongs = scanner.scanAllSongs(
+        // Scan only the specified folders via two-stage concurrent coordinator
+        var scannedSongs: List<Song> = emptyList()
+        TwoStageScanCoordinator.scan(
+            context = context,
+            scanner = scanner,
             minDurationMs = minDurationMs,
             includeFolders = normalizedFolders,
             excludeFolders = emptyList(),
-            deepMetadata = deepMetadata,
-            filterVideoFiles = filterVideoFiles
-        ) { count -> scanProgressState.update(count) }
+            filesystemFallbackFolders = normalizedFolders,
+            filterVideoFiles = filterVideoFiles,
+            deepMetadataEnabled = deepMetadata,
+            forceClearCache = false,
+            previousSongs = existingSongs,
+            enrichSong = { song -> song.withRepositoryTags() }
+        ).collect { event ->
+            when (event) {
+                is TwoStageScanEvent.QuickProgress -> scanProgressState.update(event.scanned)
+                is TwoStageScanEvent.EnrichProgress -> scanProgressState.update(event.processed)
+                is TwoStageScanEvent.FullyCompleted -> scannedSongs = event.allSongs
+                else -> Unit
+            }
+        }
 
         val scannedByPath = scannedSongs.associateBy { it.path }
 
@@ -384,7 +429,6 @@ class MusicRepository(private val context: Context) {
         val albums = merged.toAlbums()
         _songs.value = merged
         _albums.value = albums
-        updateLocalFileFingerprints(scannedSongs)
         libraryCacheStore.saveLibraryCache(merged, albums)
         libraryCacheStore.saveLocalScanBaseline(merged, albums)
         AppLogStore.info(
@@ -396,149 +440,6 @@ class MusicRepository(private val context: Context) {
         summary
     }
 
-    private suspend fun synchronizeLibrary(
-        minDurationMs: Long,
-        includeFolders: List<String>,
-        excludeFolders: List<String>,
-        previousSummarySongs: List<Song>,
-        deepMetadataEnabled: Boolean = true,
-        filesystemFallbackFolders: List<String> = includeFolders,
-        filterVideoFiles: Boolean = true
-    ): LibraryScanResult = withContext(Dispatchers.IO) {
-        val cachedSongs = _songs.value.takeIf { it.isNotEmpty() } ?: libraryCacheStore.readCachedSongs()
-        val cachedBySyncKey = cachedSongs.associateBy { it.librarySyncKey() }
-        val cachedByPath = cachedSongs.associateBy { it.path }
-        val currentItems = scanner.enumerateAudioFiles(
-            includeFolders = includeFolders,
-            excludeFolders = excludeFolders,
-            filesystemFallbackFolders = filesystemFallbackFolders,
-            filterVideoFiles = filterVideoFiles
-        )
-        val currentKeys = currentItems.map { it.librarySyncKey() }.toSet()
-        val currentPaths = currentItems.map { it.path }.toSet()
-        val mergedSongs = ArrayList<Song>(currentItems.size)
-        val cachedFingerprints = libraryCacheStore.readLocalFileFingerprints()
-        val nextFingerprints = cachedFingerprints.toMutableMap()
-        var reusedCount = 0
-        var failedCount = 0
-
-        currentItems.forEachIndexed { index, item ->
-            val cached = cachedBySyncKey[item.librarySyncKey()] ?: cachedByPath[item.path]
-            val mediaStoreSaysTooShort = item.duration > 0L && item.duration < minDurationMs
-            if (mediaStoreSaysTooShort) {
-                scanProgressState.update(index + 1)
-                return@forEachIndexed
-            }
-
-            val currentInfo = item.toLibraryScanFingerprint()
-            val cachedInfo = cached?.toLibraryScanFingerprint()
-            val fingerprintKey = item.localFingerprintKey()
-            // Only sample bytes when the provider snapshot otherwise looks unchanged (or when
-            // this is a legacy cache with no stamp yet). This keeps the normal scan cheap while
-            // still catching tag editors that preserve SIZE and DATE_MODIFIED.
-            val currentContentFingerprint = if (
-                cached != null && cachedInfo != null &&
-                (currentInfo.hasSameFileSnapshot(cachedInfo) ||
-                    cachedFingerprints[fingerprintKey].isNullOrBlank())
-            ) {
-                quickLocalFileFingerprint(item.path)
-            } else {
-                null
-            }
-            val cachedContentFingerprint = cachedFingerprints[fingerprintKey]
-            val contentFingerprintChanged = cached != null &&
-                currentContentFingerprint != null &&
-                (cachedContentFingerprint.isNullOrBlank() ||
-                    currentContentFingerprint != cachedContentFingerprint)
-            val needsUpdate = currentInfo.needsUpdateAgainst(
-                cached = cachedInfo,
-                forcePlaceholderRefresh = deepMetadataEnabled &&
-                    cached?.needsMetadataPlaceholderRefresh() == true
-            ) || contentFingerprintChanged
-
-            if (needsUpdate) {
-                val scanned = runCatching {
-                    buildIncrementalLibrarySong(
-                        item = item,
-                        minDurationMs = minDurationMs,
-                        deepMetadataEnabled = deepMetadataEnabled
-                    )
-                }.onFailure { error ->
-                    failedCount++
-                    AppLogStore.warn(
-                        context,
-                        "MusicScanner",
-                        "Incremental item failed path=${item.path}: ${error.message ?: error.javaClass.name}",
-                        type = AppLogType.LIBRARY
-                    )
-                }.getOrNull()
-
-                if (scanned != null) {
-                    cached?.let(::clearMetadataCache)
-                    clearMetadataCache(scanned)
-                    mergedSongs += scanned
-                    quickLocalFileFingerprint(item.path)?.let { nextFingerprints[fingerprintKey] = it }
-                } else if (cached != null) {
-                    mergedSongs += cached
-                    currentContentFingerprint?.let { nextFingerprints[fingerprintKey] = it }
-                }
-            } else if (cached != null) {
-                val reused = cached.copy(
-                    albumId = item.albumId,
-                    fileName = item.fileName.ifBlank { cached.fileName },
-                    mimeType = item.mimeType.ifBlank { cached.mimeType },
-                    dateAdded = item.dateAdded.takeIf { it > 0L } ?: cached.dateAdded,
-                    trackNumber = item.trackNumber.takeIf { it > 0 } ?: cached.trackNumber,
-                    discNumber = item.discNumber.takeIf { it > 0 } ?: cached.discNumber
-                )
-                if (reused.duration >= minDurationMs) {
-                    mergedSongs += reused
-                    reusedCount++
-                    currentContentFingerprint?.let { nextFingerprints[fingerprintKey] = it }
-                }
-            }
-            scanProgressState.update(index + 1)
-        }
-
-        // MediaStore can lag behind filesystem changes.  A fast scan must not throw away songs
-        // discovered by a previous full scan merely because the provider has not indexed them
-        // yet; retain those entries until their local file actually disappears.
-        val retainedFromFilesystem = cachedSongs.filter { song ->
-                song.librarySyncKey() !in currentKeys &&
-                song.path !in currentPaths &&
-                song.hasExistingLocalFile() &&
-                (!filterVideoFiles || !scanner.isVideoFile(song.path, song.mimeType))
-        }
-        retainedFromFilesystem.forEach { retained ->
-            if (mergedSongs.none { it.path == retained.path }) mergedSongs += retained
-        }
-        val deletedSongs = cachedSongs.filter { song ->
-            song.librarySyncKey() !in currentKeys &&
-                song.path !in currentPaths &&
-                song !in retainedFromFilesystem
-        }
-        deletedSongs.forEach(::clearMetadataCache)
-        val activeFingerprintKeys = mergedSongs.mapNotNull { it.path.localFingerprintKeyOrNull() }.toSet()
-        nextFingerprints.keys.retainAll(activeFingerprintKeys)
-        libraryCacheStore.saveLocalFileFingerprints(nextFingerprints)
-        val summary = buildLibraryDeltaSummary(previousSummarySongs, mergedSongs)
-            .copy(total = mergedSongs.size, failed = failedCount)
-
-        AppLogStore.info(
-            context,
-            "MusicScanner",
-            "Incremental scan finished total=${currentItems.size} added=${summary.added} updated=${summary.updated} reused=$reusedCount retained=${retainedFromFilesystem.size} deleted=${summary.deleted} failed=$failedCount",
-            AppLogType.LIBRARY
-        )
-        Log.d(
-            "MusicScanner",
-            "Incremental scan finished total=${currentItems.size} added=${summary.added} updated=${summary.updated} reused=$reusedCount retained=${retainedFromFilesystem.size} deleted=${summary.deleted} failed=$failedCount"
-        )
-        LibraryScanResult(
-            songs = mergedSongs,
-            summary = summary
-        )
-    }
 
     private fun buildFullScanSummary(
         previousSongs: List<Song>,
@@ -573,27 +474,6 @@ class MusicRepository(private val context: Context) {
         )
     }
 
-    private data class LibraryScanResult(
-        val songs: List<Song>,
-        val summary: MusicScanSummary
-    )
-
-    private suspend fun buildIncrementalLibrarySong(
-        item: MediaStoreAudioItem,
-        minDurationMs: Long,
-        deepMetadataEnabled: Boolean = true
-    ): Song? {
-        item.toShallowSong(minDurationMs)?.let { shallow ->
-            return if (deepMetadataEnabled) shallow.withRepositoryTags() else shallow.withFinalLibraryFallbacks()
-        }
-        return scanner.scanAudioItem(
-            item = item,
-            minDurationMs = minDurationMs,
-            deepMetadata = false
-        )?.let { scanned ->
-            if (deepMetadataEnabled) scanned.withRepositoryTags() else scanned.withFinalLibraryFallbacks()
-        }
-    }
 
     suspend fun refreshSongAfterExternalEdit(song: Song): Song? = withContext(Dispatchers.IO) {
         if (song.path.isHttpAudioSource()) return@withContext null
@@ -676,6 +556,8 @@ class MusicRepository(private val context: Context) {
      * remote library is cached per-source so switching back is instant and works offline.
      */
     suspend fun loadRemoteLibrary(source: String, forceRefresh: Boolean): MusicScanSummary = withContext(Dispatchers.IO) {
+        refreshFolderAlbumSetting()
+
         val cacheFile = libraryCacheStore.remoteLibraryCacheFile(source)
         val previousSongs = _songs.value.takeIf { it.isNotEmpty() }
             ?: runCatching { readLibraryCacheSongs(cacheFile) }.getOrDefault(emptyList())
@@ -698,12 +580,21 @@ class MusicRepository(private val context: Context) {
                 SettingsManager.LIBRARY_SOURCE_NAVIDROME -> {
                     val config = settingsManager.navidromeConfig.first()
                     if (!config.isConfigured) return@runCatching null
-                    NavidromeService(context).listSongs(config).map { it.song }
+                    NavidromeService(context).listSongs(config) { page ->
+                        // Publish partial pages so a multi-hour sync shows songs instead of a blank library.
+                        val partial = page.map { it.song }
+                        _songs.value = partial
+                        _albums.value = partial.toAlbums()
+                    }.map { it.song }
                 }
                 SettingsManager.LIBRARY_SOURCE_OPENSUBSONIC -> {
                     val config = settingsManager.openSubsonicConfig.first()
                     if (!config.isConfigured) return@runCatching null
-                    NavidromeService(context).listSongs(config).map { it.song }
+                    NavidromeService(context).listSongs(config) { page ->
+                        val partial = page.map { it.song }
+                        _songs.value = partial
+                        _albums.value = partial.toAlbums()
+                    }.map { it.song }
                 }
                 SettingsManager.LIBRARY_SOURCE_EMBY -> {
                     val config = settingsManager.embyConfig.first()
@@ -718,11 +609,24 @@ class MusicRepository(private val context: Context) {
             }
         }.getOrElse { error ->
             Log.w("MusicRepo", "Failed to load remote library ($source)", error)
-            if (!applyCache()) clearInMemoryLibrary()
+            // Never wipe a usable in-memory / on-disk library after a failed huge sync —
+            // that left users on a blank library (and a subsequent cold start could hang
+            // retrying the same multi-GB Navidrome pull).
+            if (!applyCache() && previousSongs.isEmpty()) {
+                Log.w("MusicRepo", "No remote cache/previous songs to keep after failure ($source)")
+            } else if (_songs.value.isEmpty() && previousSongs.isNotEmpty()) {
+                _songs.value = previousSongs
+                _albums.value = previousSongs.toAlbums()
+            }
             return@withContext MusicScanSummary(total = _songs.value.size)
         } ?: run {
-            // Not configured yet — fall back to any cache, otherwise leave the library empty.
-            if (!applyCache()) clearInMemoryLibrary()
+            // Not configured yet — fall back to any cache; keep whatever is already loaded.
+            if (!applyCache() && previousSongs.isEmpty()) {
+                Log.w("MusicRepo", "Remote source not configured and no cache ($source)")
+            } else if (_songs.value.isEmpty() && previousSongs.isNotEmpty()) {
+                _songs.value = previousSongs
+                _albums.value = previousSongs.toAlbums()
+            }
             return@withContext MusicScanSummary(total = _songs.value.size)
         }
 
@@ -1240,8 +1144,21 @@ class MusicRepository(private val context: Context) {
             if (remoteMetadataHeaderCacheDir.exists()) {
                 remoteMetadataHeaderCacheDir.deleteRecursively()
             }
+            RemoteAudioCache.clearAll()
         }.onFailure {
             Log.w("MusicRepo", "Failed to clear online metadata cache", it)
+        }
+    }
+
+    fun clearRemoteAudioCache() {
+        runCatching {
+            if (remoteAudioCacheDir.exists()) {
+                remoteAudioCacheDir.deleteRecursively()
+                remoteAudioCacheDir.mkdirs()
+            }
+            RemoteAudioCache.clearAll()
+        }.onFailure {
+            Log.w("MusicRepo", "Failed to clear remote audio cache", it)
         }
     }
 
@@ -1518,7 +1435,7 @@ class MusicRepository(private val context: Context) {
         val mergedAlbum = tagInfo?.album.takeIf { it.isUsableAlbumText() }
             ?: wavMetadata?.album.takeIf { it.isUsableAlbumText() }
             ?: album.takeIf { it.isUsableAlbumText() }
-            ?: "Unknown Album"
+            ?: "" // withFinalLibraryFallbacks may substitute the parent folder (#655)
         val mergedAlbumArtist = tagInfo?.albumArtist.takeIf { it.isUsableArtistText() }
             ?: wavMetadata?.albumArtist.takeIf { it.isUsableArtistText() }
             ?: albumArtist.takeIf { it.isUsableArtistText() }
@@ -1542,9 +1459,35 @@ class MusicRepository(private val context: Context) {
         ).withFinalLibraryFallbacks()
     }
 
+    private suspend fun refreshFolderAlbumSetting() {
+        folderNameAsAlbumWhenMissingEnabled =
+            runCatching { settingsManager.folderNameAsAlbumWhenMissing.first() }.getOrDefault(false)
+    }
+
+    /** Re-apply album fallbacks after [folderNameAsAlbumWhenMissing] changes (#658). */
+    suspend fun rematerializeFolderAlbumFallbacks() {
+        refreshFolderAlbumSetting()
+        val rematerialized = _songs.value.map { it.withFinalLibraryFallbacks() }
+        if (rematerialized != _songs.value) {
+            _songs.value = rematerialized
+        }
+    }
+
     private fun Song.withFinalLibraryFallbacks(): Song {
         val fallbackArtist = artist.takeIf { it.isUsableArtistText() } ?: "Unknown Artist"
-        val fallbackAlbum = album.takeIf { it.isUsableAlbumText() }
+        val folderAlbum = if (folderNameAsAlbumWhenMissingEnabled) {
+            LibraryNormalizer.parentFolderName(path).takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+        // MediaStore / tags often fill album with the parent folder name when tags are missing.
+        // With the setting OFF those must count as missing so songs land in Unknown Album (#658).
+        val usableAlbum = album.takeIf { it.isUsableAlbumText() }
+            ?.takeUnless {
+                !folderNameAsAlbumWhenMissingEnabled && it.looksLikeLastFolderName(path)
+            }
+        val fallbackAlbum = usableAlbum
+            ?: folderAlbum
             ?: "Unknown Album"
         return copy(
             title = title.takeIf { it.isUsableTagText() } ?: fileName.substringBeforeLast('.').ifBlank { path.substringAfterLast('/') },
@@ -1666,22 +1609,6 @@ class MusicRepository(private val context: Context) {
     private fun MediaStoreAudioItem.librarySyncKey(): String =
         com.ella.music.data.scanner.MediaStoreLibraryIndexer.mediaStoreLibrarySyncKey(id, path)
 
-    private fun MediaStoreAudioItem.localFingerprintKey(): String =
-        path.localFingerprintKeyOrNull().orEmpty()
-
-    private fun String.localFingerprintKeyOrNull(): String? {
-        if (isBlank() || isContentAudioSource() || isHttpAudioSource()) return null
-        return trim().replace('\\', '/').lowercase()
-    }
-
-    private fun updateLocalFileFingerprints(songs: Iterable<Song>) {
-        val next = libraryCacheStore.readLocalFileFingerprints().toMutableMap()
-        songs.forEach { song ->
-            val key = song.path.localFingerprintKeyOrNull() ?: return@forEach
-            quickLocalFileFingerprint(song.path)?.let { next[key] = it }
-        }
-        libraryCacheStore.saveLocalFileFingerprints(next)
-    }
 
     private fun Song.hasExistingLocalFile(): Boolean {
         if (path.isBlank() || path.isContentAudioSource() || path.isHttpAudioSource()) return false

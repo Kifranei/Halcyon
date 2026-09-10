@@ -6,6 +6,8 @@ import android.os.Environment
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.blockCredentialedHttpRequests
+import com.ella.music.data.copyToBoundedOrThrow
 import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.flow.first
@@ -13,6 +15,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.TimeUnit
+import java.util.UUID
 
 /**
  * Downloads a dynamic cover video to the appropriate directory.
@@ -26,6 +30,10 @@ internal class DynamicCoverDownloadHelper(
     private val song: Song
 ) {
     private val okHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(60, TimeUnit.SECONDS)
+        .blockCredentialedHttpRequests()
         .build()
     private val settingsManager by lazy { SettingsManager.getInstance(context) }
 
@@ -37,16 +45,24 @@ internal class DynamicCoverDownloadHelper(
             .url(videoUrl)
             .build()
 
-        val response = okHttpClient.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw Exception("HTTP ${response.code}: ${response.message}")
+        val temporary = File(context.cacheDir, "dynamic-cover-${UUID.randomUUID()}.partial")
+        try {
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IllegalStateException("HTTP ${response.code}: ${response.message}")
+                }
+                val body = response.body ?: throw IllegalStateException("Empty response body")
+                require(body.contentLength() <= MAX_VIDEO_BYTES) { "Dynamic cover video is too large" }
+                temporary.outputStream().use { output ->
+                    body.byteStream().use { input -> input.copyToBoundedOrThrow(output, MAX_VIDEO_BYTES) }
+                }
+            }
+            require(temporary.isFile && temporary.length() > 0L) { "Empty response body" }
+            temporary.inputStream().use(target::write)
+            target.scan()
+        } finally {
+            temporary.delete()
         }
-
-        response.body?.byteStream()?.use { input ->
-            target.write(input)
-        } ?: throw Exception("Empty response body")
-
-        target.scan()
     }
 
     private fun determineFileName(): String {
@@ -143,6 +159,10 @@ internal class DynamicCoverDownloadHelper(
 
     private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFile? =
         listFiles().firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }
+
+    private companion object {
+        const val MAX_VIDEO_BYTES = 128L * 1024L * 1024L
+    }
 
     private sealed interface DynamicCoverDownloadTarget {
         fun write(input: InputStream)

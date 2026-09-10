@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,16 +54,15 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Copy
+import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Share
 
 import androidx.compose.ui.graphics.luminance
-
-private const val MAX_SHARE_LINES = 14
 
 private val LocalShareContentColor = staticCompositionLocalOf { Color.White }
 
@@ -78,8 +78,10 @@ fun LyricSharePicker(
     customInfo: String = "",
     shareTypeface: android.graphics.Typeface? = null,
     onDismiss: () -> Unit,
-    onShare: (List<LyricLine>, Boolean) -> Unit,
-    onVideoShare: ((List<LyricLine>, Boolean) -> Unit)? = null
+    onShare: (List<LyricLine>, LyricShareOptions) -> Unit,
+    onCopy: (List<LyricLine>, LyricShareOptions) -> Unit,
+    onSaveImage: (List<LyricLine>, LyricShareOptions) -> Unit,
+    onVideoShare: ((List<LyricLine>, LyricShareOptions) -> Unit)? = null
 ) {
     BackHandler(onBack = onDismiss)
 
@@ -90,7 +92,11 @@ fun LyricSharePicker(
             ?: 0
     }
     var selectedIndexes by remember(lyrics, initialIndex) { mutableStateOf(setOf(initialIndex)) }
+    var includeOriginal by remember { mutableStateOf(true) }
     var includeTranslation by remember { mutableStateOf(true) }
+    var includePronunciation by remember { mutableStateOf(true) }
+    var appendEllipsis by remember { mutableStateOf(false) }
+    var cardStyle by remember { mutableStateOf(LyricShareCardStyle.Current) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(initialIndex) {
@@ -101,7 +107,6 @@ fun LyricSharePicker(
         selectedIndexes
             .sorted()
             .mapNotNull(lyrics::getOrNull)
-            .filter { it.sharePrimaryText().isNotBlank() }
             .ifEmpty { listOf(initialLine) }
     }
     val colors = backgroundColors.ifEmpty {
@@ -111,12 +116,18 @@ fun LyricSharePicker(
     val onToggleSelection: (Int, Boolean) -> Unit = { index, selected ->
         selectedIndexes = if (selected) {
             selectedIndexes - index
-        } else if (selectedIndexes.size >= MAX_SHARE_LINES) {
-            selectedIndexes
         } else {
             selectedIndexes + index
         }
     }
+
+    val shareOptions = LyricShareOptions(
+        includeOriginal = includeOriginal,
+        includeTranslation = includeTranslation,
+        includePronunciation = includePronunciation,
+        appendEllipsis = appendEllipsis,
+        style = cardStyle
+    )
 
     BoxWithConstraints(
         modifier = Modifier
@@ -144,6 +155,7 @@ fun LyricSharePicker(
             LyricShareHeader(
                 selectedCount = selectedIndexes.size,
                 shareEnabled = selectedIndexes.isNotEmpty(),
+                selectedTotal = lyrics.size,
                 videoShareEnabled = onVideoShare != null,
                 onDismiss = onDismiss,
                 onShare = {
@@ -151,7 +163,21 @@ fun LyricSharePicker(
                         .sorted()
                         .mapNotNull(lyrics::getOrNull)
                         .takeIf { it.isNotEmpty() }
-                        ?.let { onShare(it, includeTranslation) }
+                        ?.let { onShare(it, shareOptions) }
+                },
+                onCopy = {
+                    selectedIndexes
+                        .sorted()
+                        .mapNotNull(lyrics::getOrNull)
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { onCopy(it, shareOptions) }
+                },
+                onSaveImage = {
+                    selectedIndexes
+                        .sorted()
+                        .mapNotNull(lyrics::getOrNull)
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { onSaveImage(it, shareOptions) }
                 },
                 onVideoShare = onVideoShare?.let { callback ->
                     {
@@ -159,7 +185,7 @@ fun LyricSharePicker(
                             .sorted()
                             .mapNotNull(lyrics::getOrNull)
                             .takeIf { it.isNotEmpty() }
-                            ?.let { callback(it, includeTranslation) }
+                            ?.let { callback(it, shareOptions) }
                     }
                 }
             )
@@ -181,7 +207,7 @@ fun LyricSharePicker(
                             colors = colors,
                             lines = selectedLines,
                             shareTypeface = shareTypeface,
-                            includeTranslation = includeTranslation,
+                            options = shareOptions,
                             fitHeight = true,
                             modifier = Modifier.fillMaxHeight()
                         )
@@ -191,9 +217,15 @@ fun LyricSharePicker(
                             .weight(1f)
                             .fillMaxHeight()
                     ) {
-                        LyricShareTranslationToggle(
-                            includeTranslation = includeTranslation,
-                            onToggle = { includeTranslation = it }
+                        LyricShareOptionsToggle(
+                            options = shareOptions,
+                            onOptionsChange = {
+                                includeOriginal = it.includeOriginal
+                                includeTranslation = it.includeTranslation
+                                includePronunciation = it.includePronunciation
+                                appendEllipsis = it.appendEllipsis
+                                cardStyle = it.style
+                            }
                         )
                         LyricShareLineList(
                             lyrics = lyrics,
@@ -207,22 +239,35 @@ fun LyricSharePicker(
                     }
                 }
             } else {
-                LyricSharePreviewCard(
-                    song = song,
-                    annotation = annotation,
-                    customInfo = customInfo,
-                    cover = cover,
-                    colors = colors,
-                    lines = selectedLines,
-                    shareTypeface = shareTypeface,
-                    includeTranslation = includeTranslation,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
-                )
-                LyricShareTranslationToggle(
-                    includeTranslation = includeTranslation,
-                    onToggle = { includeTranslation = it }
+                        .weight(1f)
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LyricSharePreviewCard(
+                        song = song,
+                        annotation = annotation,
+                        customInfo = customInfo,
+                        cover = cover,
+                        colors = colors,
+                        lines = selectedLines,
+                        shareTypeface = shareTypeface,
+                        options = shareOptions,
+                        fitHeight = true,
+                        modifier = Modifier.fillMaxHeight()
+                    )
+                }
+                LyricShareOptionsToggle(
+                    options = shareOptions,
+                    onOptionsChange = {
+                        includeOriginal = it.includeOriginal
+                        includeTranslation = it.includeTranslation
+                        includePronunciation = it.includePronunciation
+                        appendEllipsis = it.appendEllipsis
+                        cardStyle = it.style
+                    }
                 )
                 LyricShareLineList(
                     lyrics = lyrics,
@@ -242,10 +287,13 @@ fun LyricSharePicker(
 @Composable
 private fun LyricShareHeader(
     selectedCount: Int,
+    selectedTotal: Int,
     shareEnabled: Boolean,
     videoShareEnabled: Boolean,
     onDismiss: () -> Unit,
     onShare: () -> Unit,
+    onCopy: () -> Unit,
+    onSaveImage: () -> Unit,
     onVideoShare: (() -> Unit)? = null
 ) {
     val contentColor = LocalShareContentColor.current
@@ -274,10 +322,17 @@ private fun LyricShareHeader(
                 text = stringResource(
                     R.string.lyric_share_selected_count,
                     selectedCount,
-                    MAX_SHARE_LINES
+                    selectedTotal
                 ),
                 color = contentColor.copy(alpha = 0.56f),
                 fontSize = 12.sp
+            )
+        }
+        IconButton(onClick = onCopy) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Copy,
+                contentDescription = stringResource(R.string.lyric_share_copy),
+                tint = if (!shareEnabled) contentColor.copy(alpha = 0.34f) else contentColor
             )
         }
         if (videoShareEnabled && onVideoShare != null) {
@@ -296,41 +351,105 @@ private fun LyricShareHeader(
                 tint = if (!shareEnabled) contentColor.copy(alpha = 0.34f) else contentColor
             )
         }
+        // Keep saving as the rightmost action, matching the share picker contract.
+        IconButton(onClick = onSaveImage) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Download,
+                contentDescription = stringResource(R.string.lyric_share_save_image),
+                tint = if (!shareEnabled) contentColor.copy(alpha = 0.34f) else contentColor
+            )
+        }
     }
 }
 
 @Composable
-private fun LyricShareTranslationToggle(
-    includeTranslation: Boolean,
-    onToggle: (Boolean) -> Unit
+private fun LyricShareOptionsToggle(
+    options: LyricShareOptions,
+    onOptionsChange: (LyricShareOptions) -> Unit
 ) {
     val contentColor = LocalShareContentColor.current
+    val fields = listOf(
+        stringResource(R.string.lyric_share_original) to options.includeOriginal,
+        stringResource(R.string.lyric_share_translation) to options.includeTranslation,
+        stringResource(R.string.lyric_share_pronunciation) to options.includePronunciation
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(contentColor.copy(alpha = 0.10f))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.lyric_share_include_translation),
-                color = contentColor,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = stringResource(R.string.lyric_share_include_translation_summary),
-                color = contentColor.copy(alpha = 0.56f),
-                fontSize = 12.sp
-            )
+        fields.forEachIndexed { index, (label, selected) ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(if (selected) contentColor.copy(alpha = 0.20f) else Color.Transparent)
+                    .clickable {
+                        onOptionsChange(
+                            when (index) {
+                                0 -> options.copy(includeOriginal = !selected)
+                                1 -> options.copy(includeTranslation = !selected)
+                                else -> options.copy(includePronunciation = !selected)
+                            }
+                        )
+                    }
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (selected) "✓ $label" else label,
+                        color = contentColor.copy(alpha = if (selected) 1f else 0.56f),
+                        fontSize = 13.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
-        Switch(
-            checked = includeTranslation,
-            onCheckedChange = onToggle
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.lyric_share_style),
+            color = contentColor.copy(alpha = 0.70f),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(end = 2.dp)
         )
+        listOf(
+            LyricShareCardStyle.Current to stringResource(R.string.lyric_share_style_current),
+            LyricShareCardStyle.LegacyTopMetadata to stringResource(R.string.lyric_share_style_legacy)
+        ).forEach { (style, label) ->
+            val selected = options.style == style
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) contentColor.copy(alpha = 0.20f) else Color.Transparent)
+                    .clickable { onOptionsChange(options.copy(style = style)) }
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    color = contentColor.copy(alpha = if (selected) 1f else 0.56f),
+                    fontSize = 12.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -435,7 +554,7 @@ private fun LyricSharePreviewCard(
     colors: List<Color>,
     lines: List<LyricLine>,
     shareTypeface: android.graphics.Typeface?,
-    includeTranslation: Boolean,
+    options: LyricShareOptions,
     fitHeight: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -443,7 +562,7 @@ private fun LyricSharePreviewCard(
     val backgroundPalette = remember(colors) {
         colors.map(Color::toArgb)
     }
-    val content = remember(song, annotation, customInfo, lines, backgroundPalette, includeTranslation) {
+    val content = remember(song, annotation, customInfo, lines, backgroundPalette, options) {
         buildLyricShareCardContent(
             context = context,
             song = song,
@@ -451,32 +570,36 @@ private fun LyricSharePreviewCard(
             backgroundColors = backgroundPalette,
             annotation = annotation,
             customInfo = customInfo,
-            includeTranslation = includeTranslation
+            includeOriginal = options.includeOriginal,
+            includeTranslation = options.includeTranslation,
+            includePronunciation = options.includePronunciation,
+            appendEllipsis = options.appendEllipsis,
+            style = options.style
         )
     }
     val layout = remember(content, shareTypeface) {
-        calculateLyricShareLayout(content, shareTypeface = shareTypeface)
+        runCatching { calculateLyricShareLayout(content, shareTypeface = shareTypeface) }.getOrNull()
     }
     val previewBitmap = remember(content, layout, cover) {
-        renderLyricShareCardBitmap(content, layout, cover)
+        layout?.let { runCatching { renderLyricShareCardBitmap(content, it, cover) }.getOrNull() }
     }
 
     DisposableEffect(previewBitmap) {
         onDispose {
-            if (!previewBitmap.isRecycled) {
-                previewBitmap.recycle()
-            }
+            previewBitmap?.takeUnless { it.isRecycled }?.recycle()
         }
     }
 
-    Image(
-        bitmap = previewBitmap.asImageBitmap(),
-        contentDescription = null,
-        modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
-            .aspectRatio(
-                ratio = layout.canvasWidth.toFloat() / layout.adaptiveCanvasHeight.toFloat(),
-                matchHeightConstraintsFirst = fitHeight
-            )
-    )
+    if (previewBitmap != null && layout != null) {
+        Image(
+            bitmap = previewBitmap.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier
+                .aspectRatio(
+                    ratio = layout.canvasWidth.toFloat() / layout.adaptiveCanvasHeight.toFloat(),
+                    matchHeightConstraintsFirst = fitHeight
+                )
+        )
+    }
 }

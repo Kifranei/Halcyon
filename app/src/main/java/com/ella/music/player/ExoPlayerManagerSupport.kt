@@ -13,6 +13,7 @@ import com.ella.music.data.isUriAudioSource
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.mediaStoreAlbumArtUriString
 import java.io.File
+import com.ella.music.data.repository.RemoteAudioCache
 
 /**
  * Stateless helpers extracted from [ExoPlayerManager]. All logic is moved verbatim; these
@@ -81,6 +82,9 @@ internal fun buildPseudoShuffleSeed(sourceOrder: List<Song>, current: Song): Lon
 }
 
 internal fun Song.playbackUri(): Uri {
+    RemoteAudioCache.localFileIfCached(this)?.let { cached ->
+        return Uri.fromFile(cached)
+    }
     if (path.isUriAudioSource()) {
         return path.toUri()
     }

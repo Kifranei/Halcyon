@@ -1,6 +1,7 @@
 package com.ella.music.ui.settings
 
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +32,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.R
+import com.ella.music.data.buildPlaybackHistoryExportFile
+import com.ella.music.data.importPlaybackHistoryFromUri
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.webdav.WebDavClient
@@ -39,6 +42,7 @@ import com.ella.music.ui.components.EllaMiuixListItem
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -51,6 +55,9 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private const val TAG = "BackupSettings"
+
 @Composable
 fun BackupSettingsScreen(
     onBack: () -> Unit,
@@ -64,16 +71,7 @@ fun BackupSettingsScreen(
     val playbackStatsStore = remember { PlaybackStatsStore.getInstance(context) }
     val librarySongs by mainViewModel?.songs?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
-    suspend fun writeBackupText(uri: Uri, text: String) = withContext(Dispatchers.IO) {
-        context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            output.bufferedWriter(Charsets.UTF_8).use { writer ->
-                writer.write(text)
-                writer.flush()
-            }
-            output.flush()
-        } ?: error(context.getString(R.string.settings_backup_open_failed))
-    }
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
     suspend fun writeBackupFile(uri: Uri, file: File) = withContext(Dispatchers.IO) {
         context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
             file.inputStream().use { input -> input.copyTo(output) }
@@ -81,9 +79,11 @@ fun BackupSettingsScreen(
         } ?: error(context.getString(R.string.settings_backup_open_failed))
     }
     var showExportTypeSheet by remember { mutableStateOf(false) }
+    var showPlaybackExportFormatDialog by remember { mutableStateOf(false) }
     var showImportTypeSheet by remember { mutableStateOf(false) }
     var showWebDavDefaultTypeSheet by remember { mutableStateOf(false) }
     var pendingExportTypes by remember { mutableStateOf<Set<BackupType>?>(null) }
+    var pendingPlaybackExportFormat by remember { mutableStateOf<PlaybackExportFormat?>(null) }
     var pendingImportRoot by remember { mutableStateOf<JSONObject?>(null) }
     var pendingImportSource by remember { mutableStateOf(BackupImportSource.LocalFile) }
     var exportTypeSelection by remember { mutableStateOf(BackupType.entries.toSet()) }
@@ -112,24 +112,52 @@ fun BackupSettingsScreen(
             }
         }
     }
-    val playbackExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportPlayback(format: PlaybackExportFormat, uri: Uri) {
         backupScope.launch {
-            runCatching {
-                val exported = playbackStatsStore.exportJson(librarySongs)
-                val backup = JSONObject()
-                    .put("version", 1)
-                    .put("exportedAtMs", System.currentTimeMillis())
-                    .put("sessions", exported.optJSONArray("sessions") ?: org.json.JSONArray())
-                writeBackupText(uri, backup.toString(2))
-            }.onSuccess {
-                Toast.makeText(context, context.getString(R.string.settings_backup_export_success), Toast.LENGTH_SHORT).show()
-            }.onFailure {
-                Toast.makeText(context, context.getString(R.string.settings_backup_export_failed), Toast.LENGTH_SHORT).show()
+            var temporaryFile: File? = null
+            try {
+                val createdFile = buildPlaybackHistoryExportFile(
+                    context = context,
+                    format = format.transferFormat(),
+                    history = playbackStatsStore.history.value,
+                    stats = playbackStatsStore.stats.value,
+                    librarySongs = librarySongs
+                )
+                temporaryFile = createdFile
+                writeBackupFile(uri, createdFile)
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_backup_export_success),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (error: Throwable) {
+                Log.e(TAG, "Playback history export failed", error)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_backup_export_failed) +
+                            ": " + transferErrorMessage(error),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } finally {
+                withContext(Dispatchers.IO) { temporaryFile?.delete() }
             }
         }
+    }
+    val playbackJsonExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val format = pendingPlaybackExportFormat
+        pendingPlaybackExportFormat = null
+        if (uri != null && format != null) exportPlayback(format, uri)
+    }
+    val playbackZipExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(APPLICATION_BACKUP_ZIP_MIME)
+    ) { uri ->
+        val format = pendingPlaybackExportFormat
+        pendingPlaybackExportFormat = null
+        if (uri != null && format != null) exportPlayback(format, uri)
     }
     val settingsImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -142,8 +170,13 @@ fun BackupSettingsScreen(
         backupScope.launch {
             runCatching {
                 val root = withContext(Dispatchers.IO) {
-                    runCatching { readApplicationBackupUri(context, uri) }
+                    val tempFile = runCatching { copyAndValidateApplicationBackupUri(context, uri) }
                         .getOrElse { error(context.getString(R.string.settings_backup_read_failed)) }
+                    try {
+                        readApplicationBackupFile(context, tempFile)
+                    } finally {
+                        tempFile.delete()
+                    }
                 }
                 // Prism Music exports are listening-history only; app-data restore expects Halcyon JSON.
                 if (root.has("sessions") && !root.has("settings") && !root.has("playlists") && !root.has("playback")) {
@@ -194,24 +227,32 @@ fun BackupSettingsScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         backupScope.launch {
             runCatching {
-                val text = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.bufferedReader(Charsets.UTF_8).readText()
-                    } ?: error(context.getString(R.string.settings_backup_read_failed))
+                val result = importPlaybackHistoryFromUri(
+                    context = context,
+                    uri = uri,
+                    librarySongs = librarySongs,
+                    store = playbackStatsStore
+                )
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            R.string.settings_backup_playback_import_success,
+                            result.addedCount
+                        ),
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
-                val root = JSONObject(text)
-                // Detect if this is a settings backup
-                if (root.has("settings")) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, context.getString(R.string.settings_backup_restore_wrong_type_settings), Toast.LENGTH_LONG).show()
-                    }
-                    return@runCatching
+            }.onFailure { error ->
+                Log.e(TAG, "Playback history import failed", error)
+                backupScope.launch(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_backup_restore_failed) +
+                            ": " + transferErrorMessage(error),
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
-                playbackStatsStore.restoreJson(root.optJSONObject("playback") ?: root)
-            }.onSuccess {
-                Toast.makeText(context, context.getString(R.string.settings_backup_restore_success), Toast.LENGTH_SHORT).show()
-            }.onFailure {
-                Toast.makeText(context, context.getString(R.string.settings_backup_restore_failed), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -270,7 +311,7 @@ fun BackupSettingsScreen(
     ) {
         EllaSmallTopAppBar(
             title = stringResource(R.string.settings_backup),
-            color = pageBackground,
+            color = Color.Transparent,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -324,17 +365,26 @@ fun BackupSettingsScreen(
                             title = stringResource(R.string.settings_backup_export_playback_title),
                             summary = stringResource(R.string.settings_backup_export_playback_summary),
                             onClick = {
-                                playbackExportLauncher.launch("prism-listening-sessions_${System.currentTimeMillis()}.json")
+                                showPlaybackExportFormatDialog = true
                             }
                         )
                     }
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_backup_restore_playback_title),
-                        summary = stringResource(R.string.settings_backup_restore_playback_summary),
-                        onClick = {
-                            playbackImportLauncher.launch(arrayOf("application/json", "text/json", "text/*"))
-                        }
-                    )
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_backup_restore_playback_title),
+                            summary = stringResource(R.string.settings_backup_restore_playback_summary),
+                            onClick = {
+                            playbackImportLauncher.launch(
+                                arrayOf(
+                                    "application/json",
+                                    "text/json",
+                                    "application/zip",
+                                    "application/octet-stream",
+                                    "application/x-zip-compressed",
+                                    "*/*"
+                                )
+                            )
+                            }
+                        )
                 }
             }
 
@@ -421,10 +471,11 @@ fun BackupSettingsScreen(
                                     val config = WebDavConfig(
                                         url = effectiveUrl,
                                         username = effectiveUser,
-                                        password = effectivePassword
+                                        password = effectivePassword,
+                                        customHeaders = settingsManager.webDavCustomHeaders.first()
                                     )
                                     val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
-                                    val fileName = "halcyon_backup_${System.currentTimeMillis()}.zip"
+                                    val fileName = generateBackupFileName("zip")
                                     val fullUrl = "${effectiveUrl.trimEnd('/')}/$path/$fileName"
                                     val archive = withContext(Dispatchers.IO) {
                                         buildApplicationBackupZipFile(context, librarySongs = librarySongs)
@@ -467,7 +518,8 @@ fun BackupSettingsScreen(
                                     val config = WebDavConfig(
                                         url = effectiveUrl,
                                         username = effectiveUser,
-                                        password = effectivePassword
+                                        password = effectivePassword,
+                                        customHeaders = settingsManager.webDavCustomHeaders.first()
                                     )
                                     val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
                                     val backupDirUrl = "${effectiveUrl.trimEnd('/')}/$path/"
@@ -532,6 +584,7 @@ fun BackupSettingsScreen(
                             }
                             val root = withContext(Dispatchers.IO) {
                                 try {
+                                    validateApplicationBackupFileBudgets(tempFile)
                                     readApplicationBackupFile(context, tempFile)
                                 } finally {
                                     tempFile.delete()
@@ -562,6 +615,22 @@ fun BackupSettingsScreen(
         )
     }
 
+    if (showPlaybackExportFormatDialog) {
+        BackupFormatDialog(
+            onDismissRequest = { showPlaybackExportFormatDialog = false },
+            onFormatSelected = { format ->
+                showPlaybackExportFormatDialog = false
+                pendingPlaybackExportFormat = format
+                val fileName = format.suggestedFileName()
+                if (format.transferFormat().extension == "zip") {
+                    playbackZipExportLauncher.launch(fileName)
+                } else {
+                    playbackJsonExportLauncher.launch(fileName)
+                }
+            }
+        )
+    }
+
     BackupTypeSelectionSheet(
         show = showExportTypeSheet,
         title = stringResource(R.string.settings_backup_export_type_title),
@@ -571,7 +640,7 @@ fun BackupSettingsScreen(
         onConfirm = { selectedTypes ->
             exportTypeSelection = selectedTypes
             pendingExportTypes = selectedTypes
-            settingsExportLauncher.launch("halcyon_settings_${System.currentTimeMillis()}.zip")
+            settingsExportLauncher.launch(generateBackupFileName("zip"))
         }
     )
 
@@ -621,6 +690,21 @@ fun BackupSettingsScreen(
             }
         }
     )
+}
+
+private fun transferErrorMessage(error: Throwable): String {
+    val messages = buildList {
+        var current: Throwable? = error
+        while (current != null && size < 3) {
+            current.message
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+                ?.let(::add)
+            current = current.cause
+        }
+    }.distinct()
+    return messages.joinToString("; ")
+        .ifBlank { error::class.java.simpleName }
 }
 
 private enum class BackupImportSource {

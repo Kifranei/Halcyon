@@ -39,6 +39,8 @@ internal fun SongMoreActionSheet(
     onAudioTools: (() -> Unit)?,
     onRemoveFromPlaylist: (() -> Unit)?,
     onDelete: (() -> Unit)?,
+    onDeleteSingleRecentPlayback: (() -> Unit)? = null,
+    onClearRecentPlayback: (() -> Unit)? = null,
     showSpectrum: Boolean,
     showAddToQueue: Boolean
 ) {
@@ -58,6 +60,23 @@ internal fun SongMoreActionSheet(
         EllaMiuixActionMenuGroup {
             visibleActions.forEach { actionId ->
                 when (actionId) {
+                ActionMenuIds.REMOVE_FROM_RECENT_PLAYBACK,
+                ActionMenuIds.DELETE_SINGLE_RECENT_PLAYBACK -> onDeleteSingleRecentPlayback?.let {
+                    SongMenuItem(
+                        stringResource(R.string.recent_playback_remove_from_recent),
+                        it,
+                        danger = true,
+                        icon = actionMenuIcon(ActionMenuIds.REMOVE_FROM_RECENT_PLAYBACK)
+                    )
+                }
+                ActionMenuIds.CLEAR_RECENT_PLAYBACK -> onClearRecentPlayback?.let {
+                    SongMenuItem(
+                        stringResource(R.string.recent_playback_remove_from_recent),
+                        it,
+                        danger = true,
+                        icon = actionMenuIcon(actionId)
+                    )
+                }
                 ActionMenuIds.ADD_TO_PLAYLIST -> SongMenuItem(
                     stringResource(R.string.song_more_add_to_playlist),
                     onAddToPlaylist,
@@ -157,19 +176,10 @@ internal fun SongTagEditorSheet(
         spacing = 0.dp,
         showHandle = false
     ) {
-        ExplicitSongTitle(
-            title = song.title.ifBlank { song.fileName },
-            fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.primary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
         EllaMiuixActionMenuGroup {
             options.forEach { option ->
                 SongMenuItem(option.label, onClick = { onOptionClick(option) })
             }
-            SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
         }
     }
 }

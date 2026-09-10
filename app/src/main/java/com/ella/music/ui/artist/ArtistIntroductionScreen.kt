@@ -43,8 +43,21 @@ import com.ella.music.data.ArtistDescriptionSaveResult
 import com.ella.music.data.ArtistDescriptionStore
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.DefaultAlbumCover
+import com.ella.music.ui.components.ellaOverlayCardColor
 import com.ella.music.ui.components.EllaMiuixSheetActions
-import com.ella.music.ui.components.EllaMiuixTextField
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.collectAsState
+import com.ella.music.data.lastfm.ArtistBioMenuSource
+import com.ella.music.data.lastfm.LastFmCloudflareChallengeException
+import com.ella.music.data.lastfm.fetchLastFmArtistWiki
+import com.ella.music.data.lastfm.LastFmSecureStore
+import com.ella.music.ui.components.EllaMiuixBottomSheet
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +96,12 @@ internal fun ArtistIntroductionScreen(
     var editing by remember(contentKey) { mutableStateOf(false) }
     var draft by remember(contentKey) { mutableStateOf("") }
     var saving by remember(contentKey) { mutableStateOf(false) }
+    val lastFmCredentials by LastFmSecureStore.getInstance(context).credentials.collectAsState()
+    var showFetchSheet by remember { mutableStateOf(false) }
+    var fetching by remember { mutableStateOf(false) }
+    var pendingFetchOption by remember { mutableStateOf<ArtistBioSourceOption?>(null) }
+    var challengeUrl by remember { mutableStateOf<String?>(null) }
+    var showCloudflareSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(contentKey) {
         record = withContext(Dispatchers.IO) { store.load(artistName, songs) }
@@ -132,7 +151,20 @@ internal fun ArtistIntroductionScreen(
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onSurface
             )
+            Text(
+                text = stringResource(R.string.artist_introduction_fetch_action),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable(enabled = !fetching) {
+                        showFetchSheet = true
+                    }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (fetching) MiuixTheme.colorScheme.onSurfaceVariantSummary else MiuixTheme.colorScheme.primary
+            )
             if (!editing) {
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = stringResource(R.string.artist_introduction_edit_action),
                     modifier = Modifier
@@ -161,7 +193,7 @@ internal fun ArtistIntroductionScreen(
                     ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                EllaMiuixTextField(
+                TextField(
                     value = draft,
                     onValueChange = { draft = it },
                     label = stringResource(R.string.artist_introduction_editor_hint),
@@ -276,6 +308,193 @@ internal fun ArtistIntroductionScreen(
             }
         }
     }
+
+    fun executeFetch(option: ArtistBioSourceOption) {
+        if (fetching) return
+        fetching = true
+        Toast.makeText(
+            context,
+            R.string.artist_introduction_fetch_loading,
+            Toast.LENGTH_SHORT
+        ).show()
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    fetchLastFmArtistWiki(
+                        artistName = artistName,
+                        regionCode = option.regionCode,
+                        apiKey = lastFmCredentials.apiKey,
+                        preferredSource = option.source
+                    )
+                }
+            }
+            fetching = false
+            result.onSuccess { wiki ->
+                val bioText = wiki.text.trim()
+                if (bioText.isNotBlank()) {
+                    if (editing) {
+                        draft = bioText
+                        Toast.makeText(
+                            context,
+                            R.string.artist_introduction_fetch_applied,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            store.save(artistName, songs, bioText)
+                        }
+                        record = withContext(Dispatchers.IO) {
+                            store.load(artistName, songs)
+                        }
+                        draft = record?.text.orEmpty()
+                        Toast.makeText(
+                            context,
+                            R.string.artist_introduction_fetch_saved,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } else {
+                    Toast.makeText(
+                        context,
+                        R.string.artist_introduction_fetch_empty,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }.onFailure { error ->
+                if (error is LastFmCloudflareChallengeException) {
+                    pendingFetchOption = option
+                    challengeUrl = error.url
+                    showCloudflareSheet = true
+                } else {
+                    val errorMsg = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                    Toast.makeText(
+                        context,
+                        "${context.getString(R.string.artist_introduction_fetch_failed)}: $errorMsg",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    if (showFetchSheet) {
+        val fetchOptions = remember {
+            listOf(
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_image_source_netease,
+                    langRes = R.string.artist_biography_lang_zh_cn,
+                    source = ArtistBioMenuSource.Netease,
+                    regionCode = "zh"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_biography_source_wikipedia,
+                    langRes = R.string.artist_biography_lang_zh_cn,
+                    source = ArtistBioMenuSource.Wikipedia,
+                    regionCode = "zh"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_biography_source_wikipedia,
+                    langRes = R.string.artist_biography_lang_zh_tw,
+                    source = ArtistBioMenuSource.Wikipedia,
+                    regionCode = "zh-tw"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_biography_source_wikipedia,
+                    langRes = R.string.artist_biography_lang_zh_hk,
+                    source = ArtistBioMenuSource.Wikipedia,
+                    regionCode = "zh-hk"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_biography_source_wikipedia,
+                    langRes = R.string.artist_biography_lang_en,
+                    source = ArtistBioMenuSource.Wikipedia,
+                    regionCode = "en"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_biography_source_wikipedia,
+                    langRes = R.string.artist_biography_lang_ja,
+                    source = ArtistBioMenuSource.Wikipedia,
+                    regionCode = "ja"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_biography_source_wikipedia,
+                    langRes = R.string.artist_biography_lang_ko,
+                    source = ArtistBioMenuSource.Wikipedia,
+                    regionCode = "ko"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_image_source_lastfm,
+                    langRes = R.string.artist_biography_lang_en,
+                    source = ArtistBioMenuSource.LastFm,
+                    regionCode = "en"
+                ),
+                ArtistBioSourceOption(
+                    titleRes = R.string.artist_image_source_lastfm,
+                    langRes = R.string.artist_biography_lang_zh_cn,
+                    source = ArtistBioMenuSource.LastFm,
+                    regionCode = "zh"
+                )
+            )
+        }
+        EllaMiuixBottomSheet(
+            show = true,
+            title = stringResource(R.string.artist_introduction_fetch_sheet_title),
+            onDismissRequest = { showFetchSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                fetchOptions.forEach { option ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        colors = CardDefaults.defaultColors(
+                            color = ellaOverlayCardColor()
+                        )
+                    ) {
+                        BasicComponent(
+                            title = stringResource(option.titleRes),
+                            summary = stringResource(option.langRes),
+                            onClick = {
+                                showFetchSheet = false
+                                executeFetch(option)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCloudflareSheet && challengeUrl != null) {
+        LastFmCloudflareVerificationSheet(
+            url = challengeUrl!!,
+            onDismissRequest = {
+                showCloudflareSheet = false
+                pendingFetchOption = null
+            },
+            onVerified = {
+                showCloudflareSheet = false
+                val pending = pendingFetchOption
+                pendingFetchOption = null
+                if (pending != null) {
+                    executeFetch(pending)
+                }
+            }
+        )
+    }
 }
+
+private data class ArtistBioSourceOption(
+    val titleRes: Int,
+    val langRes: Int,
+    val source: ArtistBioMenuSource,
+    val regionCode: String
+)
 
 private val ArtistIntroductionBottomDockClearance = 132.dp

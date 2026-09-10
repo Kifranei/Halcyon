@@ -58,6 +58,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -508,24 +509,28 @@ internal fun ListeningTimelineRow(
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (song != null && canPlaySong) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable { onSongMore(song) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = MiuixIcons.Regular.More,
+                                        contentDescription = stringResource(R.string.player_quick_more),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
                             Box(
                                 modifier = Modifier
-                                    .clip(CircleShape)
-                                    .clickable { onSongMore(song) }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "\u22ef",
-                                    fontSize = 18.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                            }
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .clickable { onRemoveHistoryEntry(entry.entry) }
-                                    .padding(6.dp)
+                                    .size(28.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { onRemoveHistoryEntry(entry.entry) },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = MiuixIcons.Regular.Delete,

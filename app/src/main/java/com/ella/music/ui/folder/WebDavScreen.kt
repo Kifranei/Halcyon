@@ -29,6 +29,7 @@ import com.ella.music.data.AppLogStore
 import com.ella.music.data.AppLogType
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
+import com.ella.music.data.webdav.WebDavHeader
 import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.data.webdav.WebDavTestResult
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
@@ -69,6 +70,7 @@ fun WebDavScreen(
     val savedUrl by mainViewModel.settingsManager.webDavUrl.collectAsState(initial = "")
     val savedUser by mainViewModel.settingsManager.webDavUsername.collectAsState(initial = "")
     val savedPassword by mainViewModel.settingsManager.webDavPassword.collectAsState(initial = "")
+    val savedCustomHeaders by mainViewModel.settingsManager.webDavCustomHeaders.collectAsState(initial = emptyList())
     val savedLastUrl by mainViewModel.settingsManager.webDavLastUrl.collectAsState(initial = "")
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
 
@@ -76,6 +78,7 @@ fun WebDavScreen(
     var webDavUrl by remember { mutableStateOf("") }
     var webDavUser by remember { mutableStateOf("") }
     var webDavPassword by remember { mutableStateOf("") }
+    var webDavCustomHeaders by remember { mutableStateOf<List<WebDavHeader>>(emptyList()) }
     var currentUrl by remember { mutableStateOf("") }
     var items by remember { mutableStateOf<List<WebDavItem>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
@@ -104,7 +107,14 @@ fun WebDavScreen(
     fun activeWebDavConfig(): WebDavConfig = WebDavConfig(
         url = webDavUrl.ifBlank { savedUrl },
         username = webDavUser.ifBlank { savedUser },
-        password = webDavPassword.ifBlank { savedPassword }
+        password = webDavPassword.ifBlank { savedPassword },
+        // Always use the in-dialog header list once settings have been hydrated; falling back
+        // only while the screen is still catching up avoids dropping saved headers on first load.
+        customHeaders = if (webDavCustomHeaders.isNotEmpty() || savedCustomHeaders.isEmpty()) {
+            webDavCustomHeaders
+        } else {
+            savedCustomHeaders
+        }
     )
 
     fun load(url: String, forceRefresh: Boolean = false) {
@@ -184,10 +194,11 @@ fun WebDavScreen(
         load(parent)
     }
 
-    LaunchedEffect(savedUrl, savedUser, savedPassword, savedLastUrl) {
+    LaunchedEffect(savedUrl, savedUser, savedPassword, savedCustomHeaders, savedLastUrl) {
         webDavUrl = savedUrl
         webDavUser = savedUser
         webDavPassword = savedPassword
+        webDavCustomHeaders = savedCustomHeaders
         if (savedUrl.isBlank()) {
             currentUrl = ""
             items = emptyList()
@@ -196,7 +207,7 @@ fun WebDavScreen(
             return@LaunchedEffect
         }
         val startUrl = savedLastUrl.ifBlank { savedUrl }
-        val key = listOf(savedUrl, savedUser, savedPassword, startUrl).joinToString("|")
+        val key = listOf(savedUrl, savedUser, savedPassword, savedCustomHeaders.joinToString { "${it.name}=${it.value}" }, startUrl).joinToString("|")
         if (loadedKey == key && items.isNotEmpty()) return@LaunchedEffect
         loadedKey = key
         currentUrl = startUrl
@@ -255,9 +266,11 @@ fun WebDavScreen(
                 url = webDavUrl,
                 username = webDavUser,
                 password = webDavPassword,
+                customHeaders = webDavCustomHeaders,
                 onUrlChange = { webDavUrl = it },
                 onUsernameChange = { webDavUser = it },
                 onPasswordChange = { webDavPassword = it },
+                onCustomHeadersChange = { webDavCustomHeaders = it },
                 testStatus = testStatus,
                 onDismiss = { showSettings = false },
                 onTest = {
@@ -265,7 +278,14 @@ fun WebDavScreen(
                         testStatus = context.getString(R.string.webdav_testing)
                         val result = runCatching {
                             withContext(Dispatchers.IO) {
-                                WebDavClient.testDetailed(WebDavConfig(webDavUrl, webDavUser, webDavPassword))
+                                WebDavClient.testDetailed(
+                                    WebDavConfig(
+                                        url = webDavUrl,
+                                        username = webDavUser,
+                                        password = webDavPassword,
+                                        customHeaders = webDavCustomHeaders
+                                    )
+                                )
                             }
                         }.getOrElse {
                             logWebDavError("Connection test failed", it)
@@ -278,19 +298,29 @@ fun WebDavScreen(
                 },
                 onSave = {
                     scope.launch {
-                        mainViewModel.settingsManager.setWebDavConfig(webDavUrl, webDavUser, webDavPassword)
+                        // Persist before list/library use saved headers; otherwise a concurrent
+                        // library reload can race and surface "网络连接失败" after a successful test.
+                        mainViewModel.settingsManager.setWebDavConfig(
+                            webDavUrl,
+                            webDavUser,
+                            webDavPassword,
+                            webDavCustomHeaders
+                        )
+                        currentUrl = webDavUrl
+                        searchQuery = ""
+                        showSettings = false
+                        error = null
+                        testStatus = null
+                        load(webDavUrl, forceRefresh = true)
+                        Toast.makeText(context, R.string.webdav_config_saved, Toast.LENGTH_SHORT).show()
                     }
-                    currentUrl = webDavUrl
-                    searchQuery = ""
-                    showSettings = false
-                    load(webDavUrl, forceRefresh = true)
-                    Toast.makeText(context, R.string.webdav_config_saved, Toast.LENGTH_SHORT).show()
                 },
                 onClear = {
                     scope.launch { mainViewModel.settingsManager.clearWebDavConfig() }
                     webDavUrl = ""
                     webDavUser = ""
                     webDavPassword = ""
+                    webDavCustomHeaders = emptyList()
                     currentUrl = ""
                     items = emptyList()
                     searchQuery = ""

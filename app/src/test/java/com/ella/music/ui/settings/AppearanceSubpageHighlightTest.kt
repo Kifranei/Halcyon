@@ -29,6 +29,7 @@ class AppearanceSubpageHighlightTest {
             "player_title_position",
             "player_show_song_annotation",
             "player_immersive",
+            "player_apple_music_immersive_cover",
             "hi_res_logo",
             "transport_button_outlines"
         ).forEach { key ->
@@ -41,8 +42,14 @@ class AppearanceSubpageHighlightTest {
         assertEquals(APPEARANCE_PAGE_LIST, appearanceSubpageForHighlight("search_click_playback_mode"))
         assertEquals(APPEARANCE_PAGE_LIST, appearanceSubpageForHighlight("search_reopen_behavior"))
         assertEquals(APPEARANCE_PAGE_LIST, appearanceSubpageForHighlight("auto_show_search_keyboard"))
+        assertEquals(APPEARANCE_PAGE_LIST, appearanceSubpageForHighlight("list_quality_display"))
         assertEquals(APPEARANCE_PAGE_SYSTEM_BARS, appearanceSubpageForHighlight("system_bars"))
         assertEquals(APPEARANCE_PAGE_SYSTEM_BARS, appearanceSubpageForHighlight("system_bars_reserve_space"))
+        assertEquals(APPEARANCE_PAGE_SYSTEM_BARS, appearanceSubpageForHighlight("player_system_bars"))
+        assertEquals(
+            APPEARANCE_PAGE_SYSTEM_BARS,
+            appearanceSubpageForHighlight("player_landscape_hide_system_bars")
+        )
         assertEquals(APPEARANCE_PAGE_THEME, appearanceSubpageForHighlight("player_bg_theme"))
         assertEquals(APPEARANCE_PAGE_THEME, appearanceSubpageForHighlight("app_icon"))
         assertEquals(APPEARANCE_PAGE_THEME, appearanceSubpageForHighlight("appearance"))

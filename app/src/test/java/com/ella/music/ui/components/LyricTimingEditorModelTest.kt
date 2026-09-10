@@ -1,11 +1,31 @@
 package com.ella.music.ui.components
 
 import com.ella.music.data.model.LyricWord
+import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LyricTimingEditorModelTest {
+    @Test
+    fun detectsWordTimedLyricsForTheDefaultEditorMode() {
+        assertTrue(
+            listOf(
+                LyricLine(
+                    timeMs = 1_000L,
+                    text = "hello",
+                    words = listOf(LyricWord("hel", 1_000L, 1_300L))
+                )
+            ).containsWordTiming()
+        )
+        assertTrue(
+            listOf(
+                LyricLine(timeMs = 1_000L, text = "hello")
+            ).containsWordTiming().not()
+        )
+    }
+
     @Test
     fun formatsLrcTimestampsWithCentisecondPrecision() {
         assertEquals("[01:02.34]", 62_349L.toLrcTimestamp())
@@ -65,8 +85,48 @@ class LyricTimingEditorModelTest {
             )
         ).toEmbeddedTtml(song)
 
-        assert(ttml.contains("ttm:agent=\"v2\""))
-        assert(ttml.contains("ttm:role=\"x-bg\""))
-        assert(ttml.contains("Song &amp; Test"))
+        assertTrue(ttml.contains("ttm:agent=\"v2\""))
+        assertTrue(ttml.contains("ttm:role=\"x-bg\""))
+        assertTrue(ttml.contains("Song &amp; Test"))
+        assertTrue(ttml.contains("xmlns:tts=\"http://www.w3.org/ns/ttml#styling\""))
+    }
+
+    @Test
+    fun serializesAppleTtmlWithRubyContainerForWords() {
+        val song = Song(1, "Test Song", "Artist", "Album", 1, 10_000L, "/song.mp3", "song.mp3")
+        val ttml = listOf(
+            LyricTimingLine(
+                text = "你好",
+                timeMs = 1_000L,
+                words = listOf(
+                    LyricWord("你", 1_000L, 1_500L),
+                    LyricWord("好", 1_500L, 2_000L)
+                ),
+                pronunciationWords = listOf(
+                    LyricWord("nǐ", 1_000L, 1_500L),
+                    LyricWord("hǎo", 1_500L, 2_000L)
+                )
+            )
+        ).toEmbeddedTtml(song)
+
+        assertTrue(ttml.contains("<span tts:ruby=\"container\"><span tts:ruby=\"base\"><span begin=\"00:01.000\" end=\"00:01.500\">你</span></span><span tts:ruby=\"text\" begin=\"00:01.000\" end=\"00:01.500\">nǐ</span></span>"))
+        assertTrue(ttml.contains("<span tts:ruby=\"container\"><span tts:ruby=\"base\"><span begin=\"00:01.500\" end=\"00:02.000\">好</span></span><span tts:ruby=\"text\" begin=\"00:01.500\" end=\"00:02.000\">hǎo</span></span>"))
+    }
+
+    @Test
+    fun preservesSpacingBetweenWordsInTtml() {
+        val song = Song(1, "English Song", "Artist", "Album", 1, 10_000L, "/song.mp3", "song.mp3")
+        val ttml = listOf(
+            LyricTimingLine(
+                text = "Hello world",
+                timeMs = 1_000L,
+                words = listOf(
+                    LyricWord("Hello", 1_000L, 1_500L),
+                    LyricWord("world", 1_500L, 2_000L)
+                )
+            )
+        ).toEmbeddedTtml(song)
+
+        assertTrue(ttml.contains(">Hello </span><span begin=\"00:01.500\" end=\"00:02.000\">world</span>"))
     }
 }

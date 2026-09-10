@@ -115,10 +115,12 @@ internal object PlaybackWidgetUpdater {
     private val artworkRequest = AtomicLong(0L)
     private val bitmapFileLock = Any()
     private var progressJob: Job? = null
+    @Volatile private var playerSessionLive = false
     private var lastLyricSignature: String? = null
     private var lastLyricUpdateElapsedMs = 0L
 
     fun updateFromPlayer(context: Context, player: Player) {
+        playerSessionLive = true
         val appContext = context.applicationContext
         val metadata = player.mediaMetadata
         val mediaItem = player.currentMediaItem
@@ -235,6 +237,23 @@ internal object PlaybackWidgetUpdater {
         progressJob = null
     }
 
+    fun onPlayerSessionEnded(context: Context) {
+        val appContext = context.applicationContext
+        playerSessionLive = false
+        stopProgressUpdates()
+        val snapshot = loadSnapshot(appContext)
+        if (!snapshot.isPlaying) return
+        persistSnapshot(
+            appContext,
+            snapshot.copy(
+                isPlaying = false,
+                positionMs = snapshot.effectivePositionMs(),
+                updatedAtElapsedMs = SystemClock.elapsedRealtime()
+            )
+        )
+        updateAll(appContext)
+    }
+
     fun setSafeLayout(context: Context, enabled: Boolean) {
         val appContext = context.applicationContext
         val preferences = prefs(appContext)
@@ -345,7 +364,12 @@ internal object PlaybackWidgetUpdater {
         artwork?.let { setImageViewBitmap(R.id.widget_cover, it) }
         background?.let { setImageViewBitmap(R.id.widget_background_art, it) }
         val nowElapsedMs = SystemClock.elapsedRealtime()
-        val position = snapshot.effectivePositionMs(nowElapsedMs)
+        val playing = snapshot.isPlaying && playerSessionLive
+        val position = if (playing) {
+            snapshot.effectivePositionMs(nowElapsedMs)
+        } else {
+            snapshot.positionMs
+        }
         val progress = if (snapshot.durationMs > 0L) {
             ((position.toDouble() / snapshot.durationMs) * PROGRESS_MAX)
                 .toInt()
@@ -353,21 +377,31 @@ internal object PlaybackWidgetUpdater {
         } else {
             0
         }
+        val chronometer = widgetChronometerState(
+            isPlaying = playing,
+            livePlayerSession = true,
+            positionMs = position,
+            nowElapsedMs = nowElapsedMs
+        )
         setProgressBar(R.id.widget_progress, PROGRESS_MAX, progress, snapshot.durationMs <= 0L)
         setChronometer(
             R.id.widget_position,
-            nowElapsedMs - position,
+            chronometer.baseElapsedMs,
             null,
-            snapshot.isPlaying
+            chronometer.started
         )
+        setBoolean(R.id.widget_position, "setStarted", chronometer.started)
+        if (!chronometer.started) {
+            setTextViewText(R.id.widget_position, chronometer.frozenText)
+        }
         setTextViewText(R.id.widget_duration, snapshot.durationMs.formatWidgetTime())
         setImageViewResource(
             R.id.widget_play_pause,
-            if (snapshot.isPlaying) R.drawable.ic_widget_pause else R.drawable.ic_widget_play
+            if (playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play
         )
         setContentDescription(
             R.id.widget_play_pause,
-            context.getString(if (snapshot.isPlaying) R.string.common_pause else R.string.common_play)
+            context.getString(if (playing) R.string.common_pause else R.string.common_play)
         )
         setOnClickPendingIntent(R.id.widget_root, mainActivityIntent(context))
         setOnClickPendingIntent(
@@ -451,13 +485,23 @@ internal object PlaybackWidgetUpdater {
             0
         }
         fun partial(layoutId: Int): RemoteViews = RemoteViews(context.packageName, layoutId).apply {
+            val chronometer = widgetChronometerState(
+                isPlaying = snapshot.isPlaying,
+                livePlayerSession = playerSessionLive,
+                positionMs = position,
+                nowElapsedMs = nowElapsedMs
+            )
             setProgressBar(R.id.widget_progress, PROGRESS_MAX, progress, false)
             setChronometer(
                 R.id.widget_position,
-                nowElapsedMs - position,
+                chronometer.baseElapsedMs,
                 null,
-                snapshot.isPlaying
+                chronometer.started
             )
+            setBoolean(R.id.widget_position, "setStarted", chronometer.started)
+            if (!chronometer.started) {
+                setTextViewText(R.id.widget_position, chronometer.frozenText)
+            }
             setTextViewText(R.id.widget_duration, snapshot.durationMs.formatWidgetTime())
         }
         val compactIds = manager.getAppWidgetIds(
@@ -796,11 +840,7 @@ internal object PlaybackWidgetUpdater {
         return output
     }
 
-    private fun Long.formatWidgetTime(): String {
-        val seconds = (coerceAtLeast(0L) / 1_000L)
-        val minutes = seconds / 60L
-        return "%d:%02d".format(minutes, seconds % 60L)
-    }
+    private fun Long.formatWidgetTime(): String = formatWidgetElapsed(this)
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -827,4 +867,30 @@ internal object PlaybackWidgetUpdater {
         )
 
     private const val TAG = "PlaybackWidget"
+}
+
+internal data class WidgetChronometerState(
+    val baseElapsedMs: Long,
+    val started: Boolean,
+    val frozenText: String
+)
+
+internal fun widgetChronometerState(
+    isPlaying: Boolean,
+    livePlayerSession: Boolean,
+    positionMs: Long,
+    nowElapsedMs: Long
+): WidgetChronometerState {
+    val clampedPosition = positionMs.coerceAtLeast(0L)
+    return WidgetChronometerState(
+        baseElapsedMs = nowElapsedMs - clampedPosition,
+        started = isPlaying && livePlayerSession,
+        frozenText = formatWidgetElapsed(clampedPosition)
+    )
+}
+
+internal fun formatWidgetElapsed(positionMs: Long): String {
+    val seconds = positionMs.coerceAtLeast(0L) / 1_000L
+    val minutes = seconds / 60L
+    return "%d:%02d".format(minutes, seconds % 60L)
 }

@@ -50,8 +50,12 @@ import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
+import com.ella.music.ui.components.EllaMiuixActionMenuGroup
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixMenuItem
+import com.ella.music.ui.components.ActionMenuCommonIcons
+import com.ella.music.ui.components.actionMenuIcon
+import com.ella.music.data.ActionMenuIds
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LazyListScrollIndicator
@@ -848,98 +852,63 @@ fun PlaylistScreen(
     }
 
     playlistMenuTarget?.let { playlist ->
-        EllaMiuixBottomSheet(
+        com.ella.music.ui.components.LibraryEntityActionSheet(
             show = true,
-            enableNestedScroll = false,
             title = stringResource(R.string.player_more_actions),
-            onDismissRequest = { playlistMenuTarget = null }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_pin_to_top),
-                    onClick = {
-                        val orderedIds = (listOf(playlist.id) + storedCustomPlaylists.map { it.id }).distinct()
-                        mainViewModel.reorderPlaylists(orderedIds)
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.playlist_export_title),
-                    onClick = {
-                        playlistsToExport = listOf(playlist)
-                        showExportFormatSheet = true
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_share),
-                    onClick = {
-                        shareLocalSongs(context, mainViewModel.playlistSongs(playlist))
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_add_to_playlist),
-                    onClick = {
-                        playlistPickerSongs = mainViewModel.playlistSongs(playlist)
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_to_queue),
-                    onClick = {
-                        playerViewModel.addToPlaylist(mainViewModel.playlistSongs(playlist))
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_play_next),
-                    onClick = {
-                        playerViewModel.playNext(mainViewModel.playlistSongs(playlist))
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_rename),
-                    onClick = {
-                        playlistToRename = playlist
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_desktop_shortcut),
-                    onClick = {
-                        val ok = requestPinnedEllaShortcut(
-                            context = context,
-                            id = "playlist_${playlist.id}",
-                            label = playlist.name,
-                            route = Screen.PlaylistDetail.createRoute(playlist.id)
-                        )
-                        Toast.makeText(
-                            context,
-                            if (ok) context.getString(R.string.playlist_shortcut_requested, playlist.name) else context.getString(R.string.playlist_shortcut_unsupported),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        playlistMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_delete),
-                    danger = true,
-                    onClick = {
-                        playlistPendingDelete = playlist
-                        playlistMenuTarget = null
-                    }
-                )
-            }
-        }
+            onDismissRequest = { playlistMenuTarget = null },
+            actions = listOf(
+                com.ella.music.ui.components.LibraryEntityActions.pinToTop {
+                    val orderedIds = (listOf(playlist.id) + storedCustomPlaylists.map { it.id }).distinct()
+                    mainViewModel.reorderPlaylists(orderedIds)
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.export {
+                    playlistsToExport = listOf(playlist)
+                    showExportFormatSheet = true
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.share {
+                    shareLocalSongs(context, mainViewModel.playlistSongs(playlist))
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.addToPlaylist {
+                    playlistPickerSongs = mainViewModel.playlistSongs(playlist)
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.addToQueue {
+                    playerViewModel.addToPlaylist(mainViewModel.playlistSongs(playlist))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.playNext {
+                    playerViewModel.playNext(mainViewModel.playlistSongs(playlist))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.rename {
+                    playlistToRename = playlist
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.desktopShortcut {
+                    val ok = requestPinnedEllaShortcut(
+                        context = context,
+                        id = "playlist_${playlist.id}",
+                        label = playlist.name,
+                        route = Screen.PlaylistDetail.createRoute(playlist.id)
+                    )
+                    Toast.makeText(
+                        context,
+                        if (ok) context.getString(R.string.playlist_shortcut_requested, playlist.name) else context.getString(R.string.playlist_shortcut_unsupported),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    playlistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.delete {
+                    playlistPendingDelete = playlist
+                    playlistMenuTarget = null
+                }
+            )
+        )
     }
 
     playlistToRename?.let { playlist ->

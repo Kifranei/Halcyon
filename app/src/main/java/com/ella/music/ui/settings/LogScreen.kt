@@ -1,9 +1,5 @@
 package com.ella.music.ui.settings
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import com.ella.music.R
 import com.ella.music.data.AppLogEntry
 import com.ella.music.data.AppLogStore
@@ -35,16 +30,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
-import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
-import com.ella.music.ui.components.ellaPageBackground
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -53,6 +45,20 @@ import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import java.io.File
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
 fun LogScreen(
@@ -68,6 +74,13 @@ fun LogScreen(
     var selectedEntry by remember { mutableStateOf<AppLogEntry?>(null) }
     var showDetailSheet by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var crashLogFiles by remember { mutableStateOf(emptyList<File>()) }
+    var selectedCrashContent by remember { mutableStateOf<String?>(null) }
+    var showCrashDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(refreshKey) {
+        crashLogFiles = withContext(Dispatchers.IO) { AppLogStore.getCrashLogs(context) }
+    }
 
     val entries by produceState(initialValue = emptyList<AppLogEntry>(), refreshKey) {
         while (isActive) {
@@ -124,34 +137,27 @@ fun LogScreen(
                     )
                 }
             }
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, shareSubject)
-                putExtra(Intent.EXTRA_TITLE, file.name)
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                clipData = ClipData.newUri(context.contentResolver, shareSubject, uri)
-            }
-            runCatching {
-                context.startActivity(
-                    Intent.createChooser(intent, shareChooserTitle)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                )
-            }.onFailure {
-                showToast(noShareApp)
-            }
+            shareDiagnosticsTextFile(
+                context = context,
+                file = file,
+                subject = shareSubject,
+                chooserTitle = shareChooserTitle,
+                noAppMessage = noShareApp
+            )
         }
     }
 
     fun copyEntry(entry: AppLogEntry) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText(logClipLabel, entry.formatForCopy(context)))
-        showToast(copiedToast)
+        copyDiagnosticsText(
+            context = context,
+            label = logClipLabel,
+            text = entry.formatForCopy(context),
+            toastMessage = copiedToast
+        )
         showDetailSheet = false
     }
 
-    val pageBackground = ellaPageBackground()
+    val pageBackground = diagnosticsPageBackground()
     Scaffold(
         modifier = Modifier.background(pageBackground),
         topBar = {
@@ -203,8 +209,65 @@ fun LogScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             overscrollEffect = null
         ) {
+            if (crashLogFiles.isNotEmpty()) {
+                item("crash-banner") {
+                    DiagnosticsCard {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "检测到 ${crashLogFiles.size} 份闪退日志",
+                                    color = MiuixTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            val latest = crashLogFiles.firstOrNull()
+                                            if (latest != null) {
+                                                selectedCrashContent = AppLogStore.readCrashLog(latest)
+                                                showCrashDialog = true
+                                            }
+                                        }
+                                    ) {
+                                        Text("查看最新")
+                                    }
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    AppLogStore.clearCrashLogs(context)
+                                                    crashLogFiles = AppLogStore.getCrashLogs(context)
+                                                }
+                                                showToast("已清理崩溃日志")
+                                            }
+                                        }
+                                    ) {
+                                        Text("清理")
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "应用闪退时已自动抓取异常堆栈、内存状态及系统 Logcat 缓冲。",
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+
             item("filters") {
-                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+                DiagnosticsCard {
                     WindowDropdownPreference(
                         title = stringResource(R.string.logs_level_filter),
                         items = listOf(allLabel) + EllaLogLevelFilter.entries.map { stringResource(it.labelRes) },
@@ -225,18 +288,14 @@ fun LogScreen(
             }
 
             item("search") {
-                EllaMiuixTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = stringResource(R.string.logs_search_label),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
+                DiagnosticsSearchBar(
+                    query = query,
+                    onQueryChange = { query = it }
                 )
             }
 
             item("summary") {
-                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+                DiagnosticsCard {
                     BasicComponent(
                         title = stringResource(R.string.logs_summary_title),
                         summary = stringResource(
@@ -252,9 +311,9 @@ fun LogScreen(
 
             if (filteredEntries.isEmpty()) {
                 item("empty") {
-                    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-                        BasicComponent(title = if (entries.isEmpty()) stringResource(R.string.logs_empty) else stringResource(R.string.logs_empty_filtered))
-                    }
+                    DiagnosticsEmptyCard(
+                        text = if (entries.isEmpty()) stringResource(R.string.logs_empty) else stringResource(R.string.logs_empty_filtered)
+                    )
                 }
             } else {
                 itemsIndexed(
@@ -305,5 +364,66 @@ fun LogScreen(
                 }
             }
         )
+    }
+
+    if (showCrashDialog && selectedCrashContent != null) {
+        val crashContent = selectedCrashContent.orEmpty()
+        EllaMiuixDialog(
+            show = true,
+            title = "闪退崩溃日志详情",
+            onDismissRequest = {
+                showCrashDialog = false
+                selectedCrashContent = null
+            }
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp)
+                    .padding(vertical = 8.dp)
+            ) {
+                SelectionContainer {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        item {
+                            Text(
+                                text = crashContent,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+            EllaMiuixDialogActions(
+                cancelText = "复制内容",
+                confirmText = "分享日志",
+                onCancel = {
+                    copyDiagnosticsText(
+                        context = context,
+                        label = "崩溃日志",
+                        text = crashContent,
+                        toastMessage = "已复制崩溃日志"
+                    )
+                },
+                onConfirm = {
+                    scope.launch {
+                        val file = withContext(Dispatchers.IO) {
+                            File(context.cacheDir, "shared_logs").apply { mkdirs() }
+                                .resolve("halcyon-crash-${System.currentTimeMillis()}.txt")
+                                .also { it.writeText(crashContent) }
+                        }
+                        shareDiagnosticsTextFile(
+                            context = context,
+                            file = file,
+                            subject = "Halcyon 闪退崩溃日志",
+                            chooserTitle = "分享崩溃日志"
+                        )
+                    }
+                }
+            )
+        }
     }
 }

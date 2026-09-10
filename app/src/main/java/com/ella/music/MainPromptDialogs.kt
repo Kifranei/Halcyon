@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
-import com.ella.music.ui.components.EllaMiuixTripleDialogActions
 
 @Composable
 internal fun LocalPlaylistScanPromptDialog(
@@ -23,30 +22,6 @@ internal fun LocalPlaylistScanPromptDialog(
             confirmText = stringResource(R.string.local_playlist_scan_confirm),
             onCancel = onDismiss,
             onConfirm = onScan
-        )
-    }
-}
-
-@Composable
-internal fun InitialScanPromptDialog(
-    show: Boolean,
-    onDismiss: () -> Unit,
-    onCustomFolderScan: () -> Unit,
-    onMediaLibraryScan: () -> Unit
-) {
-    EllaMiuixDialog(
-        show = show,
-        title = stringResource(R.string.initial_scan_title),
-        summary = stringResource(R.string.initial_scan_message),
-        onDismissRequest = onDismiss
-    ) {
-        EllaMiuixTripleDialogActions(
-            firstText = stringResource(R.string.common_cancel),
-            secondText = stringResource(R.string.common_custom),
-            confirmText = stringResource(R.string.common_confirm),
-            onFirst = onDismiss,
-            onSecond = onCustomFolderScan,
-            onConfirm = onMediaLibraryScan
         )
     }
 }
@@ -110,6 +85,27 @@ internal fun WebDavCloudRestorePromptDialog(
             confirmText = stringResource(R.string.settings_backup_webdav_restore_now),
             onCancel = { if (!restoring) onDismiss() },
             onConfirm = { if (!restoring) onRestore() }
+        )
+    }
+}
+
+@Composable
+internal fun ShuffleAllShortcutConfirmationDialog(
+    show: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    EllaMiuixDialog(
+        show = show,
+        title = stringResource(R.string.shortcut_shuffle_all_confirm_title),
+        summary = stringResource(R.string.shortcut_shuffle_all_confirm_message),
+        onDismissRequest = onDismiss
+    ) {
+        EllaMiuixDialogActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.shortcut_shuffle_all_confirm),
+            onCancel = onDismiss,
+            onConfirm = onConfirm
         )
     }
 }

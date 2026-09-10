@@ -27,7 +27,10 @@ internal class LyricVideoRenderer(
     private val cover: Bitmap?,
     private val lines: List<LyricLine>,
     private val includeTranslation: Boolean,
-    typeface: Typeface? = null
+    typeface: Typeface? = null,
+    private val includeOriginal: Boolean = true,
+    private val includePronunciation: Boolean = true,
+    private val effect: LyricVideoEffect = LyricVideoEffect.Particle
 ) {
     companion object {
         const val VIDEO_SIZE = 1080
@@ -121,7 +124,7 @@ internal class LyricVideoRenderer(
 
     fun totalFrames(): Int = ((totalDurationMs * FPS) / 1000).toInt().coerceAtLeast(1)
 
-    private var activeParticleEffect: LyricVideoParticleEffect? = null
+    private var activeDissolveEffect: LyricVideoDissolveEffect? = null
     private var particleLineIndex = -1
     private var textBitmapCache: Bitmap? = null
 
@@ -203,21 +206,39 @@ internal class LyricVideoRenderer(
             textBitmapCache?.recycle()
             textBitmapCache = textBmp
             val drawY = calculateLineY(timeline)
-            activeParticleEffect = LyricVideoParticleEffect(
-                textBitmap = textBmp,
-                destX = calculateLineX(timeline, textBmp.width),
-                destY = drawY,
-                totalFrames = LyricVideoParticleEffect.DISSOLVE_FRAMES
-            )
+            val drawX = calculateLineX(timeline, textBmp.width)
+            activeDissolveEffect = when (effect) {
+                LyricVideoEffect.Particle -> LyricVideoParticleEffect(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY,
+                    totalFrames = LyricVideoParticleEffect.DISSOLVE_FRAMES
+                )
+                LyricVideoEffect.Neon -> LyricVideoNeonDissolve(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY
+                )
+                LyricVideoEffect.Glitch -> LyricVideoGlitchDissolve(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY
+                )
+                LyricVideoEffect.Fade -> LyricVideoFadeDissolve(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY
+                )
+            }
         }
-        activeParticleEffect?.let {
+        activeDissolveEffect?.let {
             it.advanceFrame()
             it.draw(canvas)
         }
     }
 
     private fun clearParticleEffect() {
-        activeParticleEffect = null
+        activeDissolveEffect = null
         particleLineIndex = -1
     }
 

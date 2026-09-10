@@ -1,6 +1,7 @@
 package com.ella.music.shizuku
 
 import android.content.Context
+import androidx.annotation.Keep
 import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -12,6 +13,7 @@ import kotlin.system.exitProcess
  * A user service is not a normal Android service process, so it must not use app APIs such as
  * ContentResolver. It only runs the command and returns its combined stdout/stderr to the app.
  */
+@Keep
 class ShizukuShellService(@Suppress("UNUSED_PARAMETER") context: Context) :
     IShizukuShellService.Stub() {
 

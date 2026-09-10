@@ -21,12 +21,33 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+enum class AnalysisDimension(val labelRes: Int) {
+    FORMAT(R.string.analytics_dimension_format),
+    QUALITY(R.string.analytics_dimension_quality),
+    SAMPLE_RATE(R.string.analytics_dimension_sample_rate),
+    BIT_DEPTH(R.string.analytics_dimension_bit_depth)
+}
+
+enum class AnalysisMetric(val labelRes: Int) {
+    SIZE(R.string.analytics_metric_size),
+    COUNT(R.string.analytics_metric_count)
+}
+
 internal data class LibraryAnalysis(
     val formatBuckets: List<AnalysisBucket>,
     val qualityBuckets: List<AnalysisBucket>,
+    val sampleRateBuckets: List<AnalysisBucket> = emptyList(),
+    val bitDepthBuckets: List<AnalysisBucket> = emptyList(),
     val totalCount: Int,
     val totalSizeBytes: Long
-)
+) {
+    fun getBuckets(dimension: AnalysisDimension): List<AnalysisBucket> = when (dimension) {
+        AnalysisDimension.FORMAT -> formatBuckets
+        AnalysisDimension.QUALITY -> qualityBuckets
+        AnalysisDimension.SAMPLE_RATE -> sampleRateBuckets
+        AnalysisDimension.BIT_DEPTH -> bitDepthBuckets
+    }
+}
 
 internal data class AnalysisBucket(
     val label: String,
@@ -52,7 +73,16 @@ internal data class MonthlyListeningReport(
     val averagePerActiveDayMs: Long,
     val favoriteArtist: ListeningInsight?,
     val favoriteSong: ListeningInsight?,
-    val favoriteAlbum: ListeningInsight?
+    val favoriteAlbum: ListeningInsight?,
+    val monthLabel: String = monthTitle,
+    val year: Int = 0,
+    val favoriteArtists: List<ListeningInsight> = emptyList()
+)
+
+internal data class ReplayMonthTab(
+    val offsetFromCurrent: Int,
+    val label: String,
+    val year: Int
 )
 
 internal data class ListeningInsight(
@@ -60,7 +90,8 @@ internal data class ListeningInsight(
     val title: String,
     val subtitle: String,
     val playCount: Int,
-    val song: Song?
+    val song: Song?,
+    val listenedMs: Long = 0L
 )
 
 internal data class TasteProfile(
@@ -92,12 +123,11 @@ internal data class ResolvedHistoryEntry(
 internal fun buildMonthlyListeningReport(
     history: List<PlaybackHistoryEntry>,
     dailyListenMs: Map<String, Long>,
-    librarySongs: List<Song>
+    librarySongs: List<Song>,
+    targetMonth: Calendar = Calendar.getInstance()
 ): MonthlyListeningReport {
     val now = Calendar.getInstance()
-    val monthStart = Calendar.getInstance().apply {
-        set(Calendar.YEAR, now.get(Calendar.YEAR))
-        set(Calendar.MONTH, now.get(Calendar.MONTH))
+    val monthStart = (targetMonth.clone() as Calendar).apply {
         set(Calendar.DAY_OF_MONTH, 1)
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
@@ -112,6 +142,12 @@ internal fun buildMonthlyListeningReport(
         monthStart.get(Calendar.MONTH) + 1
     )
     val monthTitle = SimpleDateFormat("yyyy MMMM", Locale.getDefault()).format(monthStart.time)
+    val monthLabelPattern = if (Locale.getDefault().language in setOf("zh", "ja", "ko")) {
+        "M月"
+    } else {
+        "MMMM"
+    }
+    val monthLabel = SimpleDateFormat(monthLabelPattern, Locale.getDefault()).format(monthStart.time)
 
     val libraryById = librarySongs.associateBy { it.id }
     val libraryByStatsKey = librarySongs.associateBy { it.analyticsStatsKey() }
@@ -120,7 +156,8 @@ internal fun buildMonthlyListeningReport(
         .map { entry ->
             ResolvedHistoryEntry(
                 entry = entry,
-                song = libraryById[entry.songId] ?: libraryByStatsKey[entry.analyticsStatsKey()]
+                song = libraryByStatsKey[entry.analyticsStatsKey()]
+                    ?: libraryById[entry.songId]
             )
         }
 
@@ -137,10 +174,18 @@ internal fun buildMonthlyListeningReport(
         .filter { (date, ms) -> date.startsWith(monthPrefix) && ms > 0L }
         .keys
         .toSet()
-    val elapsedDaysInMonth = now.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    val isCurrentMonth = monthStart.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+        monthStart.get(Calendar.MONTH) == now.get(Calendar.MONTH)
+    val elapsedDaysInMonth = if (isCurrentMonth) {
+        now.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    } else {
+        monthStart.getActualMaximum(Calendar.DAY_OF_MONTH)
+    }
 
     return MonthlyListeningReport(
         monthTitle = monthTitle,
+        monthLabel = monthLabel,
+        year = monthStart.get(Calendar.YEAR),
         playCount = monthlyHistory.size,
         uniqueSongCount = uniqueSongCount,
         listenedMs = listenedMs,
@@ -151,11 +196,39 @@ internal fun buildMonthlyListeningReport(
         averagePerActiveDayMs = if (activeDays > 0) listenedMs / activeDays else 0L,
         favoriteArtist = monthlyHistory.favoriteArtistInsight(),
         favoriteSong = monthlyHistory.favoriteSongInsight(),
-        favoriteAlbum = monthlyHistory.favoriteAlbumInsight()
+        favoriteAlbum = monthlyHistory.favoriteAlbumInsight(),
+        favoriteArtists = monthlyHistory.favoriteArtistInsights()
     )
 }
 
+internal fun buildReplayMonthTabs(
+    count: Int? = null,
+    now: Calendar = Calendar.getInstance()
+): List<ReplayMonthTab> {
+    val resolvedCount = (count ?: (now.get(Calendar.MONTH) + 1)).coerceAtMost(12)
+    if (resolvedCount <= 0) return emptyList()
+    val locale = Locale.getDefault()
+    val labelPattern = if (locale.language in setOf("zh", "ja", "ko")) "M月" else "MMM"
+    return (resolvedCount - 1 downTo 0).map { offset ->
+        val month = (now.clone() as Calendar).apply {
+            add(Calendar.MONTH, -offset)
+        }
+        ReplayMonthTab(
+            offsetFromCurrent = offset,
+            label = SimpleDateFormat(labelPattern, locale).format(month.time),
+            year = month.get(Calendar.YEAR)
+        )
+    }
+}
+
 internal fun List<ResolvedHistoryEntry>.favoriteArtistInsight(): ListeningInsight? {
+    return favoriteArtistInsights(limit = 1).firstOrNull()
+}
+
+internal fun List<ResolvedHistoryEntry>.favoriteArtistInsights(
+    limit: Int = 5
+): List<ListeningInsight> {
+    if (limit <= 0) return emptyList()
     val rows = flatMap { row ->
         val artistText = row.song?.artist?.takeIf { it.isNotBlank() } ?: row.entry.artist
         (row.song?.let(::artistNamesForSong) ?: splitArtistNames(artistText))
@@ -163,19 +236,28 @@ internal fun List<ResolvedHistoryEntry>.favoriteArtistInsight(): ListeningInsigh
             .filter { it.isNotBlank() }
             .map { artist -> artist to row }
     }
-    val top = rows
+    val grouped = rows
         .groupBy { it.first.lowercase(Locale.getDefault()) }
-        .maxByOrNull { it.value.size }
-        ?.value
-        .orEmpty()
-    if (top.isEmpty()) return null
-    return ListeningInsight(
-        labelRes = R.string.analytics_month_favorite_artist,
-        title = top.first().first,
-        subtitle = top.firstNotNullOfOrNull { it.second.song?.album?.takeIf(String::isNotBlank) }.orEmpty(),
-        playCount = top.size,
-        song = top.firstNotNullOfOrNull { it.second.song }
-    )
+        .values
+        .sortedWith(
+            compareByDescending<List<Pair<String, ResolvedHistoryEntry>>> {
+                it.sumOf { row -> row.second.entry.listenedMs.coerceAtLeast(0L) }
+            }
+                .thenByDescending { it.size }
+                .thenBy { it.firstOrNull()?.first.orEmpty().lowercase(Locale.getDefault()) }
+        )
+    return grouped.take(limit).map { artistRows ->
+        ListeningInsight(
+            labelRes = R.string.analytics_month_favorite_artist,
+            title = artistRows.first().first,
+            subtitle = artistRows.firstNotNullOfOrNull {
+                it.second.song?.album?.takeIf(String::isNotBlank)
+            }.orEmpty(),
+            playCount = artistRows.size,
+            song = artistRows.firstNotNullOfOrNull { it.second.song },
+            listenedMs = artistRows.sumOf { it.second.entry.listenedMs.coerceAtLeast(0L) }
+        )
+    }
 }
 
 internal fun List<ResolvedHistoryEntry>.favoriteSongInsight(): ListeningInsight? {
@@ -190,7 +272,8 @@ internal fun List<ResolvedHistoryEntry>.favoriteSongInsight(): ListeningInsight?
         title = first.song?.title ?: first.entry.title,
         subtitle = first.song?.artist ?: first.entry.artist,
         playCount = top.size,
-        song = first.song
+        song = first.song,
+        listenedMs = top.sumOf { it.entry.listenedMs.coerceAtLeast(0L) }
     )
 }
 
@@ -207,7 +290,8 @@ internal fun List<ResolvedHistoryEntry>.favoriteAlbumInsight(): ListeningInsight
         title = first.song?.album ?: first.entry.album,
         subtitle = first.song?.albumArtist?.takeIf { it.isNotBlank() }.orEmpty(),
         playCount = top.size,
-        song = first.song
+        song = first.song,
+        listenedMs = top.sumOf { it.entry.listenedMs.coerceAtLeast(0L) }
     )
 }
 
@@ -266,7 +350,12 @@ internal fun buildTasteProfile(
 ): TasteProfile {
     val resolved = stats
         .filter { it.listenedMs > 0L || it.playCount > 0 }
-        .map { stat -> stat to (libraryById[stat.songId] ?: libraryByStatsKey[stat.analyticsStatsKey()]) }
+        .map { stat ->
+            stat to (
+                libraryByStatsKey[stat.analyticsStatsKey()]
+                    ?: libraryById[stat.songId]
+                )
+        }
 
     fun add(acc: MutableMap<String, TasteAccumulator>, rawTitle: String, subtitle: String, stat: SongPlaybackStats) {
         val title = rawTitle.trim()
@@ -324,6 +413,12 @@ internal fun buildLibraryAnalysis(
         qualityBuckets = rows.toBuckets { qualityLabel(it.song, it.info) }
             .sortedWith(compareBy<AnalysisBucket> { qualityOrder.indexOf(it.label).let { index -> if (index < 0) Int.MAX_VALUE else index } }
                 .thenByDescending { it.count }),
+        sampleRateBuckets = rows.toBuckets { sampleRateLabel(it.info) }
+            .sortedWith(compareByDescending<AnalysisBucket> { parseSampleRateKhz(it.label) }
+                .thenByDescending { it.count }),
+        bitDepthBuckets = rows.toBuckets { bitDepthLabel(it.info) }
+            .sortedWith(compareByDescending<AnalysisBucket> { parseBitDepth(it.label) }
+                .thenByDescending { it.count }),
         totalCount = songs.size,
         totalSizeBytes = songs.sumOf { it.fileSize }
     )
@@ -333,14 +428,14 @@ internal fun readCachedLibraryAnalysis(
     context: Context,
     songs: List<Song>
 ): LibraryAnalysis? {
-    if (songs.isEmpty()) return LibraryAnalysis(emptyList(), emptyList(), 0, 0L)
+    if (songs.isEmpty()) return LibraryAnalysis(emptyList(), emptyList(), emptyList(), emptyList(), 0, 0L)
     val cacheKey = songs.libraryAnalysisCacheKey()
     LibraryAnalysisSessionCache.get(cacheKey)?.let { return it }
     return runCatching {
         val file = libraryAnalysisCacheFile(context)
         if (!file.exists()) return@runCatching null
         val root = JSONObject(file.readText())
-        if (root.optInt("version", 1) < 2) return@runCatching null
+        if (root.optInt("version", 1) < 3) return@runCatching null
         if (root.optString("key") != cacheKey) return@runCatching null
         root.optJSONObject("analysis")?.toLibraryAnalysis()
     }.getOrNull()?.also { LibraryAnalysisSessionCache.put(cacheKey, it) }
@@ -354,7 +449,7 @@ internal fun writeCachedLibraryAnalysis(
     runCatching {
         val file = libraryAnalysisCacheFile(context)
         val root = JSONObject()
-            .put("version", 2)
+            .put("version", 3)
             .put("key", songs.libraryAnalysisCacheKey())
             .put("updatedAt", System.currentTimeMillis())
             .put("analysis", analysis.toJson())
@@ -405,6 +500,8 @@ private fun LibraryAnalysis.toJson(): JSONObject =
     JSONObject()
         .put("formatBuckets", formatBuckets.toJson())
         .put("qualityBuckets", qualityBuckets.toJson())
+        .put("sampleRateBuckets", sampleRateBuckets.toJson())
+        .put("bitDepthBuckets", bitDepthBuckets.toJson())
         .put("totalCount", totalCount)
         .put("totalSizeBytes", totalSizeBytes)
 
@@ -425,6 +522,8 @@ private fun JSONObject.toLibraryAnalysis(): LibraryAnalysis =
     LibraryAnalysis(
         formatBuckets = optJSONArray("formatBuckets").toAnalysisBuckets(),
         qualityBuckets = optJSONArray("qualityBuckets").toAnalysisBuckets(),
+        sampleRateBuckets = optJSONArray("sampleRateBuckets").toAnalysisBuckets(),
+        bitDepthBuckets = optJSONArray("bitDepthBuckets").toAnalysisBuckets(),
         totalCount = optInt("totalCount", 0),
         totalSizeBytes = optLong("totalSizeBytes", 0L)
     )
@@ -498,6 +597,28 @@ internal fun qualityLabel(song: Song, info: AudioInfo): String {
         else -> label
     }
 }
+
+internal fun sampleRateLabel(info: AudioInfo): String {
+    val rate = info.sampleRate
+    if (rate <= 0) return "UNKNOWN"
+    return if (rate % 1000 == 0) {
+        "${rate / 1000} kHz"
+    } else {
+        "%.1f kHz".format(Locale.US, rate / 1000.0)
+    }
+}
+
+internal fun bitDepthLabel(info: AudioInfo): String {
+    val depth = info.bitDepth
+    if (depth <= 0) return "UNKNOWN"
+    return "${depth}-bit"
+}
+
+internal fun parseSampleRateKhz(label: String): Float =
+    label.removeSuffix(" kHz").toFloatOrNull() ?: -1f
+
+internal fun parseBitDepth(label: String): Int =
+    label.removeSuffix("-bit").toIntOrNull() ?: -1
 
 internal fun Song.fileExtension(): String {
     val source = fileName.ifBlank { path.substringAfterLast('/') }
@@ -632,4 +753,37 @@ internal fun qualityBucketColor(label: String): Color = when (label.uppercase())
     else -> qualityPalette[
         qualityOrder.indexOf(label).takeIf { it >= 0 }?.rem(qualityPalette.size) ?: 6
     ]
+}
+
+internal val xiaomiStoragePalette = listOf(
+    Color(0xFFFFB300), // Yellow / Gold
+    Color(0xFF00B0FF), // Cyan / Sky Blue
+    Color(0xFF3D5AFE), // Royal Blue
+    Color(0xFFAA00FF), // Violet / Purple
+    Color(0xFFFF5252), // Coral / Red
+    Color(0xFF00E676), // Bright Green
+    Color(0xFF9E9E9E)  // Slate Grey
+)
+
+internal val sampleRatePalette = listOf(
+    Color(0xFFFFB300), // Amber / Gold (192 kHz+)
+    Color(0xFF00B0FF), // Sky Blue (96 kHz)
+    Color(0xFF3D5AFE), // Deep Blue (48 kHz)
+    Color(0xFF00E676), // Green (44.1 kHz)
+    Color(0xFFAA00FF), // Violet (DSD / Other)
+    Color(0xFF9E9E9E)  // Grey
+)
+
+internal val bitDepthPalette = listOf(
+    Color(0xFFAA00FF), // Purple (32-bit)
+    Color(0xFFFFB300), // Amber (24-bit)
+    Color(0xFF00B0FF), // Cyan (16-bit)
+    Color(0xFF9E9E9E)  // Grey
+)
+
+internal fun dimensionPalette(dimension: AnalysisDimension): List<Color> = when (dimension) {
+    AnalysisDimension.FORMAT -> xiaomiStoragePalette
+    AnalysisDimension.QUALITY -> qualityPalette
+    AnalysisDimension.SAMPLE_RATE -> sampleRatePalette
+    AnalysisDimension.BIT_DEPTH -> bitDepthPalette
 }

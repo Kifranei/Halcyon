@@ -2,7 +2,6 @@ package com.ella.music.ui.player
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
@@ -34,39 +33,39 @@ internal fun PlayerQueueSheet(
 ) {
     if (!show) return
 
-    val playlistSnapshotKey = queueSnapshotKey(playlist)
-    key(playlistSnapshotKey) {
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = stringResource(R.string.player_queue_title),
-            onDismissRequest = onDismiss
-        ) {
-            PlayerQueueMenu(
-                playlist = playlist,
-                currentSongKey = currentSongKey,
-                currentSongSourceKey = currentSongSourceKey,
-                currentQueueIndexHint = currentQueueIndexHint,
-                shuffleEnabled = shuffleEnabled,
-                repeatMode = repeatMode,
-                queueLocked = queueLocked,
-                favoriteSongKeys = favoriteSongKeys,
-                loadSongRating = loadSongRating,
-                ratingRevision = ratingRevision,
-                onCyclePlaybackMode = onCyclePlaybackMode,
-                onToggleQueueLock = onToggleQueueLock,
-                onSongClick = onSongClick,
-                onRemoveSong = onRemoveSong,
-                onMoveSong = onMoveSong,
-                onRandomizeQueue = onRandomizeQueue,
-                onAddQueueToPlaylist = onAddQueueToPlaylist,
-                onClearQueue = onClearQueue,
-                onNavigateToPlaybackSource = {
-                    onDismiss()
-                    com.ella.music.data.PlaybackSourceNavigation.request()
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+    // Keep the sheet instance stable while its queue changes. PlayerQueueMenu owns the
+    // queue-snapshot invalidation needed to refresh rows; keying this surface by that snapshot
+    // disposes and recreates the modal after every remove or reorder operation.
+    EllaMiuixBottomSheet(
+        show = true,
+        enableNestedScroll = false,
+        title = stringResource(R.string.player_queue_title),
+        onDismissRequest = onDismiss
+    ) {
+        PlayerQueueMenu(
+            playlist = playlist,
+            currentSongKey = currentSongKey,
+            currentSongSourceKey = currentSongSourceKey,
+            currentQueueIndexHint = currentQueueIndexHint,
+            shuffleEnabled = shuffleEnabled,
+            repeatMode = repeatMode,
+            queueLocked = queueLocked,
+            favoriteSongKeys = favoriteSongKeys,
+            loadSongRating = loadSongRating,
+            ratingRevision = ratingRevision,
+            onCyclePlaybackMode = onCyclePlaybackMode,
+            onToggleQueueLock = onToggleQueueLock,
+            onSongClick = onSongClick,
+            onRemoveSong = onRemoveSong,
+            onMoveSong = onMoveSong,
+            onRandomizeQueue = onRandomizeQueue,
+            onAddQueueToPlaylist = onAddQueueToPlaylist,
+            onClearQueue = onClearQueue,
+            onNavigateToPlaybackSource = {
+                onDismiss()
+                com.ella.music.data.PlaybackSourceNavigation.request()
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
