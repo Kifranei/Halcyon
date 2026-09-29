@@ -40,7 +40,7 @@ class HomeLayoutAnchorTest {
             libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_LIST, scaleDelta = 0.25f)
         )
         assertEquals(
-            SettingsManager.LIBRARY_LAYOUT_GRID,
+            SettingsManager.LIBRARY_LAYOUT_DETAILS,
             libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_MULTI_ROW, scaleDelta = 0.25f)
         )
     }
@@ -48,7 +48,7 @@ class HomeLayoutAnchorTest {
     @Test
     fun pinchInMovesOneStepTowardTheDetailedList() {
         assertEquals(
-            SettingsManager.LIBRARY_LAYOUT_MULTI_ROW,
+            SettingsManager.LIBRARY_LAYOUT_DETAILS,
             libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_GRID, scaleDelta = -0.25f)
         )
         assertEquals(
@@ -66,13 +66,13 @@ class HomeLayoutAnchorTest {
     }
 
     @Test
-    fun libraryPinchFromTwoColumnsTargetsCoverGrid() {
+    fun libraryPinchFromTwoColumnsTargetsDetailsBeforeCoverGrid() {
         val state = LibraryPinchState(SettingsManager.LIBRARY_LAYOUT_MULTI_ROW)
 
         state.beginPinch()
         state.updatePinch(rawDelta = 0.4f, velocityDp = 0f)
 
-        assertEquals(SettingsManager.LIBRARY_LAYOUT_GRID, state.targetLayout)
+        assertEquals(SettingsManager.LIBRARY_LAYOUT_DETAILS, state.targetLayout)
         state.cancelPinch()
     }
 }

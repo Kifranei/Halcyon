@@ -41,7 +41,7 @@ internal class MusicLyricsManager(
         val safeMode = sourceMode.coerceIn(SettingsManager.LYRIC_SOURCE_AUTO, SettingsManager.LYRIC_SOURCE_EMBEDDED)
         val sourcePriority = settingsManager.lyricSourcePriority.first()
         val ignoreHeaderTags = settingsManager.ignoreLyricHeaderTags.first()
-        val cacheKey = "${song.metadataCacheKey()}:lyrics:$safeMode:$sourcePriority:$ignoreHeaderTags"
+        val cacheKey = "${song.metadataCacheKey()}:lyrics:$safeMode:$sourcePriority:$ignoreHeaderTags:${song.onlineLyrics.hashCode()}:${song.onlineLyricTranslation.hashCode()}:${song.onlineLyricPronunciation.hashCode()}"
         lyricsCache[cacheKey]?.let { cached ->
             // A WebDAV song can be requested before its cancellable metadata window arrives. Do
             // not let that transient empty result suppress the later retry after hydration.
@@ -59,7 +59,14 @@ internal class MusicLyricsManager(
         }
 
         val effectivePath = song.effectiveLocalPathForMetadataBlocking(settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
-        for (sourceId in orderedLyricSourceIds(sourcePriority, safeMode)) {
+        val orderedSources = orderedLyricSourceIds(sourcePriority, safeMode).let { ids ->
+            if (safeMode == SettingsManager.LYRIC_SOURCE_AUTO &&
+                com.ella.music.data.lyrics.LyricsSidecarStorage.prefersSidecar(context, song)) {
+                // The user saved an external file for this song: show it ahead of embedded tags.
+                ids.sortedBy { if (it == SettingsManager.LYRIC_SOURCE_EXTERNAL_TTML || it == SettingsManager.LYRIC_SOURCE_EXTERNAL_PLAIN) 0 else 1 }
+            } else ids
+        }
+        for (sourceId in orderedSources) {
             loadLyricsBySourceId(song, effectivePath, sourceId, ignoreHeaderTags)?.let { lyrics ->
                 lyricsCache[cacheKey] = lyrics
                 return@withContext lyrics
@@ -175,6 +182,9 @@ internal class MusicLyricsManager(
 
     private suspend fun loadExternalLyricsByFormat(song: Song, effectivePath: String, preferTtml: Boolean, ignoreHeaderTags: Boolean = false): List<LyricLine>? {
         val content = findExternalLyricContentByFormat(effectivePath, preferTtml)
+            // Same-basename sidecars reachable only through SAF (USB trees, or picker-granted
+            // folders whose SAF-created files are hidden from raw paths without all-files access).
+            ?: com.ella.music.data.lyrics.LyricsSidecarStorage.readViaDocuments(context, effectivePath, preferTtml)
             ?: findWebDavExternalLyricContent(song, preferTtml)
             ?: return null
         val parsed = LrcParser.parse(content, ignoreHeaderTags)
@@ -243,7 +253,9 @@ internal class MusicLyricsManager(
 
     private suspend fun fetchOnlineLyrics(song: Song, ignoreHeaderTags: Boolean): List<LyricLine>? {
         song.onlineLyrics.takeIf(String::isNotBlank)?.let { raw ->
-            parseRemoteLyrics(raw, ignoreHeaderTags)?.let { return it }
+            parseRemoteLyrics(raw, ignoreHeaderTags)?.let {
+                return com.ella.music.data.netease.mergeOnlineLyricCompanions(it, song.onlineLyricTranslation, song.onlineLyricPronunciation)
+            }
         }
         if (
             song.onlineSource == RemoteMusicProvider.Navidrome.id ||

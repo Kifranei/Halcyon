@@ -4,8 +4,8 @@ import org.json.JSONObject
 
 data class XiaomiSuperIslandSettings(
     val lyricTextMode: Int = TEXT_ORIGINAL,
-    val lyricMode: Int = LYRIC_MODE_STANDARD,
-    val fullLyricShowLeftCover: Boolean = true,
+    val lyricMode: Int = LYRIC_MODE_FULL,
+    val fullLyricShowLeftCover: Boolean = false,
     val scrollingEnabled: Boolean = true,
     val rightTextChars: Int = 7,
     val leftWithCoverTextChars: Int = 6,
@@ -33,7 +33,7 @@ data class XiaomiSuperIslandSettings(
         colorSource = colorSource.coerceIn(COLOR_SOURCE_ALBUM, COLOR_SOURCE_CUSTOM),
         customColor = customColor or (0xFF shl 24),
         actionStyle = actionStyle.coerceIn(ACTION_STYLE_DISABLED, ACTION_STYLE_MEDIA_CONTROLS),
-        notificationStyle = notificationStyle.coerceIn(NOTIFICATION_STYLE_STANDARD, NOTIFICATION_STYLE_ADVANCED),
+        notificationStyle = NOTIFICATION_STYLE_STANDARD,
         mediaButtonLayout = mediaButtonLayout.coerceIn(MEDIA_BUTTON_LAYOUT_TWO, MEDIA_BUTTON_LAYOUT_THREE),
         clickStyle = clickStyle.coerceIn(CLICK_STYLE_DEFAULT, CLICK_STYLE_OPEN_APP),
         shareFormat = shareFormat.coerceIn(SHARE_FORMAT_LYRIC_AND_SONG, SHARE_FORMAT_ARTIST_AND_SONG),
@@ -80,7 +80,6 @@ data class XiaomiSuperIslandSettings(
         const val ACTION_STYLE_DISABLED = 0
         const val ACTION_STYLE_MEDIA_CONTROLS = 1
         const val NOTIFICATION_STYLE_STANDARD = 0
-        const val NOTIFICATION_STYLE_ADVANCED = 1
         const val MEDIA_BUTTON_LAYOUT_TWO = 0
         const val MEDIA_BUTTON_LAYOUT_THREE = 1
 
@@ -109,8 +108,8 @@ data class XiaomiSuperIslandSettings(
                 val json = JSONObject(value)
                 XiaomiSuperIslandSettings(
                     lyricTextMode = json.optInt("text", TEXT_ORIGINAL),
-                    lyricMode = json.optInt("mode", LYRIC_MODE_STANDARD),
-                    fullLyricShowLeftCover = json.optBoolean("leftCover", true),
+                    lyricMode = json.optInt("mode", LYRIC_MODE_FULL),
+                    fullLyricShowLeftCover = json.optBoolean("leftCover", false),
                     scrollingEnabled = json.optBoolean("scroll", true),
                     rightTextChars = json.optInt("rightChars", 7),
                     leftWithCoverTextChars = json.optInt("leftCoverChars", 6),
@@ -120,7 +119,7 @@ data class XiaomiSuperIslandSettings(
                     customColor = json.optInt("customColor", DEFAULT_CUSTOM_COLOR),
                     progressColorEnabled = json.optBoolean("progressColor", false),
                     actionStyle = json.optInt("actions", ACTION_STYLE_DISABLED),
-                    notificationStyle = json.optInt("notificationStyle", NOTIFICATION_STYLE_STANDARD),
+                    notificationStyle = NOTIFICATION_STYLE_STANDARD,
                     mediaButtonLayout = json.optInt("buttonLayout", MEDIA_BUTTON_LAYOUT_TWO),
                     clickStyle = json.optInt("click", CLICK_STYLE_DEFAULT),
                     shareEnabled = json.optBoolean("share", true),

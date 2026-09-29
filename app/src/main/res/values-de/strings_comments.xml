@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">Kommentare</string>
+    <string name="netease_comments_title">Kommentare</string>
+    <string name="netease_comments_title_count">Kommentare (%1$s)</string>
+    <string name="netease_comments_sort_recommend">Empfohlen</string>
+    <string name="netease_comments_sort_hot">Beliebt</string>
+    <string name="netease_comments_sort_latest">Neueste</string>
+    <string name="netease_comments_empty">Noch keine Kommentare</string>
+    <string name="netease_comments_error">Kommentare konnten nicht geladen werden</string>
+    <string name="netease_comments_retry">Erneut versuchen</string>
+    <string name="netease_comments_expand_replies">Antworten anzeigen (%1$d)</string>
+    <string name="netease_comments_more_replies">Weitere Antworten</string>
+    <string name="netease_comments_collapse_replies">Antworten ausblenden</string>
+    <string name="netease_comments_reply_to">"Antwort an @%1$s: "</string>
+    <string name="netease_comments_load_more_failed">Laden fehlgeschlagen. Zum Wiederholen tippen</string>
+    <string name="netease_comments_no_more">Keine weiteren Kommentare</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">Gefällt mir</string>
+    <string name="netease_comments_reply">Antworten</string>
+    <string name="netease_comments_input_hint">Schreib etwas…</string>
+    <string name="netease_comments_reply_hint">@%1$s antworten</string>
+    <string name="netease_comments_send">Senden</string>
+    <string name="netease_comments_cancel_reply">Antwort abbrechen</string>
+    <string name="netease_comments_login_required">Bitte melde dich zuerst bei NetEase Cloud Music an</string>
+    <string name="netease_comments_like_failed">„Gefällt mir“ fehlgeschlagen. Versuche es später erneut</string>
+    <string name="netease_comments_send_failed">Senden fehlgeschlagen. Versuche es später erneut</string>
+    <string name="netease_comments_send_failed_code">Senden fehlgeschlagen (Fehler %1$d)</string>
+    <string name="netease_comments_sent">Gesendet</string>
+</resources>

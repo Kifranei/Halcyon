@@ -68,6 +68,7 @@ internal fun PlaylistScreenTopBar(
     onSearchClick: () -> Unit,
     onImportClick: () -> Unit,
     onExportAllClick: () -> Unit,
+    onlineReadOnly: Boolean = false,
     onDoubleTapTitle: (() -> Unit)? = null
 ) {
     EllaSmallTopAppBar(
@@ -140,12 +141,12 @@ internal fun PlaylistScreenTopBar(
                     )
                 }
             } else {
-                PlaylistTopBarIcon(
+                if (!onlineReadOnly) PlaylistTopBarIcon(
                     icon = MiuixIcons.Regular.Share,
                     contentDescription = stringResource(R.string.playlist_export_all_title),
                     onClick = onExportAllClick
                 )
-                PlaylistTopBarIcon(
+                if (!onlineReadOnly) PlaylistTopBarIcon(
                     icon = MiuixIcons.Regular.Download,
                     contentDescription = stringResource(R.string.playlist_import_title),
                     onClick = onImportClick
@@ -245,7 +246,8 @@ internal fun PlaylistListSummaryRow(
     randomSongsAvailable: Boolean,
     onShuffleClick: () -> Unit,
     onCreateClick: () -> Unit,
-    onSelectAllClick: () -> Unit
+    onSelectAllClick: () -> Unit,
+    onlineReadOnly: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -267,7 +269,7 @@ internal fun PlaylistListSummaryRow(
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.weight(1f)
         )
-        if (!selectionMode) {
+        if (!selectionMode && !onlineReadOnly) {
             PlaylistToolbarChip(
                 icon = MiuixIcons.Regular.Add,
                 label = stringResource(R.string.playlist_create_title),

@@ -56,8 +56,8 @@ internal fun PlaylistDetailTopBar(
     showExport: Boolean,
     showRatingFilter: Boolean,
     showFavoriteFilter: Boolean,
-    ratingFilterActive: Boolean,
-    favoriteFilterActive: Boolean,
+    ratingFilter: com.ella.music.ui.home.HomeRatingFilterSelection,
+    onRatingFilterChange: (com.ella.music.ui.home.HomeRatingFilterSelection) -> Unit,
     onNavigationClick: () -> Unit,
     onPlayNextSelectedClick: () -> Unit,
     onAddSelectedClick: () -> Unit,
@@ -65,8 +65,6 @@ internal fun PlaylistDetailTopBar(
     onSearchClick: () -> Unit,
     onExportClick: () -> Unit,
     onSelectionModeClick: () -> Unit,
-    onRatingFilterClick: () -> Unit,
-    onFavoriteFilterClick: () -> Unit,
     onDoubleTapTitle: (() -> Unit)? = null
 ) {
     EllaSmallTopAppBar(
@@ -79,8 +77,7 @@ internal fun PlaylistDetailTopBar(
         } else {
             (24 + 48 * (
                 2 + (if (showExport) 1 else 0) +
-                    (if (showRatingFilter) 1 else 0) +
-                    (if (showFavoriteFilter) 1 else 0)
+                    (if (showRatingFilter || showFavoriteFilter) 1 else 0)
                 )).dp
         },
         onDoubleTapTitle = onDoubleTapTitle,
@@ -118,24 +115,12 @@ internal fun PlaylistDetailTopBar(
                     }
                 }
             } else {
-                if (showRatingFilter) IconButton(onClick = onRatingFilterClick) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_rating_star_half),
-                        contentDescription = stringResource(R.string.song_more_set_rating),
-                        tint = if (ratingFilterActive) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                if (showFavoriteFilter) IconButton(onClick = onFavoriteFilterClick) {
-                    Icon(
-                        painter = painterResource(
-                            if (favoriteFilterActive) R.drawable.ic_notification_favorite_filled
-                            else R.drawable.ic_notification_favorite
-                        ),
-                        contentDescription = stringResource(R.string.favorite_filter),
-                        tint = if (favoriteFilterActive) Color(0xFFFF4D6D)
-                        else MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
+                if (showRatingFilter || showFavoriteFilter) {
+                    com.ella.music.ui.home.RatingFilterMenu(
+                        selection = ratingFilter,
+                        onSelectionChange = onRatingFilterChange,
+                        showFavorite = showFavoriteFilter,
+                        showRating = showRatingFilter
                     )
                 }
                 IconButton(onClick = onSelectionModeClick) {

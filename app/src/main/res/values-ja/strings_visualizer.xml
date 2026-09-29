@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">ビジュアライザーの高さ</string>
+    <string name="player_visualizer_height_summary">プレーヤーのビジュアライザーの高さを調整します。既定はフローカーブと同じ高さです</string>
+    <string name="player_visualizer_style_cover_overlay">カバーオーバーレイ</string>
+</resources>

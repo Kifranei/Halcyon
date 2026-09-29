@@ -1,20 +1,7 @@
 package com.ella.music.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,30 +9,40 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.Icon
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.SolidColor
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.SearchBarDefaults
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.basic.SearchCleanup
+import top.yukonga.miuix.kmp.icon.extended.Search
+import top.yukonga.miuix.kmp.icon.extended.Close
+import androidx.compose.ui.res.stringResource
+import com.ella.music.R
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -57,6 +54,7 @@ fun EllaSearchBar(
     modifier: Modifier = Modifier,
     autoFocus: Boolean? = null,
     autoSelectAll: Boolean = false,
+    selectionRequestKey: Int = 0,
     onAutoSelectAllConsumed: () -> Unit = {},
     onFocusChange: (Boolean) -> Unit = {},
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainerHigh
@@ -68,14 +66,9 @@ fun EllaSearchBar(
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-    var fieldValue by remember {
-        mutableStateOf(TextFieldValue(query, selection = TextRange(query.length)))
-    }
-
+    var fieldValue by remember { mutableStateOf(TextFieldValue(query, TextRange(query.length))) }
     LaunchedEffect(query) {
-        if (query != fieldValue.text) {
-            fieldValue = TextFieldValue(query, selection = TextRange(query.length))
-        }
+        if (fieldValue.text != query) fieldValue = TextFieldValue(query, TextRange(query.length))
     }
 
     fun submitSearch() {
@@ -84,11 +77,15 @@ fun EllaSearchBar(
         onSearch()
     }
 
-    LaunchedEffect(autoSelectAll, query) {
+    LaunchedEffect(selectionRequestKey) {
+        if (!autoSelectAll) fieldValue = TextFieldValue(query, TextRange(query.length))
+    }
+
+    LaunchedEffect(autoSelectAll, query, selectionRequestKey) {
         if (autoSelectAll && query.isNotEmpty()) {
-            fieldValue = TextFieldValue(query, selection = TextRange(0, query.length))
             delay(180L)
             focusRequester.requestFocus()
+            fieldValue = TextFieldValue(query, TextRange(0, query.length))
             if (shouldAutoFocus) keyboardController?.show()
             onAutoSelectAllConsumed()
         }
@@ -109,70 +106,27 @@ fun EllaSearchBar(
             if (value.text != query) onQueryChange(value.text)
         },
         singleLine = true,
-        textStyle = TextStyle(
-            color = MiuixTheme.colorScheme.onSurface,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        ),
+        textStyle = MiuixTheme.textStyles.main.copy(fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface),
         cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 2.dp)
-            .focusRequester(focusRequester)
-            .onFocusChanged { onFocusChange(it.isFocused) },
-        decorationBox = { innerTextField ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(CircleShape)
-                    .background(containerColor)
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Basic.Search,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .size(21.dp)
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 45.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (fieldValue.text.isBlank()) {
-                        Text(
-                            text = placeholder,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    innerTextField()
+        modifier = modifier.fillMaxWidth().padding(horizontal = 2.dp)
+            .focusRequester(focusRequester).onFocusChanged { onFocusChange(it.isFocused) },
+        decorationBox = { input ->
+            Row(Modifier.fillMaxWidth().background(containerColor, CircleShape), verticalAlignment = Alignment.CenterVertically) {
+                Icon(MiuixIcons.Regular.Search, null,
+                    modifier = Modifier.padding(start = SearchBarDefaults.LeadingIconStartPadding, end = SearchBarDefaults.LeadingIconEndPadding))
+                Box(Modifier.weight(1f).heightIn(min = SearchBarDefaults.InputFieldMinHeight), contentAlignment = Alignment.CenterStart) {
+                    if (fieldValue.text.isEmpty()) Text(placeholder,
+                        color = MiuixTheme.colorScheme.onSurfaceContainerHigh,
+                        fontSize = SearchBarDefaults.InputFieldFontSize, fontWeight = FontWeight.Medium)
+                    input()
                 }
-                AnimatedVisibility(
-                    visible = fieldValue.text.isNotEmpty(),
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.SearchCleanup,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(21.dp)
-                            .clip(CircleShape)
-                            .clickable {
-                                fieldValue = TextFieldValue("", selection = TextRange.Zero)
-                                onQueryChange("")
-                            }
-                    )
+                if (fieldValue.text.isNotEmpty()) IconButton(onClick = {
+                    fieldValue = TextFieldValue()
+                    onQueryChange("")
+                }) {
+                    Icon(MiuixIcons.Regular.Close, stringResource(R.string.common_clear), modifier = Modifier.size(18.dp))
                 }
             }
         }

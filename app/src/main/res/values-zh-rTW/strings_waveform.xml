@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">波形縮放動畫</string>
+    <string name="player_waveform_scale_animation_summary">暫停播放、點擊或拖曳進度條時縮放波形</string>
+    <string name="player_waveform_density">波形密度</string>
+    <string name="player_waveform_density_summary">調整進度條中波形條的數量與間距</string>
+    <string name="player_waveform_peak_height">波形峰值高度</string>
+    <string name="player_waveform_peak_height_summary">調整波形條的最大高度</string>
+</resources>

@@ -119,17 +119,10 @@ internal fun AppleCoverFlowBackground(
         if (isDark) Color.Black.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.14f)
     }.toArgb()
 
-    // Keep the last completed frame while the next one is rendered. Recreating a produceState
-    // with `frameTimeMs` as a key resets its value to null on every tick, briefly exposing the
-    // blurred fallback and making the flow look like it is stepping rather than moving smoothly.
-    var frameBitmap by remember(
-        sourceBitmap,
-        viewportSize,
-        normalizedBlur,
-        densityDpi,
-        washPrimary,
-        washSecondary
-    ) { mutableStateOf<Bitmap?>(null) }
+    // Keep the last completed frame while the next one is rendered off-thread.
+    // Retaining frameBitmap across song changes prevents briefly falling back to the
+    // single-layer blurred cover (issue #621), keeping the 3-layer fluid flow seamless.
+    var frameBitmap by remember { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(
         sourceBitmap,
         viewportSize,
@@ -146,9 +139,10 @@ internal fun AppleCoverFlowBackground(
             frameBitmap = null
             return@LaunchedEffect
         }
-        frameBitmap = withContext(Dispatchers.Default) {
+        val next = withContext(Dispatchers.Default) {
             createAppleFlowFrameBitmap(cover, w, h, frameTimeMs, densityDpi, normalizedBlur, washPrimary, washSecondary)
         }
+        frameBitmap = next
     }
 
     Box(modifier = modifier.background(backgroundColor)) {

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cross-version install notice -->
+    <string name="app_upgrade_title_unknown">Eski bir sürümden yükseltme algılandı</string>
+    <string name="app_upgrade_title">Eski bir sürümden (%1$s) yükseltme algılandı</string>
+    <string name="app_upgrade_message">Geçerli sürüm: %1$s. Eski sürümlerden kalan ayarlar ve veriler bu sürümle uyumlu olmayabilir ve normal kullanımda görülmeyen beklenmedik hatalara yol açabilir. Uygulama verilerini temizleyip temiz bir kurulumla devam etmeniz önerilir.\n\nVeriler, sistemdeki Uygulama bilgisi › Depolama sayfasından temizlenir. Yalnızca ayarları sıfırlamak için Ayarlar › Bakım › Varsayılan yapılandırmayı geri yükle seçeneğini de kullanabilirsiniz (şarkılar, çalma listeleri ve dinleme geçmişi korunur).\n\nBir sorun bildirirken, sorunun verileri temizlenmemiş eski bir sürümün üzerine kurulumda değil, verileri temizlenmiş en son sürümün temiz kurulumunda oluştuğundan emin olun.</string>
+    <string name="app_upgrade_clear_data">Verileri temizle</string>
+    <string name="app_upgrade_later">Şimdi değil</string>
+    <string name="app_upgrade_clear_data_hint">Depolama bölümünü açıp Verileri temizle seçeneğini seçin</string>
+
+    <!-- Backup restore compatibility check -->
+    <string name="backup_compat_title">Yedek ayarları bu sürümle uyuşmuyor</string>
+    <string name="backup_compat_from_older">Bu yedek eski bir sürümden (%1$s) alınmış; geçerli sürüm %2$s.</string>
+    <string name="backup_compat_from_older_unknown">Bu yedek eski bir sürümden alınmış; geçerli sürüm %1$s.</string>
+    <string name="backup_compat_from_newer">Bu yedek daha yeni bir sürümden (%1$s) alınmış; geçerli sürüm %2$s.</string>
+    <string name="backup_compat_same_version">Bu yedekteki ayarlar geçerli sürümün (%1$s) yapısıyla uyuşmuyor.</string>
+    <string name="backup_compat_details">Artık bulunmayan %1$d ayar, %2$d yeni ayar ve biçimi değişmiş %3$d ayar bulundu. Yeniden yapılandırmanız önerilir. Yeniden yapılandır seçeneği ayarları atlar; çalma listeleri, dinleme geçmişi ve seçilen diğer içerikler yine geri yüklenir.</string>
+    <string name="backup_compat_details_legacy">Artık bulunmayan %1$d ayar ve biçimi değişmiş %2$d ayar bulundu. Bu eski yedek ayar listesini kaydetmediği için yeni ayarların sayısı belirlenemiyor. Yeniden yapılandırmanız önerilir. Yeniden yapılandır seçeneği ayarları atlar; çalma listeleri, dinleme geçmişi ve seçilen diğer içerikler yine geri yüklenir.</string>
+    <string name="backup_compat_reconfigure">Yeniden yapılandır (ayarları atla)</string>
+    <string name="backup_compat_restore_anyway">Yine de geri yükle</string>
+</resources>

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,7 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -93,9 +91,7 @@ internal fun PlayerSongMetaText(
     val artistClickEnabled = artistOverride.isNullOrBlank() && artist.isNotBlank()
     fun clickableMetaModifier(enabled: Boolean, onClick: (() -> Unit)?): Modifier {
         return if (enabled && onClick != null) {
-            Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = onClick)
+            Modifier.clickable(onClick = onClick)
         } else {
             Modifier
         }
@@ -201,7 +197,8 @@ internal fun PlayerSongTitleText(
             overflow = TextOverflow.Clip,
             textAlign = textAlign,
             modifier = modifier,
-            titleModifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+            titleModifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+            matchBadgeToTitleSize = true
         )
     } else {
         BasicText(

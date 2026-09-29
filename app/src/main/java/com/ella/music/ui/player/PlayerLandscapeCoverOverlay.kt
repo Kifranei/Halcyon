@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.player
 
 import android.graphics.Bitmap
@@ -20,9 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -126,6 +131,9 @@ internal fun LandscapeCoverPlaybackOverlay(
 ) {
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val reserveHiddenSystemBars by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
     val importedMvOffsets by settingsManager.musicVideoOffsetsJson.collectAsState(initial = "")
     val musicVideoStretchEnabled by settingsManager.musicVideoStretchEnabled.collectAsState(
         initial = SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
@@ -182,6 +190,18 @@ internal fun LandscapeCoverPlaybackOverlay(
     Box(
         modifier = modifier
             .background(palette.middle)
+            // The landscape overlay is drawn after the portrait player and owns the whole
+            // window. When the user chooses to use hidden-bar pixels, consume the stable insets
+            // here so the inner controls cannot recreate a black/white strip around the cover.
+            .then(
+                if (!reserveHiddenSystemBars) {
+                    Modifier
+                        .consumeWindowInsets(WindowInsets.statusBarsIgnoringVisibility)
+                        .consumeWindowInsets(WindowInsets.navigationBarsIgnoringVisibility)
+                } else {
+                    Modifier
+                }
+            )
             .then(
                 if (coverSwipeEnabled) {
                     Modifier.pointerInput(onSwipePrevious, onNext) {

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,7 +47,7 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.EllaMiuixSheetActions
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.data.NeteaseAlbumDescriptionFetcher
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -65,6 +67,7 @@ internal fun AlbumIntroductionScreen(
     songs: List<Song>,
     coverModel: Any?,
     releaseDate: String?,
+    neteaseAlbumUrl: String? = null,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -85,10 +88,26 @@ internal fun AlbumIntroductionScreen(
     var editing by remember(contentKey) { mutableStateOf(false) }
     var draft by remember(contentKey) { mutableStateOf("") }
     var saving by remember(contentKey) { mutableStateOf(false) }
+    var fetching by remember(contentKey) { mutableStateOf(false) }
+    var showFetchSources by remember(contentKey) { mutableStateOf(false) }
 
-    LaunchedEffect(contentKey) {
+    val librarySource by com.ella.music.data.SettingsManager.getInstance(context).librarySource.collectAsState(initial = "")
+    LaunchedEffect(contentKey, librarySource) {
         record = withContext(Dispatchers.IO) { store.load(album, songs) }
         draft = record?.text.orEmpty()
+        // NetEase library: show NetEase's own album introduction directly; nothing is written to
+        // the song folder or the local description store unless the user saves an edit.
+        if (librarySource == com.ella.music.data.SettingsManager.LIBRARY_SOURCE_NETEASE && record?.text.isNullOrBlank()) {
+            fetching = true
+            val online = runCatching {
+                com.ella.music.data.ChineseMusicMetadata.album(com.ella.music.data.AlbumInfoSource.Netease, album, songs, neteaseAlbumUrl)
+            }.getOrNull()
+            fetching = false
+            if (!online.isNullOrBlank()) {
+                record = com.ella.music.data.AlbumDescriptionRecord(text = online)
+                draft = online
+            }
+        }
     }
 
     fun leavePage() {
@@ -100,6 +119,63 @@ internal fun AlbumIntroductionScreen(
         }
     }
     BackHandler(onBack = ::leavePage)
+
+    fun fetchSelectedDescription(source: com.ella.music.data.AlbumInfoSource) {
+        if (fetching || saving) return
+        fetching = true
+        scope.launch {
+            val desc = runCatching {
+                com.ella.music.data.ChineseMusicMetadata.album(source, album, songs, neteaseAlbumUrl)
+            }.getOrNull()
+            if (desc.isNullOrBlank()) {
+                fetching = false
+                Toast.makeText(context, R.string.album_introduction_fetch_not_found, Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val saveResult = runCatching {
+                withContext(Dispatchers.IO) {
+                    store.save(album, songs, desc)
+                }
+            }
+            fetching = false
+            saveResult.onSuccess {
+                record = withContext(Dispatchers.IO) { store.load(album, songs) }
+                draft = record?.text.orEmpty()
+                Toast.makeText(context, R.string.album_introduction_fetch_success, Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, R.string.album_introduction_save_failed, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    com.ella.music.ui.components.EllaMiuixBottomSheet(
+        show = showFetchSources,
+        title = stringResource(R.string.album_introduction_choose_source),
+        onDismissRequest = { showFetchSources = false }
+    ) {
+        com.ella.music.ui.components.EllaMiuixSheetColumn(showHandle = false) {
+            com.ella.music.data.AlbumInfoSource.entries.forEach { source ->
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable(enabled = !fetching) {
+                            showFetchSources = false
+                            fetchSelectedDescription(source)
+                        }.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    val icon = when (source) {
+                        com.ella.music.data.AlbumInfoSource.QQ -> R.drawable.ic_provider_qq
+                        com.ella.music.data.AlbumInfoSource.Kugou -> R.drawable.ic_provider_kugou
+                        com.ella.music.data.AlbumInfoSource.Kuwo -> R.drawable.ic_provider_kuwo
+                        com.ella.music.data.AlbumInfoSource.Netease -> R.drawable.ic_provider_netease
+                    }
+                    com.ella.music.ui.components.MusicProviderIcon(icon, null)
+                    Text(stringResource(source.labelRes))
+                }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -135,19 +211,42 @@ internal fun AlbumIntroductionScreen(
                 color = MiuixTheme.colorScheme.onSurface
             )
             if (!editing) {
-                Text(
-                    text = stringResource(R.string.album_introduction_edit_action),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable {
-                            draft = record?.text.orEmpty()
-                            editing = true
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = if (fetching) {
+                            stringResource(R.string.album_introduction_fetching)
+                        } else {
+                            stringResource(R.string.album_introduction_fetch_action)
+                        },
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable(enabled = !fetching) { showFetchSources = true }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (fetching) {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        } else {
+                            MiuixTheme.colorScheme.primary
                         }
-                        .padding(horizontal = 14.dp, vertical = 9.dp),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.primary
-                )
+                    )
+                    Text(
+                        text = stringResource(R.string.album_introduction_edit_action),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable {
+                                draft = record?.text.orEmpty()
+                                editing = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MiuixTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
@@ -163,7 +262,7 @@ internal fun AlbumIntroductionScreen(
                     ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                EllaMiuixTextField(
+                TextField(
                     value = draft,
                     onValueChange = { draft = it },
                     label = stringResource(R.string.album_introduction_editor_hint),

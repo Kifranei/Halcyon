@@ -181,7 +181,8 @@ internal enum class PlaylistSongSortMode(val labelRes: Int) {
     FileNameDesc(R.string.playlist_song_sort_file_name),
     DurationAsc(R.string.playlist_song_sort_duration),
     PlayCount(R.string.playlist_sort_play_count),
-    PlayCountAsc(R.string.playlist_sort_play_count)
+    PlayCountAsc(R.string.playlist_sort_play_count),
+    Random(R.string.common_sort_random)
 }
 
 internal fun PlaylistSongSortMode.isDescending(): Boolean = when (this) {
@@ -253,6 +254,7 @@ private fun PlaylistSongSortMode.toSongSortSpec(): SortSpec<SongSortField> =
             PlaylistSongSortMode.AddedAtDesc,
             PlaylistSongSortMode.PlayCount,
             PlaylistSongSortMode.PlayCountAsc -> SongSortField.Custom
+            PlaylistSongSortMode.Random -> SongSortField.Random
         },
         direction = when (this) {
             PlaylistSongSortMode.TitleDesc,

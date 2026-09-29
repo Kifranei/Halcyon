@@ -3,7 +3,8 @@ package com.ella.music.data.parser
 import android.text.Html
 import com.ella.music.data.model.LyricWord
 
-internal val lrcGenericMetaPattern = Regex("""^\[[A-Za-z][A-Za-z0-9 _\-]*:[^\]]*]$""")
+internal val lrcGenericMetaPattern = Regex("""^\[(?!bg:)[A-Za-z][A-Za-z0-9 _\-]*:[^\]]*]$""", RegexOption.IGNORE_CASE)
+
 
 internal fun String.parseFlexibleTime(): Int {
     val value = trim().replace(',', '.')
@@ -155,3 +156,31 @@ internal fun Char.isKanjiChar(): Boolean =
         Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
         Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
     )
+
+internal fun Char.isKanjiOrHangul(): Boolean =
+    Character.UnicodeBlock.of(this) in setOf(
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
+        Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS,
+        Character.UnicodeBlock.HANGUL_SYLLABLES,
+        Character.UnicodeBlock.HANGUL_JAMO,
+        Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO
+    )
+
+internal fun String.isRtlText(): Boolean {
+    var rtlCount = 0
+    var ltrCount = 0
+    var i = 0
+    while (i < length) {
+        val cp = codePointAt(i)
+        when (Character.getDirectionality(cp).toInt()) {
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT.toInt(),
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC.toInt() -> rtlCount++
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT.toInt() -> ltrCount++
+        }
+        i += Character.charCount(cp)
+    }
+    return rtlCount > 0 && rtlCount >= ltrCount
+}
+

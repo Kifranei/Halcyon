@@ -15,13 +15,14 @@ class CenterChannelSuppressorAudioProcessor : AudioProcessor {
     @Volatile
     var enabled: Boolean = false
 
+    private var pendingFormat = AudioProcessor.AudioFormat.NOT_SET
     private var inputFormat = AudioProcessor.AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = EMPTY_BUFFER
     private var inputEnded = false
     private var reusableOutputBuffer: ByteBuffer? = null
 
     override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        inputFormat = if (inputAudioFormat.channelCount in 1..2 &&
+        pendingFormat = if (inputAudioFormat.channelCount in 1..2 &&
             (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT ||
                 inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT)
         ) {
@@ -29,10 +30,10 @@ class CenterChannelSuppressorAudioProcessor : AudioProcessor {
         } else {
             AudioProcessor.AudioFormat.NOT_SET
         }
-        return inputFormat
+        return pendingFormat
     }
 
-    override fun isActive(): Boolean = inputFormat != AudioProcessor.AudioFormat.NOT_SET
+    override fun isActive(): Boolean = pendingFormat != AudioProcessor.AudioFormat.NOT_SET
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         val position = inputBuffer.position()
@@ -87,12 +88,14 @@ class CenterChannelSuppressorAudioProcessor : AudioProcessor {
 
     @Deprecated("Media3 retains this callback for AudioProcessor compatibility")
     override fun flush() {
+        inputFormat = pendingFormat
         outputBuffer = EMPTY_BUFFER
         inputEnded = false
     }
 
     @Suppress("DEPRECATION")
     override fun reset() {
+        pendingFormat = AudioProcessor.AudioFormat.NOT_SET
         flush()
         inputFormat = AudioProcessor.AudioFormat.NOT_SET
         reusableOutputBuffer = null

@@ -69,14 +69,21 @@ internal fun ShuffleAllSummaryButton(
 
 @Composable
 internal fun sortLabel(@StringRes fieldRes: Int, descending: Boolean): String =
-    sortLabel(
-        field = stringResource(fieldRes),
-        descending = descending
-    )
+    if (fieldRes == R.string.common_sort_random) {
+        stringResource(fieldRes)
+    } else {
+        sortLabel(
+            field = stringResource(fieldRes),
+            descending = descending
+        )
+    }
 
 @Composable
-internal fun sortLabel(field: String, descending: Boolean): String =
-    "${field.withoutEmbeddedSortDirection()} · ${stringResource(if (descending) R.string.common_sort_descending else R.string.common_sort_ascending)}"
+internal fun sortLabel(field: String, descending: Boolean): String {
+    val randomLabel = stringResource(R.string.common_sort_random)
+    if (field == randomLabel) return randomLabel
+    return "${field.withoutEmbeddedSortDirection()} · ${stringResource(if (descending) R.string.common_sort_descending else R.string.common_sort_ascending)}"
+}
 
 /** Legacy sort strings included their direction, which made summaries say e.g. "ascending · ascending". */
 private fun String.withoutEmbeddedSortDirection(): String =

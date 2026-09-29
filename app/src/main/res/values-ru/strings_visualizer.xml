@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">Высота визуализатора</string>
+    <string name="player_visualizer_height_summary">Высота визуализатора плеера; по умолчанию совпадает с плавной кривой</string>
+    <string name="player_visualizer_style_cover_overlay">Поверх обложки</string>
+</resources>

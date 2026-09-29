@@ -45,6 +45,14 @@ object AppLogcatCollector {
         entries.clear()
     }
 
+    /** Last [maxLines] lines only; used by the crash handler, which must stay fast and small. */
+    fun dumpTail(maxLines: Int): String = runCatching {
+        val process = startLogcat(dumpOnly = true, tailLines = maxLines)
+        val output = process.inputStream.bufferedReader().use(BufferedReader::readText)
+        if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroy()
+        output.ifBlank { "logcat 暂无可读内容\n" }
+    }.getOrElse { error -> "读取 logcat 失败: ${error.message ?: error.javaClass.name}\n" }
+
     fun dumpRaw(): String {
         return runCatching {
             val process = startLogcat(dumpOnly = true)
@@ -72,7 +80,7 @@ object AppLogcatCollector {
         pending?.let(::append)
     }
 
-    private fun startLogcat(dumpOnly: Boolean): java.lang.Process {
+    private fun startLogcat(dumpOnly: Boolean, tailLines: Int = 0): java.lang.Process {
         val uid = Process.myUid()
         val pid = Process.myPid()
         // UID survives process restarts, so closing and reopening the app can still show
@@ -83,6 +91,7 @@ object AppLogcatCollector {
             add("threadtime")
             add("--uid=$uid")
             if (dumpOnly) add("-d")
+            if (dumpOnly && tailLines > 0) { add("-t"); add(tailLines.toString()) }
         }
         val pidCommand = buildList {
             add("logcat")
@@ -90,6 +99,7 @@ object AppLogcatCollector {
             add("threadtime")
             add("--pid=$pid")
             if (dumpOnly) add("-d")
+            if (dumpOnly && tailLines > 0) { add("-t"); add(tailLines.toString()) }
         }
         return runCatching {
             ProcessBuilder(uidCommand).redirectErrorStream(true).start()

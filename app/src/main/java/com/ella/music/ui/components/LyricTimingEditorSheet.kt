@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** First-party timing editor that keeps LRC, ELRC, and Apple lyric TTML data round-trippable. */
@@ -187,13 +188,14 @@ internal fun LyricTimingEditorSheet(
         }
         val content = contentFor(embedFormat, currentLines)
         val tags = when (embedFormat) {
-            // Embedded TTML has higher read priority. Blank its aliases when switching back to
-            // LRC/ELRC so the just-saved standard lyric tag is what playback reloads.
             LyricTimingFormat.Lrc, LyricTimingFormat.Elrc -> AudioTagInfo(
-                lyrics = content,
-                customTags = ttmlTagAliases.associateWith { listOf("") }
+                lyrics = content
             )
-            LyricTimingFormat.Ttml -> AudioTagInfo(customTags = mapOf("TTMLLYRIC" to listOf(content)))
+            LyricTimingFormat.Ttml -> AudioTagInfo(
+                lyrics = contentFor(LyricTimingFormat.Lrc, currentLines),
+                ttmlLyrics = content,
+                customTags = mapOf("TTMLLYRIC" to listOf(content))
+            )
         }
         val result = mainViewModel.writeSongMetadata(song, tags)
         if (result.isSuccess) {
@@ -237,7 +239,7 @@ internal fun LyricTimingEditorSheet(
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
         )
-        EllaMiuixTextField(
+        TextField(
             value = lyricText,
             onValueChange = { lyricText = it },
             label = stringResource(R.string.lyric_timing_editor_text),
@@ -319,14 +321,14 @@ internal fun LyricTimingEditorSheet(
                 ),
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
             )
-            EllaMiuixTextField(
+            TextField(
                 value = lines[selectedIndex].agent.orEmpty(),
                 onValueChange = { value -> changeSelectedAgent(value.trim().takeIf(String::isNotBlank)) },
                 label = stringResource(R.string.lyric_timing_editor_agent),
                 singleLine = true,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
             )
-            EllaMiuixTextField(
+            TextField(
                 value = lines[selectedIndex].backgroundText.orEmpty(),
                 onValueChange = { value ->
                     val selected = lines[selectedIndex]

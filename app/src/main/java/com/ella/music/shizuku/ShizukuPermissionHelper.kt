@@ -14,6 +14,12 @@ internal object ShizukuPermissionHelper {
     private val permissionMutex = Mutex()
     private var nextRequestCode = 2000
 
+    fun isPermissionGranted(): Boolean =
+        runCatching {
+            Shizuku.pingBinder() &&
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+
     suspend fun ensurePermission(): Boolean = permissionMutex.withLock {
         withContext(Dispatchers.Main.immediate) {
             if (!runCatching { Shizuku.pingBinder() }.getOrDefault(false)) return@withContext false

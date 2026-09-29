@@ -44,7 +44,8 @@ import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
-import com.ella.music.ui.components.EllaMiuixTextField
+import androidx.compose.ui.focus.focusRequester
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.delay
@@ -134,11 +135,14 @@ internal fun CategoryCreatePlaylistAndAddSelectedSheet(
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
-            EllaMiuixTextField(
+            TextField(
                 value = playlistName,
                 onValueChange = { playlistName = it },
                 label = stringResource(R.string.playlist_name_label),
-                focusRequester = focusRequester
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
             EllaMiuixSheetActions(
                 cancelText = stringResource(R.string.common_cancel),

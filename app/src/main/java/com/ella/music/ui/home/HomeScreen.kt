@@ -3,9 +3,8 @@ package com.ella.music.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ViewList
-import androidx.compose.material.icons.rounded.GridView
+import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.ListView
 import android.widget.Toast
 import android.graphics.Bitmap
 import android.net.Uri
@@ -44,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,6 +51,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.runtime.CompositionLocalProvider
+import com.ella.music.ui.components.LibraryMorphScene
+import com.ella.music.ui.components.LibraryMorphLane
+import com.ella.music.ui.components.LocalLibraryMorphLane
+import com.ella.music.ui.components.libraryMorphPart
+import com.ella.music.ui.components.libraryMorphSurface
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -62,6 +70,7 @@ import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
+import com.ella.music.data.repository.RemoteAudioCache
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.splitArtistNames
@@ -90,7 +99,7 @@ import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SongSelectionActionRow
 import com.ella.music.ui.components.ShuffleAllSummaryButton
-import com.ella.music.ui.components.ScanRefreshIconButton
+
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.TagEditorOptionKind
 import com.ella.music.ui.components.buildTagEditorOptions
@@ -112,17 +121,24 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun LibraryScreen(
@@ -132,7 +148,10 @@ fun LibraryScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToAlbum: (Long) -> Unit = {},
-    onNavigateToArtist: (String) -> Unit = {}
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAiChat: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
@@ -146,6 +165,18 @@ fun LibraryScreen(
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
+    var libraryRefreshing by remember { mutableStateOf(false) }
+    val libraryPullToRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(libraryRefreshing, isScanning) {
+        if (!libraryRefreshing) return@LaunchedEffect
+        val started = withTimeoutOrNull(1_500) {
+            snapshotFlow { isScanning }.first { it }
+        }
+        if (started == true) {
+            snapshotFlow { isScanning }.first { !it }
+        }
+        libraryRefreshing = false
+    }
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
@@ -164,6 +195,7 @@ fun LibraryScreen(
         initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
     )
     val librarySongTitleMarqueeEnabled by settingsManager.librarySongTitleMarquee.collectAsState(initial = true)
+    val libraryShowRatingFilter by settingsManager.libraryShowRatingFilter.collectAsState(initial = true)
     val libraryConfiguration = androidx.compose.ui.platform.LocalConfiguration.current
     val libraryIsTablet = libraryConfiguration.smallestScreenWidthDp >= 600
     val librarySongGridColumns = if (libraryIsTablet) {
@@ -200,7 +232,21 @@ fun LibraryScreen(
     var aiInterpretationSong by remember { mutableStateOf<Song?>(null) }
     var listCoversEnabled by remember { mutableStateOf(false) }
     var pendingConfirmDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-    var ratingFilterExpanded by remember { mutableStateOf(false) }
+    val remoteCacheProgress by mainViewModel.remoteAudioCacheProgress.collectAsState()
+    LaunchedEffect(remoteCacheProgress.active, remoteCacheProgress.completed, remoteCacheProgress.failed, remoteCacheProgress.cancelled) {
+        val p = remoteCacheProgress
+        if (p.active || p.total <= 0) return@LaunchedEffect
+        if (p.cancelled) {
+            Toast.makeText(context, R.string.library_cache_cancelled, Toast.LENGTH_SHORT).show()
+        } else if (p.completed > 0 || p.failed > 0) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.library_cache_done, p.completed, p.failed),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     var scrollToTopRequest by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     fun applyHomeSortMode(mode: HomeSortMode) {
@@ -225,25 +271,26 @@ fun LibraryScreen(
         listCoversEnabled = true
     }
 
-    val activeFavoriteSongKeys = if (ratingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
-    val activeRatingRevision = if (ratingFilter.hasRatingConstraint()) ratingRevision else 0
+    val effectiveRatingFilter = if (libraryShowRatingFilter) ratingFilter else HomeRatingFilterSelection()
+    val activeFavoriteSongKeys = if (effectiveRatingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
+    val activeRatingRevision = if (effectiveRatingFilter.hasRatingConstraint()) ratingRevision else 0
     val filteredSongs by produceState(
         initialValue = songs,
         songs,
         searchQuery,
-        ratingFilter,
+        effectiveRatingFilter,
         activeFavoriteSongKeys,
         activeRatingRevision
     ) {
         val query = searchQuery.trim()
         val favoriteKeys = activeFavoriteSongKeys
-        if (query.isBlank() && ratingFilter.isUnfiltered()) {
+        if (query.isBlank() && effectiveRatingFilter.isUnfiltered()) {
             value = songs
             return@produceState
         }
         val base = withContext(Dispatchers.IO) {
             songs.filter { song ->
-                ratingFilter.matches(
+                effectiveRatingFilter.matches(
                     rating = mainViewModel.getSongRating(song),
                     isFavorite = song.playlistIdentityKey() in favoriteKeys
                 )
@@ -257,12 +304,31 @@ fun LibraryScreen(
     val sortedResult by produceState<HomeSortedSongs?>(
         initialValue = null,
         filteredSongs,
-        sortMode
+        sortMode,
+        LibrarySortUiState.randomSortSeed
     ) {
         value = withContext(Dispatchers.Default) { filteredSongs.cachedSortedForHomeMode(sortMode) }
     }
     val sortedSongs = sortedResult?.songs.orEmpty()
     val sortKeysBySongId = sortedResult?.sortKeysBySongId.orEmpty()
+    fun shuffleLibraryAndStart() {
+        val queueSongs = if (sortMode == HomeSortMode.Random) {
+            val seed = LibrarySortUiState.reshuffleRandomSort()
+            scope.launch { settingsManager.setRandomSortSeed(seed) }
+            LibrarySortUiState.randomizedSongs(filteredSongs, seed)
+        } else {
+            filteredSongs.shuffled()
+        }
+        if (queueSongs.isNotEmpty()) {
+            playerViewModel.setShuffledPlaylist(
+                queueSongs,
+                0,
+                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME,
+                preserveOrder = true
+            )
+        }
+        if (openPlayerOnPlay) onNavigateToPlayer()
+    }
     val visibleSongIds = remember(selection.selectionMode, sortedSongs) {
         if (selection.selectionMode) sortedSongs.mapTo(mutableSetOf()) { it.id } else emptySet()
     }
@@ -288,7 +354,7 @@ fun LibraryScreen(
     LaunchedEffect(selection.selectionMode, visibleSongIds) {
         if (!selection.selectionMode) return@LaunchedEffect
         selection.selectedIds = selection.selectedIds.filterTo(mutableSetOf()) { it in visibleSongIds }
-        if (selection.rangeAnchorId !in visibleSongIds) selection.rangeAnchorId = selection.selectedIds.firstOrNull()
+        if (selection.rangeAnchorId !in visibleSongIds) selection.rangeAnchorId = null
         if (selection.rangeTargetId !in visibleSongIds) selection.rangeTargetId = null
     }
 
@@ -300,58 +366,50 @@ fun LibraryScreen(
     ) {
         Box {
             EllaSmallTopAppBar(
-                title = "",
+                title = if (!selection.selectionMode && !libraryShowRatingFilter) {
+                    stringResource(R.string.tab_library)
+                } else {
+                    ""
+                },
                 color = libraryPageBackground,
-                titleStartPadding = if (!selection.selectionMode && songs.isNotEmpty()) 156.dp else 20.dp,
-                titleEndPadding = if (selection.selectionMode) 170.dp else 152.dp,
+                titleStartPadding = if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) 108.dp else 20.dp,
+                // Selection mode adds a download action on the left of the row. The old 144dp
+                // inset left that button under the double-tap overlay, so taps never arrived (#657).
+                titleEndPadding = if (selection.selectionMode) 216.dp else 144.dp,
                 navigationIcon = {
-                    if (!selection.selectionMode) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            ScanRefreshIconButton(
-                                enabled = !isScanning,
-                                onScan = { mainViewModel.scanMusic() },
-                                onDeepRescan = { mainViewModel.fullRescanMusic() }
-                            )
-                            if (songs.isNotEmpty()) {
-                                IconButton(onClick = { ratingFilterExpanded = !ratingFilterExpanded }) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_rating_star_half),
-                                        contentDescription = stringResource(R.string.song_more_set_rating),
-                                        tint = if (ratingFilter.hasRatingConstraint() || ratingFilterExpanded) {
-                                            MiuixTheme.colorScheme.primary
-                                        } else {
-                                            MiuixTheme.colorScheme.onSurface
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                IconButton(onClick = {
-                                    ratingFilter = ratingFilter.toggleFavoriteFilter()
-                                    HomeRatingFilterUiState.selection = ratingFilter
-                                }) {
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (ratingFilter.hasFavoriteFilterMemory()) {
-                                                R.drawable.ic_notification_favorite_filled
-                                            } else {
-                                                R.drawable.ic_notification_favorite
-                                            }
-                                        ),
-                                        contentDescription = stringResource(R.string.favorite_filter),
-                                        tint = if (ratingFilter.hasFavoriteFilterMemory()) {
-                                            Color(0xFFFF4D6D)
-                                        } else {
-                                            MiuixTheme.colorScheme.onSurface
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
+                    if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) {
+                        RatingFilterMenu(
+                            selection = ratingFilter,
+                            onSelectionChange = {
+                                ratingFilter = it
+                                HomeRatingFilterUiState.selection = it
                             }
-                        }
+                        )
                     }
                 },
                 actions = {
                     if (selection.selectionMode) {
+                        IconButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                            val cacheable = selectedSongs.filter(RemoteAudioCache::isCacheableRemoteSong)
+                            if (cacheable.isEmpty()) {
+                                Toast.makeText(context, R.string.library_cache_nothing, Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.library_cache_started, cacheable.size),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                mainViewModel.cacheSongsToLocal(cacheable)
+                            }
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Download,
+                                contentDescription = stringResource(R.string.library_cache_to_local),
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                         IconButton(onClick = {
                             val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
                             if (selectedSongs.isEmpty()) {
@@ -415,7 +473,7 @@ fun LibraryScreen(
                         }
                         SortDropdownMenu(
                             items = directionalSortDropdownItems(
-                                fields = HomeSortField.entries.map { field ->
+                                fields = HomeSortField.entries.filter { it != HomeSortField.Random }.map { field ->
                                     DirectionalSortField(
                                         field = field,
                                         text = stringResource(field.labelRes),
@@ -440,7 +498,12 @@ fun LibraryScreen(
                                 applyHomeSortMode(
                                     field.toMode(direction == SortDirection.Descending)
                                 )
-                            }
+                            } + listOf(
+                                com.ella.music.ui.components.randomSortDropdownItem(
+                                    selected = sortMode == HomeSortMode.Random,
+                                    onSelect = { applyHomeSortMode(HomeSortMode.Random) }
+                                )
+                            )
                         )
                     }
                 }
@@ -450,11 +513,12 @@ fun LibraryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 160.dp else 56.dp
+                startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 108.dp else 20.dp,
+                endPadding = if (selection.selectionMode) 216.dp else 140.dp
             )
         }
 
-        BackHandler(enabled = selection.selectionMode || searchExpanded || ratingFilterExpanded) {
+        BackHandler(enabled = selection.selectionMode || searchExpanded) {
             when {
                 selection.selectionMode -> {
                     selection.finishSelectionMode()
@@ -463,7 +527,6 @@ fun LibraryScreen(
                     searchExpanded = false
                     searchQuery = ""
                 }
-                ratingFilterExpanded -> ratingFilterExpanded = false
             }
         }
 
@@ -477,20 +540,6 @@ fun LibraryScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp),
                 containerColor = searchBarColor
-            )
-        }
-
-        AnimatedVisibility(
-            visible = songs.isNotEmpty() && !selection.selectionMode && ratingFilterExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
-        ) {
-            StarRatingFilterRow(
-                selection = ratingFilter,
-                onSelectionChange = {
-                    ratingFilter = it
-                    HomeRatingFilterUiState.selection = it
-                }
             )
         }
 
@@ -546,8 +595,31 @@ fun LibraryScreen(
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
             var pendingLayoutAnchor by remember { mutableStateOf<LibraryLayoutAnchor?>(null) }
             val libraryPinch = remember { LibraryPinchState(librarySongLayout) }
-            val settledLayout = libraryPinch.currentLayout
             var pinchTargetReady by remember { mutableStateOf(false) }
+            val libraryMorph = remember(libraryPinch) {
+                LibraryMorphScene(
+                    requested = { libraryPinch.isTransitioning && pinchTargetReady },
+                    source = { libraryPinch.sourceLayout },
+                    target = { libraryPinch.targetLayout },
+                    progress = { libraryPinch.transitionProgress },
+                    settledLane = { settledListStateUsesA },
+                )
+            }
+            val settledLayout = libraryPinch.currentLayout
+            val morphPrepared = libraryMorph.hasPreparedPair()
+            val needsArtworkFallback = libraryMorph.entries.any { (key, entry) ->
+                key.laneId == settledListStateUsesA && key.part == "cover" &&
+                    !entry.hasArtwork && libraryMorph.previousArtwork(key) != null
+            }
+            val libraryLanes = remember { LibraryPresentationLanes(librarySongLayout) }
+            // Keep the inactive lane's previous contents alive as an artwork fallback.
+            // Only rebind it when preparing the next transition.
+            libraryLanes.bind(settledListStateUsesA, libraryPinch.isTransitioning,
+                libraryPinch.sourceLayout, libraryPinch.targetLayout, settledLayout)
+            androidx.compose.runtime.SideEffect {
+                libraryMorph.prepared = morphPrepared
+                if (!libraryPinch.isTransitioning && !needsArtworkFallback) libraryLanes.releaseInactive()
+            }
 
             fun switchLibraryLayout(nextLayout: Int) {
                 if (nextLayout == librarySongLayout || sortedSongs.isEmpty()) return
@@ -652,8 +724,7 @@ fun LibraryScreen(
                 libraryPinch.onExternalLayout(librarySongLayout)
             }
 
-            // Pre-position the transition-target list to the song anchoring the settled list's
-            // first visible row so the cross-fade starts from the same on-screen song.
+            // Preserve the song under the fingers, rather than always anchoring the top row.
             LaunchedEffect(libraryPinch.isTransitioning) {
                 if (libraryPinch.isTransitioning && sortedSongs.isNotEmpty()) {
                     val sourceColumns = libraryLayoutColumnCount(
@@ -668,10 +739,14 @@ fun LibraryScreen(
                         landscape = libraryLandscape,
                         gridColumns = librarySongGridColumns
                     )
-                    val songIndex = libraryLayoutAnchorSongIndex(
-                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
-                        columns = sourceColumns
-                    ).coerceIn(0, sortedSongs.lastIndex)
+                    val focal = libraryPinch.focalPoint
+                    val sourceRow = listState.layoutInfo.visibleItemsInfo.minByOrNull {
+                        kotlin.math.abs(it.offset + it.size / 2f - focal.y)
+                    }
+                    val sourceColumn = (focal.x / listState.layoutInfo.viewportSize.width.coerceAtLeast(1) * sourceColumns)
+                        .toInt().coerceIn(0, sourceColumns - 1)
+                    val songIndex = ((sourceRow?.index ?: listState.firstVisibleItemIndex) * sourceColumns + sourceColumn)
+                        .coerceIn(0, sortedSongs.lastIndex)
                     val lastTargetItemIndex = if (targetColumns > 1) {
                         sortedSongs.lastIndex / targetColumns
                     } else {
@@ -679,7 +754,8 @@ fun LibraryScreen(
                     }
                     pinchTargetListState.scrollToItem(
                         libraryLayoutItemIndexForSong(songIndex, targetColumns)
-                            .coerceIn(0, lastTargetItemIndex)
+                            .coerceIn(0, lastTargetItemIndex),
+                        -(sourceRow?.offset ?: 0)
                     )
                     pinchTargetReady = true
                 } else if (!libraryPinch.isTransitioning) {
@@ -776,14 +852,7 @@ fun LibraryScreen(
                             leadingContent = {
                                 ShuffleAllSummaryButton(
                                     visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
-                                    onClick = {
-                                        playerViewModel.setShuffledPlaylist(
-                                            sortedSongs,
-                                            0,
-                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
-                                        )
-                                        if (openPlayerOnPlay) onNavigateToPlayer()
-                                    }
+                                    onClick = ::shuffleLibraryAndStart
                                 )
                             },
                             trailingContent = {
@@ -793,6 +862,8 @@ fun LibraryScreen(
                                             SettingsManager.LIBRARY_LAYOUT_LIST ->
                                                 SettingsManager.LIBRARY_LAYOUT_MULTI_ROW
                                             SettingsManager.LIBRARY_LAYOUT_MULTI_ROW ->
+                                                SettingsManager.LIBRARY_LAYOUT_DETAILS
+                                            SettingsManager.LIBRARY_LAYOUT_DETAILS ->
                                                 SettingsManager.LIBRARY_LAYOUT_GRID
                                             else -> SettingsManager.LIBRARY_LAYOUT_LIST
                                         }
@@ -802,17 +873,18 @@ fun LibraryScreen(
                                 ) {
                                     Icon(
                                         imageVector = when (librarySongLayout) {
-                                            SettingsManager.LIBRARY_LAYOUT_GRID ->
-                                                Icons.AutoMirrored.Rounded.ViewList
                                             SettingsManager.LIBRARY_LAYOUT_MULTI_ROW ->
-                                                Icons.Rounded.GridView
-                                            else -> Icons.AutoMirrored.Rounded.ViewList
+                                                MiuixIcons.Regular.GridView
+                                            else ->
+                                                MiuixIcons.Regular.ListView
                                         },
                                         contentDescription = stringResource(
                                             when (librarySongLayout) {
                                                 SettingsManager.LIBRARY_LAYOUT_GRID ->
                                                     R.string.library_layout_list
                                                 SettingsManager.LIBRARY_LAYOUT_MULTI_ROW ->
+                                                    R.string.library_layout_details
+                                                SettingsManager.LIBRARY_LAYOUT_DETAILS ->
                                                     R.string.library_layout_grid
                                                 else -> R.string.library_layout_multi_row
                                             }
@@ -831,11 +903,20 @@ fun LibraryScreen(
                         playbackStats = playbackStats,
                         currentSong = currentSong,
                         onContinue = { index ->
-                            playerViewModel.setPlaylist(
-                                sortedSongs,
-                                index,
-                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
-                            )
+                            if (sortMode == HomeSortMode.Random) {
+                                playerViewModel.setShuffledPlaylist(
+                                    sortedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME,
+                                    preserveOrder = true
+                                )
+                            } else {
+                                playerViewModel.setPlaylist(
+                                    sortedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
+                                )
+                            }
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     )
@@ -855,11 +936,20 @@ fun LibraryScreen(
                             currentQueue = playerViewModel.playlist.value,
                             currentSong = currentSong
                         )
-                        playerViewModel.setPlaylist(
-                            playback.songs,
-                            playback.startIndex,
-                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
-                        )
+                        if (sortMode == HomeSortMode.Random) {
+                            playerViewModel.setShuffledPlaylist(
+                                playback.songs,
+                                playback.startIndex,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME,
+                                preserveOrder = true
+                            )
+                        } else {
+                            playerViewModel.setPlaylist(
+                                playback.songs,
+                                playback.startIndex,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
+                            )
+                        }
                         if (openPlayerOnPlay) onNavigateToPlayer()
                     }
                     val onLibrarySongLongClick: (Song) -> Unit = { song ->
@@ -877,24 +967,13 @@ fun LibraryScreen(
                         actionSong = song
                     }
 
-                    // Pinch transition visuals: the settled list keeps rendering the source
-                    // layout while it fades out, and the target layout cross-fades in on top
-                    // with a slight counter-scale, mirroring RawS-Music's power list.
+                    // Retain both measured endpoints, but let shared cover/text actors own
+                    // matching songs throughout the gesture (RawS VirtualList holder geometry).
                     val pinchTransitionActive = libraryPinch.isTransitioning
                     val pinchProgress = libraryPinch.transitionProgress.coerceIn(0f, 1f)
-                    val pinchZoomIn = libraryPinch.isZoomInTransition
                     val pinchOverpullScale = libraryPinch.transitionScaleFactor
-                    val pinchSourceAlpha = if (pinchTransitionActive && pinchTargetReady) 1f - pinchProgress else 1f
-                    val pinchSourceScale = (
-                        if (pinchTransitionActive) {
-                            if (pinchZoomIn) 1f + 0.06f * pinchProgress else 1f - 0.06f * pinchProgress
-                        } else {
-                            libraryPinch.boundaryElasticScale
-                        }
-                        ) * pinchOverpullScale
-                    val pinchTargetScale = (
-                        if (pinchZoomIn) 1f - 0.06f * (1f - pinchProgress) else 1f + 0.06f * (1f - pinchProgress)
-                        ) * pinchOverpullScale
+                    val pinchSourceAlpha = if (libraryMorph.active()) 1f - pinchProgress else 1f
+                    val pinchSurfaceScale = if (pinchTransitionActive) pinchOverpullScale else libraryPinch.boundaryElasticScale
                     val pinchListContentPadding = PaddingValues(end = listEndInset, bottom = 160.dp)
                     val onPinchCommitted: () -> Unit = {
                         // Swap the two list states so the freshly committed layout keeps the
@@ -905,70 +984,82 @@ fun LibraryScreen(
                         scope.launch { settingsManager.setLibrarySongLayout(committedLayout) }
                     }
 
-                    Box(
+                    PullToRefresh(
+                        isRefreshing = libraryRefreshing,
+                        onRefresh = {
+                            libraryRefreshing = true
+                            mainViewModel.scanMusic()
+                        },
+                        pullToRefreshState = libraryPullToRefreshState,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        refreshTexts = listOf(
+                            stringResource(R.string.library_pull_to_refresh),
+                            stringResource(R.string.library_release_to_refresh),
+                            stringResource(R.string.library_refreshing),
+                            stringResource(R.string.library_refresh_complete)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
+                    ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clipToBounds()
+                            .graphicsLayer {
+                                scaleX = pinchSurfaceScale
+                                scaleY = pinchSurfaceScale
+                            }
+                            .libraryMorphSurface(libraryMorph)
                             .libraryPinchGesture(
                                 enabled = !selection.selectionMode,
                                 state = libraryPinch,
                                 onCommitted = onPinchCommitted
                             )
                     ) {
-                        LibrarySongsList(
-                            songs = sortedSongs,
-                            layout = if (pinchTransitionActive) libraryPinch.sourceLayout else settledLayout,
-                            listState = listState,
-                            selection = selection,
-                            sortMode = sortMode,
-                            currentSongKey = currentSongKey,
-                            favoriteSongKeys = favoriteSongKeys,
-                            listCoversEnabled = listCoversEnabled,
-                            showPlayNextInLists = showPlayNextInLists,
-                            selectedSongsForDrag = selectedSongsForDrag,
-                            libraryLandscape = libraryLandscape,
-                            gridColumns = librarySongGridColumns,
-                            ratingDisplayMode = librarySongRatingDisplayMode,
-                            titleMarqueeEnabled = librarySongTitleMarqueeEnabled,
-                            mainViewModel = mainViewModel,
-                            contentPadding = pinchListContentPadding,
-                            userScrollEnabled = !pinchTransitionActive && !libraryPinch.isPinching,
-                            alpha = pinchSourceAlpha,
-                            scale = pinchSourceScale,
-                            onSongClick = onLibrarySongClick,
-                            onSongLongClick = onLibrarySongLongClick,
-                            onPlayNext = onLibrarySongPlayNext,
-                            onSongMore = onLibrarySongMore,
-                            modifier = Modifier.matchParentSize()
-                        )
-                        if (pinchTransitionActive && pinchTargetReady) {
-                            LibrarySongsList(
-                                songs = sortedSongs,
-                                layout = libraryPinch.targetLayout,
-                                listState = pinchTargetListState,
-                                selection = selection,
-                                sortMode = sortMode,
-                                currentSongKey = currentSongKey,
-                                favoriteSongKeys = favoriteSongKeys,
-                                listCoversEnabled = listCoversEnabled,
-                                showPlayNextInLists = showPlayNextInLists,
-                                selectedSongsForDrag = selectedSongsForDrag,
-                                libraryLandscape = libraryLandscape,
-                                gridColumns = librarySongGridColumns,
-                                ratingDisplayMode = librarySongRatingDisplayMode,
-                                titleMarqueeEnabled = librarySongTitleMarqueeEnabled,
-                                mainViewModel = mainViewModel,
-                                contentPadding = pinchListContentPadding,
-                                userScrollEnabled = false,
-                                alpha = pinchProgress,
-                                scale = pinchTargetScale,
-                                onSongClick = onLibrarySongClick,
-                                onSongLongClick = onLibrarySongLongClick,
-                                onPlayNext = onLibrarySongPlayNext,
-                                onSongMore = onLibrarySongMore,
-                                modifier = Modifier.matchParentSize()
-                            )
+                        // Physical lanes keep their composition identity across commit/rollback.
+                        // A target becomes the settled lane; never rebuild its rows at another call site.
+                        for (usesA in listOf(true, false)) {
+                          if (libraryLanes.retained(usesA, settledListStateUsesA)) {
+                            androidx.compose.runtime.key(usesA) {
+                                val isSettledLane = usesA == settledListStateUsesA
+                                val laneLayout = libraryLanes.layout(usesA)
+                                val visible = isSettledLane || pinchTransitionActive
+                                LibrarySongsList(
+                                    songs = sortedSongs,
+                                    layout = laneLayout,
+                                    listState = if (usesA) listStateA else listStateB,
+                                    selection = selection,
+                                    sortMode = sortMode,
+                                    currentSongKey = currentSongKey,
+                                    favoriteSongKeys = favoriteSongKeys,
+                                    listCoversEnabled = listCoversEnabled,
+                                    showPlayNextInLists = showPlayNextInLists,
+                                    selectedSongsForDrag = selectedSongsForDrag,
+                                    libraryLandscape = libraryLandscape,
+                                    gridColumns = librarySongGridColumns,
+                                    ratingDisplayMode = librarySongRatingDisplayMode,
+                                    titleMarqueeEnabled = librarySongTitleMarqueeEnabled && !pinchTransitionActive,
+                                    mainViewModel = mainViewModel,
+                                    contentPadding = pinchListContentPadding,
+                                    userScrollEnabled = isSettledLane && !pinchTransitionActive && !libraryPinch.isPinching,
+                                    // Pre-record target holders before transferring draw ownership.
+                                    alpha = if (isSettledLane) pinchSourceAlpha else if (libraryMorph.active()) pinchProgress else if (pinchTransitionActive) 0.001f else 0f,
+                                    scale = 1f,
+                                    morphScene = libraryMorph,
+                                    morphLaneId = usesA,
+                                    onSongClick = onLibrarySongClick,
+                                    onSongLongClick = onLibrarySongLongClick,
+                                    onPlayNext = onLibrarySongPlayNext,
+                                    onSongMore = onLibrarySongMore,
+                                    modifier = Modifier.matchParentSize()
+                                        .then(if (!visible) Modifier.clearAndSetSemantics {} else Modifier)
+                                        .graphicsLayer { translationX = if (visible) 0f else size.width * 2f }
+                                )
+                            }
+                          }
                         }
+                    }
                     }
                 }
 
@@ -1188,6 +1279,8 @@ private fun LibrarySongsList(
     userScrollEnabled: Boolean,
     alpha: Float,
     scale: Float,
+    morphScene: LibraryMorphScene,
+    morphLaneId: Boolean,
     onSongClick: (Int) -> Unit,
     onSongLongClick: (Song) -> Unit,
     onPlayNext: (Song) -> Unit,
@@ -1196,9 +1289,12 @@ private fun LibrarySongsList(
 ) {
     val multiRow = layout == SettingsManager.LIBRARY_LAYOUT_MULTI_ROW
     val grid = layout == SettingsManager.LIBRARY_LAYOUT_GRID
+    val detailed = layout == SettingsManager.LIBRARY_LAYOUT_DETAILS
+    CompositionLocalProvider(LocalLibraryMorphLane provides LibraryMorphLane(morphScene, layout, morphLaneId)) {
     LazyColumn(
         state = listState,
         userScrollEnabled = userScrollEnabled,
+        overscrollEffect = null,
         modifier = modifier.graphicsLayer {
             this.alpha = alpha
             scaleX = scale
@@ -1282,7 +1378,7 @@ private fun LibrarySongsList(
                             )
                         }
                     }
-                    if (rowSongs.size == 1) Spacer(modifier = Modifier.weight(1f))
+                    repeat(columnCount - rowSongs.size) { Spacer(modifier = Modifier.weight(1f)) }
                 }
             }
         } else {
@@ -1298,6 +1394,9 @@ private fun LibrarySongsList(
                 }
                 SongItem(
                     song = song,
+                    detailed = detailed,
+                    compactMultiRow = detailed,
+                    showAlbumInSubtitle = !detailed,
                     titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
                     isCurrent = song.playlistIdentityKey() == currentSongKey,
                     albumArtUri = albumArtUri,
@@ -1326,6 +1425,8 @@ private fun LibrarySongsList(
             }
         }
     }
+}
+
 }
 
 @Composable
@@ -1359,6 +1460,7 @@ private fun LibrarySongGridCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
+                .libraryMorphPart(song.playlistIdentityKey(), "cover")
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                 .background(
                     if (current) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
@@ -1368,6 +1470,7 @@ private fun LibrarySongGridCard(
             if (coverState.model != null) {
                 SafeCoverImage(
                     model = coverState.model,
+                    artworkIdentity = song.playlistIdentityKey(),
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     sizePx = 420,
@@ -1414,6 +1517,7 @@ private fun LibrarySongGridCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 7.dp, start = 2.dp, end = 2.dp)
+                .libraryMorphPart(song.playlistIdentityKey(), "title")
         )
         Text(
             text = song.artist.ifBlank { stringResource(R.string.player_unknown_artist) },
@@ -1422,6 +1526,7 @@ private fun LibrarySongGridCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 2.dp)
+                .libraryMorphPart(song.playlistIdentityKey(), "subtitle")
         )
     }
 }
@@ -1467,14 +1572,10 @@ internal fun libraryLayoutAfterPinch(
 ): Int = when {
     // A positive scale delta means the fingers spread apart. In the library that moves toward
     // the denser cover grid: detailed list -> multi-row -> cover grid.
-    scaleDelta >= threshold -> (currentLayout + 1).coerceAtMost(SettingsManager.LIBRARY_LAYOUT_GRID)
-    scaleDelta <= -threshold -> (currentLayout - 1).coerceAtLeast(SettingsManager.LIBRARY_LAYOUT_LIST)
+    scaleDelta >= threshold -> LibraryPinchState.layoutForOrder(LibraryPinchState.layoutOrder(currentLayout) - 1)
+    scaleDelta <= -threshold -> LibraryPinchState.layoutForOrder(LibraryPinchState.layoutOrder(currentLayout) + 1)
     else -> currentLayout
 }
-
-// Converts pinch-ratio velocity (per second) into the dp/s-like scale the pinch state machine
-// expects; a quick flick lands well above its 500 threshold while a slow pinch stays below it.
-private const val PINCH_VELOCITY_UNIT = 1000f
 
 @Composable
 private fun Modifier.libraryPinchGesture(
@@ -1487,13 +1588,16 @@ private fun Modifier.libraryPinchGesture(
         this
     } else {
         pointerInput(state) {
+          kotlinx.coroutines.coroutineScope {
+            var settling: kotlinx.coroutines.Job? = null
+            var baseSpanDp = 1f
             try {
                 while (true) {
                     // Restricted suspension scope: only track the gesture here and hand the
                     // final velocity back so the settling animation can run as a normal suspend.
                     val velocity = awaitPointerEventScope<Float> {
                         while (true) {
-                            val initialEvent = awaitPointerEvent()
+                            val initialEvent = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                             val pressed = initialEvent.changes.filter { it.pressed }
                             if (pressed.size < 2) continue
 
@@ -1501,14 +1605,16 @@ private fun Modifier.libraryPinchGesture(
                                 pressed[0].position,
                                 pressed[1].position
                             ).coerceAtLeast(1f)
-                            state.beginPinch()
+                            settling?.cancel()
+                            baseSpanDp = baseDistance / density
+                            state.beginPinch((pressed[0].position + pressed[1].position) / 2f)
                             initialEvent.changes.forEach { it.consume() }
 
                             var lastDelta = 0f
                             var lastTimestamp = pressed[0].uptimeMillis
                             var velocity = 0f
                             while (true) {
-                                val moveEvent = awaitPointerEvent()
+                                val moveEvent = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                                 moveEvent.changes.forEach { it.consume() }
                                 val active = moveEvent.changes.filter { it.pressed }
                                 if (active.size < 2) return@awaitPointerEventScope velocity
@@ -1524,20 +1630,23 @@ private fun Modifier.libraryPinchGesture(
                                     lastDelta = delta
                                     lastTimestamp = timestamp
                                 }
-                                state.updatePinch(delta, velocity * PINCH_VELOCITY_UNIT)
+                                state.updatePinch(delta, velocity * baseSpanDp)
                             }
                         }
                         // Unreachable: the outer loop only exits via return@awaitPointerEventScope.
                         error("library pinch gesture loop must not exit")
                     }
-                    val committed = state.finishPinch(velocity * PINCH_VELOCITY_UNIT)
-                    if (committed) currentOnCommitted()
+                    settling = launch {
+                        val committed = state.finishPinch(velocity * baseSpanDp, velocity)
+                        if (committed) currentOnCommitted()
+                    }
                 }
             } finally {
                 // Covers coroutine cancellation mid-gesture (e.g. leaving the screen): snap back
                 // to the source layout so the settled list stays consistent with its state.
                 state.cancelPinch()
             }
+          }
         }
     }
 }

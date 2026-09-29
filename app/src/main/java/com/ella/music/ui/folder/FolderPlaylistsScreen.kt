@@ -48,9 +48,14 @@ import com.ella.music.data.playbackSourcesForSongs
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaMiuixActionMenuGroup
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.ActionMenuCommonIcons
+import com.ella.music.ui.components.actionMenuIcon
+import com.ella.music.data.ActionMenuIds
+import top.yukonga.miuix.kmp.icon.extended.Refresh
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.AddToPlaylistSheet
@@ -482,8 +487,7 @@ fun FolderPlaylistsScreen(
                 } else {
                     ScanRefreshIconButton(
                         enabled = true,
-                        onScan = { scope.launch { mainViewModel.scanMusic() } },
-                        onDeepRescan = { scope.launch { mainViewModel.fullRescanMusic() } }
+                        onScan = { scope.launch { mainViewModel.scanMusic() } }
                     )
                     IconButton(onClick = {
                         searchExpanded = !searchExpanded
@@ -547,7 +551,7 @@ fun FolderPlaylistsScreen(
             EllaSearchBar(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
-                onSearch = { searchExpanded = false },
+                onSearch = {},
                 placeholder = stringResource(R.string.common_search),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -702,104 +706,71 @@ fun FolderPlaylistsScreen(
     }
 
     moreMenuTarget?.let { playlist ->
-        EllaMiuixBottomSheet(
+        com.ella.music.ui.components.LibraryEntityActionSheet(
             show = true,
-            enableNestedScroll = false,
             title = stringResource(R.string.player_more_actions),
-            onDismissRequest = { moreMenuTarget = null }
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_pin_to_top),
-                    onClick = {
-                        scope.launch {
-                            mainViewModel.settingsManager.setFolderPlaylistCustomOrder(
-                                (listOf(playlist.id) + customSortedPlaylists.map(FolderPlaylist::id)).distinct()
-                            )
-                        }
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.folder_playlist_more_refresh),
-                    onClick = {
-                        scope.launch { mainViewModel.refreshFolderPlaylistFolders(playlist.folders) }
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.folder_playlist_more_share),
-                    onClick = {
-                        shareLocalSongs(context, selectedSongsFor(playlist))
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.folder_playlist_associate),
-                    onClick = {
-                        associateFolderPaths = playlist.folders
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_add_to_playlist),
-                    onClick = {
-                        playlistPickerSongs = selectedSongsFor(playlist)
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_to_queue),
-                    onClick = {
-                        playerViewModel.addToPlaylist(selectedSongsFor(playlist))
-                        Toast.makeText(context, R.string.song_more_added_to_queue, Toast.LENGTH_SHORT).show()
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_play_next),
-                    onClick = {
-                        playerViewModel.playNext(selectedSongsFor(playlist))
-                        Toast.makeText(context, R.string.song_more_added_to_play_next, Toast.LENGTH_SHORT).show()
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.folder_playlist_edit),
-                    onClick = {
-                        editorTarget = playlist
-                        showEditor = true
-                        moreMenuTarget = null
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_desktop_shortcut),
-                    onClick = {
-                        val ok = requestPinnedEllaShortcut(
-                            context = context,
-                            id = "folder_playlist_${playlist.id}",
-                            label = playlist.name,
-                            route = Screen.FolderPlaylistDetail.createRoute(playlist.id)
+            onDismissRequest = { moreMenuTarget = null },
+            actions = listOf(
+                com.ella.music.ui.components.LibraryEntityActions.pinToTop {
+                    scope.launch {
+                        mainViewModel.settingsManager.setFolderPlaylistCustomOrder(
+                            (listOf(playlist.id) + customSortedPlaylists.map(FolderPlaylist::id)).distinct()
                         )
-                        Toast.makeText(
-                            context,
-                            if (ok) context.getString(R.string.playlist_shortcut_requested, playlist.name)
-                            else context.getString(R.string.playlist_shortcut_unsupported),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        moreMenuTarget = null
                     }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_delete),
-                    danger = true,
-                    onClick = {
-                        pendingDelete = playlist
-                        moreMenuTarget = null
-                    }
-                )
-            }
-        }
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.refresh {
+                    scope.launch { mainViewModel.refreshFolderPlaylistFolders(playlist.folders) }
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.share {
+                    shareLocalSongs(context, selectedSongsFor(playlist))
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.associate {
+                    associateFolderPaths = playlist.folders
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.addToPlaylist {
+                    playlistPickerSongs = selectedSongsFor(playlist)
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.addToQueue {
+                    playerViewModel.addToPlaylist(selectedSongsFor(playlist))
+                    Toast.makeText(context, R.string.song_more_added_to_queue, Toast.LENGTH_SHORT).show()
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.playNext {
+                    playerViewModel.playNext(selectedSongsFor(playlist))
+                    Toast.makeText(context, R.string.song_more_added_to_play_next, Toast.LENGTH_SHORT).show()
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.edit {
+                    editorTarget = playlist
+                    showEditor = true
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.desktopShortcut {
+                    val ok = requestPinnedEllaShortcut(
+                        context = context,
+                        id = "folder_playlist_${playlist.id}",
+                        label = playlist.name,
+                        route = Screen.FolderPlaylistDetail.createRoute(playlist.id)
+                    )
+                    Toast.makeText(
+                        context,
+                        if (ok) context.getString(R.string.playlist_shortcut_requested, playlist.name)
+                        else context.getString(R.string.playlist_shortcut_unsupported),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    moreMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityActions.delete {
+                    pendingDelete = playlist
+                    moreMenuTarget = null
+                }
+            )
+        )
     }
 
     FolderPlaylistEditorSheet(

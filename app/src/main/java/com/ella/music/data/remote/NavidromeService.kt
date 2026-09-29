@@ -3,8 +3,11 @@ package com.ella.music.data.remote
 import android.content.Context
 import com.ella.music.R
 import com.ella.music.data.AppNetworkLoggingInterceptor
+import com.ella.music.data.requireHttpsRequests
+import com.ella.music.data.requireHttpsUrl
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -34,6 +37,7 @@ class NavidromeService(private val context: Context) {
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(24, TimeUnit.SECONDS)
         .addInterceptor(AppNetworkLoggingInterceptor("NavidromeNetwork"))
+        .requireHttpsRequests()
         .build()
 
     suspend fun test(config: RemoteMusicSourceConfig) = withContext(Dispatchers.IO) {
@@ -50,7 +54,11 @@ class NavidromeService(private val context: Context) {
             .filter { it.remoteId.isNotBlank() }
     }
 
-    suspend fun listSongs(config: RemoteMusicSourceConfig, limit: Int = Int.MAX_VALUE): List<RemoteOnlineSong> = withContext(Dispatchers.IO) {
+    suspend fun listSongs(
+        config: RemoteMusicSourceConfig,
+        limit: Int = Int.MAX_VALUE,
+        onPage: ((List<RemoteOnlineSong>) -> Unit)? = null
+    ): List<RemoteOnlineSong> = withContext(Dispatchers.IO) {
         val targetCount = normalizeRemoteFetchLimit(limit)
         val songs = mutableListOf<RemoteOnlineSong>()
         val seenSongIds = LinkedHashSet<String>()
@@ -78,6 +86,11 @@ class NavidromeService(private val context: Context) {
                 songs += song
                 if (songs.size >= targetCount) return@withContext songs
             }
+
+            // Cooperative cancel so leaving the Navidrome settings screen / killing the
+            // scan job does not keep downloading a multi-TB catalogue in the background.
+            ensureActive()
+            onPage?.invoke(songs.toList())
 
             if (page.rawCount < pageSize) break
             songOffset += page.rawCount
@@ -480,6 +493,7 @@ class NavidromeService(private val context: Context) {
     ): String {
         val base = baseUrl.trimEnd('/')
         val builder = "$base/rest/$endpoint.view".toHttpUrlOrNull()
+            ?.requireHttpsUrl("Remote music provider")
             ?.newBuilder()
             ?: error(context.getString(R.string.remote_source_url_invalid))
         val salt = UUID.randomUUID().toString().replace("-", "").take(12)
@@ -537,7 +551,7 @@ class NavidromeService(private val context: Context) {
     private fun stableId(key: String): Long =
         (key.hashCode().toLong() and Long.MAX_VALUE).takeIf { it != 0L } ?: key.hashCode().toLong().absoluteValue
 
-    private companion object {
+    internal companion object {
         const val USER_AGENT = "Halcyon/1.0 Navidrome"
         val activeBaseUrls = ConcurrentHashMap<String, String>()
     }

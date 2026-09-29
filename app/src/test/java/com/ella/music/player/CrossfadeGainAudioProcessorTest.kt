@@ -45,6 +45,7 @@ class CrossfadeGainAudioProcessorTest {
         CrossfadeGainAudioProcessor().apply {
             this.gain = gain
             configure(AudioProcessor.AudioFormat(44_100, 2, C.ENCODING_PCM_16BIT))
+            flush()
         }
 
     private fun pcm16(vararg samples: Int): ByteBuffer =

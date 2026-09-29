@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">Hauteur du visualiseur</string>
+    <string name="player_visualizer_height_summary">Hauteur du visualiseur du lecteur ; par défaut, identique à la courbe fluide</string>
+    <string name="player_visualizer_style_cover_overlay">Superposition sur la pochette</string>
+</resources>

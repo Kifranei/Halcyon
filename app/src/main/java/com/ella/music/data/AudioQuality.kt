@@ -26,14 +26,15 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     val bitDepth = normalizedBitDepth(info)
     val isDolby = normalizedFormat in setOf("AC3", "EC3", "EAC3", "AC4")
     val isSurround = isDolby || info.channels >= 6
-    val isMq = bitDepth >= 24 && info.sampleRate >= 192_000
+    val isAppleLossless = normalizedFormat == "ALAC"
+    val isLossless = isAppleLossless || normalizedFormat in setOf("FLAC", "WAV", "APE", "DSD", "AIFF")
+    val isKnownLossy = normalizedFormat in setOf("MP3", "AAC", "M4A", "OGG", "OPUS", "WMA")
+    val isMq = !isKnownLossy && isLossless && bitDepth >= 24 && info.sampleRate >= 192_000
     // Hi-Res means exceeding CD quality on either axis, not requiring both axes to exceed it.
     // Thus 16-bit/48 kHz and 24-bit/44.1 kHz are both Hi-Res (#471).
-    val isHiRes = bitDepth > 16 || info.sampleRate > 44_100
-    val isAppleLossless = normalizedFormat == "ALAC"
-    val isLossless = isAppleLossless || normalizedFormat in setOf("FLAC", "WAV", "APE")
+    // Lossy formats (such as MP3 48kHz) can never be Hi-Res or Lossless.
+    val isHiRes = !isKnownLossy && isLossless && (bitDepth > 16 || info.sampleRate > 44_100)
     val isSq = isLossless && info.sampleRate >= 44_100 && bitDepth >= 16
-    val isKnownLossy = normalizedFormat in setOf("MP3", "AAC", "M4A", "OGG", "OPUS")
     // Player badge: "◖◗ Dolby Atmos" for Dolby, plain "Surround" otherwise.
     val surroundLabel = if (isDolby) "$DOLBY_MARK Dolby Atmos" else "Surround"
     // List tag: just the compact Dolby mark, or "SUR" for generic multichannel.

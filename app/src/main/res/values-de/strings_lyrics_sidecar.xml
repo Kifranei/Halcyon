@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">Speichern unter</string>
+    <string name="lyric_sidecar_destination_embedded">In Songdatei schreiben</string>
+    <string name="lyric_sidecar_destination_lrc">Als externe .LRC speichern</string>
+    <string name="lyric_sidecar_destination_ttml">Als externe .TTML speichern</string>
+    <string name="lyric_sidecar_destination_hint">Wird als gleichnamige Songtextdatei im Ordner des Songs gespeichert. Die Audiodatei bleibt unverändert, das Änderungsdatum bleibt erhalten.</string>
+    <string name="lyric_sidecar_save_lrc">.LRC-Songtextdatei speichern</string>
+    <string name="lyric_sidecar_save_ttml">.TTML-Songtextdatei speichern</string>
+    <string name="lyric_sidecar_saved">Gespeichert: %1$s</string>
+    <string name="lyric_sidecar_no_write_access">Externe Songtexte können nicht gespeichert werden: kein Schreibzugriff auf diesen Ordner. Erteile den Zugriff auf alle Dateien oder füge den Ordner in den Scan-Einstellungen über die Ordnerauswahl hinzu.</string>
+    <string name="lyric_sidecar_convert_failed">Songtext konnte im gewählten Format nicht erstellt werden</string>
+</resources>

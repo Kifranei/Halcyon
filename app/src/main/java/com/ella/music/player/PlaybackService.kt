@@ -78,6 +78,9 @@ class PlaybackService : MediaLibraryService() {
         const val ACTION_TOGGLE_SHUFFLE = "com.ella.music.action.TOGGLE_SHUFFLE"
         const val ACTION_UPDATE_NOTIFICATION_LYRIC =
             "com.ella.music.action.UPDATE_NOTIFICATION_LYRIC"
+        const val ACTION_SYNC_PLAYBACK_MODE = "com.ella.music.action.SYNC_PLAYBACK_MODE"
+        const val EXTRA_PLAYBACK_MODE_SHUFFLE = "playback_mode_shuffle"
+        const val EXTRA_PLAYBACK_MODE_REPEAT = "playback_mode_repeat"
         const val EXTRA_NOTIFICATION_LYRIC_SONG_KEY = "notification_lyric_song_key"
         const val EXTRA_NOTIFICATION_LYRIC_TEXT = "notification_lyric_text"
         const val EXTRA_NOTIFICATION_LYRIC_SECONDARY_TEXT = "notification_lyric_secondary_text"
@@ -104,6 +107,13 @@ class PlaybackService : MediaLibraryService() {
          * Service 创建时优先使用该值，不持久化到 DataStore。
          */
         val decoderModeOverride = MutableStateFlow<Int?>(null)
+
+        @Volatile
+        internal var activeInstance: PlaybackService? = null
+
+        fun pausePlayback() {
+            activeInstance?.mediaSession?.player?.pause()
+        }
 
         fun isXiaomiFamilyDevice(): Boolean {
             val manufacturer = android.os.Build.MANUFACTURER.orEmpty().lowercase()
@@ -162,6 +172,7 @@ class PlaybackService : MediaLibraryService() {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
         honorHdAudioSupport = HonorHdAudioSupport(this).also { it.initialize() }
         notificationProvider = NoArtworkMediaNotificationProvider(this)
         setMediaNotificationProvider(notificationProvider)
@@ -287,9 +298,15 @@ class PlaybackService : MediaLibraryService() {
             combine(
                 settingsManager.webDavUrl,
                 settingsManager.webDavUsername,
-                settingsManager.webDavPassword
-            ) { url, username, password ->
-                WebDavConfig(url = url, username = username, password = password)
+                settingsManager.webDavPassword,
+                settingsManager.webDavCustomHeaders
+            ) { url, username, password, customHeaders ->
+                WebDavConfig(
+                    url = url,
+                    username = username,
+                    password = password,
+                    customHeaders = customHeaders
+                )
             }.collect { config ->
                 webDavConfig = config
             }
@@ -304,7 +321,26 @@ class PlaybackService : MediaLibraryService() {
                 usbAudioController.applyUsbRoutingIfEnabled()
             }
         }
-        val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+        com.ella.music.data.netease.NeteaseStreamCache.qualityPreference =
+            runBlocking(Dispatchers.IO) { settingsManager.neteaseQuality.first() }
+        serviceScope.launch {
+            settingsManager.neteaseQuality.collect { quality ->
+                com.ella.music.data.netease.NeteaseStreamCache.qualityPreference = quality
+            }
+        }
+        val resolvingDataSourceFactory = androidx.media3.datasource.ResolvingDataSource.Factory(
+            DefaultDataSource.Factory(this, httpDataSourceFactory)
+        ) { dataSpec ->
+            if (dataSpec.uri.scheme == "halcyon-netease") {
+                val id = dataSpec.uri.lastPathSegment.orEmpty()
+                val url = runBlocking(Dispatchers.IO) {
+                    com.ella.music.data.netease.NeteaseLibraryStore.getInstance(this@PlaybackService).streamUrl(id)
+                }
+                dataSpec.withUri(android.net.Uri.parse(url))
+            } else dataSpec
+        }
+        // NetEase streams go through an on-disk cache keyed by song + quality (replays cost no data).
+        val dataSourceFactory = com.ella.music.data.netease.NeteaseStreamCache.dataSourceFactory(this, resolvingDataSourceFactory)
 
         val decoderMode = runBlocking(Dispatchers.IO) {
             decoderModeOverride.value ?: settingsManager.decoderMode.first()
@@ -686,11 +722,17 @@ class PlaybackService : MediaLibraryService() {
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                appShuffleEnabled = loadAppShuffleEnabled()
                 updateMediaButtonPreferences()
                 notificationProvider.refresh()
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
+                appShuffleEnabled = loadAppShuffleEnabled()
+                persistAppRepeatMode(repeatMode)
+                // Keep the crossfade primary decoder's repeat mode aligned with the session
+                // player so REPEAT_ONE cannot crossfade into the next queue item.
+                crossfadePlaybackCoordinator?.setSessionRepeatMode(repeatMode)
                 updateMediaButtonPreferences()
                 notificationProvider.refresh()
                 publishExternalPlaybackSnapshot(sessionPresentationPlayer ?: sessionPlayer)
@@ -788,9 +830,12 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        if (activeInstance === this) {
+            activeInstance = null
+        }
         legacyArtworkPublishSequence++
         LegacyArtworkCompat.clear()
-        PlaybackWidgetUpdater.stopProgressUpdates()
+        PlaybackWidgetUpdater.onPlayerSessionEnded(this)
         bluetoothReceiver?.let {
             runCatching { unregisterReceiver(it) }
             bluetoothReceiver = null
@@ -1117,6 +1162,27 @@ class PlaybackService : MediaLibraryService() {
         return true
     }
 
+    internal fun syncPlaybackModeFromApp(args: Bundle): Boolean {
+        val shuffle = if (args.containsKey(EXTRA_PLAYBACK_MODE_SHUFFLE)) {
+            args.getBoolean(EXTRA_PLAYBACK_MODE_SHUFFLE)
+        } else {
+            loadAppShuffleEnabled()
+        }
+        val repeatMode = if (args.containsKey(EXTRA_PLAYBACK_MODE_REPEAT)) {
+            args.getInt(EXTRA_PLAYBACK_MODE_REPEAT)
+        } else {
+            loadAppRepeatMode()
+        }
+        appShuffleEnabled = shuffle
+        persistAppShuffleEnabled(shuffle)
+        persistAppRepeatMode(repeatMode)
+        mediaSession?.player?.repeatMode = repeatMode
+        updateMediaButtonPreferences()
+        notificationProvider.refresh()
+        publishExternalPlaybackSnapshot()
+        return true
+    }
+
     @OptIn(UnstableApi::class)
     private fun updateMediaButtonPreferences() {
         val session = mediaSession ?: return
@@ -1200,6 +1266,9 @@ class PlaybackService : MediaLibraryService() {
     }
 
     internal fun xiaomiMediaIslandShareParams(song: Song): String? {
+        if (song.onlineSource == "netease" && (song.onlineId.toLongOrNull() ?: 0L) > 0L) {
+            return song.toXiaomiMediaIslandShareParams(neteaseShareSongUrl(song.onlineId))
+        }
         val tagInfo = musicRepository.getCachedSongTagInfo(song)
             ?: musicRepository.getSongTagInfo(song)
         val shareContent = decodeNeteaseKey(tagInfo.neteaseKey)
@@ -1308,13 +1377,14 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun persistAppRepeatMode(repeatMode: Int) {
+        crossfadePlaybackCoordinator?.setSessionRepeatMode(repeatMode)
         getSharedPreferences(PLAYBACK_PREFS, MODE_PRIVATE)
             .edit()
             .putInt(KEY_APP_REPEAT, repeatMode)
             .apply()
     }
 
-    private fun loadAppShuffleEnabled(): Boolean =
+    internal fun loadAppShuffleEnabled(): Boolean =
         getSharedPreferences(PLAYBACK_PREFS, MODE_PRIVATE)
             .getBoolean(KEY_APP_SHUFFLE, appShuffleEnabled)
 
@@ -1327,7 +1397,8 @@ class PlaybackService : MediaLibraryService() {
             WebDavConfig(
                 url = settingsManager.webDavUrl.first(),
                 username = settingsManager.webDavUsername.first(),
-                password = settingsManager.webDavPassword.first()
+                password = settingsManager.webDavPassword.first(),
+                customHeaders = settingsManager.webDavCustomHeaders.first()
             )
         }
     }
@@ -1425,4 +1496,5 @@ class PlaybackService : MediaLibraryService() {
             )
         )
     }
+
 }

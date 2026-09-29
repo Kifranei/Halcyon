@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.zIndex
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -89,13 +93,17 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    Column(
+    val settingsBackdrop = rememberLayerBackdrop()
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
+            backdrop = settingsBackdrop,
+            modifier = Modifier.zIndex(1f),
+            defaultWindowInsetsPadding = false,
             title = stringResource(R.string.settings_lastfm),
             color = ellaPageBackground(),
             navigationIcon = {
@@ -113,12 +121,16 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .layerBackdrop(settingsBackdrop)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp)
         ) {
+            Spacer(modifier = Modifier.height(56.dp))
             Spacer(modifier = Modifier.height(8.dp))
             SmallTitle(text = stringResource(R.string.lastfm_history_source))
             SettingsCardGroup {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.lastfm_history_source) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.lastfm_history_source),
                     summary = stringResource(R.string.lastfm_history_source_summary),
@@ -130,11 +142,15 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
 
             SmallTitle(text = stringResource(R.string.lastfm_connection))
             SettingsCardGroup {
                 Column {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.lastfm_api_key) {
                     SplitSettingTextField(
                         label = stringResource(R.string.lastfm_api_key),
                         value = credentials.apiKey,
@@ -144,6 +160,10 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
                             historyStore.updateAppCredentials(value, credentials.sharedSecret)
                         }
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.lastfm_shared_secret) {
                     SplitSettingTextField(
                         label = stringResource(R.string.lastfm_shared_secret),
                         value = credentials.sharedSecret,
@@ -154,6 +174,8 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
                             historyStore.updateAppCredentials(credentials.apiKey, value)
                         }
                     )
+                    } // search-anchor:end
+
                     BasicComponent(
                         title = if (credentials.isAuthorized) {
                             stringResource(R.string.lastfm_connected_as, credentials.username)
@@ -162,6 +184,8 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
                         },
                         summary = syncStatus.lastFmSummary(pendingScrobbles.size)
                     )
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.lastfm_open_authorization) {
                     ArrowPreference(
                         title = stringResource(R.string.lastfm_open_authorization),
                         summary = stringResource(R.string.lastfm_open_authorization_summary),
@@ -190,24 +214,40 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
                             }
                         }
                     )
-                    if (credentials.pendingToken.isNotBlank()) {
+                    } // search-anchor:end
+
+                    if (credentials.pendingToken.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.lastfm_complete_authorization)) {
+                        // search-anchor:start
+                        SettingsSearchAnchor(R.string.lastfm_complete_authorization) {
                         ArrowPreference(
                             title = stringResource(R.string.lastfm_complete_authorization),
                             summary = stringResource(R.string.lastfm_complete_authorization_summary),
                             onClick = { showResult { historyStore.completeAuthorizationAndSync() } }
                         )
+                        } // search-anchor:end
+
                     }
-                    if (credentials.isAuthorized) {
+                    if (credentials.isAuthorized /* search-reveal */ || SettingsSearchFocus.reveals(R.string.lastfm_sync_all_history, R.string.lastfm_retry_scrobbles, R.string.lastfm_disconnect)) {
+                        // search-anchor:start
+                        SettingsSearchAnchor(R.string.lastfm_sync_all_history) {
                         ArrowPreference(
                             title = stringResource(R.string.lastfm_sync_all_history),
                             summary = stringResource(R.string.lastfm_sync_all_history_summary),
                             onClick = { showResult { historyStore.syncAllHistory() } }
                         )
+                        } // search-anchor:end
+
+                        // search-anchor:start
+                        SettingsSearchAnchor(R.string.lastfm_retry_scrobbles) {
                         ArrowPreference(
                             title = stringResource(R.string.lastfm_retry_scrobbles),
                             summary = stringResource(R.string.lastfm_retry_scrobbles_summary, pendingScrobbles.size),
                             onClick = { showResult { historyStore.flushPendingScrobbles() } }
                         )
+                        } // search-anchor:end
+
+                        // search-anchor:start
+                        SettingsSearchAnchor(R.string.lastfm_disconnect) {
                         ArrowPreference(
                             title = stringResource(R.string.lastfm_disconnect),
                             summary = stringResource(R.string.lastfm_disconnect_summary),
@@ -216,6 +256,8 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
                                 Toast.makeText(context, R.string.lastfm_disconnected, Toast.LENGTH_SHORT).show()
                             }
                         )
+                        } // search-anchor:end
+
                     }
                 }
             }

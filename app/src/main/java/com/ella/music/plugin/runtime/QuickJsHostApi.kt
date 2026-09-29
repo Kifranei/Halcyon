@@ -3,6 +3,9 @@ package com.ella.music.plugin.runtime
 import android.util.Base64
 import android.util.Log
 import androidx.annotation.Keep
+import com.ella.music.data.blockCredentialedHttpRequests
+import com.ella.music.plugin.i18n.PluginLocales
+import com.ella.music.plugin.i18n.PluginStrings
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -39,6 +42,7 @@ private fun defaultPluginHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .readTimeout(6, TimeUnit.SECONDS)
     .writeTimeout(6, TimeUnit.SECONDS)
     .callTimeout(8, TimeUnit.SECONDS)
+    .blockCredentialedHttpRequests()
     .build()
 
 /**
@@ -53,12 +57,19 @@ class QuickJsHostApi(
     private val okHttpClient: OkHttpClient = defaultPluginHttpClient(),
     private val pluginId: String = "default",
     private val cacheRootDir: File? = null,
+    private val pluginStrings: PluginStrings? = null,
     private val json: Json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
         explicitNulls = false
     }
 ) {
+    private var stringsSnapshot: PluginStrings.Snapshot? = null
+
+    fun beginInvocation() {
+        stringsSnapshot = pluginStrings?.snapshot(PluginLocales.preferences.value)
+    }
+
     private companion object {
         const val CACHE_LOG_TAG = "PlatformPluginCache"
     }
@@ -69,6 +80,16 @@ class QuickJsHostApi(
         }.getOrDefault(JsonObject(emptyMap()))
 
         return when (name) {
+            "i18n.getLocale" -> text(stringsSnapshot?.locale ?: "und")
+
+            "i18n.t" -> text(requireNotNull(stringsSnapshot) { "Plugin has no string resources" }.format(
+                payload.string("key"),
+                (payload["args"] as? JsonArray).orEmpty().map { element ->
+                    val primitive = element as? JsonPrimitive
+                    if (primitive?.isString == true) primitive.content else primitive?.longOrNull
+                }
+            ))
+
             "app.info" -> value(appInfo.toJsonObject())
 
             "app.userAgent" -> text(buildDefaultUserAgent(appInfo))

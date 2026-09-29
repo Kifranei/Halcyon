@@ -82,7 +82,9 @@ internal fun LibrarySearchResultsPane(
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 128.dp)
+        // Search keeps its own dock (mini player + search field). Leave enough list
+        // clearance so the last rows are not covered by that overlay.
+        contentPadding = PaddingValues(bottom = 232.dp)
     ) {
         if (trimmedQuery.isBlank() && !duplicatesOnlyActive && !hasActiveContentFilter) {
             if (history.isNotEmpty()) {
@@ -251,17 +253,30 @@ internal fun LibrarySearchResultsPane(
             if (results.isNotEmpty()) {
                 item { SearchSectionHeader(stringResource(categoryType.searchLabelRes()) + " (${results.size})") }
                 items(results, key = { "$categoryType:${it.name}" }) { item ->
-                    MetadataCategoryResultRow(
-                        item = item,
-                        displayName = if (categoryType == "folder") item.name.substringAfterLast('/').ifBlank { item.name } else item.name,
-                        coverModel = selectMetadataCategoryCoverSong(songs, categoryType, item.name)
+                    val isPersonCategory = categoryType in listOf("composer", "arranger", "lyricist")
+                    val coverModel = if (isPersonCategory) {
+                        val representativeSong = selectMetadataCategoryCoverSong(songs, categoryType, item.name)
+                            ?: item.representativeSong
+                        rememberArtistCoverModel(
+                            artistName = item.name,
+                            representativeSong = representativeSong,
+                            folderLocation = artistCoverFolderUri,
+                            mainViewModel = mainViewModel
+                        )
+                    } else {
+                        selectMetadataCategoryCoverSong(songs, categoryType, item.name)
                             ?.let { song ->
                                 song.coverUrl.takeIf { it.isNotBlank() }
                                     ?: song.albumId.takeIf { it > 0L }?.let(mainViewModel::getAlbumArtUri)
                             }
                             ?: item.representativeSong?.coverUrl?.takeIf { it.isNotBlank() }
-                            ?: item.coverAlbumIds.firstOrNull()?.let(mainViewModel::getAlbumArtUri),
-                        roundCover = categoryType in listOf("composer", "arranger", "lyricist"),
+                            ?: item.coverAlbumIds.firstOrNull()?.let(mainViewModel::getAlbumArtUri)
+                    }
+                    MetadataCategoryResultRow(
+                        item = item,
+                        displayName = if (categoryType == "folder") item.name.substringAfterLast('/').ifBlank { item.name } else item.name,
+                        coverModel = coverModel,
+                        roundCover = isPersonCategory,
                         query = trimmedQuery,
                         onClick = {
                             onCommitSearch()

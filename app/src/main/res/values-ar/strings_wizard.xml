@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">البحث عن أغانٍ جديدة عند التشغيل البارد</string>
+    <string name="settings_cold_start_auto_scan_summary">البحث عن الأغاني الجديدة في المكتبات المحلية والبعيدة عند كل تشغيل بارد؛ تتم مزامنة NetEase بصمت</string>
+    <string name="settings_wizard_flow_background_summary">تتبع الصفحة الرئيسية والمكتبة وغيرها خلفية تدفق الأغنية الحالية. غير مستحسن على الأجهزة الضعيفة (تقطّع واستهلاك البطارية)</string>
+    <string name="settings_wizard_interface">الواجهة</string>
+</resources>

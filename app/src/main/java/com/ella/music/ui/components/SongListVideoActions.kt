@@ -42,6 +42,7 @@ internal fun rememberSongListVideoActions(
         initialValue = SongListVideoActions(),
         song.id,
         song.path,
+        song.onlineMvId,
         song.dateModified,
         song.fileSize,
         dynamicFolders,
@@ -65,8 +66,8 @@ internal fun rememberSongListVideoActions(
                     )
                 } else null
                 val onlineUrl = if (localSource == null && showOnline) {
-                    decodeNeteaseKey(loadSongTagInfo?.invoke(song)?.neteaseKey.orEmpty())
-                        ?.mvId
+                    (song.onlineMvId.takeIf { song.onlineSource == "netease" && it.isNotBlank() }
+                        ?: decodeNeteaseKey(loadSongTagInfo?.invoke(song)?.neteaseKey.orEmpty())?.mvId)
                         ?.takeIf { it.toLongOrNull()?.let { id -> id > 0L } == true }
                         ?.let(::neteaseMvUrl)
                 } else null

@@ -93,8 +93,18 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <Chronometer
+                <TextView
                     android:id="@+id/widget_position"
+                    android:text="0:00"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:textColor="#A6FFFFFF"
+                    android:textSize="11sp" />
+
+                <Chronometer
+                    android:id="@+id/widget_running_position"
+                    android:visibility="gone"
                     android:layout_width="40dp"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"

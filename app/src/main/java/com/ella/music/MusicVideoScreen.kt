@@ -13,7 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -102,6 +103,7 @@ import com.ella.music.viewmodel.filterBlacklistedLyricLines
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -114,6 +116,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Pause
@@ -245,9 +248,32 @@ internal fun DetailMusicVideoScreen(
                     .build(),
                 true
             )
-            setMediaItem(context.buildMusicVideoMediaItem(source))
-            prepare()
-            playWhenReady = true
+            if (source.scheme != "halcyon-netease-mv") {
+                setMediaItem(context.buildMusicVideoMediaItem(source))
+                prepare()
+                playWhenReady = true
+            }
+        }
+    }
+    // Per-playback MV quality; starts from the saved default and can be switched from the top bar.
+    var neteaseMvResolution by remember(source) { mutableStateOf<Int?>(null) }
+    var showMvQualitySheet by remember { mutableStateOf(false) }
+    LaunchedEffect(player, source, neteaseMvResolution) {
+        if (source.scheme == "halcyon-netease-mv") {
+            try {
+                val resolution = neteaseMvResolution ?: settingsManager.neteaseMvResolution.first().also { neteaseMvResolution = it }
+                val url = com.ella.music.data.netease.CatClawNeteaseClient(context)
+                    .musicVideoUrl(source.lastPathSegment.orEmpty(), resolution)
+                // Switching quality keeps the current position instead of restarting the video.
+                val resumeAt = player.currentPosition.takeIf { player.mediaItemCount > 0 } ?: 0L
+                player.setMediaItem(context.buildMusicVideoMediaItem(Uri.parse(url)), resumeAt)
+                player.prepare()
+                player.playWhenReady = true
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                Toast.makeText(context, R.string.music_video_play_failed, Toast.LENGTH_LONG).show()
+            }
         }
     }
     LaunchedEffect(accompanimentEnabled) {
@@ -264,13 +290,30 @@ internal fun DetailMusicVideoScreen(
             if (activity.detachMusicVideoPlayer(player)) player.release()
         }
     }
-    var isPlaying by remember { mutableStateOf(true) }
+    val recentRecordingScope = androidx.compose.runtime.rememberCoroutineScope()
+    var recentVideoRecorded by remember(source) { mutableStateOf(false) }
+    fun recordVideoPlayback() {
+        if (recentVideoRecorded || !player.isPlaying) return
+        recentVideoRecorded = true
+        val videoDuration = player.duration.takeIf { it > 0L } ?: song.duration
+        recentRecordingScope.launch(Dispatchers.IO) {
+            com.ella.music.data.RecentPlaybackStore.getInstance(context).add(
+                com.ella.music.data.PlaybackHistoryEntry(
+                    songId = song.id, title = song.title, artist = song.artist, album = song.album,
+                    playedAt = System.currentTimeMillis(), durationMs = videoDuration,
+                    mediaUri = source.toString()
+                )
+            )
+        }
+    }
+    var isPlaying by remember { mutableStateOf(player.isPlaying) }
     var position by remember { mutableStateOf(0L) }
     var duration by remember { mutableStateOf(0L) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(value: Boolean) {
                 isPlaying = value
+                if (value) recordVideoPlayback()
                 activity.configurePictureInPicture(
                     aspectRatio = videoAspectRatio,
                     autoEnter = value
@@ -289,6 +332,7 @@ internal fun DetailMusicVideoScreen(
             }
         }
         player.addListener(listener)
+        recordVideoPlayback()
         onDispose {
             player.removeListener(listener)
         }
@@ -415,6 +459,11 @@ internal fun DetailMusicVideoScreen(
                     }
                 },
                 onShare = { MusicVideoLauncher.share(context, source, song.title) },
+                onDownload = if (source.scheme == "halcyon-netease-mv") ({
+                    com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, song, source.lastPathSegment.orEmpty())
+                }) else null,
+                qualityLabel = neteaseMvResolution?.takeIf { source.scheme == "halcyon-netease-mv" }?.let { "${it}P" },
+                onQuality = { showMvQualitySheet = true },
                 onControlsVisibleChange = { controlsVisible = it }
             )
         } else {
@@ -441,8 +490,29 @@ internal fun DetailMusicVideoScreen(
                     landscape = true
                 },
                 onShare = { MusicVideoLauncher.share(context, source, song.title) },
+                onDownload = if (source.scheme == "halcyon-netease-mv") ({
+                    com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, song, source.lastPathSegment.orEmpty())
+                }) else null,
+                qualityLabel = neteaseMvResolution?.takeIf { source.scheme == "halcyon-netease-mv" }?.let { "${it}P" },
+                onQuality = { showMvQualitySheet = true },
                 onControlsVisibleChange = { controlsVisible = it }
             )
+        }
+        com.ella.music.ui.components.EllaMiuixBottomSheet(
+            show = showMvQualitySheet,
+            title = stringResource(R.string.netease_mv_resolution_title),
+            onDismissRequest = { showMvQualitySheet = false }
+        ) {
+            com.ella.music.ui.components.EllaMiuixSheetColumn(spacing = 8.dp, showHandle = false, scrollable = false) {
+                com.ella.music.ui.components.EllaCheckOptionGroup(
+                    options = listOf(1080, 720, 480, 240).map { it to "${it}P" },
+                    selected = neteaseMvResolution ?: 720,
+                    onSelect = { resolution ->
+                        showMvQualitySheet = false
+                        if (neteaseMvResolution != resolution) neteaseMvResolution = resolution
+                    }
+                )
+            }
         }
         if (showCaptionSettings) {
             MusicVideoCaptionSettingsOverlay(
@@ -554,6 +624,9 @@ private fun PortraitMusicVideoLayout(
     onSeek: (Long) -> Unit,
     onLandscape: () -> Unit,
     onShare: () -> Unit,
+    onDownload: (() -> Unit)?,
+    qualityLabel: String? = null,
+    onQuality: () -> Unit = {},
     onControlsVisibleChange: (Boolean) -> Unit
 ) {
     var gestureFeedback by remember { mutableStateOf<MusicVideoGestureFeedback?>(null) }
@@ -613,12 +686,16 @@ private fun PortraitMusicVideoLayout(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
+                    Row {
+                    qualityLabel?.let { label -> VideoQualityButton(label, onQuality) }
+                    onDownload?.let { download -> VideoIconButton(MiuixIcons.Regular.Download, stringResource(R.string.netease_download_mv), download) }
                     IconButton(onClick = onShare) {
                         com.ella.music.ui.player.QuickActionIcon(
                             kind = com.ella.music.ui.player.PlayerQuickActionKind.Share,
                             color = ComposeColor.White,
                             modifier = Modifier.size(25.dp)
                         )
+                    }
                     }
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -673,6 +750,9 @@ private fun LandscapeMusicVideoLayout(
     onCapture: () -> Unit,
     onPictureInPicture: () -> Unit,
     onShare: () -> Unit,
+    onDownload: (() -> Unit)?,
+    qualityLabel: String? = null,
+    onQuality: () -> Unit = {},
     onControlsVisibleChange: (Boolean) -> Unit
 ) {
     var gestureFeedback by remember { mutableStateOf<MusicVideoGestureFeedback?>(null) }
@@ -758,12 +838,16 @@ private fun LandscapeMusicVideoLayout(
                             modifier = Modifier.size(25.dp)
                         )
                     }
+                    Row {
+                    qualityLabel?.let { label -> VideoQualityButton(label, onQuality) }
+                    onDownload?.let { download -> VideoIconButton(MiuixIcons.Regular.Download, stringResource(R.string.netease_download_mv), download) }
                     IconButton(onClick = onShare) {
                         com.ella.music.ui.player.QuickActionIcon(
                             kind = com.ella.music.ui.player.PlayerQuickActionKind.Share,
                             color = ComposeColor.White,
                             modifier = Modifier.size(25.dp)
                         )
+                    }
                     }
                     IconButton(onClick = onPortrait) {
                         Icon(
@@ -1268,7 +1352,7 @@ private fun MusicVideoCaptionSettingsOverlay(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 VideoTextButton("-100 ms", { onSyncOffsetChange(syncOffsetMs - 100L) })
-                BasicTextField(
+                TextField(
                     value = offsetInput,
                     onValueChange = { value ->
                         val filtered = value.filterIndexed { index, char ->
@@ -1284,11 +1368,12 @@ private fun MusicVideoCaptionSettingsOverlay(
                     ),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ComposeColor.White.copy(alpha = 0.10f))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                    insideMargin = androidx.compose.ui.unit.DpSize(12.dp, 8.dp),
+                    cornerRadius = 12.dp,
+                    colors = TextFieldDefaults.textFieldColors(
+                        backgroundColor = ComposeColor.White.copy(alpha = 0.12f)
+                    ),
+                    modifier = Modifier.weight(1f)
                 )
                 VideoTextButton("+100 ms", { onSyncOffsetChange(syncOffsetMs + 100L) })
             }
@@ -1468,6 +1553,7 @@ private fun VideoSurface(
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     useController = false
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                     this.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                     setShutterBackgroundColor(Color.BLACK)
                     configureEmbeddedSubtitles()
@@ -1557,7 +1643,6 @@ private fun VideoTransport(
         GlowSeekBar(
             value = position.toFloat() / duration.coerceAtLeast(1L).toFloat(),
             onSeek = { progress -> onSeek((progress * duration.coerceAtLeast(0L)).toLong()) },
-            accent = ComposeColor.White,
             allowTapSeek = true,
             modifier = Modifier
                 .weight(1f)
@@ -1584,6 +1669,21 @@ private fun VideoTransport(
         } else if (showTrailing) {
             VideoTextButton(trailingLabel, onTrailing, selected = trailingSelected, modifier = Modifier.padding(start = 8.dp))
         }
+    }
+}
+
+@Composable
+private fun VideoQualityButton(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 4.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, ComposeColor.White.copy(alpha = 0.85f), RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = ComposeColor.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
 

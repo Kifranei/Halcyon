@@ -1,6 +1,7 @@
 package com.ella.music.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,8 +43,12 @@ import com.ella.music.ui.components.PlayerQueueListIcon
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import kotlinx.coroutines.launch
 import java.util.Locale
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun LandscapeProgressRow(
@@ -119,7 +124,8 @@ internal fun LandscapeTransportControls(
     controlHeight: androidx.compose.ui.unit.Dp = 58.dp,
     sideIconSize: androidx.compose.ui.unit.Dp = 30.dp,
     playButtonSize: androidx.compose.ui.unit.Dp = 54.dp,
-    playIconSize: androidx.compose.ui.unit.Dp = 34.dp
+    playIconSize: androidx.compose.ui.unit.Dp = 34.dp,
+    useAppleMusicIcons: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -129,12 +135,19 @@ internal fun LandscapeTransportControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         PlayerTransportIconButton(onClick = onPrevious) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_skip_previous),
-                contentDescription = stringResource(R.string.common_previous),
-                tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(sideIconSize)
-            )
+            if (useAppleMusicIcons) {
+                AppleSkipPreviousIcon(
+                    color = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            } else {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_skip_previous),
+                    contentDescription = stringResource(R.string.common_previous),
+                    tint = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -143,19 +156,34 @@ internal fun LandscapeTransportControls(
                 .playerNoIndicationClick(onPlayPause),
             contentAlignment = Alignment.Center
         ) {
-            CenteredPlayPauseGlyph(
-                isPlaying = isPlaying,
-                tint = palette.onBackground.copy(alpha = 0.96f),
-                modifier = Modifier.size(playIconSize)
-            )
+            if (useAppleMusicIcons) {
+                ApplePlayPauseIcon(
+                    isPlaying = isPlaying,
+                    color = palette.onBackground.copy(alpha = 0.96f),
+                    modifier = Modifier.size(playIconSize)
+                )
+            } else {
+                CenteredPlayPauseGlyph(
+                    isPlaying = isPlaying,
+                    tint = palette.onBackground.copy(alpha = 0.96f),
+                    modifier = Modifier.size(playIconSize)
+                )
+            }
         }
         PlayerTransportIconButton(onClick = onNext) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_skip_next),
-                contentDescription = stringResource(R.string.common_next),
-                tint = palette.onBackground.copy(alpha = 0.92f),
-                modifier = Modifier.size(sideIconSize)
-            )
+            if (useAppleMusicIcons) {
+                AppleSkipNextIcon(
+                    color = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            } else {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_skip_next),
+                    contentDescription = stringResource(R.string.common_next),
+                    tint = palette.onBackground.copy(alpha = 0.92f),
+                    modifier = Modifier.size(sideIconSize)
+                )
+            }
         }
     }
 }
@@ -168,6 +196,7 @@ internal fun PlayerProgressBlock(
     audioInfo: AudioInfo?,
     bluetoothDeviceName: String?,
     playbackModeLabel: String? = null,
+    isAppleMusic: Boolean = false,
     palette: PlayerPalette,
     allowTapSeek: Boolean,
     showTotalDuration: Boolean,
@@ -182,16 +211,25 @@ internal fun PlayerProgressBlock(
     val progressStyle by settingsManager.playerProgressStyle.collectAsState(
         initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE
     )
-    val showQuality by settingsManager.playerProgressShowQuality.collectAsState(initial = true)
-    val showAudioInfo by settingsManager.playerProgressShowAudioInfo.collectAsState(initial = true)
-    val showOutputDevice by settingsManager.playerProgressShowOutputDevice.collectAsState(initial = true)
+    val progressInfoPriority by settingsManager.playerProgressInfoPriority.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_INFO_PRIORITY
+    )
     val longPressCyclesInfo by settingsManager.playerProgressLongPressCycle.collectAsState(initial = false)
     val separateGainChip by settingsManager.playerProgressInfoSeparated.collectAsState(initial = false)
     var infoMode by remember { mutableIntStateOf(0) }
     var showAudioOutputSheet by remember { mutableStateOf(false) }
+    var showOnlineQualitySheet by remember { mutableStateOf(false) }
+    val onlineQuality by settingsManager.onlinePlaybackQuality.collectAsState(initial = "auto")
+    val neteaseQuality by settingsManager.neteaseQuality.collectAsState(initial = "auto")
     var previewProgress by remember { mutableStateOf<Float?>(null) }
     val qualitySummary = remember(audioInfo) { audioInfo?.let(::audioQualitySummary) }
-    val qualityLabel = qualitySummary?.let { summary ->
+    // NetEase tiers keep NetEase's own names (沉浸环绕声, 超清母带 ...) instead of generic Surround/MQ.
+    val neteaseStreams by com.ella.music.data.netease.NeteaseLibraryStore.getInstance(context).streamInfo.collectAsState()
+    val neteaseServedTier = song?.takeIf { it.onlineSource == "netease" }?.let { neteaseStreams[it.onlineId] }
+        ?.let { info -> com.ella.music.data.netease.NeteaseQuality.entries.firstOrNull { it.id == info.level } }
+        ?.takeUnless { it == com.ella.music.data.netease.NeteaseQuality.Auto }
+    val neteaseTierLabel = neteaseServedTier?.let { stringResource(it.titleRes) }
+    val qualityLabel = neteaseTierLabel ?: qualitySummary?.let { summary ->
         when (summary.compactLabel) {
             "Lossless" -> stringResource(R.string.player_quality_lossless)
             "Hi-Res" -> stringResource(R.string.player_quality_hi_res)
@@ -211,26 +249,36 @@ internal fun PlayerProgressBlock(
         bluetoothDeviceName,
         playbackModeLabel,
         replayGainLabel,
-        showQuality,
-        showAudioInfo,
-        showOutputDevice,
-        separateGainChip
+        progressInfoPriority,
+        separateGainChip,
+        isAppleMusic
     ) {
+        val enabledIds = SettingsManager.normalizePlayerProgressInfoPriority(progressInfoPriority)
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
         buildList {
             playbackModeLabel?.takeIf { it.isNotBlank() }
                 ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.PlaybackMode)) }
                 ?: run {
-                if (showQuality) qualityLabel?.let {
-                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.Quality))
+                enabledIds.forEach { id ->
+                    when (id) {
+                        SettingsManager.PLAYER_PROGRESS_INFO_QUALITY -> qualityLabel?.let {
+                            add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.Quality))
+                        }
+                        SettingsManager.PLAYER_PROGRESS_INFO_AUDIO -> qualitySummary?.detailLabel
+                            ?.takeIf { text -> text.isNotBlank() }
+                            ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
+                        SettingsManager.PLAYER_PROGRESS_INFO_OUTPUT ->
+                            if (!isAppleMusic) {
+                                bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
+                                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
+                                }
+                            }
+                    }
                 }
-                if (showAudioInfo) qualitySummary?.detailLabel
-                    ?.takeIf { text -> text.isNotBlank() }
-                    ?.let { add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.AudioInfo)) }
                 if (separateGainChip) replayGainLabel?.takeIf { it.isNotBlank() }?.let {
                     add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.ReplayGain))
-                }
-                if (showOutputDevice) bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let {
-                    add(PlayerProgressInfoItem(it, PlayerProgressInfoKind.OutputDevice))
                 }
             }
         }.distinctBy { it.text }
@@ -247,7 +295,12 @@ internal fun PlayerProgressBlock(
     }
     fun handleExistingLongPress(infoItem: PlayerProgressInfoItem?) {
         when (infoItem?.kind) {
-            PlayerProgressInfoKind.Quality,
+            // Only the quality tier (无损 / 杜比全景声 ...) opens the tier picker for streaming sources;
+            // codec details (FLAC / 44.1 kHz ...) and ReplayGain always open the song's audio info.
+            PlayerProgressInfoKind.Quality -> {
+                if (song?.onlineSource in setOf("netease", "lx", "musicfree")) showOnlineQualitySheet = true
+                else showAudioOutputSheet = true
+            }
             PlayerProgressInfoKind.AudioInfo,
             PlayerProgressInfoKind.ReplayGain -> showAudioOutputSheet = true
             PlayerProgressInfoKind.OutputDevice -> openSystemOutputSwitcher(context)
@@ -280,7 +333,7 @@ internal fun PlayerProgressBlock(
                 // larger timeline requested by the portrait/landscape references.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .requiredHeight(52.dp)
+                    .requiredHeight(72.dp)
             )
         }
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -324,6 +377,7 @@ internal fun PlayerProgressBlock(
                             qualitySummary?.showWaveform == true,
                         showDolbyLogo = infoItem?.kind == PlayerProgressInfoKind.Quality &&
                             qualitySummary?.showDolbyLogo == true,
+                        isAppleMusic = isAppleMusic,
                         palette = palette,
                         fontFamily = fontFamily,
                         onTap = { if (!longPressCyclesInfo) cycleInfo() },
@@ -352,6 +406,19 @@ internal fun PlayerProgressBlock(
             )
         }
     }
+    OnlineQualityBottomSheet(
+        show = showOnlineQualitySheet,
+        song = song,
+        selectedQuality = if (song?.onlineSource == "netease") neteaseQuality else onlineQuality,
+        onDismiss = { showOnlineQualitySheet = false },
+        onSelect = { selected ->
+            scope.launch {
+                if (song?.onlineSource == "netease") settingsManager.setNeteaseQuality(selected)
+                else settingsManager.setOnlinePlaybackQuality(selected)
+                showOnlineQualitySheet = false
+            }
+        }
+    )
     EllaMiuixBottomSheet(
         show = showAudioOutputSheet,
         title = stringResource(R.string.player_audio_output_info),
@@ -364,6 +431,35 @@ internal fun PlayerProgressBlock(
             audioInfo = audioInfo,
             showHeader = false
         )
+    }
+}
+
+@Composable
+private fun OnlineQualityBottomSheet(
+    show: Boolean,
+    song: Song?,
+    selectedQuality: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    val netease = song?.onlineSource == "netease"
+    val options = if (netease) {
+        com.ella.music.data.netease.NeteaseQuality.entries.map { it.id to stringResource(it.titleRes) }
+    } else {
+        listOf(
+            com.ella.music.data.OnlinePlaybackQuality.AUTO to stringResource(R.string.netease_quality_auto),
+            "128k" to stringResource(R.string.netease_quality_standard),
+            "320k" to stringResource(R.string.netease_quality_extreme),
+            "flac" to stringResource(R.string.netease_quality_lossless),
+            "flac24bit" to stringResource(R.string.netease_quality_hires)
+        )
+    }
+    val selected = if (netease) selectedQuality else com.ella.music.data.OnlinePlaybackQuality.normalize(selectedQuality)
+    val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: options.first().second
+    EllaMiuixBottomSheet(show = show, title = stringResource(R.string.player_remote_stream_quality, selectedLabel), onDismissRequest = onDismiss) {
+        com.ella.music.ui.components.EllaMiuixSheetColumn(spacing = 8.dp, showHandle = false) {
+            com.ella.music.ui.components.EllaCheckOptionGroup(options = options, selected = selected, onSelect = onSelect)
+        }
     }
 }
 
@@ -385,22 +481,27 @@ private fun PlayerQualityInfoChip(
     text: String,
     showWaveform: Boolean,
     showDolbyLogo: Boolean = false,
+    isAppleMusic: Boolean = false,
     palette: PlayerPalette,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     fontFamily: FontFamily? = null
 ) {
+    val shape = if (isAppleMusic) RoundedCornerShape(5.dp) else RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(palette.onBackground.copy(alpha = 0.10f))
+            .clip(shape)
+            .background(palette.onBackground.copy(alpha = if (isAppleMusic) 0.12f else 0.10f))
             .pointerInput(onTap, onLongPress) {
                 detectTapGestures(
                     onTap = { onTap() },
                     onLongPress = { onLongPress() }
                 )
             }
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+            .padding(
+                horizontal = if (isAppleMusic) 7.dp else 10.dp,
+                vertical = if (isAppleMusic) 2.5.dp else 3.dp
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -418,7 +519,7 @@ private fun PlayerQualityInfoChip(
                 Icon(
                     painter = painterResource(R.drawable.ic_audio_lossless),
                     contentDescription = null,
-                    tint = palette.onBackground.copy(alpha = 0.72f),
+                    tint = palette.onBackground.copy(alpha = 0.78f),
                     modifier = Modifier.size(12.dp)
                 )
             }
@@ -426,7 +527,7 @@ private fun PlayerQualityInfoChip(
                 text = text,
                 fontSize = 12.sp,
                 fontFamily = fontFamily,
-                color = palette.onBackground.copy(alpha = 0.62f)
+                color = palette.onBackground.copy(alpha = 0.78f)
             )
         }
     }

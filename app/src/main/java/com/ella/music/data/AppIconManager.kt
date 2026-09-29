@@ -13,7 +13,7 @@ object AppIconManager {
     private const val LAUNCHER_ALIAS_PACKAGE = "com.ella.music"
     private const val DEFAULT_ALIAS = ".DefaultLauncherAlias"
     private const val ANIME_ALIAS = ".AnimeLauncherAlias"
-    private const val BLACK_HAIR_ALIAS = ".BlackHairLauncherAlias"
+    private const val LEGACY_BLACK_HAIR_ALIAS = ".BlackHairLauncherAlias"
     private const val LOLI_ALIAS = ".LoliLauncherAlias"
 
     fun apply(context: Context, style: String) {
@@ -23,7 +23,7 @@ object AppIconManager {
         val aliases = listOf(
             SettingsManager.APP_ICON_STYLE_DEFAULT to DEFAULT_ALIAS,
             SettingsManager.APP_ICON_STYLE_ANIME to ANIME_ALIAS,
-            SettingsManager.APP_ICON_STYLE_BLACK_HAIR to BLACK_HAIR_ALIAS,
+            "black_hair" to LEGACY_BLACK_HAIR_ALIAS,
             SettingsManager.APP_ICON_STYLE_LOLI to LOLI_ALIAS
         )
         val selected = aliases.first { it.first == normalizedStyle }
@@ -52,7 +52,6 @@ object AppIconManager {
     fun normalize(style: String?): String =
         when (style) {
             SettingsManager.APP_ICON_STYLE_ANIME -> SettingsManager.APP_ICON_STYLE_ANIME
-            SettingsManager.APP_ICON_STYLE_BLACK_HAIR -> SettingsManager.APP_ICON_STYLE_BLACK_HAIR
             SettingsManager.APP_ICON_STYLE_LOLI -> SettingsManager.APP_ICON_STYLE_LOLI
             else -> SettingsManager.APP_ICON_STYLE_DEFAULT
         }

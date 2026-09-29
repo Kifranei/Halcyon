@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">التعليقات</string>
+    <string name="netease_comments_title">التعليقات</string>
+    <string name="netease_comments_title_count">التعليقات (%1$s)</string>
+    <string name="netease_comments_sort_recommend">مقترحة</string>
+    <string name="netease_comments_sort_hot">الأكثر رواجًا</string>
+    <string name="netease_comments_sort_latest">الأحدث</string>
+    <string name="netease_comments_empty">لا توجد تعليقات بعد</string>
+    <string name="netease_comments_error">تعذر تحميل التعليقات</string>
+    <string name="netease_comments_retry">إعادة المحاولة</string>
+    <string name="netease_comments_expand_replies">عرض الردود (%1$d)</string>
+    <string name="netease_comments_more_replies">عرض مزيد من الردود</string>
+    <string name="netease_comments_collapse_replies">إخفاء الردود</string>
+    <string name="netease_comments_reply_to">"ردًا على @%1$s: "</string>
+    <string name="netease_comments_load_more_failed">فشل التحميل. انقر لإعادة المحاولة</string>
+    <string name="netease_comments_no_more">لا توجد تعليقات أخرى</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">إعجاب</string>
+    <string name="netease_comments_reply">رد</string>
+    <string name="netease_comments_input_hint">اكتب شيئًا…</string>
+    <string name="netease_comments_reply_hint">الرد على @%1$s</string>
+    <string name="netease_comments_send">إرسال</string>
+    <string name="netease_comments_cancel_reply">إلغاء الرد</string>
+    <string name="netease_comments_login_required">سجّل الدخول إلى NetEase Cloud Music أولًا</string>
+    <string name="netease_comments_like_failed">تعذّر تحديث الإعجاب. حاول لاحقًا</string>
+    <string name="netease_comments_send_failed">تعذّر الإرسال. حاول لاحقًا</string>
+    <string name="netease_comments_send_failed_code">تعذّر الإرسال (الخطأ %1$d)</string>
+    <string name="netease_comments_sent">تم الإرسال</string>
+</resources>

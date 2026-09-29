@@ -12,6 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.ui.components.EllaSearchBar
@@ -30,11 +34,13 @@ import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+
 @Composable
 internal fun LibrarySearchTopBar(
     query: String,
     autoFocus: Boolean?,
     autoSelectAll: Boolean = false,
+    selectionRequestKey: Int = 0,
     onAutoSelectAllConsumed: () -> Unit = {},
     showBackButton: Boolean,
     onBack: () -> Unit,
@@ -45,7 +51,12 @@ internal fun LibrarySearchTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(
+                start = if (showBackButton) 4.dp else 12.dp,
+                end = 12.dp,
+                top = 4.dp,
+                bottom = 4.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (showBackButton) {
@@ -66,6 +77,7 @@ internal fun LibrarySearchTopBar(
             modifier = Modifier.weight(1f),
             autoFocus = autoFocus,
             autoSelectAll = autoSelectAll,
+            selectionRequestKey = selectionRequestKey,
             onAutoSelectAllConsumed = onAutoSelectAllConsumed
         )
     }

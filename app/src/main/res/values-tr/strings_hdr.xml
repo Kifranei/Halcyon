@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_lyric_hdr_brightness">HDR parlaklığı</string>
+    <string name="settings_lyric_hdr_brightness_summary">Vurgunun normal beyaza göre parlaklığı (1,5×–2,5×); ulaşılabilen seviye ekrana bağlıdır</string>
+</resources>

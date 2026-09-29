@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">Веб</string>
+    <string name="netease_link_target_app">NetEase Cloud Music</string>
+    <string name="netease_link_target_honor">NetEase Cloud Music (версия Honor)</string>
+    <string name="netease_link_target_custom">Свой вариант</string>
+    <string name="netease_link_open_failed">Не удалось открыть ссылку</string>
+    <string name="netease_link_song_comments">Комментарии к треку</string>
+    <string name="netease_link_artist_wiki">Вики исполнителя</string>
+    <string name="netease_link_mv_open_mode">Открытие MV NetEase</string>
+    <string name="netease_link_mv_open_mode_summary">Если у трека есть MV NetEase, воспроизводить во встроенном плеере или открывать во внешнем приложении</string>
+    <string name="netease_link_mv_open_internal">Встроенный плеер</string>
+    <string name="netease_link_mv_open_external">Открыть внешне (по цели ссылок NetEase)</string>
+    <string name="netease_link_target">Цель ссылок NetEase</string>
+    <string name="netease_link_target_summary">Открывать ссылки на трек, исполнителя, альбом и MV из 163 key в браузере или в приложении NetEase</string>
+    <string name="netease_link_kind_song">Трек</string>
+    <string name="netease_link_kind_artist">Исполнитель</string>
+    <string name="netease_link_kind_album">Альбом</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">Ссылка перед ID или {id} на месте ID. Пусто — %1$s</string>
+</resources>

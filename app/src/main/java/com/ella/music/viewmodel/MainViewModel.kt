@@ -13,6 +13,7 @@ import com.ella.music.data.PlaylistImportMode
 import com.ella.music.data.PlaylistStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.PlaybackHistoryEntry
+import com.ella.music.data.netease.toPlaybackHistoryEntry
 import com.ella.music.data.PlaybackHistorySource
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SongPlaybackStats
@@ -26,12 +27,16 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.repository.RemoteAudioCache
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.metadata.AudioCoverInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.remote.NavidromeService
 import com.ella.music.data.remote.OpenSubsonicCollectionsStore
+import com.ella.music.data.remote.RemoteMusicProvider
+import com.ella.music.data.remote.isSubsonicLike
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.analytics.prewarmLibraryAnalysisCache
@@ -51,6 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -99,20 +105,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             existingHistory = localHistory
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    private val neteaseLibraryStoreForHistory = com.ella.music.data.netease.NeteaseLibraryStore.getInstance(application)
+    /** In the NetEase library the account's cloud history is merged in directly (#NetEase history). */
+    private val neteaseCloudHistory: kotlinx.coroutines.flow.Flow<List<PlaybackHistoryEntry>> = combine(
+        neteaseLibraryStoreForHistory.recentPlays,
+        settingsManager.librarySource
+    ) { plays, source ->
+        if (source != SettingsManager.LIBRARY_SOURCE_NETEASE) emptyList()
+        else plays.map { it.toPlaybackHistoryEntry() }
+    }
+    /** Cloud songs are not all in the favourites library; exposing them lets history rows resolve and play. */
+    val neteaseHistorySongs: StateFlow<List<Song>> = combine(
+        neteaseLibraryStoreForHistory.recentPlays,
+        settingsManager.librarySource
+    ) { plays, source ->
+        if (source != SettingsManager.LIBRARY_SOURCE_NETEASE) emptyList() else plays.map { it.song }.distinctBy { it.onlineId }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun refreshNeteaseHistory(force: Boolean = false) {
+        viewModelScope.launch {
+            if (settingsManager.librarySource.first() == SettingsManager.LIBRARY_SOURCE_NETEASE) {
+                neteaseLibraryStoreForHistory.refreshRecentPlays(force)
+            }
+        }
+    }
+
     /** Immediate sessions used by the home-page "recently played" list. */
     val recentPlaybackHistory: StateFlow<List<PlaybackHistoryEntry>> = combine(
-        playbackStatsStore.history,
+        playbackStatsStore.recentHistory,
         lastFmHistoryStore.history,
         listeningHistorySource,
-        playbackStatsStore.hiddenRemoteHistoryEntryIds
-    ) { local, lastFm, source, hiddenRemoteEntryIds ->
+        playbackStatsStore.hiddenRemoteHistoryEntryIds,
+        neteaseCloudHistory
+    ) { local, lastFm, source, hiddenRemoteEntryIds, netease ->
         val remote = lastFm.map { it.toPlaybackHistoryEntry() }
             .filterNot { it.entryId in hiddenRemoteEntryIds }
-        when (source) {
+        val base = when (source) {
             ListeningHistorySource.Local -> local
             ListeningHistorySource.LastFm -> remote
             ListeningHistorySource.Combined -> mergePlaybackHistorySources(local, remote)
         }
+        val cloud = netease.filterNot { it.entryId in hiddenRemoteEntryIds }
+        if (cloud.isEmpty()) base else mergePlaybackHistorySources(base, cloud)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Qualified history: local sessions appear only after the configured #419 threshold. */
@@ -150,11 +184,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             playbackStatsStore.hideRemoteHistoryEntry(entry.entryId)
         }
     }
+
+    suspend fun removeRecentPlaybackHistoryEntry(entry: PlaybackHistoryEntry) {
+        if (entry.source == PlaybackHistorySource.LOCAL) {
+            playbackStatsStore.removeRecentHistoryEntry(entry)
+        } else if (entry.source == PlaybackHistorySource.LAST_FM) {
+            playbackStatsStore.hideRemoteHistoryEntry(entry.entryId)
+        }
+    }
+
+    suspend fun removeRecentPlaybackHistoryEntries(entries: Collection<PlaybackHistoryEntry>) {
+        playbackStatsStore.removeRecentHistoryEntries(entries)
+    }
+    suspend fun localSearchSnapshot() = repository.localSearchSnapshot()
+
     val playlists: StateFlow<List<UserPlaylist>> = combine(
         playlistStore.playlists,
-        openSubsonicCollectionsStore.playlists
-    ) { localPlaylists, remotePlaylists ->
-        localPlaylists + remotePlaylists
+        openSubsonicCollectionsStore.playlists,
+        com.ella.music.data.netease.NeteaseLibraryStore.getInstance(application).playlists,
+        settingsManager.librarySource
+    ) { localPlaylists, remotePlaylists, neteasePlaylists, source ->
+        if (source == SettingsManager.LIBRARY_SOURCE_NETEASE) neteasePlaylists else localPlaylists + remotePlaylists
     }.stateIn(viewModelScope, SharingStarted.Eagerly, playlistStore.playlists.value)
     private val _libraryCacheLoaded = MutableStateFlow(false)
     val libraryCacheLoaded: StateFlow<Boolean> = _libraryCacheLoaded.asStateFlow()
@@ -165,9 +215,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
     private var scanJob: Job? = null
     private var cachedLibraryLoadJob: Job? = null
+    private val librarySourceSwitchGeneration = AtomicLong(0L)
     private var searchSnapshotPrewarmJob: Job? = null
     private var webDavMetadataHydrationJob: Job? = null
     private var autoScanRequested = false
+    @Volatile private var incrementalRescanPending = false
     private val metadataCategoryItemsCache = ConcurrentHashMap<String, MetadataCategoryItemsCacheEntry>()
 
     init {
@@ -180,19 +232,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // activity waited for a post-frame LaunchedEffect, so every cold start rendered empty
         // collections once and then visibly rebuilt them from cache.
         loadCachedLibrary()
+        scanMusicIfAutoEnabled()
     }
 
     fun selectTab(index: Int) {
         _selectedTab.value = index
     }
 
-    fun scanMusic(fullRescan: Boolean = false, deepRescan: Boolean? = null) {
+    fun scanMusic(
+        fullRescan: Boolean = false,
+        deepRescan: Boolean? = null,
+        refreshMediaStore: Boolean = true
+    ) {
         if (scanJob?.isActive == true || isScanning.value) {
-            if (!fullRescan) return
-            // A long-press complete scan must replace an in-flight incremental pass; otherwise
-            // newly copied files in custom folders stay invisible until MediaStore catches up.
+            if (!fullRescan) {
+                // The running pass may have read older folder settings; run once more afterwards
+                // instead of dropping this request (#117). Hook whichever scan is running now.
+                if (!incrementalRescanPending) {
+                    incrementalRescanPending = true
+                    scanJob?.invokeOnCompletion { cause ->
+                        if (incrementalRescanPending) {
+                            incrementalRescanPending = false
+                            if (cause == null) viewModelScope.launch { scanMusic() }
+                        }
+                    }
+                }
+                return
+            }
+            // A complete scan must replace an in-flight incremental pass; otherwise newly
+            // copied files in custom folders stay invisible until MediaStore catches up.
             scanJob?.cancel()
         }
+        incrementalRescanPending = false
         scanJob = viewModelScope.launch {
             awaitCachedLibraryRestoreBeforeScanning()
             val source = settingsManager.librarySource.first()
@@ -202,32 +273,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             val effectiveDeepRescan = deepRescan ?: (fullRescan || settingsManager.fullTagSearchEnabled.first())
-            scanFromCurrentSettings(fullRescan = fullRescan, deepRescan = effectiveDeepRescan)
+            scanFromCurrentSettings(
+                fullRescan = fullRescan,
+                deepRescan = effectiveDeepRescan,
+                refreshMediaStore = refreshMediaStore
+            )
         }
     }
 
     fun setLibrarySource(source: String) {
         val requestedSource = SettingsManager.normalizeLibrarySource(source)
-        viewModelScope.launch {
+        val switchGeneration = librarySourceSwitchGeneration.incrementAndGet()
+        scanJob?.cancel()
+        scanJob = null
+        repository.finishScanning()
+        webDavMetadataHydrationJob?.cancel()
+        webDavMetadataHydrationJob = null
+        cachedLibraryLoadJob?.cancel()
+        cachedLibraryLoadJob = null
+        // Invalidate any previous remote page callbacks immediately; a cancelled fetch may still
+        // finish an in-flight response while the next DataStore write is being committed.
+        repository.clearInMemoryLibrary()
+        _libraryCacheLoaded.value = false
+        viewModelScope.launch sourceSwitch@{
             settingsManager.setLibrarySource(requestedSource)
-            val activeSource = settingsManager.librarySource.first()
-            scanJob?.cancel()
-            webDavMetadataHydrationJob?.cancel()
-            webDavMetadataHydrationJob = null
-            // The prior source's cache restore must not finish after this source switch and put
-            // an obsolete library back into the repository while the new source is scanning.
-            cachedLibraryLoadJob?.cancel()
-            cachedLibraryLoadJob = null
-            _libraryCacheLoaded.value = false
-            scanJob = viewModelScope.launch {
-                repository.clearInMemoryLibrary()
-                if (activeSource == SettingsManager.LIBRARY_SOURCE_LOCAL) {
+            if (switchGeneration != librarySourceSwitchGeneration.get()) return@sourceSwitch
+            scanJob = viewModelScope.launch sourceLoad@{
+                if (switchGeneration != librarySourceSwitchGeneration.get()) return@sourceLoad
+                if (requestedSource == SettingsManager.LIBRARY_SOURCE_LOCAL) {
                     repository.loadCachedLibrary()
                     scanFromCurrentSettings(fullRescan = false, deepRescan = false)
                 } else {
-                    loadRemoteLibrarySource(activeSource, forceRefresh = false)
+                    loadRemoteLibrarySource(requestedSource, forceRefresh = false)
                 }
-                _libraryCacheLoaded.value = true
+                if (switchGeneration == librarySourceSwitchGeneration.get()) {
+                    _libraryCacheLoaded.value = true
+                }
             }
         }
     }
@@ -246,6 +327,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         openSubsonicCollectionsStore.refreshForLibrarySource(source)
+        if (source == SettingsManager.LIBRARY_SOURCE_NETEASE) {
+            try { com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refresh(false) }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (_: Exception) { /* Account settings exposes the sync error; preserve the last snapshot. */ }
+            com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refreshRecentPlays()
+        }
         repository.emitScanSummary(summary)
         _libraryCacheLoaded.value = true
         preloadLibrarySearchSnapshot()
@@ -330,15 +417,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (scanJob?.isActive == true || isScanning.value) return
         scanJob = viewModelScope.launch {
             awaitCachedLibraryRestoreBeforeScanning()
-            val source = settingsManager.librarySource.first()
-            if (source != SettingsManager.LIBRARY_SOURCE_LOCAL) {
-                // Remote libraries are already restored during startup via loadCachedLibrary().
-                // Do not route them through the scan flow again, otherwise every cold start /
-                // activity recreation shows a fake "scan finished" toast for cached data.
-                return@launch
+            if (!settingsManager.coldStartAutoScan.first()) return@launch
+            when (val source = settingsManager.librarySource.first()) {
+                // Incremental pass: only new/changed files are read, the cached library stays visible.
+                SettingsManager.LIBRARY_SOURCE_LOCAL -> scanFromCurrentSettings(fullRescan = false, deepRescan = false)
+                // NetEase favourites are already re-synced quietly by loadCachedLibrary(); it has no
+                // scan to report, so it never enters the scan flow (and never shows scan toasts).
+                SettingsManager.LIBRARY_SOURCE_NETEASE -> Unit
+                // Remote servers: fetch the server library so songs added since the last sync appear.
+                else -> loadRemoteLibrarySource(source, forceRefresh = true)
             }
-            if (!settingsManager.autoScan.first()) return@launch
-            scanFromCurrentSettings(fullRescan = false, deepRescan = false)
         }
     }
 
@@ -356,12 +444,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cachedLibraryLoadJob?.join()
     }
 
-    private suspend fun scanFromCurrentSettings(fullRescan: Boolean = false, deepRescan: Boolean = fullRescan) {
+    private suspend fun scanFromCurrentSettings(
+        fullRescan: Boolean = false,
+        deepRescan: Boolean = fullRescan,
+        refreshMediaStore: Boolean = false
+    ) {
         val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
         scanWithIncludeFolders(
             includeFolders = includeFolders,
             fullRescan = fullRescan,
-            deepRescan = deepRescan
+            deepRescan = deepRescan,
+            refreshMediaStore = refreshMediaStore
         )
     }
 
@@ -369,7 +462,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         includeFolders: List<String>,
         preferExplicitFolders: Boolean = false,
         fullRescan: Boolean = false,
-        deepRescan: Boolean = fullRescan
+        deepRescan: Boolean = fullRescan,
+        refreshMediaStore: Boolean = false
     ) {
         val ownerJob = currentCoroutineContext()[Job]
         repository.startScanning()
@@ -405,7 +499,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 deepRescan = effectiveDeepRescan,
                 deepMetadataEnabled = fullRescan || fullTagSearchEnabled,
                 filesystemFallbackFolders = filesystemFallbackFolders,
-                filterVideoFiles = filterVideoFiles
+                filterVideoFiles = filterVideoFiles,
+                refreshMediaStore = refreshMediaStore
             )
             if (!preferExplicitFolders && summary.total == 0 && includeFolders.isNotEmpty() && (fullRescan || useAndroidMediaLibrary)) {
                 summary = repository.scanMusic(
@@ -415,7 +510,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     fullRescan = fullRescan,
                     deepRescan = effectiveDeepRescan,
                     deepMetadataEnabled = fullRescan || fullTagSearchEnabled,
-                    filterVideoFiles = filterVideoFiles
+                    filterVideoFiles = filterVideoFiles,
+                    refreshMediaStore = refreshMediaStore
                 )
             }
             val usbFolderUris = settingsManager.usbFolderUris.first()
@@ -459,6 +555,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.loadCachedLibrary()
             }
             openSubsonicCollectionsStore.refreshForLibrarySource(source)
+        if (source == SettingsManager.LIBRARY_SOURCE_NETEASE) {
+            try { com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refresh(false) }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (_: Exception) { /* Account settings exposes the sync error; preserve the last snapshot. */ }
+            com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refreshRecentPlays()
+        }
             _libraryCacheLoaded.value = true
             preloadLibrarySearchSnapshot()
         }
@@ -671,6 +773,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearOnlineMetadataCache() {
         repository.clearRemoteMetadataCache()
     }
+
+    fun clearRemoteAudioCache() {
+        repository.clearRemoteAudioCache()
+    }
+
+    fun cacheSongsToLocal(songs: List<Song>): kotlinx.coroutines.Job =
+        viewModelScope.launch {
+            RemoteAudioCache.cacheSongs(resolveRemoteCacheSongs(songs), viewModelScope)
+        }
+
+    private suspend fun resolveRemoteCacheSongs(songs: List<Song>): List<Song> {
+        val needsFreshStream = songs.any { song ->
+            song.onlineId.isNotBlank() && RemoteMusicProvider.fromId(song.onlineSource).isSubsonicLike
+        }
+        if (!needsFreshStream) return songs
+        val service = NavidromeService(getApplication())
+        val navidrome = settingsManager.navidromeConfig.first()
+        val openSubsonic = settingsManager.openSubsonicConfig.first()
+        return songs.map { song ->
+            val provider = RemoteMusicProvider.fromId(song.onlineSource)
+            val config = when (provider) {
+                RemoteMusicProvider.Navidrome -> navidrome
+                RemoteMusicProvider.OpenSubsonic -> openSubsonic
+                else -> return@map song
+            }
+            if (song.onlineId.isBlank() || !config.isConfigured) song
+            else song.copy(path = service.streamUrl(config, song.onlineId, config.downloadMaxBitRate))
+        }
+    }
+
+    fun cancelRemoteAudioCache() {
+        RemoteAudioCache.cancel()
+    }
+
+    val remoteAudioCacheProgress = RemoteAudioCache.progress
 
     suspend fun clearDownloadedArtistImageCache() {
         ArtistImageRepository.clearDownloadedCache(getApplication())

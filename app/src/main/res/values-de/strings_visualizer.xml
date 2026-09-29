@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">Visualizer-Höhe</string>
+    <string name="player_visualizer_height_summary">Höhe des Player-Visualizers; der Standard entspricht der Flusskurve</string>
+    <string name="player_visualizer_style_cover_overlay">Cover-Überlagerung</string>
+</resources>

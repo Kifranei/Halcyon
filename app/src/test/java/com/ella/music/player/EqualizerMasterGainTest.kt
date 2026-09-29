@@ -29,6 +29,7 @@ class EqualizerMasterGainTest {
         val processor = EqualizerAudioProcessor().apply {
             setSettings(EqualizerSettings(masterGainDb = gainDb, peakLimiterEnabled = false))
             configure(AudioProcessor.AudioFormat(48_000, 1, C.ENCODING_PCM_16BIT))
+            flush()
         }
         processor.queueInput(
             ByteBuffer.allocateDirect(Short.SIZE_BYTES)

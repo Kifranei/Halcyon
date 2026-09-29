@@ -16,7 +16,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-val appVersionName = "1.2.8"
+val appVersionName = "1.2.9"
 val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 val configuredAbis = providers.gradleProperty("ellaAbi")
     .orNull
@@ -125,7 +125,7 @@ android {
         applicationId = "com.ella.music"
         minSdk = 29
         targetSdk = 37
-        versionCode = 36
+        versionCode = 39
         versionName = appVersionName
         externalNativeBuild {
             cmake {
@@ -205,6 +205,14 @@ android {
         prefab = true
     }
 
+    lint {
+        // AGP 9.2.1 crashes lintVital on local Android library modules:
+        // "Artifact type android-lint-exploded-aar not expected, only jar or aar are handled."
+        // Skip the automatic release-gate lint so assembleRelease can package; run :app:lint
+        // separately when you want a full report.
+        checkReleaseBuilds = false
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -264,8 +272,6 @@ dependencies {
     // Installs the bundled baseline profile (src/main/baseline-prof.txt) so ART AOT-compiles
     // the startup/library paths at install time instead of JIT-compiling them on first launch.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
-    // Material 3 Expressive shapes (cookie / scallop / clover) for the daily-mix cover thumbnails.
-    implementation("androidx.graphics:graphics-shapes:1.0.1")
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -315,4 +321,5 @@ dependencies {
     compileOnly(project(":hidden-api"))
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

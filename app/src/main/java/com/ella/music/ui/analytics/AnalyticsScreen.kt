@@ -18,8 +18,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -36,6 +38,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.util.Calendar
 
 @Composable
 fun AnalyticsScreen(
@@ -45,17 +48,26 @@ fun AnalyticsScreen(
     onNavigateToHistory: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val replay = replayPalette()
     val songs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val playbackHistory by mainViewModel.playbackHistory.collectAsState()
     val dailyListenMs by mainViewModel.dailyListenMs.collectAsState()
+    val replayMonthTabs = remember { buildReplayMonthTabs() }
+    var selectedMonthOffset by rememberSaveable { mutableIntStateOf(0) }
+    val selectedMonth = remember(selectedMonthOffset) {
+        Calendar.getInstance().apply {
+            add(Calendar.MONTH, -selectedMonthOffset)
+        }
+    }
     val libraryById = remember(songs) { songs.associateBy { it.id } }
     val libraryByStatsKey = remember(songs) { songs.associateBy { it.analyticsStatsKey() } }
-    val monthlyReport = remember(playbackHistory, dailyListenMs, songs) {
+    val monthlyReport = remember(playbackHistory, dailyListenMs, songs, selectedMonthOffset) {
         buildMonthlyListeningReport(
             history = playbackHistory,
             dailyListenMs = dailyListenMs,
-            librarySongs = songs
+            librarySongs = songs,
+            targetMonth = selectedMonth
         )
     }
     val tasteProfile = remember(playbackStats, libraryById, libraryByStatsKey) {
@@ -75,7 +87,7 @@ fun AnalyticsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(start = 4.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (showBackButton) {
@@ -83,7 +95,7 @@ fun AnalyticsScreen(
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
                         contentDescription = stringResource(R.string.common_back),
-                        tint = MiuixTheme.colorScheme.onBackground,
+                        tint = replay.content,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -92,9 +104,10 @@ fun AnalyticsScreen(
             }
             Text(
                 text = stringResource(R.string.analytics_title),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onBackground,
+                fontSize = 30.sp,
+                lineHeight = 34.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = replay.content,
                 modifier = Modifier.padding(start = 8.dp)
             )
         }
@@ -104,13 +117,18 @@ fun AnalyticsScreen(
             contentPadding = PaddingValues(
                 start = 12.dp,
                 end = 12.dp,
-                top = 12.dp,
+                top = 4.dp,
                 bottom = 160.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                MonthlyListeningReportCard(report = monthlyReport)
+                MonthlyListeningReportCard(
+                    report = monthlyReport,
+                    monthTabs = replayMonthTabs,
+                    selectedMonthOffset = selectedMonthOffset,
+                    onMonthSelected = { selectedMonthOffset = it }
+                )
             }
 
             item {

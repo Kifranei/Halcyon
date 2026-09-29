@@ -1,6 +1,7 @@
 package com.ella.music.ui.home
 
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Stable
@@ -13,12 +14,13 @@ import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.CancellationException
 import kotlin.math.abs
 import kotlin.math.sqrt
+import kotlin.math.cos
+import kotlin.math.PI
 
 // Gesture state machine adapted from RawS-Music's ComposePowerListState: pinch progress
 // follows the fingers, velocity decides commit vs rollback, and the layout edges respond
 // with a damped elastic over-pull.
-private const val SNAP_DURATION_MS = 500
-private const val LAYOUT_COMMIT_DURATION_MS = 250
+private const val LAYOUT_COMMIT_DURATION_MS = 500
 private const val LAYOUT_ROLLBACK_DURATION_MS = 500
 private const val ELASTIC_REBOUND_DURATION_MS = 350
 private const val VELOCITY_THRESHOLD_DP = 500f
@@ -56,13 +58,20 @@ internal class LibraryPinchState(initialLayout: Int) {
 
     private var boundaryAnimationGeneration = 0
     private var boundaryRawOverPull by mutableFloatStateOf(0f)
+    var focalPoint = Offset.Zero
+        private set
+    private var previousRawDelta = 0f
+    private var logicalProgress = 0f
 
     /** True when the transition target is the denser, more detailed list. */
     val isZoomInTransition: Boolean
         get() = layoutOrder(targetLayout) > layoutOrder(sourceLayout)
 
-    fun beginPinch() {
+    fun beginPinch(focalPoint: Offset = Offset.Zero) {
         boundaryAnimationGeneration += 1
+        this.focalPoint = focalPoint
+        previousRawDelta = 0f
+        logicalProgress = if (isTransitioning) transitionProgress else 0f
         isPinching = true
     }
 
@@ -72,7 +81,10 @@ internal class LibraryPinchState(initialLayout: Int) {
      * @param velocityDp current pinch velocity in dp/s.
      */
     fun updatePinch(rawDelta: Float, velocityDp: Float) {
-        val towardGrid = rawDelta > 0f
+        val frameDelta = rawDelta - previousRawDelta
+        previousRawDelta = rawDelta
+        if (abs(frameDelta) < 0.000001f) return
+        val towardGrid = frameDelta > 0f
         if (!isTransitioning) {
             val target = nextLayout(towardGrid)
             if (target == null) {
@@ -80,16 +92,19 @@ internal class LibraryPinchState(initialLayout: Int) {
                 return
             }
             beginTransition(target)
+            logicalProgress = 0f
         }
         // Keep progress positive while moving toward the chosen target. If the fingers reverse
         // direction mid-gesture, a negative value rolls the transition back toward its source.
-        val towardList = rawDelta < 0f
-        val signedDelta = if (towardList == isZoomInTransition) abs(rawDelta) else -abs(rawDelta)
+        // RawS accumulates current span motion in the active pair's coordinate system.
+        // A second pinch or reversal must not jump back to its touch-down total ratio.
+        logicalProgress += if (isZoomInTransition) -frameDelta else frameDelta
+        val signedDelta = logicalProgress
         transitionProgress = signedDelta.coerceIn(0f, 1f)
         transitionScaleFactor = elasticScale(signedDelta, isZoomInTransition)
     }
 
-    suspend fun finishPinch(velocityDp: Float): Boolean {
+    suspend fun finishPinch(velocityDp: Float, progressVelocity: Float = velocityDp / 1000f): Boolean {
         isPinching = false
         if (!isTransitioning) {
             animateBoundaryBack()
@@ -101,7 +116,10 @@ internal class LibraryPinchState(initialLayout: Int) {
         } else {
             transitionProgress > POSITION_THRESHOLD
         }
-        animateTransition(confirm, velocityDp)
+        val orientedVelocity = if (isZoomInTransition) -progressVelocity else progressVelocity
+        val forwardedVelocity = if ((confirm && transitionProgress > .8f) || (!confirm && transitionProgress < .2f))
+            orientedVelocity / 4f else 0f
+        animateTransition(confirm, forwardedVelocity)
         return confirm
     }
 
@@ -142,11 +160,17 @@ internal class LibraryPinchState(initialLayout: Int) {
         isTransitioning = true
     }
 
-    private suspend fun animateTransition(confirm: Boolean, releaseVelocityDp: Float) {
+    private suspend fun animateTransition(confirm: Boolean, forwardedVelocity: Float) {
         val start = transitionProgress
         val end = if (confirm) 1f else 0f
         val baseDuration = if (confirm) LAYOUT_COMMIT_DURATION_MS else LAYOUT_ROLLBACK_DURATION_MS
-        val velocityDuration = computeVelocityDuration(start, end, releaseVelocityDp)
+        val validVelocity = when {
+            confirm && forwardedVelocity > 0f -> forwardedVelocity.coerceIn(2f, 8f)
+            !confirm && forwardedVelocity < 0f -> forwardedVelocity.coerceIn(-8f, -3.5f)
+            else -> 0f
+        }
+        val velocityDuration = if (validVelocity != 0f)
+            kotlin.math.ceil(abs(end - start) / abs(validVelocity) * 1000f).toInt().coerceAtLeast(1) else null
         val duration = velocityDuration
             ?: (abs(end - start) * baseDuration).toInt().coerceIn(
                 if (confirm) 100 else baseDuration / 3,
@@ -169,7 +193,9 @@ internal class LibraryPinchState(initialLayout: Int) {
                 val elasticFraction = (
                     elapsedFraction * animationDuration / ELASTIC_REBOUND_DURATION_MS
                     ).coerceIn(0f, 1f)
-                transitionProgress = lerp(start, end, transitionFraction)
+                val easedProgress = if (velocityDuration != null) transitionFraction else
+                    ((1f - cos(PI.toFloat() * transitionFraction)) / 2f)
+                transitionProgress = lerp(start, end, easedProgress)
                 transitionScaleFactor = lerp(transitionScaleFactor, 1f, cubicEaseOut(elasticFraction))
             }
             completeTransition(confirm)
@@ -242,21 +268,24 @@ internal class LibraryPinchState(initialLayout: Int) {
         // zoomed-in (single column, large rows). Spreading the fingers moves down this order,
         // matching the library gesture convention: list -> multi-row -> cover grid.
         internal const val LAYOUT_ORDER_GRID = 0
-        internal const val LAYOUT_ORDER_MULTI_ROW = 1
-        internal const val LAYOUT_ORDER_LIST = 2
+        internal const val LAYOUT_ORDER_DETAILS = 1
+        internal const val LAYOUT_ORDER_MULTI_ROW = 2
+        internal const val LAYOUT_ORDER_LIST = 3
 
         internal fun layoutOrder(layout: Int): Int = when (layout) {
             SettingsManager.LIBRARY_LAYOUT_LIST -> LAYOUT_ORDER_LIST
             SettingsManager.LIBRARY_LAYOUT_MULTI_ROW -> LAYOUT_ORDER_MULTI_ROW
+            SettingsManager.LIBRARY_LAYOUT_DETAILS -> LAYOUT_ORDER_DETAILS
             else -> LAYOUT_ORDER_GRID
         }
 
-        private fun layoutForOrder(order: Int): Int = when (order.coerceIn(
+        internal fun layoutForOrder(order: Int): Int = when (order.coerceIn(
             LAYOUT_ORDER_GRID,
             LAYOUT_ORDER_LIST
         )) {
             LAYOUT_ORDER_LIST -> SettingsManager.LIBRARY_LAYOUT_LIST
             LAYOUT_ORDER_MULTI_ROW -> SettingsManager.LIBRARY_LAYOUT_MULTI_ROW
+            LAYOUT_ORDER_DETAILS -> SettingsManager.LIBRARY_LAYOUT_DETAILS
             else -> SettingsManager.LIBRARY_LAYOUT_GRID
         }
     }
@@ -301,11 +330,3 @@ private fun cubicEaseOut(value: Float): Float {
 
 private fun lerp(start: Float, end: Float, fraction: Float): Float =
     start + (end - start) * fraction.coerceIn(0f, 1f)
-
-private fun computeVelocityDuration(start: Float, end: Float, velocityDp: Float): Int? {
-    val velocity = abs(velocityDp)
-    if (velocity < VELOCITY_THRESHOLD_DP) return null
-    val distance = abs(end - start).coerceAtLeast(0.0001f)
-    val normalizedVelocity = (velocity / VELOCITY_THRESHOLD_DP).coerceIn(1f, 4f)
-    return ((SNAP_DURATION_MS * distance) / normalizedVelocity).toInt().coerceIn(80, SNAP_DURATION_MS)
-}

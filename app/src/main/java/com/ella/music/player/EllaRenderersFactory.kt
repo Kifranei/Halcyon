@@ -3,6 +3,7 @@ package com.ella.music.player
 import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -58,21 +59,41 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
         eventListener: AudioRendererEventListener,
         out: ArrayList<Renderer>
     ) {
+        val safeMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            val decoders = mediaCodecSelector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+            decoders.filterNot { decoder ->
+                // c2.qti.alac.sw.decoder on Qualcomm/Xiaomi devices is broken and crashes immediately.
+                // Filter out broken system ALAC decoders so ExoPlayer seamlessly falls back to FFmpeg.
+                decoder.name.equals("c2.qti.alac.sw.decoder", ignoreCase = true) ||
+                    (mimeType.contains("alac", ignoreCase = true) && decoder.name.contains("alac", ignoreCase = true))
+            }
+        }
         super.buildAudioRenderers(
             context,
             extensionRendererMode,
-            mediaCodecSelector,
+            safeMediaCodecSelector,
             enableDecoderFallback,
             audioSink,
             eventHandler,
             eventListener,
             out
         )
-        if (extensionRendererMode == EXTENSION_RENDERER_MODE_OFF) return
-        val existing = out.indexOfFirst { it is FfmpegAudioRenderer }
-        if (existing >= 0) return
-        val renderer = FfmpegAudioRenderer(eventHandler, eventListener, audioSink)
-        if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) out.add(0, renderer) else out.add(renderer)
+        if (extensionRendererMode != EXTENSION_RENDERER_MODE_OFF && out.none { it is FfmpegAudioRenderer }) {
+            val renderer = FfmpegAudioRenderer(eventHandler, eventListener, audioSink)
+            if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) out.add(0, renderer) else out.add(renderer)
+        }
+        // MP3 always decodes through FFmpeg, whatever the decoder mode: several vendor
+        // c2.android.mp3.decoder builds skip tracks or go silent mid-song. This renderer claims
+        // only MPEG audio, so every other format keeps the selected system/FFmpeg order.
+        out.add(0, FfmpegAudioRenderer(eventHandler, eventListener, audioSink, FFMPEG_ONLY_MIME_TYPES))
+    }
+
+    private companion object {
+        val FFMPEG_ONLY_MIME_TYPES: Set<String> = setOf(
+            MimeTypes.AUDIO_MPEG,
+            MimeTypes.AUDIO_MPEG_L1,
+            MimeTypes.AUDIO_MPEG_L2
+        )
     }
 
     override fun buildAudioSink(
@@ -114,7 +135,8 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
                 audioApi = audioApi,
                 exclusive = usbExclusive,
                 processors = processors,
-                deviceId = deviceId
+                deviceId = deviceId,
+                appContext = context.applicationContext
             )
         }
 

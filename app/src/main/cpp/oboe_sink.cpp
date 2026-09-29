@@ -1,4 +1,4 @@
-// Native Oboe-backed audio output for Halcyon.
+﻿// Native Oboe-backed audio output for Halcyon.
 //
 // Media3/ExoPlayer's DefaultAudioSink writes PCM to a Java AudioTrack. To route audio through
 // AAudio or OpenSL ES instead, OboeAudioSink (Kotlin) forwards decoded PCM to this native layer,
@@ -7,10 +7,19 @@
 // Encoding ids (must match SettingsManager / OboeAudioOutput):
 //   0 = PCM 16-bit, 1 = PCM 24-bit (packed), 2 = PCM 32-bit, 3 = float32
 // AudioApi ids: 0 = unspecified (let Oboe choose), 1 = AAudio, 2 = OpenSL ES
+//
+// USB exclusive: when [exclusive] is true we request SharingMode::Exclusive, pin deviceId,
+// disable sample-rate conversion, and FAIL the open if the HAL still returns Shared — so the
+// Kotlin layer can retry at a different rate or surface "routing only / exclusive failed".
 
 #include <jni.h>
 #include <oboe/Oboe.h>
 #include <mutex>
+#include <android/log.h>
+
+#define LOG_TAG "EllaOboe"
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define ALOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 namespace {
 
@@ -19,6 +28,7 @@ struct OboeSink {
     std::mutex mutex;
     int channelCount = 2;
     int bytesPerFrame = 4;
+    bool exclusiveGranted = false;
 };
 
 oboe::AudioFormat toOboeFormat(int encoding) {
@@ -41,26 +51,33 @@ int bytesPerSample(oboe::AudioFormat format) {
     }
 }
 
-} // namespace
-
-extern "C" {
-
-JNIEXPORT jlong JNICALL
-Java_com_ella_music_player_OboeAudioOutput_nativeOpen(
-        JNIEnv*, jobject, jint audioApi, jint sampleRate, jint channelCount,
-        jint encoding, jboolean exclusive, jint deviceId) {
-    auto* sink = new OboeSink();
-
+bool openStreamOnce(
+        OboeSink* sink,
+        jint audioApi,
+        jint sampleRate,
+        jint channelCount,
+        jint encoding,
+        jboolean exclusive,
+        jint deviceId,
+        oboe::PerformanceMode performanceMode) {
     oboe::AudioStreamBuilder builder;
     builder.setDirection(oboe::Direction::Output)
             ->setSharingMode(exclusive ? oboe::SharingMode::Exclusive : oboe::SharingMode::Shared)
-            ->setPerformanceMode(oboe::PerformanceMode::None)
+            ->setPerformanceMode(performanceMode)
             ->setFormat(toOboeFormat(encoding))
             ->setChannelCount(channelCount)
             ->setSampleRate(sampleRate)
-            ->setSampleRateConversionQuality(oboe::SampleRateConversionQuality::Medium)
             ->setUsage(oboe::Usage::Media)
             ->setContentType(oboe::ContentType::Music);
+
+    if (exclusive) {
+        // Bit-perfect USB path: never let Oboe resample under us.
+        builder.setSampleRateConversionQuality(oboe::SampleRateConversionQuality::None);
+        builder.setChannelConversionAllowed(false);
+        builder.setFormatConversionAllowed(false);
+    } else {
+        builder.setSampleRateConversionQuality(oboe::SampleRateConversionQuality::Medium);
+    }
 
     if (audioApi == 1) {
         builder.setAudioApi(oboe::AudioApi::AAudio);
@@ -73,16 +90,74 @@ Java_com_ella_music_player_OboeAudioOutput_nativeOpen(
 
     oboe::Result result = builder.openStream(sink->stream);
     if (result != oboe::Result::OK || !sink->stream) {
-        delete sink;
-        return 0;
+        ALOGW("openStream failed: %s", oboe::convertToText(result));
+        sink->stream.reset();
+        return false;
     }
+
+    const auto mode = sink->stream->getSharingMode();
+    sink->exclusiveGranted = (mode == oboe::SharingMode::Exclusive);
+    ALOGI(
+            "opened api=%d rate=%d ch=%d enc=%d reqExclusive=%d gotExclusive=%d deviceId=%d",
+            (int) sink->stream->getAudioApi(),
+            sink->stream->getSampleRate(),
+            sink->stream->getChannelCount(),
+            encoding,
+            (int) exclusive,
+            (int) sink->exclusiveGranted,
+            deviceId);
+
+    if (exclusive && !sink->exclusiveGranted) {
+        ALOGW("Exclusive requested but HAL returned Shared — rejecting open");
+        sink->stream->close();
+        sink->stream.reset();
+        return false;
+    }
+
     sink->channelCount = sink->stream->getChannelCount();
     sink->bytesPerFrame = sink->channelCount * bytesPerSample(sink->stream->getFormat());
     sink->stream->requestStart();
+    return true;
+}
+
+} // namespace
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL
+Java_com_ella_music_player_OboeAudioOutput_nativeOpen(
+        JNIEnv*, jobject, jint audioApi, jint sampleRate, jint channelCount,
+        jint encoding, jboolean exclusive, jint deviceId) {
+    auto* sink = new OboeSink();
+
+    // Prefer None for bit-perfect; fall back to LowLatency which some USB HALs require for Exclusive.
+    const oboe::PerformanceMode modes[] = {
+            oboe::PerformanceMode::None,
+            oboe::PerformanceMode::LowLatency
+    };
+    bool opened = false;
+    for (auto mode : modes) {
+        if (openStreamOnce(sink, audioApi, sampleRate, channelCount, encoding, exclusive, deviceId, mode)) {
+            opened = true;
+            break;
+        }
+        if (!exclusive) break; // shared path: one attempt is enough
+    }
+
+    if (!opened) {
+        delete sink;
+        return 0;
+    }
     return reinterpret_cast<jlong>(sink);
 }
 
-// Blocking write of a direct ByteBuffer region. Returns the number of BYTES consumed, or -1 on error.
+JNIEXPORT jboolean JNICALL
+Java_com_ella_music_player_OboeAudioOutput_nativeIsExclusive(JNIEnv*, jobject, jlong handle) {
+    auto* sink = reinterpret_cast<OboeSink*>(handle);
+    if (sink == nullptr || !sink->stream) return JNI_FALSE;
+    return sink->exclusiveGranted ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT jint JNICALL
 Java_com_ella_music_player_OboeAudioOutput_nativeWrite(
         JNIEnv* env, jobject, jlong handle, jobject buffer, jint offset, jint length, jlong timeoutNanos) {
@@ -102,7 +177,6 @@ Java_com_ella_music_player_OboeAudioOutput_nativeWrite(
     return result.value() * sink->bytesPerFrame;
 }
 
-// Frames actually consumed by the device — used to derive the current playback position.
 JNIEXPORT jlong JNICALL
 Java_com_ella_music_player_OboeAudioOutput_nativeGetFramesRead(JNIEnv*, jobject, jlong handle) {
     auto* sink = reinterpret_cast<OboeSink*>(handle);

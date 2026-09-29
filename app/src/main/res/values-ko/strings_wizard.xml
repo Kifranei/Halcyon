@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">콜드 스타트 시 새 곡 검색</string>
+    <string name="settings_cold_start_auto_scan_summary">콜드 스타트할 때마다 로컬 및 원격 라이브러리의 새 곡을 검색합니다. NetEase는 알림 없이 동기화합니다</string>
+    <string name="settings_wizard_flow_background_summary">홈, 라이브러리 등 탐색 화면이 현재 곡의 흐름 배경을 따릅니다. 저사양 기기에서는 끊김과 배터리 소모로 권장하지 않습니다</string>
+    <string name="settings_wizard_interface">인터페이스</string>
+</resources>

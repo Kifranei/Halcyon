@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.zIndex
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,13 +56,16 @@ internal fun SettingsMaintenanceScreen(
     val scope = rememberCoroutineScope()
     var confirmReset by remember { mutableStateOf(false) }
 
-    Column(
+    val settingsBackdrop = rememberLayerBackdrop()
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
+            enableProgressiveBlur = true,
+            backdrop = settingsBackdrop,
+            modifier = Modifier.zIndex(1f),
             title = stringResource(R.string.settings_maintenance),
             color = ellaPageBackground(),
             navigationIcon = {
@@ -74,17 +82,25 @@ internal fun SettingsMaintenanceScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .layerBackdrop(settingsBackdrop)
                 .verticalScroll(rememberSettingsScrollState("settings_maintenance"))
                 .padding(horizontal = 12.dp)
         ) {
+            Spacer(modifier = Modifier.height(56.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()))
             Spacer(modifier = Modifier.height(8.dp))
             SettingsCardGroup {
                 Column {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_setup_wizard) {
                     ArrowPreference(
                         title = stringResource(R.string.settings_setup_wizard),
                         summary = stringResource(R.string.settings_setup_wizard_summary),
                         onClick = onNavigateToSetupWizard
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_clear_online_cache) {
                     ArrowPreference(
                         title = stringResource(R.string.settings_clear_online_cache),
                         summary = stringResource(R.string.settings_clear_online_cache_summary),
@@ -100,11 +116,35 @@ internal fun SettingsMaintenanceScreen(
                             }
                         }
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_clear_remote_audio_cache) {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_clear_remote_audio_cache),
+                        summary = stringResource(R.string.settings_clear_remote_audio_cache_summary),
+                        onClick = {
+                            mainViewModel.clearRemoteAudioCache()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_clear_remote_audio_cache_done),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_performance_diagnostics) {
                     ArrowPreference(
                         title = stringResource(R.string.settings_performance_diagnostics),
                         summary = stringResource(R.string.settings_performance_diagnostics_summary),
                         onClick = onNavigateToPerformanceDiagnostics
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_clear_artist_image_cache) {
                     ArrowPreference(
                         title = stringResource(R.string.settings_clear_artist_image_cache),
                         summary = stringResource(R.string.settings_clear_artist_image_cache_summary),
@@ -119,6 +159,10 @@ internal fun SettingsMaintenanceScreen(
                             }
                         }
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_clear_library_snapshot_cache) {
                     ArrowPreference(
                         title = stringResource(R.string.settings_clear_library_snapshot_cache),
                         summary = stringResource(R.string.settings_clear_library_snapshot_cache_summary),
@@ -131,11 +175,17 @@ internal fun SettingsMaintenanceScreen(
                             ).show()
                         }
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_restore_defaults) {
                     ArrowPreference(
                         title = stringResource(R.string.settings_restore_defaults),
                         summary = stringResource(R.string.settings_restore_defaults_summary),
                         onClick = { confirmReset = true }
                     )
+                    } // search-anchor:end
+
                 }
             }
             Spacer(modifier = Modifier.height(120.dp))

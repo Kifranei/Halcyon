@@ -83,12 +83,8 @@ fun ScanSettingsScreen(
     val blockedFolderKeys = remember(blockedFolders) {
         blockedFolders.map { it.normalizeFolderPath().lowercase(Locale.ROOT) }.toSet()
     }
-    val showManualScanHint = remember(context) {
-        {
-            Toast.makeText(context, R.string.folder_scan_manual_needed, Toast.LENGTH_SHORT).show()
-        }
-    }
     var showBlockedDialog by remember { mutableStateOf(false) }
+    var confirmForceFullRescan by remember { mutableStateOf(false) }
     var pendingRemoveScanFolder by remember { mutableStateOf<String?>(null) }
     var pendingRemoveUsbUri by remember { mutableStateOf<String?>(null) }
 
@@ -115,6 +111,7 @@ fun ScanSettingsScreen(
                 scope.launch {
                     mainViewModel.settingsManager.setUseAndroidMediaLibrary(false)
                     mainViewModel.settingsManager.addUsbFolderUri(uri.toString())
+                    mainViewModel.scanMusic()
                 }
                 Toast.makeText(context, R.string.folder_usb_added, Toast.LENGTH_SHORT).show()
             } else {
@@ -123,8 +120,8 @@ fun ScanSettingsScreen(
                     mainViewModel.settingsManager.setScanIncludeFolders(
                         (savedFolders + folderPath).distinct().joinToString("；")
                     )
+                    mainViewModel.scanMusic()
                 }
-                showManualScanHint()
             }
         }
     }
@@ -155,7 +152,6 @@ fun ScanSettingsScreen(
                 ScanRefreshIconButton(
                     enabled = !isScanning,
                     onScan = { mainViewModel.scanMusic() },
-                    onDeepRescan = { mainViewModel.fullRescanMusic() },
                     contentDescription = stringResource(R.string.folder_full_scan)
                 )
                 IconButton(onClick = { folderPicker.launch(null) }) {
@@ -205,7 +201,8 @@ fun ScanSettingsScreen(
                         runCatching {
                             allFilesAccessLauncher.launch(AllFilesAccess.settingsIntent(context))
                         }
-                    }
+                    },
+                    onForceFullRescan = { confirmForceFullRescan = true }
                 )
             }
 
@@ -215,27 +212,35 @@ fun ScanSettingsScreen(
                     hiddenFolders = blockedFolderKeys,
                     highlight = highlightKey == "scan_folders",
                     onVisibilityChange = { folderPath, visible ->
+                        // Save the selection atomically, then let the user choose Scan or Force
+                        // rescan. Leaving/recreating this page must not schedule another scan.
                         scope.launch {
                             val normalizedPath = folderPath.normalizeFolderPath()
-                            val nextBlockedFolders = if (visible) {
-                                blockedFolders.filterNot {
-                                    it.normalizeFolderPath().equals(normalizedPath, ignoreCase = true)
+                            mainViewModel.settingsManager.updateScanExcludeFolders { current ->
+                                val currentBlocked = current.toFolderSettingList()
+                                val nextBlockedFolders = if (visible) {
+                                    currentBlocked.filterNot {
+                                        it.normalizeFolderPath().equals(normalizedPath, ignoreCase = true)
+                                    }
+                                } else {
+                                    (currentBlocked + normalizedPath).distinctBy {
+                                        it.normalizeFolderPath().lowercase(Locale.ROOT)
+                                    }
                                 }
-                            } else {
-                                (blockedFolders + normalizedPath).distinctBy {
-                                    it.normalizeFolderPath().lowercase(Locale.ROOT)
-                                }
+                                nextBlockedFolders.joinToString("；")
                             }
-                            mainViewModel.settingsManager.setScanExcludeFolders(nextBlockedFolders.joinToString("；"))
+                            Toast.makeText(
+                                context,
+                                if (visible) R.string.scan_folder_added else R.string.scan_folder_unselected,
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
-                        showManualScanHint()
                     },
                     onRemove = { folderPath ->
                         pendingRemoveScanFolder = folderPath
                     },
                     scanEnabled = !isScanning,
-                    onScan = { mainViewModel.scanMusic() },
-                    onDeepRescan = { mainViewModel.fullRescanMusic() }
+                    onScan = { mainViewModel.scanMusic() }
                 )
             }
 
@@ -254,11 +259,24 @@ fun ScanSettingsScreen(
                         highlight = highlightKey == "scan_usb_folders",
                         onRemove = { uri -> pendingRemoveUsbUri = uri },
                         scanEnabled = !isScanning,
-                        onScan = { mainViewModel.scanMusic() },
-                        onDeepRescan = { mainViewModel.fullRescanMusic() }
+                        onScan = { mainViewModel.scanMusic() }
                     )
                 }
             }
+        }
+
+        if (confirmForceFullRescan) {
+            ConfirmDangerDialog(
+                show = true,
+                title = stringResource(R.string.folder_force_full_rescan),
+                message = stringResource(R.string.folder_force_full_rescan_confirm),
+                confirmText = stringResource(R.string.folder_full_scan),
+                onDismiss = { confirmForceFullRescan = false },
+                onConfirm = {
+                    confirmForceFullRescan = false
+                    mainViewModel.fullRescanMusic()
+                }
+            )
         }
 
         if (showBlockedDialog) {
@@ -270,14 +288,14 @@ fun ScanSettingsScreen(
                         mainViewModel.settingsManager.setScanExcludeFolders(
                             blockedFolders.filterNot { it == folderPath }.joinToString("；")
                         )
+                        mainViewModel.scanMusic()
                     }
-                    showManualScanHint()
                 },
                 onClear = {
                     scope.launch {
                         mainViewModel.settingsManager.setScanExcludeFolders("")
+                        mainViewModel.scanMusic()
                     }
-                    showManualScanHint()
                     showBlockedDialog = false
                 }
             )
@@ -303,8 +321,8 @@ fun ScanSettingsScreen(
                                 it.normalizeFolderPath().equals(normalizedPath, ignoreCase = true)
                             }.joinToString("；")
                         )
+                        mainViewModel.scanMusic()
                     }
-                    showManualScanHint()
                     pendingRemoveScanFolder = null
                 }
             )

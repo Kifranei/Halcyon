@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.ella.music.data.copyToBoundedOrThrow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -60,12 +61,33 @@ class ExternalUriResolver(private val context: Context) {
         val baseName = safeName.substringBeforeLast('.', safeName).take(64).ifBlank { "external_audio" }
         val dir = File(context.cacheDir, "external_audio").apply { mkdirs() }
         val target = File(dir, "${baseName}_${UUID.randomUUID()}$extension")
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output ->
-                input.copyTo(output)
+        synchronized(CACHE_LOCK) {
+            val existingBytes = dir.listFiles().orEmpty().sumOf { file -> if (file.isFile) file.length() else 0L }
+            val remainingBytes = MAX_EXTERNAL_AUDIO_CACHE_BYTES - existingBytes
+            require(remainingBytes > 0L) { "External audio cache is full" }
+            val maxCopyBytes = minOf(MAX_EXTERNAL_AUDIO_FILE_BYTES, remainingBytes)
+            try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    target.outputStream().use { output ->
+                        input.copyToBoundedOrThrow(output, maxCopyBytes)
+                    }
+                } ?: error("External audio uri stream is not readable: $uri")
+            } catch (error: Throwable) {
+                target.delete()
+                throw error
             }
-        } ?: error("External audio uri stream is not readable: $uri")
+            if (target.length() <= 0L) {
+                target.delete()
+                error("External audio uri is empty: $uri")
+            }
+        }
         return target
+    }
+
+    private companion object {
+        val CACHE_LOCK = Any()
+        const val MAX_EXTERNAL_AUDIO_FILE_BYTES = 512L * 1024L * 1024L
+        const val MAX_EXTERNAL_AUDIO_CACHE_BYTES = 2L * 1024L * 1024L * 1024L
     }
 
     private fun queryDisplayName(uri: Uri): String? =

@@ -1,13 +1,17 @@
 package com.ella.music.ui.about
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -28,6 +32,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -35,8 +40,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import com.ella.music.BuildConfig
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.ui.effect.BgEffectBackground
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
@@ -70,6 +78,7 @@ fun AboutScreen(
     onBack: () -> Unit,
     onNavigateToUpdate: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     val scrollBehavior = MiuixScrollBehavior()
     val lazyListState = rememberLazyListState()
     var logoHeightPx by remember { mutableIntStateOf(0) }
@@ -89,7 +98,7 @@ fun AboutScreen(
 
     LaunchedEffect(Unit) {
         updateState = withContext(Dispatchers.IO) {
-            runCatching { fetchLatestRelease() }
+            runCatching { fetchLatestRelease(includePrereleases = UpdateChannelPreferences.includesPrereleases(context)) }
                 .fold(
                     onSuccess = { release ->
                         UpdateUiState.Ready(
@@ -102,14 +111,19 @@ fun AboutScreen(
         }
     }
 
+    val topBarBackdrop = rememberLayerBackdrop()
     Scaffold(
+        containerColor = colorScheme.surface,
         topBar = {
             EllaSmallTopAppBar(
+                enableProgressiveBlur = true,
+                backdrop = topBarBackdrop,
                 title = stringResource(R.string.about),
                 scrollBehavior = scrollBehavior,
                 color = colorScheme.surface.copy(alpha = scrollProgress.coerceIn(0f, 1f)),
                 titleColor = colorScheme.onSurface.copy(alpha = scrollProgress),
-                defaultWindowInsetsPadding = false,
+                defaultWindowInsetsPadding = true,
+                centeredTitle = true,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -122,15 +136,17 @@ fun AboutScreen(
             )
         },
     ) { innerPadding ->
-        AboutContent(
-            padding = PaddingValues(top = innerPadding.calculateTopPadding()),
-            scrollBehavior = scrollBehavior,
-            scrollProgress = scrollProgress,
-            lazyListState = lazyListState,
-            onLogoHeightChanged = { logoHeightPx = it },
-            updateState = updateState,
-            onNavigateToUpdate = onNavigateToUpdate,
-        )
+        Box(Modifier.fillMaxSize().layerBackdrop(topBarBackdrop)) {
+            AboutContent(
+                padding = innerPadding,
+                scrollBehavior = scrollBehavior,
+                scrollProgress = scrollProgress,
+                lazyListState = lazyListState,
+                onLogoHeightChanged = { logoHeightPx = it },
+                updateState = updateState,
+                onNavigateToUpdate = onNavigateToUpdate,
+            )
+        }
     }
 }
 
@@ -150,6 +166,7 @@ private fun AboutContent(
     val shaderSupported = remember { isRuntimeShaderSupported() }
     val uriHandler = LocalUriHandler.current
 
+    val layoutDirection = LocalLayoutDirection.current
     val density = LocalDensity.current
     var logoHeightDp by remember { mutableStateOf(300.dp) }
     val logoLiftPx = with(density) { 96.dp.toPx() }
@@ -158,14 +175,20 @@ private fun AboutContent(
 
     val titleBlend = remember(isDark) { aboutTitleBlendColors(isDark) }
 
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val bgEffectVersion by settingsManager.bgEffectVersion.collectAsState(initial = settingsManager.defaultBgEffectVersion)
+    val isOs1 = bgEffectVersion == SettingsManager.BG_EFFECT_OS1
+    val effectiveBlurEnable = blurEnable && !isOs1
     val cardBlendColors = remember(isDark) { aboutCardBlendColors(isDark) }
 
     BgEffectBackground(
-        dynamicBackground = true,
+        dynamicBackground = !isOs1,
         modifier = Modifier.fillMaxSize(),
         bgModifier = Modifier.layerBackdrop(backdrop),
-        effectBackground = true,
+        effectBackground = !isOs1,
         isDarkTheme = isDark,
+        isOs3 = bgEffectVersion == SettingsManager.BG_EFFECT_OS3,
         alpha = {
             val fade = 1f - scrollProgress
             fade
@@ -178,15 +201,25 @@ private fun AboutContent(
                     alpha = (1f - scrollProgress * 1.35f).coerceIn(0f, 1f)
                     translationY = -logoLiftPx * scrollProgress
                 }
-                .padding(top = padding.calculateTopPadding() + heroTopPadding)
+                .padding(
+                    start = padding.calculateStartPadding(layoutDirection),
+                    end = padding.calculateEndPadding(layoutDirection),
+                    top = padding.calculateTopPadding() + heroTopPadding
+                )
                 .onSizeChanged { size -> with(density) { logoHeightDp = size.height.toDp() } },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Image(
+                painter = painterResource(R.drawable.ic_about_hero),
+                contentDescription = null,
+                modifier = Modifier.size(128.dp)
+            )
+            Spacer(Modifier.height(20.dp))
             Text(
                 modifier = Modifier
                     .padding(top = 0.dp, bottom = 5.dp)
                     .then(
-                        if (blurEnable) Modifier.textureBlur(
+                        if (effectiveBlurEnable) Modifier.textureBlur(
                             backdrop = backdrop,
                             shape = RoundedCornerShape(16.dp),
                             blurRadius = 150f,
@@ -217,7 +250,7 @@ private fun AboutContent(
                 .scrollEndHaptic()
                 .overScrollVertical()
                 .nestedScroll(scrollBehavior.nestedScrollConnection),
-            contentPadding = PaddingValues(top = padding.calculateTopPadding()),
+            contentPadding = padding,
             overscrollEffect = null,
         ) {
             item(key = "logoSpacer") {
@@ -231,7 +264,12 @@ private fun AboutContent(
 
             item {
                 SmallTitle(text = stringResource(R.string.about_project))
-                FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
+                FrostedCard(backdrop = backdrop, blurEnable = effectiveBlurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
+                    BasicComponent(
+                        title = stringResource(R.string.about_github_project),
+                        summary = stringResource(R.string.about_github_project_summary),
+                        onClick = { uriHandler.openUri("https://github.com/Kifranei/Halcyon") },
+                    )
                     BasicComponent(
                         title = when {
                             updateState is UpdateUiState.Ready && updateState.hasUpdate ->
@@ -269,7 +307,7 @@ private fun AboutContent(
 
             item {
                 SmallTitle(text = stringResource(R.string.about_acknowledgements))
-                FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
+                FrostedCard(backdrop = backdrop, blurEnable = effectiveBlurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
                     BasicComponent(
                         title = "BetterLyrics",
                         summary = stringResource(R.string.about_summary_betterlyrics),
@@ -286,6 +324,11 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://github.com/pxeemo/LySy") },
                     )
                     BasicComponent(
+                        title = "LunaBeat",
+                        summary = stringResource(R.string.about_summary_lunabeat),
+                        onClick = { uriHandler.openUri("https://github.com/2755337087/LunaBeat") },
+                    )
+                    BasicComponent(
                         title = stringResource(R.string.about_title_lightcone),
                         summary = stringResource(R.string.about_summary_lightcone),
                         onClick = { uriHandler.openUri("https://coneplayer.trantor.ink/") },
@@ -295,7 +338,7 @@ private fun AboutContent(
 
             item {
                 SmallTitle(text = stringResource(R.string.about_open_source_projects))
-                FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
+                FrostedCard(backdrop = backdrop, blurEnable = effectiveBlurEnable, cardBlendColors = cardBlendColors, scrollProgress = scrollProgress) {
                     BasicComponent(
                         title = "Miuix",
                         summary = stringResource(R.string.about_summary_miuix),
@@ -366,14 +409,18 @@ private fun AboutContent(
                         summary = stringResource(R.string.about_summary_raws_music),
                         onClick = { uriHandler.openUri("https://github.com/QFDY-GZC/RawS-Music") },
                     )
+                    BasicComponent(
+                        title = "CatClawMusic · NetEase Plugin",
+                        summary = "MIT · kankejiang",
+                        onClick = { uriHandler.openUri("https://github.com/kankejiang/CatClawMusic.Plugins.Netease") },
+                    )
                 }
             }
 
             item {
                 Spacer(
                     Modifier
-                        .height(160.dp)
-                        .navigationBarsPadding()
+                        .height(32.dp)
                 )
             }
         }
@@ -405,14 +452,12 @@ private fun FrostedCard(
                 ) else Modifier
             ),
         colors = CardDefaults.defaultColors(
-            if (blurEnable) {
+            color = if (blurEnable) {
                 Color.Transparent
-            } else if (isDark) {
-                aboutCardFallbackColor(isDark).copy(alpha = 0.86f + 0.08f * scrollProgress.coerceIn(0f, 1f))
             } else {
                 colorScheme.surfaceContainer
             },
-            colorScheme.onSurface,
+            contentColor = colorScheme.onSurface,
         ),
     ) {
         content()

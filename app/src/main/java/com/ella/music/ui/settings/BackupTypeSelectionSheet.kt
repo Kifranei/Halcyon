@@ -35,13 +35,17 @@ import com.ella.music.ui.components.EllaMiuixSheetActions
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 enum class BackupType(val titleRes: Int, val summaryRes: Int) {
     Personalization(
         titleRes = R.string.settings_backup_type_personalization,
         summaryRes = R.string.settings_backup_type_personalization_summary
+    ),
+    WallpapersAndImages(
+        titleRes = R.string.settings_backup_type_wallpapers_and_images,
+        summaryRes = R.string.settings_backup_type_wallpapers_and_images_summary
     ),
     LibraryAndScan(
         titleRes = R.string.settings_backup_type_library_scan,
@@ -70,6 +74,10 @@ enum class BackupType(val titleRes: Int, val summaryRes: Int) {
     OnlineSources(
         titleRes = R.string.settings_backup_type_online_sources,
         summaryRes = R.string.settings_backup_type_online_sources_summary
+    ),
+    Fonts(
+        titleRes = R.string.settings_backup_type_fonts,
+        summaryRes = R.string.settings_backup_type_fonts_summary
     )
 }
 
@@ -224,7 +232,7 @@ private fun BackupTypeCheckbox(
     ) {
         if (checked) {
             Icon(
-                imageVector = MiuixIcons.Basic.Check,
+                imageVector = MiuixIcons.Regular.Ok,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(16.dp)

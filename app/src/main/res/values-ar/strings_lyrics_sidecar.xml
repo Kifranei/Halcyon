@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">الحفظ في</string>
+    <string name="lyric_sidecar_destination_embedded">الكتابة في ملف الأغنية</string>
+    <string name="lyric_sidecar_destination_lrc">حفظ كملف ‎.LRC خارجي</string>
+    <string name="lyric_sidecar_destination_ttml">حفظ كملف ‎.TTML خارجي</string>
+    <string name="lyric_sidecar_destination_hint">يُحفظ كملف كلمات بالاسم نفسه في مجلد الأغنية. لا يتم تعديل الملف الصوتي، لذا يبقى تاريخ التعديل كما هو.</string>
+    <string name="lyric_sidecar_save_lrc">حفظ ملف كلمات ‎.LRC</string>
+    <string name="lyric_sidecar_save_ttml">حفظ ملف كلمات ‎.TTML</string>
+    <string name="lyric_sidecar_saved">تم الحفظ: %1$s</string>
+    <string name="lyric_sidecar_no_write_access">تعذّر حفظ الكلمات الخارجية: لا يوجد إذن كتابة لهذا المجلد. امنح إذن الوصول إلى جميع الملفات، أو أضف المجلد عبر منتقي المجلدات في إعدادات الفحص.</string>
+    <string name="lyric_sidecar_convert_failed">تعذّر إنشاء الكلمات بالتنسيق المحدد</string>
+</resources>

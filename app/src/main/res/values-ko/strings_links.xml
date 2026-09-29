@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">웹</string>
+    <string name="netease_link_target_app">NetEase Cloud Music</string>
+    <string name="netease_link_target_honor">NetEase Cloud Music (Honor 에디션)</string>
+    <string name="netease_link_target_custom">사용자 지정</string>
+    <string name="netease_link_open_failed">링크를 열 수 없습니다</string>
+    <string name="netease_link_song_comments">곡 댓글</string>
+    <string name="netease_link_artist_wiki">아티스트 위키</string>
+    <string name="netease_link_mv_open_mode">NetEase MV 열기 방식</string>
+    <string name="netease_link_mv_open_mode_summary">곡에 NetEase MV 정보가 있으면 내장 플레이어로 재생할지 외부에서 열지 선택합니다</string>
+    <string name="netease_link_mv_open_internal">내장 플레이어</string>
+    <string name="netease_link_mv_open_external">외부에서 열기 (NetEase 링크 설정 사용)</string>
+    <string name="netease_link_target">NetEase 링크 대상</string>
+    <string name="netease_link_target_summary">163 key의 곡, 아티스트, 앨범, MV 링크를 웹 또는 NetEase 앱에서 엽니다</string>
+    <string name="netease_link_kind_song">곡</string>
+    <string name="netease_link_kind_artist">아티스트</string>
+    <string name="netease_link_kind_album">앨범</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">ID 앞의 링크를 입력하거나 {id}로 ID 위치를 표시하세요. 비워 두면 %1$s 사용</string>
+</resources>

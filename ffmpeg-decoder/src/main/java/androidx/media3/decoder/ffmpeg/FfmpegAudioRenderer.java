@@ -83,8 +83,23 @@ public final class FfmpegAudioRenderer extends DecoderAudioRenderer<FfmpegAudioD
       @Nullable Handler eventHandler,
       @Nullable AudioRendererEventListener eventListener,
       AudioSink audioSink) {
-    super(eventHandler, eventListener, audioSink);
+    this(eventHandler, eventListener, audioSink, /* onlyMimeTypes= */ null);
   }
+
+  /**
+   * Creates an instance that only claims the given sample MIME types (for example an MP3-only
+   * renderer placed ahead of MediaCodec), leaving every other format to the next renderer.
+   */
+  public FfmpegAudioRenderer(
+      @Nullable Handler eventHandler,
+      @Nullable AudioRendererEventListener eventListener,
+      AudioSink audioSink,
+      @Nullable java.util.Set<String> onlyMimeTypes) {
+    super(eventHandler, eventListener, audioSink);
+    this.onlyMimeTypes = onlyMimeTypes;
+  }
+
+  @Nullable private final java.util.Set<String> onlyMimeTypes;
 
   @Override
   public String getName() {
@@ -94,7 +109,9 @@ public final class FfmpegAudioRenderer extends DecoderAudioRenderer<FfmpegAudioD
   @Override
   protected @C.FormatSupport int supportsFormatInternal(Format format) {
     String mimeType = checkNotNull(format.sampleMimeType);
-    if (!FfmpegLibrary.isAvailable() || !MimeTypes.isAudio(mimeType)) {
+    if (!FfmpegLibrary.isAvailable()
+        || !MimeTypes.isAudio(mimeType)
+        || (onlyMimeTypes != null && !onlyMimeTypes.contains(mimeType))) {
       return C.FORMAT_UNSUPPORTED_TYPE;
     } else if (!FfmpegLibrary.supportsFormat(mimeType)
         || (!sinkSupportsFormat(format, C.ENCODING_PCM_16BIT)

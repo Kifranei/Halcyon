@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">Animation de mise à l’échelle de la forme d’onde</string>
+    <string name="player_waveform_scale_animation_summary">Redimensionner la forme d’onde lors de la pause, d’un appui ou d’un glissement sur la barre de progression</string>
+    <string name="player_waveform_density">Densité de la forme d’onde</string>
+    <string name="player_waveform_density_summary">Ajuster le nombre et l’espacement des barres de la forme d’onde</string>
+    <string name="player_waveform_peak_height">Hauteur des crêtes de la forme d’onde</string>
+    <string name="player_waveform_peak_height_summary">Ajuster la hauteur maximale des barres de la forme d’onde</string>
+</resources>

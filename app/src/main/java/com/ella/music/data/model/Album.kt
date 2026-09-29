@@ -1,5 +1,8 @@
 package com.ella.music.data.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Album(
     val id: Long,
     val name: String,

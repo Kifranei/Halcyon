@@ -2,6 +2,9 @@ package com.ella.music.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
+import com.ella.music.data.sanitizeExportFileName
+import com.ella.music.data.ArtistCoverRepository
 import com.ella.music.R
 import java.io.File
 import java.security.MessageDigest
@@ -50,6 +53,7 @@ internal object ArtistImageRepository {
     private var spotifyAccessTokenExpiresAt: Long = 0L
 
     suspend fun clearDownloadedCache(context: Context) = withContext(Dispatchers.IO) {
+        File(context.getExternalFilesDir(null) ?: context.filesDir, CACHE_DIRECTORY).deleteRecursively()
         // Current downloads live in filesDir so they survive the platform cache eviction. Also
         // remove the old cacheDir location for installations upgraded from the earlier build.
         File(context.filesDir, CACHE_DIRECTORY).deleteRecursively()
@@ -67,7 +71,9 @@ internal object ArtistImageRepository {
         lastFmApiKey: String,
         lastFmRegion: String,
         spotifyClientId: String,
-        spotifyClientSecret: String
+        spotifyClientSecret: String,
+        downloadFolderUri: String = "",
+        customFolderUri: String = ""
     ): Uri? = resolveDetailed(
         context,
         artistName,
@@ -75,8 +81,79 @@ internal object ArtistImageRepository {
         lastFmApiKey,
         lastFmRegion,
         spotifyClientId,
-        spotifyClientSecret
+        spotifyClientSecret,
+        downloadFolderUri,
+        customFolderUri
     )?.uri
+
+    suspend fun findCached(
+        context: Context,
+        artistName: String,
+        sourceOrder: List<String>,
+        lastFmRegion: String,
+        spotifyClientId: String,
+        downloadFolderUri: String = "",
+        customFolderUri: String = ""
+    ): ResolvedArtistImage? = withContext(Dispatchers.IO) {
+        val normalizedArtist = artistName.trim()
+        if (normalizedArtist.isBlank()) return@withContext null
+        val safeName = normalizedArtist.sanitizeExportFileName(fallback = "artist")
+
+        // 1. Check custom / download folder if configured
+        val targetFolder = artistImageDownloadFolder(downloadFolderUri, customFolderUri)
+        if (targetFolder.isNotBlank()) {
+            if (targetFolder.startsWith("content://", ignoreCase = true)) {
+                runCatching {
+                    val treeUri = Uri.parse(targetFolder)
+                    DocumentFile.fromTreeUri(context, treeUri)?.let { root ->
+                        for (ext in listOf("png", "jpg", "jpeg", "webp")) {
+                            root.findFile("$safeName.$ext")?.takeIf { it.isFile && it.length() > 0L }?.let { doc ->
+                                return@withContext ResolvedArtistImage(doc.uri, "")
+                            }
+                        }
+                    }
+                }
+            } else {
+                val dir = File(targetFolder.removePrefix("file://"))
+                if (dir.isDirectory) {
+                    for (ext in listOf("png", "jpg", "jpeg", "webp")) {
+                        val f = File(dir, "$safeName.$ext")
+                        if (f.isFile && f.length() > 0L) {
+                            return@withContext ResolvedArtistImage(Uri.fromFile(f), "")
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. App-specific external files, migrated from the previous private/cache paths.
+        val internalDir = downloadDirectory(context)
+        if (internalDir.isDirectory) {
+            for (ext in listOf("png", "jpg", "jpeg", "webp")) {
+                val f = File(internalDir, "$safeName.$ext")
+                if (f.isFile && f.length() > 0L) {
+                    return@withContext ResolvedArtistImage(Uri.fromFile(f), readCachedSource(f) ?: "")
+                }
+            }
+            // Check legacy cacheKey.jpg and auto-migrate to safeName.jpg
+            val sources = SettingsManager.normalizeArtistImageSources(sourceOrder)
+            val cacheKey = artistImageCacheKey(
+                artistName = normalizedArtist,
+                sourceOrder = sources,
+                regionCode = lastFmRegion,
+                spotifyClientId = spotifyClientId
+            )
+            val legacy = File(internalDir, "$cacheKey.jpg")
+            if (legacy.isFile && legacy.length() > 0L) {
+                val migrated = File(internalDir, "$safeName.jpg")
+                if (!migrated.exists()) legacy.renameTo(migrated)
+                val finalFile = if (migrated.isFile) migrated else legacy
+                return@withContext ResolvedArtistImage(Uri.fromFile(finalFile), readCachedSource(finalFile) ?: "")
+            }
+        }
+
+        null
+    }
 
     suspend fun resolveDetailed(
         context: Context,
@@ -85,25 +162,42 @@ internal object ArtistImageRepository {
         lastFmApiKey: String,
         lastFmRegion: String,
         spotifyClientId: String,
-        spotifyClientSecret: String
+        spotifyClientSecret: String,
+        downloadFolderUri: String = "",
+        customFolderUri: String = ""
     ): ResolvedArtistImage? = withContext(Dispatchers.IO) {
         val normalizedArtist = artistName.trim()
         if (normalizedArtist.isBlank()) return@withContext null
         val sources = SettingsManager.normalizeArtistImageSources(sourceOrder)
-        // Source order and region are part of the cache identity.  Otherwise changing the
-        // priority in settings would keep returning an image downloaded under the old policy.
         val cacheKey = artistImageCacheKey(
             artistName = normalizedArtist,
             sourceOrder = sources,
             regionCode = lastFmRegion,
             spotifyClientId = spotifyClientId
         )
-        val target = cacheFile(context, cacheKey)
+
+        findCached(
+            context = context,
+            artistName = normalizedArtist,
+            sourceOrder = sources,
+            lastFmRegion = lastFmRegion,
+            spotifyClientId = spotifyClientId,
+            downloadFolderUri = downloadFolderUri,
+            customFolderUri = customFolderUri
+        )?.let { return@withContext it }
+
         val lock = artistLocks.getOrPut(cacheKey) { Mutex() }
         lock.withLock {
-            cachedUri(target)?.let { uri ->
-                return@withLock ResolvedArtistImage(uri, readCachedSource(target) ?: "")
-            }
+            findCached(
+                context = context,
+                artistName = normalizedArtist,
+                sourceOrder = sources,
+                lastFmRegion = lastFmRegion,
+                spotifyClientId = spotifyClientId,
+                downloadFolderUri = downloadFolderUri,
+                customFolderUri = customFolderUri
+            )?.let { return@withLock it }
+
             val now = System.currentTimeMillis()
             if (now - (failedLookups[cacheKey] ?: 0L) < FAILED_LOOKUP_TTL_MS) {
                 return@withLock null
@@ -125,6 +219,9 @@ internal object ArtistImageRepository {
                                 marketCode = spotifyMarketForLastFmRegion(lastFmRegion)
                             )
                             SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE -> fetchNeteaseArtistImage(normalizedArtist)
+                            SettingsManager.ARTIST_IMAGE_SOURCE_KUGOU -> fetchChineseArtistImage(client, normalizedArtist, false)
+                            SettingsManager.ARTIST_IMAGE_SOURCE_QQ -> fetchChineseArtistImage(client, normalizedArtist, true)
+                            SettingsManager.ARTIST_IMAGE_SOURCE_KUWO -> fetchKuwoArtistImage(client, normalizedArtist)
                             else -> null
                         }
                     }
@@ -132,9 +229,15 @@ internal object ArtistImageRepository {
                     null
                 }
                 val usableImageUrl = imageUrl?.takeIf(::isUsableArtistImageUrl) ?: continue
-                if (downloadImage(usableImageUrl, target)) {
-                    writeCachedSource(target, source)
-                    resolved = ResolvedArtistImage(Uri.fromFile(target), source)
+                resolved = saveDownloadedArtistImage(
+                    context = context,
+                    artistName = normalizedArtist,
+                    source = source,
+                    imageUrl = usableImageUrl,
+                    downloadFolderUri = downloadFolderUri,
+                    customFolderUri = customFolderUri
+                )
+                if (resolved != null) {
                     break
                 }
             }
@@ -143,11 +246,99 @@ internal object ArtistImageRepository {
         }
     }
 
-    private fun cacheFile(context: Context, cacheKey: String): File =
-        File(File(context.filesDir, CACHE_DIRECTORY), "$cacheKey.jpg")
+    private fun ensureNoMedia(folder: DocumentFile) {
+        runCatching {
+            if (folder.findFile(".nomedia") == null) {
+                folder.createFile("application/octet-stream", ".nomedia")
+            }
+        }
+    }
 
-    private fun cachedUri(file: File): Uri? =
-        file.takeIf { it.isFile && it.length() > 0L }?.let(Uri::fromFile)
+    private fun ensureNoMedia(folder: File) {
+        runCatching {
+            if (!folder.exists()) folder.mkdirs()
+            val file = File(folder, ".nomedia")
+            if (!file.exists()) file.createNewFile()
+        }
+    }
+
+    private fun isPngImage(file: File, url: String): Boolean {
+        if (url.substringBefore('?').endsWith(".png", ignoreCase = true)) return true
+        return runCatching {
+            file.inputStream().use { stream ->
+                val header = ByteArray(8)
+                val read = stream.read(header)
+                read == 8 &&
+                    header[0] == 0x89.toByte() &&
+                    header[1] == 0x50.toByte() &&
+                    header[2] == 0x4E.toByte() &&
+                    header[3] == 0x47.toByte()
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun saveDownloadedArtistImage(
+        context: Context,
+        artistName: String,
+        source: String,
+        imageUrl: String,
+        downloadFolderUri: String,
+        customFolderUri: String
+    ): ResolvedArtistImage? {
+        val tempFile = File(context.cacheDir, "artist_dl_${System.currentTimeMillis()}.tmp")
+        val downloaded = downloadImage(imageUrl, tempFile)
+        if (!downloaded || !tempFile.isFile || tempFile.length() <= 0L) {
+            tempFile.delete()
+            return null
+        }
+
+        val isPng = isPngImage(tempFile, imageUrl)
+        val ext = if (isPng) "png" else "jpg"
+        val mimeType = if (isPng) "image/png" else "image/jpeg"
+        val safeName = artistName.sanitizeExportFileName(fallback = "artist")
+        val targetFileName = "$safeName.$ext"
+        val targetFolder = artistImageDownloadFolder(downloadFolderUri, customFolderUri)
+
+        return try {
+            if (targetFolder.isNotBlank()) {
+                if (targetFolder.startsWith("content://", ignoreCase = true)) {
+                    val root = DocumentFile.fromTreeUri(context, Uri.parse(targetFolder))
+                    if (root != null && root.canWrite()) {
+                        ensureNoMedia(root)
+                        val existing = root.findFile(targetFileName)
+                        val docFile = existing ?: root.createFile(mimeType, targetFileName)
+                        if (docFile != null) {
+                            context.contentResolver.openOutputStream(docFile.uri, "wt")?.use { out ->
+                                tempFile.inputStream().use { input -> input.copyTo(out) }
+                            }
+                            ArtistCoverRepository.getInstance(context).clearCache()
+                            ResolvedArtistImage(docFile.uri, source)
+                        } else null
+                    } else null
+                } else {
+                    val dir = File(targetFolder.removePrefix("file://"))
+                    if (!dir.exists()) dir.mkdirs()
+                    ensureNoMedia(dir)
+                    val targetFile = File(dir, targetFileName)
+                    if (tempFile.renameTo(targetFile) || runCatching { tempFile.copyTo(targetFile, overwrite = true); tempFile.delete(); true }.getOrDefault(false)) {
+                        ArtistCoverRepository.getInstance(context).clearCache()
+                        ResolvedArtistImage(Uri.fromFile(targetFile), source)
+                    } else null
+                }
+            } else {
+                val dir = downloadDirectory(context)
+                if (!dir.exists()) dir.mkdirs()
+                ensureNoMedia(dir)
+                val targetFile = File(dir, targetFileName)
+                if (tempFile.renameTo(targetFile) || runCatching { tempFile.copyTo(targetFile, overwrite = true); tempFile.delete(); true }.getOrDefault(false)) {
+                    writeCachedSource(targetFile, source)
+                    ResolvedArtistImage(Uri.fromFile(targetFile), source)
+                } else null
+            }
+        } finally {
+            if (tempFile.exists()) tempFile.delete()
+        }
+    }
 
     private fun sourceFile(imageFile: File): File = File(imageFile.parentFile, "${imageFile.name}.source")
 
@@ -164,6 +355,9 @@ internal object ArtistImageRepository {
         SettingsManager.ARTIST_IMAGE_SOURCE_LASTFM -> R.string.artist_image_source_lastfm
         SettingsManager.ARTIST_IMAGE_SOURCE_SPOTIFY -> R.string.artist_image_source_spotify
         SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE -> R.string.artist_image_source_netease
+        SettingsManager.ARTIST_IMAGE_SOURCE_KUGOU -> R.string.artist_image_source_kugou
+        SettingsManager.ARTIST_IMAGE_SOURCE_QQ -> R.string.artist_image_source_qq
+        SettingsManager.ARTIST_IMAGE_SOURCE_KUWO -> R.string.artist_image_source_kuwo
         else -> null
     }
 
@@ -321,9 +515,7 @@ internal object ArtistImageRepository {
         regionCode: String,
         spotifyClientId: String
     ): String {
-        val normalizedArtist = normalizeArtistCoverKey(artistName).ifBlank {
-            artistName.trim().lowercase(Locale.ROOT)
-        }
+        val normalizedArtist = normalizeArtistCoverKey(artistName, ignoreCase = false).ifBlank { artistName.trim() }
         val normalized = listOf(
             normalizedArtist,
             sourceOrder.joinToString(","),
@@ -335,4 +527,30 @@ internal object ArtistImageRepository {
             .joinToString("") { byte -> "%02x".format(Locale.ROOT, byte) }
     }
 
+    private val migratedDirectories = mutableSetOf<String>()
+
+    @Synchronized internal fun downloadDirectory(context: Context): File {
+        val target = File(context.getExternalFilesDir(null) ?: context.filesDir, CACHE_DIRECTORY)
+        if (target.absolutePath in migratedDirectories) return target
+        if (!target.exists() && !target.mkdirs()) return File(context.filesDir, CACHE_DIRECTORY)
+        var complete = true
+        for (old in listOf(File(context.filesDir, CACHE_DIRECTORY), File(context.cacheDir, CACHE_DIRECTORY))) {
+            if (old.absolutePath == target.absolutePath) continue
+            old.listFiles().orEmpty().filter { it.isFile }.forEach { file ->
+                val migrated = File(target, file.name)
+                val success = runCatching {
+                    if (!migrated.exists()) file.copyTo(migrated)
+                    if (migrated.length() == file.length()) file.delete() else false
+                }.getOrDefault(false)
+                if (!success) complete = false
+            }
+        }
+        ensureNoMedia(target)
+        if (complete) migratedDirectories += target.absolutePath
+        return target
+    }
 }
+
+internal const val ARTIST_IMAGE_INTERNAL_STORAGE = "app-internal"
+internal fun artistImageDownloadFolder(downloadFolder: String, coverFolder: String): String =
+    if (downloadFolder == ARTIST_IMAGE_INTERNAL_STORAGE) "" else downloadFolder.trim().ifBlank { coverFolder.trim() }

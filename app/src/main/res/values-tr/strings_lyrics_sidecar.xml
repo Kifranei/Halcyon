@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">Kaydetme yeri</string>
+    <string name="lyric_sidecar_destination_embedded">Şarkı dosyasına yaz</string>
+    <string name="lyric_sidecar_destination_lrc">Harici .LRC olarak kaydet</string>
+    <string name="lyric_sidecar_destination_ttml">Harici .TTML olarak kaydet</string>
+    <string name="lyric_sidecar_destination_hint">Şarkının klasörüne aynı adlı bir şarkı sözü dosyası olarak kaydedilir. Ses dosyası değiştirilmez, bu nedenle değiştirilme tarihi korunur.</string>
+    <string name="lyric_sidecar_save_lrc">.LRC şarkı sözü dosyasını kaydet</string>
+    <string name="lyric_sidecar_save_ttml">.TTML şarkı sözü dosyasını kaydet</string>
+    <string name="lyric_sidecar_saved">Kaydedildi: %1$s</string>
+    <string name="lyric_sidecar_no_write_access">Harici şarkı sözleri kaydedilemiyor: bu klasöre yazma izni yok. Tüm dosyalara erişim izni verin veya klasörü tarama ayarlarındaki klasör seçiciyle ekleyin.</string>
+    <string name="lyric_sidecar_convert_failed">Seçilen biçimde şarkı sözü oluşturulamadı</string>
+</resources>

@@ -1,4 +1,4 @@
-package com.ella.music.player
+﻿package com.ella.music.player
 
 import java.nio.ByteBuffer
 
@@ -8,6 +8,9 @@ import java.nio.ByteBuffer
  *
  * PCM [encoding] ids: 0 = 16-bit, 1 = 24-bit packed, 2 = 32-bit, 3 = float32.
  * [audioApi] ids: 0 = unspecified, 1 = AAudio, 2 = OpenSL ES.
+ *
+ * When [exclusive] is true, native open **fails** unless the HAL actually grants
+ * [oboe::SharingMode::Exclusive] (no silent Shared fallback).
  */
 class OboeAudioOutput {
 
@@ -27,6 +30,10 @@ class OboeAudioOutput {
     }
 
     val isOpen: Boolean get() = handle != 0L
+
+    /** True only when the live stream is actually Exclusive (not Shared). */
+    val isExclusive: Boolean
+        get() = handle != 0L && nativeIsExclusive(handle)
 
     /** Blocking write of a direct [buffer] region; returns bytes consumed, -1 on error, -2 on disconnect. */
     fun write(buffer: ByteBuffer, offset: Int, length: Int, timeoutNanos: Long): Int =
@@ -50,6 +57,7 @@ class OboeAudioOutput {
     private external fun nativeOpen(
         audioApi: Int, sampleRate: Int, channelCount: Int, encoding: Int, exclusive: Boolean, deviceId: Int
     ): Long
+    private external fun nativeIsExclusive(handle: Long): Boolean
     private external fun nativeWrite(handle: Long, buffer: ByteBuffer, offset: Int, length: Int, timeoutNanos: Long): Int
     private external fun nativeGetFramesRead(handle: Long): Long
     private external fun nativeGetSampleRate(handle: Long): Int

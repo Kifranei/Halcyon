@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">Visualizer height</string>
+    <string name="player_visualizer_height_summary">Height of the player visualizer; the default matches the flow curve</string>
+    <string name="player_visualizer_style_cover_overlay">Cover overlay</string>
+</resources>

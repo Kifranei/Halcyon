@@ -9,6 +9,11 @@ import java.io.File
 
 class AppIconManagerTest {
     @Test
+    fun `removed black hair preference migrates to default icon`() {
+        assertEquals(SettingsManager.APP_ICON_STYLE_DEFAULT, AppIconManager.normalize("black_hair"))
+    }
+
+    @Test
     fun `launcher alias stays in source namespace after application id changes`() {
         assertEquals(
             "com.ella.music.DefaultLauncherAlias",

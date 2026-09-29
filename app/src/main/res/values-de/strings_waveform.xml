@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">Wellenform-Skalierungsanimation</string>
+    <string name="player_waveform_scale_animation_summary">Wellenform beim Pausieren, Tippen oder Ziehen der Fortschrittsleiste skalieren</string>
+    <string name="player_waveform_density">Wellenformdichte</string>
+    <string name="player_waveform_density_summary">Anzahl und Abstand der Wellenformbalken anpassen</string>
+    <string name="player_waveform_peak_height">Wellenform-Spitzenhöhe</string>
+    <string name="player_waveform_peak_height_summary">Maximale Höhe der Wellenformbalken anpassen</string>
+</resources>

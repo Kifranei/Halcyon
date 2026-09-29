@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cross-version install notice -->
+    <string name="app_upgrade_title_unknown">Update von einer älteren Version erkannt</string>
+    <string name="app_upgrade_title">Update von einer älteren Version (%1$s) erkannt</string>
+    <string name="app_upgrade_message">Aktuelle Version: %1$s. Einstellungen und Daten aus älteren Versionen sind möglicherweise nicht mit dieser Version kompatibel und können unerwartete Fehler verursachen, die im normalen Gebrauch nicht auftreten. Es wird empfohlen, die App-Daten zu löschen und mit einer sauberen Installation fortzufahren.\n\nDie Daten werden in den System-App-Infos unter Speicher gelöscht. Um nur die Einstellungen zurückzusetzen, kannst du auch Einstellungen › Wartung › Standardkonfiguration wiederherstellen verwenden (Titel, Playlists und Hörverlauf bleiben erhalten).\n\nBitte stelle beim Melden eines Problems sicher, dass es in einer sauberen Installation der neuesten Version mit gelöschten Daten auftritt und nicht nach einer Überinstallation einer älteren Version ohne Löschen der Daten.</string>
+    <string name="app_upgrade_clear_data">Daten löschen</string>
+    <string name="app_upgrade_later">Nicht jetzt</string>
+    <string name="app_upgrade_clear_data_hint">Öffne Speicher und wähle Daten löschen</string>
+
+    <!-- Backup restore compatibility check -->
+    <string name="backup_compat_title">Backup-Einstellungen weichen von dieser Version ab</string>
+    <string name="backup_compat_from_older">Dieses Backup stammt von einer älteren Version (%1$s), aktuell ist %2$s installiert.</string>
+    <string name="backup_compat_from_older_unknown">Dieses Backup stammt von einer älteren Version, aktuell ist %1$s installiert.</string>
+    <string name="backup_compat_from_newer">Dieses Backup stammt von einer neueren Version (%1$s), aktuell ist %2$s installiert.</string>
+    <string name="backup_compat_same_version">Die Einstellungen in diesem Backup passen nicht zur Struktur der aktuellen Version (%1$s).</string>
+    <string name="backup_compat_details">Gefunden: %1$d nicht mehr vorhandene Einstellungen, %2$d neue Einstellungen und %3$d Einstellungen mit geändertem Format. Eine Neukonfiguration wird empfohlen. Bei Neu konfigurieren werden die Einstellungen übersprungen; Playlists, Hörverlauf und andere ausgewählte Inhalte werden weiterhin wiederhergestellt.</string>
+    <string name="backup_compat_details_legacy">Gefunden: %1$d nicht mehr vorhandene Einstellungen und %2$d Einstellungen mit geändertem Format. Dieses ältere Backup enthält keine Einstellungsliste, daher können neue Einstellungen nicht gezählt werden. Eine Neukonfiguration wird empfohlen. Bei Neu konfigurieren werden die Einstellungen übersprungen; Playlists, Hörverlauf und andere ausgewählte Inhalte werden weiterhin wiederhergestellt.</string>
+    <string name="backup_compat_reconfigure">Neu konfigurieren (ohne Einstellungen)</string>
+    <string name="backup_compat_restore_anyway">Trotzdem wiederherstellen</string>
+</resources>

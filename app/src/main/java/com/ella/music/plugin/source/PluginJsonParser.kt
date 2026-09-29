@@ -172,7 +172,7 @@ class PluginJsonParser(
             tags = tags,
             original = original,
             translated = obj.array("translated", "translation", "translations").parseTextLines().takeIf { it.isNotEmpty() },
-            romanization = obj.array("romanization", "romanized", "roma").parseTextLines().takeIf { it.isNotEmpty() }
+            romanization = obj.array("romanization", "romanized", "roma").parseWordLines().takeIf { it.isNotEmpty() }
         )
     }
 }
@@ -198,17 +198,31 @@ fun PluginLyricsResult.toEmbeddedLyricsText(
     directRawFor(format, options)?.let { raw ->
         return if (format == PluginLyricsRenderFormat.TTML) raw.trim() else raw.stripLrcMetadataTags()
     }
-    val lines = toLyricLines()
-    if (lines.isEmpty()) return ""
+    return toLyricLines().renderLyricsText(format, options, tags)
+}
+
+/**
+ * Renders already-parsed [LyricLine]s with the same LRC/TTML writers used by
+ * [toEmbeddedLyricsText], so external sidecar files and embedded tags share one output format.
+ */
+internal fun List<LyricLine>.renderLyricsText(
+    format: PluginLyricsRenderFormat,
+    options: PluginLyricsRenderOptions = PluginLyricsRenderOptions(),
+    tags: Map<String, String> = emptyMap()
+): String {
+    if (isEmpty()) return ""
     val rendered = when (format) {
-        PluginLyricsRenderFormat.TTML -> lines.renderTtml(tags, options)
-        PluginLyricsRenderFormat.WORD_LRC -> lines.renderWordLrc(tags, options)
-        PluginLyricsRenderFormat.ENHANCED_LRC -> lines.renderEnhancedLrc(tags, options)
+        PluginLyricsRenderFormat.TTML -> renderTtml(tags, options)
+        PluginLyricsRenderFormat.WORD_LRC -> renderWordLrc(tags, options)
+        PluginLyricsRenderFormat.ENHANCED_LRC -> renderEnhancedLrc(tags, options)
         PluginLyricsRenderFormat.PLAIN_LRC,
-        PluginLyricsRenderFormat.AUTO -> lines.renderPlainLrc(tags, options)
+        PluginLyricsRenderFormat.AUTO -> renderPlainLrc(tags, options)
     }.trim()
     return if (format == PluginLyricsRenderFormat.TTML) rendered else rendered.stripLrcMetadataTags()
 }
+
+/** The matched result as parsed lines (structured payloads merged with translation/romanization). */
+internal fun PluginLyricsResult.exportLyricLines(): List<LyricLine> = toLyricLines()
 
 /**
  * Matches a full-line LRC ID/metadata tag such as `[ti:..]`, `[ar:..]`, `[al:..]`,

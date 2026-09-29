@@ -103,75 +103,33 @@ internal fun SongMoreTagActionSheets(
     }
 
     metadataEditorSong?.let { song ->
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = stringResource(R.string.song_more_metadata_editor_title),
-            onDismissRequest = { onMetadataEditorSongChange(null) }
-        ) {
-            SongMetadataEditorSheet(
-                song = song,
-                mainViewModel = mainViewModel,
-                onDismiss = { onMetadataEditorSongChange(null) },
-                onWritePermissionRequired = onWritePermissionRequired,
-                onSave = { tags, cover, coverChanged ->
-                    scope.launch {
-                        val result = mainViewModel.writeSongMetadata(song, tags)
-                        if (result.isSuccess) {
-                            val coverResult = if (coverChanged) {
-                                mainViewModel.writeSongEmbeddedCover(song, cover)
-                            } else {
-                                Result.success(result.getOrNull())
-                            }
-                            if (coverResult.isSuccess) {
-                                Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
-                                onMetadataEditorSongChange(null)
-                            } else {
-                                handleMetadataSaveError(
-                                    context = context,
-                                    error = coverResult.exceptionOrNull(),
-                                    onWritePermissionRequired = onWritePermissionRequired,
-                                    retry = {
-                                        val retryResult = mainViewModel.writeSongEmbeddedCover(song, cover)
-                                        if (retryResult.isSuccess) {
-                                            Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
-                                            onMetadataEditorSongChange(null)
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                retryResult.exceptionOrNull()?.localizedMessage
-                                                    ?: context.getString(R.string.song_more_metadata_save_failed),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    }
-                                )
-                            }
+        SongMetadataEditorSheet(
+            song = song,
+            mainViewModel = mainViewModel,
+            onDismiss = { onMetadataEditorSongChange(null) },
+            onWritePermissionRequired = onWritePermissionRequired,
+            onSave = { tags, cover, coverChanged ->
+                scope.launch {
+                    val result = mainViewModel.writeSongMetadata(song, tags)
+                    if (result.isSuccess) {
+                        val coverResult = if (coverChanged) {
+                            mainViewModel.writeSongEmbeddedCover(song, cover)
                         } else {
-                            val error = result.exceptionOrNull()
+                            Result.success(result.getOrNull())
+                        }
+                        if (coverResult.isSuccess) {
+                            Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
+                            onMetadataEditorSongChange(null)
+                        } else {
                             handleMetadataSaveError(
                                 context = context,
-                                error = error,
+                                error = coverResult.exceptionOrNull(),
                                 onWritePermissionRequired = onWritePermissionRequired,
                                 retry = {
-                                    val retryResult = mainViewModel.writeSongMetadata(song, tags)
+                                    val retryResult = mainViewModel.writeSongEmbeddedCover(song, cover)
                                     if (retryResult.isSuccess) {
-                                        val coverResult = if (coverChanged) {
-                                            mainViewModel.writeSongEmbeddedCover(song, cover)
-                                        } else {
-                                            Result.success(retryResult.getOrNull())
-                                        }
-                                        if (coverResult.isSuccess) {
-                                            Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
-                                            onMetadataEditorSongChange(null)
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                coverResult.exceptionOrNull()?.localizedMessage
-                                                    ?: context.getString(R.string.song_more_metadata_save_failed),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
+                                        Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
+                                        onMetadataEditorSongChange(null)
                                     } else {
                                         Toast.makeText(
                                             context,
@@ -183,10 +141,45 @@ internal fun SongMoreTagActionSheets(
                                 }
                             )
                         }
+                    } else {
+                        val error = result.exceptionOrNull()
+                        handleMetadataSaveError(
+                            context = context,
+                            error = error,
+                            onWritePermissionRequired = onWritePermissionRequired,
+                            retry = {
+                                val retryResult = mainViewModel.writeSongMetadata(song, tags)
+                                if (retryResult.isSuccess) {
+                                    val coverResult = if (coverChanged) {
+                                        mainViewModel.writeSongEmbeddedCover(song, cover)
+                                    } else {
+                                        Result.success(retryResult.getOrNull())
+                                    }
+                                    if (coverResult.isSuccess) {
+                                        Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
+                                        onMetadataEditorSongChange(null)
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            coverResult.exceptionOrNull()?.localizedMessage
+                                                ?: context.getString(R.string.song_more_metadata_save_failed),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        retryResult.exceptionOrNull()?.localizedMessage
+                                            ?: context.getString(R.string.song_more_metadata_save_failed),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        )
                     }
                 }
-            )
-        }
+            }
+        )
     }
 
     lyricTimingEditorSong?.let { song ->

@@ -2,6 +2,7 @@ package com.ella.music.ui.settings
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.webkit.MimeTypeMap
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,17 @@ internal suspend fun Context.copyCustomImageIntoApp(uri: Uri, name: String): Str
         contentResolver.openInputStream(uri)?.use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
         } ?: return@runCatching null
+        Uri.fromFile(target).toString()
+    }.getOrNull()
+}
+
+internal suspend fun Context.saveCustomBitmapIntoApp(bitmap: Bitmap, name: String): String? = withContext(Dispatchers.IO) {
+    runCatching {
+        val dir = File(filesDir, "custom_images").apply { mkdirs() }
+        val target = File(dir, "${name}_${System.currentTimeMillis()}_${System.nanoTime()}.jpg")
+        target.outputStream().use { output ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, output)
+        }
         Uri.fromFile(target).toString()
     }.getOrNull()
 }

@@ -31,6 +31,7 @@ private const val EXTRA_ONLINE_SOURCE = "ella_song_online_source"
 private const val EXTRA_ONLINE_ID = "ella_song_online_id"
 private const val EXTRA_ONLINE_LYRICS = "ella_song_online_lyrics"
 private const val EXTRA_ONLINE_LYRIC_TRANSLATION = "ella_song_online_lyric_translation"
+private const val EXTRA_ONLINE_LYRIC_PRONUNCIATION = "ella_song_online_lyric_pronunciation"
 internal const val EXTRA_PLAYBACK_SOURCE = "ella_song_playback_source"
 
 internal const val EXTRA_METADATA_PATCH_REASON = "com.ella.music.extra.METADATA_PATCH_REASON"
@@ -88,8 +89,10 @@ internal fun Song.toMediaItemExtras(): Bundle = Bundle().apply {
     )
     putString(EXTRA_ONLINE_SOURCE, onlineSource)
     putString(EXTRA_ONLINE_ID, onlineId)
+            putString("ella_online_mv_id", onlineMvId)
     putString(EXTRA_ONLINE_LYRICS, onlineLyrics)
     putString(EXTRA_ONLINE_LYRIC_TRANSLATION, onlineLyricTranslation)
+    putString(EXTRA_ONLINE_LYRIC_PRONUNCIATION, onlineLyricPronunciation)
     playbackSourceKey?.let { putString(EXTRA_PLAYBACK_SOURCE, it) }
 }
 
@@ -125,8 +128,10 @@ internal fun MediaItem.toSongFromMediaItemExtras(): Song? {
         coverUrl = extras.getString(EXTRA_COVER_URL).orEmpty(),
         onlineSource = extras.getString(EXTRA_ONLINE_SOURCE).orEmpty(),
         onlineId = extras.getString(EXTRA_ONLINE_ID).orEmpty(),
+        onlineMvId = extras.getString("ella_online_mv_id").orEmpty(),
         onlineLyrics = extras.getString(EXTRA_ONLINE_LYRICS).orEmpty(),
         onlineLyricTranslation = extras.getString(EXTRA_ONLINE_LYRIC_TRANSLATION).orEmpty(),
+        onlineLyricPronunciation = extras.getString(EXTRA_ONLINE_LYRIC_PRONUNCIATION).orEmpty(),
         playbackSourceKey = if (extras.containsKey(EXTRA_PLAYBACK_SOURCE)) {
             extras.getString(EXTRA_PLAYBACK_SOURCE).orEmpty()
         } else {

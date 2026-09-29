@@ -43,6 +43,21 @@ class OpeningLyricMetadataTest {
     }
 
     @Test
+    fun emptyLyricsStayEmptyUnlessFallbackIsEnabled() {
+        assertSame(emptyList<LyricLine>(), emptyList<LyricLine>().withOpeningMetadataLine(song, "<歌曲名>"))
+        val fallback = emptyList<LyricLine>().withOpeningMetadataLine(
+            song,
+            "<艺术家> - <歌曲名>",
+            fallbackWhenEmpty = true
+        )
+        assertEquals(1, fallback.size)
+        assertEquals("Artist - Song", fallback.first().text)
+        assertEquals(0L, fallback.first().timeMs)
+        assertEquals(180_000L, fallback.first().endMs)
+        assertEquals(true, fallback.first().isOpeningMetadata)
+    }
+
+    @Test
     fun supportsEveryDocumentedMetadataToken() {
         assertEquals(
             "Song Artist Album Rock 2026 Folder Composer Lyricist Arranger",

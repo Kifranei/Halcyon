@@ -19,6 +19,7 @@ internal object MusicVideoLauncher {
 
     fun open(context: Context, song: Song?, source: DynamicCoverSource) {
         val resolvedSong = song ?: return
+        com.ella.music.player.PlaybackService.pausePlayback()
         context.startActivity(
             Intent(context, MusicVideoActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -27,6 +28,19 @@ internal object MusicVideoLauncher {
                 .putExtra(EXTRA_VIDEO_KEY, source.failureKey)
                 .putExtra(EXTRA_VIDEO_ASPECT_RATIO, source.aspectRatio ?: 0f)
         )
+    }
+
+    fun openNetease(context: Context, song: Song?, mvId: String) {
+        if ((mvId.toLongOrNull() ?: 0L) <= 0L) return
+        if (com.ella.music.data.netease.NeteaseLinks.current(context).openMusicVideoExternally) {
+            com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.MusicVideo, mvId)
+            return
+        }
+        open(context, song, DynamicCoverSource(
+            uri = Uri.parse("halcyon-netease-mv://mv/$mvId"),
+            failureKey = "netease-mv:$mvId",
+            role = com.ella.music.ui.player.PlayerVideoRole.MusicVideo
+        ))
     }
 
     fun songFrom(intent: Intent): Song? = intent.getStringExtra(EXTRA_SONG)
@@ -41,6 +55,14 @@ internal object MusicVideoLauncher {
         intent.getFloatExtra(EXTRA_VIDEO_ASPECT_RATIO, 0f).takeIf { it > 0f }
 
     fun share(context: Context, source: Uri, label: String) {
+        if (source.scheme == "halcyon-netease-mv") {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, com.ella.music.data.neteaseMvUrl(source.lastPathSegment.orEmpty()))
+            }
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.common_share)))
+            return
+        }
         val shareUri = source.asShareUri(context)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "video/*"
@@ -94,6 +116,7 @@ internal object MusicVideoLauncher {
         .put("dateAdded", dateAdded)
         .put("dateModified", dateModified)
         .put("coverUrl", coverUrl)
+        .put("onlineSource", onlineSource).put("onlineId", onlineId).put("onlineMvId", onlineMvId)
 
     private fun JSONObject.toMusicVideoSong(): Song = Song(
         id = optLong("id"),
@@ -108,6 +131,7 @@ internal object MusicVideoLauncher {
         mimeType = optString("mimeType"),
         dateAdded = optLong("dateAdded"),
         dateModified = optLong("dateModified"),
-        coverUrl = optString("coverUrl")
+        coverUrl = optString("coverUrl"),
+        onlineSource = optString("onlineSource"), onlineId = optString("onlineId"), onlineMvId = optString("onlineMvId")
     )
 }

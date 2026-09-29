@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">Искать новые треки при холодном запуске</string>
+    <string name="settings_cold_start_auto_scan_summary">При каждом холодном запуске искать новые треки в локальной и удалённой медиатеке; NetEase синхронизируется без уведомлений</string>
+    <string name="settings_wizard_flow_background_summary">Главная, медиатека и другие экраны следуют анимированному фону текущего трека. Не рекомендуется на слабых устройствах (подтормаживания, расход батареи)</string>
+    <string name="settings_wizard_interface">Интерфейс</string>
+</resources>

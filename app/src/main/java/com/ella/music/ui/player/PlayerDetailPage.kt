@@ -79,6 +79,8 @@ internal fun PlayerDetailPage(
     onNeteaseMusicVideo: () -> Unit,
     onNeteaseArtist: (String) -> Unit,
     onNeteaseAlbum: () -> Unit,
+    onNeteaseComments: () -> Unit = {},
+    onNeteaseArtistWiki: (String) -> Unit = {},
     musicVideoEnabled: Boolean = false,
     musicVideoCustomFolders: List<String> = emptyList(),
     dynamicCoverCustomFolders: List<String> = emptyList(),
@@ -106,6 +108,7 @@ internal fun PlayerDetailPage(
         }).distinctBy { it.lowercase(java.util.Locale.ROOT) }
     }
     var showNeteaseArtistPicker by remember(neteaseInfo) { mutableStateOf(false) }
+    var neteaseArtistPickerForWiki by remember(neteaseInfo) { mutableStateOf(false) }
     val neteaseArtists = remember(neteaseInfo) {
         neteaseInfo?.artists.orEmpty().filter { it.id.isNotBlank() }
     }
@@ -230,7 +233,7 @@ internal fun PlayerDetailPage(
             onDismiss = { showNeteaseArtistPicker = false },
             onArtistSelected = { artistId ->
                 showNeteaseArtistPicker = false
-                onNeteaseArtist(artistId)
+                if (neteaseArtistPickerForWiki) onNeteaseArtistWiki(artistId) else onNeteaseArtist(artistId)
             }
         )
     }
@@ -465,6 +468,11 @@ internal fun PlayerDetailPage(
                                 summary = neteaseInfo.musicName.ifBlank { neteaseInfo.musicId },
                                 onClick = onNeteaseSong
                             )
+                            PlayerDetailGroupedActionRow(
+                                title = stringResource(R.string.netease_link_song_comments),
+                                summary = neteaseInfo.musicName.ifBlank { neteaseInfo.musicId },
+                                onClick = onNeteaseComments
+                            )
                         }
                         neteaseInfo.artists
                             .joinToString(" / ") { it.name.ifBlank { it.id } }
@@ -478,10 +486,25 @@ internal fun PlayerDetailPage(
                                         if (neteaseArtists.size == 1) {
                                             onNeteaseArtist(neteaseArtists.first().id)
                                         } else {
+                                            neteaseArtistPickerForWiki = false
                                             showNeteaseArtistPicker = true
                                         }
                                     }
                                 )
+                                if (neteaseArtists.isNotEmpty()) {
+                                    PlayerDetailGroupedActionRow(
+                                        title = stringResource(R.string.netease_link_artist_wiki),
+                                        summary = artistSummary,
+                                        onClick = {
+                                            if (neteaseArtists.size == 1) {
+                                                onNeteaseArtistWiki(neteaseArtists.first().id)
+                                            } else {
+                                                neteaseArtistPickerForWiki = true
+                                                showNeteaseArtistPicker = true
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         if (neteaseInfo.albumId.isNotBlank()) {
                             PlayerDetailGroupedActionRow(

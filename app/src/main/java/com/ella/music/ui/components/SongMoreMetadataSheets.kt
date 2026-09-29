@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,12 +50,15 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -170,6 +174,7 @@ internal fun SongMetadataEditorSheet(
     var composer by remember(tagInfo) { mutableStateOf(tagInfo?.composer.orEmpty()) }
     var arranger by remember(tagInfo) { mutableStateOf(tagInfo?.arranger.orEmpty()) }
     var lyricist by remember(tagInfo) { mutableStateOf(tagInfo?.lyricist.orEmpty()) }
+    var songwriters by remember(tagInfo) { mutableStateOf(tagInfo?.songwriters.orEmpty().ifBlank { fullTagInfo?.songwriters.orEmpty() }) }
     var copyright by remember(tagInfo) { mutableStateOf(tagInfo?.copyright.orEmpty()) }
     var comment by remember(tagInfo) { mutableStateOf(tagInfo?.comment.orEmpty()) }
     val initialLyrics = fullTagInfo.standardEmbeddedLyrics()
@@ -220,293 +225,353 @@ internal fun SongMetadataEditorSheet(
     var showAddTag by remember { mutableStateOf(false) }
     var showLyricoMatch by remember(song.id) { mutableStateOf(false) }
 
-    SongSheetColumn {
-        SectionHeader(stringResource(R.string.song_more_metadata_section_cover))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            val previewModel = selectedCoverPreview ?: currentCover
-            if (previewModel != null) {
-                SafeCoverImage(
-                    model = previewModel,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth(0.52f)
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .combinedClickable(onClick = {}, onLongClick = { coverPreviewVisible = true }),
-                    contentScale = ContentScale.Crop,
-                    sizePx = 3000,
-                    loadOriginal = true
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.song_more_metadata_cover_empty),
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(vertical = 34.dp)
-                )
+    fun performSave() {
+        val currentTagInfo = tagInfo ?: return
+        val ctMap: MutableMap<String, MutableList<String>> = mutableMapOf()
+        for (pair in customTags) {
+            if (pair.first.isNotBlank()) {
+                ctMap.getOrPut(pair.first) { mutableListOf() }.add(pair.second)
             }
         }
-        EllaMiuixActionRow(
-            actions = listOf(
-                EllaMiuixAction(
-                    text = stringResource(R.string.song_more_metadata_cover_choose),
-                    onClick = { coverPicker.launch(arrayOf("image/*")) },
-                    primary = true
-                ),
-                EllaMiuixAction(
-                    text = stringResource(R.string.song_more_metadata_cover_crop),
-                    onClick = {
-                        openCoverCrop(selectedCover?.bytes ?: selectedCoverPreview ?: currentCover)
-                    }
-                ),
-                EllaMiuixAction(
-                    text = stringResource(R.string.song_more_metadata_cover_remove),
-                    onClick = {
-                        selectedCover = null
-                        selectedCoverPreview = null
-                        coverChanged = true
-                    }
-                )
-            ),
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
-            spacing = 8.dp
+        if (ttmlLyrics != initialTtmlLyrics) {
+            ctMap.getOrPut(initialTtmlLyricTagKey) { mutableListOf() }.add(ttmlLyrics)
+        }
+        val tags = AudioTagInfo(
+            title = title.takeIf { v -> v != currentTagInfo.title },
+            artist = artist.takeIf { v -> v != currentTagInfo.artist },
+            album = album.takeIf { v -> v != currentTagInfo.album },
+            albumArtist = albumArtist.takeIf { v -> v != currentTagInfo.albumArtist },
+            genre = genre.takeIf { v -> v != currentTagInfo.genre },
+            year = year.takeIf { v -> v != currentTagInfo.year },
+            trackNumber = trackNumber.toIntOrNull()?.takeIf { v -> v.toString() != currentTagInfo.track },
+            discNumber = discNumber.toIntOrNull()?.takeIf { v -> v != fullTagInfo?.discNumber },
+            composer = composer.takeIf { v -> v != currentTagInfo.composer },
+            arranger = arranger.takeIf { v -> v != currentTagInfo.arranger },
+            lyricist = lyricist.takeIf { v -> v != currentTagInfo.lyricist },
+            songwriters = songwriters.takeIf { v -> v != currentTagInfo.songwriters && v != fullTagInfo?.songwriters },
+            copyright = copyright.takeIf { v -> v != currentTagInfo.copyright },
+            comment = comment.takeIf { v -> v != currentTagInfo.comment },
+            lyrics = lyrics.takeIf { v -> v != initialLyrics },
+            rating = rating.takeIf { v -> v != currentTagInfo.rating },
+            customTags = ctMap
         )
-        if (coverChanged && selectedCover == null) {
-            Text(
-                text = stringResource(R.string.song_more_metadata_cover_remove_pending),
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
+        onSave(tags, selectedCover, coverChanged)
+    }
 
-        SectionHeader(stringResource(R.string.song_more_metadata_section_lyrico))
-        EllaMiuixActionRow(
-            actions = listOf(
-                EllaMiuixAction(
-                    text = stringResource(R.string.song_more_metadata_match_lyrico),
-                    onClick = { showLyricoMatch = true },
-                    primary = true
-                )
-            ),
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
-        )
-        Text(
-            text = stringResource(R.string.song_more_metadata_match_lyrico_summary),
-            fontSize = 12.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
-        )
-
-        SectionHeader(stringResource(R.string.song_more_metadata_section_basic))
-        MetadataField(stringResource(R.string.song_more_metadata_title), title) { title = it }
-        MetadataField(stringResource(R.string.song_more_metadata_artist), artist) { artist = it }
-        MetadataField(stringResource(R.string.song_more_metadata_album), album) { album = it }
-        MetadataField(stringResource(R.string.song_more_metadata_album_artist), albumArtist) { albumArtist = it }
-        MetadataField(stringResource(R.string.song_more_metadata_genre), genre) { genre = it }
-        MetadataField(stringResource(R.string.song_more_metadata_year), year) { year = it }
-
-        SectionHeader(stringResource(R.string.song_more_metadata_section_track))
-        MetadataField(stringResource(R.string.song_more_metadata_track_number), trackNumber) { trackNumber = it }
-        MetadataField(stringResource(R.string.song_more_metadata_disc_number), discNumber) { discNumber = it }
-
-        SectionHeader(stringResource(R.string.song_more_metadata_section_credits))
-        MetadataField(stringResource(R.string.song_more_metadata_composer), composer) { composer = it }
-        MetadataField(stringResource(R.string.song_more_metadata_arranger), arranger) { arranger = it }
-        MetadataField(stringResource(R.string.song_more_metadata_lyricist), lyricist) { lyricist = it }
-        MetadataField(stringResource(R.string.song_more_metadata_copyright), copyright) { copyright = it }
-        MetadataField(stringResource(R.string.song_more_metadata_comment), comment) { comment = it }
-
-        SectionHeader(stringResource(R.string.song_more_metadata_section_lyrics))
-        MetadataField(
-            label = stringResource(R.string.song_more_metadata_lyrics),
-            value = lyrics,
-            singleLine = false,
-            modifier = Modifier.height(150.dp)
-        ) { lyrics = it }
-        if (lyrics.isBlank()) {
-            Text(
-                text = stringResource(R.string.song_more_metadata_no_lyrics),
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
-            )
-        }
-        MetadataField(
-            label = stringResource(R.string.song_more_metadata_ttml_lyrics),
-            value = ttmlLyrics,
-            singleLine = false,
-            modifier = Modifier.height(170.dp)
-        ) { ttmlLyrics = it }
-        if (ttmlLyrics.isBlank()) {
-            Text(
-                text = stringResource(R.string.song_more_metadata_no_ttml_lyrics),
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
-            )
-        }
-
-        SectionHeader(stringResource(R.string.song_more_metadata_section_rating))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            (1..5).forEach { star ->
-                RatingStarIcon(
-                    filled = star <= rating,
-                    tint = if (star <= rating) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { rating = if (rating == star) 0 else star }
-                        .padding(4.dp)
-                )
-            }
-            if (rating > 0) {
-                Text(
-                    text = "✕",
-                    fontSize = 16.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier
-                        .padding(start = 8.dp, top = 8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { rating = 0 }
-                        .padding(4.dp)
-                )
-            }
-        }
-
-        SectionHeader(stringResource(R.string.song_more_metadata_section_custom_tags))
-        for (index in customTags.indices) {
-            val pair = customTags[index]
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                EllaMiuixTextField(
-                    value = pair.first,
-                    onValueChange = { newKey -> customTags = customTags.toMutableList().apply { set(index, newKey to pair.second) } },
-                    label = stringResource(R.string.song_more_custom_tag_name),
-                    modifier = Modifier.weight(1f)
-                )
-                EllaMiuixTextField(
-                    value = pair.second,
-                    onValueChange = { newValue -> customTags = customTags.toMutableList().apply { set(index, pair.first to newValue) } },
-                    label = stringResource(R.string.song_more_custom_tag_value),
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "✕",
-                    fontSize = 16.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier
-                        .padding(top = 14.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { customTags = customTags.toMutableList().apply { removeAt(index) } }
-                        .padding(4.dp)
-                )
-            }
-        }
-        if (showAddTag) {
-            var newKey by remember { mutableStateOf("") }
-            var newValue by remember { mutableStateOf("") }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                EllaMiuixTextField(
-                    value = newKey,
-                    onValueChange = { newKey = it },
-                    label = stringResource(R.string.song_more_custom_tag_name),
-                    modifier = Modifier.weight(1f)
-                )
-                EllaMiuixTextField(
-                    value = newValue,
-                    onValueChange = { newValue = it },
-                    label = stringResource(R.string.song_more_custom_tag_value),
-                    modifier = Modifier.weight(1f)
-                )
+    EllaMiuixBottomSheet(
+        show = true,
+        enableNestedScroll = false,
+        title = stringResource(R.string.song_more_metadata_editor_title),
+        startAction = {
+            IconButton(onClick = onDismiss) {
                 Icon(
-                    imageVector = MiuixIcons.Basic.Check,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .padding(top = 14.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable {
-                            if (newKey.isNotBlank()) {
-                                customTags = customTags.toMutableList().apply { add(newKey to newValue) }
-                                newKey = ""
-                                newValue = ""
-                                showAddTag = false
-                            }
-                        }
-                        .padding(4.dp)
-                        .size(18.dp)
+                    imageVector = MiuixIcons.Regular.Close,
+                    contentDescription = stringResource(R.string.common_cancel),
+                    tint = MiuixTheme.colorScheme.onSurface
                 )
             }
-        }
-        EllaMiuixActionRow(
-            actions = listOf(
-                EllaMiuixAction(
-                    text = stringResource(R.string.song_more_metadata_add_custom_tag),
-                    onClick = { showAddTag = !showAddTag }
+        },
+        endAction = {
+            IconButton(
+                enabled = tagInfo != null,
+                onClick = ::performSave
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Ok,
+                    contentDescription = stringResource(R.string.common_save),
+                    tint = if (tagInfo != null) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
-            ),
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
-        )
-
-        Spacer(modifier = Modifier.padding(vertical = 8.dp))
-        EllaMiuixSheetActions(
-            cancelText = stringResource(R.string.common_cancel),
-            confirmText = stringResource(R.string.common_save),
-            onCancel = onDismiss,
-            onConfirm = {
-                val ctMap: MutableMap<String, MutableList<String>> = mutableMapOf()
-                for (pair in customTags) {
-                    if (pair.first.isNotBlank()) {
-                        ctMap.getOrPut(pair.first) { mutableListOf() }.add(pair.second)
+            }
+        },
+        onDismissRequest = onDismiss
+    ) {
+        EllaMiuixSheetColumn(
+            verticalPadding = 8.dp,
+            spacing = 8.dp,
+            showHandle = false
+        ) {
+            SectionHeader(stringResource(R.string.song_more_metadata_section_cover))
+            EllaMiuixActionMenuGroup {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val previewModel = selectedCoverPreview ?: currentCover
+                    if (previewModel != null) {
+                        SafeCoverImage(
+                            model = previewModel,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth(0.52f)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .combinedClickable(onClick = {}, onLongClick = { coverPreviewVisible = true }),
+                            contentScale = ContentScale.Crop,
+                            sizePx = 3000,
+                            loadOriginal = true
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.song_more_metadata_cover_empty),
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(vertical = 34.dp)
+                        )
                     }
                 }
-                if (ttmlLyrics != initialTtmlLyrics) {
-                    ctMap.getOrPut(initialTtmlLyricTagKey) { mutableListOf() }.add(ttmlLyrics)
-                }
-                val tags = AudioTagInfo(
-                    title = title.takeIf { v -> v != tagInfo?.title },
-                    artist = artist.takeIf { v -> v != tagInfo?.artist },
-                    album = album.takeIf { v -> v != tagInfo?.album },
-                    albumArtist = albumArtist.takeIf { v -> v != tagInfo?.albumArtist },
-                    genre = genre.takeIf { v -> v != tagInfo?.genre },
-                    year = year.takeIf { v -> v != tagInfo?.year },
-                    trackNumber = trackNumber.toIntOrNull()?.takeIf { v -> v.toString() != tagInfo?.track },
-                    discNumber = discNumber.toIntOrNull()?.takeIf { v -> v != fullTagInfo?.discNumber },
-                    composer = composer.takeIf { v -> v != tagInfo?.composer },
-                    arranger = arranger.takeIf { v -> v != tagInfo?.arranger },
-                    lyricist = lyricist.takeIf { v -> v != tagInfo?.lyricist },
-                    copyright = copyright.takeIf { v -> v != tagInfo?.copyright },
-                    comment = comment.takeIf { v -> v != tagInfo?.comment },
-                    lyrics = lyrics.takeIf { v -> v != initialLyrics },
-                    rating = rating.takeIf { v -> v != tagInfo?.rating },
-                    customTags = ctMap
+                EllaMiuixActionRow(
+                    actions = listOf(
+                        EllaMiuixAction(
+                            text = stringResource(R.string.song_more_metadata_cover_choose),
+                            onClick = { coverPicker.launch(arrayOf("image/*")) },
+                            primary = true
+                        ),
+                        EllaMiuixAction(
+                            text = stringResource(R.string.song_more_metadata_cover_crop),
+                            onClick = {
+                                openCoverCrop(selectedCover?.bytes ?: selectedCoverPreview ?: currentCover)
+                            }
+                        ),
+                        EllaMiuixAction(
+                            text = stringResource(R.string.song_more_metadata_cover_remove),
+                            onClick = {
+                                selectedCover = null
+                                selectedCoverPreview = null
+                                coverChanged = true
+                            }
+                        )
+                    ),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                    spacing = 8.dp
                 )
-                onSave(tags, selectedCover, coverChanged)
-            },
-            modifier = Modifier.padding(horizontal = 18.dp)
-        )
-        Spacer(modifier = Modifier.padding(bottom = 16.dp))
+                if (coverChanged && selectedCover == null) {
+                    Text(
+                        text = stringResource(R.string.song_more_metadata_cover_remove_pending),
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+
+            SectionHeader(stringResource(R.string.song_more_metadata_section_lyrico))
+            EllaMiuixActionMenuGroup {
+                Spacer(modifier = Modifier.height(8.dp))
+                EllaMiuixActionRow(
+                    actions = listOf(
+                        EllaMiuixAction(
+                            text = stringResource(R.string.song_more_metadata_match_lyrico),
+                            onClick = { showLyricoMatch = true },
+                            primary = true
+                        )
+                    ),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.song_more_metadata_match_lyrico_summary),
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 2.dp, bottom = 10.dp)
+                )
+            }
+
+            SectionHeader(stringResource(R.string.song_more_metadata_section_basic))
+            EllaMiuixActionMenuGroup {
+                Spacer(modifier = Modifier.height(6.dp))
+                MetadataField(stringResource(R.string.song_more_metadata_title), title) { title = it }
+                MetadataField(stringResource(R.string.song_more_metadata_artist), artist) { artist = it }
+                MetadataField(stringResource(R.string.song_more_metadata_album), album) { album = it }
+                MetadataField(stringResource(R.string.song_more_metadata_album_artist), albumArtist) { albumArtist = it }
+                MetadataField(stringResource(R.string.song_more_metadata_genre), genre) { genre = it }
+                MetadataField(stringResource(R.string.song_more_metadata_year), year) { year = it }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            SectionHeader(stringResource(R.string.song_more_metadata_section_track))
+            EllaMiuixActionMenuGroup {
+                Spacer(modifier = Modifier.height(6.dp))
+                MetadataField(stringResource(R.string.song_more_metadata_track_number), trackNumber) { trackNumber = it }
+                MetadataField(stringResource(R.string.song_more_metadata_disc_number), discNumber) { discNumber = it }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            SectionHeader(stringResource(R.string.song_more_metadata_section_credits))
+            EllaMiuixActionMenuGroup {
+                Spacer(modifier = Modifier.height(6.dp))
+                MetadataField(stringResource(R.string.song_more_metadata_composer), composer) { composer = it }
+                MetadataField(stringResource(R.string.song_more_metadata_arranger), arranger) { arranger = it }
+                MetadataField(stringResource(R.string.song_more_metadata_lyricist), lyricist) { lyricist = it }
+                MetadataField(stringResource(R.string.song_more_metadata_songwriters), songwriters) { songwriters = it }
+                MetadataField(stringResource(R.string.song_more_metadata_copyright), copyright) { copyright = it }
+                MetadataField(stringResource(R.string.song_more_metadata_comment), comment) { comment = it }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            SectionHeader(stringResource(R.string.song_more_metadata_section_lyrics))
+            EllaMiuixActionMenuGroup {
+                Spacer(modifier = Modifier.height(6.dp))
+                MetadataField(
+                    label = stringResource(R.string.song_more_metadata_lyrics),
+                    value = lyrics,
+                    singleLine = false,
+                    modifier = Modifier.height(150.dp)
+                ) { lyrics = it }
+                if (lyrics.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.song_more_metadata_no_lyrics),
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+                    )
+                }
+                MetadataField(
+                    label = stringResource(R.string.song_more_metadata_ttml_lyrics),
+                    value = ttmlLyrics,
+                    singleLine = false,
+                    modifier = Modifier.height(170.dp)
+                ) { ttmlLyrics = it }
+                if (ttmlLyrics.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.song_more_metadata_no_ttml_lyrics),
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            SectionHeader(stringResource(R.string.song_more_metadata_section_rating))
+            EllaMiuixActionMenuGroup {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    (1..5).forEach { star ->
+                        RatingStarIcon(
+                            filled = star <= rating,
+                            tint = if (star <= rating) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { rating = if (rating == star) 0 else star }
+                                .padding(4.dp)
+                        )
+                    }
+                    if (rating > 0) {
+                        Text(
+                            text = "✕",
+                            fontSize = 16.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier
+                                .padding(start = 8.dp, top = 2.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { rating = 0 }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            }
+
+            SectionHeader(stringResource(R.string.song_more_metadata_section_custom_tags))
+            EllaMiuixActionMenuGroup(insideMargin = PaddingValues(0.dp)) {
+                Spacer(modifier = Modifier.height(6.dp))
+                for (index in customTags.indices) {
+                    val pair = customTags[index]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // Basic metadata fields fill the Card edge-to-edge. Keep custom
+                            // tag rows on that same grid instead of leaving an 18dp gutter on
+                            // both sides of the two editable fields.
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextField(
+                            value = pair.first,
+                            onValueChange = { newKey -> customTags = customTags.toMutableList().apply { set(index, newKey to pair.second) } },
+                            label = stringResource(R.string.song_more_custom_tag_name),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextField(
+                            value = pair.second,
+                            onValueChange = { newValue -> customTags = customTags.toMutableList().apply { set(index, pair.first to newValue) } },
+                            label = stringResource(R.string.song_more_custom_tag_value),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "✕",
+                            fontSize = 16.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier
+                                .padding(top = 14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { customTags = customTags.toMutableList().apply { removeAt(index) } }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+                if (showAddTag) {
+                    var newKey by remember { mutableStateOf("") }
+                    var newValue by remember { mutableStateOf("") }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextField(
+                            value = newKey,
+                            onValueChange = { newKey = it },
+                            label = stringResource(R.string.song_more_custom_tag_name),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextField(
+                            value = newValue,
+                            onValueChange = { newValue = it },
+                            label = stringResource(R.string.song_more_custom_tag_value),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Ok,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(top = 14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    if (newKey.isNotBlank()) {
+                                        customTags = customTags.toMutableList().apply { add(newKey to newValue) }
+                                        newKey = ""
+                                        newValue = ""
+                                        showAddTag = false
+                                    }
+                                }
+                                .padding(4.dp)
+                                .size(18.dp)
+                        )
+                    }
+                }
+                EllaMiuixActionRow(
+                    actions = listOf(
+                        EllaMiuixAction(
+                            text = stringResource(R.string.song_more_metadata_add_custom_tag),
+                            onClick = { showAddTag = !showAddTag }
+                        )
+                    ),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
     }
 
     if (showLyricoMatch) {
@@ -533,6 +598,7 @@ internal fun SongMetadataEditorSheet(
                     composer = match.tags.composer ?: composer
                     arranger = match.tags.arranger ?: arranger
                     lyricist = match.tags.lyricist ?: lyricist
+                    songwriters = match.tags.songwriters ?: songwriters
                     copyright = match.tags.copyright ?: copyright
                     comment = match.tags.comment ?: comment
                     if (match.isTtml) {
@@ -579,7 +645,7 @@ internal fun SongMetadataEditorSheet(
                     }
                 ) {
                     Icon(
-                        imageVector = MiuixIcons.Basic.Check,
+                        imageVector = MiuixIcons.Regular.Ok,
                         contentDescription = stringResource(R.string.common_save),
                         tint = MiuixTheme.colorScheme.primary
                     )
@@ -660,14 +726,13 @@ private fun MetadataField(
     singleLine: Boolean = true,
     onValueChange: (String) -> Unit
 ) {
-    EllaMiuixTextField(
+    TextField(
         value = value,
         onValueChange = onValueChange,
         label = label,
         singleLine = singleLine,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 2.dp)
             .then(modifier)
     )
 }

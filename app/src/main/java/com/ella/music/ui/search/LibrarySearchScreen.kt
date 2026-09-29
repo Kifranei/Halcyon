@@ -51,6 +51,7 @@ import kotlinx.coroutines.withContext
 fun LibrarySearchScreen(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
+    localOnly: Boolean = false,
     initialFilterType: String? = null,
     initialQuery: String? = null,
     autoFocusSearch: Boolean = false,
@@ -66,10 +67,20 @@ fun LibrarySearchScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val settingsManager = mainViewModel.settingsManager
-    val songs by mainViewModel.songs.collectAsState()
-    val albums by mainViewModel.albums.collectAsState()
-    val playlists by mainViewModel.playlists.collectAsState()
-    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
+    val currentSongs by mainViewModel.songs.collectAsState()
+    val currentAlbums by mainViewModel.albums.collectAsState()
+    val currentPlaylists by mainViewModel.playlists.collectAsState()
+    val currentLibraryLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
+    val librarySource by settingsManager.librarySource.collectAsState(initial = SettingsManager.LIBRARY_SOURCE_LOCAL)
+    val useLocalSnapshot = localOnly && librarySource != SettingsManager.LIBRARY_SOURCE_LOCAL
+    val localSnapshot by produceState<Pair<List<Song>, List<com.ella.music.data.model.Album>>?>(null, useLocalSnapshot) {
+        value = if (useLocalSnapshot) mainViewModel.localSearchSnapshot() else null
+    }
+    val localPlaylists by remember(context) { com.ella.music.data.PlaylistStore.getInstance(context).playlists }.collectAsState()
+    val songs = if (useLocalSnapshot) localSnapshot?.first.orEmpty() else currentSongs
+    val albums = if (useLocalSnapshot) localSnapshot?.second.orEmpty() else currentAlbums
+    val playlists = if (useLocalSnapshot) localPlaylists else currentPlaylists
+    val libraryCacheLoaded = if (useLocalSnapshot) localSnapshot != null else currentLibraryLoaded
     val currentSong by playerViewModel.currentSong.collectAsState()
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val lyricSourceMode by settingsManager.lyricSourceMode.collectAsState(initial = SettingsManager.LYRIC_SOURCE_AUTO)
@@ -96,9 +107,10 @@ fun LibrarySearchScreen(
     val searchDock = LocalLibrarySearchDockState.current
     val useDockSearchBar = searchDock != null
     val bottomBarStyle by settingsManager.bottomBarStyle.collectAsState(
-        initial = BottomBarStyle.LiquidGlass
+        initial = BottomBarStyle.Floating
     )
-    val useTopSearchBar = !useDockSearchBar || bottomBarStyle == BottomBarStyle.Normal
+    val mergeSearch by settingsManager.bottomDockMergeSearch.collectAsState(initial = true)
+    val useTopSearchBar = !useDockSearchBar || bottomBarStyle == BottomBarStyle.Normal || mergeSearch
     var localQuery by rememberSaveable(initialQuery) { mutableStateOf(initialQuery.orEmpty()) }
     val query = if (searchDock != null) searchDock.query else localQuery
     fun updateQuery(value: String) {
@@ -597,12 +609,14 @@ fun LibrarySearchScreen(
             updateQuery(incoming)
             history = saveSearchHistory(context, incoming)
             searchDock?.selectAll = false
+            searchDock?.let { it.selectionRequestKey++ }
             return@LaunchedEffect
         }
         val behavior = settingsManager.searchReopenBehavior.first()
         val next = applySearchReopenQuery(behavior, query, null)
         updateQuery(next)
         searchDock?.selectAll = searchReopenSelectsQuery(behavior, next)
+        searchDock?.let { it.selectionRequestKey++ }
     }
 
     SideEffect {
@@ -631,6 +645,7 @@ fun LibrarySearchScreen(
                 query = query,
                 autoFocus = if (useDockSearchBar) searchDock?.autoFocus else resolvedSearchAutoFocus,
                 autoSelectAll = searchDock?.selectAll == true,
+                selectionRequestKey = searchDock?.selectionRequestKey ?: 0,
                 onAutoSelectAllConsumed = { searchDock?.selectAll = false },
                 showBackButton = showBackButton,
                 onBack = onBack,

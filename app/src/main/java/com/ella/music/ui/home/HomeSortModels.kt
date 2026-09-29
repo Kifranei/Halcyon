@@ -24,7 +24,8 @@ internal enum class HomeSortMode(val labelRes: Int) {
     Duration(R.string.playlist_song_sort_duration),
     DurationAsc(R.string.playlist_song_sort_duration),
     FileSize(R.string.playlist_song_sort_file_size),
-    FileSizeAsc(R.string.playlist_song_sort_file_size)
+    FileSizeAsc(R.string.playlist_song_sort_file_size),
+    Random(R.string.common_sort_random)
 }
 
 internal enum class HomeSortField(val labelRes: Int) {
@@ -34,7 +35,8 @@ internal enum class HomeSortField(val labelRes: Int) {
     DateModified(R.string.playlist_song_sort_date_modified),
     Year(R.string.playlist_song_sort_year),
     Duration(R.string.playlist_song_sort_duration),
-    FileSize(R.string.playlist_song_sort_file_size)
+    FileSize(R.string.playlist_song_sort_file_size),
+    Random(R.string.common_sort_random)
 }
 
 internal fun HomeSortMode.sortField(): HomeSortField = when (this) {
@@ -52,6 +54,7 @@ internal fun HomeSortMode.sortField(): HomeSortField = when (this) {
     HomeSortMode.DurationAsc -> HomeSortField.Duration
     HomeSortMode.FileSize,
     HomeSortMode.FileSizeAsc -> HomeSortField.FileSize
+    HomeSortMode.Random -> HomeSortField.Random
 }
 
 internal fun HomeSortMode.isDescending(): Boolean = when (this) {
@@ -73,6 +76,7 @@ internal fun HomeSortField.toMode(descending: Boolean = false): HomeSortMode = w
     HomeSortField.Year -> if (descending) HomeSortMode.YearDesc else HomeSortMode.YearAsc
     HomeSortField.Duration -> if (descending) HomeSortMode.Duration else HomeSortMode.DurationAsc
     HomeSortField.FileSize -> if (descending) HomeSortMode.FileSize else HomeSortMode.FileSizeAsc
+    HomeSortField.Random -> HomeSortMode.Random
 }
 
 internal fun HomeSortMode.songDisplaySpec(): SongDisplaySpec =
@@ -82,7 +86,11 @@ internal fun List<Song>.sortedForHomeMode(sortMode: HomeSortMode): HomeSortedSon
     LibraryListSorter.sortSongs(this, sortMode.toSongSortSpec()).toHomeSortedSongs()
 
 internal fun List<Song>.cachedSortedForHomeMode(sortMode: HomeSortMode): HomeSortedSongs =
-    HomeSortResultCache.getOrPut(this, sortMode) { sortedForHomeMode(sortMode) }
+    if (sortMode == HomeSortMode.Random) {
+        sortedForHomeMode(sortMode)
+    } else {
+        HomeSortResultCache.getOrPut(this, sortMode) { sortedForHomeMode(sortMode) }
+    }
 
 internal fun Song.indexLetter(sortKey: String? = null): String {
     return fastIndexSection(sortKey)
@@ -162,6 +170,7 @@ private fun HomeSortMode.toSongSortSpec(): SortSpec<SongSortField> =
             HomeSortMode.DurationAsc -> SongSortField.Duration
             HomeSortMode.FileSize,
             HomeSortMode.FileSizeAsc -> SongSortField.FileSize
+            HomeSortMode.Random -> SongSortField.Random
         },
         direction = if (isDescending()) SortDirection.Descending else SortDirection.Ascending
     )

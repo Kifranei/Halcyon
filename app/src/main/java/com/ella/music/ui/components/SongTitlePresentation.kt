@@ -1,6 +1,7 @@
 package com.ella.music.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -67,7 +68,8 @@ internal fun String.toSongTitlePresentation(): SongTitlePresentation {
 internal fun ExplicitBadge(
     contentColor: Color,
     modifier: Modifier = Modifier,
-    height: Dp = 14.dp
+    height: Dp = 14.dp,
+    fontSize: TextUnit = 9.sp
 ) {
     val labelColor = if (contentColor.luminance() > 0.5f) {
         Color.Black.copy(alpha = 0.80f)
@@ -85,7 +87,7 @@ internal fun ExplicitBadge(
     ) {
         Text(
             text = "E",
-            fontSize = 9.sp,
+            fontSize = fontSize,
             fontWeight = FontWeight.Bold,
             color = labelColor,
             maxLines = 1
@@ -106,11 +108,17 @@ internal fun ExplicitSongTitle(
     textAlign: TextAlign = TextAlign.Start,
     softWrap: Boolean = true,
     titleModifier: Modifier = Modifier,
-    titleFillMaxWidth: Boolean = false
+    titleFillMaxWidth: Boolean = false,
+    matchBadgeToTitleSize: Boolean = false
 ) {
     val presentation = remember(title) { title.toSongTitlePresentation() }
+    val badgeFontSize = if (matchBadgeToTitleSize) 11.sp else 9.sp
+    val badgeHeight = if (matchBadgeToTitleSize) 17.dp else 14.dp
     Row(
         modifier = modifier,
+        // The text wraps its measured width to keep E beside the title. Center the
+        // whole title/badge group; TextAlign alone only aligns inside that small width.
+        horizontalArrangement = if (textAlign == TextAlign.Center) Arrangement.Center else Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -131,7 +139,11 @@ internal fun ExplicitSongTitle(
         )
         if (presentation.isExplicit) {
             Spacer(modifier = Modifier.width(2.dp))
-            ExplicitBadge(contentColor = color)
+            ExplicitBadge(
+                contentColor = color,
+                height = badgeHeight,
+                fontSize = badgeFontSize
+            )
         }
     }
 }

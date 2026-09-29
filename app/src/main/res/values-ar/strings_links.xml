@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">الويب</string>
+    <string name="netease_link_target_app">NetEase Cloud Music</string>
+    <string name="netease_link_target_honor">NetEase Cloud Music (إصدار Honor)</string>
+    <string name="netease_link_target_custom">مخصص</string>
+    <string name="netease_link_open_failed">تعذّر فتح الرابط</string>
+    <string name="netease_link_song_comments">تعليقات الأغنية</string>
+    <string name="netease_link_artist_wiki">ويكي الفنان</string>
+    <string name="netease_link_mv_open_mode">طريقة فتح فيديو NetEase</string>
+    <string name="netease_link_mv_open_mode_summary">عند وجود معلومات فيديو NetEase للأغنية، شغّله في المشغل المدمج أو افتحه خارجيًا</string>
+    <string name="netease_link_mv_open_internal">المشغل المدمج</string>
+    <string name="netease_link_mv_open_external">فتح خارجي (حسب وجهة روابط NetEase)</string>
+    <string name="netease_link_target">وجهة روابط NetEase</string>
+    <string name="netease_link_target_summary">فتح روابط الأغنية والفنان والألبوم والفيديو من 163 key على الويب أو في تطبيق NetEase</string>
+    <string name="netease_link_kind_song">الأغنية</string>
+    <string name="netease_link_kind_artist">الفنان</string>
+    <string name="netease_link_kind_album">الألبوم</string>
+    <string name="netease_link_kind_mv">فيديو</string>
+    <string name="netease_link_custom_summary">الرابط قبل المعرّف، أو {id} لموضع المعرّف. اتركه فارغًا لاستخدام %1$s</string>
+</resources>

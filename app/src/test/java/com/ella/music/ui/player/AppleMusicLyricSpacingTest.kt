@@ -212,6 +212,33 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
+    fun leadingPaddingUsesFixedFocusOffsetWhenProvided() {
+        assertEquals(
+            110.dp,
+            resolveAppleMusicLyricsLeadingPadding(
+                viewportHeight = 800.dp,
+                focusOffsetRatio = 0.22f,
+                minimumTopPadding = 16.dp,
+                fixedFocusOffset = 110.dp
+            )
+        )
+    }
+
+    @Test
+    fun trailingPaddingUsesFixedFocusOffsetWhenProvided() {
+        assertEquals(
+            650.dp,
+            resolveAppleMusicLyricsTrailingPadding(
+                viewportHeight = 800.dp,
+                focusOffsetRatio = 0.22f,
+                trailingLineHeight = 40.dp,
+                minimumBottomPadding = 56.dp,
+                fixedFocusOffset = 110.dp
+            )
+        )
+    }
+
+    @Test
     fun focusOffsetIsClampedWhenLyricRowIsTallerThanTheViewport() {
         assertEquals(
             0,
@@ -323,6 +350,40 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
+    fun syllableTimedEnglishWrapsAsWholeWords() {
+        val texts = listOf("但", "你", "是", "一", "个", "heart", "brea", "ker", " sun", "dow", "ner")
+        val widths = intArrayOf(10, 10, 10, 10, 10, 25, 20, 15, 20, 15, 15)
+        val rows = wrapLyricUnitRows(
+            widths = widths,
+            breakBefore = lyricUnitBreakAllowedBefore(texts),
+            availableWidth = 80
+        )
+        assertEquals(listOf(0..4, 5..7, 8..10), rows)
+    }
+
+    @Test
+    fun englishWordWiderThanTheLineStillBreaks() {
+        val rows = wrapLyricUnitRows(
+            widths = intArrayOf(50, 50),
+            breakBefore = booleanArrayOf(true, false),
+            availableWidth = 80
+        )
+        assertEquals(listOf(0..0, 1..1), rows)
+    }
+
+    @Test
+    fun englishWordsAreNeverSplitIntoCharacters() {
+        assertFalse(
+            LyricWord("stranger", 0L, 4_000L)
+                .shouldSplitForAppleMusicCharacters()
+        )
+        assertFalse(
+            LyricWord("falling in love in stranger", 0L, 4_000L)
+                .shouldSplitForAppleMusicCharacters()
+        )
+    }
+
+    @Test
     fun minorPlaybackRegressionIsIgnoredButSeekJumpIsAccepted() {
         assertTrue(
             shouldIgnoreMinorPlaybackRegression(
@@ -338,5 +399,29 @@ class AppleMusicLyricSpacingTest {
                 isPlaying = true
             )
         )
+    }
+
+    @Test
+    fun timedWordsWithPronunciationWordsMapDirectly() {
+        val words = listOf(
+            LyricWord("なんで", 0L, 500L),
+            LyricWord("少しだけ", 500L, 1_000L),
+            LyricWord("夢をみた", 1_000L, 2_000L)
+        )
+        val pronunciationWords = listOf(
+            LyricWord("nante", 0L, 500L),
+            LyricWord("sukoshi dake", 500L, 1_000L),
+            LyricWord("yumeo mita", 1_000L, 2_000L)
+        )
+        val rubies = rubiesForTimedWords(words, pronunciationWords, "")
+        assertEquals(listOf("nante", "sukoshi dake", "yumeo mita"), rubies)
+    }
+
+    @Test
+    fun lineRomanizationIsNotInlineRuby() {
+        assertFalse(isInlineRubyPronunciation("mou bo ku wa o to na ni na 't te"))
+        assertFalse(isInlineRubyPronunciation("ni hao wo de peng you"))
+        assertFalse(isInlineRubyPronunciation("ka ku se i READY OK"))
+        assertTrue(isInlineRubyPronunciation("かぜがかわっても"))
     }
 }

@@ -1,5 +1,7 @@
 package com.ella.music.ui.folder
 
+import com.ella.music.ui.settings.SettingsSearchAnchor
+import com.ella.music.ui.settings.SettingsSearchFocus
 import android.provider.DocumentsContract
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -42,6 +44,9 @@ import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.ScanRefreshIconButton
+import com.ella.music.ui.components.LocalSettingsCardFrosting
+import com.ella.music.ui.components.frostedCardColor
+import com.ella.music.ui.components.frostedCardModifier
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,6 +58,7 @@ import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Folder
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.delay
@@ -60,10 +66,18 @@ import java.util.Locale
 
 @Composable
 internal fun ScanStatusCard(scanProgress: Int) {
-    Card(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
+        colors = CardDefaults.defaultColors(color = frostedCardColor(frosting = frosting, defaultAlpha = 0.42f))
     ) {
         Text(
             text = if (scanProgress > 0) {
@@ -87,16 +101,26 @@ internal fun MediaSourceModeCard(
     highlight: Boolean = false,
     onUseAndroidMediaLibraryChange: (Boolean) -> Unit,
     onFullTagSearchEnabledChange: (Boolean) -> Unit,
-    onAllFilesAccessClick: () -> Unit
+    onAllFilesAccessClick: () -> Unit,
+    onForceFullRescan: () -> Unit
 ) {
-    Card(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
             .fillMaxWidth()
             .scanHighlightBringIntoView(highlight)
             .padding(horizontal = 12.dp, vertical = 4.dp),
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
         colors = CardDefaults.defaultColors(color = scanHighlightCardColor(highlight))
     ) {
         Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.folder_use_android_media_library) {
             SwitchPreference(
                 title = stringResource(R.string.folder_use_android_media_library),
                 summary = if (useAndroidMediaLibrary) {
@@ -107,6 +131,9 @@ internal fun MediaSourceModeCard(
                 checked = useAndroidMediaLibrary,
                 onCheckedChange = onUseAndroidMediaLibraryChange
             )
+            } // search-anchor:end
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_full_tag_search) {
             SwitchPreference(
                 title = stringResource(R.string.settings_full_tag_search),
                 summary = if (fullTagSearchEnabled) {
@@ -117,6 +144,17 @@ internal fun MediaSourceModeCard(
                 checked = fullTagSearchEnabled,
                 onCheckedChange = onFullTagSearchEnabledChange
             )
+            } // search-anchor:end
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.folder_force_full_rescan) {
+            ArrowPreference(
+                title = stringResource(R.string.folder_force_full_rescan),
+                summary = stringResource(R.string.folder_force_full_rescan_summary),
+                onClick = onForceFullRescan
+            )
+            } // search-anchor:end
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.folder_all_files_access) {
             SwitchPreference(
                 title = stringResource(R.string.folder_all_files_access),
                 summary = if (allFilesAccessGranted) {
@@ -129,6 +167,7 @@ internal fun MediaSourceModeCard(
                     if (enabled != allFilesAccessGranted) onAllFilesAccessClick()
                 }
             )
+            } // search-anchor:end
         }
     }
 }
@@ -139,14 +178,20 @@ internal fun UsbFoldersCard(
     highlight: Boolean = false,
     onRemove: (String) -> Unit,
     scanEnabled: Boolean,
-    onScan: () -> Unit,
-    onDeepRescan: () -> Unit
+    onScan: () -> Unit
 ) {
-    Card(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
             .fillMaxWidth()
             .scanHighlightBringIntoView(highlight)
             .padding(horizontal = 12.dp, vertical = 4.dp),
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
         colors = CardDefaults.defaultColors(color = scanHighlightCardColor(highlight))
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -167,7 +212,6 @@ internal fun UsbFoldersCard(
                 ScanRefreshIconButton(
                     enabled = scanEnabled,
                     onScan = onScan,
-                    onDeepRescan = onDeepRescan,
                     iconSize = 22.dp,
                     contentDescription = stringResource(R.string.folder_full_scan)
                 )
@@ -225,14 +269,20 @@ internal fun SavedScanFoldersCard(
     onVisibilityChange: (String, Boolean) -> Unit,
     onRemove: (String) -> Unit,
     scanEnabled: Boolean,
-    onScan: () -> Unit,
-    onDeepRescan: () -> Unit
+    onScan: () -> Unit
 ) {
-    Card(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
             .fillMaxWidth()
             .scanHighlightBringIntoView(highlight)
             .padding(horizontal = 12.dp, vertical = 4.dp),
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
         colors = CardDefaults.defaultColors(color = scanHighlightCardColor(highlight))
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -253,7 +303,6 @@ internal fun SavedScanFoldersCard(
                 ScanRefreshIconButton(
                     enabled = scanEnabled,
                     onScan = onScan,
-                    onDeepRescan = onDeepRescan,
                     iconSize = 22.dp,
                     contentDescription = stringResource(R.string.folder_full_scan)
                 )
@@ -348,11 +397,18 @@ internal fun BlockedFoldersEntryCard(
     highlight: Boolean = false,
     onClick: () -> Unit
 ) {
-    Card(
+    val frosting = LocalSettingsCardFrosting.current
+    val cardModifier = frostedCardModifier(
         modifier = Modifier
             .fillMaxWidth()
             .scanHighlightBringIntoView(highlight)
             .padding(horizontal = 12.dp, vertical = 4.dp),
+        cornerRadius = 16.dp,
+        frosting = frosting
+    )
+    Card(
+        modifier = cardModifier,
+        cornerRadius = 16.dp,
         colors = CardDefaults.defaultColors(color = scanHighlightCardColor(highlight)),
         onClick = onClick
     ) {
@@ -397,7 +453,8 @@ internal fun BlockedFoldersEntryCard(
 @Composable
 private fun scanHighlightCardColor(highlight: Boolean): Color {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val cardColor = if (isDark) Color(0xFF1D1D21) else Color(0xFFFFFFFF)
+    val frosting = LocalSettingsCardFrosting.current
+    val baseCardColor = frostedCardColor(frosting = frosting, defaultAlpha = 0.42f)
     val highlightColor = if (isDark) {
         MiuixTheme.colorScheme.primary.copy(alpha = 0.28f)
     } else {
@@ -412,7 +469,7 @@ private fun scanHighlightCardColor(highlight: Boolean): Color {
         }
         lit = false
     }
-    return if (lit) highlightColor else cardColor
+    return if (lit) highlightColor else baseCardColor
 }
 
 @Composable

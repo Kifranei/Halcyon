@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cross-version install notice -->
+    <string name="app_upgrade_title_unknown">偵測到從舊版本升級安裝</string>
+    <string name="app_upgrade_title">偵測到從舊版本（%1$s）升級安裝</string>
+    <string name="app_upgrade_message">目前版本為 %1$s。舊版本遺留的設定與資料可能與新版本不相容，導致正常使用中不會出現的意外問題。建議清除應用程式資料，以全新安裝的狀態使用。\n\n清除資料需在系統「應用程式資訊 › 儲存空間」中進行；若只想重設設定，也可以在「設定 › 維護 › 還原預設設定」中還原預設值（保留歌曲、播放清單與聆聽記錄）。\n\n回報問題時，請確認是在最新版本清除資料後的全新安裝中遇到的，而不是舊版本覆蓋安裝且未清除資料的情況。</string>
+    <string name="app_upgrade_clear_data">清除資料</string>
+    <string name="app_upgrade_later">暫不</string>
+    <string name="app_upgrade_clear_data_hint">請在「儲存空間」中選擇「清除資料」</string>
+
+    <!-- Backup restore compatibility check -->
+    <string name="backup_compat_title">備份設定與目前版本不一致</string>
+    <string name="backup_compat_from_older">此備份來自舊版本（%1$s），目前版本為 %2$s。</string>
+    <string name="backup_compat_from_older_unknown">此備份來自舊版本，目前版本為 %1$s。</string>
+    <string name="backup_compat_from_newer">此備份來自較新版本（%1$s），目前版本為 %2$s。</string>
+    <string name="backup_compat_same_version">此備份的設定結構與目前版本（%1$s）不一致。</string>
+    <string name="backup_compat_details">偵測到 %1$d 項設定已不存在、%2$d 項新設定、%3$d 項格式已變更，建議重新設定。選擇「重新設定」將不還原設定項目，播放清單、聆聽記錄等其他已選內容仍會還原。</string>
+    <string name="backup_compat_details_legacy">偵測到 %1$d 項設定已不存在、%2$d 項格式已變更；舊備份未記錄設定清單，無法統計新增的設定。建議重新設定。選擇「重新設定」將不還原設定項目，播放清單、聆聽記錄等其他已選內容仍會還原。</string>
+    <string name="backup_compat_reconfigure">重新設定（不還原設定）</string>
+    <string name="backup_compat_restore_anyway">仍要還原</string>
+</resources>

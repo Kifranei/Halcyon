@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">Waveform scale animation</string>
+    <string name="player_waveform_scale_animation_summary">Scale the waveform when pausing, tapping or dragging the progress bar</string>
+    <string name="player_waveform_density">Waveform density</string>
+    <string name="player_waveform_density_summary">Adjust the number and spacing of waveform bars</string>
+    <string name="player_waveform_peak_height">Waveform peak height</string>
+    <string name="player_waveform_peak_height_summary">Adjust the maximum height of waveform bars</string>
+</resources>

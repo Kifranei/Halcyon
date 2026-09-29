@@ -12,6 +12,7 @@ import com.ella.music.data.ai.OpenAiPlaylistRecommender
 import com.ella.music.data.ai.OpenAiSongInterpretationConfig
 import com.ella.music.data.ai.OpenAiSongInterpretationInput
 import com.ella.music.data.ai.OpenAiSongInterpreter
+import com.ella.music.data.ai.resolveAiApiProtocol
 import com.ella.music.data.detailedAudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
@@ -119,10 +120,12 @@ internal class MainViewModelAiCoordinator(
     }
 
     private suspend fun openAiConfig(): OpenAiSongInterpretationConfig {
+        val baseUrl = settingsManager.openAiBaseUrl.first()
         return OpenAiSongInterpretationConfig(
             apiKey = settingsManager.openAiApiKey.first(),
-            baseUrl = settingsManager.openAiBaseUrl.first(),
-            model = settingsManager.openAiModel.first()
+            baseUrl = baseUrl,
+            model = settingsManager.openAiModel.first(),
+            protocol = resolveAiApiProtocol(settingsManager.aiApiProtocol.first(), baseUrl)
         )
     }
 }

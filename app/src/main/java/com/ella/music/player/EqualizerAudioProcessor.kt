@@ -213,16 +213,24 @@ class EqualizerAudioProcessor : AudioProcessor {
         settingsRef.set(settings)
     }
 
-    override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT
-            || inputAudioFormat.channelCount !in 1..2
-        ) {
-            this.inputAudioFormat = AudioProcessor.AudioFormat.NOT_SET
-            this.outputAudioFormat = AudioProcessor.AudioFormat.NOT_SET
-            equalizer = null
-            return AudioProcessor.AudioFormat.NOT_SET
-        }
+    private var pendingFormat = AudioProcessor.AudioFormat.NOT_SET
 
+    override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
+        pendingFormat = if (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT &&
+            inputAudioFormat.channelCount in 1..2) inputAudioFormat else AudioProcessor.AudioFormat.NOT_SET
+        return pendingFormat
+    }
+
+    private fun applyPendingFormat() {
+        val inputAudioFormat = pendingFormat
+        if (inputAudioFormat == AudioProcessor.AudioFormat.NOT_SET) {
+            this.inputAudioFormat = inputAudioFormat
+            this.outputAudioFormat = inputAudioFormat
+            equalizer = null
+            return
+        }
+        // A seek/flush with unchanged format only resets DSP history; reuse its buffers.
+        if (inputAudioFormat == this.inputAudioFormat && equalizer != null) return
         this.inputAudioFormat = inputAudioFormat
         this.outputAudioFormat = inputAudioFormat
 
@@ -244,13 +252,12 @@ class EqualizerAudioProcessor : AudioProcessor {
         peakLimiter = PeakLimiter(inputAudioFormat.sampleRate)
         applySettings(force = true)
         currentMasterGainLinear = masterGainLinear(settingsRef.get().masterGainDb)
-        return outputAudioFormat
     }
 
     override fun isActive(): Boolean {
         // Always active so enabling/disabling the EQ does not require rebuilding the audio sink.
         // The DSP core bypasses itself when disabled.
-        return inputAudioFormat != AudioProcessor.AudioFormat.NOT_SET
+        return pendingFormat != AudioProcessor.AudioFormat.NOT_SET
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -332,6 +339,8 @@ class EqualizerAudioProcessor : AudioProcessor {
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun flush() {
+        // configure() may describe the next track while the previous PCM is still draining.
+        applyPendingFormat()
         outputBuffer = EMPTY_BUFFER
         inputEnded = false
         equalizer?.reset()
@@ -352,6 +361,7 @@ class EqualizerAudioProcessor : AudioProcessor {
     }
 
     override fun reset() {
+        pendingFormat = AudioProcessor.AudioFormat.NOT_SET
         flush()
         inputAudioFormat = AudioProcessor.AudioFormat.NOT_SET
         outputAudioFormat = AudioProcessor.AudioFormat.NOT_SET

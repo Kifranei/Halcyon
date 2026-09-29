@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">ارتفاع المؤثر المرئي</string>
+    <string name="player_visualizer_height_summary">ارتفاع المؤثر المرئي في المشغل؛ الافتراضي يطابق منحنى التدفق</string>
+    <string name="player_visualizer_style_cover_overlay">فوق الغلاف</string>
+</resources>

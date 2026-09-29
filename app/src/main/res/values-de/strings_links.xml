@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">Web</string>
+    <string name="netease_link_target_app">NetEase Cloud Music</string>
+    <string name="netease_link_target_honor">NetEase Cloud Music (Honor-Edition)</string>
+    <string name="netease_link_target_custom">Benutzerdefiniert</string>
+    <string name="netease_link_open_failed">Link konnte nicht geöffnet werden</string>
+    <string name="netease_link_song_comments">Songkommentare</string>
+    <string name="netease_link_artist_wiki">Künstler-Wiki</string>
+    <string name="netease_link_mv_open_mode">NetEase-MV öffnen mit</string>
+    <string name="netease_link_mv_open_mode_summary">Bei Songs mit NetEase-MV-Info im integrierten Player abspielen oder extern öffnen</string>
+    <string name="netease_link_mv_open_internal">Integrierter Player</string>
+    <string name="netease_link_mv_open_external">Extern öffnen (nach NetEase-Linkziel)</string>
+    <string name="netease_link_target">NetEase-Linkziel</string>
+    <string name="netease_link_target_summary">Song-, Künstler-, Album- und MV-Links aus dem 163 key im Web oder in der NetEase-App öffnen</string>
+    <string name="netease_link_kind_song">Song</string>
+    <string name="netease_link_kind_artist">Künstler</string>
+    <string name="netease_link_kind_album">Album</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">Link vor der ID oder {id} als Platzhalter. Leer lassen für %1$s</string>
+</resources>

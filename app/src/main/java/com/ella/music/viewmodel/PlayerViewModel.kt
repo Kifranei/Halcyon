@@ -1,6 +1,8 @@
 package com.ella.music.viewmodel
 
 import android.app.Application
+import coil3.toBitmap
+import coil3.request.allowHardware
 import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
@@ -38,6 +40,8 @@ import com.ella.music.player.PlaybackWidgetUpdater
 import com.ella.music.player.SuperLyricBridge
 import com.ella.music.player.TickerBridge
 import com.ella.music.player.XiaomiSuperIslandLyricBridge
+import com.ella.music.player.adjacentPlaylistIndex
+import com.ella.music.player.isSamePlaybackIdentity
 import androidx.media3.common.Player
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -50,6 +54,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
@@ -161,6 +166,44 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val playbackPitch: StateFlow<Float> = playerManager.playbackPitch
     val playlist: StateFlow<List<Song>> = playerManager.playlistFlow
     val currentQueueIndex: StateFlow<Int> = playerManager.currentQueueIndex
+
+    private fun resolveAdjacentSong(
+        playlist: List<Song>,
+        currentIndex: Int,
+        currentSong: Song?,
+        repeatMode: Int,
+        offset: Int
+    ): Song? {
+        if (playlist.isEmpty()) return null
+        val fromIndex = currentIndex.takeIf { it in playlist.indices }
+            ?: currentSong?.let { song -> playlist.indexOfFirst { it.isSamePlaybackIdentity(song) }.takeIf { it >= 0 } }
+            ?: 0
+        val targetIndex = adjacentPlaylistIndex(
+            currentIndex = fromIndex,
+            offset = offset,
+            queueSize = playlist.size,
+            wrap = repeatMode != Player.REPEAT_MODE_OFF
+        ) ?: return null
+        return playlist.getOrNull(targetIndex)
+    }
+
+    val previousSong: StateFlow<Song?> = combine(
+        playlist,
+        currentQueueIndex,
+        currentSong,
+        repeatMode
+    ) { list, index, song, repeat ->
+        resolveAdjacentSong(list, index, song, repeat, -1)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val nextSong: StateFlow<Song?> = combine(
+        playlist,
+        currentQueueIndex,
+        currentSong,
+        repeatMode
+    ) { list, index, song, repeat ->
+        resolveAdjacentSong(list, index, song, repeat, 1)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     private val _abRepeatState = MutableStateFlow(AbRepeatState())
     internal val abRepeatState: StateFlow<AbRepeatState> = _abRepeatState.asStateFlow()
     val userPlaylists: StateFlow<List<UserPlaylist>> = playlistStore.playlists
@@ -172,9 +215,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 ?.mapTo(mutableSetOf()) { it.key }
                 ?: emptySet()
         },
-        openSubsonicCollectionsStore.favoriteSongKeys
-    ) { localFavorites, remoteFavorites ->
-        localFavorites + remoteFavorites
+        openSubsonicCollectionsStore.favoriteSongKeys,
+        com.ella.music.data.netease.NeteaseLibraryStore.getInstance(application).favorites
+    ) { localFavorites, remoteFavorites, neteaseFavorites ->
+        localFavorites + remoteFavorites + neteaseFavorites.map { it.playlistIdentityKey() }
     }
         .stateIn(viewModelScope, SharingStarted.Eagerly, playlistStore.favoriteSongKeys())
 
@@ -290,6 +334,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lastTickerPayload: Pair<String, String?>? = null
     private var lastLiveUpdateLyricPayload: LiveLyricNotificationState? = null
     private var liveUpdateArtwork: Bitmap? = null
+
+    /**
+     * NetEase (and other online) songs have no embedded art: their cover is a URL. Load it through
+     * Coil so the Super Island / live-update notifications show the album cover instead of the app icon.
+     */
+    private suspend fun remoteNotificationArtwork(song: Song): Bitmap? {
+        val url = song.coverUrl.takeIf { it.startsWith("http") } ?: return null
+        val sized = if (song.onlineSource == "netease" && "param=" !in url) {
+            url.replaceFirst("http://", "https://") + (if ('?' in url) "&" else "?") + "param=${LIVE_UPDATE_ARTWORK_SIZE}y${LIVE_UPDATE_ARTWORK_SIZE}"
+        } else url
+        return runCatching {
+            val context = getApplication<Application>()
+            coil3.SingletonImageLoader.get(context).execute(
+                coil3.request.ImageRequest.Builder(context)
+                    .data(sized)
+                    .size(LIVE_UPDATE_ARTWORK_SIZE)
+                    // Notification code reads pixels (accent colour, rounding); HARDWARE bitmaps forbid that.
+                    .allowHardware(false)
+                    .build()
+            ).image?.toBitmap()?.let { bitmap ->
+                if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
+            }
+        }.getOrNull()
+    }
     private var bluetoothLyricEnabled = false
     private var bluetoothLyricTranslationEnabled = true
     private var bluetoothLyricPronunciationEnabled = false
@@ -313,9 +381,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lyricBlacklistRules = emptyList<LyricBlacklistRule>()
     private var hideLyricExtraInfo = true
     private var lyricOpeningTemplate = ""
+    private var lyricOpeningAsFallback = false
     private var appliedDecoderMode: Int? = null
     private var appliedLyricSourceMode: Int? = null
     private var previousButtonAction = SettingsManager.PREVIOUS_BUTTON_PREVIOUS
+    private var pausedSwitchMode = SettingsManager.PAUSED_SWITCH_MODE_KEEP_PAUSED
     private var manualSeekAfterPreviousButton = false
     private var lastBluetoothLyricPayload: Pair<String, String?>? = null
     private var bluetoothLyricRetryJob: Job? = null
@@ -341,6 +411,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playerManager.connect()
         startPositionUpdates()
         observeCurrentSong()
+        prewarmTimelineWaveforms()
         observeWebDavMetadataRevision()
         observePlayState()
         initLyricon()
@@ -353,8 +424,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initLyricPageTranslation()
         initBluetoothLyric()
         playbackSettingsBridge.initShuffleMode()
+        playbackSettingsBridge.initShufflePolicies()
         playbackSettingsBridge.initPlayNextMode()
         initPreviousButtonAction()
+        initPausedSwitchMode()
         playbackSettingsBridge.initResumePlaybackPosition()
         initDecoderMode()
         playbackSettingsBridge.initAudioFocusMode()
@@ -686,6 +759,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun initPausedSwitchMode() {
+        viewModelScope.launch {
+            settingsManager.pausedSwitchMode.distinctUntilChanged().collect { mode ->
+                pausedSwitchMode = mode.coerceIn(
+                    SettingsManager.PAUSED_SWITCH_MODE_KEEP_PAUSED,
+                    SettingsManager.PAUSED_SWITCH_MODE_PLAY
+                )
+            }
+        }
+    }
+
     private fun initDecoderMode() {
         viewModelScope.launch {
             settingsManager.decoderMode.collect { mode ->
@@ -763,8 +847,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun initLyricOpeningTemplate() {
         viewModelScope.launch {
             var initialized = false
-            settingsManager.lyricOpeningTemplate.distinctUntilChanged().collect { template ->
+            combine(
+                settingsManager.lyricOpeningTemplate,
+                settingsManager.lyricOpeningAsFallback
+            ) { template, fallback ->
+                template to fallback
+            }.distinctUntilChanged().collect { (template, fallback) ->
                 lyricOpeningTemplate = template
+                lyricOpeningAsFallback = fallback
                 if (!initialized) {
                     initialized = true
                     applyCurrentLyricOffset(notifyExternal = false)
@@ -875,6 +965,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun prewarmTimelineWaveforms() {
+        viewModelScope.launch(Dispatchers.IO) {
+            combine(currentSong, settingsManager.playerProgressStyle) { song, style ->
+                song.takeIf { style != SettingsManager.PLAYER_PROGRESS_STYLE_GLOW }
+            }.distinctUntilChangedBy { it?.let { song -> "${song.path}|${song.fileSize}|${song.dateModified}" } }
+                .collectLatest { song ->
+                    if (song == null) return@collectLatest
+                    com.ella.music.data.RawWaveformCache.loadOrScanResult(getApplication(), song)
+                    // Only one speculative decode, after the current track has its waveform.
+                    nextSong.value?.takeIf { it.path != song.path }?.let { next ->
+                        com.ella.music.data.RawWaveformCache.loadOrScanResult(getApplication(), next)
+                    }
+                }
+        }
+    }
+
     private fun observeCurrentSong() {
         viewModelScope.launch {
             playerManager.currentSong.collectLatest { song ->
@@ -971,7 +1077,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                             song = activeSong,
                             maxSize = LIVE_UPDATE_ARTWORK_SIZE,
                             usage = CoverUsage.Notification
-                        )
+                        ) ?: remoteNotificationArtwork(activeSong)
                     }
                 } catch (error: CancellationException) {
                     throw error
@@ -1370,7 +1476,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val nextLyrics = _rawLyrics.value
             .filterBlacklistedLyricLines()
             .shiftedBy(offsetMs)
-            .withOpeningMetadataLine(song, lyricOpeningTemplate)
+            .withOpeningMetadataLine(song, lyricOpeningTemplate, lyricOpeningAsFallback)
             .withImplicitLineEndTimes()
         val lyricsChanged = _lyrics.value != nextLyrics
         if (lyricsChanged) {
@@ -1480,7 +1586,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         songs: List<Song>,
         startIndex: Int = 0,
         resumeCategoryKey: String? = null,
-        songSources: Map<String, String>? = null
+        songSources: Map<String, String>? = null,
+        preserveOrder: Boolean = false
     ) {
         if (songs.isEmpty()) {
             activeResumeCategoryKey = resumeCategoryKey?.takeIf { it.isNotBlank() }
@@ -1488,7 +1595,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             com.ella.music.data.PlaybackSourceNavigation.updateSource(null)
             return
         }
-        val randomStartIndex = if (songs.size > 1 && startIndex == 0) songs.indices.random()
+        val randomStartIndex = if (!preserveOrder && songs.size > 1 && startIndex == 0) songs.indices.random()
         else startIndex.coerceIn(songs.indices)
         lazyOnlineQueueController.clear()
         if (!songSources.isNullOrEmpty()) {
@@ -1503,7 +1610,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _playbackSourceKey.value = queueSource
         com.ella.music.data.PlaybackSourceNavigation.updateSource(queueSource)
         recordCategoryResume(sourceAwareSongs[randomStartIndex])
-        playerManager.setPlaylistForShuffleAll(sourceAwareSongs, randomStartIndex)
+        playerManager.setPlaylistForShuffleAll(sourceAwareSongs, randomStartIndex, preserveOrder)
     }
 
     private fun recordCategoryResume(song: Song) {
@@ -1554,16 +1661,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun pauseForMusicVideo() = playerManager.pause()
     fun resumeAfterMusicVideo() = playerManager.play()
     fun skipToNext() {
-        if (!lazyOnlineQueueController.playOffset(1)) playerManager.skipToNext()
+        val wasPaused = !playWhenReady.value
+        val shouldPlayOnSwitch = wasPaused && pausedSwitchMode == SettingsManager.PAUSED_SWITCH_MODE_PLAY
+        val targetPlayState = if (wasPaused) shouldPlayOnSwitch else playWhenReady.value
+        if (!lazyOnlineQueueController.playOffset(1, shouldPlay = targetPlayState)) {
+            playerManager.skipToNext(autoPlayIfPaused = shouldPlayOnSwitch)
+        }
     }
 
     fun skipToPrevious() {
+        val wasPaused = !playWhenReady.value
+        val shouldPlayOnSwitch = wasPaused && pausedSwitchMode == SettingsManager.PAUSED_SWITCH_MODE_PLAY
         if (shouldReplayCurrentFromPreviousButton()) {
-            playerManager.restartCurrent()
+            playerManager.restartCurrent(autoPlayIfPaused = shouldPlayOnSwitch)
             return
         }
         manualSeekAfterPreviousButton = false
-        if (!lazyOnlineQueueController.playOffset(-1)) playerManager.skipToPrevious()
+        val targetPlayState = if (wasPaused) shouldPlayOnSwitch else playWhenReady.value
+        if (!lazyOnlineQueueController.playOffset(-1, shouldPlay = targetPlayState)) {
+            playerManager.skipToPrevious(autoPlayIfPaused = shouldPlayOnSwitch)
+        }
     }
 
     /**
@@ -1573,7 +1690,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun skipToPreviousTrack() {
         manualSeekAfterPreviousButton = false
-        if (!lazyOnlineQueueController.playOffset(-1)) playerManager.skipToPrevious()
+        val wasPaused = !playWhenReady.value
+        val shouldPlayOnSwitch = wasPaused && pausedSwitchMode == SettingsManager.PAUSED_SWITCH_MODE_PLAY
+        val targetPlayState = if (wasPaused) shouldPlayOnSwitch else playWhenReady.value
+        if (!lazyOnlineQueueController.playOffset(-1, shouldPlay = targetPlayState)) {
+            playerManager.skipToPrevious(autoPlayIfPaused = shouldPlayOnSwitch)
+        }
     }
 
     private fun shouldReplayCurrentFromPreviousButton(): Boolean {
@@ -1644,6 +1766,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun setDisableSequentialPlayback(enabled: Boolean) {
+        playerManager.setDisableSequentialPlayback(enabled)
+        viewModelScope.launch { settingsManager.setDisableSequentialPlayback(enabled) }
+    }
+
     fun setPlayNextMode(mode: Int) {
         viewModelScope.launch {
             settingsManager.setPlayNextMode(mode)
@@ -1658,6 +1785,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         )
         viewModelScope.launch {
             settingsManager.setPreviousButtonAction(previousButtonAction)
+        }
+    }
+
+    fun setPausedSwitchMode(mode: Int) {
+        pausedSwitchMode = mode.coerceIn(
+            SettingsManager.PAUSED_SWITCH_MODE_KEEP_PAUSED,
+            SettingsManager.PAUSED_SWITCH_MODE_PLAY
+        )
+        viewModelScope.launch {
+            settingsManager.setPausedSwitchMode(pausedSwitchMode)
         }
     }
 
@@ -1893,17 +2030,55 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun refreshCurrentSongAfterExternalEdit(updatedFromLibrary: Song?) {
-        val current = currentSong.value ?: return
+        if (currentSong.value == null) return
         viewModelScope.launch {
-            val updated = updatedFromLibrary
-                ?.takeIf { it.lyricIdentityKey() == current.lyricIdentityKey() }
-                ?: repository.refreshSongAfterExternalEdit(current)
-                ?: current
-            repository.clearMetadataCache(current)
-            repository.clearMetadataCache(updated)
-            playerManager.updateCurrentSongMetadata(updated)
-            reloadLyrics(updated, force = true)
+            refreshCurrentSongAfterExternalEditNow(updatedFromLibrary, awaitArtwork = false)
         }
+    }
+
+    suspend fun writeMetadataWithoutInterruptingPlayback(
+        song: Song,
+        write: suspend () -> Result<Song?>
+    ): Result<Song?> {
+        val pauseToken = try {
+            playerManager.pauseForMetadataWrite(song)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            return Result.failure(error)
+        }
+        return try {
+            val result = write()
+            if (result.isSuccess && pauseToken != null &&
+                currentSong.value?.lyricIdentityKey() == song.lyricIdentityKey()
+            ) {
+                refreshCurrentSongAfterExternalEditNow(
+                    updatedFromLibrary = result.getOrNull(),
+                    awaitArtwork = true
+                )
+            }
+            result
+        } finally {
+            playerManager.resumeAfterMetadataWrite(pauseToken)
+        }
+    }
+
+    private suspend fun refreshCurrentSongAfterExternalEditNow(
+        updatedFromLibrary: Song?,
+        awaitArtwork: Boolean
+    ) {
+        val current = currentSong.value ?: return
+        val updated = updatedFromLibrary
+            ?.takeIf { it.lyricIdentityKey() == current.lyricIdentityKey() }
+            ?: repository.refreshSongAfterExternalEdit(current)
+            ?: current
+        repository.clearMetadataCache(current)
+        repository.clearMetadataCache(updated)
+        if (awaitArtwork) {
+            playerManager.updateCurrentSongMetadataAndAwaitArtwork(updated)
+        } else {
+            playerManager.updateCurrentSongMetadata(updated)
+        }
+        reloadLyrics(updated, force = true)
     }
 
     fun reloadCurrentLyrics() {
@@ -1914,7 +2089,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun toggleCurrentSongFavorite() {
         val song = currentSong.value ?: return
         viewModelScope.launch {
-            if (openSubsonicCollectionsStore.isManagedFavorite(song)) {
+            if (song.onlineSource == SettingsManager.LIBRARY_SOURCE_NETEASE) {
+                runCatching { com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).toggleFavorite(song) }
+                    .onFailure { error ->
+                        if (error is CancellationException) throw error
+                        android.widget.Toast.makeText(getApplication(), getApplication<Application>().getString(com.ella.music.R.string.netease_sync_failed), android.widget.Toast.LENGTH_SHORT).show()
+                    }
+            } else if (openSubsonicCollectionsStore.isManagedFavorite(song)) {
                 runCatching { openSubsonicCollectionsStore.toggleFavorite(song) }
             } else {
                 playlistStore.toggleFavorite(song)

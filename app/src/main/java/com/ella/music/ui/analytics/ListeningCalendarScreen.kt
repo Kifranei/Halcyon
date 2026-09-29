@@ -144,6 +144,27 @@ fun ListeningCalendarHistoryScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
+                item("month-calendar:${selectedMonth?.label.orEmpty()}") {
+                    selectedMonth?.let { month ->
+                        ListeningMonthCard(
+                            month = month,
+                            selectedDateKey = selectedDateKey,
+                            onDayClick = { dateKey ->
+                                if (dayAggregates[dateKey]?.entries?.isNotEmpty() == true) {
+                                    selectedDateKey = dateKey
+                                }
+                            },
+                            onPreviousMonth = { selectMonth(safeMonthIndex + 1) },
+                            onNextMonth = { selectMonth(safeMonthIndex - 1) },
+                            canGoPrevious = safeMonthIndex < monthSections.lastIndex,
+                            canGoNext = safeMonthIndex > 0
+                        )
+                    }
+                }
+                // The calendar is the primary surface of this page (#637). The selected day's
+                // summary and timeline follow it so tapping a heat cell immediately reveals the
+                // records for that date underneath, instead of making the calendar feel like a
+                // footer.
                 item("selected-day:${selectedDay?.dateKey.orEmpty()}") {
                     ListeningDayDetailSection(
                         day = selectedDay,
@@ -164,23 +185,6 @@ fun ListeningCalendarHistoryScreen(
                         onRemoveHistoryEntry = { entry -> pendingRemoveEntry = entry },
                         modifier = Modifier.padding(horizontal = 14.dp)
                     )
-                }
-                item("month-calendar:${selectedMonth?.label.orEmpty()}") {
-                    selectedMonth?.let { month ->
-                        ListeningMonthCard(
-                            month = month,
-                            selectedDateKey = selectedDateKey,
-                            onDayClick = { dateKey ->
-                                if (dayAggregates[dateKey]?.entries?.isNotEmpty() == true) {
-                                    selectedDateKey = dateKey
-                                }
-                            },
-                            onPreviousMonth = { selectMonth(safeMonthIndex + 1) },
-                            onNextMonth = { selectMonth(safeMonthIndex - 1) },
-                            canGoPrevious = safeMonthIndex < monthSections.lastIndex,
-                            canGoNext = safeMonthIndex > 0
-                        )
-                    }
                 }
             }
         }

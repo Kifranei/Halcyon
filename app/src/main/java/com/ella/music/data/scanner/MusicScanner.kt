@@ -9,7 +9,6 @@ import android.util.Log
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.metadata.LyricoAudioTagReaderWriter
-import com.ella.music.data.metadata.WavMetadataReader
 import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
@@ -36,11 +35,20 @@ class MusicScanner(private val context: Context) {
         includeFolders: List<String> = emptyList(),
         excludeFolders: List<String> = emptyList(),
         filesystemFallbackFolders: List<String> = includeFolders,
-        filterVideoFiles: Boolean = true
+        filterVideoFiles: Boolean = true,
+        refreshMediaStore: Boolean = false
     ): List<MediaStoreAudioItem> = withContext(Dispatchers.IO) {
         // Normal refreshes stay incremental. A whole-tree MediaScanner pass is reserved for the
         // explicit/full scan path below; byte stamps in MusicRepository catch edits whose mtime
         // was preserved without turning every tap on “scan” into an index rebuild.
+        // A user pull-to-refresh is the deliberate exception: downloaders can finish a file on
+        // disk before MediaStore has published its row, so index the storage roots first.
+        if (refreshMediaStore) {
+            MediaStoreLibraryIndexer.refreshIndexedAudio(
+                context = context,
+                folders = filesystemFallbackFolders
+            )
+        }
         val items = queryMediaStoreAudioItems(
             includeFolders = includeFolders,
             excludeFolders = excludeFolders,
@@ -66,219 +74,6 @@ class MusicScanner(private val context: Context) {
             "enumerateAudioFiles mediaStore=${stats.mediaStoreItemCount} filesystemFallback=${stats.filesystemFallbackItemCount} merged=${stats.mergedItemCount}"
         )
         snapshotted
-    }
-
-    suspend fun scanAudioItem(
-        item: MediaStoreAudioItem,
-        minDurationMs: Long = 0,
-        deepMetadata: Boolean = false
-    ): Song? = withContext(Dispatchers.IO) {
-        var title = item.title
-        var artist = item.artist
-        var album = item.album
-        var albumArtist = ""
-        var genre = ""
-        var year = ""
-        var composer = ""
-        var arranger = ""
-        var lyricist = ""
-        var duration = item.duration
-        var trackNumber = item.trackNumber
-        var discNumber = item.discNumber
-        val file = File(item.path)
-        val fileVisible = file.exists()
-        val mediaStoreBacked = item.id > 0L
-        // Salt Player keeps MediaStore rows without File.exists(). Scoped storage often hides
-        // the path even though the provider still has a valid audio row.
-        if (!fileVisible && !mediaStoreBacked) return@withContext null
-
-        val shouldDeepRead = fileVisible && (
-            deepMetadata ||
-            isMissingTag(title, file.name) ||
-            isMissingArtistTag(artist) ||
-            isMissingAlbumTag(album) ||
-            duration <= 0
-        )
-
-        val tagInfo = if (shouldDeepRead) readTagsBlocking(item.path) else null
-
-        if (tagInfo != null) {
-            if (deepMetadata) {
-                title = tagInfo.title.orEmpty()
-                artist = tagInfo.artist.orEmpty()
-                album = tagInfo.album.orEmpty()
-            } else {
-                if (isMissingTag(title, file.name)) title = tagInfo.title.orEmpty()
-                if (isMissingArtistTag(artist)) artist = tagInfo.artist.orEmpty()
-                if (isMissingAlbumTag(album)) album = tagInfo.album.orEmpty()
-            }
-            albumArtist = tagInfo.albumArtist.orEmpty()
-            genre = tagInfo.genre.orEmpty()
-            year = tagInfo.year.orEmpty().normalizeReleaseDate()
-            composer = tagInfo.composer.orEmpty()
-            arranger = firstNonBlank(
-                tagInfo.arranger,
-                tagInfo.customTagValue("ARRANGER", "ARRANGED BY", "ARRANGEDBY", "ARRANGEMENT", "ARRANGE")
-            ).orEmpty()
-            lyricist = firstNonBlank(
-                tagInfo.lyricist,
-                tagInfo.customTagValue("TEXT"),
-                tagInfo.customTagValue("WRITER")
-            ).orEmpty()
-            trackNumber = trackNumber.takeIf { it > 0 } ?: tagInfo.trackNumber ?: firstNonBlank(
-                tagInfo.customTagValue("TRACKNUMBER"),
-                tagInfo.customTagValue("TRACK"),
-                tagInfo.customTagValue("TRCK")
-            ).orEmpty().normalizedTrackNumberFromTag()
-            discNumber = discNumber.takeIf { it > 0 } ?: firstNonBlank(
-                tagInfo.discNumber?.toString(),
-                tagInfo.customTagValue("DISC"),
-                tagInfo.customTagValue("TPOS")
-            ).orEmpty().normalizedDiscNumberFromTag()
-        }
-
-        // WAV files always try WavMetadataReader — MediaStore/Lyrico may not read LIST/INFO chunks
-        if (fileVisible && file.extension.lowercase() in setOf("wav", "wave")) {
-            WavMetadataReader.read(file)?.let { wavInfo ->
-                if (duration <= 0) duration = wavInfo.durationMs
-                if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
-                if (isMissingArtistTag(artist)) artist = wavInfo.artist.orEmpty()
-                if (isMissingAlbumTag(album)) album = wavInfo.album.orEmpty()
-                if (albumArtist.isBlank()) albumArtist = wavInfo.albumArtist.orEmpty()
-                if (genre.isBlank()) genre = wavInfo.genre.orEmpty()
-                if (year.isBlank()) year = wavInfo.year.orEmpty().normalizeReleaseDate()
-                if (composer.isBlank()) composer = wavInfo.composer.orEmpty()
-                if (arranger.isBlank()) arranger = wavInfo.arranger.orEmpty()
-                if (lyricist.isBlank()) lyricist = wavInfo.lyricist.orEmpty()
-                trackNumber = trackNumber.takeIf { it > 0 } ?: wavInfo.trackNumber ?: 0
-                discNumber = discNumber.takeIf { it > 0 } ?: wavInfo.discNumber ?: 0
-            }
-        } else if (fileVisible && (shouldDeepRead || deepMetadata)) {
-            WavMetadataReader.read(file)?.let { wavInfo ->
-                if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
-                if (isMissingArtistTag(artist)) artist = wavInfo.artist.orEmpty()
-                if (isMissingAlbumTag(album)) album = wavInfo.album.orEmpty()
-                if (albumArtist.isBlank()) albumArtist = wavInfo.albumArtist.orEmpty()
-                if (genre.isBlank()) genre = wavInfo.genre.orEmpty()
-                if (year.isBlank()) year = wavInfo.year.orEmpty().normalizeReleaseDate()
-                if (composer.isBlank()) composer = wavInfo.composer.orEmpty()
-                if (arranger.isBlank()) arranger = wavInfo.arranger.orEmpty()
-                if (lyricist.isBlank()) lyricist = wavInfo.lyricist.orEmpty()
-                trackNumber = trackNumber.takeIf { it > 0 } ?: wavInfo.trackNumber ?: 0
-                discNumber = discNumber.takeIf { it > 0 } ?: wavInfo.discNumber ?: 0
-            }
-        }
-
-        if (shouldDeepRead && (isMissingTag(title, file.name) || isMissingArtistTag(artist) || isMissingAlbumTag(album) || duration <= 0)) {
-            try {
-                val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(item.path)
-                if (isMissingTag(title, file.name)) title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
-                if (isMissingArtistTag(artist)) artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
-                if (isMissingAlbumTag(album)) album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
-                if (duration <= 0) duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                retriever.release()
-            } catch (e: Exception) {
-                Log.w(TAG, "Metadata extraction failed for ${item.path}", e)
-            }
-        }
-
-        if (isMissingTag(title, file.name)) title = item.fileName.substringBeforeLast('.')
-        if (isMissingArtistTag(artist)) artist = "Unknown Artist"
-        if (isMissingAlbumTag(album)) album = "Unknown Album"
-
-        if (duration > 0L && duration < minDurationMs) return@withContext null
-        // Unknown MediaStore duration still counts as a song. Salt Player lists these rows and
-        // lets playback fill the length later; dropping them is why files only appear after
-        // another player has indexed them.
-        if (duration <= 0L && !mediaStoreBacked) return@withContext null
-
-        Song(
-            id = item.id,
-            title = title,
-            artist = artist,
-            album = album,
-            albumId = item.albumId,
-            duration = duration,
-            path = item.path,
-            fileName = item.fileName,
-            fileSize = item.fileSize,
-            mimeType = item.mimeType,
-            dateAdded = item.dateAdded,
-            dateModified = item.dateModified,
-            trackNumber = trackNumber,
-            discNumber = discNumber,
-            albumArtist = albumArtist,
-            genre = genre,
-            year = year,
-            composer = composer,
-            arranger = arranger,
-            lyricist = lyricist
-        )
-    }
-
-    suspend fun scanAllSongs(
-        minDurationMs: Long = 0,
-        includeFolders: List<String> = emptyList(),
-        excludeFolders: List<String> = emptyList(),
-        deepMetadata: Boolean = false,
-        filesystemFallbackFolders: List<String> = includeFolders,
-        filterVideoFiles: Boolean = true,
-        onProgress: ((Int) -> Unit)? = null
-    ): List<Song> = withContext(Dispatchers.IO) {
-        MediaStoreLibraryIndexer.refreshIndexedAudio(
-            context = context,
-            folders = filesystemFallbackFolders.ifEmpty { includeFolders }
-        )
-        val songs = mutableListOf<Song>()
-        val mediaStoreItems = queryMediaStoreAudioItems(
-            includeFolders = includeFolders,
-            excludeFolders = excludeFolders,
-            verifyFileSnapshot = deepMetadata
-        ).filterNot { filterVideoFiles && isVideoFile(it.path, it.mimeType) }
-        mediaStoreItems.forEachIndexed { index, item ->
-            val song = runCatching {
-                if (deepMetadata) {
-                    scanAudioItem(item, minDurationMs = minDurationMs, deepMetadata = true)
-                } else {
-                    item.toShallowSong(minDurationMs)
-                        ?: scanAudioItem(item, minDurationMs = minDurationMs, deepMetadata = false)
-                }
-            }.onFailure { error ->
-                Log.w(TAG, "scanAllSongs item failed for ${item.path}", error)
-            }.getOrNull()
-            if (song != null) songs += song
-            onProgress?.invoke(index + 1)
-        }
-        val mediaStoreSongCount = songs.size
-        val fallbackItems = filesystemFallbackAudioItems(
-            includeFolders = filesystemFallbackFolders,
-            excludeFolders = excludeFolders,
-            existingPaths = songs.map { it.path }.toSet()
-        )
-        val indexedItems = discoverUnindexedCustomFolderItems(
-            includeFolders = filesystemFallbackFolders,
-            excludeFolders = excludeFolders,
-            existingPaths = (songs.map { it.path } + fallbackItems.map { it.path }).toSet()
-        )
-        (fallbackItems + indexedItems)
-            .filterNot { filterVideoFiles && isVideoFile(it.path, it.mimeType) }
-            .forEach { item ->
-            runCatching {
-                item.toShallowSong(minDurationMs)
-                    ?: scanAudioItem(item, minDurationMs = minDurationMs, deepMetadata = deepMetadata)
-            }.onFailure { error ->
-                Log.w(TAG, "scanAllSongs fallback item failed for ${item.path}", error)
-            }.getOrNull()?.let { song ->
-                songs.add(song)
-                onProgress?.invoke(songs.size)
-            }
-        }
-        Log.i(
-            TAG,
-            "scanAllSongs mediaStore=$mediaStoreSongCount filesystemFallback=${songs.size - mediaStoreSongCount} total=${songs.size} deepMetadata=$deepMetadata fallbackFolders=${filesystemFallbackFolders.size}"
-        )
-        songs
     }
 
     fun isVideoFile(path: String, mimeType: String): Boolean {
@@ -714,7 +509,15 @@ class MusicScanner(private val context: Context) {
      */
     fun isUsbUriAccessible(uri: Uri): Boolean {
         return try {
-            context.contentResolver.query(uri, arrayOf(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null)?.use { true } ?: false
+            val docUri = if (android.provider.DocumentsContract.isTreeUri(uri)) {
+                android.provider.DocumentsContract.buildDocumentUriUsingTree(
+                    uri,
+                    android.provider.DocumentsContract.getTreeDocumentId(uri)
+                )
+            } else {
+                uri
+            }
+            context.contentResolver.query(docUri, arrayOf(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null)?.use { true } ?: false
         } catch (e: Exception) {
             false
         }
@@ -775,6 +578,7 @@ class MusicScanner(private val context: Context) {
         if (!file.exists()) return null
 
         val audioFileArt = readEmbeddedCoverBlocking(path)
+            ?: com.ella.music.data.metadata.EmbeddedArtworkReader.extractCoverArt(path)
         if (audioFileArt != null) return audioFileArt
 
         return runCatching {
@@ -836,6 +640,11 @@ class MusicScanner(private val context: Context) {
                 .cleanTagText(),
             rating = ratingStarsFromTagValues(tagInfo.rating?.toString()),
             lyrics = tagInfo.lyrics.orEmpty().cleanTagText(),
+            ttmlLyrics = tagInfo.ttmlLyrics.orEmpty().cleanTagText(),
+            songwriters = firstNonBlank(
+                tagInfo.songwriters,
+                tagInfo.customTagValue("SONGWRITERS", "SONGWRITER", "AUTHOR")
+            ).orEmpty().cleanTagText(),
             customTagText = tagInfo.customTags.flattenForSearch(),
             customTags = tagInfo.customTags
         )

@@ -3,6 +3,8 @@ package com.ella.music.data.remote
 import android.content.Context
 import com.ella.music.R
 import com.ella.music.data.AppNetworkLoggingInterceptor
+import com.ella.music.data.requireHttpsRequests
+import com.ella.music.data.requireHttpsUrl
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,10 +28,12 @@ class EmbyService(private val context: Context) {
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(24, TimeUnit.SECONDS)
         .addInterceptor(AppNetworkLoggingInterceptor("EmbyNetwork"))
+        .requireHttpsRequests()
         .build()
 
     suspend fun login(baseUrl: String, username: String, password: String): EmbyLoginResult = withContext(Dispatchers.IO) {
         val url = "${baseUrl.trimEnd('/')}/Users/AuthenticateByName".toHttpUrlOrNull()
+            ?.requireHttpsUrl("Emby server")
             ?: error(context.getString(R.string.remote_source_url_invalid))
         val payload = JSONObject()
             .put("Username", username)
@@ -163,6 +167,7 @@ class EmbyService(private val context: Context) {
         params: Map<String, String> = emptyMap()
     ): JSONObject {
         val builder = "${config.baseUrl.trimEnd('/')}/${path.trimStart('/')}".toHttpUrlOrNull()
+            ?.requireHttpsUrl("Emby server")
             ?.newBuilder()
             ?: error(context.getString(R.string.remote_source_url_invalid))
         params.forEach { (key, value) -> builder.addQueryParameter(key, value) }
@@ -179,6 +184,7 @@ class EmbyService(private val context: Context) {
 
     private fun streamUrl(config: RemoteMusicSourceConfig, id: String): String =
         "${config.baseUrl.trimEnd('/')}/Audio/$id/universal".toHttpUrlOrNull()
+            ?.requireHttpsUrl("Emby server")
             ?.newBuilder()
             ?.addQueryParameter("UserId", config.userId)
             ?.addQueryParameter("api_key", config.token)
@@ -191,6 +197,7 @@ class EmbyService(private val context: Context) {
 
     private fun imageUrl(config: RemoteMusicSourceConfig, id: String): String =
         "${config.baseUrl.trimEnd('/')}/Items/$id/Images/Primary".toHttpUrlOrNull()
+            ?.requireHttpsUrl("Emby server")
             ?.newBuilder()
             ?.addQueryParameter("maxWidth", "512")
             ?.addQueryParameter("quality", "90")

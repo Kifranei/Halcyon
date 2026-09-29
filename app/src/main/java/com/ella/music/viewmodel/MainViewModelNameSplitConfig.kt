@@ -2,6 +2,7 @@ package com.ella.music.viewmodel
 
 import com.ella.music.data.NameSplitConfigStore
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.parseNameSeparatorSetting
 import com.ella.music.data.parseNameSplitSetting
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -14,32 +15,38 @@ internal fun CoroutineScope.launchNameSplitConfigObservers(
 ) {
     launch {
         settingsManager.artistSeparators.distinctUntilChanged().collect {
-            NameSplitConfigStore.artistCustomSeparators = parseNameSplitSetting(it)
+            NameSplitConfigStore.artistCustomSeparators = parseNameSeparatorSetting(it)
             onNameSplitConfigChanged()
+            // Bump after caches were cleared so re-keyed UI groupings read the new rules (#675).
+            NameSplitConfigStore.notifyChanged()
         }
     }
     launch {
         settingsManager.artistProtectedNames.distinctUntilChanged().collect {
             NameSplitConfigStore.artistProtectedNames = parseNameSplitSetting(it)
             onNameSplitConfigChanged()
+            NameSplitConfigStore.notifyChanged()
         }
     }
     launch {
         settingsManager.genreSeparators.distinctUntilChanged().collect {
-            NameSplitConfigStore.genreCustomSeparators = parseNameSplitSetting(it)
+            NameSplitConfigStore.genreCustomSeparators = parseNameSeparatorSetting(it)
             onNameSplitConfigChanged()
+            NameSplitConfigStore.notifyChanged()
         }
     }
     launch {
         settingsManager.genreProtectedNames.distinctUntilChanged().collect {
             NameSplitConfigStore.genreProtectedNames = parseNameSplitSetting(it)
             onNameSplitConfigChanged()
+            NameSplitConfigStore.notifyChanged()
         }
     }
     launch {
         settingsManager.tagIgnoreCase.distinctUntilChanged().collect {
             NameSplitConfigStore.tagIgnoreCase = it
             onNameSplitConfigChanged()
+            NameSplitConfigStore.notifyChanged()
             // Album identity is the only derived library model affected by this setting.
             // Do not re-aggregate the entire library for unrelated preference writes.
             onAlbumIdentityConfigChanged()
@@ -49,6 +56,7 @@ internal fun CoroutineScope.launchNameSplitConfigObservers(
         settingsManager.parseFeaturedArtists.distinctUntilChanged().collect {
             NameSplitConfigStore.parseFeaturedArtists = it
             onNameSplitConfigChanged()
+            NameSplitConfigStore.notifyChanged()
         }
     }
 }

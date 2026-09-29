@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">Dalga formu ölçekleme animasyonu</string>
+    <string name="player_waveform_scale_animation_summary">Duraklatırken, ilerleme çubuğuna dokunurken veya sürüklerken dalga formunu ölçekle</string>
+    <string name="player_waveform_density">Dalga formu yoğunluğu</string>
+    <string name="player_waveform_density_summary">Dalga formu çubuklarının sayısını ve aralığını ayarla</string>
+    <string name="player_waveform_peak_height">Dalga formu tepe yüksekliği</string>
+    <string name="player_waveform_peak_height_summary">Dalga formu çubuklarının en fazla yüksekliğini ayarla</string>
+</resources>

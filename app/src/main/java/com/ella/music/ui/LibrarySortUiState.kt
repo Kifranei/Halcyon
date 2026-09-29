@@ -33,6 +33,19 @@ object LibrarySortUiState {
     var playlistCustomOrderIds by mutableStateOf<List<String>>(emptyList())
     var pendingPlaylistListSortIndex by mutableStateOf<Int?>(null)
 
+    var randomSortSeed by mutableIntStateOf(SettingsManager.DEFAULT_RANDOM_SORT_SEED)
+
+    fun reshuffleRandomSort(): Int {
+        val seed = kotlin.random.Random.nextInt()
+        randomSortSeed = seed
+        return seed
+    }
+
+    fun randomizedSongs(
+        songs: List<com.ella.music.data.model.Song>,
+        seed: Int = randomSortSeed
+    ): List<com.ella.music.data.model.Song> = songs.shuffled(kotlin.random.Random(seed))
+
     val metadataCategoryScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     val metadataCategoryDetailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     private val metadataCategorySortIndices = mutableStateMapOf<String, Int>()
@@ -66,6 +79,7 @@ object LibrarySortUiState {
         playlistListSortIndex = settingsManager.playlistListSortIndex.first()
         playlistCustomOrderIds = settingsManager.playlistCustomOrder.first()
         pendingPlaylistListSortIndex = null
+        randomSortSeed = settingsManager.randomSortSeed.first()
         metadataCategoryTypes.forEach { type ->
             metadataCategorySortIndices[type] = settingsManager.metadataCategorySortIndex(type).first()
             metadataCategoryDetailSongSortIndices[type] = settingsManager.metadataCategoryDetailSongSortIndex(type).first()

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">网页</string>
+    <string name="netease_link_target_app">网易云音乐</string>
+    <string name="netease_link_target_honor">网易云音乐荣耀定制版</string>
+    <string name="netease_link_target_custom">自定义</string>
+    <string name="netease_link_open_failed">无法打开链接</string>
+    <string name="netease_link_song_comments">歌曲评论</string>
+    <string name="netease_link_artist_wiki">艺人百科</string>
+    <string name="netease_link_mv_open_mode">网易云 MV 打开方式</string>
+    <string name="netease_link_mv_open_mode_summary">歌曲带有网易云 MV 信息时，选择用内置播放器在线播放还是外部打开</string>
+    <string name="netease_link_mv_open_internal">内置播放器</string>
+    <string name="netease_link_mv_open_external">外部打开（按网易云链接跳转）</string>
+    <string name="netease_link_target">网易云链接跳转</string>
+    <string name="netease_link_target_summary">163 key 中的歌曲、歌手、专辑、MV 链接用网页还是网易云音乐应用打开</string>
+    <string name="netease_link_kind_song">歌曲</string>
+    <string name="netease_link_kind_artist">歌手</string>
+    <string name="netease_link_kind_album">专辑</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">填写 ID 前的链接，或用 {id} 标记 ID 位置；留空使用 %1$s</string>
+</resources>

@@ -49,6 +49,7 @@ internal object CategoryResumeKeys {
     fun analysis(quality: Boolean, label: String): String =
         "analysis:${if (quality) "quality" else "format"}:${label.trim()}"
     const val HOME = "home:library"
+    const val RECENT_PLAYBACK = "recent:playback"
     const val DASHBOARD = "home:dashboard"
     const val FOLDER_HIERARCHY = "folder:hierarchy"
 }

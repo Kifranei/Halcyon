@@ -1,6 +1,7 @@
 package com.ella.music.ui.listmodel
 
 import com.ella.music.data.model.Song
+import com.ella.music.ui.LibrarySortUiState
 import java.util.Locale
 
 internal enum class SongSortField {
@@ -11,7 +12,8 @@ internal enum class SongSortField {
     DateAdded,
     DateModified,
     Year,
-    Custom
+    Custom,
+    Random
 }
 
 internal enum class SongListDisplayMode {
@@ -70,6 +72,9 @@ internal object LibraryListSorter {
             SongSortField.Year -> SortedListResult(songs.sortedByReleaseDate(sortSpec.direction))
             SongSortField.Custom -> SortedListResult(
                 if (sortSpec.direction == SortDirection.Descending) songs.asReversed() else songs
+            )
+            SongSortField.Random -> SortedListResult(
+                songs.shuffled(kotlin.random.Random(LibrarySortUiState.randomSortSeed))
             )
         }
 }

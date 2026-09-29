@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">시각화 높이</string>
+    <string name="player_visualizer_height_summary">플레이어 시각화의 높이를 조정합니다. 기본값은 흐름 곡선과 같은 높이입니다</string>
+    <string name="player_visualizer_style_cover_overlay">커버 오버레이</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">Beim Kaltstart nach neuen Songs suchen</string>
+    <string name="settings_cold_start_auto_scan_summary">Bei jedem Kaltstart lokale und entfernte Bibliotheken nach neuen Songs durchsuchen; NetEase synchronisiert still</string>
+    <string name="settings_wizard_flow_background_summary">Startseite, Bibliothek usw. folgen dem Fließhintergrund des aktuellen Songs. Auf schwachen Geräten nicht empfohlen (Ruckeln, Akkuverbrauch)</string>
+    <string name="settings_wizard_interface">Oberfläche</string>
+</resources>

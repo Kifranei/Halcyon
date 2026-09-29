@@ -65,8 +65,10 @@ internal object LyricTimingEditorLauncher {
         .put("coverUrl", coverUrl)
         .put("onlineSource", onlineSource)
         .put("onlineId", onlineId)
+    .put("onlineMvId", onlineMvId)
         .put("onlineLyrics", onlineLyrics)
         .put("onlineLyricTranslation", onlineLyricTranslation)
+        .put("onlineLyricPronunciation", onlineLyricPronunciation)
 
     private fun JSONObject.toSong(): Song = Song(
         id = optLong("id"),
@@ -92,7 +94,9 @@ internal object LyricTimingEditorLauncher {
         coverUrl = optString("coverUrl"),
         onlineSource = optString("onlineSource"),
         onlineId = optString("onlineId"),
+        onlineMvId = optString("onlineMvId"),
         onlineLyrics = optString("onlineLyrics"),
-        onlineLyricTranslation = optString("onlineLyricTranslation")
+        onlineLyricTranslation = optString("onlineLyricTranslation"),
+        onlineLyricPronunciation = optString("onlineLyricPronunciation")
     )
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">Görselleştirici yüksekliği</string>
+    <string name="player_visualizer_height_summary">Oynatıcı görselleştiricisinin yüksekliği; varsayılan, akış eğrisiyle aynıdır</string>
+    <string name="player_visualizer_style_cover_overlay">Kapak üzeri</string>
+</resources>

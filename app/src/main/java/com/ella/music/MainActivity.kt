@@ -22,7 +22,12 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -55,9 +60,13 @@ import kotlinx.coroutines.withContext
 import com.ella.music.ui.player.PlayerPalette
 import com.ella.music.ui.player.coverContentColor
 import com.ella.music.ui.player.loadPaletteCoverBitmap
+import com.ella.music.ui.player.ensureBundledInterPath
+import com.ella.music.ui.player.ensureBundledMiSansBoldPath
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.components.ScriptFontPaths
 import com.ella.music.ui.components.applyHalcyonSystemBars
+import com.ella.music.ui.components.currentAppSystemBarsMode
+import com.ella.music.ui.components.currentAppSystemBarsReserveSpace
 import com.ella.music.ui.theme.MONET_COVER
 import com.ella.music.ui.theme.THEME_DARK
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
@@ -68,6 +77,10 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        com.ella.music.data.ArtistCoverRepository.getInstance(this).clearCache()
+    }
 
     private val startupMainViewModel: MainViewModel by viewModels()
     private val startupPlayerViewModel: PlayerViewModel by viewModels()
@@ -99,6 +112,7 @@ class MainActivity : ComponentActivity() {
     private var mainViewModel: MainViewModel? = null
     private var appliedLanguageTag: String? = null
     private var appliedSystemBarsMode = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    private var appliedSystemBarsReserveSpace = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
     private var currentSystemNightMode by mutableIntStateOf(Configuration.UI_MODE_NIGHT_UNDEFINED)
     var latestIntent: Intent? = null
         private set
@@ -166,10 +180,13 @@ class MainActivity : ComponentActivity() {
             )
         }
         appliedSystemBarsMode = startupAppearance.systemBarsMode
-        window.applyHalcyonSystemBars(appliedSystemBarsMode)
+        appliedSystemBarsReserveSpace = runBlocking(Dispatchers.IO) {
+            settingsManager.systemBarsReserveSpace.first()
+        }
+        window.applyHalcyonSystemBars(appliedSystemBarsMode, appliedSystemBarsReserveSpace)
         val mainVm = startupMainViewModel
         val playerVm = startupPlayerViewModel
-        runBlocking { mainVm.awaitInitialLibraryRestore() }
+        // Library restoration already runs asynchronously; never block the first frame on disk I/O.
         mainViewModel = mainVm
 
         setContent {
@@ -182,16 +199,16 @@ class MainActivity : ComponentActivity() {
             val globalCjkFontPath by settingsManager.globalCjkFontPath.collectAsState(initial = startupAppearance.globalCjkFontPath)
             val appFontWeight by settingsManager.lyricFontWeight.collectAsState(initial = startupAppearance.appFontWeight)
             val appFontPath = remember(legacyAppFontPath, globalWesternFontPath, globalCjkFontPath) {
-                val western = globalWesternFontPath.ifBlank { legacyAppFontPath }
-                if (western.isBlank() && globalCjkFontPath.isBlank()) {
-                    ""
-                } else {
-                    ScriptFontPaths(western, globalCjkFontPath).encode()
-                }
+                val western = globalWesternFontPath.ifBlank { legacyAppFontPath.ifBlank { ensureBundledInterPath(this@MainActivity) } }
+                val cjk = globalCjkFontPath.ifBlank { ensureBundledMiSansBoldPath(this@MainActivity) }
+                ScriptFontPaths(western, cjk).encode()
             }
             val monetMode by settingsManager.monetColorMode.collectAsState(initial = startupAppearance.monetMode)
             val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
                 initial = startupAppearance.systemBarsMode
+            )
+            val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+                initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
             )
             val monetSong by produceState<Song?>(null, playerVm) {
                 playerVm.currentSong.collect { value = it }
@@ -267,9 +284,10 @@ class MainActivity : ComponentActivity() {
                 WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !isDark
             }
 
-            LaunchedEffect(systemBarsMode, isDark) {
+            LaunchedEffect(systemBarsMode, isDark, systemBarsReserveSpace) {
                 appliedSystemBarsMode = systemBarsMode
-                (view.context as ComponentActivity).window.applyHalcyonSystemBars(systemBarsMode)
+                appliedSystemBarsReserveSpace = systemBarsReserveSpace
+                (view.context as ComponentActivity).window.applyHalcyonSystemBars(systemBarsMode, systemBarsReserveSpace)
             }
 
             LaunchedEffect(Unit) {
@@ -306,9 +324,37 @@ class MainActivity : ComponentActivity() {
             ) {
                 val televisionDevice = remember { isTelevisionDevice() }
                 val televisionFocusRequester = remember { FocusRequester() }
+                val rootHiddenBarsModifier = Modifier
+                    .then(
+                        if (!systemBarsReserveSpace && systemBarsMode in setOf(
+                                SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+                                SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                            )
+                        ) {
+                            Modifier
+                                .consumeWindowInsets(WindowInsets.statusBars)
+                                .consumeWindowInsets(WindowInsets.statusBarsIgnoringVisibility)
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .then(
+                        if (!systemBarsReserveSpace && systemBarsMode in setOf(
+                                SettingsManager.SYSTEM_BARS_MODE_HIDE_NAVIGATION,
+                                SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                            )
+                        ) {
+                            Modifier
+                                .consumeWindowInsets(WindowInsets.navigationBars)
+                                .consumeWindowInsets(WindowInsets.navigationBarsIgnoringVisibility)
+                        } else {
+                            Modifier
+                        }
+                    )
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .then(rootHiddenBarsModifier)
                         .then(
                             if (televisionDevice) {
                                 Modifier
@@ -365,7 +411,7 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            window.applyHalcyonSystemBars(appliedSystemBarsMode)
+            window.applyHalcyonSystemBars(currentAppSystemBarsMode, appliedSystemBarsReserveSpace)
             // Some OEM permission controllers ignore a launcher call made while the first
             // Activity window is still losing focus. Retry from the first focused frame.
             requestNotificationPermissionIfNeeded()
@@ -375,7 +421,7 @@ class MainActivity : ComponentActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         currentSystemNightMode = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        window.applyHalcyonSystemBars(appliedSystemBarsMode)
+        window.applyHalcyonSystemBars(currentAppSystemBarsMode, appliedSystemBarsReserveSpace)
     }
 
     override fun onPostResume() {
@@ -448,9 +494,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyAppLanguage(languageTag: String): Boolean {
-        if (appliedLanguageTag == languageTag) return false
+        val platformLocaleChanged = applicationContext.syncPlatformApplicationLocale(languageTag)
+        if (platformLocaleChanged) {
+            // LocaleManager restarts the Activity with the new per-app configuration.
+            appliedLanguageTag = languageTag
+            return false
+        }
+        val preferenceChanged = appliedLanguageTag != languageTag
         appliedLanguageTag = languageTag
-        return true
+        return preferenceChanged
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -474,9 +526,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun isTelevisionDevice(): Boolean =
-        packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
-            (resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
-            Configuration.UI_MODE_TYPE_TELEVISION
+        com.ella.music.util.isTelevisionDevice(this)
 
     private data class StartupAppearance(
         val themeMode: Int,

@@ -159,7 +159,7 @@ fun MetadataCategoryDetailScreen(
             }
         }
     }
-    val sortedSongs by produceState(emptyList<Song>(), filteredSongs, sortMode) {
+    val sortedSongs by produceState(emptyList<Song>(), filteredSongs, sortMode, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         value = withContext(Dispatchers.Default) {
             filteredSongs.sortedForMetadataDetail(sortMode)
         }
@@ -255,6 +255,26 @@ fun MetadataCategoryDetailScreen(
                 .distinctBy { it.id }
         }
     }
+    fun shuffleMetadataSongsAndStart() {
+        val queueSongs = if (selectedTab == MetadataDetailTab.Songs &&
+            sortMode == MetadataDetailSongSortMode.Random
+        ) {
+            val seed = LibrarySortUiState.reshuffleRandomSort()
+            saveScope.launch { mainViewModel.settingsManager.setRandomSortSeed(seed) }
+            LibrarySortUiState.randomizedSongs(randomDetailSongs, seed)
+        } else {
+            randomDetailSongs.shuffled()
+        }
+        if (queueSongs.isNotEmpty()) {
+            playerViewModel.setShuffledPlaylist(
+                queueSongs,
+                0,
+                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name),
+                preserveOrder = true
+            )
+            if (openPlayerOnPlay) onNavigateToPlayer()
+        }
+    }
     val currentSelectionIds = remember(selectedTab, sortedSongs, sortedAlbums) {
         when (selectedTab) {
             MetadataDetailTab.Songs -> sortedSongs.map { it.id }
@@ -324,7 +344,7 @@ fun MetadataCategoryDetailScreen(
         if (!selection.selectionMode) return@LaunchedEffect
         val visibleIds = currentSelectionIds.toMutableSet()
         selection.selectedIds = selection.selectedIds.filterTo(mutableSetOf()) { it in visibleIds }
-        if (selection.rangeAnchorId !in visibleIds) selection.rangeAnchorId = selection.selectedIds.firstOrNull()
+        if (selection.rangeAnchorId !in visibleIds) selection.rangeAnchorId = null
         if (selection.rangeTargetId !in visibleIds) selection.rangeTargetId = null
     }
     LaunchedEffect(type, sortIndex) {
@@ -520,6 +540,14 @@ fun MetadataCategoryDetailScreen(
                                     LibrarySortUiState.updateMetadataCategoryDetailSongSortIndex(type, mode.ordinal)
                                     saveScope.launch { mainViewModel.settingsManager.setMetadataCategoryDetailSongSortIndex(type, mode.ordinal) }
                                 }
+                            ) + listOf(
+                                com.ella.music.ui.components.randomSortDropdownItem(
+                                    selected = sortMode == MetadataDetailSongSortMode.Random,
+                                    onSelect = {
+                                        LibrarySortUiState.updateMetadataCategoryDetailSongSortIndex(type, MetadataDetailSongSortMode.Random.ordinal)
+                                        saveScope.launch { mainViewModel.settingsManager.setMetadataCategoryDetailSongSortIndex(type, MetadataDetailSongSortMode.Random.ordinal) }
+                                    }
+                                )
                             )
                         }
                         SortDropdownMenu(items = sortItems)
@@ -685,14 +713,7 @@ fun MetadataCategoryDetailScreen(
                         ) {
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && randomDetailSongs.isNotEmpty(),
-                                onClick = {
-                                    playerViewModel.setShuffledPlaylist(
-                                        randomDetailSongs,
-                                        0,
-                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
-                                    )
-                                    if (openPlayerOnPlay) onNavigateToPlayer()
-                                }
+                                onClick = ::shuffleMetadataSongsAndStart
                             )
                             Text(
                                 text = summaryText,
@@ -711,11 +732,20 @@ fun MetadataCategoryDetailScreen(
                             playbackStats = playbackStats,
                             currentSong = currentSong,
                             onContinue = { index ->
-                                playerViewModel.setPlaylist(
-                                    sortedSongs,
-                                    index,
-                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
-                                )
+                                if (selectedTab == MetadataDetailTab.Songs && sortMode == MetadataDetailSongSortMode.Random) {
+                                    playerViewModel.setShuffledPlaylist(
+                                        sortedSongs,
+                                        index,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name),
+                                        preserveOrder = true
+                                    )
+                                } else {
+                                    playerViewModel.setPlaylist(
+                                        sortedSongs,
+                                        index,
+                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
+                                    )
+                                }
                                 if (openPlayerOnPlay) onNavigateToPlayer()
                             }
                         )
@@ -794,11 +824,20 @@ fun MetadataCategoryDetailScreen(
                                 if (selection.selectionMode) {
                                     selection.toggleSelection(song.id)
                                 } else {
-                                    playerViewModel.setPlaylist(
-                                        sortedSongs,
-                                        index,
-                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
-                                    )
+                                    if (sortMode == MetadataDetailSongSortMode.Random) {
+                                        playerViewModel.setShuffledPlaylist(
+                                            sortedSongs,
+                                            index,
+                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name),
+                                            preserveOrder = true
+                                        )
+                                    } else {
+                                        playerViewModel.setPlaylist(
+                                            sortedSongs,
+                                            index,
+                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.metadata(type, name)
+                                        )
+                                    }
                                     if (openPlayerOnPlay) onNavigateToPlayer()
                                 }
                             },

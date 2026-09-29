@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">Scan for new songs on cold start</string>
+    <string name="settings_cold_start_auto_scan_summary">Scan local and remote libraries for new songs each cold start; NetEase Cloud Music syncs silently</string>
+    <string name="settings_wizard_flow_background_summary">Browse pages such as Home and Library follow the current song\'s flow background. Not recommended on low-end devices (stutter and battery use)</string>
+    <string name="settings_wizard_interface">Interface</string>
+</resources>

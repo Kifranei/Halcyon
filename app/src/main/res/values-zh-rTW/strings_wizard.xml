@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">冷啟動自動掃描新增歌曲</string>
+    <string name="settings_cold_start_auto_scan_summary">每次冷啟動時自動掃描本機與遠端曲庫的新增歌曲；網易雲音樂僅靜默同步，不提示</string>
+    <string name="settings_wizard_flow_background_summary">首頁、音樂庫等瀏覽頁跟隨目前歌曲流光。低階裝置建議不要啟用，以免卡頓與耗電</string>
+    <string name="settings_wizard_interface">介面</string>
+</resources>

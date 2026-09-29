@@ -33,11 +33,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.graphics.luminance
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.window.WindowListPopup
+import com.ella.music.ui.components.ApplyHalcyonSystemBarsToCurrentWindow
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
@@ -66,6 +76,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import androidx.compose.ui.graphics.Color
+import com.ella.music.ui.components.wallpaperAwareCardColors
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -109,10 +121,41 @@ fun LxOnlineScreen(
     val selectedSource = remember(sources, selectedSourceId) {
         sources.firstOrNull { it.id == selectedSourceId } ?: sources.firstOrNull()
     }
+    var declaredPlatforms by remember(selectedSource?.script) { mutableStateOf<Set<String>?>(null) }
+    var platformDetectionError by remember(selectedSource?.script) { mutableStateOf(false) }
+    val availablePlatforms = LxSearchPlatform.entries.filter { declaredPlatforms?.contains(it.source) != false }
+    val unsupportedPlatforms = declaredPlatforms.orEmpty() - LxSearchPlatform.entries.map { it.source }.toSet()
+    LaunchedEffect(selectedSource?.script) {
+        val config = selectedSource ?: return@LaunchedEffect
+        try {
+            declaredPlatforms = service.supportedSources(config)
+            val detected = LxSearchPlatform.entries.filter { it.source in declaredPlatforms.orEmpty() }
+            if (state.searchPlatform !in detected) {
+                detected.firstOrNull()?.let { state.searchPlatform = it }
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            platformDetectionError = true
+        }
+    }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val currentSourceId = selectedSource?.id.orEmpty()
     var observedSourceId by remember { mutableStateOf<String?>(null) }
+    val selectedLxSearchPlatform by settingsManager.selectedLxSearchPlatform.collectAsState(initial = "")
+    var hasInitializedPlatform by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedLxSearchPlatform) {
+        if (!hasInitializedPlatform && selectedLxSearchPlatform.isNotBlank()) {
+            val matched = LxSearchPlatform.entries.firstOrNull {
+                it.source == selectedLxSearchPlatform || it.name.equals(selectedLxSearchPlatform, ignoreCase = true)
+            }
+            if (matched != null) {
+                state.searchPlatform = matched
+            }
+            hasInitializedPlatform = true
+        }
+    }
     var actionItem by remember { mutableStateOf<LxOnlineSong?>(null) }
     var remoteResults by remember { mutableStateOf<List<RemoteOnlineSong>>(emptyList()) }
     var remoteActionItem by remember { mutableStateOf<RemoteOnlineSong?>(null) }
@@ -140,6 +183,10 @@ fun LxOnlineScreen(
 
     suspend fun searchSelectedProvider() {
         if (state.searchQuery.isBlank()) return
+        if (selectedProvider == RemoteMusicProvider.Lx && state.searchPlatform !in availablePlatforms) {
+            showToast(context.getString(R.string.lx_no_supported_search_platform))
+            return
+        }
         if (!remoteConfigured || selectedProvider == RemoteMusicProvider.Lx && selectedSource == null) {
             showToast(context.getString(R.string.remote_source_configure_first))
             return
@@ -237,7 +284,7 @@ fun LxOnlineScreen(
     ) {
         EllaSmallTopAppBar(
             title = titleOverride ?: selectedProvider.displayName(context),
-            color = ellaPageBackground(),
+            color = Color.Transparent,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -260,11 +307,14 @@ fun LxOnlineScreen(
             }
         )
 
+        val sourceCardColor = onlineSourceCardColor()
+
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Card(
                 modifier = Modifier.padding(vertical = 4.dp),
+                colors = CardDefaults.defaultColors(color = sourceCardColor),
                 onClick = onNavigateToSourceSettings
             ) {
                 BasicComponent(
@@ -283,49 +333,30 @@ fun LxOnlineScreen(
                 )
             }
 
-            OnlineTextField(
-                value = state.searchQuery,
-                onValueChange = { state.searchQuery = it },
-                onSearch = {
-                    scope.launch { searchSelectedProvider() }
-                },
-                placeholder = stringResource(R.string.lx_online_search_placeholder),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-            )
-
-            if (selectedProvider == RemoteMusicProvider.Lx) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LxSearchPlatform.entries.forEach { platform ->
-                        EllaMiuixChip(
-                            text = platform.displayName,
-                            selected = state.searchPlatform == platform,
-                            onClick = {
-                                if (state.searchPlatform != platform) {
-                                    state.searchPlatform = platform
-                                    state.clearResults()
-                                    remoteResults = emptyList()
-                                }
-                            }
-                        )
+            if (selectedProvider == RemoteMusicProvider.Lx && (unsupportedPlatforms.isNotEmpty() || platformDetectionError)) {
+                Text(
+                    text = if (platformDetectionError) stringResource(R.string.lx_platform_detection_failed)
+                    else stringResource(R.string.lx_platforms_unavailable, unsupportedPlatforms.joinToString(", ")),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+            OnlineSearchControls(
+                providers = if (selectedProvider == RemoteMusicProvider.Lx) availablePlatforms.map { it.displayName } else emptyList(),
+                selectedIndex = availablePlatforms.indexOf(state.searchPlatform),
+                onProviderSelected = { index ->
+                    availablePlatforms.getOrNull(index)?.let { platform ->
+                        if (state.searchPlatform != platform) {
+                            state.searchPlatform = platform
+                            state.clearResults()
+                            remoteResults = emptyList()
+                            scope.launch { settingsManager.setSelectedLxSearchPlatform(platform.source) }
+                        }
                     }
-                }
-            }
-
-            Button(
-                enabled = !state.isBusy && state.searchQuery.isNotBlank() && remoteConfigured,
-                onClick = {
-                    scope.launch { searchSelectedProvider() }
                 },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = stringResource(R.string.common_search))
-            }
+                query = state.searchQuery,
+                onQueryChange = { state.searchQuery = it },
+                onSearch = { scope.launch { searchSelectedProvider() } }
+            )
 
             val statusMessage = if (state.isBusy) stringResource(R.string.lx_online_processing) else state.message
             if (statusMessage.isNotBlank()) {

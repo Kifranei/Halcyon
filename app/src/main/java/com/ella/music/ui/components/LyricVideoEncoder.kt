@@ -13,6 +13,7 @@ import android.media.MediaMuxer
 import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.documentfile.provider.DocumentFile
 import com.ella.music.R
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -39,14 +40,20 @@ internal suspend fun generateLyricVideo(
     song: Song?,
     lines: List<LyricLine>,
     cover: Bitmap?,
-    includeTranslation: Boolean,
+    includeOriginal: Boolean = true,
+    includeTranslation: Boolean = true,
+    includePronunciation: Boolean = true,
+    effect: LyricVideoEffect = LyricVideoEffect.Particle,
     typeface: android.graphics.Typeface? = null,
     onProgress: (LyricVideoProgress) -> Unit
 ): Uri? = withContext(Dispatchers.Default) {
     val renderer = LyricVideoRenderer(
         cover = cover,
+        includeOriginal = includeOriginal,
         lines = lines,
         includeTranslation = includeTranslation,
+        includePronunciation = includePronunciation,
+        effect = effect,
         typeface = typeface
     )
     val totalFrames = renderer.totalFrames()
@@ -906,7 +913,28 @@ private fun pcmBytesToDurationUs(
     return frameCount * 1_000_000L / sampleRate.toLong()
 }
 
-internal fun shareLyricVideoFile(context: Context, uri: Uri) {
+internal fun shareLyricVideoFile(
+    context: Context,
+    uri: Uri,
+    destinationTreeUri: String = ""
+) {
+    destinationTreeUri.trim().takeIf(String::isNotBlank)?.let { treeUri ->
+        runCatching {
+            val root = DocumentFile.fromTreeUri(context, Uri.parse(treeUri))
+                ?: error("Selected lyric video folder is unavailable")
+            val target = root.createFile(
+                "video/mp4",
+                "halcyon_lyric_${System.currentTimeMillis()}.mp4"
+            ) ?: error("Unable to create lyric video in selected folder")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                context.contentResolver.openOutputStream(target.uri)?.use { output ->
+                    input.copyTo(output)
+                } ?: error("Selected lyric video folder output stream unavailable")
+            } ?: error("Generated lyric video stream unavailable")
+        }.onFailure {
+            Log.w(LYRIC_VIDEO_TAG, "copy lyric video to selected folder failed", it)
+        }
+    }
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
         type = "video/mp4"
         putExtra(Intent.EXTRA_STREAM, uri)

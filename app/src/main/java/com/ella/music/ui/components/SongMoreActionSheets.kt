@@ -39,15 +39,20 @@ internal fun SongMoreActionSheet(
     onAudioTools: (() -> Unit)?,
     onRemoveFromPlaylist: (() -> Unit)?,
     onDelete: (() -> Unit)?,
+    onDeleteSingleRecentPlayback: (() -> Unit)? = null,
+    onClearRecentPlayback: (() -> Unit)? = null,
     showSpectrum: Boolean,
     showAddToQueue: Boolean
 ) {
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val neteaseMvId = rememberNeteaseMvId(song)
     val savedLayout by settingsManager.listActionMenuLayout.collectAsState(initial = "")
-    val visibleActions = remember(savedLayout) {
+    val visibleActions = remember(savedLayout, song) {
         ActionMenuLayout.parse(savedLayout, ActionMenuIds.listDefaults)
             .visibleIds(ActionMenuIds.listDefaults)
+            // Spectrum, rating, tag editing and lyric timing need a local file.
+            .filter { ActionMenuIds.isAvailableFor(it, song) }
     }
     EllaMiuixSheetColumn(
         verticalPadding = 8.dp,
@@ -58,6 +63,23 @@ internal fun SongMoreActionSheet(
         EllaMiuixActionMenuGroup {
             visibleActions.forEach { actionId ->
                 when (actionId) {
+                ActionMenuIds.REMOVE_FROM_RECENT_PLAYBACK,
+                ActionMenuIds.DELETE_SINGLE_RECENT_PLAYBACK -> onDeleteSingleRecentPlayback?.let {
+                    SongMenuItem(
+                        stringResource(R.string.recent_playback_remove_from_recent),
+                        it,
+                        danger = true,
+                        icon = actionMenuIcon(ActionMenuIds.REMOVE_FROM_RECENT_PLAYBACK)
+                    )
+                }
+                ActionMenuIds.CLEAR_RECENT_PLAYBACK -> onClearRecentPlayback?.let {
+                    SongMenuItem(
+                        stringResource(R.string.recent_playback_remove_from_recent),
+                        it,
+                        danger = true,
+                        icon = actionMenuIcon(actionId)
+                    )
+                }
                 ActionMenuIds.ADD_TO_PLAYLIST -> SongMenuItem(
                     stringResource(R.string.song_more_add_to_playlist),
                     onAddToPlaylist,
@@ -75,6 +97,18 @@ internal fun SongMoreActionSheet(
                     onPlayNext,
                     icon = actionMenuIcon(actionId)
                 )
+                ActionMenuIds.DOWNLOAD -> if (song.onlineSource == "netease") {
+                    SongMenuItem(stringResource(R.string.netease_download_song), {
+                        com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, song)
+                        onDismiss()
+                    }, icon = actionMenuIcon(actionId))
+                }
+                ActionMenuIds.DOWNLOAD_MV -> if (neteaseMvId.isNotBlank()) {
+                    SongMenuItem(stringResource(R.string.netease_download_mv), {
+                        com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, song, neteaseMvId)
+                        onDismiss()
+                    }, icon = actionMenuIcon(actionId))
+                }
                 ActionMenuIds.SHARE -> SongMenuItem(
                     stringResource(R.string.common_share),
                     onShare,
@@ -157,19 +191,10 @@ internal fun SongTagEditorSheet(
         spacing = 0.dp,
         showHandle = false
     ) {
-        ExplicitSongTitle(
-            title = song.title.ifBlank { song.fileName },
-            fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.primary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
         EllaMiuixActionMenuGroup {
             options.forEach { option ->
                 SongMenuItem(option.label, onClick = { onOptionClick(option) })
             }
-            SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
         }
     }
 }

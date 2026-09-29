@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">評論</string>
+    <string name="netease_comments_title">評論</string>
+    <string name="netease_comments_title_count">評論(%1$s)</string>
+    <string name="netease_comments_sort_recommend">推薦</string>
+    <string name="netease_comments_sort_hot">最熱</string>
+    <string name="netease_comments_sort_latest">最新</string>
+    <string name="netease_comments_empty">暫無評論</string>
+    <string name="netease_comments_error">評論載入失敗</string>
+    <string name="netease_comments_retry">重試</string>
+    <string name="netease_comments_expand_replies">展開%1$d條回覆</string>
+    <string name="netease_comments_more_replies">展開更多回覆</string>
+    <string name="netease_comments_collapse_replies">收起回覆</string>
+    <string name="netease_comments_reply_to">回覆 @%1$s：</string>
+    <string name="netease_comments_load_more_failed">載入失敗，點擊重試</string>
+    <string name="netease_comments_no_more">沒有更多評論了</string>
+    <string name="netease_comments_vip_badge">會員</string>
+    <string name="netease_comments_like">按讚</string>
+    <string name="netease_comments_reply">回覆</string>
+    <string name="netease_comments_input_hint">說點什麼…</string>
+    <string name="netease_comments_reply_hint">回覆 @%1$s</string>
+    <string name="netease_comments_send">傳送</string>
+    <string name="netease_comments_cancel_reply">取消回覆</string>
+    <string name="netease_comments_login_required">請先登入網易雲音樂帳號</string>
+    <string name="netease_comments_like_failed">按讚失敗，請稍後再試</string>
+    <string name="netease_comments_send_failed">傳送失敗，請稍後再試</string>
+    <string name="netease_comments_send_failed_code">傳送失敗（錯誤碼 %1$d）</string>
+    <string name="netease_comments_sent">已傳送</string>
+</resources>

@@ -1,5 +1,7 @@
 package com.ella.music.ui.components
 
+import com.ella.music.ui.player.miniMorphAnchor
+
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
@@ -26,6 +28,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -187,8 +191,13 @@ private fun MiniPlayerTextRow(
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val textMeasurer = rememberTextMeasurer()
         val density = LocalDensity.current
-        val textStyle = remember(fontSize, fontWeight) {
-            TextStyle(fontSize = fontSize.sp, fontWeight = fontWeight)
+        val fontFamily = MiuixTheme.textStyles.main.fontFamily
+        val textStyle = remember(fontSize, fontWeight, fontFamily) {
+            TextStyle(
+                fontSize = fontSize.sp,
+                fontWeight = fontWeight,
+                fontFamily = fontFamily
+            )
         }
         val measuredTextWidth = remember(text, textStyle, textMeasurer, density) {
             with(density) {
@@ -231,6 +240,39 @@ private fun MiniPlayerTextRow(
 }
 
 @Composable
+internal fun MiniPlayerSquareCover(
+    coverState: MiniPlayerCoverState,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    shape: Shape = RoundedCornerShape(6.dp)
+) {
+    val coverModel = coverState.model
+    Box(
+        modifier = modifier
+            .size(size)
+            .miniMorphAnchor(artwork = true, radius = 6.dp)
+            .clip(shape)
+            .background(MiuixTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        if (coverModel != null) {
+            SafeCoverImage(
+                model = coverModel,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(size)
+                    .clip(shape),
+                contentScale = ContentScale.Crop,
+                sizePx = 128,
+                showDefaultPlaceholder = false
+            )
+        } else if (coverState.showDefaultCover) {
+            DefaultAlbumCover(modifier = Modifier.size(size))
+        }
+    }
+}
+
+@Composable
 internal fun MiniPlayerCoverProgress(
     coverState: MiniPlayerCoverState,
     isPlaying: Boolean,
@@ -268,6 +310,7 @@ internal fun MiniPlayerCoverProgress(
         Box(
             modifier = Modifier
                 .size(coverSize)
+                .miniMorphAnchor(artwork = true, circular = true)
                 .graphicsLayer { rotationZ = coverRotation }
                 .clip(CircleShape)
                 .background(MiuixTheme.colorScheme.surface),
@@ -408,10 +451,14 @@ private fun AutoScrollingMiniText(
         }
     }
 
-    val textStyle = TextStyle(
-        fontSize = fontSize.sp,
-        fontWeight = fontWeight
-    )
+    val fontFamily = MiuixTheme.textStyles.main.fontFamily
+    val textStyle = remember(fontSize, fontWeight, fontFamily) {
+        TextStyle(
+            fontSize = fontSize.sp,
+            fontWeight = fontWeight,
+            fontFamily = fontFamily
+        )
+    }
     val textLayout = remember(text, textStyle, textMeasurer) {
         textMeasurer.measure(
             text = AnnotatedString(text),

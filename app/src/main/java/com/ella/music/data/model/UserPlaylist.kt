@@ -47,8 +47,10 @@ data class PlaylistSong(
     val coverUrl: String,
     val onlineSource: String,
     val onlineId: String,
+    val onlineMvId: String = "",
     val onlineLyrics: String,
     val onlineLyricTranslation: String,
+    val onlineLyricPronunciation: String = "",
     val addedAt: Long
 )
 
@@ -86,8 +88,10 @@ fun Song.toPlaylistSong(addedAt: Long = System.currentTimeMillis()): PlaylistSon
         coverUrl = coverUrl,
         onlineSource = onlineSource,
         onlineId = onlineId,
+        onlineMvId = onlineMvId,
         onlineLyrics = onlineLyrics,
         onlineLyricTranslation = onlineLyricTranslation,
+        onlineLyricPronunciation = onlineLyricPronunciation,
         addedAt = addedAt
     )
 
@@ -116,8 +120,10 @@ fun PlaylistSong.toSong(): Song =
         coverUrl = coverUrl,
         onlineSource = onlineSource,
         onlineId = onlineId,
+        onlineMvId = onlineMvId,
         onlineLyrics = onlineLyrics,
-        onlineLyricTranslation = onlineLyricTranslation
+        onlineLyricTranslation = onlineLyricTranslation,
+        onlineLyricPronunciation = onlineLyricPronunciation
     )
 
 fun UserPlaylist.toJson(): JSONObject =
@@ -173,8 +179,10 @@ fun PlaylistSong.toJson(): JSONObject =
         .put("coverUrl", coverUrl)
         .put("onlineSource", onlineSource)
         .put("onlineId", onlineId)
+    .put("onlineMvId", onlineMvId)
         .put("onlineLyrics", onlineLyrics)
         .put("onlineLyricTranslation", onlineLyricTranslation)
+        .put("onlineLyricPronunciation", onlineLyricPronunciation)
         .put("addedAt", addedAt)
 
 fun JSONObject.toPlaylistSong(): PlaylistSong =
@@ -203,8 +211,10 @@ fun JSONObject.toPlaylistSong(): PlaylistSong =
         coverUrl = optString("coverUrl"),
         onlineSource = optString("onlineSource"),
         onlineId = optString("onlineId"),
+        onlineMvId = optString("onlineMvId"),
         onlineLyrics = optString("onlineLyrics"),
         onlineLyricTranslation = optString("onlineLyricTranslation"),
+        onlineLyricPronunciation = optString("onlineLyricPronunciation"),
         addedAt = optLong("addedAt")
     )
 

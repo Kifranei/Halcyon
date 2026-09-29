@@ -8,6 +8,8 @@ import com.ella.music.R
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.AppLogType
 import com.ella.music.data.AppNetworkLoggingInterceptor
+import com.ella.music.data.copyToBoundedOrThrow
+import com.ella.music.data.readUtf8Bounded
 import com.ella.music.data.scanner.supportedAudioFileExtensions
 import okhttp3.Credentials
 import okhttp3.Call
@@ -22,9 +24,11 @@ import okhttp3.Response
 import java.io.File
 import java.io.IOException
 import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.io.RandomAccessFile
 import java.net.URI
+import java.util.UUID
 import java.net.SocketTimeoutException
 import java.net.URLDecoder
 import java.net.UnknownHostException
@@ -177,13 +181,24 @@ enum class WebDavAuthMode {
     DIGEST
 }
 
+data class WebDavHeader(
+    val name: String,
+    val value: String
+)
+
 data class WebDavConfig(
     val url: String,
     val username: String,
     val password: String,
-    val authMode: WebDavAuthMode = WebDavAuthMode.AUTO
+    val authMode: WebDavAuthMode = WebDavAuthMode.AUTO,
+    val customHeaders: List<WebDavHeader> = emptyList()
 ) {
     val isConfigured: Boolean get() = url.trim().isNotBlank()
+
+    fun normalizedCustomHeaders(): List<WebDavHeader> =
+        customHeaders
+            .map { WebDavHeader(it.name.trim(), it.value) }
+            .filter { it.name.isNotBlank() }
 }
 
 data class WebDavItem(
@@ -205,6 +220,9 @@ object WebDavClient {
     private const val TAG = "WebDavClient"
     private const val DEFAULT_LIST_BATCH_SIZE = 200
     private const val MAX_PROPFIND_ERROR_BODY_CHARS = 8 * 1024
+    private const val MAX_PROPFIND_RESPONSE_BYTES = 16L * 1024L * 1024L
+    private const val MAX_WEBDAV_ERROR_BODY_BYTES = 8L * 1024L
+    private const val MAX_WEBDAV_DOWNLOAD_BYTES = 1L * 1024L * 1024L * 1024L
     private const val MAX_PROPFIND_ITEMS = 20_000
     private const val MAX_SPARSE_METADATA_FILE_SIZE = 1L * 1024 * 1024 * 1024
     private const val FLAC_METADATA_INITIAL_BYTES = 64 * 1024L
@@ -231,12 +249,22 @@ object WebDavClient {
         .followRedirects(true)
         .followSslRedirects(true)
         .addInterceptor(AppNetworkLoggingInterceptor(TAG))
+        .addWebDavOriginGuard()
         .authenticator { _, response ->
             response.request.tag(WebDavConfig::class.java)?.let { config ->
                 authenticate(response, config)
             }
         }
         .build()
+
+    private val fileTransferClient by lazy {
+        httpClient.newBuilder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(3, TimeUnit.MINUTES)
+            .build()
+    }
 
     fun newAuthenticatedOkHttpClient(configProvider: () -> WebDavConfig): OkHttpClient {
         return OkHttpClient.Builder()
@@ -246,6 +274,7 @@ object WebDavClient {
             .followRedirects(true)
             .followSslRedirects(true)
             .addInterceptor(AppNetworkLoggingInterceptor(TAG))
+            .addWebDavOriginGuard()
             .authenticator { _, response -> authenticate(response, configProvider()) }
             .addInterceptor { chain ->
                 val config = configProvider()
@@ -413,7 +442,8 @@ object WebDavClient {
 
         httpClient.newCall(request).execute().use { response ->
             if (response.code !in 200..399) {
-                throw WebDavException(WebDavResponse(response.code, response.body?.string().orEmpty()).toFriendlyMessage(ctx))
+                val message = response.body?.byteStream()?.use { it.readUtf8Bounded(MAX_WEBDAV_ERROR_BODY_BYTES) }.orEmpty()
+                throw WebDavException(WebDavResponse(response.code, message).toFriendlyMessage(ctx))
             }
         }
     }
@@ -435,9 +465,10 @@ object WebDavClient {
             .apply { applyPreemptiveBasicAuth(config) }
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        fileTransferClient.newCall(request).execute().use { response ->
             if (response.code !in 200..399) {
-                throw WebDavException(WebDavResponse(response.code, response.body?.string().orEmpty()).toFriendlyMessage(ctx))
+                val message = response.body?.byteStream()?.use { it.readUtf8Bounded(MAX_WEBDAV_ERROR_BODY_BYTES) }.orEmpty()
+                throw WebDavException(WebDavResponse(response.code, message).toFriendlyMessage(ctx))
             }
         }
     }
@@ -471,6 +502,9 @@ object WebDavClient {
 
     fun downloadToFile(url: String, config: WebDavConfig, target: File): File {
         val ctx = requireContext()
+        target.parentFile?.mkdirs()
+        val temporary = File(target.parentFile, "${target.name}.download-${UUID.randomUUID()}")
+        var backup: File? = null
         val request = Request.Builder()
             .url(normalizeRequestUrl(url))
             .get()
@@ -478,17 +512,32 @@ object WebDavClient {
             .apply { applyPreemptiveBasicAuth(config) }
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
-            if (response.code !in 200..399) {
-                throw WebDavException(WebDavResponse(response.code, response.body?.string().orEmpty()).toFriendlyMessage(ctx))
+        try {
+            fileTransferClient.newCall(request).execute().use { response ->
+                if (response.code !in 200..399) {
+                    val errorBody = response.body?.byteStream()?.use { it.readUtf8Bounded(MAX_WEBDAV_ERROR_BODY_BYTES) }.orEmpty()
+                    throw WebDavException(WebDavResponse(response.code, errorBody).toFriendlyMessage(ctx))
+                }
+                val body = response.body ?: throw WebDavException(ctx.getString(R.string.webdav_file_download_failed))
+                if (body.contentLength() > MAX_WEBDAV_DOWNLOAD_BYTES) {
+                    throw IllegalArgumentException("WebDAV download exceeds the configured size limit")
+                }
+                temporary.outputStream().use { output ->
+                    body.byteStream().use { input -> input.copyToBoundedOrThrow(output, MAX_WEBDAV_DOWNLOAD_BYTES) }
+                }
             }
-            val body = response.body ?: throw WebDavException(ctx.getString(R.string.webdav_file_download_failed))
-            target.parentFile?.mkdirs()
-            target.outputStream().use { output ->
-                body.byteStream().use { input -> input.copyTo(output) }
+            if (target.exists()) {
+                backup = File(target.parentFile, "${target.name}.previous-${UUID.randomUUID()}")
+                require(target.renameTo(backup)) { "Cannot preserve the previous WebDAV cache file" }
             }
+            if (!temporary.renameTo(target)) throw IOException("Cannot finalize WebDAV download")
+            backup?.delete()
+            return target
+        } catch (error: Throwable) {
+            temporary.delete()
+            if (backup != null && backup.exists() && !target.exists()) backup.renameTo(target)
+            throw error
         }
-        return target
     }
 
     fun downloadHeaderToFile(
@@ -1126,7 +1175,11 @@ object WebDavClient {
             Log.i(TAG, "WebDAV PROPFIND response depth=$depth url=${requestUrl.safeLogUrl()} code=${response.code}")
             val responseBody = response.body
             if (response.code in 200..399) {
-                val items = responseBody?.byteStream()?.use { input -> parseItems(input, requestUrl) }.orEmpty()
+                val items = responseBody?.byteStream()?.use { input ->
+                    val bytes = ByteArrayOutputStream()
+                    input.copyToBoundedOrThrow(bytes, MAX_PROPFIND_RESPONSE_BYTES)
+                    parseItems(ByteArrayInputStream(bytes.toByteArray()), requestUrl)
+                }.orEmpty()
                 ParsedPropfind(code = response.code, items = items)
             } else {
                 ParsedPropfind(
@@ -1159,7 +1212,7 @@ object WebDavClient {
             Log.i(TAG, "WebDAV PROPFIND response depth=$depth url=${requestUrl.safeLogUrl()} code=${response.code}")
             WebDavResponse(
                 code = response.code,
-                body = response.body?.string().orEmpty()
+                body = response.body?.byteStream()?.use { it.readUtf8Bounded(MAX_PROPFIND_RESPONSE_BYTES) }.orEmpty()
             )
         }
     }
@@ -1172,13 +1225,75 @@ object WebDavClient {
 
     private data class WebDavResponse(val code: Int, val body: String)
 
+    private fun OkHttpClient.Builder.addWebDavOriginGuard(): OkHttpClient.Builder =
+        addNetworkInterceptor { chain ->
+            val request = chain.request()
+            val config = request.tag(WebDavConfig::class.java)
+            val sameConfiguredHost = config != null && request.url.sameHostAs(config.url)
+            val configuredCredentials = config != null && (
+                config.username.isNotBlank() || config.password.isNotBlank() ||
+                    config.normalizedCustomHeaders().isNotEmpty()
+                )
+            if (!request.url.username.isNullOrEmpty() || !request.url.password.isNullOrEmpty()) {
+                throw IOException("URLs with embedded credentials are not allowed")
+            }
+            if (!request.url.isHttps && sameConfiguredHost && configuredCredentials) {
+                throw IOException("WebDAV credentials and custom headers require HTTPS")
+            }
+
+            val shouldStripConfiguredCredentials = config != null && !request.url.sameOriginAs(config.url)
+            val sanitized = if (shouldStripConfiguredCredentials) {
+                request.newBuilder().removeHeader("Authorization").removeHeader("Cookie").apply {
+                    config.normalizedCustomHeaders().forEach { removeHeader(it.name) }
+                }.build()
+            } else request
+
+            if (!sanitized.url.isHttps && sanitized.hasCredentialedHttpUrlOrHeaders()) {
+                throw IOException("Credential-bearing requests require HTTPS")
+            }
+            chain.proceed(sanitized)
+        }
+
+    private fun okhttp3.HttpUrl.sameOriginAs(configuredUrl: String): Boolean {
+        val configured = configuredUrl.toHttpUrlOrNull() ?: return false
+        return scheme == configured.scheme && host.equals(configured.host, ignoreCase = true) && port == configured.port
+    }
+
+    private fun okhttp3.HttpUrl.sameHostAs(configuredUrl: String): Boolean {
+        val configured = configuredUrl.toHttpUrlOrNull() ?: return false
+        return host.equals(configured.host, ignoreCase = true)
+    }
+
+    private fun Request.hasCredentialedHttpUrlOrHeaders(): Boolean {
+        val credentialQueryKeys = setOf(
+            "api_key", "apikey", "key", "access_token", "auth", "password", "token", "secret",
+            "credential", "client_secret", "session_key", "sk", "api_sig"
+        )
+        return headers.names().any { name ->
+            val key = name.lowercase(Locale.ROOT)
+            key in setOf("authorization", "proxy-authorization", "cookie", "set-cookie") ||
+                listOf("api_key", "apikey", "api-key", "request-key", "token", "auth", "secret", "credential")
+                    .any(key::contains)
+        } ||
+            url.queryParameterNames.any { it.lowercase(Locale.ROOT) in credentialQueryKeys }
+    }
+
     private fun Request.Builder.applyPreemptiveBasicAuth(config: WebDavConfig) {
         if ((config.username.isNotBlank() || config.password.isNotBlank()) && config.authMode != WebDavAuthMode.DIGEST) {
             header("Authorization", Credentials.basic(config.username, config.password, Charsets.UTF_8))
         }
+        applyCustomHeaders(config)
+    }
+
+    private fun Request.Builder.applyCustomHeaders(config: WebDavConfig) {
+        config.normalizedCustomHeaders().forEach { header ->
+            // Use header() so duplicates replace rather than accumulate across retries.
+            header(header.name, header.value)
+        }
     }
 
     private fun authenticate(response: Response, config: WebDavConfig): Request? {
+        if (!response.request.url.isHttps || !response.request.url.sameOriginAs(config.url)) return null
         if (config.username.isBlank()) return null
         if (responseCount(response) >= 3) {
             Log.w(TAG, "WebDAV auth retry limit reached: ${response.request.url.toString().safeLogUrl()}")
@@ -1234,6 +1349,7 @@ object WebDavClient {
         Log.i(TAG, "WebDAV using Basic auth: ${request.url.toString().safeLogUrl()}")
         return request.newBuilder()
             .header("Authorization", Credentials.basic(config.username, config.password, Charsets.UTF_8))
+            .apply { applyCustomHeaders(config) }
             .build()
     }
 
@@ -1283,6 +1399,7 @@ object WebDavClient {
             Log.i(TAG, "WebDAV using Digest auth: ${request.url.toString().safeLogUrl()} algorithm=$algorithm")
             request.newBuilder()
                 .header("Authorization", authValue)
+                .apply { applyCustomHeaders(config) }
                 .build()
         }.getOrElse { error ->
             Log.w(TAG, "WebDAV Digest auth failed", error)
@@ -1356,9 +1473,13 @@ object WebDavClient {
     }
 
     private fun resolveHref(baseUrl: String, href: String): String {
-        return runCatching {
+        val resolved = runCatching {
             normalizeRequestUrl(URI(baseUrl).resolve(href).toString())
         }.getOrElse { href }
+        require(resolved.toHttpUrlOrNull()?.sameOriginAs(baseUrl) == true) {
+            "WebDAV response points to a different origin"
+        }
+        return resolved
     }
 
     private fun normalizeCollectionUrl(url: String): String {
@@ -1368,13 +1489,9 @@ object WebDavClient {
 
     private fun normalizeRequestUrl(url: String): String {
         val trimmed = url.trim()
-        require(trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-            "WebDAV URL must start with http:// or https://"
-        }
-        trimmed.toHttpUrlOrNull()?.let { return it.toString() }
-        return runCatching {
+        val normalized = trimmed.toHttpUrlOrNull()?.toString() ?: runCatching {
             val uri = URI(trimmed.replace(" ", "%20"))
-            val normalized = URI(
+            URI(
                 uri.scheme,
                 uri.userInfo,
                 uri.host,
@@ -1383,8 +1500,14 @@ object WebDavClient {
                 uri.query,
                 uri.fragment
             ).toASCIIString()
-            normalized.toHttpUrlOrNull()?.toString() ?: normalized
-        }.getOrDefault(trimmed)
+                .toHttpUrlOrNull()
+                ?.toString()
+        }.getOrNull() ?: throw IllegalArgumentException("WebDAV URL is invalid")
+        val parsed = normalized.toHttpUrlOrNull() ?: throw IllegalArgumentException("WebDAV URL is invalid")
+        require(parsed.username.isEmpty() && parsed.password.isEmpty()) {
+            "WebDAV URLs must not contain embedded credentials"
+        }
+        return parsed.toString()
     }
 
     fun displayUrl(url: String): String {

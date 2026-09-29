@@ -87,6 +87,13 @@ private fun BackdropEffectScope.roundedRectCornerRadii(): FloatArray? {
 }
 
 private const val ROUNDED_RECT_SDF = """
+// Pixel centers can land exactly on the inner tangent rectangle (especially at
+// fractional/odd-dp radii). GLSL normalize(0) is undefined and draws a rectangular
+// seam on some GPUs. Keep every gradient finite, including the lens center.
+float2 safeNormalize(float2 value) {
+    return value / max(length(value), 0.0001);
+}
+
 float radiusAt(float2 coord, float4 radii) {
     if (coord.x >= 0.0) {
         if (coord.y <= 0.0) return radii.y;
@@ -106,8 +113,8 @@ float sdRoundedRect(float2 coord, float2 halfSize, float radius) {
 
 float2 gradSdRoundedRect(float2 coord, float2 halfSize, float radius) {
     float2 cornerCoord = abs(coord) - (halfSize - float2(radius));
-    if (cornerCoord.x >= 0.0 || cornerCoord.y >= 0.0) {
-        return sign(coord) * normalize(max(cornerCoord, 0.0));
+    if (cornerCoord.x > 0.0 || cornerCoord.y > 0.0) {
+        return sign(coord) * safeNormalize(max(cornerCoord, 0.0));
     } else {
         float gradX = step(cornerCoord.y, cornerCoord.x);
         return sign(coord) * float2(gradX, 1.0 - gradX);
@@ -134,7 +141,7 @@ float circleMap(float x) {
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = (coord + offset) - halfSize;
-    float radius = radiusAt(coord, cornerRadii);
+    float radius = radiusAt(centeredCoord, cornerRadii);
 
     float sd = sdRoundedRect(centeredCoord, halfSize, radius);
     if (-sd >= refractionHeight) {
@@ -144,7 +151,7 @@ half4 main(float2 coord) {
 
     float d = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
     float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
-    float2 grad = normalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * normalize(centeredCoord));
+    float2 grad = safeNormalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * safeNormalize(centeredCoord));
 
     float2 refractedCoord = coord + d * grad;
     return content.eval(refractedCoord);
@@ -171,7 +178,7 @@ float circleMap(float x) {
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = (coord + offset) - halfSize;
-    float radius = radiusAt(coord, cornerRadii);
+    float radius = radiusAt(centeredCoord, cornerRadii);
 
     float sd = sdRoundedRect(centeredCoord, halfSize, radius);
     if (-sd >= refractionHeight) {
@@ -181,7 +188,7 @@ half4 main(float2 coord) {
 
     float d = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
     float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
-    float2 grad = normalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * normalize(centeredCoord));
+    float2 grad = safeNormalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * safeNormalize(centeredCoord));
 
     float2 refractedCoord = coord + d * grad;
     float dispersionIntensity = chromaticAberration * ((centeredCoord.x * centeredCoord.y) / (halfSize.x * halfSize.y));

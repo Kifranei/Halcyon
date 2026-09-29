@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">حركة تحجيم الشكل الموجي</string>
+    <string name="player_waveform_scale_animation_summary">تحجيم الشكل الموجي عند الإيقاف المؤقت أو النقر على شريط التقدم أو سحبه</string>
+    <string name="player_waveform_density">كثافة الشكل الموجي</string>
+    <string name="player_waveform_density_summary">ضبط عدد أشرطة الشكل الموجي والمسافة بينها</string>
+    <string name="player_waveform_peak_height">ارتفاع ذروة الشكل الموجي</string>
+    <string name="player_waveform_peak_height_summary">ضبط الحد الأقصى لارتفاع أشرطة الشكل الموجي</string>
+</resources>

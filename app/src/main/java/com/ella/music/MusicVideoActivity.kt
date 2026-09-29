@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import com.ella.music.data.SettingsManager
@@ -46,6 +47,7 @@ class MusicVideoActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        com.ella.music.player.PlaybackService.pausePlayback()
         val song = MusicVideoLauncher.songFrom(intent) ?: run {
             finish()
             return
@@ -94,7 +96,7 @@ class MusicVideoActivity : ComponentActivity() {
         // An MV opened from the detail page is audible. It must never continue as an invisible
         // second player after navigating to an artist, sharing, or opening another MV. PiP is the
         // only background state that deliberately keeps the audible player alive.
-        if (!isInPictureInPictureMode) activePlayer?.pause()
+        if (!isInPictureInPictureMode || isFinishing) activePlayer?.pause()
         super.onStop()
     }
 
@@ -117,6 +119,20 @@ class MusicVideoActivity : ComponentActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         pictureInPictureMode = isInPictureInPictureMode
+        if (!isInPictureInPictureMode) {
+            if (isFinishing) {
+                activePlayer?.pause()
+                activePlayer?.stop()
+            } else {
+                window.decorView.post {
+                    if (!isDestroyed && !this.isInPictureInPictureMode && lifecycle.currentState < Lifecycle.State.RESUMED) {
+                        activePlayer?.pause()
+                        activePlayer?.stop()
+                        finish()
+                    }
+                }
+            }
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -241,6 +257,8 @@ class MusicVideoActivity : ComponentActivity() {
             .show(WindowInsetsCompat.Type.systemBars())
         musicVideoMediaSession?.release()
         musicVideoMediaSession = null
+        activePlayer?.pause()
+        activePlayer?.stop()
         activePlayer?.release()
         activePlayer = null
         super.onDestroy()

@@ -4,6 +4,8 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.primaryEndMs
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EllaLyricsParserTest {
@@ -125,6 +127,55 @@ class EllaLyricsParserTest {
     }
 
     @Test
+    fun appleMusicTtmlKeepsPhraseLevelFuriganaOnCompoundKanji() {
+        val result = EllaLyricsParser.parse(
+            """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word">
+              <head>
+                <metadata>
+                  <iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">
+                    <transliterations>
+                      <transliteration xml:lang="ja">
+                        <text for="L14">
+                          <span begin="0:58.888" end="0:59.158">あなた</span>
+                          <span begin="0:59.293" end="0:59.563">あなた</span>
+                          <span begin="0:59.701" end="1:00.404">まこと</span>
+                        </text>
+                      </transliteration>
+                    </transliterations>
+                  </iTunesMetadata>
+                </metadata>
+              </head>
+              <body>
+                <div>
+                  <p begin="0:58.888" end="1:00.913" itunes:key="L14">
+                    <span begin="0:58.888" end="0:59.158">貴方</span>
+                    <span begin="0:59.158" end="0:59.293">の</span>
+                    <span begin="0:59.293" end="0:59.563">貴方</span>
+                    <span begin="0:59.563" end="0:59.701">の</span>
+                    <span begin="0:59.701" end="1:00.404">誠</span>
+                    <span begin="1:00.404" end="1:00.913">は</span>
+                  </p>
+                </div>
+              </body>
+            </tt>
+            """.trimIndent()
+        )
+
+        val line = result.lyrics.single()
+        assertEquals(listOf("貴方", "の", "貴方", "の", "誠", "は"), line.words.map { it.text })
+        assertEquals(listOf("あなた", "あなた", "まこと"), line.pronunciationWords.map { it.text })
+        assertEquals(
+            listOf("あなた", "", "あなた", "", "まこと", ""),
+            com.ella.music.ui.player.rubiesForTimedWords(
+                line.words,
+                line.pronunciationWords,
+                line.pronunciation.orEmpty()
+            )
+        )
+    }
+
+    @Test
     fun appleMusicTtmlKeepsPerKanjiFuriganaTimings() {
         val result = EllaLyricsParser.parse(
             """
@@ -180,6 +231,79 @@ class EllaLyricsParserTest {
     }
 
     @Test
+    fun appleMusicTtmlProjectsPhraseRomanizationOntoCharacters() {
+        val result = EllaLyricsParser.parse(
+            """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word">
+              <body>
+                <div>
+                  <p begin="0:01.000" end="0:03.000" itunes:key="L1">
+                    <span begin="0:01.000" end="0:03.000">春娇与志明</span>
+                  </p>
+                </div>
+              </body>
+              <head>
+                <metadata>
+                  <iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">
+                    <transliterations>
+                      <transliteration xml:lang="zh-Latn-pinyin">
+                        <text for="L1">
+                          <span begin="0:01.000" end="0:01.350">chūn</span>
+                          <span begin="0:01.350" end="0:01.700">jiāo</span>
+                          <span begin="0:01.700" end="0:02.050">yǔ</span>
+                          <span begin="0:02.050" end="0:02.400">zhì</span>
+                          <span begin="0:02.400" end="0:03.000">míng</span>
+                        </text>
+                      </transliteration>
+                    </transliterations>
+                  </iTunesMetadata>
+                </metadata>
+              </head>
+            </tt>
+            """.trimIndent()
+        )
+
+        val line = result.lyrics.single()
+        // A single full-line source span is deliberately omitted from line.words, but the
+        // character projection must still provide five correctly ordered ruby timing units for
+        // the Apple Music renderer's synthetic character slots.
+        assertTrue(line.words.isEmpty())
+        assertEquals(listOf("chūn", "jiāo", "yǔ", "zhì", "míng"), line.pronunciationWords.map { it.text })
+        assertEquals(
+            listOf(1_000L, 1_400L, 1_800L, 2_200L, 2_600L),
+            line.pronunciationWords.map { it.startMs }
+        )
+    }
+
+    @Test
+    fun appleMusicTtmlKeepsTimedInlineRomanizationInsteadOfFlatteningIt() {
+        val result = EllaLyricsParser.parse(
+            """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+              <body>
+                <div>
+                  <p begin="0:04.000" end="0:06.000">
+                    <span begin="0:04.000" end="0:06.000">春娇与志明</span>
+                    <span ttm:role="x-roman">
+                      <span begin="0:04.000" end="0:04.400">chūn</span>
+                      <span begin="0:04.400" end="0:04.800">jiāo</span>
+                      <span begin="0:04.800" end="0:05.200">yǔ</span>
+                      <span begin="0:05.200" end="0:05.600">zhì</span>
+                      <span begin="0:05.600" end="0:06.000">míng</span>
+                    </span>
+                  </p>
+                </div>
+              </body>
+            </tt>
+            """.trimIndent()
+        )
+
+        val line = result.lyrics.single()
+        assertEquals(listOf("chūn", "jiāo", "yǔ", "zhì", "míng"), line.pronunciationWords.map { it.text })
+        assertEquals(listOf(4_000L, 4_400L, 4_800L, 5_200L, 5_600L), line.pronunciationWords.map { it.startMs })
+    }
+
+    @Test
     fun sameTimestampKanaCompanionIsPronunciationNotTranslation() {
         val result = LrcParser.parse(
             """
@@ -209,6 +333,86 @@ class EllaLyricsParserTest {
         assertEquals("覚醒 READY OK", result.lyrics.single().text)
         assertEquals("ka ku se i READY OK", result.lyrics.single().pronunciation)
         assertEquals("该觉醒了 Ready，ok？", result.lyrics.single().translation)
+    }
+
+    @Test
+    fun sameTimestampTwoLineRomajiIsKeptAsPronunciation() {
+        val result = LrcParser.parse(
+            """
+            [00:12.000]風が変わっても
+            [00:12.000]kaze ga kawattemo
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("風が変わっても", result.lyrics.single().text)
+        assertEquals("kaze ga kawattemo", result.lyrics.single().pronunciation)
+        assertEquals(null, result.lyrics.single().translation)
+    }
+
+    @Test
+    fun sameTimestampVietnameseLyricKeepsChineseCompanionAsTranslation() {
+        // "Dạ Vũ": the sung Vietnamese row carries the karaoke timings, the Chinese row is the
+        // translation. Vietnamese acutes and graves overlap with pinyin tone marks, which used
+        // to demote the whole lyric to ruby text above its own translation.
+        val result = LrcParser.parse(
+            """
+            [00:19.425]Khi [00:20.189]màn [00:20.758]đêm [00:21.253]vừa [00:21.764]buông[00:22.495]
+            [00:19.425]当夜幕降临[00:22.256]
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("Khi màn đêm vừa buông", result.lyrics.single().text)
+        assertEquals("当夜幕降临", result.lyrics.single().translation)
+        assertEquals(null, result.lyrics.single().pronunciation)
+    }
+
+    @Test
+    fun sameTimestampLatinLyricWithoutReadingShapeStaysPrimary() {
+        // No Vietnamese-only letter here, so the script gate passes; the syllable check is what
+        // has to reject it, because "nơi"/"vực" do not decompose into pinyin or romaji.
+        val result = LrcParser.parse(
+            """
+            [00:31.776]Noi vuc sau khong ten
+            [00:31.776]在无名的深渊里
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("Noi vuc sau khong ten", result.lyrics.single().text)
+        assertEquals("在无名的深渊里", result.lyrics.single().translation)
+        assertEquals(null, result.lyrics.single().pronunciation)
+    }
+
+    @Test
+    fun sameTimestampTonedPinyinStaysPronunciation() {
+        val result = LrcParser.parse(
+            """
+            [00:12.000]春宵雨至明
+            [00:12.000]chūn xiāo yǔ zhì míng
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("春宵雨至明", result.lyrics.single().text)
+        assertEquals("chūn xiāo yǔ zhì míng", result.lyrics.single().pronunciation)
+        assertEquals(null, result.lyrics.single().translation)
+    }
+
+    @Test
+    fun sameTimestampTwoLineEnglishTranslationIsNotMisclassifiedAsPronunciation() {
+        val result = LrcParser.parse(
+            """
+            [00:12.000]風が変わっても
+            [00:12.000]Even when the wind changes
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("風が変わっても", result.lyrics.single().text)
+        assertEquals(null, result.lyrics.single().pronunciation)
+        assertEquals("Even when the wind changes", result.lyrics.single().translation)
     }
 
     @Test
@@ -472,5 +676,129 @@ class EllaLyricsParserTest {
         assertEquals(1, result.lyrics.size)
         assertEquals("Yeah", result.lyrics[0].backgroundText)
         assertEquals(listOf("Yeah"), result.lyrics[0].backgroundWords.map { it.text })
+    }
+
+    @Test
+    fun htmlWrappedLrcFileParsesCorrectly() {
+        val htmlContent = """
+            <html>
+            <style>div{min-height:1em;}</style>
+            <body>[ti:Kiss Land]<br/>[ar:The Weeknd]<br/>[00:20.58]v1: &lt;00:20.584&gt;When &lt;00:20.822&gt;I &lt;00:21.012&gt;got &lt;00:21.392&gt;on &lt;00:21.645&gt;stage<br/>[00:26.67]v1: &lt;00:26.678&gt;Don&#39;t &lt;00:26.970&gt;worry</body>
+            </html>
+        """.trimIndent()
+
+        val result = EllaLyricsParser.parse(htmlContent)
+        assertEquals("Kiss Land", result.title)
+        assertEquals("The Weeknd", result.artist)
+        assertEquals(2, result.lyrics.size)
+        assertEquals("When I got on stage", result.lyrics[0].text)
+        assertEquals("Don't worry", result.lyrics[1].text)
+        assertEquals(5, result.lyrics[0].words.size)
+        assertEquals("When", result.lyrics[0].words[0].text.trim())
+    }
+
+    @Test
+    fun backgroundLyricsWithSameTimestampArePreserved() {
+        val lrc = """
+            [01:24.04]v1: <01:24.040>Oh<01:25.051>
+            [bg: <01:24.040>Oh, <01:24.787>nothings's <01:25.137>gonna <01:25.342>change <01:25.557>my <01:25.700>love <01:25.819>for <01:25.943>you<01:26.500>]
+        """.trimIndent()
+
+        val result = EllaLyricsParser.parse(lrc)
+        assertEquals(1, result.lyrics.size)
+        val line = result.lyrics.single()
+        assertEquals("Oh", line.text)
+        assertEquals("v1", line.agent)
+        assertEquals("Oh, nothings's gonna change my love for you", line.backgroundText)
+        assertTrue(line.backgroundWords.isNotEmpty())
+        assertEquals("Oh,", line.backgroundWords[0].text.trim())
+        assertEquals(84040L, line.backgroundStartMs)
+        assertEquals(86500L, line.backgroundEndMs)
+    }
+
+    @Test
+    fun delayedBackgroundLyricsAttachToPrimaryLine() {
+        val lrc = """
+            [01:37.10]v1: <01:37.109>Let <01:37.400>it <01:37.600>out<01:38.610>
+            [bg: <01:37.717>Nothings's <01:37.911>gonna <01:38.089>change<01:38.500>]
+        """.trimIndent()
+
+        val result = EllaLyricsParser.parse(lrc)
+        assertEquals(1, result.lyrics.size)
+        val line = result.lyrics.single()
+        assertEquals("Let it out", line.text)
+        assertEquals("Nothings's gonna change", line.backgroundText)
+        assertEquals(3, line.backgroundWords.size)
+        assertEquals(97717L, line.backgroundStartMs)
+    }
+
+    @Test
+    fun arabicEnhancedLrcWithDuetParsesCorrectly() {
+        val lrc = """
+            [00:35.37]v1: <00:35.375>ما <00:35.794>كل <00:36.356>الناس <00:37.130>بتقدر <00:38.255>تنسى <00:39.804>تنسى<00:41.526>
+            [01:02.20]v2: <01:02.200>ارجعلي <01:03.024>انا <01:03.397>قلبي <01:04.611>معاك<01:05.499>
+        """.trimIndent()
+
+        val result = EllaLyricsParser.parse(lrc)
+        assertEquals(2, result.lyrics.size)
+        assertEquals("v1", result.lyrics[0].agent)
+        assertEquals("v2", result.lyrics[1].agent)
+        assertEquals("ما كل الناس بتقدر تنسى تنسى", result.lyrics[0].text)
+        assertEquals("ارجعلي انا قلبي معاك", result.lyrics[1].text)
+        assertTrue(result.lyrics[0].text.isRtlText())
+        assertTrue(result.lyrics[1].text.isRtlText())
+        assertEquals(6, result.lyrics[0].words.size)
+        assertEquals("ما", result.lyrics[0].words[0].text.trim())
+    }
+
+    @Test
+    fun rtlTextDetectionWorksForVariousScripts() {
+        assertTrue("مرحبا بكم".isRtlText())
+        assertTrue("שלום עליכם".isRtlText())
+        assertTrue("  123: [v1] مرحبا".isRtlText())
+        assertFalse("Hello World".isRtlText())
+        assertFalse("你好世界".isRtlText())
+        assertFalse("こんにちは".isRtlText())
+        assertFalse("안녕하세요".isRtlText())
+        assertFalse("123456".isRtlText())
+        assertFalse("".isRtlText())
+    }
+
+    @Test
+    fun ttmlHyphenatedWordsAreSpacedProperly() {
+        val ttml = """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+              <body>
+                <div>
+                  <p begin="00:03:30.820" end="00:03:34.900" ttm:agent="v2">
+                    <span begin="00:03:30.820" end="00:03:32.480">When </span>
+                    <span begin="00:03:32.480" end="00:03:32.740">I </span>
+                    <span begin="00:03:32.740" end="00:03:33.200">see </span>
+                    <span begin="00:03:33.200" end="00:03:33.720">you </span>
+                    <span begin="00:03:33.720" end="00:03:34.900">again</span>
+                    <span ttm:role="x-bg" begin="00:03:33.720" end="00:03:34.900">
+                      <span begin="00:03:33.720" end="00:03:34.000">(Uh-</span>
+                      <span begin="00:03:34.000" end="00:03:34.900">huh)</span>
+                    </span>
+                  </p>
+                </div>
+              </body>
+            </tt>
+        """.trimIndent()
+        val result = parseTtml(ttml)!!
+        val line = result.lyrics.single()
+        assertEquals("When I see you again", line.text)
+        assertEquals("Uh - huh", line.backgroundText)
+        assertEquals(listOf("Uh - ", "huh"), line.backgroundWords.map { it.text })
+    }
+
+    @Test
+    fun downloadsFolderActualFilesParseCorrectly() {
+        val htmlFile = java.io.File("C:/Users/Croilan/Downloads/Kiss.Land.Lyrics.html")
+        if (htmlFile.exists()) {
+            val result = EllaLyricsParser.parse(htmlFile.readText())
+            assertTrue("Expected parsed lyrics from Kiss.Land.Lyrics.html", result.lyrics.isNotEmpty())
+            assertTrue("Expected background vocals parsed", result.lyrics.any { !it.backgroundText.isNullOrBlank() })
+        }
     }
 }

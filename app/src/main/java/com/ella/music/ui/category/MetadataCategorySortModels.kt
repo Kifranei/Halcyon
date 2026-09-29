@@ -180,7 +180,8 @@ internal enum class MetadataDetailSongSortMode {
     AlbumTrackDesc,
     TitleDesc,
     FileNameDesc,
-    DurationAsc
+    DurationAsc,
+    Random
 }
 
 internal fun MetadataDetailSongSortMode.isDescending(): Boolean = when (this) {
@@ -212,6 +213,7 @@ internal fun MetadataDetailSongSortMode.label(): String {
         MetadataDetailSongSortMode.DateAddedAsc -> R.string.category_sort_date_added_asc
         MetadataDetailSongSortMode.DateModified -> R.string.playlist_song_sort_date_modified
         MetadataDetailSongSortMode.DateModifiedAsc -> R.string.category_sort_date_modified_asc
+        MetadataDetailSongSortMode.Random -> R.string.common_sort_random
     })
 }
 
@@ -247,6 +249,7 @@ internal fun List<com.ella.music.data.model.Song>.sortedForMetadataDetail(
         MetadataDetailSongSortMode.DateAddedAsc -> sortedBy { it.dateAdded }
         MetadataDetailSongSortMode.DateModified -> sortedByDescending { it.dateModified }
         MetadataDetailSongSortMode.DateModifiedAsc -> sortedBy { it.dateModified }
+        MetadataDetailSongSortMode.Random -> shuffled(kotlin.random.Random(com.ella.music.ui.LibrarySortUiState.randomSortSeed))
     }
 }
 

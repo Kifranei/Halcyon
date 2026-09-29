@@ -16,6 +16,7 @@ class WaveformLevelAudioProcessorTest {
     fun passesDecodedPcmThroughAndUpdatesLevel() {
         val processor = WaveformLevelAudioProcessor().apply {
             configure(AudioProcessor.AudioFormat(44_100, 2, C.ENCODING_PCM_16BIT))
+            flush()
         }
         val input = ByteBuffer.allocateDirect(4)
             .order(ByteOrder.LITTLE_ENDIAN)

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">コメント</string>
+    <string name="netease_comments_title">コメント</string>
+    <string name="netease_comments_title_count">コメント(%1$s)</string>
+    <string name="netease_comments_sort_recommend">おすすめ</string>
+    <string name="netease_comments_sort_hot">人気</string>
+    <string name="netease_comments_sort_latest">最新</string>
+    <string name="netease_comments_empty">コメントはまだありません</string>
+    <string name="netease_comments_error">コメントを読み込めませんでした</string>
+    <string name="netease_comments_retry">再試行</string>
+    <string name="netease_comments_expand_replies">返信を表示(%1$d件)</string>
+    <string name="netease_comments_more_replies">さらに返信を表示</string>
+    <string name="netease_comments_collapse_replies">返信を閉じる</string>
+    <string name="netease_comments_reply_to">@%1$s への返信：</string>
+    <string name="netease_comments_load_more_failed">読み込みに失敗しました。タップして再試行</string>
+    <string name="netease_comments_no_more">これ以上コメントはありません</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">いいね</string>
+    <string name="netease_comments_reply">返信</string>
+    <string name="netease_comments_input_hint">何か書いてみましょう…</string>
+    <string name="netease_comments_reply_hint">@%1$s に返信</string>
+    <string name="netease_comments_send">送信</string>
+    <string name="netease_comments_cancel_reply">返信をキャンセル</string>
+    <string name="netease_comments_login_required">先に NetEase Cloud Music にログインしてください</string>
+    <string name="netease_comments_like_failed">いいねに失敗しました。しばらくしてから再試行してください</string>
+    <string name="netease_comments_send_failed">送信に失敗しました。しばらくしてから再試行してください</string>
+    <string name="netease_comments_send_failed_code">送信に失敗しました（エラー %1$d）</string>
+    <string name="netease_comments_sent">送信しました</string>
+</resources>

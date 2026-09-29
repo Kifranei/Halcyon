@@ -23,7 +23,8 @@ internal enum class FolderSongSortMode(val labelRes: Int) {
     YearDesc(R.string.playlist_song_sort_year_desc),
     TitleDesc(R.string.playlist_song_sort_title),
     FileNameDesc(R.string.playlist_song_sort_file_name),
-    DurationAsc(R.string.playlist_song_sort_duration)
+    DurationAsc(R.string.playlist_song_sort_duration),
+    Random(R.string.common_sort_random)
 }
 
 internal fun FolderSongSortMode.isDescending(): Boolean = when (this) {
@@ -65,6 +66,7 @@ private fun FolderSongSortMode.toSongSortSpec(): SortSpec<SongSortField> =
             FolderSongSortMode.DateModifiedAsc -> SongSortField.DateModified
             FolderSongSortMode.YearAsc,
             FolderSongSortMode.YearDesc -> SongSortField.Year
+            FolderSongSortMode.Random -> SongSortField.Random
         },
         direction = when (this) {
             FolderSongSortMode.TitleDesc,

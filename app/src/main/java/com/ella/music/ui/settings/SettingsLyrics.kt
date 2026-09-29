@@ -21,7 +21,8 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixTextField
+import com.ella.music.ui.components.EllaMiuixSheetColumn
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.player.PlayerLyricLayoutProfile
 import com.ella.music.ui.player.isUltraWideLandscapePlayerLayout
 import com.ella.music.ui.player.primaryScaleRangePercent
@@ -31,7 +32,17 @@ import com.ella.music.ui.player.secondaryScaleRangePercent
 import com.ella.music.ui.player.secondaryTextSizeRangeSp
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Button
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -53,15 +64,30 @@ internal fun SettingsLyricsSection(
     val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
     val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
     val lyricOpeningTemplate by settingsManager.lyricOpeningTemplate.collectAsState(initial = "")
+    val lyricOpeningAsFallback by settingsManager.lyricOpeningAsFallback.collectAsState(initial = false)
+    val lyricShareLongPressEnabled by settingsManager.lyricShareLongPressEnabled.collectAsState(initial = true)
+    val lyricRainbowEnabled by settingsManager.lyricRainbowEnabled.collectAsState(initial = false)
+    val lyricSustainMotion by settingsManager.lyricSustainMotion.collectAsState(initial = true)
+    val lyricHdrHighlightEnabled by settingsManager.lyricHdrHighlightEnabled.collectAsState(initial = false)
+    val lyricHdrBrightness by settingsManager.lyricHdrBrightness.collectAsState(initial = SettingsManager.DEFAULT_LYRIC_HDR_BRIGHTNESS)
     val lyricWordSeekEnabled by settingsManager.lyricWordSeekEnabled.collectAsState(initial = false)
     val lyricTouchFeedbackEnabled by settingsManager.lyricTouchFeedbackEnabled.collectAsState(initial = false)
     val lyricPauseCurrentOnly by settingsManager.lyricPauseCurrentOnly.collectAsState(initial = true)
     val immersiveLyricSwipe by settingsManager.playerImmersiveLyricSwipe.collectAsState(initial = false)
+    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = 70)
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var showLyricSizingSheet by remember { mutableStateOf(false) }
     var showPlayerMiniLyricsSheet by remember { mutableStateOf(false) }
     var showOpeningTemplateSheet by remember { mutableStateOf(false) }
     var showXiaomiSuperIslandSheet by remember { mutableStateOf(false) }
+    val searchRequest = SettingsSearchFocus.request
+    androidx.compose.runtime.LaunchedEffect(searchRequest?.token) {
+        when (searchRequest?.sheet) {
+            "sizing" -> showLyricSizingSheet = true
+            "mini" -> showPlayerMiniLyricsSheet = true
+            "island" -> showXiaomiSuperIslandSheet = true
+        }
+    }
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
     var openingTemplateDraft by remember(lyricOpeningTemplate) { mutableStateOf(lyricOpeningTemplate) }
 
@@ -72,25 +98,39 @@ internal fun SettingsLyricsSection(
             highlightKey == "lyric_touch_feedback"
     ) {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_plugin_sources) {
             ArrowPreference(
                 title = stringResource(R.string.settings_lyric_plugin_sources),
                 summary = stringResource(R.string.settings_lyric_plugin_sources_summary),
                 onClick = onNavigateToLyricPluginSources
             )
+            } // search-anchor:end
+
             SettingsFocusAnchor(active = highlightKey == "lyric_basic") {
                 SettingsPlayerLyricAlignmentPreference()
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_mini_lyrics) {
             ArrowPreference(
                 title = stringResource(R.string.settings_player_mini_lyrics),
                 summary = stringResource(R.string.settings_player_mini_lyrics_summary),
                 onClick = { showPlayerMiniLyricsSheet = true }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.player_lyric_style_settings) {
             ArrowPreference(
                 title = stringResource(R.string.player_lyric_style_settings),
                 summary = stringResource(R.string.settings_lyrics_summary),
                 onClick = { showLyricSizingSheet = true }
             )
+            } // search-anchor:end
+
             SettingsFocusAnchor(active = highlightKey == "lyric_word_seek") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_lyric_word_seek) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_lyric_word_seek),
                     summary = stringResource(R.string.settings_lyric_word_seek_summary),
@@ -99,8 +139,12 @@ internal fun SettingsLyricsSection(
                         scope.launch { settingsManager.setLyricWordSeekEnabled(enabled) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "lyric_touch_feedback") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_lyric_touch_feedback) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_lyric_touch_feedback),
                     summary = stringResource(R.string.settings_lyric_touch_feedback_summary),
@@ -109,7 +153,11 @@ internal fun SettingsLyricsSection(
                         scope.launch { settingsManager.setLyricTouchFeedbackEnabled(enabled) }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_pause_current_only) {
             SwitchPreference(
                 title = stringResource(R.string.settings_lyric_pause_current_only),
                 summary = stringResource(R.string.settings_lyric_pause_current_only_summary),
@@ -118,6 +166,10 @@ internal fun SettingsLyricsSection(
                     scope.launch { settingsManager.setLyricPauseCurrentOnly(enabled) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_immersive_lyric_swipe) {
             SwitchPreference(
                 title = stringResource(R.string.settings_immersive_lyric_swipe),
                 summary = stringResource(R.string.settings_immersive_lyric_swipe_summary),
@@ -126,6 +178,10 @@ internal fun SettingsLyricsSection(
                     scope.launch { settingsManager.setPlayerImmersiveLyricSwipe(enabled) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_ignore_lyric_header_tags) {
             SwitchPreference(
                 title = stringResource(R.string.settings_ignore_lyric_header_tags),
                 summary = stringResource(R.string.settings_ignore_lyric_header_tags_summary),
@@ -134,6 +190,10 @@ internal fun SettingsLyricsSection(
                     scope.launch { settingsManager.setIgnoreLyricHeaderTags(enabled) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_hide_lyric_extra_info) {
             SwitchPreference(
                 title = stringResource(R.string.settings_hide_lyric_extra_info),
                 summary = stringResource(R.string.settings_hide_lyric_extra_info_summary),
@@ -142,6 +202,10 @@ internal fun SettingsLyricsSection(
                     scope.launch { settingsManager.setHideLyricExtraInfo(enabled) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_line_blacklist) {
             ArrowPreference(
                 title = stringResource(R.string.settings_lyric_line_blacklist),
                 summary = stringResource(R.string.settings_lyric_line_blacklist_summary, lyricLineBlacklist.size),
@@ -150,6 +214,10 @@ internal fun SettingsLyricsSection(
                     showBlacklistSheet = true
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_opening_template) {
             ArrowPreference(
                 title = stringResource(R.string.settings_lyric_opening_template),
                 summary = lyricOpeningTemplate.ifBlank {
@@ -160,36 +228,133 @@ internal fun SettingsLyricsSection(
                     showOpeningTemplateSheet = true
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_opening_as_fallback) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_lyric_opening_as_fallback),
+                summary = stringResource(R.string.settings_lyric_opening_as_fallback_summary),
+                checked = lyricOpeningAsFallback,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setLyricOpeningAsFallback(enabled) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_share_long_press) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_lyric_share_long_press),
+                summary = stringResource(R.string.settings_lyric_share_long_press_summary),
+                checked = lyricShareLongPressEnabled,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setLyricShareLongPressEnabled(enabled) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_rainbow) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_lyric_rainbow),
+                summary = stringResource(R.string.settings_lyric_rainbow_summary),
+                checked = lyricRainbowEnabled,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setLyricRainbowEnabled(enabled) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_sustain_motion) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_lyric_sustain_motion),
+                summary = stringResource(R.string.settings_lyric_sustain_motion_summary),
+                checked = lyricSustainMotion,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setLyricSustainMotion(enabled) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_hdr_highlight) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_lyric_hdr_highlight),
+                summary = stringResource(R.string.settings_lyric_hdr_highlight_summary),
+                checked = lyricHdrHighlightEnabled,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setLyricHdrHighlightEnabled(enabled) }
+                }
+            )
+            } // search-anchor:end
+
+            if (lyricHdrHighlightEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_lyric_hdr_brightness)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_lyric_hdr_brightness) {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.settings_lyric_hdr_brightness),
+                    summary = stringResource(R.string.settings_lyric_hdr_brightness_summary),
+                    value = lyricHdrBrightness,
+                    valueRange = SettingsManager.LYRIC_HDR_BRIGHTNESS_MIN..SettingsManager.LYRIC_HDR_BRIGHTNESS_MAX,
+                    valueText = String.format(java.util.Locale.US, "%.1f×", lyricHdrBrightness / 10f),
+                    steps = SettingsManager.LYRIC_HDR_BRIGHTNESS_MAX - SettingsManager.LYRIC_HDR_BRIGHTNESS_MIN - 1,
+                    onValueChange = { value -> scope.launch { settingsManager.setLyricHdrBrightness(value) } }
+                )
+                } // search-anchor:end
+            }
+
         }
     }
 
     EllaMiuixBottomSheet(
         show = showOpeningTemplateSheet,
         title = stringResource(R.string.settings_lyric_opening_template),
+        enableNestedScroll = false,
+        startAction = {
+            IconButton(onClick = { showOpeningTemplateSheet = false }) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Close,
+                    contentDescription = stringResource(R.string.common_cancel),
+                    tint = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        },
+        endAction = {
+            IconButton(
+                onClick = {
+                    showOpeningTemplateSheet = false
+                    scope.launch { settingsManager.setLyricOpeningTemplate(openingTemplateDraft) }
+                }
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Ok,
+                    contentDescription = stringResource(R.string.common_save),
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        },
         onDismissRequest = { showOpeningTemplateSheet = false }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 10.dp)
+        EllaMiuixSheetColumn(
+            verticalPadding = 8.dp,
+            spacing = 8.dp,
+            showHandle = false
         ) {
-            Text(text = stringResource(R.string.settings_lyric_opening_template_tokens))
-            EllaMiuixTextField(
+            Text(
+                text = stringResource(R.string.settings_lyric_opening_template_tokens),
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
+            TextField(
                 value = openingTemplateDraft,
                 onValueChange = { openingTemplateDraft = it },
                 label = stringResource(R.string.settings_lyric_opening_template_hint),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                modifier = Modifier.fillMaxWidth()
             )
-            Button(
-                onClick = {
-                    showOpeningTemplateSheet = false
-                    scope.launch { settingsManager.setLyricOpeningTemplate(openingTemplateDraft) }
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 14.dp)
-            ) {
-                Text(text = stringResource(R.string.common_save))
-            }
         }
     }
 
@@ -204,7 +369,7 @@ internal fun SettingsLyricsSection(
                 .heightIn(max = 560.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsPlayerLyricSizingControls()
+            SettingsPlayerLyricSizingControls(initialBlurPercent = lyricNonCurrentBlurPercent)
         }
     }
 
@@ -223,7 +388,10 @@ internal fun SettingsLyricsSection(
         }
     }
 
-    SettingsCardGroup(highlight = highlightKey == "mini_lyrics") {
+    SettingsCardGroup(
+        highlight = highlightKey == "mini_lyrics" ||
+            (highlightKey?.startsWith("mini_player") == true && highlightKey != "mini_player_long_press")
+    ) {
         Column {
             SettingsMiniLyricsControls(highlightKey = highlightKey)
         }
@@ -280,39 +448,54 @@ internal fun SettingsLyricsSection(
     EllaMiuixBottomSheet(
         show = showBlacklistSheet,
         title = stringResource(R.string.settings_lyric_line_blacklist),
+        enableNestedScroll = false,
+        startAction = {
+            IconButton(onClick = { showBlacklistSheet = false }) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Close,
+                    contentDescription = stringResource(R.string.common_cancel),
+                    tint = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        },
+        endAction = {
+            IconButton(
+                onClick = {
+                    showBlacklistSheet = false
+                    scope.launch {
+                        settingsManager.setLyricLineBlacklist(blacklistDraft.lineSequence().toList())
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Ok,
+                    contentDescription = stringResource(R.string.common_save),
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        },
         onDismissRequest = { showBlacklistSheet = false }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 10.dp)
+        EllaMiuixSheetColumn(
+            verticalPadding = 8.dp,
+            spacing = 8.dp,
+            showHandle = false
         ) {
-            EllaMiuixTextField(
+            TextField(
                 value = blacklistDraft,
                 onValueChange = { blacklistDraft = it },
                 label = stringResource(R.string.settings_lyric_line_blacklist_editor_hint),
                 singleLine = false,
                 modifier = Modifier.fillMaxWidth()
             )
-            Button(
-                onClick = {
-                    showBlacklistSheet = false
-                    scope.launch {
-                        settingsManager.setLyricLineBlacklist(blacklistDraft.lineSequence().toList())
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp)
-            ) {
-                Text(text = stringResource(R.string.common_save))
-            }
         }
     }
 }
 
 @Composable
-private fun SettingsPlayerLyricSizingControls() {
+private fun SettingsPlayerLyricSizingControls(initialBlurPercent: Int? = null) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
@@ -344,7 +527,7 @@ private fun SettingsPlayerLyricSizingControls() {
     val secondaryTextSizeRange = remember(layoutProfile) { layoutProfile.secondaryTextSizeRangeSp() }
     val lyricFontScale by settingsManager.lyricFontScale.collectAsState(initial = 100)
     val lyricSecondaryFontScale by settingsManager.lyricSecondaryFontScale.collectAsState(initial = 100)
-    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = 40)
+    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = initialBlurPercent ?: 70)
     val lyricPrimaryTextSize by when (layoutProfile) {
         PlayerLyricLayoutProfile.Compact -> settingsManager.lyricCompactPrimaryTextSize
             .collectAsState(initial = SettingsManager.LYRIC_COMPACT_PRIMARY_TEXT_SIZE_DEFAULT_SP)
@@ -357,6 +540,8 @@ private fun SettingsPlayerLyricSizingControls() {
         PlayerLyricLayoutProfile.Wide -> settingsManager.lyricWideSecondaryTextSize
             .collectAsState(initial = SettingsManager.LYRIC_WIDE_SECONDARY_TEXT_SIZE_DEFAULT_SP)
     }
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_lyric_non_current_blur) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.settings_lyric_non_current_blur),
         summary = stringResource(R.string.settings_lyric_non_current_blur_summary),
@@ -367,6 +552,10 @@ private fun SettingsPlayerLyricSizingControls() {
             scope.launch { settingsManager.setLyricNonCurrentBlurPercent(value) }
         }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.player_lyric_font_scale) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_font_scale),
         summary = stringResource(
@@ -381,6 +570,10 @@ private fun SettingsPlayerLyricSizingControls() {
             scope.launch { settingsManager.setLyricFontScale(value) }
         }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.player_lyric_font_size) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_font_size),
         summary = stringResource(
@@ -400,6 +593,10 @@ private fun SettingsPlayerLyricSizingControls() {
             }
         }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.player_lyric_secondary_font_scale) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_secondary_font_scale),
         summary = stringResource(
@@ -414,6 +611,10 @@ private fun SettingsPlayerLyricSizingControls() {
             scope.launch { settingsManager.setLyricSecondaryFontScale(value) }
         }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.player_lyric_secondary_font_size) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_secondary_font_size),
         summary = stringResource(
@@ -433,6 +634,8 @@ private fun SettingsPlayerLyricSizingControls() {
             }
         }
     )
+    } // search-anchor:end
+
 }
 
 @Composable
@@ -442,17 +645,16 @@ private fun SettingsPlayerMiniLyricControls() {
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val scale by settingsManager.playerMiniLyricScale.collectAsState(initial = 100)
     val primarySize by settingsManager.playerMiniLyricPrimarySize.collectAsState(initial = 19)
-    val secondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 16)
+    val secondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 14)
     val lineSpacing by settingsManager.playerMiniLyricLineSpacing.collectAsState(initial = 7)
     val textAlign by settingsManager.playerMiniLyricTextAlign.collectAsState(initial = 0)
-    val verticalAlign by settingsManager.playerMiniLyricVerticalAlign.collectAsState(
-        initial = SettingsManager.DEFAULT_PLAYER_MINI_LYRIC_VERTICAL_ALIGN
-    )
     val alignLabels = listOf(
         stringResource(R.string.settings_status_align_left),
         stringResource(R.string.settings_status_align_center),
         stringResource(R.string.settings_status_align_right)
     )
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_lyric_text_align) {
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
         summary = stringResource(R.string.settings_player_lyric_text_align_summary),
@@ -462,19 +664,10 @@ private fun SettingsPlayerMiniLyricControls() {
             scope.launch { settingsManager.setPlayerMiniLyricTextAlign(value) }
         }
     )
-    val verticalAlignLabels = listOf(
-        stringResource(R.string.settings_player_mini_lyric_vertical_top),
-        stringResource(R.string.settings_player_mini_lyric_vertical_center)
-    )
-    WindowSpinnerPreference(
-        title = stringResource(R.string.settings_player_mini_lyric_vertical_align),
-        summary = stringResource(R.string.settings_player_mini_lyric_vertical_align_summary),
-        items = verticalAlignLabels.map { DropdownItem(title = it) },
-        selectedIndex = verticalAlign.coerceIn(0, verticalAlignLabels.lastIndex),
-        onSelectedIndexChange = { value ->
-            scope.launch { settingsManager.setPlayerMiniLyricVerticalAlign(value) }
-        }
-    )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.player_lyric_font_scale) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_font_scale),
         summary = stringResource(R.string.settings_player_mini_lyrics_scale_summary),
@@ -483,6 +676,10 @@ private fun SettingsPlayerMiniLyricControls() {
         valueText = "$scale%",
         onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricScale(value) } }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.player_lyric_font_size) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_font_size),
         summary = stringResource(R.string.settings_lyric_font_size_summary, 12, 32),
@@ -491,6 +688,10 @@ private fun SettingsPlayerMiniLyricControls() {
         valueText = "${primarySize}sp",
         onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricPrimarySize(value) } }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.player_lyric_secondary_font_size) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.player_lyric_secondary_font_size),
         summary = stringResource(R.string.settings_lyric_font_size_summary, 10, 28),
@@ -499,6 +700,10 @@ private fun SettingsPlayerMiniLyricControls() {
         valueText = "${secondarySize}sp",
         onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricSecondarySize(value) } }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_mini_lyrics_line_spacing) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.settings_player_mini_lyrics_line_spacing),
         summary = stringResource(R.string.settings_player_mini_lyrics_line_spacing_summary),
@@ -507,6 +712,8 @@ private fun SettingsPlayerMiniLyricControls() {
         valueText = "${lineSpacing}dp",
         onValueChange = { value -> scope.launch { settingsManager.setPlayerMiniLyricLineSpacing(value) } }
     )
+    } // search-anchor:end
+
 }
 
 @Composable
@@ -523,7 +730,8 @@ private fun SettingsPlayerLyricAlignmentPreference() {
     val entries = remember(labels) {
         labels.map { DropdownItem(title = it) }
     }
-
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_lyric_text_align) {
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
         summary = stringResource(R.string.settings_player_lyric_text_align_summary),
@@ -533,5 +741,7 @@ private fun SettingsPlayerLyricAlignmentPreference() {
             scope.launch { settingsManager.setPlayerLyricTextAlign(index) }
         }
     )
+    } // search-anchor:end
+
 
 }

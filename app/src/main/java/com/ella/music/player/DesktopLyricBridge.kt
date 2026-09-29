@@ -31,6 +31,7 @@ class DesktopLyricBridge(private val context: Context) {
     fun setEnabled(enabled: Boolean) {
         this.enabled = enabled
         if (enabled) {
+            DesktopLyricService.resetUserHidden()
             if (!canDrawOverlay()) {
                 Log.w(TAG, "Cannot enable desktop lyrics: overlay permission is missing")
                 return
@@ -45,7 +46,7 @@ class DesktopLyricBridge(private val context: Context) {
     }
 
     fun unlock() {
-        if (!canDrawOverlay()) return
+        if (!canDrawOverlay() || DesktopLyricService.userHidden) return
         context.startService(
             Intent(context, DesktopLyricService::class.java)
                 .setAction(DesktopLyricService.ACTION_UNLOCK)
@@ -66,7 +67,7 @@ class DesktopLyricBridge(private val context: Context) {
             .setAction(DesktopLyricService.ACTION_SHOW)
             .putExtra(DesktopLyricService.EXTRA_TEXT, lyric)
         cacheLatestLyric(payload)
-        if (!enabled || !canDrawOverlay()) return
+        if (!enabled || !canDrawOverlay() || DesktopLyricService.userHidden) return
         if (lyric == lastLineKey) return
         lastLineKey = lyric
         dispatchLyric(payload)
@@ -103,7 +104,7 @@ class DesktopLyricBridge(private val context: Context) {
             .putExtra(DesktopLyricService.EXTRA_BACKGROUND_WORD_STARTS, lyricLine.backgroundWords.map { it.startMs }.toLongArray())
             .putExtra(DesktopLyricService.EXTRA_BACKGROUND_WORD_ENDS, lyricLine.backgroundWords.map { it.endMs }.toLongArray())
         cacheLatestLyric(payload)
-        if (!enabled || !canDrawOverlay()) return
+        if (!enabled || !canDrawOverlay() || DesktopLyricService.userHidden) return
         val key = "${lyricLine.timeMs}:${positionMs / POSITION_ANCHOR_INTERVAL_MS}:$showTranslation:$showPronunciation"
         if (key == lastLineKey) return
         lastLineKey = key
@@ -118,7 +119,7 @@ class DesktopLyricBridge(private val context: Context) {
 
     fun applySettings() {
         lastLineKey = null
-        if (!enabled || !canDrawOverlay()) return
+        if (!enabled || !canDrawOverlay() || DesktopLyricService.userHidden) return
         context.startService(
             Intent(context, DesktopLyricService::class.java)
                 .setAction(DesktopLyricService.ACTION_APPLY_SETTINGS)
@@ -130,7 +131,7 @@ class DesktopLyricBridge(private val context: Context) {
     }
 
     private fun sendHostPage() {
-        if (!enabled || !canDrawOverlay()) return
+        if (!enabled || !canDrawOverlay() || DesktopLyricService.userHidden) return
         context.startService(
             Intent(context, DesktopLyricService::class.java)
                 .setAction(DesktopLyricService.ACTION_SET_HOST_PAGE)

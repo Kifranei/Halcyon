@@ -1,9 +1,13 @@
 package com.ella.music.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -26,17 +30,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.repository.MusicRepository
+import com.ella.music.data.ai.AiProviderClient
+import com.ella.music.data.ai.OpenAiSongInterpretationConfig
+import com.ella.music.data.ai.resolveAiApiProtocol
 import com.ella.music.ui.components.TagEditorOptionIds
+import com.ella.music.ui.components.ellaOverlayCardColor
 import com.ella.music.ui.components.SpectrumViewerLauncher
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun SettingsHomeCustomizeSection(
@@ -47,11 +66,13 @@ internal fun SettingsHomeCustomizeSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(initial = "")
-    val homeAiMixVisible by settingsManager.homeAiMixVisible.collectAsState(initial = true)
     val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
     val homeFeatureWallpaperPicker = rememberAppearanceImagePicker(
         currentUri = homeFeatureWallpaperUri,
         imageName = "home_feature_wallpaper",
+        cropTitle = stringResource(R.string.settings_home_feature_wallpaper),
+        enableCrop = true,
+        defaultRatio = 16f / 9f,
         onImagePersisted = settingsManager::setHomeFeatureWallpaperUri
     )
 
@@ -59,6 +80,8 @@ internal fun SettingsHomeCustomizeSection(
 
     SettingsCardGroup(highlight = highlightKey == "home_customize") {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_home_feature_wallpaper) {
             ArrowPreference(
                 title = stringResource(R.string.settings_home_feature_wallpaper),
                 summary = stringResource(
@@ -70,7 +93,11 @@ internal fun SettingsHomeCustomizeSection(
                 ),
                 onClick = { homeFeatureWallpaperPicker.launch(arrayOf("image/*")) }
             )
-            if (homeFeatureWallpaperUri.isNotBlank()) {
+            } // search-anchor:end
+
+            if (homeFeatureWallpaperUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_home_feature_wallpaper_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_home_feature_wallpaper_remove) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_home_feature_wallpaper_remove),
                     summary = stringResource(R.string.settings_home_feature_wallpaper_remove_summary),
@@ -81,15 +108,11 @@ internal fun SettingsHomeCustomizeSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_ai_mix),
-                summary = stringResource(R.string.settings_ai_mix_summary),
-                checked = homeAiMixVisible,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setHomeAiMixVisible(it) }
-                }
-            )
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_continue_playback_row) {
             SwitchPreference(
                 title = stringResource(R.string.settings_continue_playback_row),
                 summary = stringResource(R.string.settings_continue_playback_row_summary),
@@ -98,11 +121,17 @@ internal fun SettingsHomeCustomizeSection(
                     scope.launch { settingsManager.setContinuePlaybackRowVisible(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_home_display_items) {
             ArrowPreference(
                 title = stringResource(R.string.settings_home_display_items),
                 summary = stringResource(R.string.settings_home_display_items_summary),
                 onClick = onOpenHomeDisplay
             )
+            } // search-anchor:end
+
         }
     }
 }
@@ -121,8 +150,17 @@ internal fun SettingsLibrarySourceSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val librarySource by settingsManager.librarySource.collectAsState(initial = "")
+    var showNeteaseAccount by remember { mutableStateOf(false) }
+    val neteaseSearchRequest = SettingsSearchFocus.request
+    LaunchedEffect(neteaseSearchRequest) {
+        if (neteaseSearchRequest?.sheet == "netease_quality") showNeteaseAccount = true
+    }
+    if (showNeteaseAccount) {
+        com.ella.music.ui.online.NeteaseAccountScreen(onDismiss = { showNeteaseAccount = false }, mainViewModel = mainViewModel)
+    }
     val librarySourceOptions = listOf(
         SettingsManager.LIBRARY_SOURCE_LOCAL to stringResource(R.string.settings_library_source_local),
+        SettingsManager.LIBRARY_SOURCE_NETEASE to stringResource(R.string.netease_title),
         SettingsManager.LIBRARY_SOURCE_NAVIDROME to stringResource(R.string.remote_source_navidrome),
         SettingsManager.LIBRARY_SOURCE_OPENSUBSONIC to stringResource(R.string.remote_source_opensubsonic),
         SettingsManager.LIBRARY_SOURCE_EMBY to stringResource(R.string.remote_source_emby),
@@ -138,7 +176,9 @@ internal fun SettingsLibrarySourceSection(
     SettingsCardGroup(highlight = highlightKey == "library_source") {
         Column {
             SettingsFocusAnchor(active = highlightKey == "library_source") {
-                if (librarySource.isNotBlank()) {
+                if (librarySource.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_library_source)) {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_library_source) {
                     WindowSpinnerPreference(
                         title = stringResource(R.string.settings_library_source),
                         summary = stringResource(R.string.settings_library_source_summary),
@@ -146,6 +186,10 @@ internal fun SettingsLibrarySourceSection(
                         selectedIndex = selectedLibrarySourceIndex,
                         onSelectedIndexChange = { index ->
                             librarySourceOptions.getOrNull(index)?.first?.let { source ->
+                                if (source == SettingsManager.LIBRARY_SOURCE_NETEASE &&
+                                    !com.ella.music.data.netease.NeteaseAccountStore.getInstance(context).account.value.loggedIn) {
+                                    showNeteaseAccount = true
+                                }
                                 if (mainViewModel != null) {
                                     mainViewModel.setLibrarySource(source)
                                 } else {
@@ -154,33 +198,64 @@ internal fun SettingsLibrarySourceSection(
                             }
                         }
                     )
+                    } // search-anchor:end
+
                 }
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_scan_folders) {
             ArrowPreference(
                 title = stringResource(R.string.settings_scan_folders),
                 summary = stringResource(R.string.settings_scan_folders_summary),
                 onClick = { onOpenScanFolders?.invoke() }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.remote_server_manage_title) {
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_navidrome)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_navidrome_summary),
                 onClick = { onOpenNavidromeConfig?.invoke() }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.netease_title) {
+            ArrowPreference(
+                title = stringResource(R.string.netease_title),
+                summary = stringResource(R.string.netease_summary),
+                onClick = { showNeteaseAccount = true }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.remote_server_manage_title) {
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_opensubsonic)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_opensubsonic_summary),
                 onClick = { onOpenOpenSubsonicConfig?.invoke() }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.remote_server_manage_title) {
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_emby)),
-                summary = stringResource(R.string.remote_server_manage_summary),
+                summary = stringResource(R.string.remote_server_manage_emby_summary),
                 onClick = { onOpenEmbyConfig?.invoke() }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.webdav_settings) {
             ArrowPreference(
                 title = stringResource(R.string.webdav_settings),
                 summary = stringResource(R.string.home_connect_cloud_music),
                 onClick = { onOpenWebDavConfig?.invoke() }
             )
+            } // search-anchor:end
+
         }
     }
 }
@@ -195,31 +270,158 @@ internal fun SettingsAiInterpretationSection(
     val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
     val openAiBaseUrl by settingsManager.openAiBaseUrl.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_BASE_URL)
     val openAiModel by settingsManager.openAiModel.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_MODEL)
+    val aiApiProtocol by settingsManager.aiApiProtocol.collectAsState(
+        initial = SettingsManager.AI_API_PROTOCOL_COMPATIBLE
+    )
+    var fetchingModels by remember { mutableStateOf(false) }
+    var modelSheetVisible by remember { mutableStateOf(false) }
+    var fetchedModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    val protocolLabels = listOf(
+        stringResource(R.string.settings_ai_protocol_compatible),
+        stringResource(R.string.settings_ai_protocol_anthropic)
+    )
+    val protocolEntries = remember(protocolLabels) { protocolLabels.map { DropdownItem(title = it) } }
+    val selectedProtocol = aiApiProtocol.coerceIn(protocolLabels.indices)
+    val canFetchModels = openAiApiKey.isNotBlank() && openAiBaseUrl.isNotBlank() && !fetchingModels
 
     SmallTitle(text = stringResource(R.string.settings_ai_interpretation))
 
     SettingsCardGroup(highlight = highlightKey == "ai") {
         Column {
             SettingsFocusAnchor(active = highlightKey == "ai") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_ai_api_key) {
                 SplitSettingTextField(
-                    label = "OpenAI API Key",
+                    label = stringResource(R.string.settings_ai_api_key),
                     value = openAiApiKey,
                     summary = stringResource(R.string.settings_openai_api_key_summary),
+                    isPassword = true,
+                    singleLine = true,
                     onValueChange = { value -> scope.launch { settingsManager.setOpenAiApiKey(value) } }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_ai_base_url) {
             SplitSettingTextField(
-                label = "OpenAI Base URL",
+                label = stringResource(R.string.settings_ai_base_url),
                 value = openAiBaseUrl,
                 summary = stringResource(R.string.settings_openai_base_url_summary),
+                singleLine = true,
                 onValueChange = { value -> scope.launch { settingsManager.setOpenAiBaseUrl(value) } }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_ai_protocol) {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_ai_protocol),
+                summary = protocolLabels[selectedProtocol],
+                items = protocolEntries,
+                selectedIndex = selectedProtocol,
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setAiApiProtocol(index) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_openai_model) {
             SplitSettingTextField(
                 label = stringResource(R.string.settings_openai_model),
                 value = openAiModel,
                 summary = stringResource(R.string.settings_openai_model_summary, SettingsManager.DEFAULT_OPENAI_MODEL),
+                singleLine = true,
+                endAction = {
+                    IconButton(
+                        onClick = {
+                            if (!canFetchModels) return@IconButton
+                            fetchingModels = true
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        AiProviderClient(context).listModels(
+                                            OpenAiSongInterpretationConfig(
+                                                apiKey = openAiApiKey,
+                                                baseUrl = openAiBaseUrl,
+                                                model = openAiModel,
+                                                protocol = resolveAiApiProtocol(aiApiProtocol, openAiBaseUrl)
+                                            )
+                                        )
+                                    }
+                                }.onSuccess { models ->
+                                    fetchedModels = models
+                                    if (models.isEmpty()) {
+                                        Toast.makeText(
+                                            context,
+                                            R.string.settings_ai_models_empty,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        modelSheetVisible = true
+                                    }
+                                }.onFailure { error ->
+                                    Toast.makeText(
+                                        context,
+                                        error.message.orEmpty().ifBlank {
+                                            context.getString(R.string.settings_ai_models_fetch_failed)
+                                        },
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                fetchingModels = false
+                            }
+                        },
+                        enabled = canFetchModels
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = stringResource(R.string.settings_ai_fetch_models),
+                            tint = if (canFetchModels) {
+                                MiuixTheme.colorScheme.primary
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            }
+                        )
+                    }
+                },
                 onValueChange = { value -> scope.launch { settingsManager.setOpenAiModel(value) } }
             )
+            } // search-anchor:end
+
+        }
+    }
+
+    EllaMiuixBottomSheet(
+        show = modelSheetVisible,
+        title = stringResource(R.string.settings_ai_select_model),
+        onDismissRequest = { modelSheetVisible = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 720.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            fetchedModels.forEach { modelId ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 16.dp,
+                    colors = CardDefaults.defaultColors(
+                        color = ellaOverlayCardColor()
+                    )
+                ) {
+                    BasicComponent(
+                        title = modelId,
+                        onClick = {
+                            scope.launch { settingsManager.setOpenAiModel(modelId) }
+                            modelSheetVisible = false
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -243,6 +445,8 @@ internal fun SettingsMcpSection(
     SettingsCardGroup(highlight = highlightKey == "mcp") {
         Column {
             SettingsFocusAnchor(active = highlightKey == "mcp") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_mcp_server) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_mcp_server),
                     summary = stringResource(R.string.settings_mcp_server_summary),
@@ -258,7 +462,23 @@ internal fun SettingsMcpSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_mcp_auth_token) {
+            ArrowPreference(
+                title = stringResource(R.string.settings_mcp_auth_token),
+                summary = stringResource(R.string.settings_mcp_auth_token_summary),
+                onClick = {
+                    val token = com.ella.music.mcp.McpServerService.getOrCreateAuthToken(context)
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Halcyon MCP bearer token", "Bearer $token"))
+                    Toast.makeText(context, R.string.settings_mcp_auth_token_copied, Toast.LENGTH_SHORT).show()
+                }
+            )
+            } // search-anchor:end
+
         }
     }
 
@@ -266,6 +486,8 @@ internal fun SettingsMcpSection(
     SettingsCardGroup(highlight = highlightKey == "web_music") {
         Column {
             SettingsFocusAnchor(active = highlightKey == "web_music") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.web_music_beta_title) {
                 SwitchPreference(
                     title = stringResource(R.string.web_music_beta_title),
                     summary = stringResource(R.string.web_music_beta_summary),
@@ -288,14 +510,20 @@ internal fun SettingsMcpSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
-            if (webMusicServerEnabled) {
+            if (webMusicServerEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.web_music_beta_address)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.web_music_beta_address) {
                 ArrowPreference(
                     title = stringResource(R.string.web_music_beta_address),
                     summary = webAddresses.joinToString("\n")
                         .ifBlank { stringResource(R.string.web_music_beta_address_unavailable) },
                     onClick = { webAddresses.firstOrNull()?.let(uriHandler::openUri) }
                 )
+                } // search-anchor:end
+
             }
         }
     }
@@ -308,11 +536,15 @@ internal fun SettingsLastFmSection(
 ) {
     SmallTitle(text = stringResource(R.string.settings_lastfm))
     SettingsCardGroup(highlight = highlightKey == "lastfm") {
+        // search-anchor:start
+        SettingsSearchAnchor(R.string.settings_lastfm) {
         ArrowPreference(
             title = stringResource(R.string.settings_lastfm),
             summary = stringResource(R.string.settings_lastfm_summary),
             onClick = onOpenLastFmSettings
         )
+        } // search-anchor:end
+
     }
 }
 
@@ -324,17 +556,58 @@ internal fun SettingsLyricShareSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val lyricShareCustomInfo by settingsManager.lyricShareCustomInfo.collectAsState(initial = "")
+    val lyricShareExportFolderUri by settingsManager.lyricShareExportFolderUri.collectAsState(initial = "")
+    val lyricShareExportFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val readWrite = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, readWrite) }
+        scope.launch { settingsManager.setLyricShareExportFolderUri(uri.toString()) }
+        Toast.makeText(context, context.getString(R.string.settings_lyric_share_folder_saved), Toast.LENGTH_SHORT).show()
+    }
 
     SmallTitle(text = stringResource(R.string.settings_lyric_share_card))
 
     SettingsCardGroup(highlight = highlightKey == "lyric_share") {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_share_custom_info) {
             SplitSettingTextField(
                 label = stringResource(R.string.settings_lyric_share_custom_info),
                 value = lyricShareCustomInfo,
                 summary = stringResource(R.string.settings_lyric_share_custom_info_summary),
                 onValueChange = { value -> scope.launch { settingsManager.setLyricShareCustomInfo(value) } }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_share_folder) {
+            ArrowPreference(
+                title = stringResource(R.string.settings_lyric_share_folder),
+                summary = if (lyricShareExportFolderUri.isBlank()) {
+                    stringResource(R.string.settings_lyric_share_folder_summary)
+                } else {
+                    stringResource(R.string.settings_lyric_share_folder_selected)
+                },
+                onClick = { lyricShareExportFolderPicker.launch(null) }
+            )
+            } // search-anchor:end
+
+            if (lyricShareExportFolderUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_lyric_share_folder_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_lyric_share_folder_remove) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_lyric_share_folder_remove),
+                    summary = stringResource(R.string.settings_lyric_share_folder_remove_summary),
+                    onClick = {
+                        scope.launch { settingsManager.setLyricShareExportFolderUri("") }
+                        Toast.makeText(context, context.getString(R.string.settings_lyric_share_folder_cleared), Toast.LENGTH_SHORT).show()
+                    }
+                )
+                } // search-anchor:end
+
+            }
         }
     }
 }
@@ -355,13 +628,15 @@ internal fun SettingsTagScrapingSection(
     val editorBuiltinLyricTiming = stringResource(R.string.settings_editor_builtin_lyric_timing)
     val editorLunaBeatMetadata = stringResource(R.string.settings_editor_lunabeat_metadata)
     val editorMusicTag = stringResource(R.string.settings_editor_music_tag)
+    val editorSpotiFlac = stringResource(R.string.settings_editor_spotiflac)
     val editorLunaBeatLyricTiming = stringResource(R.string.settings_editor_lunabeat_lyric_timing)
     val metadataEditorOptions = listOf(
         TagEditorOptionIds.ASK_EACH_TIME to editorAskEveryTime,
         TagEditorOptionIds.BUILTIN_CUSTOM_TAG to editorBuiltinCustomTag,
         TagEditorOptionIds.LYRICO to "Lyrico",
         TagEditorOptionIds.LUNABEAT_METADATA to editorLunaBeatMetadata,
-        TagEditorOptionIds.MUSIC_TAG to editorMusicTag
+        TagEditorOptionIds.MUSIC_TAG to editorMusicTag,
+        TagEditorOptionIds.SPOTIFLAC to editorSpotiFlac
     )
     val lyricTimingEditorOptions = listOf(
         TagEditorOptionIds.ASK_EACH_TIME to editorAskEveryTime,
@@ -397,7 +672,11 @@ internal fun SettingsTagScrapingSection(
 
     SettingsCardGroup(highlight = highlightKey == "tag_scraping") {
         Column {
+
+
             SettingsFocusAnchor(active = highlightKey == "tag_scraping") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_metadata_editor) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_metadata_editor),
                     summary = stringResource(R.string.settings_metadata_editor_summary),
@@ -411,7 +690,11 @@ internal fun SettingsTagScrapingSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_lyric_timing_editor) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_lyric_timing_editor),
                 summary = stringResource(R.string.settings_lyric_timing_editor_summary),
@@ -425,6 +708,10 @@ internal fun SettingsTagScrapingSection(
                     }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_spectrum_viewer) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_spectrum_viewer),
                 summary = stringResource(R.string.settings_spectrum_viewer_summary),
@@ -436,34 +723,12 @@ internal fun SettingsTagScrapingSection(
                     }
                 }
             )
+            } // search-anchor:end
+
         }
     }
 }
 
-@Composable
-internal fun SettingsDesktopShortcutSection(
-    highlightKey: String? = null
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val settingsManager = remember { SettingsManager.getInstance(context) }
-    val appShortcutOrder by settingsManager.appShortcutOrder.collectAsState(
-        initial = SettingsManager.DEFAULT_APP_SHORTCUT_ORDER
-    )
-
-    SmallTitle(text = stringResource(R.string.settings_desktop_shortcuts))
-
-    SettingsCardGroup(highlight = highlightKey == "desktop_shortcuts") {
-        Column {
-            SettingsAppShortcutsPreference(
-                shortcutIds = appShortcutOrder,
-                onShortcutIdsChange = { ids ->
-                    scope.launch { settingsManager.setAppShortcutOrder(ids) }
-                }
-            )
-        }
-    }
-}
 
 private enum class ScanAdvancedSheet {
     SplitRules,
@@ -478,8 +743,10 @@ internal fun SettingsScanSection(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val autoScanLocalPlaylists by settingsManager.autoScanLocalPlaylists.collectAsState(initial = false)
+    val coldStartAutoScan by settingsManager.coldStartAutoScan.collectAsState(initial = SettingsManager.DEFAULT_COLD_START_AUTO_SCAN)
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
     val filterVideoFiles by settingsManager.filterVideoFiles.collectAsState(initial = true)
+    val folderNameAsAlbumWhenMissing by settingsManager.folderNameAsAlbumWhenMissing.collectAsState(initial = false)
     var confirmAutoPlaylistScan by remember { mutableStateOf(false) }
     val artistSeparators by settingsManager.artistSeparators.collectAsState(
         initial = SettingsManager.DEFAULT_ARTIST_SEPARATORS
@@ -522,7 +789,19 @@ internal fun SettingsScanSection(
     // search scope and storage pickers are secondary settings and live in focused sheets below.
     SettingsCardGroup(highlight = highlightKey == "scan") {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_cold_start_auto_scan) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_cold_start_auto_scan),
+                summary = stringResource(R.string.settings_cold_start_auto_scan_summary),
+                checked = coldStartAutoScan,
+                onCheckedChange = { enabled -> scope.launch { settingsManager.setColdStartAutoScan(enabled) } }
+            )
+            } // search-anchor:end
+
             SettingsFocusAnchor(active = highlightKey == "auto_scan_local_playlists") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_auto_scan_local_playlists) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_auto_scan_local_playlists),
                     summary = stringResource(R.string.settings_auto_scan_local_playlists_summary),
@@ -535,8 +814,12 @@ internal fun SettingsScanSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "min_duration_filter") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_min_duration_filter) {
                 SettingsIntSliderPreference(
                     title = stringResource(R.string.settings_min_duration_filter),
                     summary = stringResource(R.string.settings_min_duration_filter_summary, minDurationSec),
@@ -545,32 +828,64 @@ internal fun SettingsScanSection(
                     valueText = stringResource(R.string.settings_seconds_value, minDurationSec.coerceIn(0, 60)),
                     onValueChange = { sec -> scope.launch { settingsManager.setMinDurationSec(sec) } }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "filter_video_files") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_filter_video_files) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_filter_video_files),
                     summary = stringResource(R.string.settings_filter_video_files_summary),
                     checked = filterVideoFiles,
                     onCheckedChange = { scope.launch { settingsManager.setFilterVideoFiles(it) } }
                 )
+                } // search-anchor:end
+
+            }
+
+            SettingsFocusAnchor(active = highlightKey == "folder_name_as_album_when_missing") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_folder_name_as_album_when_missing) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_folder_name_as_album_when_missing),
+                    summary = stringResource(R.string.settings_folder_name_as_album_when_missing_summary),
+                    checked = folderNameAsAlbumWhenMissing,
+                    onCheckedChange = { scope.launch {
+                        settingsManager.setFolderNameAsAlbumWhenMissing(it)
+                        MusicRepository.getInstance(context).rematerializeFolderAlbumFallbacks()
+                    } }
+                )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "tag_ignore_case") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_tag_ignore_case) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_tag_ignore_case),
                     summary = stringResource(R.string.settings_tag_ignore_case_summary),
                     checked = tagIgnoreCase,
                     onCheckedChange = { scope.launch { settingsManager.setTagIgnoreCase(it) } }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "show_album_artists") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_show_album_artists) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_show_album_artists),
                     summary = stringResource(R.string.settings_show_album_artists_summary),
                     checked = showAlbumArtists,
                     onCheckedChange = { scope.launch { settingsManager.setShowAlbumArtists(it) } }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "parse_featured_artists") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_parse_featured_artists) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_parse_featured_artists),
                     summary = stringResource(R.string.settings_parse_featured_artists_summary),
@@ -579,14 +894,20 @@ internal fun SettingsScanSection(
                         scope.launch { settingsManager.setParseFeaturedArtists(enabled) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "show_artist_introduction") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_show_artist_introduction) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_show_artist_introduction),
                     summary = stringResource(R.string.settings_show_artist_introduction_summary),
                     checked = showArtistIntroduction,
                     onCheckedChange = { scope.launch { settingsManager.setShowArtistIntroduction(it) } }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "artist_bio_download") {
                 val bioLabels = listOf(
@@ -596,6 +917,8 @@ internal fun SettingsScanSection(
                 )
                 val selectedBio = SettingsManager.normalizeArtistBioDownload(artistBioDownload)
                     .coerceIn(bioLabels.indices)
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_bio_download) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_artist_bio_download),
                     summary = stringResource(R.string.settings_artist_bio_download_summary),
@@ -605,8 +928,12 @@ internal fun SettingsScanSection(
                         scope.launch { settingsManager.setArtistBioDownload(index) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "song_rating_display_stars") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_song_rating_display_stars) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_song_rating_display_stars),
                     summary = if (songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS) {
@@ -624,6 +951,8 @@ internal fun SettingsScanSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
         }
     }
@@ -651,18 +980,26 @@ internal fun SettingsScanSection(
     SettingsCardGroup {
         Column {
             SettingsFocusAnchor(active = highlightKey == "artist_separators") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_separators) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_artist_separators),
                     summary = stringResource(R.string.settings_artist_separators_summary),
                     onClick = { activeSheet = ScanAdvancedSheet.SplitRules }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "search_all_categories" || highlightKey == "search_all_song_match_types") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_search_all_categories) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_search_all_categories),
                     summary = stringResource(R.string.settings_search_all_categories_summary),
                     onClick = { activeSheet = ScanAdvancedSheet.SearchScope }
                 )
+                } // search-anchor:end
+
             }
         }
     }
@@ -679,36 +1016,52 @@ internal fun SettingsScanSection(
                 .verticalScroll(rememberScrollState())
         ) {
             SettingsFocusAnchor(active = highlightKey == "artist_separators") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_separators) {
                 SplitSettingTextField(
                     label = stringResource(R.string.settings_artist_separators),
                     value = artistSeparators,
                     summary = stringResource(R.string.settings_artist_separators_summary),
                     onValueChange = { value -> scope.launch { settingsManager.setArtistSeparators(value) } }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "artist_protected_names") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_protected_names) {
                 SplitSettingTextField(
                     label = stringResource(R.string.settings_artist_protected_names),
                     value = artistProtectedNames,
                     summary = stringResource(R.string.settings_artist_protected_names_summary),
                     onValueChange = { value -> scope.launch { settingsManager.setArtistProtectedNames(value) } }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "genre_separators") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_genre_separators) {
                 SplitSettingTextField(
                     label = stringResource(R.string.settings_genre_separators),
                     value = genreSeparators,
                     summary = stringResource(R.string.settings_genre_separators_summary),
                     onValueChange = { value -> scope.launch { settingsManager.setGenreSeparators(value) } }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "genre_protected_names") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_genre_protected_names) {
                 SplitSettingTextField(
                     label = stringResource(R.string.settings_genre_protected_names),
                     value = genreProtectedNames,
                     summary = stringResource(R.string.settings_genre_protected_names_summary),
                     onValueChange = { value -> scope.launch { settingsManager.setGenreProtectedNames(value) } }
                 )
+                } // search-anchor:end
+
             }
         }
     }
@@ -724,21 +1077,25 @@ internal fun SettingsScanSection(
                 .heightIn(max = 560.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsFocusAnchor(active = highlightKey == "search_all_categories") {
-                SearchAllCategoryTypesPreference(
-                    enabledTypes = searchAllCategoryTypes,
-                    onEnabledChange = { type, enabled ->
-                        scope.launch { settingsManager.setSearchAllCategoryTypeEnabled(type, enabled) }
-                    }
-                )
+            SettingsCardGroup {
+                SettingsFocusAnchor(active = highlightKey == "search_all_categories") {
+                    SearchAllCategoryTypesPreference(
+                        enabledTypes = searchAllCategoryTypes,
+                        onEnabledChange = { type, enabled ->
+                            scope.launch { settingsManager.setSearchAllCategoryTypeEnabled(type, enabled) }
+                        }
+                    )
+                }
             }
-            SettingsFocusAnchor(active = highlightKey == "search_all_song_match_types") {
-                SearchAllSongMatchTypesPreference(
-                    enabledTypes = searchAllSongMatchTypes,
-                    onEnabledChange = { type, enabled ->
-                        scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
-                    }
-                )
+            SettingsCardGroup {
+                SettingsFocusAnchor(active = highlightKey == "search_all_song_match_types") {
+                    SearchAllSongMatchTypesPreference(
+                        enabledTypes = searchAllSongMatchTypes,
+                        onEnabledChange = { type, enabled ->
+                            scope.launch { settingsManager.setSearchAllSongMatchTypeEnabled(type, enabled) }
+                        }
+                    )
+                }
             }
         }
     }

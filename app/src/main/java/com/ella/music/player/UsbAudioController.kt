@@ -44,6 +44,8 @@ class UsbAudioController private constructor(
         val enabled = settingsManager.usbDacMode.first()
         if (!enabled) {
             clearUsbRoutingInternal(audioManager)
+            UsbExclusiveSession.abandonExclusiveFocus(context)
+            UsbExclusiveSession.clear()
             return
         }
         val devices = getUsbAudioDevices(audioManager)
@@ -56,10 +58,14 @@ class UsbAudioController private constructor(
                     "Failed to route media to USB DAC ${preferred.productName ?: preferred.id}"
                 )
             }
+            UsbExclusiveSession.updateRoutingOnly(preferred)
+            UsbExclusiveSession.requestExclusiveFocus(context)
         } else {
             if (!clearUsbRoutingInternal(audioManager)) {
                 AppLogStore.warn(context, "UsbAudio", "Failed to clear USB DAC media routing")
             }
+            UsbExclusiveSession.abandonExclusiveFocus(context)
+            UsbExclusiveSession.clear()
         }
     }
 
@@ -92,6 +98,8 @@ class UsbAudioController private constructor(
                 AppLogStore.warn(context, "UsbAudio", "Failed to clear USB DAC media routing")
             }
         }
+        UsbExclusiveSession.abandonExclusiveFocus(context)
+        UsbExclusiveSession.clear()
     }
 
     companion object {

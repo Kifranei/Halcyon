@@ -91,7 +91,7 @@ class SettingsCoverageTest {
     @Test
     fun nonCjkLocalesDoNotContainChineseFallbackText() {
         val resDir = moduleFile("src/main/res")
-        val checkedLocales = listOf("values-de", "values-fr", "values-ko", "values-ru")
+        val checkedLocales = listOf("values-de", "values-fr", "values-ko", "values-ru", "values-tr", "values-ar")
         val hanRegex = Regex("[\\u3400-\\u4DBF\\u4E00-\\u9FFF]")
         val factory = DocumentBuilderFactory.newInstance()
 

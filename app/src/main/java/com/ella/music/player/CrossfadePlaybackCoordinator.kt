@@ -66,6 +66,8 @@ internal class CrossfadePlaybackCoordinator(
     private var primaryGainProcessor = initialPrimaryGainProcessor
     private var secondaryGainProcessor = initialSecondaryGainProcessor
     private var crossfadeDurationMs = 0L
+    /** Repeat mode reported by the MediaSession player (may differ from raw primary). */
+    private var sessionRepeatMode: Int = Player.REPEAT_MODE_OFF
     private var crossfadeCurve = CrossfadeTransitionMath.CURVE_EQUAL_POWER
     private var secondary: ExoPlayer? = null
     private var preparedSourceMediaId: String? = null
@@ -138,6 +140,24 @@ internal class CrossfadePlaybackCoordinator(
                         .onFailure { error -> abortTransition("crossfade update failed", error) }
                     delay(if (transition != null) ACTIVE_TICK_MS else IDLE_TICK_MS)
                 }
+            }
+        }
+    }
+
+
+    fun setSessionRepeatMode(repeatMode: Int) {
+        sessionRepeatMode = repeatMode
+        // Keep the audible primary decoder in lock-step so Media3 nextMediaItemIndex matches UI.
+        if (primary.repeatMode != repeatMode) {
+            primary.repeatMode = repeatMode
+        }
+        secondary?.let { standby ->
+            if (standby.repeatMode != repeatMode) standby.repeatMode = repeatMode
+        }
+        if (repeatMode == Player.REPEAT_MODE_ONE && transition != null) {
+            val active = transition ?: return
+            if (active.targetMediaId != primary.currentMediaItem?.mediaId) {
+                cancelTransition()
             }
         }
     }
@@ -237,10 +257,21 @@ internal class CrossfadePlaybackCoordinator(
         }
         if (!primary.isPlaying || primary.duration <= fadeMs) return
 
-        val nextIndex = primary.nextMediaItemIndex
-        if (nextIndex == C.INDEX_UNSET || nextIndex == primary.currentMediaItemIndex) {
-            return
+        // Single-track loop must never crossfade into a *different* queue item. Media3 reports
+        // nextMediaItemIndex == current under REPEAT_MODE_ONE, but the session-facing
+        // RepeatOneLockingPlayer can leave the raw ExoPlayer on REPEAT_MODE_ALL — in that case
+        // nextMediaItemIndex points at the following song and we would incorrectly advance.
+        val repeatOne = primary.repeatMode == Player.REPEAT_MODE_ONE ||
+            sessionRepeatMode == Player.REPEAT_MODE_ONE
+        val currentIndex = primary.currentMediaItemIndex
+        if (currentIndex == C.INDEX_UNSET) return
+        val nextIndex = if (repeatOne) {
+            currentIndex
+        } else {
+            primary.nextMediaItemIndex
         }
+        if (nextIndex == C.INDEX_UNSET) return
+        if (!repeatOne && nextIndex == currentIndex) return
         val target = primary.getMediaItemAt(nextIndex)
         val remainingMs = (primary.duration - primary.currentPosition).coerceAtLeast(0L)
 
@@ -494,13 +525,12 @@ internal class CrossfadeGainAudioProcessor : BaseAudioProcessor() {
     private var encoding: Int = C.ENCODING_INVALID
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        encoding = inputAudioFormat.encoding
-        return if (encoding in SUPPORTED_ENCODINGS) inputAudioFormat else AudioProcessor.AudioFormat.NOT_SET
+        return if (inputAudioFormat.encoding in SUPPORTED_ENCODINGS) inputAudioFormat else AudioProcessor.AudioFormat.NOT_SET
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        val output = replaceOutputBuffer(inputBuffer.remaining()).order(ByteOrder.LITTLE_ENDIAN)
-        val input = inputBuffer.order(ByteOrder.LITTLE_ENDIAN)
+        val input = inputBuffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+        val output = replaceOutputBuffer(input.remaining()).order(ByteOrder.LITTLE_ENDIAN)
         val appliedGain = currentGain
         when (encoding) {
             C.ENCODING_PCM_FLOAT -> while (input.remaining() >= 4) {
@@ -530,7 +560,12 @@ internal class CrossfadeGainAudioProcessor : BaseAudioProcessor() {
             else -> output.put(input)
         }
         while (input.hasRemaining()) output.put(input.get())
+        inputBuffer.position(inputBuffer.limit())
         output.flip()
+    }
+
+    override fun onFlush() {
+        encoding = inputAudioFormat.encoding
     }
 
     override fun onReset() {
@@ -560,7 +595,6 @@ internal class WaveformLevelAudioProcessor : BaseAudioProcessor() {
     private var aliasCopyBuffer = ByteArray(0)
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        encoding = inputAudioFormat.encoding
         return inputAudioFormat
     }
 
@@ -589,6 +623,7 @@ internal class WaveformLevelAudioProcessor : BaseAudioProcessor() {
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onFlush() {
+        encoding = inputAudioFormat.encoding
         level = 0f
     }
 

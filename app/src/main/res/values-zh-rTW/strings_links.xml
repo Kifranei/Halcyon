@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">網頁</string>
+    <string name="netease_link_target_app">網易雲音樂</string>
+    <string name="netease_link_target_honor">網易雲音樂榮耀定製版</string>
+    <string name="netease_link_target_custom">自訂</string>
+    <string name="netease_link_open_failed">無法開啟連結</string>
+    <string name="netease_link_song_comments">歌曲評論</string>
+    <string name="netease_link_artist_wiki">藝人百科</string>
+    <string name="netease_link_mv_open_mode">網易雲 MV 開啟方式</string>
+    <string name="netease_link_mv_open_mode_summary">歌曲帶有網易雲 MV 資訊時，選擇以內建播放器線上播放或外部開啟</string>
+    <string name="netease_link_mv_open_internal">內建播放器</string>
+    <string name="netease_link_mv_open_external">外部開啟（依網易雲連結跳轉）</string>
+    <string name="netease_link_target">網易雲連結跳轉</string>
+    <string name="netease_link_target_summary">163 key 中的歌曲、歌手、專輯、MV 連結以網頁或網易雲音樂 App 開啟</string>
+    <string name="netease_link_kind_song">歌曲</string>
+    <string name="netease_link_kind_artist">歌手</string>
+    <string name="netease_link_kind_album">專輯</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">填寫 ID 前的連結，或以 {id} 標記 ID 位置；留空則使用 %1$s</string>
+</resources>

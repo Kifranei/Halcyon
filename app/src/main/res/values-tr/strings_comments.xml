@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">Yorumlar</string>
+    <string name="netease_comments_title">Yorumlar</string>
+    <string name="netease_comments_title_count">Yorumlar (%1$s)</string>
+    <string name="netease_comments_sort_recommend">Önerilen</string>
+    <string name="netease_comments_sort_hot">Popüler</string>
+    <string name="netease_comments_sort_latest">En yeni</string>
+    <string name="netease_comments_empty">Henüz yorum yok</string>
+    <string name="netease_comments_error">Yorumlar yüklenemedi</string>
+    <string name="netease_comments_retry">Tekrar dene</string>
+    <string name="netease_comments_expand_replies">Yanıtları göster (%1$d)</string>
+    <string name="netease_comments_more_replies">Daha fazla yanıt</string>
+    <string name="netease_comments_collapse_replies">Yanıtları gizle</string>
+    <string name="netease_comments_reply_to">"@%1$s adlı kullanıcıya yanıt: "</string>
+    <string name="netease_comments_load_more_failed">Yüklenemedi. Tekrar denemek için dokunun</string>
+    <string name="netease_comments_no_more">Başka yorum yok</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">Beğen</string>
+    <string name="netease_comments_reply">Yanıtla</string>
+    <string name="netease_comments_input_hint">Bir şeyler yaz…</string>
+    <string name="netease_comments_reply_hint">@%1$s adlı kullanıcıya yanıt ver</string>
+    <string name="netease_comments_send">Gönder</string>
+    <string name="netease_comments_cancel_reply">Yanıtı iptal et</string>
+    <string name="netease_comments_login_required">Önce NetEase Cloud Music hesabınıza giriş yapın</string>
+    <string name="netease_comments_like_failed">Beğeni güncellenemedi. Daha sonra tekrar deneyin</string>
+    <string name="netease_comments_send_failed">Gönderilemedi. Daha sonra tekrar deneyin</string>
+    <string name="netease_comments_send_failed_code">Gönderilemedi (hata %1$d)</string>
+    <string name="netease_comments_sent">Gönderildi</string>
+</resources>

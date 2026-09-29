@@ -36,7 +36,7 @@ internal fun projectTransportState(
         return TransportStateProjection(
             isPlaying = false,
             playWhenReady = false,
-            acknowledged = true
+            acknowledged = !actualIsPlaying && !actualPlayWhenReady
         )
     }
 
@@ -45,7 +45,7 @@ internal fun projectTransportState(
     return TransportStateProjection(
         isPlaying = true,
         playWhenReady = true,
-        acknowledged = actualIsPlaying
+        acknowledged = actualIsPlaying && actualPlayWhenReady
     )
 }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">波形の拡大縮小アニメーション</string>
+    <string name="player_waveform_scale_animation_summary">一時停止時やプログレスバーのタップ・ドラッグ時に波形を拡大縮小します</string>
+    <string name="player_waveform_density">波形の密度</string>
+    <string name="player_waveform_density_summary">波形バーの本数と間隔を調整します</string>
+    <string name="player_waveform_peak_height">波形のピークの高さ</string>
+    <string name="player_waveform_peak_height_summary">波形バーの最大の高さを調整します</string>
+</resources>

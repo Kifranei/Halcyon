@@ -82,6 +82,10 @@ internal object ShizukuShellCommandExecutor {
                     val args = Shizuku.UserServiceArgs(
                         ComponentName(context.packageName, ShizukuShellService::class.java.name)
                     )
+                        // Keep the remote service identity stable when release R8 changes the
+                        // implementation class name. Without a tag Shizuku may leave an old
+                        // daemon around and deliver the Binder connection to the wrong version.
+                        .tag("halcyon_shell")
                         .daemon(true)
                         .processNameSuffix(SERVICE_PROCESS_SUFFIX)
                         .debuggable(BuildConfig.DEBUG)

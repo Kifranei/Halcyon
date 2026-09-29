@@ -52,7 +52,11 @@ internal fun buildListeningDayAggregates(
         val entries = groupedHistory[dateKey].orEmpty().map { entry ->
             // MediaStore ids can be reused after a rescan. Match stable metadata first so an old
             // history row cannot borrow the cover (or file) of an unrelated new song with that id.
-            ListeningTimelineEntry(entry, libraryByStatsKey[entry.calendarStatsKey()] ?: libraryById[entry.songId])
+            ListeningTimelineEntry(
+                entry,
+                libraryByStatsKey[entry.calendarStatsKey()]
+                    ?: libraryById[entry.songId]
+            )
         }
         // The calendar is a listening-history surface. Its total must use the same actual
         // session duration shown on every history row and must never fall back to track length.

@@ -1,11 +1,16 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.settings
 
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.documentfile.provider.DocumentFile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -16,13 +21,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +50,8 @@ import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
 import com.ella.music.data.lastfm.LAST_FM_WIKI_REGIONS
 import com.ella.music.data.lastfm.normalizeLastFmWikiRegion
 import com.ella.music.ui.components.EllaSmallTopAppBar
+import com.ella.music.ui.components.ReorderableSelectionItem
+import com.ella.music.ui.components.ReorderableSelectionSheet
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,8 +65,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import sh.calvin.reorderable.ReorderableColumn
-import sh.calvin.reorderable.ReorderableItem
 
 @Composable
 fun CoverMediaSettingsScreen(
@@ -62,16 +72,52 @@ fun CoverMediaSettingsScreen(
     highlightKey: String? = null
 ) {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
-    Column(
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
+    val settingsBackdrop = rememberLayerBackdrop()
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
+        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
+    val shouldReserveStatus = systemBarsReserveSpace || systemBarsMode !in setOf(
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+    )
+    val statusBarHeight = if (shouldReserveStatus) {
+        WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    } else {
+        0.dp
+    }
+    val topBarHeight = 56.dp + statusBarHeight
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(settingsBackdrop)
+                .verticalScroll(rememberSettingsScrollState("settings_cover_media"))
+                .padding(horizontal = 12.dp)
+        ) {
+            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
+            SettingsArtistCoverSection(highlightKey = highlightKey)
+            SettingsArtistImageSection(highlightKey = highlightKey)
+            SettingsDynamicCoverSection(highlightKey = highlightKey)
+            SettingsMusicVideoSection(highlightKey = highlightKey)
+            Spacer(modifier = Modifier.height(160.dp))
+        }
+
         EllaSmallTopAppBar(
+            backdrop = settingsBackdrop,
             title = stringResource(R.string.settings_cover_media),
             color = pageBackground,
+            defaultWindowInsetsPadding = shouldReserveStatus,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -81,21 +127,9 @@ fun CoverMediaSettingsScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-            }
+            },
+            modifier = Modifier.align(Alignment.TopCenter)
         )
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberSettingsScrollState("settings_cover_media"))
-                .padding(horizontal = 12.dp)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            SettingsArtistCoverSection(highlightKey = highlightKey)
-            SettingsArtistImageSection(highlightKey = highlightKey)
-            SettingsDynamicCoverSection(highlightKey = highlightKey)
-            SettingsMusicVideoSection(highlightKey = highlightKey)
-            Spacer(modifier = Modifier.height(160.dp))
-        }
     }
 }
 
@@ -137,21 +171,45 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
     val sourceOptions = listOf(
         SettingsManager.ARTIST_IMAGE_SOURCE_LASTFM to stringResource(R.string.settings_artist_image_source_lastfm),
         SettingsManager.ARTIST_IMAGE_SOURCE_SPOTIFY to stringResource(R.string.settings_artist_image_source_spotify),
-        SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE to stringResource(R.string.settings_artist_image_source_netease)
+        SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE to stringResource(R.string.settings_artist_image_source_netease),
+        SettingsManager.ARTIST_IMAGE_SOURCE_KUGOU to stringResource(R.string.artist_image_source_kugou),
+        SettingsManager.ARTIST_IMAGE_SOURCE_QQ to stringResource(R.string.artist_image_source_qq),
+        SettingsManager.ARTIST_IMAGE_SOURCE_KUWO to stringResource(R.string.artist_image_source_kuwo)
     )
     val sourceIds = remember(sourceOptions) { sourceOptions.map { it.first } }
     val sourceLabels = remember(sourceOptions) { sourceOptions.toMap() }
     val enabledSourceIds = sourceOrderPreference.filter { it in sourceIds }.distinct()
     val disabledSourceIds = sourceIds.filterNot { it in enabledSourceIds }
+    var showArtistSourceSheet by remember { mutableStateOf(false) }
 
     fun saveSourceOrder(next: List<String>) {
         scope.launch { settingsManager.setArtistImageSourceOrder(next) }
     }
 
-    fun moveSource(sourceList: List<String>, fromIndex: Int, toIndex: Int): List<String> {
-        if (fromIndex !in sourceList.indices || toIndex !in sourceList.indices) return sourceList
-        return sourceList.toMutableList().apply {
-            add(toIndex, removeAt(fromIndex))
+    val artistSourceSelectionItems = remember(enabledSourceIds, disabledSourceIds, sourceLabels) {
+        enabledSourceIds.map { id ->
+            ReorderableSelectionItem(
+                id = id,
+                title = sourceLabels[id] ?: id,
+                enabled = true
+            )
+        } + disabledSourceIds.map { id ->
+            ReorderableSelectionItem(
+                id = id,
+                title = sourceLabels[id] ?: id,
+                enabled = false
+            )
+        }
+    }
+    val defaultArtistSourceItems = remember(sourceLabels) {
+        SettingsManager.DEFAULT_ARTIST_IMAGE_SOURCES.mapNotNull { id ->
+            sourceLabels[id]?.let { label ->
+                ReorderableSelectionItem(
+                    id = id,
+                    title = label,
+                    enabled = true
+                )
+            }
         }
     }
 
@@ -161,6 +219,8 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
     ) {
         Column {
             SettingsFocusAnchor(active = highlightKey == "artist_image_download") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_image_download) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_artist_image_download),
                     summary = stringResource(R.string.settings_artist_image_download_summary),
@@ -172,8 +232,12 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "artist_image_region") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_image_region) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_artist_image_region),
                     summary = stringResource(R.string.settings_artist_image_region_summary),
@@ -187,68 +251,27 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
                         }
                     }
                 )
+                } // search-anchor:end
+
+            }
+            val artistSourceSummary = remember(enabledSourceIds, sourceLabels) {
+                enabledSourceIds.mapNotNull { sourceLabels[it] }.joinToString(" · ")
             }
             SettingsFocusAnchor(active = highlightKey == "artist_image_sources") {
-                Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_artist_image_sources),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_artist_image_sources_summary),
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    if (enabledSourceIds.isNotEmpty()) {
-                        ReorderableColumn(
-                            list = enabledSourceIds,
-                            onSettle = { fromIndex, toIndex ->
-                                saveSourceOrder(moveSource(enabledSourceIds, fromIndex, toIndex))
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { _, sourceId, isDragging ->
-                            val sourceIndex = enabledSourceIds.indexOf(sourceId)
-                            ReorderableItem {
-                                ArtistImageSourceRow(
-                                    label = sourceLabels[sourceId].orEmpty(),
-                                    enabled = true,
-                                    canMoveUp = sourceIndex > 0,
-                                    canMoveDown = sourceIndex < enabledSourceIds.lastIndex,
-                                    isDragging = isDragging,
-                                    onToggle = {
-                                        saveSourceOrder(enabledSourceIds - sourceId)
-                                    },
-                                    onMoveUp = {
-                                        saveSourceOrder(moveSource(enabledSourceIds, sourceIndex, sourceIndex - 1))
-                                    },
-                                    onMoveDown = {
-                                        saveSourceOrder(moveSource(enabledSourceIds, sourceIndex, sourceIndex + 1))
-                                    },
-                                    modifier = Modifier.longPressDraggableHandle()
-                                )
-                            }
-                        }
-                    }
-                    disabledSourceIds.forEach { sourceId ->
-                        ArtistImageSourceRow(
-                            label = sourceLabels[sourceId].orEmpty(),
-                            enabled = false,
-                            canMoveUp = false,
-                            canMoveDown = false,
-                            isDragging = false,
-                            onToggle = { saveSourceOrder(enabledSourceIds + sourceId) },
-                            onMoveUp = {},
-                            onMoveDown = {}
-                        )
-                    }
-                }
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_image_sources) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_artist_image_sources),
+                    summary = artistSourceSummary.ifBlank { stringResource(R.string.settings_artist_image_sources_summary) },
+                    onClick = { showArtistSourceSheet = true }
+                )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "artist_image_sources") {
                 Column {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_spotify_client_id) {
                     SplitSettingTextField(
                         label = stringResource(R.string.settings_spotify_client_id),
                         value = spotifyClientId,
@@ -258,6 +281,10 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
                             scope.launch { settingsManager.setSpotifyClientId(value) }
                         }
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_spotify_client_secret) {
                     SplitSettingTextField(
                         label = stringResource(R.string.settings_spotify_client_secret),
                         value = spotifyClientSecret,
@@ -268,81 +295,27 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
                             scope.launch { settingsManager.setSpotifyClientSecret(value) }
                         }
                     )
+                    } // search-anchor:end
+
                 }
             }
         }
     }
-}
-
-@Composable
-private fun ArtistImageSourceRow(
-    label: String,
-    enabled: Boolean,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    isDragging: Boolean,
-    onToggle: () -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                if (isDragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
-            )
-            .padding(horizontal = 16.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = label,
-            fontSize = 15.sp,
-            color = if (enabled) {
-                MiuixTheme.colorScheme.onSurface
-            } else {
-                MiuixTheme.colorScheme.onSurfaceVariantSummary
-            },
-            modifier = Modifier.weight(1f)
-        )
-        if (enabled) {
-            ArtistImageSourceAction(
-                text = "↑",
-                description = stringResource(R.string.settings_artist_image_source_move_up),
-                enabled = canMoveUp,
-                onClick = onMoveUp
-            )
-            ArtistImageSourceAction(
-                text = "↓",
-                description = stringResource(R.string.settings_artist_image_source_move_down),
-                enabled = canMoveDown,
-                onClick = onMoveDown
-            )
+    ReorderableSelectionSheet(
+        show = showArtistSourceSheet,
+        title = stringResource(R.string.settings_artist_image_sources),
+        subtitle = stringResource(R.string.settings_artist_image_sources_summary),
+        items = artistSourceSelectionItems,
+        defaultItems = defaultArtistSourceItems,
+        onDismissRequest = { showArtistSourceSheet = false },
+        onSave = { updated ->
+            saveSourceOrder(updated.filter { it.enabled }.map { it.id })
+            showArtistSourceSheet = false
+        },
+        onReset = {
+            saveSourceOrder(SettingsManager.DEFAULT_ARTIST_IMAGE_SOURCES)
+            showArtistSourceSheet = false
         }
-        Switch(
-            checked = enabled,
-            onCheckedChange = { onToggle() }
-        )
-    }
-}
-
-@Composable
-private fun ArtistImageSourceAction(
-    text: String,
-    description: String,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Text(
-        text = text,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        color = if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
-        modifier = Modifier
-            .size(36.dp)
-            .semantics { contentDescription = description }
-            .clickable(enabled = enabled, onClick = onClick)
     )
 }
 
@@ -352,6 +325,7 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectCachedAsState("artistCoverFolderUri", "")
+    val artistCoverDownloadFolderUri by settingsManager.artistCoverDownloadFolderUri.collectCachedAsState("artistCoverDownloadFolderUri", "")
     val artistCoverCarousel by settingsManager.artistCoverCarousel.collectCachedAsState("artistCoverCarousel", true)
     val coverExportFolderUri by settingsManager.coverExportFolderUri.collectCachedAsState("coverExportFolderUri", "")
     val artistCoverFolderPicker = rememberLauncherForActivityResult(
@@ -365,8 +339,31 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
         }.recoverCatching {
             context.contentResolver.takePersistableUriPermission(uri, readOnly)
         }
+        runCatching {
+            DocumentFile.fromTreeUri(context, uri)?.let { root ->
+                if (root.findFile(".nomedia") == null) {
+                    root.createFile("application/octet-stream", ".nomedia")
+                }
+            }
+        }
         scope.launch { settingsManager.setArtistCoverFolderUri(uri.toString()) }
         Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_saved), Toast.LENGTH_SHORT).show()
+    }
+    val artistCoverDownloadFolderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val readWrite = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, readWrite) }
+        runCatching {
+            DocumentFile.fromTreeUri(context, uri)?.let { root ->
+                if (root.findFile(".nomedia") == null) {
+                    root.createFile("application/octet-stream", ".nomedia")
+                }
+            }
+        }
+        scope.launch { settingsManager.setArtistCoverDownloadFolderUri(uri.toString()) }
+        Toast.makeText(context, context.getString(R.string.settings_artist_cover_download_folder_saved), Toast.LENGTH_SHORT).show()
     }
     val coverExportFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -380,9 +377,11 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
 
     SmallTitle(text = stringResource(R.string.settings_artist_cover_folder))
     SettingsCardGroup(
-        highlight = highlightKey in setOf("artist_cover_folder", "artist_cover_carousel", "cover_export_folder", "cover_media")
+        highlight = highlightKey in setOf("artist_cover_folder", "artist_cover_download_folder", "artist_cover_carousel", "cover_export_folder", "cover_media")
     ) {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_artist_cover_folder) {
             ArrowPreference(
                 title = stringResource(R.string.settings_artist_cover_folder),
                 summary = if (artistCoverFolderUri.isBlank()) {
@@ -392,13 +391,21 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
                 },
                 onClick = { artistCoverFolderPicker.launch(null) }
             )
-            if (artistCoverFolderUri.isNotBlank()) {
+            } // search-anchor:end
+
+            if (artistCoverFolderUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_artist_cover_carousel, R.string.settings_artist_cover_folder_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_cover_carousel) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_artist_cover_carousel),
                     summary = stringResource(R.string.settings_artist_cover_carousel_summary),
                     checked = artistCoverCarousel,
                     onCheckedChange = { scope.launch { settingsManager.setArtistCoverCarousel(it) } }
                 )
+                } // search-anchor:end
+
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_cover_folder_remove) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_artist_cover_folder_remove),
                     summary = stringResource(R.string.settings_artist_cover_folder_remove_summary),
@@ -407,7 +414,35 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
                         Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_cleared), Toast.LENGTH_SHORT).show()
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_artist_cover_download_folder) {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_artist_cover_download_folder),
+                items = listOf(
+                    DropdownItem(stringResource(R.string.settings_artist_cover_folder)),
+                    DropdownItem(stringResource(R.string.settings_artist_cover_internal_storage)),
+                    DropdownItem(stringResource(R.string.settings_artist_cover_custom_storage))
+                ),
+                selectedIndex = when (artistCoverDownloadFolderUri) {
+                    "" -> 0
+                    com.ella.music.data.ARTIST_IMAGE_INTERNAL_STORAGE -> 1
+                    else -> 2
+                },
+                onSelectedIndexChange = { index ->
+                    when (index) {
+                        0 -> scope.launch { settingsManager.setArtistCoverDownloadFolderUri("") }
+                        1 -> scope.launch { settingsManager.setArtistCoverDownloadFolderUri(com.ella.music.data.ARTIST_IMAGE_INTERNAL_STORAGE) }
+                        else -> artistCoverDownloadFolderPicker.launch(null)
+                    }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_cover_export_folder) {
             ArrowPreference(
                 title = stringResource(R.string.settings_cover_export_folder),
                 summary = if (coverExportFolderUri.isBlank()) {
@@ -417,7 +452,11 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
                 },
                 onClick = { coverExportFolderPicker.launch(null) }
             )
-            if (coverExportFolderUri.isNotBlank()) {
+            } // search-anchor:end
+
+            if (coverExportFolderUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_cover_export_folder_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_cover_export_folder_remove) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_cover_export_folder_remove),
                     summary = stringResource(R.string.settings_cover_export_folder_remove_summary),
@@ -426,6 +465,8 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
                         Toast.makeText(context, context.getString(R.string.settings_cover_export_folder_cleared), Toast.LENGTH_SHORT).show()
                     }
                 )
+                } // search-anchor:end
+
             }
         }
     }
@@ -452,6 +493,8 @@ internal fun SettingsDynamicCoverSection(highlightKey: String? = null) {
         highlight = highlightKey in setOf("dynamic_cover", "cover_media")
     ) {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_dynamic_cover) {
             SwitchPreference(
                 title = stringResource(R.string.settings_dynamic_cover),
                 summary = stringResource(R.string.settings_dynamic_cover_summary),
@@ -460,6 +503,10 @@ internal fun SettingsDynamicCoverSection(highlightKey: String? = null) {
                     setDynamicCoverEnabled(context, scope, settingsManager, dynamicCoverPermissionLauncher, it)
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_dynamic_cover_custom_folders) {
             ArrowPreference(
                 title = stringResource(R.string.settings_dynamic_cover_custom_folders),
                 summary = if (dynamicCoverCustomFolders.isBlank()) {
@@ -472,7 +519,11 @@ internal fun SettingsDynamicCoverSection(highlightKey: String? = null) {
                 },
                 onClick = { dynamicCoverFolderPicker.launch(null) }
             )
-            if (dynamicCoverCustomFolders.isNotBlank()) {
+            } // search-anchor:end
+
+            if (dynamicCoverCustomFolders.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_dynamic_cover_custom_folders_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_dynamic_cover_custom_folders_remove) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_dynamic_cover_custom_folders_remove),
                     summary = stringResource(R.string.settings_dynamic_cover_custom_folders_remove_summary),
@@ -480,6 +531,8 @@ internal fun SettingsDynamicCoverSection(highlightKey: String? = null) {
                         scope.launch { settingsManager.setDynamicCoverCustomFolders("") }
                     }
                 )
+                } // search-anchor:end
+
             }
         }
     }
@@ -490,6 +543,8 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    val neteaseLinkSettings = com.ella.music.data.netease.NeteaseLinks.settings(context).collectAsState().value
+        ?: com.ella.music.data.netease.NeteaseLinks.current(context)
     val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectCachedAsState(
         "musicVideoSyncEnabled",
         SettingsManager.DEFAULT_MUSIC_VIDEO_SYNC_ENABLED
@@ -517,6 +572,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
     val musicVideoLongPressImmersiveLyricsEnabled by settingsManager.musicVideoLongPressImmersiveLyricsEnabled.collectCachedAsState(
         "musicVideoLongPressImmersiveLyricsEnabled",
         SettingsManager.DEFAULT_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED
+    )
+    val musicVideoImmersiveLyricsHideSystemBars by settingsManager.musicVideoImmersiveLyricsHideSystemBars.collectCachedAsState(
+        "musicVideoImmersiveLyricsHideSystemBars",
+        SettingsManager.DEFAULT_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS
     )
     val playerAlbumCoverCornerRadius by settingsManager.playerAlbumCoverCornerRadius.collectCachedAsState(
         "playerAlbumCoverCornerRadius",
@@ -585,6 +644,8 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
         )
     ) {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_sync) {
             SwitchPreference(
                 title = stringResource(R.string.settings_music_video_sync),
                 summary = stringResource(R.string.settings_music_video_sync_summary),
@@ -593,6 +654,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     setMusicVideoSyncEnabled(context, scope, settingsManager, musicVideoSyncPermissionLauncher, it)
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_capture_subtitles) {
             SwitchPreference(
                 title = stringResource(R.string.settings_music_video_capture_subtitles),
                 summary = stringResource(R.string.settings_music_video_capture_subtitles_summary),
@@ -601,6 +666,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     scope.launch { settingsManager.setMusicVideoCaptureSubtitles(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_stretch) {
             SwitchPreference(
                 title = stringResource(R.string.settings_music_video_stretch),
                 summary = stringResource(R.string.settings_music_video_stretch_summary),
@@ -609,6 +678,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     scope.launch { settingsManager.setMusicVideoStretchEnabled(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_orientation) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_music_video_orientation),
                 summary = stringResource(R.string.settings_music_video_orientation_summary),
@@ -620,6 +693,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_fullscreen_button) {
             SwitchPreference(
                 title = stringResource(R.string.settings_music_video_fullscreen_button),
                 summary = stringResource(R.string.settings_music_video_fullscreen_button_summary),
@@ -628,6 +705,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     scope.launch { settingsManager.setMusicVideoFullscreenButtonEnabled(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_long_press_info) {
             SwitchPreference(
                 title = stringResource(R.string.settings_music_video_long_press_info),
                 summary = stringResource(R.string.settings_music_video_long_press_info_summary),
@@ -636,6 +717,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     scope.launch { settingsManager.setMusicVideoLongPressInfoEnabled(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_long_press_immersive_lyrics) {
             SwitchPreference(
                 title = stringResource(R.string.settings_music_video_long_press_immersive_lyrics),
                 summary = stringResource(R.string.settings_music_video_long_press_immersive_lyrics_summary),
@@ -644,6 +729,22 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     scope.launch { settingsManager.setMusicVideoLongPressImmersiveLyricsEnabled(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_immersive_lyrics_hide_system_bars) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_music_video_immersive_lyrics_hide_system_bars),
+                summary = stringResource(R.string.settings_music_video_immersive_lyrics_hide_system_bars_summary),
+                checked = musicVideoImmersiveLyricsHideSystemBars,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setMusicVideoImmersiveLyricsHideSystemBars(it) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_album_cover_corner_radius) {
             SettingsIntSliderPreference(
                 title = stringResource(R.string.settings_player_album_cover_corner_radius),
                 summary = stringResource(R.string.settings_player_cover_corner_radius_summary),
@@ -652,6 +753,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                 valueText = "${playerAlbumCoverCornerRadius}dp",
                 onValueChange = { value -> scope.launch { settingsManager.setPlayerAlbumCoverCornerRadius(value) } }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_music_video_corner_radius) {
             SettingsIntSliderPreference(
                 title = stringResource(R.string.settings_player_music_video_corner_radius),
                 summary = stringResource(R.string.settings_player_cover_corner_radius_summary),
@@ -660,6 +765,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                 valueText = "${playerMusicVideoCornerRadius}dp",
                 onValueChange = { value -> scope.launch { settingsManager.setPlayerMusicVideoCornerRadius(value) } }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_show_local_mv_in_lists) {
             SwitchPreference(
                 title = stringResource(R.string.settings_show_local_mv_in_lists),
                 summary = stringResource(R.string.settings_show_local_mv_in_lists_summary),
@@ -668,6 +777,10 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     scope.launch { settingsManager.setShowLocalMusicVideoInLists(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_show_online_mv_in_lists) {
             SwitchPreference(
                 title = stringResource(R.string.settings_show_online_mv_in_lists),
                 summary = stringResource(R.string.settings_show_online_mv_in_lists_summary),
@@ -676,6 +789,67 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                     scope.launch { settingsManager.setShowOnlineMusicVideoInLists(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.netease_link_mv_open_mode) {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.netease_link_mv_open_mode),
+                summary = stringResource(R.string.netease_link_mv_open_mode_summary),
+                items = listOf(
+                    DropdownItem(title = stringResource(R.string.netease_link_mv_open_internal)),
+                    DropdownItem(title = stringResource(R.string.netease_link_mv_open_external))
+                ),
+                selectedIndex = if (neteaseLinkSettings.openMusicVideoExternally) 1 else 0,
+                onSelectedIndexChange = { index ->
+                    com.ella.music.data.netease.NeteaseLinks.update(context) { it.copy(openMusicVideoExternally = index == 1) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.netease_link_target) {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.netease_link_target),
+                summary = stringResource(R.string.netease_link_target_summary),
+                items = com.ella.music.data.netease.NeteaseLinkTarget.entries.map { DropdownItem(title = stringResource(it.titleRes)) },
+                selectedIndex = com.ella.music.data.netease.NeteaseLinkTarget.entries.indexOf(neteaseLinkSettings.target),
+                onSelectedIndexChange = { index ->
+                    com.ella.music.data.netease.NeteaseLinkTarget.entries.getOrNull(index)?.let { target ->
+                        com.ella.music.data.netease.NeteaseLinks.update(context) { it.copy(target = target) }
+                    }
+                }
+            )
+            } // search-anchor:end
+
+            if (neteaseLinkSettings.target == com.ella.music.data.netease.NeteaseLinkTarget.Custom) {
+                listOf(
+                    com.ella.music.data.netease.NeteaseLinkKind.Song to R.string.netease_link_kind_song,
+                    com.ella.music.data.netease.NeteaseLinkKind.Comment to R.string.netease_link_song_comments,
+                    com.ella.music.data.netease.NeteaseLinkKind.Artist to R.string.netease_link_kind_artist,
+                    com.ella.music.data.netease.NeteaseLinkKind.ArtistWiki to R.string.netease_link_artist_wiki,
+                    com.ella.music.data.netease.NeteaseLinkKind.Album to R.string.netease_link_kind_album,
+                    com.ella.music.data.netease.NeteaseLinkKind.MusicVideo to R.string.netease_link_kind_mv
+                ).forEach { (kind, labelRes) ->
+                    SplitSettingTextField(
+                        label = stringResource(labelRes),
+                        value = neteaseLinkSettings.custom[kind].orEmpty(),
+                        summary = stringResource(
+                            R.string.netease_link_custom_summary,
+                            com.ella.music.data.netease.NeteaseLinks.defaultPrefix(com.ella.music.data.netease.NeteaseLinkTarget.Web, kind)
+                        ),
+                        singleLine = true,
+                        onValueChange = { value ->
+                            com.ella.music.data.netease.NeteaseLinks.update(context) { current ->
+                                current.copy(custom = current.custom + (kind to value))
+                            }
+                        }
+                    )
+                }
+            }
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_custom_folders) {
             ArrowPreference(
                 title = stringResource(R.string.settings_music_video_custom_folders),
                 summary = if (musicVideoCustomFolders.isBlank()) {
@@ -688,7 +862,11 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                 },
                 onClick = { musicVideoFolderPicker.launch(null) }
             )
-            if (musicVideoCustomFolders.isNotBlank()) {
+            } // search-anchor:end
+
+            if (musicVideoCustomFolders.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_music_video_custom_folders_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_music_video_custom_folders_remove) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_music_video_custom_folders_remove),
                     summary = stringResource(R.string.settings_music_video_custom_folders_remove_summary),
@@ -696,12 +874,18 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
                         scope.launch { settingsManager.setMusicVideoCustomFolders("") }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_music_video_offsets) {
             ArrowPreference(
                 title = stringResource(R.string.settings_music_video_offsets),
                 summary = stringResource(R.string.settings_music_video_offsets_summary),
                 onClick = { offsetPicker.launch(arrayOf("application/json", "text/plain")) }
             )
+            } // search-anchor:end
+
         }
     }
 }

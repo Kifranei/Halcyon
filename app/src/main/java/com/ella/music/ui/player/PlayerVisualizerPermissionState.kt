@@ -27,12 +27,8 @@ internal fun rememberPlayerVisualizerPermissionState(
     context: Context,
     scope: CoroutineScope,
     settingsManager: SettingsManager,
-    immersiveAlbumCover: Boolean,
     audioVisualizerEnabled: Boolean,
-    isPlaying: Boolean,
-    showLyrics: Boolean,
-    landscapeExpanded: Boolean,
-    largeScreenDevice: Boolean
+    isPlaying: Boolean
 ): PlayerVisualizerPermissionState {
     var hasVisualizerPermission by remember {
         mutableStateOf(
@@ -55,21 +51,12 @@ internal fun rememberPlayerVisualizerPermissionState(
         }
     }
 
-    val visualizerSurfaceAvailable = immersiveAlbumCover || (largeScreenDevice && landscapeExpanded)
     return PlayerVisualizerPermissionState(
-        effectiveEnabled = visualizerSurfaceAvailable &&
-            audioVisualizerEnabled &&
+        effectiveEnabled = audioVisualizerEnabled &&
             hasVisualizerPermission &&
-            isPlaying &&
-            (!showLyrics || landscapeExpanded),
+            isPlaying,
         setEnabled = { enabled ->
-            if (enabled && !visualizerSurfaceAvailable) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.player_visualizer_immersive_only),
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else if (enabled && !hasVisualizerPermission) {
+            if (enabled && !hasVisualizerPermission) {
                 visualizerPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             } else {
                 scope.launch {

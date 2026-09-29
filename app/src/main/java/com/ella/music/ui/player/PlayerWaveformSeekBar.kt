@@ -1,135 +1,53 @@
 package com.ella.music.ui.player
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
-import kotlin.math.abs
-import kotlin.math.sin
 
-/** RawS Music-inspired compact waveform/segment timeline adapted to Halcyon's player. */
+internal val LocalPlayerTimelinePlaying = staticCompositionLocalOf { false }
+
+/** RawS Music's actual timeline renderers, with Halcyon's audio source and seek preferences. */
 @Composable
 internal fun PlayerWaveformSeekBar(
-    value: Float,
-    song: Song?,
-    duration: Long,
-    style: Int,
-    onSeek: (Float) -> Unit,
-    accent: Color,
-    allowTapSeek: Boolean,
-    onPreviewProgressChange: (Float?) -> Unit = {},
+    value: Float, song: Song?, duration: Long, style: Int, onSeek: (Float) -> Unit,
+    accent: Color, allowTapSeek: Boolean, onPreviewProgressChange: (Float?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val safeProgress = value.coerceIn(0f, 1f)
-    var draggingProgress by remember { mutableStateOf<Float?>(null) }
-    val displayProgress = draggingProgress ?: safeProgress
-    val contentColor = LocalPlayerContentColor.current
-    val seed = remember(song?.path, song?.id, song?.dateModified, duration) {
-        "${song?.path}|${song?.id}|${song?.dateModified}|$duration".hashCode()
-    }
-    val waveform = remember(seed, style) {
-        progressWaveformLevels(
-            seed = seed,
-            count = if (style == SettingsManager.PLAYER_PROGRESS_STYLE_SEGMENTS) 52 else 76,
-            segmented = style == SettingsManager.PLAYER_PROGRESS_STYLE_SEGMENTS
-        )
-    }
-
-    fun progressAt(width: Float, x: Float): Float =
-        (x / width.coerceAtLeast(1f)).coerceIn(0f, 1f)
-
-    Box(modifier = modifier.height(30.dp)) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val gap = if (style == SettingsManager.PLAYER_PROGRESS_STYLE_SEGMENTS) 2.3f * density else 1.15f * density
-            val slotWidth = size.width / waveform.size.coerceAtLeast(1)
-            val barWidth = (slotWidth - gap).coerceIn(slotWidth * 0.25f, slotWidth)
-            val playedX = size.width * displayProgress
-            waveform.forEachIndexed { index, level ->
-                val x = index * slotWidth + (slotWidth - barWidth) * 0.5f
-                val centerX = x + barWidth * 0.5f
-                val height = if (style == SettingsManager.PLAYER_PROGRESS_STYLE_SEGMENTS) {
-                    (4.5f + level * 5.5f) * density
-                } else {
-                    (5f * density + level * size.height * 0.76f).coerceAtMost(size.height * 0.92f)
-                }
-                drawRoundRect(
-                    color = if (centerX <= playedX) accent.copy(alpha = 0.92f)
-                    else contentColor.copy(alpha = 0.20f),
-                    topLeft = Offset(x, (size.height - height) * 0.5f),
-                    size = Size(barWidth, height),
-                    cornerRadius = CornerRadius(barWidth * 0.5f, barWidth * 0.5f)
-                )
-            }
-            val needleWidth = 1.2f * density
-            drawRoundRect(
-                color = contentColor.copy(alpha = 0.88f),
-                topLeft = Offset((playedX - needleWidth * 0.5f).coerceIn(0f, (size.width - needleWidth).coerceAtLeast(0f)), size.height * 0.08f),
-                size = Size(needleWidth.coerceAtMost(size.width), size.height * 0.84f),
-                cornerRadius = CornerRadius(needleWidth, needleWidth)
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(allowTapSeek) {
-                    if (!allowTapSeek) return@pointerInput
-                    detectTapGestures { offset -> onSeek(progressAt(size.width.toFloat(), offset.x)) }
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            draggingProgress = progressAt(size.width.toFloat(), offset.x)
-                                .also(onPreviewProgressChange)
-                        },
-                        onDragEnd = {
-                            draggingProgress?.let(onSeek)
-                            draggingProgress = null
-                            onPreviewProgressChange(null)
-                        },
-                        onDragCancel = {
-                            draggingProgress = null
-                            onPreviewProgressChange(null)
-                        }
-                    ) { change, _ ->
-                        draggingProgress = progressAt(size.width.toFloat(), change.position.x)
-                            .also(onPreviewProgressChange)
-                    }
-                }
-        )
-    }
-}
-
-internal fun progressWaveformLevels(seed: Int, count: Int, segmented: Boolean): List<Float> {
-    val safeCount = count.coerceAtLeast(1)
-    var state = seed.toLong().let { if (it == 0L) 0x6d2b79f5L else it }
-    return List(safeCount) { index ->
-        state = state * 1_664_525L + 1_013_904_223L
-        val noise = ((state ushr 16) and 0xffff).toFloat() / 65_535f
-        if (segmented) {
-            0.34f + noise * 0.66f
-        } else {
-            val envelope = abs(sin((index + (seed and 15)) * 0.19f))
-            // Taper the decorative envelope instead of ending on a full-height column.
-            val edgeDistance = minOf(index, safeCount - 1 - index).toFloat()
-            val edge = (edgeDistance / (safeCount * 0.10f).coerceAtLeast(1f)).coerceIn(0f, 1f)
-            val taper = edge * edge * (3f - 2f * edge)
-            (0.08f + (envelope * 0.48f + noise * 0.42f) * taper).coerceIn(0.08f, 1f)
-        }
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val scaleAnimationEnabled by settingsManager.playerWaveformScaleAnimation.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_WAVEFORM_SCALE_ANIMATION
+    )
+    val densityPercent by settingsManager.playerWaveformDensity.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_WAVEFORM_DENSITY
+    )
+    val peakHeightPercent by settingsManager.playerWaveformPeakHeight.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_WAVEFORM_PEAK_HEIGHT
+    )
+    val content = LocalPlayerContentColor.current
+    val colors = ImmersiveWaveformColors(
+        played = content.copy(alpha = .38f), remaining = content.copy(alpha = .92f),
+        climaxPlayed = accent.copy(alpha = .46f), climaxRemaining = accent,
+        needle = content, time = content.copy(alpha = .72f)
+    )
+    val position = (value.coerceIn(0f, 1f) * duration).toLong()
+    if (style == SettingsManager.PLAYER_PROGRESS_STYLE_SEGMENTS) {
+        ImmersiveSecondProgressBar(song, position, duration, LocalPlayerTimelinePlaying.current,
+            colors, {}, onSeek, allowTapSeek, onPreviewProgressChange, modifier = modifier,
+            scaleAnimationEnabled = scaleAnimationEnabled, densityPercent = densityPercent,
+            peakHeightPercent = peakHeightPercent)
+    } else {
+        ImmersiveWaveformProgressBar(song, position, duration, LocalPlayerTimelinePlaying.current,
+            colors, climaxEnabled = false,
+            // Density resamples the cached analysis envelope at draw time; no re-scan.
+            waveformBarCount = WaveformProgressTuning.waveformVisibleBarCount(
+                WaveformProgressTuning.BASE_WAVEFORM_BAR_COUNT, densityPercent
+            ),
+            onSeekStart = {}, onSeekStop = onSeek,
+            allowTapSeek = allowTapSeek, onPreview = onPreviewProgressChange, modifier = modifier,
+            scaleAnimationEnabled = scaleAnimationEnabled, peakHeightPercent = peakHeightPercent)
     }
 }

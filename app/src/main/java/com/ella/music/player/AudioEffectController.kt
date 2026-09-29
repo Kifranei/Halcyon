@@ -257,7 +257,7 @@ class AudioEffectController {
     /** Attach effects to [sessionId], publish its capabilities, and re-apply the last settings. */
     fun bind(sessionId: Int) {
         if (sessionId <= 0) return
-        if (sessionId == boundSessionId && bassBoost != null) return
+        if (sessionId == boundSessionId) return
         release()
         boundSessionId = sessionId
 

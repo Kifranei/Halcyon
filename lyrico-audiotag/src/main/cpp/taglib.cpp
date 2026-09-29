@@ -39,6 +39,7 @@
 
 #include <memory>
 #include <stdexcept>
+#include <unistd.h>
 
 
 TagLib::File* createFileFromContent(TagLib::IOStream *stream,
@@ -131,6 +132,7 @@ Java_com_lonx_audiotag_TagLib_getAudioProperties(
         JNIEnv *env, jclass, jint fd, jint read_style) {
     try {
         // fd readOnly = true
+        lseek(fd, 0, SEEK_SET);
         auto stream = std::make_unique<TagLib::FileStream>(fd, true);
         const auto style = static_cast<TagLib::AudioProperties::ReadStyle>(read_style);
 
@@ -151,6 +153,7 @@ JNIEXPORT jobject JNICALL
 Java_com_lonx_audiotag_TagLib_getMetadata(
         JNIEnv *env, jclass, jint fd, jboolean read_pictures) {
     try {
+        lseek(fd, 0, SEEK_SET);
         auto stream = std::make_unique<TagLib::FileStream>(fd, true);
         std::unique_ptr<TagLib::File> file(createFileFromContent(stream.get(), false, TagLib::AudioProperties::Average));
 
@@ -190,6 +193,7 @@ Java_com_lonx_audiotag_TagLib_getMetadataPropertyValues(
     if (propertyName == nullptr) return nullptr;
 
     try {
+        lseek(fd, 0, SEEK_SET);
         auto stream = std::make_unique<TagLib::FileStream>(fd, true);
         std::unique_ptr<TagLib::File> file(createFileFromContent(stream.get(), false, TagLib::AudioProperties::Average));
 
@@ -231,6 +235,7 @@ JNIEXPORT jobjectArray JNICALL
 Java_com_lonx_audiotag_TagLib_getPictures(
         JNIEnv *env, jclass, jint fd) {
     try {
+        lseek(fd, 0, SEEK_SET);
         auto stream = std::make_unique<TagLib::FileStream>(fd, true);
         std::unique_ptr<TagLib::File> file(createFileFromContent(stream.get(), false, TagLib::AudioProperties::Average));
 
@@ -250,6 +255,7 @@ Java_com_lonx_audiotag_TagLib_savePropertyMap(
         JNIEnv *env, jclass, jint fd, jobject property_map) {
     try {
         // 写操作，fd readOnly = false
+        lseek(fd, 0, SEEK_SET);
         auto stream = std::make_unique<TagLib::FileStream>(fd, false);
         std::unique_ptr<TagLib::File> file(createFileFromContent(stream.get(), false, TagLib::AudioProperties::Average));
 
@@ -286,6 +292,7 @@ Java_com_lonx_audiotag_TagLib_savePictures(
         JNIEnv *env, jclass, jint fd, jobjectArray pictures) {
     try {
         // 写操作，fd readOnly = false
+        lseek(fd, 0, SEEK_SET);
         auto stream = std::make_unique<TagLib::FileStream>(fd, false);
         std::unique_ptr<TagLib::File> file(createFileFromContent(stream.get(), false, TagLib::AudioProperties::Average));
 

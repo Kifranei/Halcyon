@@ -29,7 +29,7 @@ internal class PlayerPlaybackStatsTracker(
     ) {
         val songId = song?.id
 
-        if (songId != statsSongId) {
+        if (songId != statsSongId || song?.playbackSourceKey != statsSong?.playbackSourceKey) {
             flush()
             statsSongId = songId
             statsSong = song

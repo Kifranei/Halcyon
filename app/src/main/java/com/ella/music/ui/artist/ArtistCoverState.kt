@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import com.ella.music.data.ArtistCoverAsset
+import com.ella.music.data.ArtistCoverKind
 import com.ella.music.data.ArtistImageRepository
 import com.ella.music.data.ResolvedArtistImage
 import com.ella.music.data.SettingsManager
@@ -27,10 +28,12 @@ internal fun rememberArtistCoverUri(
     folderLocation: String,
     mainViewModel: MainViewModel
 ): Uri? {
+    val generation by com.ella.music.data.ArtistCoverRepository.getInstance(LocalContext.current).generation.collectAsState()
     val state by produceState<Uri?>(
         initialValue = null,
         artistName,
-        folderLocation
+        folderLocation,
+        generation
     ) {
         value = if (artistName.isBlank() || folderLocation.isBlank()) {
             null
@@ -107,6 +110,7 @@ internal fun rememberArtistCoverResolution(
             ?.takeIf { coversEnabled && it > 0L }
             ?.let(mainViewModel::getAlbumArtUri)
     }
+    val artistCoverDownloadFolderUri by settingsManager.artistCoverDownloadFolderUri.collectAsState(initial = "")
     val artworkState = rememberSongArtworkState(
         song = representativeSong,
         albumArtUri = albumArtUri,
@@ -118,7 +122,20 @@ internal fun rememberArtistCoverResolution(
         artistName = artistName,
         folderLocation = if (coversEnabled) folderLocation else "",
         mainViewModel = mainViewModel
+    ) ?: rememberArtistCoverUri(
+        artistName = artistName,
+        folderLocation = if (coversEnabled && artistCoverDownloadFolderUri.isNotBlank() && artistCoverDownloadFolderUri != folderLocation) artistCoverDownloadFolderUri else "",
+        mainViewModel = mainViewModel
     )
+    val librarySource by settingsManager.librarySource.collectAsState(initial = "")
+    val neteaseArtistImage by produceState<String?>(initialValue = null, artistName, librarySource) {
+        value = if (librarySource == SettingsManager.LIBRARY_SOURCE_NETEASE && artistName.isNotBlank()) {
+            neteaseArtistImageCache[artistName] ?: com.ella.music.data.lastfm.fetchNeteaseArtistImage(artistName)
+                ?.replaceFirst("http://", "https://")
+                ?.also { neteaseArtistImageCache[artistName] = it }
+        } else null
+    }
+    val generation by com.ella.music.data.ArtistCoverRepository.getInstance(context).generation.collectAsState()
     val downloadedArtistCover by produceState<ResolvedArtistImage?>(
         initialValue = null,
         artistName,
@@ -128,10 +145,21 @@ internal fun rememberArtistCoverResolution(
         lastFmCredentials.apiKey,
         lastFmRegion,
         spotifyClientId,
-        spotifyClientSecret
+        spotifyClientSecret,
+        artistCoverDownloadFolderUri,
+        folderLocation,
+        generation
     ) {
         value = if (!networkDownloadAllowed) {
-            null
+            ArtistImageRepository.findCached(
+                context = context.applicationContext,
+                artistName = artistName,
+                sourceOrder = artistImageSourceOrder,
+                lastFmRegion = lastFmRegion,
+                spotifyClientId = spotifyClientId,
+                downloadFolderUri = artistCoverDownloadFolderUri,
+                customFolderUri = folderLocation
+            )
         } else {
             ArtistImageRepository.resolveDetailed(
                 context = context.applicationContext,
@@ -140,18 +168,26 @@ internal fun rememberArtistCoverResolution(
                 lastFmApiKey = lastFmCredentials.apiKey,
                 lastFmRegion = lastFmRegion,
                 spotifyClientId = spotifyClientId,
-                spotifyClientSecret = spotifyClientSecret
+                spotifyClientSecret = spotifyClientSecret,
+                downloadFolderUri = artistCoverDownloadFolderUri,
+                customFolderUri = folderLocation
             )
         }
     }
     // The order mirrors issue #567: local artist assets, downloaded artist art, then the
     // representative song's carefully ranked embedded/album artwork.
     val libraryArtwork = if (includeLibraryArtwork) artworkState.model else null
+    neteaseArtistImage?.takeIf { customArtistCoverUri == null }?.let { url ->
+        return ArtistCoverResolution(model = url, downloadSource = SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE)
+    }
     return ArtistCoverResolution(
         model = customArtistCoverUri ?: downloadedArtistCover?.uri ?: libraryArtwork,
         downloadSource = downloadedArtistCover?.source?.takeIf { customArtistCoverUri == null }
     )
 }
+
+/** Session cache of NetEase artist picture URLs so list rows don't repeat the search request. */
+private val neteaseArtistImageCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
 @Composable
 internal fun rememberArtistCoverAsset(
@@ -159,10 +195,12 @@ internal fun rememberArtistCoverAsset(
     folderLocation: String,
     mainViewModel: MainViewModel
 ): ArtistCoverAsset? {
+    val generation by com.ella.music.data.ArtistCoverRepository.getInstance(LocalContext.current).generation.collectAsState()
     val state by produceState<ArtistCoverAsset?>(
         initialValue = null,
         artistName,
-        folderLocation
+        folderLocation,
+        generation
     ) {
         value = if (artistName.isBlank() || folderLocation.isBlank()) {
             null
@@ -179,18 +217,80 @@ internal fun rememberArtistCoverAsset(
 internal fun rememberArtistCoverAssets(
     artistName: String,
     folderLocation: String,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    songs: List<Song> = emptyList()
 ): List<ArtistCoverAsset> {
+    val artistCoverDownloadFolderUri by mainViewModel.settingsManager.artistCoverDownloadFolderUri.collectAsState(initial = "")
+    val dynamicCoverCustomFolders by mainViewModel.settingsManager.dynamicCoverCustomFolders.collectAsState(initial = emptyList())
+    val context = LocalContext.current
+    val generation by com.ella.music.data.ArtistCoverRepository.getInstance(context).generation.collectAsState()
     val state by produceState<List<ArtistCoverAsset>>(
         initialValue = emptyList(),
         artistName,
-        folderLocation
+        folderLocation,
+        artistCoverDownloadFolderUri,
+        dynamicCoverCustomFolders,
+        songs.size,
+        generation
     ) {
-        value = if (artistName.isBlank() || folderLocation.isBlank()) {
+        value = if (artistName.isBlank()) {
             emptyList()
         } else {
             withContext(Dispatchers.IO) {
-                mainViewModel.getArtistCoverAssets(artistName, folderLocation)
+                val collected = mutableListOf<ArtistCoverAsset>()
+                val ignoreCase = com.ella.music.data.NameSplitConfigStore.tagIgnoreCase
+                val safeArtistKey = com.ella.music.data.normalizeArtistCoverKey(artistName, ignoreCase)
+
+                // 1. Primary custom folder
+                if (folderLocation.isNotBlank()) {
+                    collected.addAll(mainViewModel.getArtistCoverAssets(artistName, folderLocation))
+                }
+                // 2. Download folder
+                if (artistCoverDownloadFolderUri.isNotBlank() && artistCoverDownloadFolderUri != folderLocation) {
+                    collected.addAll(mainViewModel.getArtistCoverAssets(artistName, artistCoverDownloadFolderUri))
+                }
+                // 3. Dynamic cover custom folders
+                dynamicCoverCustomFolders.forEach { folder ->
+                    if (folder.isNotBlank() && folder != folderLocation && folder != artistCoverDownloadFolderUri) {
+                        collected.addAll(mainViewModel.getArtistCoverAssets(artistName, folder))
+                    }
+                }
+                // 4. Default dynamic cover directories
+                val roots = com.ella.music.ui.player.dynamicCoverRootDirectories(context, dynamicCoverCustomFolders)
+                roots.forEach { root ->
+                    if (root.exists() && root.isDirectory) {
+                        root.listFiles()?.forEach { file ->
+                            if (file.isFile) {
+                                val match = com.ella.music.data.artistCoverMatch(file.name, ignoreCase = ignoreCase)
+                                if (match != null && match.key == safeArtistKey) {
+                                    collected.add(ArtistCoverAsset(Uri.fromFile(file), match.kind))
+                                }
+                            }
+                        }
+                    }
+                }
+                // 5. Folders of songs by this artist
+                val songDirs = songs.mapNotNull { song ->
+                    song.path.takeIf { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
+                        ?.let { java.io.File(it).parentFile }
+                }.distinctBy { it.absolutePath }
+                songDirs.forEach { dir ->
+                    if (dir.exists() && dir.isDirectory) {
+                        dir.listFiles()?.forEach { file ->
+                            if (file.isFile) {
+                                val match = com.ella.music.data.artistCoverMatch(file.name, ignoreCase = ignoreCase)
+                                if (match != null && match.key == safeArtistKey) {
+                                    collected.add(ArtistCoverAsset(Uri.fromFile(file), match.kind))
+                                }
+                            }
+                        }
+                    }
+                }
+                // Deduplicate by URI and ensure Videos are always ordered first
+                val distinct = collected.distinctBy { it.uri.toString() }
+                val videos = distinct.filter { it.kind == ArtistCoverKind.Video }
+                val images = distinct.filter { it.kind == ArtistCoverKind.Image }
+                videos + images
             }
         }
     }

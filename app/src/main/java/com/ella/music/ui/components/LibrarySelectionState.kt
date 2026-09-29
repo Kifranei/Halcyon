@@ -28,15 +28,17 @@ class LibrarySelectionState<T : Any> {
 
     fun updateRangeAnchorsForManualSelection(id: T, selectedNow: Boolean) {
         if (selectedNow) {
-            when {
-                rangeAnchorId == null -> rangeAnchorId = id
-                rangeAnchorId == id -> Unit
-                else -> rangeTargetId = id
+            if (rangeAnchorId == null) {
+                rangeAnchorId = id
+            } else if (rangeAnchorId != id) {
+                // Keep the last two manual selections, not the first and latest.
+                rangeAnchorId = rangeTargetId ?: rangeAnchorId
+                rangeTargetId = id
             }
         } else {
             if (rangeTargetId == id) rangeTargetId = null
             if (rangeAnchorId == id) {
-                rangeAnchorId = rangeTargetId ?: selectedIds.firstOrNull { it != id }
+                rangeAnchorId = rangeTargetId
                 rangeTargetId = null
             }
         }

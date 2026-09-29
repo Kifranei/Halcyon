@@ -46,8 +46,7 @@ class OutputFormatAudioProcessor(
             settings.sampleRate
         }
 
-        inputFormat = inputAudioFormat
-        targetFormat = AudioProcessor.AudioFormat(
+        val targetFormat = AudioProcessor.AudioFormat(
             outputSampleRate,
             inputAudioFormat.channelCount,
             outputEncoding
@@ -61,6 +60,11 @@ class OutputFormatAudioProcessor(
         } else {
             targetFormat
         }
+    }
+
+    override fun onFlush() {
+        inputFormat = inputAudioFormat
+        targetFormat = outputAudioFormat
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {

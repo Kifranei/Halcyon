@@ -40,6 +40,10 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
         val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
         val KEY_DESKTOP_LYRIC_OPACITY = intPreferencesKey("desktop_lyric_opacity")
         val KEY_DESKTOP_LYRIC_TEXT_COLOR = intPreferencesKey("desktop_lyric_text_color")
+        val KEY_DESKTOP_LYRIC_GLOW_ENABLED = booleanPreferencesKey("desktop_lyric_glow_enabled")
+        val KEY_DESKTOP_LYRIC_OUTLINE_ENABLED = booleanPreferencesKey("desktop_lyric_outline_enabled")
+        val KEY_DESKTOP_LYRIC_BACKGROUND_MODE = intPreferencesKey("desktop_lyric_background_mode")
+        val KEY_DESKTOP_LYRIC_BACKGROUND_OPACITY = intPreferencesKey("desktop_lyric_background_opacity")
         val KEY_DESKTOP_LYRIC_SYNC_COVER_CONTENT_COLOR = booleanPreferencesKey("desktop_lyric_sync_cover_content_color")
         val KEY_DESKTOP_LYRIC_X = intPreferencesKey("desktop_lyric_x")
         val KEY_DESKTOP_LYRIC_Y = intPreferencesKey("desktop_lyric_y")
@@ -76,6 +80,14 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     val desktopLyricTranslationScale: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_TRANSLATION_SCALE] ?: 90 }
     val desktopLyricOpacity: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_OPACITY] ?: 100 }
     val desktopLyricTextColor: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_TEXT_COLOR] ?: -1 }
+    val desktopLyricGlowEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_GLOW_ENABLED] ?: false }
+    val desktopLyricOutlineEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_OUTLINE_ENABLED] ?: false }
+    val desktopLyricBackgroundMode: Flow<Int> = dataStore.data.map {
+        (it[KEY_DESKTOP_LYRIC_BACKGROUND_MODE] ?: 0).coerceIn(0, 2)
+    }
+    val desktopLyricBackgroundOpacity: Flow<Int> = dataStore.data.map {
+        (it[KEY_DESKTOP_LYRIC_BACKGROUND_OPACITY] ?: 58).coerceIn(20, 90)
+    }
     val desktopLyricSyncCoverContentColor: Flow<Boolean> = dataStore.data.map {
         it[KEY_DESKTOP_LYRIC_SYNC_COVER_CONTENT_COLOR] ?: false
     }
@@ -198,6 +210,22 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
             it[KEY_DESKTOP_LYRIC_TEXT_COLOR] = color
             it[KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_COLOR] = color
         }
+    }
+
+    suspend fun setDesktopLyricGlowEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_GLOW_ENABLED] = enabled }
+    }
+
+    suspend fun setDesktopLyricOutlineEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_OUTLINE_ENABLED] = enabled }
+    }
+
+    suspend fun setDesktopLyricBackgroundMode(mode: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_BACKGROUND_MODE] = mode.coerceIn(0, 2) }
+    }
+
+    suspend fun setDesktopLyricBackgroundOpacity(opacity: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_BACKGROUND_OPACITY] = opacity.coerceIn(20, 90) }
     }
 
     suspend fun setDesktopLyricSyncCoverContentColor(enabled: Boolean) {

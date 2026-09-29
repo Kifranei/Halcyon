@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cross-version install notice -->
+    <string name="app_upgrade_title_unknown">Upgraded from an older version</string>
+    <string name="app_upgrade_title">Upgraded from an older version (%1$s)</string>
+    <string name="app_upgrade_message">You are now on %1$s. Settings and data left over from older versions may not be compatible with this version and can cause unexpected bugs that do not occur in normal use. Clearing the app data for a clean install is recommended.\n\nApp data is cleared on the system App info › Storage page. To reset only the settings, use Settings › Maintenance › Restore default configuration (songs, playlists and listening history are kept).\n\nWhen reporting a problem, please make sure it happens on a clean install of the latest version with data cleared, not on an over-install of an older version without clearing data.</string>
+    <string name="app_upgrade_clear_data">Clear data</string>
+    <string name="app_upgrade_later">Not now</string>
+    <string name="app_upgrade_clear_data_hint">Open Storage and choose Clear data</string>
+
+    <!-- Backup restore compatibility check -->
+    <string name="backup_compat_title">Backup settings differ from this version</string>
+    <string name="backup_compat_from_older">This backup comes from an older version (%1$s); you are on %2$s.</string>
+    <string name="backup_compat_from_older_unknown">This backup comes from an older version; you are on %1$s.</string>
+    <string name="backup_compat_from_newer">This backup comes from a newer version (%1$s); you are on %2$s.</string>
+    <string name="backup_compat_same_version">The settings in this backup do not match the structure of the current version (%1$s).</string>
+    <string name="backup_compat_details">Found %1$d settings that no longer exist, %2$d new settings and %3$d settings whose format changed. Reconfiguring is recommended. Reconfigure skips the settings; playlists, listening history and other selected content are still restored.</string>
+    <string name="backup_compat_details_legacy">Found %1$d settings that no longer exist and %2$d settings whose format changed. This older backup does not record its settings list, so new settings cannot be counted. Reconfiguring is recommended. Reconfigure skips the settings; playlists, listening history and other selected content are still restored.</string>
+    <string name="backup_compat_reconfigure">Reconfigure (skip settings)</string>
+    <string name="backup_compat_restore_anyway">Restore anyway</string>
+</resources>

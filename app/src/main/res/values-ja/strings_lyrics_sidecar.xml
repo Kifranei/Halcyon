@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">保存先</string>
+    <string name="lyric_sidecar_destination_embedded">曲ファイルに書き込む</string>
+    <string name="lyric_sidecar_destination_lrc">外部 .LRC として保存</string>
+    <string name="lyric_sidecar_destination_ttml">外部 .TTML として保存</string>
+    <string name="lyric_sidecar_destination_hint">曲と同じフォルダーに同じ名前の歌詞ファイルとして保存します。音声ファイルは変更されないため、更新日時は保持されます。</string>
+    <string name="lyric_sidecar_save_lrc">.LRC 歌詞ファイルを保存</string>
+    <string name="lyric_sidecar_save_ttml">.TTML 歌詞ファイルを保存</string>
+    <string name="lyric_sidecar_saved">保存しました：%1$s</string>
+    <string name="lyric_sidecar_no_write_access">外部歌詞を保存できません：このフォルダーへの書き込み権限がありません。全ファイルへのアクセスを許可するか、スキャン設定でフォルダー選択からこのフォルダーを追加してください。</string>
+    <string name="lyric_sidecar_convert_failed">選択した形式の歌詞を作成できませんでした</string>
+</resources>

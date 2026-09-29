@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">保存位置</string>
+    <string name="lyric_sidecar_destination_embedded">写入歌曲文件</string>
+    <string name="lyric_sidecar_destination_lrc">保存为外置 .LRC</string>
+    <string name="lyric_sidecar_destination_ttml">保存为外置 .TTML</string>
+    <string name="lyric_sidecar_destination_hint">保存为与歌曲同目录、同名的歌词文件，不会修改音频文件（保留修改日期）。</string>
+    <string name="lyric_sidecar_save_lrc">保存 .LRC 歌词文件</string>
+    <string name="lyric_sidecar_save_ttml">保存 .TTML 歌词文件</string>
+    <string name="lyric_sidecar_saved">已保存：%1$s</string>
+    <string name="lyric_sidecar_no_write_access">无法保存外置歌词：没有该文件夹的写入权限。请授予所有文件访问权限，或在扫描设置中通过文件夹选择器添加该文件夹。</string>
+    <string name="lyric_sidecar_convert_failed">无法生成所选格式的歌词</string>
+</resources>

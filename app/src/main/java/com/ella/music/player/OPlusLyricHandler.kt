@@ -11,6 +11,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.shiftedBy
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.viewmodel.lyricIdentityKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -270,16 +271,10 @@ internal class OPlusLyricHandler(
 
     private suspend fun loadOplusLyricInfoJson(song: Song, mode: Int): String? {
         val sourceMode = settingsManager.lyricSourceMode.first()
-        val offsetMs = settingsManager.lyricOffsetOverrides.first()[song.oplusLyricOffsetKey()] ?: 0L
+        val offsetMs = settingsManager.lyricOffsetOverrides.first()[song.lyricIdentityKey()] ?: 0L
         return musicRepository.getLyrics(song, sourceMode)
             .shiftedBy(offsetMs)
             .let { lyrics -> OPlusLyricPayload.build(song, lyrics, mode) }
-    }
-
-    private fun Song.oplusLyricOffsetKey(): String = when {
-        onlineSource.isNotBlank() || onlineId.isNotBlank() -> "online:$onlineSource:$onlineId:$path"
-        path.isNotBlank() -> "path:$path"
-        else -> "id:$id"
     }
 
     private fun Song.oplusLyricCacheKey(mode: Int): String = "$mode:${playbackStackKey()}"

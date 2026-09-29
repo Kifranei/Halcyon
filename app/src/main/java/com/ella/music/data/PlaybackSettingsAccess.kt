@@ -29,6 +29,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_OUTPUT_BIT_DEPTH
 import com.ella.music.data.SettingsManager.Companion.KEY_AUDIO_OUTPUT_SAMPLE_RATE
 import com.ella.music.data.SettingsManager.Companion.KEY_BLUETOOTH_AUTO_PLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_DURATION_MS
+import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_CROSSFADE_CURVE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAY_COUNT_THRESHOLD_DURATION_MS
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAY_COUNT_THRESHOLD_PERCENT
@@ -38,10 +39,15 @@ import com.ella.music.data.SettingsManager.Companion.KEY_KARAOKE_ACCOMPANIMENT
 import com.ella.music.data.SettingsManager.Companion.KEY_OPEN_PLAYER_ON_PLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_OPEN_PLAYER_FROM_NOTIFICATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PREVIOUS_BUTTON_ACTION
+import com.ella.music.data.SettingsManager.Companion.KEY_PAUSED_SWITCH_MODE
+import com.ella.music.data.SettingsManager.Companion.PAUSED_SWITCH_MODE_KEEP_PAUSED
+import com.ella.music.data.SettingsManager.Companion.PAUSED_SWITCH_MODE_PLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_REPLAYGAIN_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_REPLAYGAIN_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_RESUME_PLAYBACK_POSITION
 import com.ella.music.data.SettingsManager.Companion.KEY_SHUFFLE_MODE
+import com.ella.music.data.SettingsManager.Companion.KEY_SHUFFLE_RESHUFFLE_ON_STARTUP
+import com.ella.music.data.SettingsManager.Companion.KEY_DISABLE_SEQUENTIAL_PLAYBACK
 import com.ella.music.data.SettingsManager.Companion.KEY_SLEEP_TIMER_CUSTOM_MINUTES
 import com.ella.music.data.SettingsManager.Companion.KEY_SLEEP_TIMER_STOP_AFTER_CURRENT
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_AUTO_PLAY
@@ -66,6 +72,7 @@ interface PlaybackSettingsAccess {
     val gaplessPlayback: Flow<Boolean>
     val karaokeAccompanimentEnabled: Flow<Boolean>
     val crossfadeDurationMs: Flow<Int>
+    val crossfadeEnabled: Flow<Boolean>
     val crossfadeCurve: Flow<Int>
     val playCountThresholdPercent: Flow<Int>
     val playCountThresholdDurationMs: Flow<Int>
@@ -78,7 +85,10 @@ interface PlaybackSettingsAccess {
     val audioOutputSampleRate: Flow<Int>
     val playbackOutputSettings: Flow<PlaybackOutputSettings>
     val shuffleMode: Flow<Int>
+    val shuffleReshuffleOnStartup: Flow<Boolean>
+    val disableSequentialPlayback: Flow<Boolean>
     val previousButtonAction: Flow<Int>
+    val pausedSwitchMode: Flow<Int>
     val usbDacMode: Flow<Boolean>
     val sleepTimerCustomMinutes: Flow<Int>
     val sleepTimerStopAfterCurrent: Flow<Boolean>
@@ -91,6 +101,7 @@ interface PlaybackSettingsAccess {
     suspend fun setGaplessPlayback(enabled: Boolean)
     suspend fun setKaraokeAccompanimentEnabled(enabled: Boolean)
     suspend fun setCrossfadeDurationMs(durationMs: Int)
+    suspend fun setCrossfadeEnabled(enabled: Boolean)
     suspend fun setCrossfadeCurve(curve: Int)
     suspend fun setPlayCountThresholdPercent(percent: Int)
     suspend fun setPlayCountThresholdDurationMs(durationMs: Int)
@@ -99,7 +110,10 @@ interface PlaybackSettingsAccess {
     suspend fun setResumePlaybackPosition(enabled: Boolean)
     suspend fun setAudioFocusDisabled(disabled: Boolean)
     suspend fun setShuffleMode(mode: Int)
+    suspend fun setShuffleReshuffleOnStartup(enabled: Boolean)
+    suspend fun setDisableSequentialPlayback(enabled: Boolean)
     suspend fun setPreviousButtonAction(action: Int)
+    suspend fun setPausedSwitchMode(mode: Int)
     suspend fun setUsbDacMode(enabled: Boolean)
     suspend fun setSleepTimerCustomMinutes(minutes: Int)
     suspend fun setSleepTimerStopAfterCurrent(enabled: Boolean)
@@ -121,6 +135,12 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
         context.dataStore.data.map { it[KEY_KARAOKE_ACCOMPANIMENT] ?: false }
     override val crossfadeDurationMs: Flow<Int> = context.dataStore.data
         .map { (it[KEY_CROSSFADE_DURATION_MS] ?: 0).coerceIn(0, 12_000) }
+    override val crossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        // Migrate existing installs without changing their effective state: before this
+        // preference existed, a positive duration meant enabled.
+        preferences[KEY_CROSSFADE_ENABLED]
+            ?: (preferences[KEY_CROSSFADE_DURATION_MS]?.let { it > 0 } ?: false)
+    }
     override val crossfadeCurve: Flow<Int> = context.dataStore.data.map {
         (it[KEY_CROSSFADE_CURVE] ?: SettingsManager.CROSSFADE_CURVE_EQUAL_POWER).coerceIn(
             SettingsManager.CROSSFADE_CURVE_EQUAL_POWER,
@@ -171,8 +191,14 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
     }
     override val shuffleMode: Flow<Int> =
         context.dataStore.data.map { it[KEY_SHUFFLE_MODE] ?: SHUFFLE_MODE_PSEUDO }
+    override val shuffleReshuffleOnStartup: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SHUFFLE_RESHUFFLE_ON_STARTUP] ?: false }
+    override val disableSequentialPlayback: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_DISABLE_SEQUENTIAL_PLAYBACK] ?: false }
     override val previousButtonAction: Flow<Int> =
         context.dataStore.data.map { it[KEY_PREVIOUS_BUTTON_ACTION] ?: PREVIOUS_BUTTON_PREVIOUS }
+    override val pausedSwitchMode: Flow<Int> =
+        context.dataStore.data.map { it[KEY_PAUSED_SWITCH_MODE] ?: PAUSED_SWITCH_MODE_KEEP_PAUSED }
 
     override val usbDacMode: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_USB_DAC_MODE] ?: false }
@@ -204,6 +230,13 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
 
     override suspend fun setCrossfadeDurationMs(durationMs: Int) {
         context.dataStore.edit { it[KEY_CROSSFADE_DURATION_MS] = durationMs.coerceIn(0, 12_000) }
+    }
+
+    override suspend fun setCrossfadeEnabled(enabled: Boolean) {
+        // Keep the duration independent from the switch. A zero duration is a valid persisted
+        // value and is intentionally retained when the user turns crossfade off and on again
+        // (#632); the playback coordinator simply treats it as no overlap.
+        context.dataStore.edit { it[KEY_CROSSFADE_ENABLED] = enabled }
     }
 
     override suspend fun setCrossfadeCurve(curve: Int) {
@@ -260,9 +293,23 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
         context.dataStore.edit { it[KEY_SHUFFLE_MODE] = mode.coerceIn(SHUFFLE_MODE_PSEUDO, SHUFFLE_MODE_TRUE_RANDOM) }
     }
 
+    override suspend fun setShuffleReshuffleOnStartup(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SHUFFLE_RESHUFFLE_ON_STARTUP] = enabled }
+    }
+
+    override suspend fun setDisableSequentialPlayback(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_DISABLE_SEQUENTIAL_PLAYBACK] = enabled }
+    }
+
     override suspend fun setPreviousButtonAction(action: Int) {
         context.dataStore.edit {
             it[KEY_PREVIOUS_BUTTON_ACTION] = action.coerceIn(PREVIOUS_BUTTON_PREVIOUS, PREVIOUS_BUTTON_REPLAY_CURRENT)
+        }
+    }
+
+    override suspend fun setPausedSwitchMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_PAUSED_SWITCH_MODE] = mode.coerceIn(PAUSED_SWITCH_MODE_KEEP_PAUSED, PAUSED_SWITCH_MODE_PLAY)
         }
     }
 

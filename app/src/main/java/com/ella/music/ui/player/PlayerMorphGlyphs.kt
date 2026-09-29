@@ -4,12 +4,16 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import com.ella.music.R
+import top.yukonga.miuix.kmp.basic.Icon
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -18,10 +22,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
 
@@ -82,8 +91,8 @@ internal fun MorphPlayPauseIcon(
 }
 
 /**
- * Apple Music 歌词按钮（quote.bubble 风格）：
- * 圆角对话泡 + 左下角小尾巴 + 两句引号曲线。
+ * Apple Music 歌词按钮：
+ * 正常态为描边图标（ic_nowplaying_lyrics），激活态为填充图标（ic_nowplaying_lyricson）。
  */
 @Composable
 internal fun AppleLyricsIcon(
@@ -91,75 +100,116 @@ internal fun AppleLyricsIcon(
     modifier: Modifier = Modifier,
     active: Boolean = false
 ) {
-    Canvas(modifier = modifier) {
-        val s = minOf(size.width, size.height)
-        if (s <= 0f) return@Canvas
-        val stroke = s * 0.075f
-        val tint = if (active) color.copy(alpha = 1f) else color
-
-        // 气泡主体
-        val bodyRect = Rect(0.10f * s, 0.14f * s, 0.90f * s, 0.72f * s)
-        drawRoundRect(
-            color = tint,
-            topLeft = bodyRect.topLeft,
-            size = bodyRect.size,
-            cornerRadius = CornerRadius(s * 0.22f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-        // 尾巴
-        drawLine(
-            color = tint,
-            start = Offset(0.27f * s, 0.70f * s),
-            end = Offset(0.17f * s, 0.86f * s),
-            strokeWidth = stroke,
-            cap = StrokeCap.Round
-        )
-        // 两个引号曲线
-        listOf(0.30f, 0.62f).forEach { cx ->
-            drawArc(
-                color = tint,
-                startAngle = 200f,
-                sweepAngle = 140f,
-                useCenter = false,
-                topLeft = Offset((cx - 0.07f) * s, 0.33f * s),
-                size = Size(0.14f * s, 0.16f * s),
-                style = Stroke(width = s * 0.075f, cap = StrokeCap.Round)
-            )
-        }
-    }
+    Icon(
+        painter = painterResource(if (active) R.drawable.ic_nowplaying_lyricson else R.drawable.ic_nowplaying_lyrics),
+        contentDescription = null,
+        tint = if (active) color.copy(alpha = 1f) else color,
+        modifier = modifier
+    )
 }
 
 /**
- * 翻译按钮（"A あ" 风格），与 Apple Music 歌词翻译开关的图标一致：
- * 大号 "A" 在左下，小号 "あ" 在右上。
+ * 歌词翻译按钮图标（Apple Music 风格双气泡 A 文）：
  */
 @Composable
 internal fun AppleTranslationIcon(
     color: Color,
+    modifier: Modifier = Modifier,
+    active: Boolean = false
+) {
+    Icon(
+        painter = painterResource(if (active) R.drawable.ic_nowplaying_translateon else R.drawable.ic_nowplaying_translate),
+        contentDescription = stringResource(R.string.player_show_translation),
+        tint = color,
+        modifier = modifier
+    )
+}
+
+/**
+ * Apple Music 伴奏按钮图标（麦克风 + 星光）：
+ * 正常态为浅底（ic_nowplaying_vocal），激活态为更深底（ic_nowplaying_vocalon）。
+ */
+@Composable
+internal fun AppleVocalIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    active: Boolean = false
+) {
+    Icon(
+        painter = painterResource(if (active) R.drawable.ic_nowplaying_vocalon else R.drawable.ic_nowplaying_vocal),
+        contentDescription = stringResource(R.string.player_accompaniment),
+        tint = color,
+        modifier = modifier
+    )
+}
+
+
+/**
+ * Apple Music 播放/暂停图标：
+ * 播放时展示实心双竖圆柱（pause.fill），暂停时展示圆角实心右三角（play.fill）。
+ */
+@Composable
+internal fun ApplePlayPauseIcon(
+    isPlaying: Boolean,
+    color: Color,
     modifier: Modifier = Modifier
 ) {
-    val textMeasurer = rememberTextMeasurer()
-    Canvas(modifier = modifier) {
-        if (size.width <= 0f || size.height <= 0f) return@Canvas
-        val latin = textMeasurer.measure(
-            AnnotatedString("A"),
-            style = TextStyle(fontSize = (size.height * 0.58f / density).sp)
-        )
-        val kana = textMeasurer.measure(
-            AnnotatedString("あ"),
-            style = TextStyle(fontSize = (size.height * 0.40f / density).sp)
-        )
-        drawText(
-            textLayoutResult = latin,
-            color = color,
-            topLeft = Offset(size.width * 0.10f, size.height * 0.80f - latin.size.height)
-        )
-        drawText(
-            textLayoutResult = kana,
-            color = color.copy(alpha = 0.94f),
-            topLeft = Offset(size.width * 0.53f, size.height * 0.05f)
-        )
-    }
+    Icon(
+        painter = painterResource(if (isPlaying) R.drawable.ic_nowplaying_pause else R.drawable.ic_nowplaying_play),
+        contentDescription = stringResource(if (isPlaying) R.string.common_pause else R.string.common_play),
+        tint = color,
+        modifier = modifier
+    )
+}
+
+/**
+ * Apple Music 上一曲图标（backward.fill）：双实心左向圆角箭头。
+ */
+@Composable
+internal fun AppleSkipPreviousIcon(
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Icon(
+        painter = painterResource(R.drawable.ic_nowplaying_rewind),
+        contentDescription = stringResource(R.string.common_previous),
+        tint = color,
+        modifier = modifier
+    )
+}
+
+/**
+ * Apple Music 下一曲图标（forward.fill）：双实心右向圆角箭头。
+ */
+@Composable
+internal fun AppleSkipNextIcon(
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Icon(
+        painter = painterResource(R.drawable.ic_nowplaying_fforward),
+        contentDescription = stringResource(R.string.common_next),
+        tint = color,
+        modifier = modifier
+    )
+}
+
+/**
+ * Apple Music 队列/待播清单图标（list.bullet）：
+ * 正常态为三条横线圆点（ic_nowplaying_queue），激活态为反白高亮胶囊（ic_nowplaying_queueon）。
+ */
+@Composable
+internal fun AppleQueueIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    active: Boolean = false
+) {
+    Icon(
+        painter = painterResource(if (active) R.drawable.ic_nowplaying_queueon else R.drawable.ic_nowplaying_queue),
+        contentDescription = stringResource(R.string.player_queue),
+        tint = if (active) color.copy(alpha = 1f) else color,
+        modifier = modifier
+    )
 }
 
 /**
@@ -200,4 +250,21 @@ internal fun AppleMicIcon(
             cap = StrokeCap.Round
         )
     }
+}
+
+/**
+ * Apple Music 风格底部中间投放图标（AirPlay / 投放设备）：
+ * 替换原来的 Chromecast 图标。
+ */
+@Composable
+internal fun AppleChromecastIcon(
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Icon(
+        painter = painterResource(R.drawable.ic_nowplaying_airplay),
+        contentDescription = stringResource(R.string.casting_devices_title),
+        tint = color,
+        modifier = modifier
+    )
 }

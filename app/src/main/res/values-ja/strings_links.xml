@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">ウェブ</string>
+    <string name="netease_link_target_app">NetEase Cloud Music</string>
+    <string name="netease_link_target_honor">NetEase Cloud Music（Honor 版）</string>
+    <string name="netease_link_target_custom">カスタム</string>
+    <string name="netease_link_open_failed">リンクを開けません</string>
+    <string name="netease_link_song_comments">曲のコメント</string>
+    <string name="netease_link_artist_wiki">アーティスト百科</string>
+    <string name="netease_link_mv_open_mode">NetEase MV の開き方</string>
+    <string name="netease_link_mv_open_mode_summary">曲に NetEase MV 情報がある場合、内蔵プレーヤーで再生するか外部で開くかを選びます</string>
+    <string name="netease_link_mv_open_internal">内蔵プレーヤー</string>
+    <string name="netease_link_mv_open_external">外部で開く（NetEase リンク設定に従う）</string>
+    <string name="netease_link_target">NetEase リンクの開き先</string>
+    <string name="netease_link_target_summary">163 key の曲・アーティスト・アルバム・MV リンクをウェブまたは NetEase アプリで開きます</string>
+    <string name="netease_link_kind_song">曲</string>
+    <string name="netease_link_kind_artist">アーティスト</string>
+    <string name="netease_link_kind_album">アルバム</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">ID の前のリンクを入力、または {id} で ID の位置を指定。空欄なら %1$s</string>
+</resources>

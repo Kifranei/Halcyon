@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_lyric_hdr_brightness">HDR 밝기</string>
+    <string name="settings_lyric_hdr_brightness_summary">일반 흰색 대비 하이라이트 밝기(1.5×~2.5×). 실제 밝기는 화면에 따라 다릅니다</string>
+</resources>

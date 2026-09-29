@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">Commentaires</string>
+    <string name="netease_comments_title">Commentaires</string>
+    <string name="netease_comments_title_count">Commentaires (%1$s)</string>
+    <string name="netease_comments_sort_recommend">Recommandés</string>
+    <string name="netease_comments_sort_hot">Populaires</string>
+    <string name="netease_comments_sort_latest">Récents</string>
+    <string name="netease_comments_empty">Aucun commentaire pour l\'instant</string>
+    <string name="netease_comments_error">Impossible de charger les commentaires</string>
+    <string name="netease_comments_retry">Réessayer</string>
+    <string name="netease_comments_expand_replies">Voir les réponses (%1$d)</string>
+    <string name="netease_comments_more_replies">Plus de réponses</string>
+    <string name="netease_comments_collapse_replies">Masquer les réponses</string>
+    <string name="netease_comments_reply_to">"Réponse à @%1$s : "</string>
+    <string name="netease_comments_load_more_failed">Échec du chargement. Touchez pour réessayer</string>
+    <string name="netease_comments_no_more">Plus aucun commentaire</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">J\'aime</string>
+    <string name="netease_comments_reply">Répondre</string>
+    <string name="netease_comments_input_hint">Écrivez quelque chose…</string>
+    <string name="netease_comments_reply_hint">Répondre à @%1$s</string>
+    <string name="netease_comments_send">Envoyer</string>
+    <string name="netease_comments_cancel_reply">Annuler la réponse</string>
+    <string name="netease_comments_login_required">Connectez-vous d\'abord à NetEase Cloud Music</string>
+    <string name="netease_comments_like_failed">Impossible de mettre à jour le J\'aime. Réessayez plus tard</string>
+    <string name="netease_comments_send_failed">Échec de l\'envoi. Réessayez plus tard</string>
+    <string name="netease_comments_send_failed_code">Échec de l\'envoi (erreur %1$d)</string>
+    <string name="netease_comments_sent">Envoyé</string>
+</resources>

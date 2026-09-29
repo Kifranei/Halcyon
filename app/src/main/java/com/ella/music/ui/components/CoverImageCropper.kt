@@ -66,10 +66,15 @@ internal class CoverImageCropperState internal constructor(
 }
 
 @Composable
-internal fun rememberCoverImageCropperState(bitmap: Bitmap): CoverImageCropperState {
-    return remember(bitmap) {
+internal fun rememberCoverImageCropperState(
+    bitmap: Bitmap,
+    initialRatio: Float? = 1f
+): CoverImageCropperState {
+    return remember(bitmap, initialRatio) {
         val display = downscaleForDisplay(bitmap)
-        CoverImageCropperState(originalBitmap = bitmap, displayBitmap = display)
+        CoverImageCropperState(originalBitmap = bitmap, displayBitmap = display).apply {
+            aspectRatio = initialRatio
+        }
     }
 }
 
@@ -112,17 +117,20 @@ internal fun CoverImageCropper(
     val freeRatio = stringResource(R.string.song_more_metadata_cover_ratio_free)
     val ratioOptions = remember(freeRatio) {
         listOf(
-            1f to "1:1",
             null to freeRatio,
+            1f to "1:1",
             4f / 3f to "4:3",
-            16f / 9f to "16:9"
+            16f / 9f to "16:9",
+            9f / 16f to "9:16",
+            21f / 9f to "21:9",
+            3f to "3:1"
         )
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Card(
             modifier = Modifier.padding(bottom = 8.dp),
-            colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer)
+            colors = CardDefaults.defaultColors(color = ellaOverlayCardColor())
         ) {
             WindowSpinnerPreference(
                 items = ratioOptions.map { DropdownItem(title = it.second) },
@@ -136,7 +144,7 @@ internal fun CoverImageCropper(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(bitmapAspectRatio.coerceIn(0.5f, 2f))
+                .aspectRatio(bitmapAspectRatio.coerceIn(0.3f, 3.5f))
                 .clipToBounds()
                 .background(Color.Black)
                 .onGloballyPositioned { viewSize = it.size.toSize() }

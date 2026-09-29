@@ -14,6 +14,7 @@ class LibrarySearchDockState(initialQuery: String = "") {
     var query by mutableStateOf(initialQuery)
     var autoFocus by mutableStateOf<Boolean?>(null)
     var selectAll by mutableStateOf(false)
+    var selectionRequestKey by mutableStateOf(0)
     var onSearch by mutableStateOf<(() -> Unit)?>(null)
 }
 
@@ -29,7 +30,11 @@ internal fun rememberLibrarySearchDockState(): LibrarySearchDockState {
     return state
 }
 
-internal fun usesSearchBottomDock(currentRoute: String?): Boolean = currentRoute.isSearchRoute()
+internal fun usesSearchBottomDock(
+    currentRoute: String?,
+    mergeSearch: Boolean = false,
+    floatingBottomBar: Boolean = true
+): Boolean = currentRoute.isSearchRoute() && floatingBottomBar && !mergeSearch
 
 internal fun searchDockReturnTabRoute(
     currentRoute: String?,

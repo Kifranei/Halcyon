@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Speech bubble with three dots; tinted at runtime. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,3.6C7.03,3.6 3,7.08 3,11.37C3,13.67 4.16,15.73 6,17.15L5.4,20.4L8.93,18.62C9.9,18.93 10.93,19.13 12,19.13C16.97,19.13 21,15.65 21,11.37C21,7.08 16.97,3.6 12,3.6Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M8,11.4m-1.15,0a1.15,1.15 0,1 1,2.3 0a1.15,1.15 0,1 1,-2.3 0M12,11.4m-1.15,0a1.15,1.15 0,1 1,2.3 0a1.15,1.15 0,1 1,-2.3 0M16,11.4m-1.15,0a1.15,1.15 0,1 1,2.3 0a1.15,1.15 0,1 1,-2.3 0" />
+</vector>

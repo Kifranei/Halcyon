@@ -1,3 +1,131 @@
+# 1.2.9
+
+From `1.2.8` to `1.2.9`.
+
+中文更新日志
+
+### 升级须知
+
+- 从旧版本覆盖安装后会提示是否清除数据，可一键前往系统应用信息或维护页面；恢复旧版本备份时会比对设置项，发现已移除、新增或格式变化的设置会建议重新配置，也可坚持恢复。
+- 反馈问题前请确认使用最新版本，并在清除数据后的干净安装中复现；旧版本覆盖安装且未清除数据时，残留设置可能导致正常使用中不会出现的问题。
+
+### 播放、音频与播放队列
+
+- USB DAC「独占模式」改为真正的 AAudio Exclusive 开流：bit-perfect、不做重采样，失败时回退共享模式，设置页显示实际状态。
+- 修复切歌时音频格式切换时序导致的杂音与中断；MP3 统一使用 FFmpeg 解码，改善部分设备跳歌和播放中途无声的问题；播放队列改为逐首流式保存，降低大队列切歌时的内存与写入开销。
+- 启动时不再在主线程等待音乐库与播放队列恢复，老设备冷启动明显加快。
+- 新增「冷启动自动扫描新增歌曲」（默认开启），本地与远程曲库每次冷启动都会检查新增歌曲。
+- 迷你播放条与播放页之间改为连续形变过渡，上滑打开与下滑关闭均跟手，展开态、收缩态与普通底栏共用同一效果。
+- 播放列表删除、拖拽排序不再关闭面板（`#604`）；无声 MV 暂停/继续立即同步（`#605`）；定时关闭倒计时直接显示在快捷区与更多菜单。
+
+### 在线音乐
+
+- 新增在线音乐账号作为音乐库来源：收藏歌曲作为音乐库，账号歌单显示在歌单页，听歌记录可并入最近播放。
+- 支持播放音质与下载音质分别选择、播放缓存（切回已播歌曲不再重复下载，可在维护中清除）、下载到本地并写入完整标签、歌词、封面与翻译 / 音译，下载内容显示在文件夹的「本地下载」中。
+- 支持在线 MV 播放与画质切换、评论区浏览 / 点赞 / 回复，艺术家图片、简介与专辑介绍可直接在线获取；播放页长按音质标签可切换音质，长按音频信息查看详细信息。
+- 恢复在线音源插件支持：可从本地文件、链接或插件仓库导入，搜索来源按插件声明的平台自动生成；应用不内置任何音源。
+- 首页右下角搜索入口可选择搜索本地音乐库或在线来源。
+- 软件更新页右上角可选择稳定版或预发布渠道，并修复预发布版本号比较。
+
+### 播放页与可视化
+
+- 进度条新增波形与分段刻度两种样式：打开即逐步显示真实波形，暂停时保持形态轻微缩放；可调波形密度、峰值高度与缩放动画开关（`#674`，已修复待验证）。
+- 可视化重做：默认曲线参考 BetterLyrics，律动粒子 / 共鸣琴弦 / 经典柱状 / 律动水波参考光锥重写，新增覆盖在封面上的频谱样式；所有样式高度统一并可调节，支持透明度与模糊，可用于全部横竖屏播放页。
+- 播放页新增标题居中选项、查看 MV 操作（可加入快捷操作与竖向菜单），Apple Music 风格的收藏与更多按钮在 Apple Music 播放页默认开启。
+- 歌词 HDR 高亮在支持 HDR 的屏幕上真正提亮长音发光与辉光进度条（Android 14 及以上）。
+- 平板与手机横屏统一使用可展开的侧边栏，横屏液态玻璃播放条保持样式。
+
+### 歌词与分享
+
+- 逐字歌词动画参考 Apple Music：逐词上浮、渐变高亮、逐行弹簧跟随；新增「长音上浮与呼吸」开关，并修复靠近底部的歌词行丢失弹簧动画。
+- TTML 注音按整词居中对齐（含一个词对应多段读音的情况）；TTML 支持文件偏移、父级时间与更多时间格式（`#676`，已修复待验证）。
+- 在线匹配歌词可选择保存为外置 `.lrc` / `.ttml` 文件，不修改歌曲文件本身；保存后该歌曲优先显示外置歌词，修复未标注演唱者的 TTML 覆盖歌词居中设置的问题。
+- 歌词分享卡片为 Apple Music 贴纸样式并新增一种简约大字样式，歌曲来源可识别时附带歌曲二维码；歌词视频分享修复换句时上一句残留。
+- 深度适配小米 HyperOS 超级小岛 / 焦点通知歌词，在线歌曲也显示封面；歌词源支持 Lyrico Plugin API 5 规范插件。
+
+### 音乐库、扫描与标签
+
+- 两阶段扫描：几秒内先显示全部歌曲与封面，后台再补全完整标签；音乐库改为下拉刷新。
+- 扫描目录勾选仅保存设置并提示手动扫描，可按需选择扫描或强制重扫，离开设置页不再因此自动扫描。
+- 修复最近播放切换标签及滑动预览时内容错位、日期标题被遮挡的问题；补全在线歌曲历史信息，支持封面展示、播放及更多菜单。
+- 音乐库支持双指缩放在列表、封面网格与详细信息视图之间切换，切换时封面连续过渡。
+- 修复专辑名与所在文件夹同名时显示为「未知专辑」；自定义艺术家分隔符修改后立即重新分组，支持一行输入多个符号，字母分隔符不再误拆单词（`#675`，已修复待验证）。
+- 艺术家图片来源新增多个可选来源并可排序，同名艺术家优先精确大小写匹配（`#668`，已修复待验证）；专辑介绍与艺术家简介每次可选择获取来源。
+- 音乐库与歌单支持红心 / 星级漏斗筛选；标签编辑器改为分卡片布局。
+
+### 设置、界面与兼容性
+
+- 界面整体打磨：统一弹层、卡片与对号样式，设置页顶栏支持渐进模糊（可关闭），首页快捷按钮与功能块分开配置并新增多种功能块风格；优化歌词页进入时的字号过渡、沉浸歌词封面切歌手势和升级提示文案，以及大量间距、图标与细节调整。
+- 设置搜索覆盖各级页面中的具体选项，并能跳转到对应位置、自动展开所在弹层。
+- 设置向导新增音乐库来源、冷启动自动扫描、底栏样式、浏览页流光（低端设备建议关闭）与播放页背景明暗选项；修复向导跳转设置页后反复覆盖的问题。
+- 新增土耳其语与阿拉伯语，共支持 10 种界面语言并适配 RTL 布局；内置 Inter 与 MiSans 字体。
+- 修复部分设备闪退与卡顿：超级岛歌词闪退、闪退日志过大导致打开卡顿甚至崩溃、老设备启动缓慢、车机合并搜索入口无法取消等。
+- 桌面组件暂停时停止计时（`#611`，已修复待验证）；开头空白歌词可拖动跳转（`#615`，已修复待验证）。
+
+English Changelog
+
+### Upgrade notes
+
+- After installing over an older version, Halcyon offers to clear app data and can open system App info or the Maintenance page. Restoring an older backup compares settings keys and suggests reconfiguring when settings were removed, added, or changed format; you can still restore anyway.
+- Before reporting a problem, please use the latest version and reproduce it on a clean install after clearing app data. Stale settings from an old install can cause bugs that do not occur in normal use.
+
+### Playback, audio, and queue
+
+- USB DAC exclusive mode opens true AAudio Exclusive: bit-perfect without resampling, shared fallback on failure, and the real status in settings.
+- Fixed crackles and dropouts caused by audio-format switching order on track changes; MP3 now uses FFmpeg in every decoder mode to address skipped tracks and mid-song silence on some devices. The queue is saved song by song, reducing memory and writes for large queues.
+- Startup no longer waits on the main thread for the library and queue to restore, so cold starts on older devices are much faster.
+- New "Scan for new songs on cold start" (on by default) for local and remote libraries.
+- The mini player morphs continuously into the player: swipe up to open and down to close, both following the finger, for expanded, collapsed, and standard docks alike.
+- Removing or reordering queue items no longer closes the sheet (`#604`); silent MV pause/resume syncs immediately (`#605`); an active sleep timer shows its countdown in shortcuts and the more menu.
+
+### Online music
+
+- An online music account can be used as the library source: liked songs become the library, account playlists appear under Playlists, and listening history can merge into Recently Played.
+- Separate playback and download quality, a playback cache (replaying a song does not download it again; clearable in Maintenance), and downloads with full tags, lyrics, artwork, and translation / transliteration, listed under Folders → Local downloads.
+- Online MV playback with quality switching, comments with likes and replies, and online artist images, biographies, and album introductions. Long-press the quality badge to switch quality; long-press audio details to see stream info.
+- User-supplied online source plugins are supported again, imported from local files, links, or plugin repositories; search sources come from the platforms each plugin declares. No sources are bundled.
+- The home search button can search the local library or an online source.
+- The update page can check the Stable or Prerelease channel, and prerelease version comparison is fixed.
+
+### Player and visualizers
+
+- New Waveform and Segments progress bars: the real waveform appears progressively right away and keeps its shape (slightly scaled) when paused; density, peak height, and the scale animation are adjustable (`#674`, fixed, pending verification).
+- Visualizers rebuilt: the default curve follows BetterLyrics, the particle / string / bar / wave styles are rewritten after ConePlayer, and a new spectrum overlays the album cover. All styles share one adjustable height, support opacity and blur, and work on every portrait and landscape player.
+- The player adds a centered-title option and a View MV action (available in quick actions and the vertical menu). Apple Music-style favorite and more buttons are on by default on the Apple Music player.
+- Lyric HDR highlight now truly brightens sustain glow and the glow progress bar on HDR-capable screens (Android 14+).
+- Tablets and landscape phones use an expandable side rail; the landscape liquid-glass mini player keeps its style.
+
+### Lyrics and sharing
+
+- Word-by-word lyrics follow Apple Music: per-word lift, gradient fill, and per-line spring follow. A "long-note float and breathe" switch is added, and the lowest lyric lines no longer lose their spring animation.
+- TTML readings are centered over whole words, including words with several reading segments. TTML honors file offsets, parent timing, and more time formats (`#676`, fixed, pending verification).
+- Online lyric matches can be saved as external `.lrc` / `.ttml` files without modifying the audio file; the saved file is then preferred for that song. TTML without singer assignments no longer overrides the selected lyric alignment.
+- Lyric share cards use the Apple Music sticker layout plus a new bold minimal style that adds a song QR code when the source is recognized. Lyric video sharing no longer leaves the previous line behind.
+- Deep HyperOS Super Island / Focus notification lyrics, now also showing artwork for online songs; lyric sources support Lyrico Plugin API 5 plugins.
+
+### Library, scanning, and tags
+
+- Two-stage scanning shows all songs and artwork within seconds, then completes full tags in the background; the library uses pull-to-refresh.
+- Selecting scan folders only saves the selection and prompts for a manual scan. Choose Scan or Force rescan as needed; leaving settings no longer starts a scan because of selection changes.
+- Fixed incorrect content during Recently Played tab switches and swipe previews, and hidden date headings. Online song history now retains the information needed for artwork, playback, and the more menu.
+- Pinch to switch the library between list, cover grid, and detail views, with continuous artwork transitions.
+- Albums named like their folder no longer show as "Unknown Album"; custom artist separators regroup immediately, accept several symbols on one line, and letter separators no longer split words (`#675`, fixed, pending verification).
+- More selectable, reorderable artist-image sources, preferring exact-case artist matches (`#668`, fixed, pending verification); album introductions and artist biographies let you pick the source each time.
+- Library and playlist loved / star-rating funnel filters; the tag editor uses section cards.
+
+### Settings, interface, and compatibility
+
+- Broad interface polish: consistent sheets, cards, and check marks, optional progressive blur on settings top bars, separately configured home shortcuts and feature tiles with new tile styles, lyric-page entry sizing, immersive-lyrics cover gestures, upgrade prompts, and many spacing, icon, and detail refinements.
+- Settings search covers specific options on every level and jumps to them, opening the containing sheet when needed.
+- The setup wizard adds library source, cold-start scanning, dock style, browse-page flow background (not recommended on low-end devices), and player background brightness; it no longer keeps covering settings pages it opens.
+- Turkish and Arabic added for 10 interface languages with RTL layout; bundled Inter and MiSans fonts.
+- Fixed crashes and stalls on some devices, including the Super Island lyric crash, oversized crash logs that stalled or crashed the log viewer, slow startup on older devices, and the car-display merged search entry that could not be removed.
+- Widgets stop their timer while paused (`#611`, fixed, pending verification); opening blank lyrics can be scrubbed (`#615`, fixed, pending verification).
+
+Version
+- Version name: `1.2.9`
+- Version code: `39`
+
 # 1.2.8
 
 From `1.2.7` to `1.2.8`.

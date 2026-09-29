@@ -27,7 +27,10 @@ internal class LyricVideoRenderer(
     private val cover: Bitmap?,
     private val lines: List<LyricLine>,
     private val includeTranslation: Boolean,
-    typeface: Typeface? = null
+    typeface: Typeface? = null,
+    private val includeOriginal: Boolean = true,
+    private val includePronunciation: Boolean = true,
+    private val effect: LyricVideoEffect = LyricVideoEffect.Particle
 ) {
     companion object {
         const val VIDEO_SIZE = 1080
@@ -98,6 +101,8 @@ internal class LyricVideoRenderer(
 
     private val timelines: List<LineTimeline> = buildTimelines()
 
+    private val lineStartTimes = timelines.map { it.startMs }
+
     val totalDurationMs: Long
         get() = if (timelines.isEmpty()) 0L else timelines.last().dissolveEndMs
 
@@ -121,15 +126,16 @@ internal class LyricVideoRenderer(
 
     fun totalFrames(): Int = ((totalDurationMs * FPS) / 1000).toInt().coerceAtLeast(1)
 
-    private var activeParticleEffect: LyricVideoParticleEffect? = null
+    private var activeDissolveEffect: LyricVideoDissolveEffect? = null
     private var particleLineIndex = -1
+    private var dissolveFrame = 0
     private var textBitmapCache: Bitmap? = null
 
     fun drawFrame(canvas: Canvas, frameIndex: Int) {
         val timeMs = (frameIndex * 1000L) / FPS
         drawDynamicBackground(canvas, timeMs)
 
-        val activeIndex = timelines.indexOfLast { timeMs >= it.startMs }.takeIf { it >= 0 } ?: return
+        val activeIndex = lyricVideoActiveLineIndex(lineStartTimes, timeMs).takeIf { it >= 0 } ?: return
         val activeTimeline = timelines[activeIndex]
         val nextTimeline = timelines.getOrNull(activeIndex + 1)
         if (isLyricVideoInterLineGap(
@@ -152,23 +158,20 @@ internal class LyricVideoRenderer(
             )
             return
         }
-        val previousTimeline = timelines.getOrNull(activeIndex - 1)
-        val dissolvingTimeline = when {
-            previousTimeline != null &&
-                timeMs >= previousTimeline.holdEndMs &&
-                timeMs < previousTimeline.dissolveEndMs -> previousTimeline to (activeIndex - 1)
-            timeMs >= activeTimeline.holdEndMs &&
-                timeMs < activeTimeline.dissolveEndMs -> activeTimeline to activeIndex
-            else -> null
+        // Only the current sentence owns the text layer. An outgoing effect must never
+        // be replayed over the next sentence, including its translation.
+        if (particleLineIndex != activeIndex) clearParticleEffect()
+        when (lyricVideoDissolveState(timeMs, activeTimeline.holdEndMs, activeTimeline.dissolveEndMs)) {
+            LyricVideoDissolveState.Dissolving -> {
+                drawDissolvingLine(canvas, activeTimeline, activeIndex, timeMs)
+                return
+            }
+            LyricVideoDissolveState.Finished -> {
+                clearParticleEffect()
+                return
+            }
+            LyricVideoDissolveState.Pending -> clearParticleEffect()
         }
-
-        dissolvingTimeline?.let { (timeline, lineIndex) ->
-            drawDissolvingLine(canvas, timeline, lineIndex)
-        } ?: clearParticleEffect()
-
-        val shouldDrawActiveLine =
-            dissolvingTimeline == null || dissolvingTimeline.second != activeIndex || timeMs < activeTimeline.holdEndMs
-        if (!shouldDrawActiveLine) return
 
         when {
             timeMs < activeTimeline.startMs + FADE_IN_MS -> {
@@ -195,30 +198,61 @@ internal class LyricVideoRenderer(
     private fun drawDissolvingLine(
         canvas: Canvas,
         timeline: LineTimeline,
-        lineIndex: Int
+        lineIndex: Int,
+        timeMs: Long
     ) {
         if (particleLineIndex != lineIndex) {
             particleLineIndex = lineIndex
+            dissolveFrame = 0
             val textBmp = renderLineToBitmap(timeline)
             textBitmapCache?.recycle()
             textBitmapCache = textBmp
             val drawY = calculateLineY(timeline)
-            activeParticleEffect = LyricVideoParticleEffect(
-                textBitmap = textBmp,
-                destX = calculateLineX(timeline, textBmp.width),
-                destY = drawY,
-                totalFrames = LyricVideoParticleEffect.DISSOLVE_FRAMES
-            )
+            val drawX = calculateLineX(timeline, textBmp.width)
+            activeDissolveEffect = when (effect) {
+                LyricVideoEffect.Particle -> LyricVideoParticleEffect(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY,
+                    totalFrames = LyricVideoParticleEffect.DISSOLVE_FRAMES
+                )
+                LyricVideoEffect.Neon -> LyricVideoNeonDissolve(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY
+                )
+                LyricVideoEffect.Glitch -> LyricVideoGlitchDissolve(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY
+                )
+                LyricVideoEffect.Fade -> LyricVideoFadeDissolve(
+                    textBitmap = textBmp,
+                    destX = drawX,
+                    destY = drawY
+                )
+            }
         }
-        activeParticleEffect?.let {
-            it.advanceFrame()
+        activeDissolveEffect?.let {
+            val targetFrame = (((timeMs - timeline.holdEndMs) * FPS) / 1000).toInt() + 1
+            if (targetFrame < dissolveFrame) {
+                it.reset()
+                dissolveFrame = 0
+            }
+            while (dissolveFrame < targetFrame && !it.isFinished) {
+                it.advanceFrame()
+                dissolveFrame++
+            }
             it.draw(canvas)
         }
     }
 
     private fun clearParticleEffect() {
-        activeParticleEffect = null
+        activeDissolveEffect = null
         particleLineIndex = -1
+        dissolveFrame = 0
+        textBitmapCache?.recycle()
+        textBitmapCache = null
     }
 
     private fun drawLyricLine(
@@ -600,14 +634,28 @@ internal class LyricVideoRenderer(
 
     fun recycle() {
         if (flowCover !== cover) flowCover?.recycle()
-        textBitmapCache?.recycle()
-        textBitmapCache = null
+        clearParticleEffect()
     }
 
     private fun easeOutCubic(value: Float): Float {
         val clamped = value.coerceIn(0f, 1f)
         return 1f - (1f - clamped) * (1f - clamped) * (1f - clamped)
     }
+}
+
+internal fun lyricVideoActiveLineIndex(startTimesMs: List<Long>, timeMs: Long): Int =
+    startTimesMs.indexOfLast { timeMs >= it }
+
+internal enum class LyricVideoDissolveState { Pending, Dissolving, Finished }
+
+internal fun lyricVideoDissolveState(
+    timeMs: Long,
+    holdEndMs: Long,
+    dissolveEndMs: Long
+): LyricVideoDissolveState = when {
+    timeMs < holdEndMs -> LyricVideoDissolveState.Pending
+    timeMs < dissolveEndMs -> LyricVideoDissolveState.Dissolving
+    else -> LyricVideoDissolveState.Finished
 }
 
 internal fun isLyricVideoInterLineGap(

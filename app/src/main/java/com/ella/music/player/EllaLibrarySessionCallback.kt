@@ -23,14 +23,18 @@ internal class EllaLibrarySessionCallback(
         session: MediaSession,
         controller: MediaSession.ControllerInfo
     ): MediaSession.ConnectionResult {
-        val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+        val sessionCommandsBuilder = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
             .buildUpon()
-            .add(SessionCommand(PlaybackService.ACTION_TOGGLE_TRANSLATION, Bundle.EMPTY))
-            .add(SessionCommand(PlaybackService.ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
-            .add(SessionCommand(PlaybackService.ACTION_TOGGLE_DESKTOP_LYRIC, Bundle.EMPTY))
-            .add(SessionCommand(PlaybackService.ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
-            .add(SessionCommand(PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC, Bundle.EMPTY))
-            .build()
+        if (controller.isTrusted) {
+            sessionCommandsBuilder
+                .add(SessionCommand(PlaybackService.ACTION_TOGGLE_TRANSLATION, Bundle.EMPTY))
+                .add(SessionCommand(PlaybackService.ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
+                .add(SessionCommand(PlaybackService.ACTION_TOGGLE_DESKTOP_LYRIC, Bundle.EMPTY))
+                .add(SessionCommand(PlaybackService.ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
+                .add(SessionCommand(PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC, Bundle.EMPTY))
+                .add(SessionCommand(PlaybackService.ACTION_SYNC_PLAYBACK_MODE, Bundle.EMPTY))
+        }
+        val sessionCommands = sessionCommandsBuilder.build()
         // Media3 intentionally gives untrusted controllers read-only player commands by
         // default. That prevents external widgets from sending the normal transport commands
         // even though this service is explicitly a music playback service. Keep the read-only
@@ -59,10 +63,13 @@ internal class EllaLibrarySessionCallback(
         customCommand: SessionCommand,
         args: Bundle
     ): ListenableFuture<SessionResult> {
-        val handled = if (customCommand.customAction == PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC) {
-            service.updateNotificationLyricPresentation(args)
-        } else {
-            service.handleNotificationCustomAction(customCommand.customAction)
+        if (!controller.isTrusted) {
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+        }
+        val handled = when (customCommand.customAction) {
+            PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC -> service.updateNotificationLyricPresentation(args)
+            PlaybackService.ACTION_SYNC_PLAYBACK_MODE -> service.syncPlaybackModeFromApp(args)
+            else -> service.handleNotificationCustomAction(customCommand.customAction)
         }
         val result = if (handled) {
             SessionResult(SessionResult.RESULT_SUCCESS)

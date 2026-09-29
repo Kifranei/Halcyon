@@ -19,6 +19,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_EMBY_USER_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_EMBY_USERNAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LIBRARY_SOURCE
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SELECTED_SOURCE_ID
+import com.ella.music.data.SettingsManager.Companion.KEY_LX_SELECTED_SEARCH_PLATFORM
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_NAME
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_SCRIPT
 import com.ella.music.data.SettingsManager.Companion.KEY_LX_SOURCE_URL
@@ -34,6 +35,9 @@ import com.ella.music.data.SettingsManager.Companion.KEY_ONLINE_SELECTED_PROVIDE
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENAI_API_KEY
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENAI_BASE_URL
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENAI_MODEL
+import com.ella.music.data.SettingsManager.Companion.KEY_AI_API_PROTOCOL
+import com.ella.music.data.SettingsManager.Companion.AI_API_PROTOCOL_COMPATIBLE
+import com.ella.music.data.SettingsManager.Companion.AI_API_PROTOCOL_ANTHROPIC
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENSUBSONIC_ACTIVE_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_OPENSUBSONIC_SERVERS
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_ENABLED
@@ -47,9 +51,13 @@ import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_BACKUP_URL
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_BACKUP_USERNAME
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_LAST_URL
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_PASSWORD
+import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_CUSTOM_HEADERS
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_URL
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_USERNAME
 import com.ella.music.data.remote.RemoteMusicProvider
+import com.ella.music.data.webdav.WebDavHeader
+import org.json.JSONArray
+import org.json.JSONObject
 import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.data.remote.SavedRemoteServer
 import com.ella.music.data.remote.toRemoteServersJson
@@ -68,11 +76,22 @@ import kotlinx.coroutines.flow.map
  * restart collection on every recomposition.
  */
 interface RemoteSourceSettingsAccess {
+    val onlinePlaybackQuality: Flow<String>
+    suspend fun setOnlinePlaybackQuality(value: String)
+    val neteaseDownloadQuality: Flow<String>
+    val neteaseMvResolution: Flow<Int>
+    val neteaseMvDownloadResolution: Flow<Int>
+    suspend fun setNeteaseDownloadQuality(value: String)
+    suspend fun setNeteaseMvResolution(value: Int)
+    suspend fun setNeteaseMvDownloadResolution(value: Int)
+    val neteaseQuality: Flow<String>
+    suspend fun setNeteaseQuality(quality: String)
     val mcpServerEnabled: Flow<Boolean>
     val webMusicServerEnabled: Flow<Boolean>
     val webDavUrl: Flow<String>
     val webDavUsername: Flow<String>
     val webDavPassword: Flow<String>
+    val webDavCustomHeaders: Flow<List<WebDavHeader>>
     val webDavLastUrl: Flow<String>
     val webDavBackupUrl: Flow<String>
     val webDavBackupPath: Flow<String>
@@ -85,6 +104,7 @@ interface RemoteSourceSettingsAccess {
     val webDavRestoreLastSeenAt: Flow<Long>
     val lxSources: Flow<List<LxSourceConfig>>
     val selectedLxSourceId: Flow<String>
+    val selectedLxSearchPlatform: Flow<String>
     val selectedLxSource: Flow<LxSourceConfig?>
     val lxSourceUrl: Flow<String>
     val lxSourceName: Flow<String>
@@ -103,10 +123,11 @@ interface RemoteSourceSettingsAccess {
     val openAiApiKey: Flow<String>
     val openAiBaseUrl: Flow<String>
     val openAiModel: Flow<String>
+    val aiApiProtocol: Flow<Int>
     suspend fun setMcpServerEnabled(enabled: Boolean)
     suspend fun setWebMusicServerEnabled(enabled: Boolean)
     suspend fun setLibrarySource(source: String)
-    suspend fun setWebDavConfig(url: String, username: String, password: String)
+    suspend fun setWebDavConfig(url: String, username: String, password: String, customHeaders: List<WebDavHeader> = emptyList())
     suspend fun setWebDavLastUrl(url: String)
     suspend fun clearWebDavConfig()
     suspend fun setWebDavBackupUrl(url: String)
@@ -114,6 +135,7 @@ interface RemoteSourceSettingsAccess {
     suspend fun setLxSource(url: String, name: String, script: String)
     suspend fun clearLxSource()
     suspend fun selectLxSource(id: String)
+    suspend fun setSelectedLxSearchPlatform(platform: String)
     suspend fun removeLxSource(id: String)
     suspend fun selectOnlineProvider(provider: RemoteMusicProvider)
     fun newRemoteServerId(): String
@@ -135,9 +157,29 @@ interface RemoteSourceSettingsAccess {
     suspend fun setOpenAiApiKey(apiKey: String)
     suspend fun setOpenAiBaseUrl(baseUrl: String)
     suspend fun setOpenAiModel(model: String)
+    suspend fun setAiApiProtocol(protocol: Int)
 }
 
 internal class RemoteSourceSettingsAccessImpl(private val context: Context) : RemoteSourceSettingsAccess {
+    override val onlinePlaybackQuality = context.dataStore.data.map { com.ella.music.data.OnlinePlaybackQuality.normalize(it[SettingsManager.KEY_ONLINE_PLAYBACK_QUALITY]) }
+    override suspend fun setOnlinePlaybackQuality(value: String) { context.dataStore.edit { it[SettingsManager.KEY_ONLINE_PLAYBACK_QUALITY] = com.ella.music.data.OnlinePlaybackQuality.normalize(value) } }
+    override val neteaseDownloadQuality = context.dataStore.data.map {
+        com.ella.music.data.netease.NeteaseQuality.fromId(it[SettingsManager.KEY_NETEASE_DOWNLOAD_QUALITY].orEmpty()).id
+    }
+    override val neteaseMvResolution = context.dataStore.data.map { it[SettingsManager.KEY_NETEASE_MV_RESOLUTION]?.takeIf { v -> v in listOf(240, 480, 720, 1080) } ?: 720 }
+    override val neteaseMvDownloadResolution = context.dataStore.data.map { it[SettingsManager.KEY_NETEASE_MV_DOWNLOAD_RESOLUTION]?.takeIf { v -> v in listOf(240, 480, 720, 1080) } ?: 720 }
+    override suspend fun setNeteaseDownloadQuality(value: String) { context.dataStore.edit { it[SettingsManager.KEY_NETEASE_DOWNLOAD_QUALITY] = com.ella.music.data.netease.NeteaseQuality.fromId(value).id } }
+    override suspend fun setNeteaseMvResolution(value: Int) { context.dataStore.edit { it[SettingsManager.KEY_NETEASE_MV_RESOLUTION] = value } }
+    override suspend fun setNeteaseMvDownloadResolution(value: Int) { context.dataStore.edit { it[SettingsManager.KEY_NETEASE_MV_DOWNLOAD_RESOLUTION] = value } }
+    override val neteaseQuality: Flow<String> = context.dataStore.data.map {
+        com.ella.music.data.netease.NeteaseQuality.fromId(it[SettingsManager.KEY_NETEASE_QUALITY].orEmpty()).id
+    }
+    override suspend fun setNeteaseQuality(quality: String) {
+        context.dataStore.edit {
+            it[SettingsManager.KEY_NETEASE_QUALITY] = com.ella.music.data.netease.NeteaseQuality.fromId(quality).id
+        }
+    }
+
 
     override val mcpServerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MCP_SERVER_ENABLED] ?: false }
@@ -147,6 +189,9 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
     override val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
     override val webDavUsername: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_USERNAME] ?: "" }
     override val webDavPassword: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_PASSWORD] ?: "" }
+    override val webDavCustomHeaders: Flow<List<WebDavHeader>> = context.dataStore.data.map {
+        it[KEY_WEBDAV_CUSTOM_HEADERS].orEmpty().toWebDavCustomHeaders()
+    }
     override val webDavLastUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_LAST_URL] ?: "" }
     override val webDavBackupUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_BACKUP_URL] ?: "" }
     override val webDavBackupPath: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_BACKUP_PATH] ?: "" }
@@ -167,6 +212,7 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
     }
     override val lxSources: Flow<List<LxSourceConfig>> = context.dataStore.data.map { prefs -> prefs.lxSources() }
     override val selectedLxSourceId: Flow<String> = context.dataStore.data.map { it[KEY_LX_SELECTED_SOURCE_ID] ?: "" }
+    override val selectedLxSearchPlatform: Flow<String> = context.dataStore.data.map { it[KEY_LX_SELECTED_SEARCH_PLATFORM] ?: "" }
     override val selectedLxSource: Flow<LxSourceConfig?> = context.dataStore.data.map { prefs ->
         val sources = prefs.lxSources()
         val selectedId = prefs[KEY_LX_SELECTED_SOURCE_ID].orEmpty()
@@ -259,6 +305,11 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
         context.dataStore.data.map { it[KEY_OPENAI_BASE_URL] ?: DEFAULT_OPENAI_BASE_URL }
     override val openAiModel: Flow<String> =
         context.dataStore.data.map { it[KEY_OPENAI_MODEL] ?: DEFAULT_OPENAI_MODEL }
+    override val aiApiProtocol: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_AI_API_PROTOCOL] ?: AI_API_PROTOCOL_COMPATIBLE)
+                .coerceIn(AI_API_PROTOCOL_COMPATIBLE, AI_API_PROTOCOL_ANTHROPIC)
+        }
 
     override suspend fun setMcpServerEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MCP_SERVER_ENABLED] = enabled }
@@ -273,11 +324,17 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
         context.dataStore.edit { it[KEY_LIBRARY_SOURCE] = normalized }
     }
 
-    override suspend fun setWebDavConfig(url: String, username: String, password: String) {
+    override suspend fun setWebDavConfig(
+        url: String,
+        username: String,
+        password: String,
+        customHeaders: List<WebDavHeader>
+    ) {
         context.dataStore.edit {
             it[KEY_WEBDAV_URL] = url.trim()
             it[KEY_WEBDAV_USERNAME] = username
             it[KEY_WEBDAV_PASSWORD] = password
+            it[KEY_WEBDAV_CUSTOM_HEADERS] = customHeaders.toWebDavCustomHeadersJson()
             it[KEY_WEBDAV_LAST_URL] = url.trim()
         }
     }
@@ -293,6 +350,7 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
             it.remove(KEY_WEBDAV_URL)
             it.remove(KEY_WEBDAV_USERNAME)
             it.remove(KEY_WEBDAV_PASSWORD)
+            it.remove(KEY_WEBDAV_CUSTOM_HEADERS)
             it.remove(KEY_WEBDAV_LAST_URL)
         }
     }
@@ -362,6 +420,16 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
                 prefs[KEY_LX_SOURCE_URL] = selected.url
                 prefs[KEY_LX_SOURCE_NAME] = selected.name
                 prefs[KEY_LX_SOURCE_SCRIPT] = selected.script
+            }
+        }
+    }
+
+    override suspend fun setSelectedLxSearchPlatform(platform: String) {
+        context.dataStore.edit {
+            if (platform.isBlank()) {
+                it.remove(KEY_LX_SELECTED_SEARCH_PLATFORM)
+            } else {
+                it[KEY_LX_SELECTED_SEARCH_PLATFORM] = platform.trim()
             }
         }
     }
@@ -508,6 +576,15 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
         }
     }
 
+    override suspend fun setAiApiProtocol(protocol: Int) {
+        context.dataStore.edit {
+            it[KEY_AI_API_PROTOCOL] = protocol.coerceIn(
+                AI_API_PROTOCOL_COMPATIBLE,
+                AI_API_PROTOCOL_ANTHROPIC
+            )
+        }
+    }
+
     private fun Preferences.lxSources(): List<LxSourceConfig> {
         val defaultName = context.getString(R.string.settings_default_lx_source_name)
         val parsed = parseLxSourcesJson(this[KEY_LX_SOURCES_JSON].orEmpty(), defaultName)
@@ -526,4 +603,35 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
             )
         )
     }
+}
+
+
+internal fun String.toWebDavCustomHeaders(): List<WebDavHeader> {
+    val raw = trim()
+    if (raw.isEmpty()) return emptyList()
+    return runCatching {
+        val array = JSONArray(raw)
+        buildList {
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                val name = obj.optString("name").trim()
+                if (name.isBlank()) continue
+                add(WebDavHeader(name = name, value = obj.optString("value")))
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
+internal fun List<WebDavHeader>.toWebDavCustomHeadersJson(): String {
+    val array = JSONArray()
+    forEach { header ->
+        val name = header.name.trim()
+        if (name.isBlank()) return@forEach
+        array.put(
+            JSONObject()
+                .put("name", name)
+                .put("value", header.value)
+        )
+    }
+    return array.toString()
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">Enregistrer dans</string>
+    <string name="lyric_sidecar_destination_embedded">Écrire dans le fichier du morceau</string>
+    <string name="lyric_sidecar_destination_lrc">Enregistrer en .LRC externe</string>
+    <string name="lyric_sidecar_destination_ttml">Enregistrer en .TTML externe</string>
+    <string name="lyric_sidecar_destination_hint">Enregistré comme fichier de paroles du même nom dans le dossier du morceau. Le fichier audio n\'est pas modifié, sa date de modification est donc conservée.</string>
+    <string name="lyric_sidecar_save_lrc">Enregistrer le fichier de paroles .LRC</string>
+    <string name="lyric_sidecar_save_ttml">Enregistrer le fichier de paroles .TTML</string>
+    <string name="lyric_sidecar_saved">Enregistré : %1$s</string>
+    <string name="lyric_sidecar_no_write_access">Impossible d\'enregistrer les paroles externes : aucun accès en écriture à ce dossier. Accordez l\'accès à tous les fichiers ou ajoutez le dossier via le sélecteur de dossiers dans les paramètres d\'analyse.</string>
+    <string name="lyric_sidecar_convert_failed">Impossible de créer les paroles dans le format choisi</string>
+</resources>

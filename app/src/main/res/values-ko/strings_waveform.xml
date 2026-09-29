@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">파형 크기 조절 애니메이션</string>
+    <string name="player_waveform_scale_animation_summary">일시정지하거나 진행 표시줄을 탭 또는 드래그할 때 파형 크기를 조절합니다</string>
+    <string name="player_waveform_density">파형 밀도</string>
+    <string name="player_waveform_density_summary">파형 막대의 개수와 간격을 조절합니다</string>
+    <string name="player_waveform_peak_height">파형 최고 높이</string>
+    <string name="player_waveform_peak_height_summary">파형 막대의 최대 높이를 조절합니다</string>
+</resources>

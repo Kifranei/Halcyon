@@ -114,7 +114,16 @@ fun FolderDetailScreen(
     onNavigateToPlayer: () -> Unit
 ) {
     val context = LocalContext.current
-    val songs by mainViewModel.songs.collectAsState()
+    val librarySongs by mainViewModel.songs.collectAsState()
+    val downloadRevision by com.ella.music.data.netease.NeteaseOfflineDownloads.revision.collectAsState()
+    val downloadedSongs by produceState<List<Song>>(emptyList(), folderPath, downloadRevision) {
+        if (folderPath.trimEnd('/') == com.ella.music.data.netease.NeteaseOfflineDownloads.path) {
+            value = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.ella.music.data.netease.NeteaseOfflineDownloads.songs(context)
+            }
+        }
+    }
+    val songs = if (folderPath.trimEnd('/') == com.ella.music.data.netease.NeteaseOfflineDownloads.path) downloadedSongs else librarySongs
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val folderPlaylists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
@@ -192,8 +201,26 @@ fun FolderDetailScreen(
                 it.fileName.contains(searchQuery, ignoreCase = true)
         }
     }
-    val sortedSongs = remember(filteredSongs, sortMode) {
+    val sortedSongs = remember(filteredSongs, sortMode, com.ella.music.ui.LibrarySortUiState.randomSortSeed) {
         filteredSongs.sortedForFolderDetail(sortMode)
+    }
+    fun shuffleFolderAndStart() {
+        val queueSongs = if (sortMode == FolderSongSortMode.Random) {
+            val seed = com.ella.music.ui.LibrarySortUiState.reshuffleRandomSort()
+            scope.launch { mainViewModel.settingsManager.setRandomSortSeed(seed) }
+            com.ella.music.ui.LibrarySortUiState.randomizedSongs(filteredSongs, seed)
+        } else {
+            filteredSongs.shuffled()
+        }
+        if (queueSongs.isNotEmpty()) {
+            playerViewModel.setShuffledPlaylist(
+                queueSongs,
+                0,
+                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath),
+                preserveOrder = true
+            )
+            if (openPlayerOnPlay) onNavigateToPlayer()
+        }
     }
     val sortedSongIdsForSelection = remember(sortedSongs) { sortedSongs.map { it.id } }
     val sortedSongIndexByIdForSelection = remember(sortedSongs) {
@@ -212,8 +239,10 @@ fun FolderDetailScreen(
     }
 
     val folderRootName = stringResource(R.string.folder_root)
+    val downloadsName = stringResource(R.string.netease_local_downloads)
     val folderName = remember(normalizedFolderPath, folderRootName) {
-        normalizedFolderPath.folderDisplayName(folderRootName)
+        if (normalizedFolderPath == com.ella.music.data.netease.NeteaseOfflineDownloads.path) downloadsName
+        else normalizedFolderPath.folderDisplayName(folderRootName)
     }
     val deleteSelectedSongs = rememberSongDeleteResultHandler(mainViewModel) { selection.finishSelectionMode() }
 
@@ -407,6 +436,11 @@ fun FolderDetailScreen(
                             ),
                             selectedMode = sortMode,
                             onSelect = ::updateSortMode
+                        ) + listOf(
+                            com.ella.music.ui.components.randomSortDropdownItem(
+                                selected = sortMode == FolderSongSortMode.Random,
+                                onSelect = { updateSortMode(FolderSongSortMode.Random) }
+                            )
                         )
                     )
                 }
@@ -496,7 +530,7 @@ fun FolderDetailScreen(
                 if (!selection.selectionMode) return@LaunchedEffect
                 val visibleIds = sortedSongs.mapTo(mutableSetOf()) { it.id }
                 selection.selectedIds = selection.selectedIds.filterTo(mutableSetOf()) { it in visibleIds }
-                if (selection.rangeAnchorId !in visibleIds) selection.rangeAnchorId = selection.selectedIds.firstOrNull()
+                if (selection.rangeAnchorId !in visibleIds) selection.rangeAnchorId = null
                 if (selection.rangeTargetId !in visibleIds) selection.rangeTargetId = null
             }
             val currentSongItemIndex = remember(sortedSongIndexById, childFolders, searchQuery, currentSong?.id, selection.selectionMode) {
@@ -590,14 +624,7 @@ fun FolderDetailScreen(
                         leadingContent = {
                             ShuffleAllSummaryButton(
                                 visible = !selection.selectionMode && sortedSongs.isNotEmpty(),
-                                onClick = {
-                                    playerViewModel.setShuffledPlaylist(
-                                        sortedSongs,
-                                        0,
-                                        resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
-                                    )
-                                    if (openPlayerOnPlay) onNavigateToPlayer()
-                                }
+                                onClick = ::shuffleFolderAndStart
                             )
                         }
                     )
@@ -607,11 +634,20 @@ fun FolderDetailScreen(
                         playbackStats = playbackStats,
                         currentSong = currentSong,
                         onContinue = { index ->
-                            playerViewModel.setPlaylist(
-                                sortedSongs,
-                                index,
-                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
-                            )
+                            if (sortMode == FolderSongSortMode.Random) {
+                                playerViewModel.setShuffledPlaylist(
+                                    sortedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath),
+                                    preserveOrder = true
+                                )
+                            } else {
+                                playerViewModel.setPlaylist(
+                                    sortedSongs,
+                                    index,
+                                    resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
+                                )
+                            }
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     )
@@ -662,11 +698,20 @@ fun FolderDetailScreen(
                                     if (selection.selectionMode) {
                                         selection.toggleSelection(song.id)
                                     } else {
-                                        playerViewModel.setPlaylist(
-                                            sortedSongs,
-                                            index,
-                                            resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
-                                        )
+                                        if (sortMode == FolderSongSortMode.Random) {
+                                            playerViewModel.setShuffledPlaylist(
+                                                sortedSongs,
+                                                index,
+                                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath),
+                                                preserveOrder = true
+                                            )
+                                        } else {
+                                            playerViewModel.setPlaylist(
+                                                sortedSongs,
+                                                index,
+                                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.folder(folderPath)
+                                            )
+                                        }
                                         if (openPlayerOnPlay) onNavigateToPlayer()
                                     }
                                 },

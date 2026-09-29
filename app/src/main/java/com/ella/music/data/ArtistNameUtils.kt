@@ -1,8 +1,25 @@
 package com.ella.music.data
 
 import com.ella.music.data.model.Song
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 object NameSplitConfigStore {
+    private val _revision = MutableStateFlow(0)
+
+    /**
+     * Bumped after split/protect/case settings have been applied to this store (#675). The store
+     * fields are plain vars, so UI groupings must key `remember`/`produceState` on this value or
+     * they keep results computed with the previous (or cold-start empty) rules.
+     */
+    val revision: StateFlow<Int> = _revision.asStateFlow()
+
+    fun notifyChanged() {
+        _revision.update { it + 1 }
+    }
+
     @Volatile
     var artistCustomSeparators: List<String> = emptyList()
 
@@ -110,6 +127,32 @@ fun parseNameSplitSetting(value: String): List<String> {
         .distinctBy { it.lowercase() }
 }
 
+/**
+ * Separator variant of [parseNameSplitSetting] (#675): besides one entry per line / tab, a line
+ * made only of whitespace-separated symbol tokens (e.g. `; , /`) is read as several separators.
+ * Lines containing letters or digits (`feat.`, `x`, `and`) stay one literal entry, so existing
+ * one-per-line values keep their meaning. Protected names keep [parseNameSplitSetting] because
+ * names legitimately contain spaces.
+ */
+fun parseNameSeparatorSetting(value: String): List<String> {
+    return value
+        .lines()
+        .flatMap { line -> line.split('\t') }
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .flatMap { entry ->
+            val tokens = entry.split(whitespaceRegex).filter { it.isNotBlank() }
+            if (tokens.size > 1 && tokens.all { token -> token.none { it.isLetterOrDigit() } }) {
+                tokens
+            } else {
+                listOf(entry)
+            }
+        }
+        .distinctBy { it.lowercase() }
+}
+
+private val whitespaceRegex = Regex("""\s+""")
+
 private fun splitNames(
     value: String,
     symbolSeparatorPatterns: List<String>,
@@ -163,7 +206,7 @@ private fun separatorRegexFor(
 ): Regex? {
     val symbolParts = symbolSeparatorPatterns + customSeparators
         .filter { it.isNotBlank() }
-        .map { Regex.escape(it) }
+        .map { separatorPattern(it) }
     val alternatives = buildList {
         if (symbolParts.isNotEmpty()) {
             add("""\s*(?:${symbolParts.joinToString("|")})\s*""")
@@ -176,5 +219,30 @@ private fun separatorRegexFor(
     val pattern = alternatives.joinToString("|")
     return separatorRegexCache.getOrPut(pattern) {
         Regex(pattern, RegexOption.IGNORE_CASE)
+    }
+}
+
+/**
+ * Escaped separator pattern. When a separator starts/ends with a letter or digit of a
+ * space-delimited script (e.g. `and`, `x`, `feat.`), that edge must sit on a word boundary so
+ * `and` splits "A and B" but never "Sandra" (#675). CJK/Thai separators such as `和` keep matching
+ * inline because those scripts do not put spaces between names.
+ */
+private fun separatorPattern(separator: String): String {
+    val escaped = Regex.escape(separator)
+    val leading = if (separator.first().needsWordBoundary()) """(?<![\p{L}\p{N}])""" else ""
+    val trailing = if (separator.last().needsWordBoundary()) """(?![\p{L}\p{N}])""" else ""
+    return leading + escaped + trailing
+}
+
+private fun Char.needsWordBoundary(): Boolean {
+    if (!isLetterOrDigit()) return false
+    if (Character.isIdeographic(code)) return false
+    return when (Character.UnicodeScript.of(code)) {
+        Character.UnicodeScript.HAN,
+        Character.UnicodeScript.HIRAGANA,
+        Character.UnicodeScript.KATAKANA,
+        Character.UnicodeScript.THAI -> false
+        else -> true
     }
 }

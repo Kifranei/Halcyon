@@ -33,7 +33,8 @@ import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixSheetColumn
 import com.ella.music.ui.components.EllaMiuixSheetHandle
-import com.ella.music.ui.components.EllaMiuixTextField
+import androidx.compose.ui.focus.focusRequester
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.SongInfoSheet
 import com.ella.music.ui.components.SongMenuItem
 import com.ella.music.ui.components.TagEditorOptionKind
@@ -157,11 +158,14 @@ internal fun ArtistCreatePlaylistSheet(
             modifier = Modifier.padding(bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            EllaMiuixTextField(
+            TextField(
                 value = name,
                 onValueChange = { name = it },
                 label = stringResource(R.string.playlist_name_label),
-                focusRequester = focusRequester
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
             EllaMiuixSheetActions(
                 cancelText = stringResource(R.string.common_cancel),

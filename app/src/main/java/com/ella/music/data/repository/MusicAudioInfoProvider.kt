@@ -22,7 +22,9 @@ import java.util.concurrent.ConcurrentHashMap
 internal class MusicAudioInfoProvider(
     private val scanner: MusicScanner,
     private val audioTagRepository: AudioTagRepository,
-    private val metadataPathResolver: (Song) -> String
+    private val metadataPathResolver: (Song) -> String,
+    /** Live quality for streaming sources whose virtual path cannot be probed (NetEase). Never cached. */
+    private val onlineStreamInfo: (Song) -> AudioInfo? = { null }
 ) {
     private val audioInfoCache = ConcurrentHashMap<String, AudioInfo>()
     private val replayGainCache = ConcurrentHashMap<String, Float>()
@@ -52,6 +54,7 @@ internal class MusicAudioInfoProvider(
     }
 
     fun getAudioInfo(song: Song): AudioInfo {
+        onlineStreamInfo(song)?.let { return it }
         val cacheKey = song.metadataCacheKey()
         audioInfoCache[cacheKey]?.let { return it }
         val replayGainDb = getReplayGain(song)

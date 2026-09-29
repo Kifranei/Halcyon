@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">댓글</string>
+    <string name="netease_comments_title">댓글</string>
+    <string name="netease_comments_title_count">댓글(%1$s)</string>
+    <string name="netease_comments_sort_recommend">추천</string>
+    <string name="netease_comments_sort_hot">인기</string>
+    <string name="netease_comments_sort_latest">최신</string>
+    <string name="netease_comments_empty">아직 댓글이 없습니다</string>
+    <string name="netease_comments_error">댓글을 불러오지 못했습니다</string>
+    <string name="netease_comments_retry">다시 시도</string>
+    <string name="netease_comments_expand_replies">답글 보기(%1$d)</string>
+    <string name="netease_comments_more_replies">답글 더 보기</string>
+    <string name="netease_comments_collapse_replies">답글 숨기기</string>
+    <string name="netease_comments_reply_to">"@%1$s 님에게 답글: "</string>
+    <string name="netease_comments_load_more_failed">불러오지 못했습니다. 탭하여 다시 시도</string>
+    <string name="netease_comments_no_more">더 이상 댓글이 없습니다</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">좋아요</string>
+    <string name="netease_comments_reply">답글</string>
+    <string name="netease_comments_input_hint">무언가 남겨 보세요…</string>
+    <string name="netease_comments_reply_hint">@%1$s 님에게 답글</string>
+    <string name="netease_comments_send">보내기</string>
+    <string name="netease_comments_cancel_reply">답글 취소</string>
+    <string name="netease_comments_login_required">먼저 NetEase Cloud Music에 로그인하세요</string>
+    <string name="netease_comments_like_failed">좋아요를 처리하지 못했습니다. 잠시 후 다시 시도하세요</string>
+    <string name="netease_comments_send_failed">보내지 못했습니다. 잠시 후 다시 시도하세요</string>
+    <string name="netease_comments_send_failed_code">보내지 못했습니다(오류 %1$d)</string>
+    <string name="netease_comments_sent">보냈습니다</string>
+</resources>

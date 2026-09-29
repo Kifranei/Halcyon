@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Square-edged variant of ic_default_song_cover for full-bleed player artwork. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="96dp" android:height="96dp" android:viewportWidth="96" android:viewportHeight="96">
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.1" android:fillType="evenOdd" android:pathData="M0,0h96v96h-96z" />
+    <path android:fillColor="#90CAF9" android:fillAlpha="0.5" android:fillType="evenOdd" android:pathData="M0,0h96v96h-96z" />
+    <path android:fillColor="#F3F7F9" android:fillAlpha="0.2" android:fillType="evenOdd" android:pathData="M40.353,36.665L37.015,30.965C36.461,30.019 37.238,28.812 38.341,28.846C42.41,28.971 48.253,28.612 51.519,27.485C55.607,26.073 59.593,23.907 61,23C59.963,25.622 56.858,31.55 53.074,34.691C50.53,36.803 48.118,38.153 46.157,39.043L57.73,59.025C58.357,60.243 58.704,61.587 58.704,63C58.704,68.523 53.397,73 46.852,73C40.307,73 35,68.523 35,63C35,57.477 40.307,53 46.852,53C47.957,53 49.025,53.128 50.04,53.366L40.333,36.676L40.353,36.665Z" />
+</vector>

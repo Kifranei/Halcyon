@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">Сохранить в</string>
+    <string name="lyric_sidecar_destination_embedded">Записать в файл трека</string>
+    <string name="lyric_sidecar_destination_lrc">Сохранить как внешний .LRC</string>
+    <string name="lyric_sidecar_destination_ttml">Сохранить как внешний .TTML</string>
+    <string name="lyric_sidecar_destination_hint">Сохраняется как файл текста с тем же именем в папке трека. Аудиофайл не изменяется, поэтому дата изменения сохраняется.</string>
+    <string name="lyric_sidecar_save_lrc">Сохранить файл текста .LRC</string>
+    <string name="lyric_sidecar_save_ttml">Сохранить файл текста .TTML</string>
+    <string name="lyric_sidecar_saved">Сохранено: %1$s</string>
+    <string name="lyric_sidecar_no_write_access">Не удалось сохранить внешний текст: нет доступа на запись в эту папку. Предоставьте доступ ко всем файлам или добавьте папку через выбор папки в настройках сканирования.</string>
+    <string name="lyric_sidecar_convert_failed">Не удалось создать текст в выбранном формате</string>
+</resources>

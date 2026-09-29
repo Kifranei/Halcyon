@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">저장 위치</string>
+    <string name="lyric_sidecar_destination_embedded">노래 파일에 쓰기</string>
+    <string name="lyric_sidecar_destination_lrc">외부 .LRC로 저장</string>
+    <string name="lyric_sidecar_destination_ttml">외부 .TTML로 저장</string>
+    <string name="lyric_sidecar_destination_hint">노래와 같은 폴더에 같은 이름의 가사 파일로 저장합니다. 오디오 파일은 수정되지 않으므로 수정한 날짜가 유지됩니다.</string>
+    <string name="lyric_sidecar_save_lrc">.LRC 가사 파일 저장</string>
+    <string name="lyric_sidecar_save_ttml">.TTML 가사 파일 저장</string>
+    <string name="lyric_sidecar_saved">저장됨: %1$s</string>
+    <string name="lyric_sidecar_no_write_access">외부 가사를 저장할 수 없습니다: 이 폴더에 대한 쓰기 권한이 없습니다. 모든 파일 액세스 권한을 허용하거나 스캔 설정에서 폴더 선택기로 이 폴더를 추가하세요.</string>
+    <string name="lyric_sidecar_convert_failed">선택한 형식의 가사를 만들 수 없습니다</string>
+</resources>

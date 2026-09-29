@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_lyric_hdr_brightness">HDR 亮度</string>
+    <string name="settings_lyric_hdr_brightness_summary">高亮相对普通白色的亮度倍数（1.5×～2.5×）；实际可达亮度取决于屏幕</string>
+</resources>

@@ -15,6 +15,9 @@
     <cache-path
         name="cover_share"
         path="cover_share/" />
+    <cache-path
+        name="updates"
+        path="updates/" />
     <external-path
         name="external_storage"
         path="." />

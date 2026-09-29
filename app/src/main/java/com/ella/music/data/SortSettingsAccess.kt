@@ -67,6 +67,8 @@ interface SortSettingsAccess {
     suspend fun setMetadataCategorySortIndex(type: String, index: Int)
     suspend fun setMetadataCategoryDetailSongSortIndex(type: String, index: Int)
     suspend fun setMetadataCategoryDetailAlbumSortIndex(type: String, index: Int)
+    val sortMenuStyle: Flow<Int>
+    suspend fun setSortMenuStyle(style: Int)
 }
 
 internal class SortSettingsAccessImpl(private val context: Context) : SortSettingsAccess {
@@ -191,5 +193,19 @@ internal class SortSettingsAccessImpl(private val context: Context) : SortSettin
 
     override suspend fun setMetadataCategoryDetailAlbumSortIndex(type: String, index: Int) {
         setSortIndex(metadataCategoryDetailAlbumSortKey(type), index)
+    }
+
+    override val sortMenuStyle: Flow<Int> =
+        context.dataStore.data.map {
+            (it[SettingsManager.KEY_SORT_MENU_STYLE] ?: SettingsManager.SORT_MENU_STYLE_DROPDOWN)
+                .coerceIn(SettingsManager.SORT_MENU_STYLE_DROPDOWN, SettingsManager.SORT_MENU_STYLE_BOTTOM_SHEET)
+        }
+
+    override suspend fun setSortMenuStyle(style: Int) {
+        val safeStyle = style.coerceIn(
+            SettingsManager.SORT_MENU_STYLE_DROPDOWN,
+            SettingsManager.SORT_MENU_STYLE_BOTTOM_SHEET
+        )
+        context.dataStore.edit { it[SettingsManager.KEY_SORT_MENU_STYLE] = safeStyle }
     }
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_lyric_hdr_brightness">Яркость HDR</string>
+    <string name="settings_lyric_hdr_brightness_summary">Яркость подсветки относительно обычного белого (1,5×–2,5×); фактический уровень зависит от экрана</string>
+</resources>

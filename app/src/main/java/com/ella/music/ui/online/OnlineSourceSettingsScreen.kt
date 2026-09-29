@@ -35,10 +35,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.MusicFreePluginConfig
+import com.ella.music.data.musicfree.MusicFreePluginService
 import com.ella.music.data.LxSourceConfig
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lx.LxOnlineService
-import com.ella.music.ui.components.EllaMiuixTextField
+import com.ella.music.data.lx.readLxSourceText
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,6 +50,9 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import androidx.compose.ui.graphics.Color
+import com.ella.music.ui.components.wallpaperAwareCardColors
+import com.ella.music.ui.settings.SettingsCardGroup
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -82,7 +88,7 @@ fun LxSourceSettingsScreen(onBack: () -> Unit) {
             runCatching {
                 val script = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.bufferedReader(Charsets.UTF_8).readText()
+                        input.readLxSourceText()
                     }.orEmpty()
                 }
                 val (name, normalizedScript) = service.importSourceScript(script, allowRuntimeInspect = false)
@@ -183,7 +189,7 @@ private fun SourceSettingsScaffold(
     ) {
         EllaSmallTopAppBar(
             title = title,
-            color = ellaPageBackground(),
+            color = Color.Transparent,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -204,9 +210,9 @@ private fun SourceSettingsScaffold(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
             SmallTitle(text = stringResource(R.string.lx_source_import_section))
-            Card(modifier = Modifier.fillMaxWidth()) {
+            SettingsCardGroup {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                    EllaMiuixTextField(
+                    TextField(
                         value = importUrl,
                         onValueChange = onImportUrlChange,
                         label = importPlaceholder,
@@ -276,6 +282,7 @@ private fun SourceManageRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp),
+        colors = wallpaperAwareCardColors(defaultAlpha = 0.42f),
         onClick = { if (enabled && !selected) onSelect() }
     ) {
         Row(
@@ -312,5 +319,133 @@ private fun EmptySourceText(text: String) {
         fontSize = 14.sp,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
+    )
+}
+
+@Composable
+fun MusicFreePluginSettingsScreen(onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val service = remember(context) { MusicFreePluginService(context) }
+    val plugins by settingsManager.musicFreePlugins.collectAsState(initial = emptyList())
+    val selectedId by settingsManager.selectedMusicFreePluginId.collectAsState(initial = "")
+    var importUrl by remember { mutableStateOf("") }
+    var isBusy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("导入 MusicFree 插件后即可搜索在线歌曲") }
+
+    fun showToast(text: String) {
+        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    }
+
+    val localPluginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            isBusy = true
+            runCatching {
+                val script = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        input.readLxSourceText()
+                    }.orEmpty()
+                }
+                val (name, normalizedScript) = withContext(Dispatchers.IO) {
+                    service.importPluginScript(script, allowRuntimeInspect = true)
+                }
+                settingsManager.setMusicFreePlugin(uri.toString(), name, normalizedScript)
+                message = "已导入 $name"
+            }.onFailure {
+                message = it.localizedMessage ?: "本地导入失败"
+                showToast(message)
+            }
+            isBusy = false
+        }
+    }
+
+    SourceSettingsScaffold(
+        title = "MusicFree 插件管理",
+        onBack = onBack,
+        message = if (isBusy) "处理中..." else message,
+        importUrl = importUrl,
+        onImportUrlChange = { importUrl = it },
+        importPlaceholder = "https://.../plugin.js",
+        isBusy = isBusy,
+        onLocalImport = {
+            localPluginLauncher.launch(
+                arrayOf(
+                    "text/javascript",
+                    "application/javascript",
+                    "application/x-javascript",
+                    "text/*",
+                    "application/octet-stream"
+                )
+            )
+        },
+        onUrlImport = {
+            if (importUrl.isBlank()) {
+                showToast("请先输入插件地址")
+                return@SourceSettingsScaffold
+            }
+            scope.launch {
+                isBusy = true
+                runCatching {
+                    val result = service.importPlugins(importUrl)
+                    settingsManager.setMusicFreePlugins(result.plugins)
+                    importUrl = ""
+                    message = if (result.plugins.size == 1 && result.skippedCount == 0) {
+                        "已导入 ${result.plugins.first().name}"
+                    } else {
+                        "已导入 ${result.plugins.size} 个插件，跳过 ${result.skippedCount} 个"
+                    }
+                }.onFailure {
+                    message = it.localizedMessage ?: "导入失败"
+                    showToast(message)
+                }
+                isBusy = false
+            }
+        }
+    ) {
+        if (plugins.isEmpty()) {
+            EmptySourceText("还没有导入 MusicFree 插件")
+        } else {
+            plugins.forEach { plugin ->
+                MusicFreePluginManageRow(
+                    plugin = plugin,
+                    selected = plugin.id == selectedId || selectedId.isBlank() && plugin == plugins.first(),
+                    enabled = !isBusy,
+                    onSelect = {
+                        scope.launch {
+                            settingsManager.selectMusicFreePlugin(plugin.id)
+                            message = "已切换到 ${plugin.name}"
+                        }
+                    },
+                    onRemove = {
+                        scope.launch {
+                            settingsManager.removeMusicFreePlugin(plugin.id)
+                            message = "已移除 ${plugin.name}"
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MusicFreePluginManageRow(
+    plugin: MusicFreePluginConfig,
+    selected: Boolean,
+    enabled: Boolean,
+    onSelect: () -> Unit,
+    onRemove: () -> Unit
+) {
+    SourceManageRow(
+        title = plugin.name,
+        summary = plugin.url,
+        selected = selected,
+        enabled = enabled,
+        onSelect = onSelect,
+        onRemove = onRemove
     )
 }

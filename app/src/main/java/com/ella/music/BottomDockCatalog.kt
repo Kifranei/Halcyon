@@ -11,6 +11,7 @@ import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Notes
+import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Settings
 
 /**
@@ -27,6 +28,11 @@ internal fun bottomDockTabCatalog(): Map<String, BottomDockTab> = linkedMapOf(
         route = Screen.Library.route,
         label = stringResource(R.string.tab_library),
         icon = MiuixIcons.Regular.Music
+    ),
+    SettingsManager.BOTTOM_DOCK_ITEM_SEARCH to BottomDockTab(
+        route = Screen.LibrarySearch.createRoute(),
+        label = stringResource(R.string.common_search),
+        icon = MiuixIcons.Basic.Search
     ),
     SettingsManager.BOTTOM_DOCK_ITEM_PLAYLISTS to BottomDockTab(
         route = Screen.Playlists.createRoute(fromDock = true),
@@ -91,11 +97,11 @@ internal fun bottomDockTabCatalog(): Map<String, BottomDockTab> = linkedMapOf(
     SettingsManager.BOTTOM_DOCK_ITEM_ANALYTICS to BottomDockTab(
         route = Screen.Analytics.route,
         label = stringResource(R.string.analytics_title),
-        icon = MiuixIcons.Regular.Music
+        icon = com.ella.music.ui.components.AnalyticsTrendIcon
     ),
     SettingsManager.BOTTOM_DOCK_ITEM_LIBRARY_ANALYSIS to BottomDockTab(
         route = Screen.LibraryAnalysis.route,
         label = stringResource(R.string.analytics_library_analysis),
-        icon = MiuixIcons.Regular.Music
+        icon = com.ella.music.ui.components.AnalyticsTrendIcon
     )
 )

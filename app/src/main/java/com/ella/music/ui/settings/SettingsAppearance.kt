@@ -1,20 +1,30 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import com.ella.music.resetPlatformApplicationLocale
+import com.ella.music.syncPlatformApplicationLocale
 import com.ella.music.R
 import com.ella.music.data.BottomBarStyle
 import com.ella.music.data.ActionMenuIds
 import com.ella.music.data.SettingsManager
 import com.ella.music.player.PlaybackWidgetUpdater
+import com.ella.music.ui.player.WaveformProgressTuning
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -39,35 +49,33 @@ internal const val APPEARANCE_PAGE_QUEUE_TOOLBAR = "queue_toolbar"
  * scrolled/flashed — not the parent category hub.
  */
 internal fun appearanceSubpageForHighlight(highlight: String?): String {
-    val key = highlight.orEmpty()
-    if (key.isEmpty() || key == "appearance") return APPEARANCE_PAGE_THEME
-    return when {
-        key.contains("system_bar") || key.contains("startup_poster") ->
-            APPEARANCE_PAGE_SYSTEM_BARS
-        key.contains("wallpaper") ||
-            key.contains("beautiful_lyric") ||
-            key.contains("apple_flow") ||
-            key.contains("dynamic_flow") ||
-            key.contains("now_playing_flow") ||
-            key.contains("player_background") ->
+    return when (highlight.orEmpty()) {
+        "", "appearance", "theme_mode", "progressive_top_bar_blur", "monet_color", "player_bg_theme", "app_icon",
+        "font_scale", "display_scale", "widget_safe", "desktop_shortcuts" -> APPEARANCE_PAGE_THEME
+
+        "system_bars", "system_bars_reserve_space", "startup_poster", "player_system_bars",
+        "player_landscape_hide_system_bars" -> APPEARANCE_PAGE_SYSTEM_BARS
+
+        "wallpaper", "app_now_playing_flow_background", "bg_effect_version",
+        "beautiful_lyrics", "player_dynamic_flow", "apple_flow_speed",
+        "beautiful_lyrics_speed", "beautiful_lyrics_blur", "beautiful_lyrics_brightness",
+        "player_background", "player_background_image", "player_background_opacity",
+        "player_background_dim" ->
             APPEARANCE_PAGE_WALLPAPER
-        key.contains("search") ||
-            key.contains("playlist") ||
-            key.contains("category_grid") ||
-            key.contains("list_action") ||
-            key.contains("song_info") ||
-            key.contains("queue_toolbar") ||
-            key.contains("play_next_in_list") ||
-            key.contains("remove_from_playlist") ||
-            key.contains("open_player_on_play") ||
-            key.contains("mini_player_long_press") ||
-            key.contains("exclude_search") ->
-            APPEARANCE_PAGE_LIST
-        key == "player_bg_theme" -> APPEARANCE_PAGE_THEME
-        key.contains("player_") ||
-            key.contains("hi_res") ||
-            key.contains("transport_button") ->
-            APPEARANCE_PAGE_PLAYER
+
+        "auto_show_search_keyboard", "search_reopen_behavior", "search_click_playback_mode",
+        "playlist_show_rating_filter", "library_show_rating_filter", "list_quality_display",
+        "mini_player_long_press", "category_grid", "sort_menu_style", "list_action",
+        "list_action_menu", "song_info_layout", "queue_toolbar", "exclude_search_results_from_playlist",
+        "open_player_on_play", "play_next_in_lists", "remove_from_playlist" -> APPEARANCE_PAGE_LIST
+
+        "player_action_menu", "player_vertical_actions" -> APPEARANCE_PAGE_PLAYER_ACTION_MENU
+        "player_show_total_duration", "player_show_song_annotation", "player_tap_seek",
+        "transport_button_outlines", "player_immersive", "player_page",
+        "player_apple_music_immersive_cover", "apple_music_use_apple_favorite",
+        "player_title_position", "player_landscape", "player_cover_content_color",
+        "player_favorite_heart_pink", "player_cover_swipe", "hi_res_logo" -> APPEARANCE_PAGE_PLAYER
+
         else -> APPEARANCE_PAGE_THEME
     }
 }
@@ -77,6 +85,7 @@ internal fun SettingsAppearanceSection(
     highlightKey: String? = null,
     page: String = APPEARANCE_PAGE_HUB,
     onNavigateToBottomNavigationSettings: () -> Unit = {},
+    onNavigateToPlayerShortcutSettings: (String) -> Unit = {},
     onNavigateToAppearancePage: (String) -> Unit = {},
     onNavigateBack: () -> Unit = {},
     onNavigateToLyricFont: () -> Unit = {},
@@ -89,28 +98,58 @@ internal fun SettingsAppearanceSection(
     val listActionMenuLayout by settingsManager.listActionMenuLayout.collectCachedAsState("listActionMenuLayout", "")
     val songInfoLayout by settingsManager.songInfoLayout.collectCachedAsState("songInfoLayout", "")
     val queueToolbarLayout by settingsManager.queueToolbarLayout.collectCachedAsState("queueToolbarLayout", "")
+    var showListActionMenuSheet by remember { mutableStateOf(false) }
+    var showSongInfoLayoutSheet by remember { mutableStateOf(false) }
+    var showQueueToolbarSheet by remember { mutableStateOf(false) }
+    var showPlayerActionMenuSheet by remember { mutableStateOf(false) }
 
     if (page == APPEARANCE_PAGE_PLAYER_ACTION_MENU) {
-        SmallTitle(text = stringResource(R.string.settings_player_action_menu))
-        ActionMenuLayoutPage(
+        SettingsCardGroup {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_shortcut_items) {
+            ArrowPreference(
+                title = stringResource(R.string.settings_player_shortcut_items),
+                summary = stringResource(R.string.settings_player_shortcut_items_summary),
+                onClick = { onNavigateToPlayerShortcutSettings("non_immersive") }
+            )
+            } // search-anchor:end
+
+            SettingsFocusAnchor(active = highlightKey == "player_action_menu" || highlightKey == "player_vertical_actions") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_vertical_actions) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_player_vertical_actions),
+                    summary = stringResource(R.string.settings_action_menu_summary),
+                    onClick = { showPlayerActionMenuSheet = true }
+                )
+                } // search-anchor:end
+
+            }
+        }
+        ActionMenuReorderableSheet(
+            show = showPlayerActionMenuSheet,
+            title = stringResource(R.string.settings_player_vertical_actions),
+            subtitle = stringResource(R.string.settings_action_menu_summary),
             savedLayout = playerActionMenuLayout,
-            defaultOrder = ActionMenuIds.playerDefaults,
-            onCancel = onNavigateBack,
+            defaultOrder = (ActionMenuIds.playerShortcutDefaults + ActionMenuIds.playerDefaults).distinct(),
+            onDismissRequest = { showPlayerActionMenuSheet = false },
             onSave = { value ->
                 scope.launch {
                     settingsManager.setPlayerActionMenuLayout(value)
-                    onNavigateBack()
+                    showPlayerActionMenuSheet = false
                 }
             }
         )
         return
     }
     if (page == APPEARANCE_PAGE_LIST_ACTION_MENU) {
-        SmallTitle(text = stringResource(R.string.settings_list_action_menu))
-        ActionMenuLayoutPage(
+        ActionMenuReorderableSheet(
+            show = true,
+            title = stringResource(R.string.settings_list_action_menu),
+            subtitle = stringResource(R.string.settings_action_menu_summary),
             savedLayout = listActionMenuLayout,
             defaultOrder = ActionMenuIds.listDefaults,
-            onCancel = onNavigateBack,
+            onDismissRequest = onNavigateBack,
             onSave = { value ->
                 scope.launch {
                     settingsManager.setListActionMenuLayout(value)
@@ -121,11 +160,13 @@ internal fun SettingsAppearanceSection(
         return
     }
     if (page == APPEARANCE_PAGE_SONG_INFO_LAYOUT) {
-        SmallTitle(text = stringResource(R.string.settings_song_info_layout))
-        ActionMenuLayoutPage(
+        ActionMenuReorderableSheet(
+            show = true,
+            title = stringResource(R.string.settings_song_info_layout),
+            subtitle = stringResource(R.string.settings_action_menu_summary),
             savedLayout = songInfoLayout,
             defaultOrder = ActionMenuIds.songInfoDefaults,
-            onCancel = onNavigateBack,
+            onDismissRequest = onNavigateBack,
             onSave = { value ->
                 scope.launch {
                     settingsManager.setSongInfoLayout(value)
@@ -136,11 +177,13 @@ internal fun SettingsAppearanceSection(
         return
     }
     if (page == APPEARANCE_PAGE_QUEUE_TOOLBAR) {
-        SmallTitle(text = stringResource(R.string.settings_queue_toolbar_layout))
-        ActionMenuLayoutPage(
+        ActionMenuReorderableSheet(
+            show = true,
+            title = stringResource(R.string.settings_queue_toolbar_layout),
+            subtitle = stringResource(R.string.settings_action_menu_summary),
             savedLayout = queueToolbarLayout,
             defaultOrder = ActionMenuIds.queueToolbarDefaults,
-            onCancel = onNavigateBack,
+            onDismissRequest = onNavigateBack,
             onSave = { value ->
                 scope.launch {
                     settingsManager.setQueueToolbarLayout(value)
@@ -152,6 +195,7 @@ internal fun SettingsAppearanceSection(
     }
 
     val themeMode by settingsManager.themeMode.collectCachedAsState("themeMode", 0)
+    val progressiveTopBarBlur by settingsManager.progressiveTopBarBlur.collectCachedAsState("progressiveTopBarBlur", true)
     val appLanguage by settingsManager.appLanguage.collectCachedAsState("appLanguage", SettingsManager.APP_LANGUAGE_SYSTEM)
     val appFontScalePercent by settingsManager.appFontScalePercent.collectCachedAsState(
         "appFontScalePercent",
@@ -168,11 +212,23 @@ internal fun SettingsAppearanceSection(
     val widgetSafeLayout by settingsManager.widgetSafeLayout.collectCachedAsState("widgetSafeLayout", false)
     val bottomBarStyle by settingsManager.bottomBarStyle.collectCachedAsState(
         "bottomBarStyle",
-        BottomBarStyle.LiquidGlass
+        BottomBarStyle.Floating
     )
     val systemBarsMode by settingsManager.systemBarsMode.collectCachedAsState(
         "systemBarsMode",
         SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val hideLandscapeBars by settingsManager.playerLandscapeHideSystemBars.collectCachedAsState(
+        "playerLandscapeHideSystemBars",
+        false
+    )
+    val playerSystemBarsMode by settingsManager.playerSystemBarsMode.collectCachedAsState(
+        "playerSystemBarsMode",
+        SettingsManager.DEFAULT_PLAYER_SYSTEM_BARS_MODE
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectCachedAsState(
+        "systemBarsReserveSpace",
+        SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
     )
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectCachedAsState("startupPosterEnabled", false)
     val startupPosterUri by settingsManager.startupPosterUri.collectCachedAsState("startupPosterUri", "")
@@ -192,6 +248,7 @@ internal fun SettingsAppearanceSection(
         "appNowPlayingFlowBackground",
         true
     )
+    val bgEffectVersion by settingsManager.bgEffectVersion.collectCachedAsState("bgEffectVersion", settingsManager.defaultBgEffectVersion)
     val playerBackgroundEnabled by settingsManager.playerBackgroundEnabled.collectCachedAsState("playerBackgroundEnabled", false)
     val playerBackgroundUri by settingsManager.playerBackgroundUri.collectCachedAsState("playerBackgroundUri", "")
     val playerBackgroundOpacity by settingsManager.playerBackgroundOpacity.collectCachedAsState(
@@ -214,8 +271,6 @@ internal fun SettingsAppearanceSection(
         "beautifulLyricsBrightness",
         70
     )
-    val homeCardColor by settingsManager.homeCardColor.collectCachedAsState("homeCardColor", "")
-    val homeCardOpacity by settingsManager.homeCardOpacity.collectCachedAsState("homeCardOpacity", 58)
     val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectCachedAsState("dynamicCoverEnabled", false)
     val musicVideoSyncEnabled by settingsManager.musicVideoSyncEnabled.collectCachedAsState(
         "musicVideoSyncEnabled",
@@ -242,18 +297,52 @@ internal fun SettingsAppearanceSection(
     )
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectCachedAsState("hiResLogoEnabled", false)
     val hiResLogoUri by settingsManager.hiResLogoUri.collectCachedAsState("hiResLogoUri", "")
-    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectCachedAsState("playerImmersiveCover", false)
+    val playerCenterTitle by settingsManager.playerCenterTitle.collectCachedAsState("playerCenterTitle", false)
+    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectCachedAsState("playerImmersiveCover", true)
+    val appleMusicPlayerImmersiveCover by settingsManager.appleMusicPlayerImmersiveCover.collectCachedAsState(
+        "appleMusicPlayerImmersiveCover",
+        false
+    )
+    val appleMusicUseAppleFavorite by settingsManager.appleMusicUseAppleFavorite.collectCachedAsState(
+        "appleMusicUseAppleFavorite",
+        true
+    )
+    val playerFavoriteHeartPink by settingsManager.playerFavoriteHeartPink.collectCachedAsState(
+        "playerFavoriteHeartPink",
+        false
+    )
     val playerCoverContentColor by settingsManager.playerCoverContentColor.collectCachedAsState("playerCoverContentColor", false)
     val transportButtonOutlines by settingsManager.transportButtonOutlines.collectCachedAsState(
         "transportButtonOutlines",
         SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
     )
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectCachedAsState("playerTapSeekEnabled", true)
-    val playerProgressShowQuality by settingsManager.playerProgressShowQuality.collectCachedAsState("playerProgressShowQuality", true)
-    val playerProgressShowAudioInfo by settingsManager.playerProgressShowAudioInfo.collectCachedAsState("playerProgressShowAudioInfo", true)
-    val playerProgressShowOutputDevice by settingsManager.playerProgressShowOutputDevice.collectCachedAsState("playerProgressShowOutputDevice", true)
+    val playerProgressInfoPriority by settingsManager.playerProgressInfoPriority.collectCachedAsState(
+        "playerProgressInfoPriority",
+        SettingsManager.DEFAULT_PLAYER_PROGRESS_INFO_PRIORITY
+    )
     val playerProgressLongPressCycle by settingsManager.playerProgressLongPressCycle.collectCachedAsState("playerProgressLongPressCycle", false)
     val playerProgressInfoSeparated by settingsManager.playerProgressInfoSeparated.collectCachedAsState("playerProgressInfoSeparated", false)
+    val playerProgressStyle by settingsManager.playerProgressStyle.collectCachedAsState(
+        "playerProgressStyle",
+        SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE
+    )
+    val playerWaveformScaleAnimation by settingsManager.playerWaveformScaleAnimation.collectCachedAsState(
+        "playerWaveformScaleAnimation",
+        SettingsManager.DEFAULT_PLAYER_WAVEFORM_SCALE_ANIMATION
+    )
+    val playerWaveformDensity by settingsManager.playerWaveformDensity.collectCachedAsState(
+        "playerWaveformDensity",
+        SettingsManager.DEFAULT_PLAYER_WAVEFORM_DENSITY
+    )
+    val playerWaveformPeakHeight by settingsManager.playerWaveformPeakHeight.collectCachedAsState(
+        "playerWaveformPeakHeight",
+        SettingsManager.DEFAULT_PLAYER_WAVEFORM_PEAK_HEIGHT
+    )
+    val audioVisualizerHeight by settingsManager.audioVisualizerHeight.collectCachedAsState(
+        "audioVisualizerHeight",
+        SettingsManager.DEFAULT_AUDIO_VISUALIZER_HEIGHT
+    )
     val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectCachedAsState(
         "playerShowTotalDuration",
         SettingsManager.DEFAULT_PLAYER_SHOW_TOTAL_DURATION
@@ -261,10 +350,6 @@ internal fun SettingsAppearanceSection(
     val playerShowSongAnnotation by settingsManager.playerShowSongAnnotation.collectCachedAsState("playerShowSongAnnotation", true)
     val playerCoverSwipeEnabled by settingsManager.playerCoverSwipeEnabled.collectCachedAsState("playerCoverSwipeEnabled", true)
     val playerCoverLongPressPreviewEnabled by settingsManager.playerCoverLongPressPreviewEnabled.collectCachedAsState("playerCoverLongPressPreviewEnabled", true)
-    val playerPredictiveBackEnabled by settingsManager.playerPredictiveBackEnabled.collectCachedAsState(
-        "playerPredictiveBackEnabled",
-        false
-    )
     val playerTitlePosition by settingsManager.playerTitlePosition.collectCachedAsState(
         "playerTitlePosition",
         SettingsManager.PLAYER_TITLE_POSITION_BELOW_COVER
@@ -279,6 +364,10 @@ internal fun SettingsAppearanceSection(
     )
     val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectCachedAsState("playlistSpecialEntriesVisible", false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectCachedAsState("showPlayNextInLists", false)
+    val listQualityDisplayMode by settingsManager.listQualityDisplayMode.collectCachedAsState(
+        "listQualityDisplayMode",
+        SettingsManager.LIST_QUALITY_DISPLAY_TABLET
+    )
     val librarySongTitleMarquee by settingsManager.librarySongTitleMarquee.collectCachedAsState("librarySongTitleMarquee", true)
     val showRemoveFromPlaylistButton by settingsManager.showRemoveFromPlaylistButton.collectCachedAsState("showRemoveFromPlaylistButton", true)
     val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectCachedAsState("excludeSearchResultsFromPlaylist", false)
@@ -286,8 +375,9 @@ internal fun SettingsAppearanceSection(
         "searchClickPlaybackMode",
         SettingsManager.DEFAULT_SEARCH_CLICK_PLAYBACK_MODE
     )
-    val playlistShowRatingFilter by settingsManager.playlistShowRatingFilter.collectCachedAsState("playlistShowRatingFilter", true)
-    val playlistShowFavoriteFilter by settingsManager.playlistShowFavoriteFilter.collectCachedAsState("playlistShowFavoriteFilter", true)
+    val playlistShowRatingFilter by settingsManager.playlistShowRatingFilter.collectCachedAsState("playlistShowRatingFilter", false)
+    val playlistShowFavoriteFilter by settingsManager.playlistShowFavoriteFilter.collectCachedAsState("playlistShowFavoriteFilter", false)
+    val libraryShowRatingFilter by settingsManager.libraryShowRatingFilter.collectCachedAsState("libraryShowRatingFilter", true)
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectCachedAsState("autoShowSearchKeyboard", true)
     val searchReopenBehavior by settingsManager.searchReopenBehavior.collectCachedAsState(
         "searchReopenBehavior",
@@ -306,7 +396,11 @@ internal fun SettingsAppearanceSection(
     )
     val librarySongGridColumnsTablet by settingsManager.librarySongGridColumnsTablet.collectCachedAsState(
         "librarySongGridColumnsTablet",
-        5
+        3
+    )
+    val sortMenuStyle by settingsManager.sortMenuStyle.collectCachedAsState(
+        "sortMenuStyle",
+        SettingsManager.SORT_MENU_STYLE_DROPDOWN
     )
     val playerBgTheme by settingsManager.playerBackgroundTheme.collectCachedAsState(
         "playerBgTheme",
@@ -327,6 +421,13 @@ internal fun SettingsAppearanceSection(
     val selectedPlayerTitlePosition = playerTitlePosition.coerceIn(playerTitlePositionLabels.indices)
     val playerTitlePositionEntries = remember(playerTitlePositionLabels) {
         playerTitlePositionLabels.map { DropdownItem(title = it) }
+    }
+    val favoriteHeartColorLabels = listOf(
+        stringResource(R.string.settings_player_favorite_heart_color_monochrome),
+        stringResource(R.string.settings_player_favorite_heart_color_pink)
+    )
+    val favoriteHeartColorEntries = remember(favoriteHeartColorLabels) {
+        favoriteHeartColorLabels.map { DropdownItem(title = it) }
     }
     val searchReopenBehaviorLabels = listOf(
         stringResource(R.string.settings_search_reopen_select),
@@ -372,6 +473,20 @@ internal fun SettingsAppearanceSection(
         SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO to
             stringResource(R.string.settings_player_landscape_style_music_video)
     )
+    val bgEffectOptions = remember {
+        listOf(
+            SettingsManager.BG_EFFECT_OS1 to "OS1",
+            SettingsManager.BG_EFFECT_OS2 to "OS2",
+            SettingsManager.BG_EFFECT_OS3 to "OS3",
+        )
+    }
+    val bgEffectEntries = remember(bgEffectOptions) {
+        bgEffectOptions.map { DropdownItem(title = it.second) }
+    }
+    val selectedBgEffectIndex = bgEffectOptions
+        .indexOfFirst { (version, _) -> version == bgEffectVersion }
+        .takeIf { it >= 0 }
+        ?: 1
     val selectedPlayerLandscapeStyle = playerLandscapeStyleOptions
         .indexOfFirst { (style, _) -> style == playerLandscapeStyle }
         .takeIf { it >= 0 }
@@ -402,9 +517,90 @@ internal fun SettingsAppearanceSection(
         stringResource(R.string.settings_system_bars_hide_navigation),
         stringResource(R.string.settings_system_bars_hide_both)
     )
+    val systemBarsModeComments = listOf(
+        stringResource(R.string.settings_system_bars_show_both_comment),
+        stringResource(R.string.settings_system_bars_hide_status_comment),
+        stringResource(R.string.settings_system_bars_hide_navigation_comment),
+        stringResource(R.string.settings_system_bars_hide_both_comment)
+    )
     val selectedSystemBarsMode = systemBarsMode.coerceIn(systemBarsModeLabels.indices)
-    val systemBarsModeEntries = remember(systemBarsModeLabels) {
-        systemBarsModeLabels.map { DropdownItem(title = it) }
+    val immersivePlayerSectionLabel = stringResource(R.string.settings_immersive_player_section)
+    val playerSystemBarsModeLabels = listOf(
+        stringResource(R.string.settings_player_immersive_disabled),
+        stringResource(R.string.settings_player_immersive_sync),
+        stringResource(R.string.settings_system_bars_show_both),
+        stringResource(R.string.settings_system_bars_hide_status),
+        stringResource(R.string.settings_system_bars_hide_navigation),
+        stringResource(R.string.settings_system_bars_hide_both)
+    )
+    val selectedPlayerSystemBarsMode = playerSystemBarsMode.coerceIn(playerSystemBarsModeLabels.indices)
+    val landscapeHideEnableLabel = stringResource(R.string.settings_player_landscape_hide_enable)
+    val landscapeHideDisableLabel = stringResource(R.string.settings_player_landscape_hide_disable)
+    val immersiveModeEntries = remember(
+        systemBarsModeLabels,
+        systemBarsModeComments,
+        selectedSystemBarsMode,
+        playerSystemBarsModeLabels,
+        selectedPlayerSystemBarsMode,
+        hideLandscapeBars,
+        immersivePlayerSectionLabel,
+        landscapeHideEnableLabel,
+        landscapeHideDisableLabel
+    ) {
+        listOf(
+            DropdownEntry(
+                items = systemBarsModeLabels.mapIndexed { index, label ->
+                    DropdownItem(
+                        text = label,
+                        summary = systemBarsModeComments[index],
+                        selected = selectedPlayerSystemBarsMode == SettingsManager.PLAYER_SYSTEM_BARS_SYNC &&
+                            index == selectedSystemBarsMode,
+                        onClick = {
+                            scope.launch {
+                                settingsManager.setSystemBarsMode(index)
+                                settingsManager.setPlayerSystemBarsMode(
+                                    SettingsManager.PLAYER_SYSTEM_BARS_SYNC
+                                )
+                            }
+                        }
+                    )
+                }
+            ),
+            DropdownEntry(
+                items = listOf(
+                    DropdownItem(
+                        text = immersivePlayerSectionLabel,
+                        enabled = false
+                    )
+                ) + playerSystemBarsModeLabels.mapIndexed { index, label ->
+                    DropdownItem(
+                        text = label,
+                        selected = index == selectedPlayerSystemBarsMode,
+                        onClick = {
+                            scope.launch { settingsManager.setPlayerSystemBarsMode(index) }
+                        }
+                    )
+                }
+            ),
+            DropdownEntry(
+                items = listOf(
+                    DropdownItem(
+                        text = landscapeHideEnableLabel,
+                        selected = hideLandscapeBars,
+                        onClick = {
+                            scope.launch { settingsManager.setPlayerLandscapeHideSystemBars(true) }
+                        }
+                    ),
+                    DropdownItem(
+                        text = landscapeHideDisableLabel,
+                        selected = !hideLandscapeBars,
+                        onClick = {
+                            scope.launch { settingsManager.setPlayerLandscapeHideSystemBars(false) }
+                        }
+                    )
+                )
+            )
+        )
     }
 
     val themeLabels = listOf(
@@ -414,6 +610,14 @@ internal fun SettingsAppearanceSection(
     )
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val themeEntries = remember(themeLabels) { themeLabels.map { DropdownItem(title = it) } }
+    val listQualityDisplayLabels = listOf(
+        stringResource(R.string.settings_list_quality_display_tablet),
+        stringResource(R.string.settings_list_quality_display_phone),
+        stringResource(R.string.settings_list_quality_display_always)
+    )
+    val listQualityDisplayEntries = remember(listQualityDisplayLabels) {
+        listQualityDisplayLabels.map { DropdownItem(title = it) }
+    }
 
     val monetMode by settingsManager.monetColorMode.collectCachedAsState("monetMode", 0)
     val monetLabels = listOf(
@@ -433,7 +637,9 @@ internal fun SettingsAppearanceSection(
         SettingsManager.APP_LANGUAGE_KO to stringResource(R.string.settings_language_korean),
         SettingsManager.APP_LANGUAGE_DE to stringResource(R.string.settings_language_german),
         SettingsManager.APP_LANGUAGE_FR to stringResource(R.string.settings_language_french),
-        SettingsManager.APP_LANGUAGE_RU to stringResource(R.string.settings_language_russian)
+        SettingsManager.APP_LANGUAGE_RU to stringResource(R.string.settings_language_russian),
+        SettingsManager.APP_LANGUAGE_TR to stringResource(R.string.settings_language_turkish),
+        SettingsManager.APP_LANGUAGE_AR to stringResource(R.string.settings_language_arabic)
     )
     val selectedLanguageIndex = languageOptions.indexOfFirst { it.first == appLanguage }.takeIf { it >= 0 } ?: 0
     val languageEntries = remember(languageOptions) {
@@ -448,12 +654,13 @@ internal fun SettingsAppearanceSection(
         SettingsManager.APP_LANGUAGE_DE -> stringResource(R.string.settings_language_summary_german)
         SettingsManager.APP_LANGUAGE_FR -> stringResource(R.string.settings_language_summary_french)
         SettingsManager.APP_LANGUAGE_RU -> stringResource(R.string.settings_language_summary_russian)
+        SettingsManager.APP_LANGUAGE_TR -> stringResource(R.string.settings_language_summary_turkish)
+        SettingsManager.APP_LANGUAGE_AR -> stringResource(R.string.settings_language_summary_arabic)
         else -> stringResource(R.string.settings_language_summary_system)
     }
     val appIconOptions = listOf(
         SettingsManager.APP_ICON_STYLE_DEFAULT to stringResource(R.string.settings_app_icon_default),
         SettingsManager.APP_ICON_STYLE_ANIME to stringResource(R.string.settings_app_icon_anime),
-        SettingsManager.APP_ICON_STYLE_BLACK_HAIR to stringResource(R.string.settings_app_icon_black_hair),
         SettingsManager.APP_ICON_STYLE_LOLI to stringResource(R.string.settings_app_icon_loli)
     )
     val selectedAppIconIndex = appIconOptions.indexOfFirst { it.first == appIconStyle }
@@ -462,6 +669,9 @@ internal fun SettingsAppearanceSection(
     val appIconEntries = remember(appIconOptions) {
         appIconOptions.map { (_, label) -> DropdownItem(title = label) }
     }
+    val appShortcutOrder by settingsManager.appShortcutOrder.collectAsState(
+        initial = SettingsManager.DEFAULT_APP_SHORTCUT_ORDER
+    )
 
     val bottomBarStyles = remember {
         listOf(BottomBarStyle.Normal, BottomBarStyle.Floating, BottomBarStyle.LiquidGlass)
@@ -510,25 +720,41 @@ internal fun SettingsAppearanceSection(
     val tabletSongGridEntries = remember(context) {
         tabletSongGridRange.map { DropdownItem(title = context.getString(R.string.settings_category_grid_columns_option, it)) }
     }
+    val sortMenuStyleEntries = remember(context) {
+        listOf(
+            DropdownItem(title = context.getString(R.string.settings_sort_menu_style_dropdown)),
+            DropdownItem(title = context.getString(R.string.settings_sort_menu_style_bottom_sheet))
+        )
+    }
 
     val startupPosterPicker = rememberAppearanceImagePicker(
         currentUri = startupPosterUri,
         imageName = "startup_poster",
+        cropTitle = stringResource(R.string.settings_startup_poster_image),
+        enableCrop = true,
+        defaultRatio = 9f / 16f,
         onImagePersisted = settingsManager::setStartupPosterUri
     )
     val appWallpaperPicker = rememberAppearanceImagePicker(
         currentUri = appWallpaperUri,
         imageName = "app_wallpaper",
+        cropTitle = stringResource(R.string.settings_app_wallpaper_image),
+        enableCrop = true,
+        defaultRatio = null,
         onImagePersisted = settingsManager::setAppWallpaperUri
     )
     val playerBackgroundPicker = rememberAppearanceImagePicker(
         currentUri = playerBackgroundUri,
         imageName = "player_background",
+        cropTitle = stringResource(R.string.settings_player_background_image),
+        enableCrop = true,
+        defaultRatio = null,
         onImagePersisted = settingsManager::setPlayerBackgroundUri
     )
     val hiResLogoPicker = rememberAppearanceImagePicker(
         currentUri = hiResLogoUri,
         imageName = "hi_res_logo",
+        enableCrop = false,
         onImagePersisted = settingsManager::setHiResLogoUri
     )
     val dynamicCoverPermissionLauncher = rememberDynamicCoverPermissionLauncher(settingsManager)
@@ -546,41 +772,69 @@ internal fun SettingsAppearanceSection(
         SmallTitle(text = stringResource(R.string.settings_appearance))
         SettingsCardGroup {
             Column {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_appearance_theme_page) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_appearance_theme_page),
                     summary = stringResource(R.string.settings_appearance_theme_page_summary),
                     onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_THEME) }
                 )
+                } // search-anchor:end
+
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_appearance_system_bars_page) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_appearance_system_bars_page),
                     summary = stringResource(R.string.settings_appearance_system_bars_page_summary),
                     onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_SYSTEM_BARS) }
                 )
+                } // search-anchor:end
+
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_appearance_wallpaper_page) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_appearance_wallpaper_page),
                     summary = stringResource(R.string.settings_appearance_wallpaper_page_summary),
                     onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_WALLPAPER) }
                 )
+                } // search-anchor:end
+
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_appearance_player_page) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_appearance_player_page),
                     summary = stringResource(R.string.settings_appearance_player_page_summary),
                     onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_PLAYER) }
                 )
+                } // search-anchor:end
+
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_appearance_list_page) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_appearance_list_page),
                     summary = stringResource(R.string.settings_appearance_list_page_summary),
                     onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_LIST) }
                 )
+                } // search-anchor:end
+
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_bottom_dock_items) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_bottom_dock_items),
                     summary = stringResource(R.string.settings_bottom_dock_items_summary),
                     onClick = onNavigateToBottomNavigationSettings
                 )
+                } // search-anchor:end
+
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_font_settings) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_font_settings),
                     summary = stringResource(R.string.settings_lyric_font),
                     onClick = onNavigateToLyricFont
                 )
+                } // search-anchor:end
+
             }
         }
         SettingsHomeCustomizeSection(
@@ -598,7 +852,21 @@ internal fun SettingsAppearanceSection(
 
     if (page == APPEARANCE_PAGE_THEME) SettingsCardGroup {
         Column {
+            SettingsFocusAnchor(active = highlightKey == "progressive_top_bar_blur") {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_progressive_top_bar_blur) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_progressive_top_bar_blur),
+                summary = stringResource(R.string.settings_progressive_top_bar_blur_summary),
+                checked = progressiveTopBarBlur,
+                onCheckedChange = { enabled -> scope.launch { settingsManager.setProgressiveTopBarBlur(enabled) } }
+            )
+            } // search-anchor:end
+
+            }
             SettingsFocusAnchor(active = highlightKey == "theme_mode") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_theme_mode) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_theme_mode),
                     summary = stringResource(R.string.settings_theme_mode_summary),
@@ -608,8 +876,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setThemeMode(index) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "monet_color") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_monet_color) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_monet_color),
                     summary = stringResource(R.string.settings_monet_color_summary),
@@ -619,8 +891,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setMonetColorMode(index) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "player_bg_theme") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_bg_theme) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_player_bg_theme),
                     summary = stringResource(R.string.settings_player_bg_theme_summary),
@@ -630,7 +906,11 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerBackgroundTheme(index) }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_language) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_language),
                 summary = languageSummary,
@@ -638,10 +918,21 @@ internal fun SettingsAppearanceSection(
                 selectedIndex = selectedLanguageIndex,
                 onSelectedIndexChange = { index ->
                     languageOptions.getOrNull(index)?.first?.let { language ->
-                        scope.launch { settingsManager.setAppLanguage(language) }
+                        scope.launch {
+                            settingsManager.setAppLanguage(language)
+                            if (language == SettingsManager.APP_LANGUAGE_SYSTEM) {
+                                context.resetPlatformApplicationLocale()
+                            } else {
+                                context.syncPlatformApplicationLocale(language)
+                            }
+                        }
                     }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_app_font_scale) {
             SettingsIntSliderPreference(
                 title = stringResource(R.string.settings_app_font_scale),
                 summary = stringResource(R.string.settings_app_font_scale_summary),
@@ -656,6 +947,10 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setAppFontScalePercent(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_app_display_scale) {
             SettingsIntSliderPreference(
                 title = stringResource(R.string.settings_app_display_scale),
                 summary = stringResource(R.string.settings_app_display_scale_summary),
@@ -670,7 +965,11 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setAppDisplayScalePercent(it) }
                 }
             )
+            } // search-anchor:end
+
             SettingsFocusAnchor(active = highlightKey == "app_icon") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_app_icon) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_app_icon),
                     summary = stringResource(
@@ -685,7 +984,20 @@ internal fun SettingsAppearanceSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
+            SettingsFocusAnchor(active = highlightKey == "desktop_shortcuts") {
+                SettingsAppShortcutsPreference(
+                    shortcutIds = appShortcutOrder,
+                    onShortcutIdsChange = { ids ->
+                        scope.launch { settingsManager.setAppShortcutOrder(ids) }
+                    }
+                )
+            }
+            CustomLauncherIconPreference()
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_widget_safe_layout) {
             SwitchPreference(
                 title = stringResource(R.string.settings_widget_safe_layout),
                 summary = stringResource(R.string.settings_widget_safe_layout_summary),
@@ -697,6 +1009,10 @@ internal fun SettingsAppearanceSection(
                     }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_bottom_bar_style) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_bottom_bar_style),
                 summary = bottomBarStyleSummary,
@@ -708,25 +1024,46 @@ internal fun SettingsAppearanceSection(
                     }
                 }
             )
+            } // search-anchor:end
+
         }
     }
 
     if (page == APPEARANCE_PAGE_SYSTEM_BARS) SettingsCardGroup {
         Column {
-            SettingsFocusAnchor(active = highlightKey == "system_bars") {
+            SettingsFocusAnchor(
+                active = highlightKey == "system_bars" ||
+                    highlightKey == "player_system_bars" ||
+                    highlightKey == "player_landscape_hide_system_bars"
+            ) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_system_bars_mode) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_system_bars_mode),
-                    summary = stringResource(
-                        R.string.settings_system_bars_mode_summary,
-                        systemBarsModeLabels[selectedSystemBarsMode]
-                    ),
-                    items = systemBarsModeEntries,
-                    selectedIndex = selectedSystemBarsMode,
-                    onSelectedIndexChange = { index ->
-                        scope.launch { settingsManager.setSystemBarsMode(index) }
+                    summary = stringResource(R.string.settings_system_bars_mode_hint),
+                    entries = immersiveModeEntries,
+                    collapseOnSelection = false
+                )
+                } // search-anchor:end
+
+            }
+            SettingsFocusAnchor(active = highlightKey == "system_bars_reserve_space") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_system_bars_reserve_space) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_system_bars_reserve_space),
+                    summary = stringResource(R.string.settings_system_bars_reserve_space_summary),
+                    checked = systemBarsReserveSpace,
+                    enabled = systemBarsMode != SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setSystemBarsReserveSpace(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_startup_poster) {
             SwitchPreference(
                 title = stringResource(R.string.settings_startup_poster),
                 summary = stringResource(
@@ -738,19 +1075,49 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setStartupPosterEnabled(it) }
                 }
             )
+            } // search-anchor:end
+
+            var showPosterDurationDialog by remember { mutableStateOf(false) }
+            val posterDurationEnabled = startupPosterEnabled && startupPosterUri.isNotBlank()
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_startup_poster_duration) {
             SettingsIntSliderPreference(
                 title = stringResource(R.string.settings_startup_poster_duration),
-                summary = stringResource(R.string.settings_startup_poster_duration_summary),
-                value = startupPosterDurationMs / 100,
-                valueRange = 1..30,
+                summary = "",
+                value = startupPosterDurationMs / 10,
+                valueRange = (SettingsManager.STARTUP_POSTER_DURATION_MIN_MS / 10)..
+                    (SettingsManager.STARTUP_POSTER_DURATION_MAX_MS / 10),
                 valueText = stringResource(
                     R.string.settings_startup_poster_duration_value,
                     startupPosterDurationMs / 1_000f
                 ),
-                enabled = startupPosterEnabled && startupPosterUri.isNotBlank(),
-                steps = 28,
-                onValueChange = { scope.launch { settingsManager.setStartupPosterDurationMs(it * 100) } }
+                enabled = posterDurationEnabled,
+                steps = 0,
+                showKeyPoints = false,
+                onClick = { if (posterDurationEnabled) showPosterDurationDialog = true },
+                holdDownState = showPosterDurationDialog,
+                onValueChange = { scope.launch { settingsManager.setStartupPosterDurationMs(it * 10) } }
             )
+            } // search-anchor:end
+
+            SettingsSecondsInputDialog(
+                show = showPosterDurationDialog,
+                title = stringResource(R.string.settings_startup_poster_duration),
+                summary = stringResource(
+                    R.string.settings_duration_input_range,
+                    SettingsManager.STARTUP_POSTER_DURATION_MIN_MS / 1_000f,
+                    SettingsManager.STARTUP_POSTER_DURATION_MAX_MS / 1_000f
+                ),
+                valueMs = startupPosterDurationMs,
+                minMs = SettingsManager.STARTUP_POSTER_DURATION_MIN_MS,
+                maxMs = SettingsManager.STARTUP_POSTER_DURATION_MAX_MS,
+                onDismissRequest = { showPosterDurationDialog = false },
+                onSave = { durationMs ->
+                    scope.launch { settingsManager.setStartupPosterDurationMs(durationMs) }
+                }
+            )
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_startup_poster_image) {
             ArrowPreference(
                 title = stringResource(R.string.settings_startup_poster_image),
                 summary = if (startupPosterUri.isBlank()) {
@@ -760,7 +1127,11 @@ internal fun SettingsAppearanceSection(
                 },
                 onClick = { startupPosterPicker.launch(arrayOf("image/*")) }
             )
-            if (startupPosterUri.isNotBlank()) {
+            } // search-anchor:end
+
+            if (startupPosterUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_custom_image_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_custom_image_remove) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_custom_image_remove),
                     summary = stringResource(R.string.settings_custom_image_remove_summary),
@@ -771,6 +1142,8 @@ internal fun SettingsAppearanceSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
         }
     }
@@ -778,6 +1151,8 @@ internal fun SettingsAppearanceSection(
     if (page == APPEARANCE_PAGE_WALLPAPER) SettingsCardGroup {
         Column {
             SettingsFocusAnchor(active = highlightKey == "wallpaper") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_app_wallpaper) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_app_wallpaper),
                     summary = stringResource(R.string.settings_app_wallpaper_summary),
@@ -786,8 +1161,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setAppWallpaperEnabled(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "app_now_playing_flow_background") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_app_now_playing_flow_background) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_app_now_playing_flow_background),
                     summary = stringResource(R.string.settings_app_now_playing_flow_background_summary),
@@ -796,55 +1175,96 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setAppNowPlayingFlowBackground(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
-            ArrowPreference(
-                title = stringResource(R.string.settings_app_wallpaper_image),
-                summary = if (appWallpaperUri.isBlank()) {
-                    stringResource(R.string.settings_custom_image_not_selected)
-                } else {
-                    stringResource(R.string.settings_custom_image_selected)
-                },
-                onClick = { appWallpaperPicker.launch(arrayOf("image/*")) }
-            )
-            if (appWallpaperUri.isNotBlank()) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_custom_image_remove),
-                    summary = stringResource(R.string.settings_custom_image_remove_summary),
-                    onClick = {
-                        scope.launch {
-                            context.deletePersistedCustomImage(appWallpaperUri)
-                            settingsManager.setAppWallpaperUri("")
-                        }
+            SettingsFocusAnchor(active = highlightKey == "bg_effect_version") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_bg_effect_version) {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_bg_effect_version),
+                    summary = stringResource(R.string.settings_bg_effect_version_summary),
+                    items = bgEffectEntries,
+                    selectedIndex = selectedBgEffectIndex,
+                    onSelectedIndexChange = { index ->
+                        val version = bgEffectOptions.getOrNull(index)?.first ?: SettingsManager.BG_EFFECT_OS3
+                        scope.launch { settingsManager.setBgEffectVersion(version) }
                     }
                 )
+                } // search-anchor:end
+
             }
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_wallpaper_opacity),
-                summary = stringResource(R.string.settings_wallpaper_opacity_summary),
-                value = appWallpaperOpacity,
-                valueRange = 20..100,
-                valueText = "$appWallpaperOpacity%",
-                enabled = appWallpaperEnabled,
-                onValueChange = { scope.launch { settingsManager.setAppWallpaperOpacity(it) } }
-            )
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_wallpaper_dim),
-                summary = stringResource(R.string.settings_wallpaper_dim_summary),
-                value = appWallpaperDim,
-                valueRange = 0..80,
-                valueText = "$appWallpaperDim%",
-                enabled = appWallpaperEnabled,
-                onValueChange = { scope.launch { settingsManager.setAppWallpaperDim(it) } }
-            )
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_wallpaper_content_overlay),
-                summary = stringResource(R.string.settings_wallpaper_content_overlay_summary),
-                value = appWallpaperContentOverlay,
-                valueRange = 0..80,
-                valueText = "$appWallpaperContentOverlay%",
-                enabled = appWallpaperEnabled || appNowPlayingFlowBackground,
-                onValueChange = { scope.launch { settingsManager.setAppWallpaperContentOverlay(it) } }
-            )
+            if (appWallpaperEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_app_wallpaper_image, R.string.settings_custom_image_remove, R.string.settings_wallpaper_opacity, R.string.settings_wallpaper_dim, R.string.settings_wallpaper_content_overlay)) {
+                Column {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_app_wallpaper_image) {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_app_wallpaper_image),
+                        summary = if (appWallpaperUri.isBlank()) {
+                            stringResource(R.string.settings_custom_image_not_selected)
+                        } else {
+                            stringResource(R.string.settings_custom_image_selected)
+                        },
+                        onClick = { appWallpaperPicker.launch(arrayOf("image/*")) }
+                    )
+                    } // search-anchor:end
+
+                    if (appWallpaperUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_custom_image_remove)) {
+                        // search-anchor:start
+                        SettingsSearchAnchor(R.string.settings_custom_image_remove) {
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_custom_image_remove),
+                            summary = stringResource(R.string.settings_custom_image_remove_summary),
+                            onClick = {
+                                scope.launch {
+                                    context.deletePersistedCustomImage(appWallpaperUri)
+                                    settingsManager.setAppWallpaperUri("")
+                                }
+                            }
+                        )
+                        } // search-anchor:end
+
+                    }
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_wallpaper_opacity) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_wallpaper_opacity),
+                        summary = stringResource(R.string.settings_wallpaper_opacity_summary),
+                        value = appWallpaperOpacity,
+                        valueRange = 20..100,
+                        valueText = "$appWallpaperOpacity%",
+                        onValueChange = { scope.launch { settingsManager.setAppWallpaperOpacity(it) } }
+                    )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_wallpaper_dim) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_wallpaper_dim),
+                        summary = stringResource(R.string.settings_wallpaper_dim_summary),
+                        value = appWallpaperDim,
+                        valueRange = 0..80,
+                        valueText = "$appWallpaperDim%",
+                        onValueChange = { scope.launch { settingsManager.setAppWallpaperDim(it) } }
+                    )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_wallpaper_content_overlay) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_wallpaper_content_overlay),
+                        summary = stringResource(R.string.settings_wallpaper_content_overlay_summary),
+                        value = appWallpaperContentOverlay,
+                        valueRange = 0..80,
+                        valueText = "$appWallpaperContentOverlay%",
+                        onValueChange = { scope.launch { settingsManager.setAppWallpaperContentOverlay(it) } }
+                    )
+                    } // search-anchor:end
+
+                }
+            }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_background) {
             SwitchPreference(
                 title = stringResource(R.string.settings_player_background),
                 summary = stringResource(R.string.settings_player_background_summary),
@@ -853,46 +1273,68 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setPlayerBackgroundEnabled(it) }
                 }
             )
-            ArrowPreference(
-                title = stringResource(R.string.settings_player_background_image),
-                summary = if (playerBackgroundUri.isBlank()) {
-                    stringResource(R.string.settings_custom_image_not_selected)
-                } else {
-                    stringResource(R.string.settings_custom_image_selected)
-                },
-                onClick = { playerBackgroundPicker.launch(arrayOf("image/*")) }
-            )
-            if (playerBackgroundUri.isNotBlank()) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_custom_image_remove),
-                    summary = stringResource(R.string.settings_custom_image_remove_summary),
-                    onClick = {
-                        scope.launch {
-                            context.deletePersistedCustomImage(playerBackgroundUri)
-                            settingsManager.setPlayerBackgroundUri("")
-                        }
+            } // search-anchor:end
+
+            if (playerBackgroundEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_player_background_image, R.string.settings_custom_image_remove, R.string.settings_player_background_opacity, R.string.settings_player_background_dim)) {
+                Column {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_player_background_image) {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_player_background_image),
+                        summary = if (playerBackgroundUri.isBlank()) {
+                            stringResource(R.string.settings_custom_image_not_selected)
+                        } else {
+                            stringResource(R.string.settings_custom_image_selected)
+                        },
+                        onClick = { playerBackgroundPicker.launch(arrayOf("image/*")) }
+                    )
+                    } // search-anchor:end
+
+                    if (playerBackgroundUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_custom_image_remove)) {
+                        // search-anchor:start
+                        SettingsSearchAnchor(R.string.settings_custom_image_remove) {
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_custom_image_remove),
+                            summary = stringResource(R.string.settings_custom_image_remove_summary),
+                            onClick = {
+                                scope.launch {
+                                    context.deletePersistedCustomImage(playerBackgroundUri)
+                                    settingsManager.setPlayerBackgroundUri("")
+                                }
+                            }
+                        )
+                        } // search-anchor:end
+
                     }
-                )
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_player_background_opacity) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_player_background_opacity),
+                        summary = stringResource(R.string.settings_player_background_opacity_summary),
+                        value = playerBackgroundOpacity,
+                        valueRange = 20..100,
+                        valueText = "$playerBackgroundOpacity%",
+                        onValueChange = { scope.launch { settingsManager.setPlayerBackgroundOpacity(it) } }
+                    )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_player_background_dim) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_player_background_dim),
+                        summary = stringResource(R.string.settings_player_background_dim_summary),
+                        value = playerBackgroundDim,
+                        valueRange = 0..80,
+                        valueText = "$playerBackgroundDim%",
+                        onValueChange = { scope.launch { settingsManager.setPlayerBackgroundDim(it) } }
+                    )
+                    } // search-anchor:end
+
+                }
             }
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_player_background_opacity),
-                summary = stringResource(R.string.settings_player_background_opacity_summary),
-                value = playerBackgroundOpacity,
-                valueRange = 20..100,
-                valueText = "$playerBackgroundOpacity%",
-                enabled = playerBackgroundEnabled,
-                onValueChange = { scope.launch { settingsManager.setPlayerBackgroundOpacity(it) } }
-            )
-            SettingsIntSliderPreference(
-                title = stringResource(R.string.settings_player_background_dim),
-                summary = stringResource(R.string.settings_player_background_dim_summary),
-                value = playerBackgroundDim,
-                valueRange = 0..80,
-                valueText = "$playerBackgroundDim%",
-                enabled = playerBackgroundEnabled,
-                onValueChange = { scope.launch { settingsManager.setPlayerBackgroundDim(it) } }
-            )
             SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_beautiful_lyrics_background) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_beautiful_lyrics_background),
                     summary = stringResource(R.string.settings_beautiful_lyrics_background_summary),
@@ -902,67 +1344,103 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerBeautifulLyricsBackground(index == 1) }
                     }
                 )
+                } // search-anchor:end
+
             }
-            SettingsFocusAnchor(active = highlightKey == "player_dynamic_flow") {
-                SwitchPreference(
-                    title = stringResource(R.string.settings_player_dynamic_flow),
-                    summary = stringResource(R.string.settings_player_dynamic_flow_summary),
-                    checked = playerDynamicFlowEnabled,
-                    enabled = !beautifulLyricsBackground,
-                    onCheckedChange = {
-                        scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
-                    }
-                )
-            }
-            SettingsFocusAnchor(active = highlightKey == "apple_flow_speed") {
-                SettingsIntSliderPreference(
-                    title = stringResource(R.string.settings_apple_flow_speed),
-                    summary = stringResource(R.string.settings_apple_flow_speed_summary),
-                    value = playerAppleFlowSpeed,
-                    valueRange = 5..60,
-                    valueText = playerAppleFlowSpeed.formatBeautifulLyricsSpeed(),
-                    enabled = !beautifulLyricsBackground && playerDynamicFlowEnabled,
-                    onValueChange = { scope.launch { settingsManager.setPlayerAppleFlowSpeed(it) } }
-                )
-            }
-            SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_speed") {
-                SettingsIntSliderPreference(
-                    title = stringResource(R.string.settings_beautiful_lyrics_speed),
-                    summary = stringResource(R.string.settings_beautiful_lyrics_speed_summary),
-                    value = beautifulLyricsSpeed,
-                    valueRange = 5..60,
-                    valueText = beautifulLyricsSpeed.formatBeautifulLyricsSpeed(),
-                    enabled = beautifulLyricsBackground,
-                    onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsSpeed(it) } }
-                )
-            }
-            SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_blur") {
-                SettingsIntSliderPreference(
-                    title = stringResource(R.string.settings_beautiful_lyrics_blur),
-                    summary = stringResource(R.string.settings_beautiful_lyrics_blur_summary),
-                    value = beautifulLyricsBlur,
-                    valueRange = 0..80,
-                    valueText = "${beautifulLyricsBlur}px",
-                    enabled = beautifulLyricsBackground,
-                    onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBlur(it) } }
-                )
-            }
-            SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_brightness") {
-                SettingsIntSliderPreference(
-                    title = stringResource(R.string.settings_beautiful_lyrics_brightness),
-                    summary = stringResource(R.string.settings_beautiful_lyrics_brightness_summary),
-                    value = beautifulLyricsBrightness,
-                    valueRange = 30..120,
-                    valueText = "$beautifulLyricsBrightness%",
-                    enabled = beautifulLyricsBackground,
-                    onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBrightness(it) } }
-                )
+            if (selectedBeautifulLyricsBackground == 0) {
+                SettingsFocusAnchor(active = highlightKey == "player_dynamic_flow") {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_player_dynamic_flow) {
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_player_dynamic_flow),
+                        summary = stringResource(R.string.settings_player_dynamic_flow_summary),
+                        checked = playerDynamicFlowEnabled,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
+                        }
+                    )
+                    } // search-anchor:end
+
+                }
+                SettingsFocusAnchor(active = highlightKey == "apple_flow_speed") {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_apple_flow_speed) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_apple_flow_speed),
+                        summary = stringResource(R.string.settings_apple_flow_speed_summary),
+                        value = playerAppleFlowSpeed,
+                        valueRange = 5..60,
+                        valueText = playerAppleFlowSpeed.formatBeautifulLyricsSpeed(),
+                        enabled = playerDynamicFlowEnabled,
+                        onValueChange = { scope.launch { settingsManager.setPlayerAppleFlowSpeed(it) } }
+                    )
+                    } // search-anchor:end
+
+                }
+            } else {
+                SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_speed") {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_beautiful_lyrics_speed) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_beautiful_lyrics_speed),
+                        summary = stringResource(R.string.settings_beautiful_lyrics_speed_summary),
+                        value = beautifulLyricsSpeed,
+                        valueRange = 5..60,
+                        valueText = beautifulLyricsSpeed.formatBeautifulLyricsSpeed(),
+                        onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsSpeed(it) } }
+                    )
+                    } // search-anchor:end
+
+                }
+                SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_blur") {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_beautiful_lyrics_blur) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_beautiful_lyrics_blur),
+                        summary = stringResource(R.string.settings_beautiful_lyrics_blur_summary),
+                        value = beautifulLyricsBlur,
+                        valueRange = 0..80,
+                        valueText = "${beautifulLyricsBlur}px",
+                        onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBlur(it) } }
+                    )
+                    } // search-anchor:end
+
+                }
+                SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics_brightness") {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_beautiful_lyrics_brightness) {
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_beautiful_lyrics_brightness),
+                        summary = stringResource(R.string.settings_beautiful_lyrics_brightness_summary),
+                        value = beautifulLyricsBrightness,
+                        valueRange = 30..120,
+                        valueText = "$beautifulLyricsBrightness%",
+                        onValueChange = { scope.launch { settingsManager.setPlayerBeautifulLyricsBrightness(it) } }
+                    )
+                    } // search-anchor:end
+
+                }
             }
         }
     }
 
     if (page == APPEARANCE_PAGE_LIST) SettingsCardGroup {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_sort_menu_style) {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_sort_menu_style),
+                summary = if (sortMenuStyle == SettingsManager.SORT_MENU_STYLE_BOTTOM_SHEET) stringResource(R.string.settings_sort_menu_style_bottom_sheet) else stringResource(R.string.settings_sort_menu_style_dropdown),
+                items = sortMenuStyleEntries,
+                selectedIndex = sortMenuStyle.coerceIn(sortMenuStyleEntries.indices),
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setSortMenuStyle(index) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_category_grid_columns) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_category_grid_columns),
                 summary = stringResource(
@@ -975,6 +1453,10 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setCategoryGridColumns(categoryGridRange.first + index) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_library_song_grid_columns_phone) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_library_song_grid_columns_phone),
                 summary = stringResource(
@@ -990,6 +1472,10 @@ internal fun SettingsAppearanceSection(
                     }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_library_song_grid_columns_tablet) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_library_song_grid_columns_tablet),
                 summary = stringResource(
@@ -1005,6 +1491,10 @@ internal fun SettingsAppearanceSection(
                     }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_library_song_title_marquee) {
             SwitchPreference(
                 title = stringResource(R.string.settings_library_song_title_marquee),
                 summary = stringResource(R.string.settings_library_song_title_marquee_summary),
@@ -1013,6 +1503,10 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setLibrarySongTitleMarquee(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_open_player_on_play) {
             SwitchPreference(
                 title = stringResource(R.string.settings_open_player_on_play),
                 summary = stringResource(R.string.settings_open_player_on_play_summary),
@@ -1021,6 +1515,25 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setOpenPlayerOnPlay(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_list_quality_display) {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_list_quality_display),
+                summary = listQualityDisplayLabels[
+                    listQualityDisplayMode.coerceIn(listQualityDisplayLabels.indices)
+                ],
+                items = listQualityDisplayEntries,
+                selectedIndex = listQualityDisplayMode.coerceIn(listQualityDisplayLabels.indices),
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setListQualityDisplayMode(index) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_show_play_next_in_lists) {
             SwitchPreference(
                 title = stringResource(R.string.settings_show_play_next_in_lists),
                 summary = stringResource(R.string.settings_show_play_next_in_lists_summary),
@@ -1029,6 +1542,10 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setShowPlayNextInLists(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_show_remove_from_playlist_button) {
             SwitchPreference(
                 title = stringResource(R.string.settings_show_remove_from_playlist_button),
                 summary = stringResource(R.string.settings_show_remove_from_playlist_button_summary),
@@ -1037,21 +1554,37 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setShowRemoveFromPlaylistButton(it) }
                 }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_list_action_menu) {
             ArrowPreference(
                 title = stringResource(R.string.settings_list_action_menu),
                 summary = stringResource(R.string.settings_action_menu_summary),
-                onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_LIST_ACTION_MENU) }
+                onClick = { showListActionMenuSheet = true }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_song_info_layout) {
             ArrowPreference(
                 title = stringResource(R.string.settings_song_info_layout),
                 summary = stringResource(R.string.settings_action_menu_summary),
-                onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_SONG_INFO_LAYOUT) }
+                onClick = { showSongInfoLayoutSheet = true }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_queue_toolbar_layout) {
             ArrowPreference(
                 title = stringResource(R.string.settings_queue_toolbar_layout),
                 summary = stringResource(R.string.settings_action_menu_summary),
-                onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_QUEUE_TOOLBAR) }
+                onClick = { showQueueToolbarSheet = true }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_exclude_search_results_from_playlist) {
             SwitchPreference(
                 title = stringResource(R.string.settings_exclude_search_results_from_playlist),
                 summary = stringResource(R.string.settings_exclude_search_results_from_playlist_summary),
@@ -1060,7 +1593,11 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setExcludeSearchResultsFromPlaylist(it) }
                 }
             )
+            } // search-anchor:end
+
             SettingsFocusAnchor(active = highlightKey == "search_click_playback_mode") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_search_click_playback_mode) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_search_click_playback_mode),
                     summary = stringResource(R.string.settings_search_click_playback_mode_summary),
@@ -1070,8 +1607,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setSearchClickPlaybackMode(index) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "auto_show_search_keyboard") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_auto_show_search_keyboard) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_auto_show_search_keyboard),
                     summary = stringResource(R.string.settings_auto_show_search_keyboard_summary),
@@ -1080,8 +1621,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setAutoShowSearchKeyboard(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "search_reopen_behavior") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_search_reopen_behavior) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_search_reopen_behavior),
                     summary = stringResource(R.string.settings_search_reopen_behavior_summary),
@@ -1091,7 +1636,11 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setSearchReopenBehavior(index) }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_playlist_special_entries) {
             SwitchPreference(
                 title = stringResource(R.string.settings_playlist_special_entries),
                 summary = stringResource(R.string.settings_playlist_special_entries_summary),
@@ -1100,28 +1649,57 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setPlaylistSpecialEntriesVisible(it) }
                 }
             )
-            SwitchPreference(
-                title = stringResource(R.string.settings_playlist_show_rating_filter),
-                checked = playlistShowRatingFilter,
-                onCheckedChange = { scope.launch { settingsManager.setPlaylistShowRatingFilter(it) } }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_playlist_show_favorite_filter),
-                checked = playlistShowFavoriteFilter,
-                onCheckedChange = { scope.launch { settingsManager.setPlaylistShowFavoriteFilter(it) } }
-            )
+            } // search-anchor:end
+
+            SettingsFocusAnchor(active = highlightKey == "playlist_show_rating_filter") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_playlist_show_rating_filter) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_playlist_show_rating_filter),
+                    checked = playlistShowRatingFilter || playlistShowFavoriteFilter,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            settingsManager.setPlaylistShowRatingFilter(enabled)
+                            settingsManager.setPlaylistShowFavoriteFilter(enabled)
+                        }
+                    }
+                )
+                } // search-anchor:end
+
+            }
+            SettingsFocusAnchor(active = highlightKey == "library_show_rating_filter") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_library_show_rating_filter) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_library_show_rating_filter),
+                    checked = libraryShowRatingFilter,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            settingsManager.setLibraryShowRatingFilter(enabled)
+                        }
+                    }
+                )
+                } // search-anchor:end
+
+            }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_mini_player_long_press_source) {
             SwitchPreference(
                 title = stringResource(R.string.settings_mini_player_long_press_source),
                 summary = stringResource(R.string.settings_mini_player_long_press_source_summary),
                 checked = miniPlayerLongPressSource,
                 onCheckedChange = { scope.launch { settingsManager.setMiniPlayerLongPressSource(it) } }
             )
+            } // search-anchor:end
+
         }
     }
 
     if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup {
         Column {
             SettingsFocusAnchor(active = highlightKey == "hi_res_logo") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_hi_res_logo) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_hi_res_logo),
                     summary = stringResource(R.string.settings_hi_res_logo_summary),
@@ -1130,7 +1708,11 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setHiResLogoEnabled(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_hi_res_logo_image) {
             ArrowPreference(
                 title = stringResource(R.string.settings_hi_res_logo_image),
                 summary = if (hiResLogoUri.isBlank()) {
@@ -1140,7 +1722,11 @@ internal fun SettingsAppearanceSection(
                 },
                 onClick = { hiResLogoPicker.launch(arrayOf("image/*")) }
             )
-            if (hiResLogoUri.isNotBlank()) {
+            } // search-anchor:end
+
+            if (hiResLogoUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_custom_image_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_custom_image_remove) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_custom_image_remove),
                     summary = stringResource(R.string.settings_custom_image_remove_summary),
@@ -1151,12 +1737,16 @@ internal fun SettingsAppearanceSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
             }
         }
     }
 
     if (page == APPEARANCE_PAGE_PLAYER) SettingsCardGroup {
         Column {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_open_player_from_notification) {
             SwitchPreference(
                 title = stringResource(R.string.settings_open_player_from_notification),
                 summary = stringResource(R.string.settings_open_player_from_notification_summary),
@@ -1165,7 +1755,11 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setOpenPlayerFromNotification(it) }
                 }
             )
+            } // search-anchor:end
+
             SettingsFocusAnchor(active = highlightKey == "player_immersive") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_immersive_cover) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_immersive_cover),
                     summary = stringResource(R.string.settings_player_immersive_cover_summary),
@@ -1174,8 +1768,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerImmersiveCover(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "player_cover_content_color") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_cover_content_color) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_cover_content_color),
                     summary = stringResource(R.string.settings_player_cover_content_color_summary),
@@ -1184,8 +1782,31 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerCoverContentColor(it) }
                     }
                 )
+                } // search-anchor:end
+
+            }
+            SettingsFocusAnchor(active = highlightKey == "player_favorite_heart_pink") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_favorite_heart_color) {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_player_favorite_heart_color),
+                    summary = if (playerFavoriteHeartPink) {
+                        stringResource(R.string.settings_player_favorite_heart_color_pink)
+                    } else {
+                        stringResource(R.string.settings_player_favorite_heart_color_monochrome)
+                    },
+                    items = favoriteHeartColorEntries,
+                    selectedIndex = if (playerFavoriteHeartPink) 1 else 0,
+                    onSelectedIndexChange = { index ->
+                        scope.launch { settingsManager.setPlayerFavoriteHeartPink(index == 1) }
+                    }
+                )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "player_title_position") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_title_position) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_player_title_position),
                     summary = stringResource(R.string.settings_player_title_position_summary),
@@ -1195,8 +1816,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerTitlePosition(index) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "player_page") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_page_style) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_player_page_style),
                     summary = stringResource(R.string.settings_player_page_style_summary),
@@ -1208,8 +1833,53 @@ internal fun SettingsAppearanceSection(
                         }
                     }
                 )
+                } // search-anchor:end
+
+            }
+            if (playerPageStyle == SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_apple_music_player_immersive_cover, R.string.settings_apple_music_use_apple_favorite)) {
+                SettingsFocusAnchor(active = highlightKey == "player_apple_music_immersive_cover") {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_apple_music_player_immersive_cover) {
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_apple_music_player_immersive_cover),
+                        summary = stringResource(R.string.settings_apple_music_player_immersive_cover_summary),
+                        checked = appleMusicPlayerImmersiveCover,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setAppleMusicPlayerImmersiveCover(it) }
+                        }
+                    )
+                    } // search-anchor:end
+
+                }
+                SettingsFocusAnchor(active = highlightKey == "apple_music_use_apple_favorite") {
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_apple_music_use_apple_favorite) {
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_apple_music_use_apple_favorite),
+                        summary = stringResource(R.string.settings_apple_music_use_apple_favorite_summary),
+                        checked = appleMusicUseAppleFavorite,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setAppleMusicUseAppleFavorite(it) }
+                        }
+                    )
+                    } // search-anchor:end
+
+                }
+            }
+            SettingsSearchAnchor(R.string.settings_player_center_title) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_center_title) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_center_title),
+                    summary = stringResource(R.string.settings_player_center_title_summary),
+                    checked = playerCenterTitle,
+                    onCheckedChange = { scope.launch { settingsManager.setPlayerCenterTitle(it) } }
+                )
+                } // search-anchor:end
             }
             SettingsFocusAnchor(active = highlightKey == "player_landscape") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_landscape_style) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_player_landscape_style),
                     summary = stringResource(
@@ -1224,19 +1894,12 @@ internal fun SettingsAppearanceSection(
                         }
                     }
                 )
-            }
-            SettingsFocusAnchor(active = highlightKey == "player_landscape_hide_system_bars") {
-                val hideLandscapeBars by settingsManager.playerLandscapeHideSystemBars.collectCachedAsState(
-                    "playerLandscapeHideSystemBars", false
-                )
-                SwitchPreference(
-                    title = stringResource(R.string.settings_player_landscape_hide_system_bars),
-                    summary = stringResource(R.string.settings_player_landscape_hide_system_bars_summary),
-                    checked = hideLandscapeBars,
-                    onCheckedChange = { scope.launch { settingsManager.setPlayerLandscapeHideSystemBars(it) } }
-                )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "transport_button_outlines") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_transport_button_outlines) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_transport_button_outlines),
                     summary = stringResource(R.string.settings_transport_button_outlines_summary),
@@ -1245,8 +1908,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setTransportButtonOutlines(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "player_tap_seek") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_tap_seek) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_tap_seek),
                     summary = stringResource(R.string.settings_player_tap_seek_summary),
@@ -1255,35 +1922,130 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerTapSeekEnabled(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_progress_show_quality),
-                checked = playerProgressShowQuality,
-                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressShowQuality(it) } }
+            LyricSourcePriorityBlock(
+                title = stringResource(R.string.settings_player_progress_info_items),
+                subtitle = stringResource(R.string.settings_player_progress_info_items_summary),
+                defaultOrder = SettingsManager.DEFAULT_PLAYER_PROGRESS_INFO_PRIORITY,
+                items = listOf(
+                    LyricSourcePreferenceItem(
+                        id = SettingsManager.PLAYER_PROGRESS_INFO_QUALITY,
+                        title = stringResource(R.string.settings_player_progress_show_quality),
+                        summary = ""
+                    ),
+                    LyricSourcePreferenceItem(
+                        id = SettingsManager.PLAYER_PROGRESS_INFO_AUDIO,
+                        title = stringResource(R.string.settings_player_progress_show_audio_info),
+                        summary = ""
+                    ),
+                    LyricSourcePreferenceItem(
+                        id = SettingsManager.PLAYER_PROGRESS_INFO_OUTPUT,
+                        title = stringResource(R.string.settings_player_progress_show_output_device),
+                        summary = ""
+                    )
+                ).orderedByEnabledIds(
+                    SettingsManager.normalizePlayerProgressInfoPriority(playerProgressInfoPriority)
+                ),
+                onOrderChange = { priority ->
+                    scope.launch { settingsManager.setPlayerProgressInfoPriority(priority) }
+                }
             )
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_progress_show_audio_info),
-                checked = playerProgressShowAudioInfo,
-                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressShowAudioInfo(it) } }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_progress_show_output_device),
-                checked = playerProgressShowOutputDevice,
-                onCheckedChange = { scope.launch { settingsManager.setPlayerProgressShowOutputDevice(it) } }
-            )
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_progress_long_press_cycle) {
             SwitchPreference(
                 title = stringResource(R.string.settings_player_progress_long_press_cycle),
                 summary = stringResource(R.string.settings_player_progress_long_press_cycle_summary),
                 checked = playerProgressLongPressCycle,
                 onCheckedChange = { scope.launch { settingsManager.setPlayerProgressLongPressCycle(it) } }
             )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_progress_info_separated) {
             SwitchPreference(
                 title = stringResource(R.string.settings_player_progress_info_separated),
                 summary = stringResource(R.string.settings_player_progress_info_separated_summary),
                 checked = playerProgressInfoSeparated,
                 onCheckedChange = { scope.launch { settingsManager.setPlayerProgressInfoSeparated(it) } }
             )
+            } // search-anchor:end
+
+            // Issue #674: only the waveform-type progress styles have bars to tune.
+            if (playerProgressStyle != SettingsManager.PLAYER_PROGRESS_STYLE_GLOW /* search-reveal */ || SettingsSearchFocus.reveals(R.string.player_waveform_scale_animation, R.string.player_waveform_density, R.string.player_waveform_peak_height)) {
+                val waveformDensityRange =
+                    SettingsManager.MIN_PLAYER_WAVEFORM_DENSITY..SettingsManager.MAX_PLAYER_WAVEFORM_DENSITY
+                val waveformPeakHeightRange =
+                    SettingsManager.MIN_PLAYER_WAVEFORM_PEAK_HEIGHT..SettingsManager.MAX_PLAYER_WAVEFORM_PEAK_HEIGHT
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.player_waveform_scale_animation) {
+                SwitchPreference(
+                    title = stringResource(R.string.player_waveform_scale_animation),
+                    summary = stringResource(R.string.player_waveform_scale_animation_summary),
+                    checked = playerWaveformScaleAnimation,
+                    onCheckedChange = { scope.launch { settingsManager.setPlayerWaveformScaleAnimation(it) } }
+                )
+                } // search-anchor:end
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.player_waveform_density) {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.player_waveform_density),
+                    summary = stringResource(R.string.player_waveform_density_summary),
+                    valueText = "${playerWaveformDensity.coerceIn(waveformDensityRange)}%",
+                    value = playerWaveformDensity.coerceIn(waveformDensityRange),
+                    valueRange = waveformDensityRange,
+                    steps = WaveformProgressTuning.sliderSteps(
+                        waveformDensityRange,
+                        WaveformProgressTuning.DENSITY_SLIDER_STEP
+                    ),
+                    onValueChange = {
+                        val next = WaveformProgressTuning.snapToStep(it, WaveformProgressTuning.DENSITY_SLIDER_STEP)
+                        scope.launch { settingsManager.setPlayerWaveformDensity(next.coerceIn(waveformDensityRange)) }
+                    }
+                )
+                } // search-anchor:end
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.player_waveform_peak_height) {
+                SettingsIntSliderPreference(
+                    title = stringResource(R.string.player_waveform_peak_height),
+                    summary = stringResource(R.string.player_waveform_peak_height_summary),
+                    valueText = "${playerWaveformPeakHeight.coerceIn(waveformPeakHeightRange)}%",
+                    value = playerWaveformPeakHeight.coerceIn(waveformPeakHeightRange),
+                    valueRange = waveformPeakHeightRange,
+                    steps = WaveformProgressTuning.sliderSteps(
+                        waveformPeakHeightRange,
+                        WaveformProgressTuning.PEAK_HEIGHT_SLIDER_STEP
+                    ),
+                    onValueChange = {
+                        val next = WaveformProgressTuning.snapToStep(it, WaveformProgressTuning.PEAK_HEIGHT_SLIDER_STEP)
+                        scope.launch { settingsManager.setPlayerWaveformPeakHeight(next.coerceIn(waveformPeakHeightRange)) }
+                    }
+                )
+                } // search-anchor:end
+            }
+
+            val audioVisualizerHeightRange =
+                SettingsManager.MIN_AUDIO_VISUALIZER_HEIGHT..SettingsManager.MAX_AUDIO_VISUALIZER_HEIGHT
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.player_visualizer_height) {
+            SettingsIntSliderPreference(
+                title = stringResource(R.string.player_visualizer_height),
+                summary = stringResource(R.string.player_visualizer_height_summary),
+                valueText = "${audioVisualizerHeight.coerceIn(audioVisualizerHeightRange)}%",
+                value = audioVisualizerHeight.coerceIn(audioVisualizerHeightRange),
+                valueRange = audioVisualizerHeightRange,
+                steps = com.ella.music.ui.player.AUDIO_VISUALIZER_HEIGHT_SLIDER_STEPS,
+                onValueChange = {
+                    val next = com.ella.music.ui.player.snapAudioVisualizerHeight(it)
+                    scope.launch { settingsManager.setAudioVisualizerHeight(next) }
+                }
+            )
+            } // search-anchor:end
+
             SettingsFocusAnchor(active = highlightKey == "player_cover_swipe") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_cover_swipe) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_cover_swipe),
                     summary = stringResource(R.string.settings_player_cover_swipe_summary),
@@ -1292,8 +2054,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerCoverSwipeEnabled(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "player_show_total_duration") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_show_total_duration) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_show_total_duration),
                     summary = stringResource(R.string.settings_player_show_total_duration_summary),
@@ -1302,8 +2068,12 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerShowTotalDuration(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
             SettingsFocusAnchor(active = highlightKey == "player_show_song_annotation") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_show_song_annotation) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_player_show_song_annotation),
                     summary = stringResource(R.string.settings_player_show_song_annotation_summary),
@@ -1312,7 +2082,11 @@ internal fun SettingsAppearanceSection(
                         scope.launch { settingsManager.setPlayerShowSongAnnotation(it) }
                     }
                 )
+                } // search-anchor:end
+
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_cover_long_press_preview) {
             SwitchPreference(
                 title = stringResource(R.string.settings_player_cover_long_press_preview),
                 summary = stringResource(R.string.settings_player_cover_long_press_preview_summary),
@@ -1321,22 +2095,53 @@ internal fun SettingsAppearanceSection(
                     scope.launch { settingsManager.setPlayerCoverLongPressPreviewEnabled(it) }
                 }
             )
-            SwitchPreference(
-                title = stringResource(R.string.settings_player_predictive_back),
-                summary = stringResource(R.string.settings_player_predictive_back_summary),
-                checked = playerPredictiveBackEnabled,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setPlayerPredictiveBackEnabled(it) }
-                }
-            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_player_action_menu) {
             ArrowPreference(
                 title = stringResource(R.string.settings_player_action_menu),
-                summary = stringResource(R.string.settings_action_menu_summary),
+                summary = stringResource(R.string.settings_player_shortcut_items_summary),
                 onClick = { onNavigateToAppearancePage(APPEARANCE_PAGE_PLAYER_ACTION_MENU) }
             )
+            } // search-anchor:end
+
         }
     }
 
+    ActionMenuReorderableSheet(
+        show = showListActionMenuSheet,
+        title = stringResource(R.string.settings_list_action_menu),
+        subtitle = stringResource(R.string.settings_action_menu_summary),
+        savedLayout = listActionMenuLayout,
+        defaultOrder = ActionMenuIds.listDefaults,
+        onDismissRequest = { showListActionMenuSheet = false },
+        onSave = { value ->
+            scope.launch { settingsManager.setListActionMenuLayout(value) }
+        }
+    )
+    ActionMenuReorderableSheet(
+        show = showSongInfoLayoutSheet,
+        title = stringResource(R.string.settings_song_info_layout),
+        subtitle = stringResource(R.string.settings_action_menu_summary),
+        savedLayout = songInfoLayout,
+        defaultOrder = ActionMenuIds.songInfoDefaults,
+        onDismissRequest = { showSongInfoLayoutSheet = false },
+        onSave = { value ->
+            scope.launch { settingsManager.setSongInfoLayout(value) }
+        }
+    )
+    ActionMenuReorderableSheet(
+        show = showQueueToolbarSheet,
+        title = stringResource(R.string.settings_queue_toolbar_layout),
+        subtitle = stringResource(R.string.settings_action_menu_summary),
+        savedLayout = queueToolbarLayout,
+        defaultOrder = ActionMenuIds.queueToolbarDefaults,
+        onDismissRequest = { showQueueToolbarSheet = false },
+        onSave = { value ->
+            scope.launch { settingsManager.setQueueToolbarLayout(value) }
+        }
+    )
 }
 
 private fun Int.formatBeautifulLyricsSpeed(): String {

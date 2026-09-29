@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">Web</string>
+    <string name="netease_link_target_app">NetEase Cloud Music</string>
+    <string name="netease_link_target_honor">NetEase Cloud Music (Honor sürümü)</string>
+    <string name="netease_link_target_custom">Özel</string>
+    <string name="netease_link_open_failed">Bağlantı açılamadı</string>
+    <string name="netease_link_song_comments">Şarkı yorumları</string>
+    <string name="netease_link_artist_wiki">Sanatçı vikisi</string>
+    <string name="netease_link_mv_open_mode">NetEase MV açma şekli</string>
+    <string name="netease_link_mv_open_mode_summary">Şarkıda NetEase MV bilgisi varsa yerleşik oynatıcıda oynat veya harici olarak aç</string>
+    <string name="netease_link_mv_open_internal">Yerleşik oynatıcı</string>
+    <string name="netease_link_mv_open_external">Harici aç (NetEase bağlantı hedefine göre)</string>
+    <string name="netease_link_target">NetEase bağlantı hedefi</string>
+    <string name="netease_link_target_summary">163 key içindeki şarkı, sanatçı, albüm ve MV bağlantılarını web\'de veya NetEase uygulamasında aç</string>
+    <string name="netease_link_kind_song">Şarkı</string>
+    <string name="netease_link_kind_artist">Sanatçı</string>
+    <string name="netease_link_kind_album">Albüm</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">ID\'den önceki bağlantı veya ID yeri için {id}. Boş bırakılırsa %1$s</string>
+</resources>

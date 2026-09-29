@@ -1,5 +1,8 @@
 package com.ella.music.data
 
+import com.ella.music.data.model.Song
+import com.ella.music.data.model.isNeteaseStream
+
 data class ActionMenuLayout(
     val order: List<String>,
     val hidden: Set<String>
@@ -10,10 +13,14 @@ data class ActionMenuLayout(
         val known = defaultOrder.toSet()
         val savedOrder = order.filter { it in known }
         val normalizedOrder = (savedOrder + defaultOrder).distinct().toMutableList().apply {
-            if (ActionMenuIds.CASTING in defaultOrder && ActionMenuIds.CASTING !in savedOrder) {
-                remove(ActionMenuIds.CASTING)
-                val audioOutputIndex = indexOf(ActionMenuIds.AUDIO_OUTPUT)
-                add(if (audioOutputIndex >= 0) audioOutputIndex + 1 else size, ActionMenuIds.CASTING)
+            // Ids added after a layout was saved land next to their related action instead of
+            // after the last item; the user's existing items keep their relative order.
+            ActionMenuIds.insertAfterAnchors.forEach { (id, anchor) ->
+                if (id in defaultOrder && id !in savedOrder) {
+                    remove(id)
+                    val anchorIndex = indexOf(anchor)
+                    add(if (anchorIndex >= 0) anchorIndex + 1 else size, id)
+                }
             }
         }
         return ActionMenuLayout(normalizedOrder, hidden.intersect(known))
@@ -32,6 +39,9 @@ data class ActionMenuLayout(
 }
 
 object ActionMenuIds {
+    const val SPEED = "speed"
+    const val EQUALIZER = "equalizer"
+    const val TIMER = "timer"
     const val ADD_TO_PLAYLIST = "add_to_playlist"
     const val ADD_TO_QUEUE = "add_to_queue"
     const val PLAY_NEXT = "play_next"
@@ -44,6 +54,9 @@ object ActionMenuIds {
     const val LYRIC_TIMING = "lyric_timing"
     const val AUDIO_TOOLS = "audio_tools"
     const val REMOVE_FROM_PLAYLIST = "remove_from_playlist"
+    const val REMOVE_FROM_RECENT_PLAYBACK = "remove_from_recent_playback"
+    const val DELETE_SINGLE_RECENT_PLAYBACK = "delete_single_recent_playback" // legacy
+    const val CLEAR_RECENT_PLAYBACK = "clear_recent_playback" // legacy
     const val DELETE = "delete"
     const val AUDIO_OUTPUT = "audio_output"
     const val CASTING = "casting"
@@ -57,16 +70,46 @@ object ActionMenuIds {
     const val LYRIC_OFFSET = "lyric_offset"
     const val KEEP_SCREEN_ON = "keep_screen_on"
     const val DOWNLOAD = "download"
+    const val DOWNLOAD_MV = "download_mv"
+    const val VIEW_MV = "view_mv"
+
+    /** New id -> existing id it is inserted after when migrating an older saved layout. */
+    internal val insertAfterAnchors = linkedMapOf(
+        CASTING to AUDIO_OUTPUT,
+        VIEW_MV to DOWNLOAD_MV
+    )
+
+    /** Actions that need a local audio file; hidden for NetEase streams ([Song.isNeteaseStream]). */
+    val localFileOnlyActions = setOf(
+        ONLINE_LYRICS, DYNAMIC_COVER, LYRIC_TIMING, EDIT_TAGS, RATING, SPECTRUM
+    )
+
+    /** Whether [id] can act on [song]; a null song keeps every action (nothing to gate on). */
+    fun isAvailableFor(id: String, song: Song?): Boolean =
+        song == null || id !in localFileOnlyActions || !song.isNeteaseStream()
+
+    val playerShortcutDefaults = listOf(
+        SPEED, EQUALIZER, TIMER, ADD_TO_PLAYLIST, PLAY_NEXT
+    )
+
+    val playerShortcutCatalog = listOf(
+        SPEED, EQUALIZER, TIMER, ADD_TO_PLAYLIST, PLAY_NEXT,
+        ADD_TO_QUEUE, SHARE, AI, INFO, AUDIO_OUTPUT, CASTING,
+        AB_REPEAT, LANDSCAPE, LYRICS_DISPLAY, SPECTRUM, RATING,
+        DYNAMIC_COVER, VISUALIZER, EDIT_TAGS, LYRIC_TIMING,
+        ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, VIEW_MV, DELETE
+    )
 
     val listDefaults = listOf(
         ADD_TO_PLAYLIST, ADD_TO_QUEUE, PLAY_NEXT, SHARE, SPECTRUM, AI, INFO, RATING,
-        EDIT_TAGS, LYRIC_TIMING, AUDIO_TOOLS, REMOVE_FROM_PLAYLIST, DELETE
+        EDIT_TAGS, LYRIC_TIMING, AUDIO_TOOLS, REMOVE_FROM_PLAYLIST,
+        REMOVE_FROM_RECENT_PLAYBACK, DOWNLOAD, DOWNLOAD_MV, DELETE
     )
 
     val playerDefaults = listOf(
         ADD_TO_QUEUE, SHARE, AI, INFO, AUDIO_OUTPUT, CASTING, AB_REPEAT, REMOTE_QUALITY, LANDSCAPE,
         LYRICS_DISPLAY, SPECTRUM, RATING, DYNAMIC_COVER, VISUALIZER, EDIT_TAGS,
-        LYRIC_TIMING, ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, DELETE
+        LYRIC_TIMING, ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, DOWNLOAD_MV, VIEW_MV, DELETE
     )
 
     const val SONG_INFO_TITLE = "song_info_title"

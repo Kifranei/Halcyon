@@ -1,5 +1,7 @@
 package com.ella.music.player
 
+import android.content.Context
+
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.AuxEffectInfo
 import androidx.media3.common.C
@@ -31,7 +33,8 @@ class OboeAudioSink(
     private val audioApi: Int,
     private val exclusive: Boolean,
     processors: List<AudioProcessor>,
-    private val deviceId: Int = 0
+    private val deviceId: Int = 0,
+    private val appContext: Context? = null
 ) : AudioSink {
 
     private val pipeline = AudioProcessingPipeline(ImmutableList.copyOf(processors))
@@ -96,10 +99,11 @@ class OboeAudioSink(
         outputFrameSize = outputChannelCount * bytesPerSample(outputEncoding)
 
         oboe?.close()
-        val output = OboeAudioOutput()
-        if (!output.open(audioApi, outputSampleRate, outputChannelCount, oboeEncodingId, exclusive, deviceId)) {
-            throw AudioSink.ConfigurationException("Unable to open Oboe output stream", inputFormat)
-        }
+        val output = openOboeOutput(outputSampleRate, outputChannelCount, oboeEncodingId)
+            ?: throw AudioSink.ConfigurationException(
+                if (exclusive) "USB exclusive / shared open failed" else "Unable to open Oboe output stream",
+                inputFormat
+            )
         oboe = output
         if (!playing) output.pause()
         resetPlaybackState()
@@ -201,10 +205,10 @@ class OboeAudioSink(
         val output = oboe
         if (output != null) {
             output.close()
-            val reopened = OboeAudioOutput()
-            if (reopened.open(audioApi, outputSampleRate, outputChannelCount, oboeEncodingId, exclusive, deviceId)) {
-                oboe = reopened
-                if (!playing) reopened.pause()
+            val opened = openOboeOutput(outputSampleRate, outputChannelCount, oboeEncodingId)
+            if (opened != null) {
+                oboe = opened
+                if (!playing) opened.pause()
             } else {
                 oboe = null
             }
@@ -219,6 +223,96 @@ class OboeAudioSink(
         pendingOutput = null
         configuredFormat = null
         resetPlaybackState()
+    }
+
+
+    /**
+     * Opens Oboe. For USB exclusive: request Exclusive at the **content** sample rate (bit-perfect),
+     * verify SharingMode, and only then mark ExclusiveActive. If the HAL refuses Exclusive, fall
+     * back to Shared still pinned to the DAC so playback continues, and mark ExclusiveFailed.
+    */
+    private fun openOboeOutput(sampleRate: Int, channelCount: Int, encodingId: Int): OboeAudioOutput? {
+        if (!exclusive) {
+            val output = OboeAudioOutput()
+            return if (output.open(audioApi, sampleRate, channelCount, encodingId, exclusive = false, deviceId)) {
+                output
+            } else {
+                null
+            }
+        }
+
+        if (appContext == null || deviceId <= 0) {
+            appContext?.let { context ->
+                UsbExclusiveSession.markExclusiveFailed(deviceId, "USB DAC", "device-not-found")
+                UsbExclusiveSession.log(context, "Exclusive unavailable: no USB output device — falling back to shared output")
+            }
+            val shared = OboeAudioOutput()
+            return if (shared.open(
+                    audioApi = audioApi,
+                    sampleRate = sampleRate,
+                    channelCount = channelCount,
+                    encoding = encodingId,
+                    exclusive = false,
+                    deviceId = deviceId.takeIf { it > 0 } ?: 0
+                )
+            ) {
+                shared
+            } else {
+                null
+            }
+        }
+
+        val device = UsbExclusiveSession.resolveUsbDevice(appContext)
+        val deviceName = device?.productName?.toString().orEmpty().ifBlank { "USB DAC" }
+        UsbExclusiveSession.requestExclusiveFocus(appContext)
+        val candidates = UsbExclusiveSession.exclusiveOpenCandidates(
+            device = device,
+            preferredRate = sampleRate,
+            preferredChannels = channelCount,
+            encodingId = encodingId
+        )
+        for ((rate, ch, enc) in candidates) {
+            val output = OboeAudioOutput()
+            val opened = output.open(
+                audioApi = audioApi,
+                sampleRate = rate,
+                channelCount = ch,
+                encoding = enc,
+                exclusive = true,
+                deviceId = deviceId
+            )
+            if (opened && output.isExclusive) {
+                // Content rate must match — candidates only use preferredRate for exclusive.
+                outputSampleRate = output.outputSampleRate().takeIf { it > 0 } ?: rate
+                outputChannelCount = ch
+                oboeEncodingId = enc
+                val pcmEnc = when (enc) {
+                    0 -> C.ENCODING_PCM_16BIT
+                    1 -> C.ENCODING_PCM_24BIT
+                    2 -> C.ENCODING_PCM_32BIT
+                    3 -> C.ENCODING_PCM_FLOAT
+                    else -> C.ENCODING_PCM_16BIT
+                }
+                outputEncoding = pcmEnc
+                outputFrameSize = outputChannelCount * bytesPerSample(pcmEnc)
+                UsbExclusiveSession.markExclusiveActive(deviceId, deviceName, outputSampleRate, outputChannelCount)
+                UsbExclusiveSession.log(
+                    appContext,
+                    "Exclusive OK device=$deviceId rate=$outputSampleRate ch=$outputChannelCount enc=$enc"
+                )
+                return output
+            }
+            output.close()
+        }
+
+        UsbExclusiveSession.markExclusiveFailed(deviceId, deviceName, "hal-shared-or-unsupported")
+        UsbExclusiveSession.log(appContext, "Exclusive FAILED device=$deviceId — falling back to Shared on DAC")
+        val shared = OboeAudioOutput()
+        return if (shared.open(audioApi, sampleRate, channelCount, encodingId, exclusive = false, deviceId = deviceId)) {
+            shared
+        } else {
+            null
+        }
     }
 
     private fun resetPlaybackState() {

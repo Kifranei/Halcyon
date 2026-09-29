@@ -37,8 +37,10 @@ internal fun songsToLibraryCacheJsonArray(songs: List<Song>): JSONArray {
                 .put("coverUrl", song.coverUrl)
                 .put("onlineSource", song.onlineSource)
                 .put("onlineId", song.onlineId)
+                .put("onlineMvId", song.onlineMvId)
                 .put("onlineLyrics", song.onlineLyrics)
                 .put("onlineLyricTranslation", song.onlineLyricTranslation)
+                .put("onlineLyricPronunciation", song.onlineLyricPronunciation)
         )
     }
     return array
@@ -98,11 +100,16 @@ internal fun readLibraryCacheSongs(file: File): List<Song> {
 internal fun hasLibraryCache(file: File): Boolean =
     file.exists() || File("${file.path}.bak").exists()
 
-internal fun writeLibraryCacheAtomically(file: File, json: String) {
+internal fun writeLibraryCacheAtomically(file: File, json: String) =
+    writeLibraryCacheAtomically(file) { it.write(json) }
+
+internal fun writeLibraryCacheAtomically(file: File, write: (java.io.Writer) -> Unit) {
     val atomicFile = AtomicFile(file)
     val stream = atomicFile.startWrite()
     try {
-        stream.write(json.toByteArray(Charsets.UTF_8))
+        val writer = stream.bufferedWriter(Charsets.UTF_8)
+        write(writer)
+        writer.flush()
         atomicFile.finishWrite(stream)
     } catch (error: Throwable) {
         atomicFile.failWrite(stream)
@@ -134,8 +141,10 @@ private fun JsonReader.readCacheSong(): Song {
     var coverUrl = ""
     var onlineSource = ""
     var onlineId = ""
+    var onlineMvId = ""
     var onlineLyrics = ""
     var onlineLyricTranslation = ""
+    var onlineLyricPronunciation = ""
     beginObject()
     while (hasNext()) {
         when (nextName()) {
@@ -162,8 +171,10 @@ private fun JsonReader.readCacheSong(): Song {
             "coverUrl" -> coverUrl = nextStringOrEmpty()
             "onlineSource" -> onlineSource = nextStringOrEmpty()
             "onlineId" -> onlineId = nextStringOrEmpty()
+            "onlineMvId" -> onlineMvId = nextStringOrEmpty()
             "onlineLyrics" -> onlineLyrics = nextStringOrEmpty()
             "onlineLyricTranslation" -> onlineLyricTranslation = nextStringOrEmpty()
+            "onlineLyricPronunciation" -> onlineLyricPronunciation = nextStringOrEmpty()
             else -> skipValue()
         }
     }
@@ -192,8 +203,10 @@ private fun JsonReader.readCacheSong(): Song {
         coverUrl = coverUrl,
         onlineSource = onlineSource,
         onlineId = onlineId,
+        onlineMvId = onlineMvId,
         onlineLyrics = onlineLyrics,
-        onlineLyricTranslation = onlineLyricTranslation
+        onlineLyricTranslation = onlineLyricTranslation,
+        onlineLyricPronunciation = onlineLyricPronunciation
     )
 }
 
@@ -218,3 +231,21 @@ internal fun JSONArray.toLibraryCacheAlbumList(): List<Album> =
             albumArtist = item.optString("albumArtist")
         )
     }
+
+/** Write one record at a time so large libraries never allocate a full JSON tree and string. */
+internal fun writeLibrarySnapshot(file: File, songs: List<Song>, albums: List<Album>) =
+    writeLibraryCacheAtomically(file) { writeLibrarySnapshotJson(it, songs, albums) }
+
+internal fun writeLibrarySnapshotJson(writer: java.io.Writer, songs: List<Song>, albums: List<Album>) {
+    writer.write("{\"version\":1,\"songs\":[")
+    songs.forEachIndexed { index, song ->
+        if (index > 0) writer.write(",")
+        writer.write(songsToLibraryCacheJsonArray(listOf(song)).getJSONObject(0).toString())
+    }
+    writer.write("],\"albums\":[")
+    albums.forEachIndexed { index, album ->
+        if (index > 0) writer.write(",")
+        writer.write(albumsToLibraryCacheJsonArray(listOf(album)).getJSONObject(0).toString())
+    }
+    writer.write("]}")
+}

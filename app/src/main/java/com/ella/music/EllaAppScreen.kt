@@ -8,7 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -16,19 +16,34 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.platform.LocalWindowInfo
+import top.yukonga.miuix.kmp.basic.NavigationRailValue
+import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import com.ella.music.ui.player.PlayerMorphState
+import com.ella.music.ui.player.LocalPlayerMorphSurface
+import com.ella.music.ui.player.LocalPlayerMorph
+import com.ella.music.ui.player.playerMorphSurface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -86,8 +101,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import com.ella.music.ui.components.MiniPlayerLyricTiming
 import com.ella.music.ui.components.BottomBarLiquidGlassConfig
+import com.ella.music.ui.about.aboutCardBlendColors
+import com.ella.music.ui.components.LocalSettingsCardFrosting
+import com.ella.music.ui.components.SettingsCardFrosting
 import com.ella.music.ui.components.LocalSharedAppBackgroundVisible
+import com.ella.music.ui.components.LocalBackdrop
+import com.ella.music.ui.components.LocalTopBarBlurStyle
 import com.ella.music.ui.components.SafeCoverImage
+import top.yukonga.miuix.kmp.shader.isRenderEffectSupported
 import com.ella.music.ui.components.TagEditorEditTracker
 import com.ella.music.ui.components.supportsNowPlayingFlowBackground
 import com.ella.music.ui.components.updateEllaDynamicShortcuts
@@ -176,18 +197,37 @@ fun EllaApp(
     }
     val scope = rememberCoroutineScope()
     val pendingWebDavRestore by WebDavCloudRestoreCoordinator.pending.collectAsState()
+    val pendingAppUpgradeNotice by com.ella.music.data.AppUpgradeNotice.pending.collectAsState()
     val webDavRestoreDefaults by settingsManager.webDavRestoreDefaultTypes.collectAsState(initial = "")
     var webDavRestoreBusy by remember { mutableStateOf(false) }
     val mainActivity = context as? MainActivity
     val currentProcessingIntent = remember { mutableStateOf(activity?.intent) }
+    var pendingShuffleAllConfirmation by remember { mutableStateOf(false) }
     DisposableEffect(mainActivity) {
         mainActivity?.onNewIntentCallback = { intent -> currentProcessingIntent.value = intent }
         onDispose { mainActivity?.onNewIntentCallback = null }
     }
-    var showPlayerOverlay by remember { mutableStateOf(false) }
+    val initialNotificationPlayer = remember {
+        currentProcessingIntent.value?.let {
+            it.action == MainActivity.ACTION_MEDIA_NOTIFICATION_CLICK &&
+                it.getBooleanExtra(MainActivity.EXTRA_OPEN_PLAYER_FROM_NOTIFICATION, false)
+        } == true
+    }
+    var showPlayerOverlay by remember { mutableStateOf(initialNotificationPlayer) }
     var playerDismissProgress by remember { mutableFloatStateOf(0f) }
     var playerOverlayOpenToken by remember { mutableIntStateOf(0) }
-    var snapPlayerOverlay by remember { mutableStateOf(false) }
+    var snapPlayerOverlay by remember { mutableStateOf(initialNotificationPlayer) }
+    var handledNotificationIntent by remember { mutableStateOf(if (initialNotificationPlayer) currentProcessingIntent.value else null) }
+    val incomingPlayerIntent = currentProcessingIntent.value
+    if (incomingPlayerIntent !== handledNotificationIntent &&
+        incomingPlayerIntent?.action == MainActivity.ACTION_MEDIA_NOTIFICATION_CLICK &&
+        incomingPlayerIntent.getBooleanExtra(MainActivity.EXTRA_OPEN_PLAYER_FROM_NOTIFICATION, false)) {
+        handledNotificationIntent = incomingPlayerIntent
+        playerDismissProgress = 0f
+        snapPlayerOverlay = true
+        playerOverlayOpenToken++
+        showPlayerOverlay = true
+    }
     suspend fun openPlaybackSource() {
         // The queue occurrence carries the authoritative source. A song can occur more than
         // once in the queue, and the bridge's process-wide fallback may still point at an older
@@ -259,17 +299,12 @@ fun EllaApp(
         )
     }
     val restorePlayerOnBack = shouldRestorePlayerOnBack(returnToPlayerRoute, previousRouteIdentity)
-    PredictiveBackHandler(enabled = restorePlayerOnBack) { progress ->
+    // Predictive back support was removed. Use a regular BackHandler so restore-to-player
+    // and stack pops stay reliable.
+    BackHandler(enabled = restorePlayerOnBack) {
         snapPlayerOverlay = true
         showPlayerOverlay = true
         playerDismissProgress = 0f
-        try {
-            progress.collect { }
-        } catch (cancelled: CancellationException) {
-            snapPlayerOverlay = true
-            showPlayerOverlay = false
-            throw cancelled
-        }
         navController.popBackStack()
     }
     LaunchedEffect(currentRouteIdentity) {
@@ -292,34 +327,49 @@ fun EllaApp(
         }
     }
     // Keep the player surface resident in the composition tree once it has been opened, and
-    // drive open/close with a pure translationY slide instead of adding/removing the whole
+    // Drive the surface/artwork morph instead of adding/removing the whole
     // (very heavy) PlayerScreen each time. This removes the first-composition cost that used
     // to land on the slide-in animation frames and caused a stutter on every open.
-    var playerEverShown by remember { mutableStateOf(false) }
+    var playerEverShown by remember { mutableStateOf(initialNotificationPlayer) }
     val playerResident = showPlayerOverlay || playerEverShown
-    // 0f = fully open (on screen), 1f = fully closed (translated one screen-height down).
-    val playerOpenAnim = remember { Animatable(1f) }
+    // 0f = expanded player, 1f = collapsed mini-player.
+    val playerOpenAnim = remember { Animatable(if (initialNotificationPlayer) 0f else 1f) }
+    val playerMorph = remember { PlayerMorphState {
+        if (!showPlayerOverlay && snapPlayerOverlay) 0f
+        else (1f - playerOpenAnim.value) * (1f - playerDismissProgress)
+    } }
+    playerMorph.onOpeningStart = {
+        playerEverShown = true
+        playerDismissProgress = 0f
+        playerOverlayOpenToken++
+    }
+    playerMorph.onOpeningComplete = {
+        snapPlayerOverlay = true
+        showPlayerOverlay = true
+    }
     LaunchedEffect(showPlayerOverlay) {
         if (showPlayerOverlay) playerEverShown = true
         val target = if (showPlayerOverlay) 0f else 1f
         if (snapPlayerOverlay) {
             playerOpenAnim.snapTo(target)
+            playerMorph.openingProgress = null
             snapPlayerOverlay = false
         } else {
             playerOpenAnim.animateTo(
                 targetValue = target,
                 animationSpec = tween(
-                    durationMillis = if (showPlayerOverlay) 240 else 200,
+                    durationMillis = if (showPlayerOverlay) 320 else 240,
                     easing = if (showPlayerOverlay) {
-                        CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                        CubicBezierEasing(0.20f, 0.95f, 0.22f, 1f)
                     } else {
-                        CubicBezierEasing(0.4f, 0f, 1f, 1f)
+                        CubicBezierEasing(0.35f, 0f, 0.65f, 1f)
                     }
                 )
             )
         }
     }
-    val isPlayerVisible = showPlayerOverlay || currentRoute == Screen.Player.route
+    val openingPlayer by remember { androidx.compose.runtime.derivedStateOf { playerMorph.openingProgress != null } }
+    val isPlayerVisible = showPlayerOverlay || openingPlayer || currentRoute == Screen.Player.route
     val showLyrics by playerViewModel.showLyrics.collectAsState()
     var appInForeground by remember(lifecycleOwner) {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
@@ -349,7 +399,6 @@ fun EllaApp(
         )
     }
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    val initialScanPromptHandled by settingsManager.initialScanPromptHandled.collectAsState(initial = true)
     val setupWizardCompleted by settingsManager.setupWizardCompleted.collectAsState(initial = true)
     val fullTagSearchPromptHandled by settingsManager.fullTagSearchPromptHandled.collectAsState(initial = true)
     val localPlaylistScanPromptHandled by settingsManager.localPlaylistScanPromptHandled.collectAsState(initial = true)
@@ -360,8 +409,6 @@ fun EllaApp(
     val shortcutFolderLabel by settingsManager.shortcutFolderLabel.collectAsState(initial = SettingsManager.DEFAULT_SHORTCUT_FOLDER_LABEL)
     val appShortcutOrder by settingsManager.appShortcutOrder.collectAsState(initial = SettingsManager.DEFAULT_APP_SHORTCUT_ORDER)
     val isScanning by mainViewModel.isScanning.collectAsState()
-    var showInitialScanPrompt by remember { mutableStateOf(false) }
-    var showFullTagSearchPrompt by remember { mutableStateOf(false) }
     var showLocalPlaylistScanPrompt by remember { mutableStateOf(false) }
     var showAllFilesAccessPrompt by remember { mutableStateOf(false) }
     var localPlaylistAutoScanHandled by rememberSaveable { mutableStateOf(false) }
@@ -379,7 +426,13 @@ fun EllaApp(
         mainViewModel.scanSummaryEvents.collect { summary -> latestScanSummary = summary }
     }
 
+    val scanToastLibrarySource by settingsManager.librarySource.collectAsState(initial = "")
     LaunchedEffect(isScanning) {
+        // NetEase syncs favourites rather than scanning files; its refreshes stay silent.
+        if (scanToastLibrarySource == SettingsManager.LIBRARY_SOURCE_NETEASE) {
+            scanBurstActive = false
+            return@LaunchedEffect
+        }
         if (isScanning) {
             if (!scanBurstActive) {
                 scanBurstActive = true
@@ -407,21 +460,6 @@ fun EllaApp(
 
     LaunchedEffect(currentProcessingIntent.value) {
         val activity = context as? Activity
-        val processingIntent = currentProcessingIntent.value
-        if (
-            processingIntent?.action == MainActivity.ACTION_MEDIA_NOTIFICATION_CLICK &&
-            processingIntent.getBooleanExtra(MainActivity.EXTRA_OPEN_PLAYER_FROM_NOTIFICATION, false)
-        ) {
-            val currentSong = playerViewModel.currentSong.value ?: withTimeoutOrNull(2_000L) {
-                playerViewModel.currentSong.first { it != null }
-            }
-            if (currentSong != null) {
-                playerDismissProgress = 0f
-                snapPlayerOverlay = false
-                playerOverlayOpenToken++
-                showPlayerOverlay = true
-            }
-        }
         val shortcutAction = currentProcessingIntent.value?.resolveShortcutAction().orEmpty()
         when (shortcutAction) {
             SHORTCUT_ACTION_PLAY -> {
@@ -441,13 +479,7 @@ fun EllaApp(
                 }
             }
             SHORTCUT_ACTION_SHUFFLE_ALL -> {
-                val songs = mainViewModel.songs.first { it.isNotEmpty() }
-                playerViewModel.setShuffledPlaylist(songs, 0)
-                runCatching {
-                    navController.navigate(Screen.Player.route) {
-                        launchSingleTop = true
-                    }
-                }
+                pendingShuffleAllConfirmation = true
             }
         }
 
@@ -499,31 +531,6 @@ fun EllaApp(
         )
     }
 
-    val initialScanFolderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
-        val readWrite = readOnly or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(uri, readWrite)
-        }.recoverCatching {
-            context.contentResolver.takePersistableUriPermission(uri, readOnly)
-        }
-        val folderPath = uri.toPrimaryStoragePath()
-        if (folderPath == null) {
-            Toast.makeText(context, context.getString(R.string.unsupported_system_folder_path), Toast.LENGTH_SHORT).show()
-        } else {
-            scope.launch {
-                settingsManager.setUseAndroidMediaLibrary(false)
-                settingsManager.setScanIncludeFolders(folderPath)
-                settingsManager.setAutoScan(false)
-                mainViewModel.scanMusic()
-            }
-            Toast.makeText(context, context.getString(R.string.scan_folder_added), Toast.LENGTH_SHORT).show()
-        }
-    }
-
     @Suppress("DEPRECATION")
     LaunchedEffect(isPlayerVisible, isDarkTheme) {
         val window = (view.context as ComponentActivity).window
@@ -538,8 +545,20 @@ fun EllaApp(
         }
     }
 
+    val bottomBarStyle by settingsManager.bottomBarStyle.collectAsState(initial = initialUiSettings.bottomBarStyle)
+    val isTabletDevice = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val showBottomBar = currentRoute.isBottomDockRoute()
-    val canCompactBottomDock = showBottomBar
+    val windowSize = LocalWindowInfo.current.containerSize
+    val showNavigationRail = showBottomBar && with(LocalDensity.current) {
+        useNavigationRail(
+            style = bottomBarStyle,
+            windowWidthDp = windowSize.width.toDp().value,
+            windowHeightDp = windowSize.height.toDp().value,
+            tablet = isTabletDevice
+        )
+    }
+    val effectiveBottomBarStyle = bottomBarStyle
+    val canCompactBottomDock = showBottomBar && !showNavigationRail
     var bottomDockMode by rememberSaveable { mutableStateOf(BottomDockMode.Expanded) }
     var normalBottomDockHeightPx by remember { mutableIntStateOf(0) }
 
@@ -553,48 +572,14 @@ fun EllaApp(
 
     LaunchedEffect(
         libraryCacheLoaded,
-        setupWizardCompleted,
-        initialScanPromptHandled,
-        currentRoute
+        setupWizardCompleted
     ) {
-        if (!libraryCacheLoaded || setupWizardCompleted || initialScanPromptHandled) return@LaunchedEffect
-        if (currentRoute != Screen.SettingsWizard.route) {
+        if (!libraryCacheLoaded || setupWizardCompleted) return@LaunchedEffect
+        val wizardAlreadyOpen = runCatching {
+            navController.getBackStackEntry(Screen.SettingsWizard.route)
+        }.isSuccess
+        if (!wizardAlreadyOpen) {
             navController.navigate(Screen.SettingsWizard.route)
-        }
-    }
-
-    LaunchedEffect(
-        libraryCacheLoaded,
-        initialScanPromptHandled,
-        fullTagSearchPromptHandled,
-        isScanning,
-        librarySongs
-    ) {
-        if (!libraryCacheLoaded || initialScanPromptHandled) return@LaunchedEffect
-        if (librarySongs.isNotEmpty()) {
-            settingsManager.setInitialScanPromptHandled(true)
-        } else if (!fullTagSearchPromptHandled) {
-            showFullTagSearchPrompt = true
-        } else if (!isScanning) {
-            showInitialScanPrompt = true
-        }
-    }
-
-    LaunchedEffect(
-        libraryCacheLoaded,
-        initialScanPromptHandled,
-        fullTagSearchPromptHandled,
-        showInitialScanPrompt,
-        librarySongs
-    ) {
-        if (
-            libraryCacheLoaded &&
-            initialScanPromptHandled &&
-            !fullTagSearchPromptHandled &&
-            !showInitialScanPrompt &&
-            librarySongs.isNotEmpty()
-        ) {
-            showFullTagSearchPrompt = true
         }
     }
 
@@ -613,24 +598,22 @@ fun EllaApp(
         libraryCacheLoaded,
         allFilesAccessPromptHandled,
         setupWizardCompleted,
-        showInitialScanPrompt,
-        showFullTagSearchPrompt,
         showLocalPlaylistScanPrompt
     ) {
         if (!libraryCacheLoaded || !setupWizardCompleted) return@LaunchedEffect
         if (allFilesAccessPromptHandled || AllFilesAccess.isGranted(context)) return@LaunchedEffect
-        if (showInitialScanPrompt || showFullTagSearchPrompt || showLocalPlaylistScanPrompt) return@LaunchedEffect
+        if (showLocalPlaylistScanPrompt) return@LaunchedEffect
         showAllFilesAccessPrompt = true
     }
 
     LaunchedEffect(
         libraryCacheLoaded,
+        setupWizardCompleted,
         localPlaylistScanPromptHandled,
         autoScanLocalPlaylists,
-        librarySongs,
-        showInitialScanPrompt
+        librarySongs
     ) {
-        if (!libraryCacheLoaded || librarySongs.isEmpty() || showInitialScanPrompt) return@LaunchedEffect
+        if (!libraryCacheLoaded || !setupWizardCompleted || librarySongs.isEmpty()) return@LaunchedEffect
         if (!localPlaylistScanPromptHandled) {
             showLocalPlaylistScanPrompt = true
             return@LaunchedEffect
@@ -670,7 +653,6 @@ fun EllaApp(
         initial = initialUiSettings.miniPlayerSwipeToOpenPlayer
     )
     val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = initialUiSettings.bottomBarGlassEffect)
-    val bottomBarStyle by settingsManager.bottomBarStyle.collectAsState(initial = initialUiSettings.bottomBarStyle)
     val bottomBarCornerRadius by settingsManager.bottomBarCornerRadius.collectAsState(
         initial = initialUiSettings.bottomBarCornerRadius
     )
@@ -689,6 +671,8 @@ fun EllaApp(
     val bottomDockItemIds by settingsManager.bottomDockItems.collectAsState(
         initial = initialUiSettings.bottomDockItems
     )
+    val bottomDockMergeSearch by settingsManager.bottomDockMergeSearch.collectAsState(initial = true)
+    val topBarBlurStyle by settingsManager.topBarBlurStyle.collectAsState(initial = SettingsManager.TOP_BAR_BLUR_OFF)
     val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = initialUiSettings.appWallpaperEnabled)
     val appWallpaperUri by settingsManager.appWallpaperUri.collectAsState(initial = initialUiSettings.appWallpaperUri)
     val appWallpaperOpacity by settingsManager.appWallpaperOpacity.collectAsState(initial = initialUiSettings.appWallpaperOpacity)
@@ -714,7 +698,6 @@ fun EllaApp(
     }
 
     val currentLyricLine = lyrics.getOrNull(currentLyricIndex)
-    val isTabletDevice = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val allowTabletExpandedMiniLyrics = isTabletDevice && bottomDockMode == BottomDockMode.Expanded
     val miniPlayerLyricsVisible = miniPlayerLyricsEnabled || allowTabletExpandedMiniLyrics
     val miniPlayerLyricText = if (isPlaying && miniPlayerLyricsVisible) {
@@ -751,7 +734,9 @@ fun EllaApp(
     val showMiniPlayer = currentSong != null &&
         currentRoute != Screen.Player.route &&
         currentRoute != Screen.AiChat.route &&
-        !showPlayerOverlay
+        currentRoute != Screen.Update.route &&
+        currentRoute != Screen.About.route &&
+        currentRoute != Screen.SettingsWizard.route
     LaunchedEffect(showMiniPlayer, canCompactBottomDock) {
         if (!showMiniPlayer || !canCompactBottomDock) bottomDockMode = BottomDockMode.Expanded
     }
@@ -773,9 +758,8 @@ fun EllaApp(
     val miuixBackdrop = rememberMiuixLayerBackdrop()
     val useGlass = true
     val bottomDockSpecs = bottomDockTabCatalog()
-    val tabs = bottomDockItemIds
+    val tabs = SettingsManager.visibleBottomDockItems(bottomDockItemIds, bottomDockMergeSearch)
         .mapNotNull { bottomDockSpecs[it] }
-        .take(SettingsManager.MAX_BOTTOM_DOCK_ITEMS)
         .ifEmpty {
             listOfNotNull(
                 bottomDockSpecs[SettingsManager.BOTTOM_DOCK_ITEM_HOME],
@@ -784,13 +768,22 @@ fun EllaApp(
                 bottomDockSpecs[SettingsManager.BOTTOM_DOCK_ITEM_PLAYLISTS]
             )
         }
+    val railState = rememberNavigationRailState(NavigationRailValue.Expanded)
     val currentTabRoute = currentRoute.toCurrentTabRoute()
-    val renderedBottomBarGlassEffect = when (bottomBarStyle) {
+    val renderedBottomBarGlassEffect = when (effectiveBottomBarStyle) {
         BottomBarStyle.Floating -> BottomBarGlassEffect.Blur
         BottomBarStyle.LiquidGlass -> BottomBarGlassEffect.LiquidGlass
         BottomBarStyle.Normal -> bottomBarGlassEffect
     }
 
+    val homeSearchPreference by settingsManager.homeSearchTarget.collectAsState(initial = "local")
+    val searchLibrarySource by settingsManager.librarySource.collectAsState(initial = SettingsManager.LIBRARY_SOURCE_LOCAL)
+    val homeSearchRoute = when (com.ella.music.data.resolveHomeSearchTarget(searchLibrarySource, homeSearchPreference)) {
+        "netease" -> Screen.NeteaseSearch.route
+        "lx" -> Screen.LxOnline.route
+        "musicfree" -> Screen.MusicFreeOnline.route
+        else -> Screen.LibrarySearch.createRoute(localOnly = true)
+    }
     val wallpaperVisible = appWallpaperEnabled && appWallpaperUri.isNotBlank()
     val nowPlayingFlowVisible = !wallpaperVisible &&
         appNowPlayingFlowBackground &&
@@ -846,7 +839,7 @@ fun EllaApp(
         .then(if (sharedAppBackgroundVisible) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
     val normalBottomDockHeight = with(LocalDensity.current) { normalBottomDockHeightPx.toDp() }
     val normalBottomDockSwipe = normalBottomDockSwipeModifier(
-        enabled = bottomBarStyle == BottomBarStyle.Normal && showBottomBar && !showPlayerOverlay,
+        enabled = showBottomBar && !showNavigationRail && !showPlayerOverlay,
         tabs = tabs,
         currentRoute = currentRoute,
         onNavigate = { route ->
@@ -857,20 +850,13 @@ fun EllaApp(
         },
         onNavigateSearch = {
             bottomDockMode = BottomDockMode.Expanded
-            val route = Screen.LibrarySearch.createRoute()
+            val route = homeSearchRoute
             if (!currentRoute.matchesRoute(route)) {
                 navController.navigateBottomDockRoute(route, currentRoute)
             }
         }
     )
     val appNavigationModifier = contentModifier
-        .then(
-            if (bottomBarStyle == BottomBarStyle.Normal && showBottomBar && normalBottomDockHeight > 0.dp) {
-                Modifier.padding(bottom = normalBottomDockHeight)
-            } else {
-                Modifier
-            }
-        )
         .nestedScroll(dockScrollConnection)
         .then(normalBottomDockSwipe)
     Box(
@@ -900,7 +886,15 @@ fun EllaApp(
             }
         } else {
             val librarySearchDockState = rememberLibrarySearchDockState()
+            val sharedBackgroundBackdrop = rememberMiuixLayerBackdrop()
+            val hasSharedBackground = wallpaperVisible || nowPlayingFlowVisible
+            val blurSupported = remember { isRenderEffectSupported() }
+            val cardBlendColors = remember(isDarkTheme) { aboutCardBlendColors(isDarkTheme) }
+            val settingsFrosting = remember(sharedBackgroundBackdrop, blurSupported, cardBlendColors) {
+                SettingsCardFrosting(sharedBackgroundBackdrop, blurSupported, cardBlendColors)
+            }
             CompositionLocalProvider(
+                LocalPlayerMorph provides playerMorph,
                 LocalAppNavigator provides { route ->
                     if (showPlayerOverlay) {
                         returnToPlayerRoute = currentRouteIdentity
@@ -911,8 +905,41 @@ fun EllaApp(
                     navController.navigateAppRoute(route, currentRoute)
                 },
                 LocalLibrarySearchDockState provides librarySearchDockState,
-                LocalSharedAppBackgroundVisible provides sharedAppBackgroundVisible
+                LocalSharedAppBackgroundVisible provides sharedAppBackgroundVisible,
+                LocalTopBarBlurStyle provides topBarBlurStyle,
+                LocalBackdrop provides (if (hasSharedBackground) sharedBackgroundBackdrop else null),
+                LocalSettingsCardFrosting provides (if (hasSharedBackground) settingsFrosting else null)
             ) {
+            // Keep one navigation/content composition across window changes; only the rail's
+            // measured width changes, so page state and the mini-player survive rotation.
+            Row(Modifier.fillMaxSize()) {
+                if (showNavigationRail) {
+                    MainNavigationRail(
+                        state = railState,
+                        tabs = tabs,
+                        currentTabRoute = currentTabRoute,
+                        currentRoute = currentRoute,
+                        mergeSearch = bottomDockMergeSearch,
+                        onNavigate = { route ->
+                            bottomDockMode = BottomDockMode.Expanded
+                            if (!currentRoute.matchesRoute(route)) {
+                                navController.navigateBottomDockRoute(route, currentRoute)
+                            }
+                        },
+                        onNavigateSearch = {
+                            val route = homeSearchRoute
+                            if (!currentRoute.matchesRoute(route)) {
+                                navController.navigateBottomDockRoute(route, currentRoute)
+                            }
+                        }
+                    )
+                }
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().then(
+                        if (showNavigationRail) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                        else Modifier
+                    )
+                ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -924,6 +951,7 @@ fun EllaApp(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .layerMiuixBackdrop(sharedBackgroundBackdrop)
                         .graphicsLayer { alpha = appWallpaperOpacity.coerceIn(20, 100) / 100f }
                 ) {
                     SafeCoverImage(
@@ -960,16 +988,22 @@ fun EllaApp(
                         .background(contentOverlayColor)
                 )
             } else if (nowPlayingFlowVisible) {
-                currentSong?.let { song ->
-                    AppNowPlayingFlowBackground(
-                        song = song,
-                        mainViewModel = mainViewModel,
-                        currentPositionMs = currentPosition,
-                        isPlaying = isPlaying,
-                        light = !isDarkTheme,
-                        modifier = Modifier.fillMaxSize(),
-                        artwork = appNowPlayingArtwork
-                    )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .layerMiuixBackdrop(sharedBackgroundBackdrop)
+                ) {
+                    currentSong?.let { song ->
+                        AppNowPlayingFlowBackground(
+                            song = song,
+                            mainViewModel = mainViewModel,
+                            currentPositionMs = currentPosition,
+                            isPlaying = isPlaying,
+                            light = !isDarkTheme,
+                            modifier = Modifier.fillMaxSize(),
+                            artwork = appNowPlayingArtwork
+                        )
+                    }
                 }
                 val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
                 val contentOverlayColor = if (isDarkTheme) {
@@ -999,7 +1033,7 @@ fun EllaApp(
             }
                 FloatingBottomControls(
                     showMiniPlayer = showMiniPlayer,
-                    showBottomBar = showBottomBar,
+                    showBottomBar = showBottomBar && !showNavigationRail,
                     currentSong = currentSong,
                     isPlaying = isPlaying,
                     coverRotationEnabled = miniPlayerCoverRotation,
@@ -1018,7 +1052,7 @@ fun EllaApp(
                     bottomDockMode = bottomDockMode,
                     canCompact = canCompactBottomDock,
                     backdrop = miuixBackdrop,
-                    bottomBarStyle = bottomBarStyle,
+                    bottomBarStyle = effectiveBottomBarStyle,
                     glassEffect = renderedBottomBarGlassEffect,
                     bottomBarCornerRadiusDp = bottomBarCornerRadius,
                     liquidGlassConfig = BottomBarLiquidGlassConfig(
@@ -1038,7 +1072,7 @@ fun EllaApp(
                     },
                     onNavigateSearch = {
                         bottomDockMode = BottomDockMode.Expanded
-                        val route = Screen.LibrarySearch.createRoute()
+                        val route = homeSearchRoute
                         if (!currentRoute.matchesRoute(route)) {
                             navController.navigateBottomDockRoute(route, currentRoute)
                         }
@@ -1059,62 +1093,71 @@ fun EllaApp(
                             navController.navigateBottomDockRoute(Screen.Home.route, currentRoute)
                         }
                     },
-                    modifier = if (bottomBarStyle == BottomBarStyle.Normal) {
+                    mergeSearch = bottomDockMergeSearch,
+                    modifier = (if (effectiveBottomBarStyle == BottomBarStyle.Normal) {
                         Modifier
                             .fillMaxWidth()
                             .align(androidx.compose.ui.Alignment.BottomCenter)
                             .onSizeChanged { size -> normalBottomDockHeightPx = size.height }
                     } else {
                         Modifier.align(androidx.compose.ui.Alignment.BottomCenter)
+                    }).graphicsLayer {
+                        val openProgress = playerMorph.progress
+                        translationY = 0f
+                        alpha = (1f - openProgress * 2.2f).coerceIn(0f, 1f)
                     }
                 )
+                }
+            }
             if (playerResident) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .onGloballyPositioned { playerMorph.origin = it.positionInRoot() }
                         .graphicsLayer {
-                            val t = playerOpenAnim.value
-                            translationY = t * size.height
-                            val scale = 1f - 0.06f * t
-                            scaleX = scale
-                            scaleY = scale
-                            transformOrigin = TransformOrigin(0.5f, 1f)
+                            translationY = if (playerMorph.progress <= 0f) size.height else 0f
                         }
+                        .playerMorphSurface(playerMorph, effectiveBottomBarStyle != BottomBarStyle.Normal)
                 ) {
-                PlayerScreen(
-                    mainViewModel = mainViewModel,
-                    playerViewModel = playerViewModel,
-                    playerVisible = showPlayerOverlay,
-                    restorePlayerOnBack = restorePlayerOnBack,
-                    onBack = {
-                        playerViewModel.setShowLyrics(false)
-                        // The dismiss host already slid the player off-screen. Don't run a second
-                        // overlay close animation or the mini-player waits twice as long (#469).
-                        snapPlayerOverlay = playerDismissProgress > 0.85f
-                        showPlayerOverlay = false
-                        playerDismissProgress = 0f
-                    },
-                    onNavigateToAlbum = { albumId ->
-                        returnToPlayerRoute = currentRouteIdentity
-                        navController.navigate(Screen.AlbumDetail.createRoute(albumId))
-                    },
-                    onNavigateToArtist = { artistName ->
-                        returnToPlayerRoute = currentRouteIdentity
-                        navController.navigate(Screen.ArtistDetail.createRoute(artistName))
-                    },
-                    onNavigateToMetadataCategory = { type, name ->
-                        returnToPlayerRoute = currentRouteIdentity
-                        navController.navigate(Screen.MetadataCategoryDetail.createRoute(type, name))
-                    },
-                    onNavigateToEqualizer = {
-                        returnToPlayerRoute = currentRouteIdentity
-                        navController.navigate(Screen.Equalizer.createRoute())
-                    },
-                    onDismissProgressChange = { progress ->
-                        playerDismissProgress = progress
-                    },
-                    openToken = playerOverlayOpenToken
-                )
+                    CompositionLocalProvider(
+                        LocalPlayerMorphSurface provides true,
+                        LocalSettingsCardFrosting provides null,
+                        LocalSharedAppBackgroundVisible provides false
+                    ) {
+                        PlayerScreen(
+                            mainViewModel = mainViewModel,
+                            playerViewModel = playerViewModel,
+                            playerVisible = showPlayerOverlay || openingPlayer,
+                            restorePlayerOnBack = restorePlayerOnBack,
+                            onBack = {
+                                playerViewModel.setShowLyrics(false)
+                                // The dismiss host already collapsed the surface. Don't run a second
+                                // overlay close animation or the mini-player waits twice as long (#469).
+                                snapPlayerOverlay = playerDismissProgress > 0.85f
+                                showPlayerOverlay = false
+                            },
+                            onNavigateToAlbum = { albumId ->
+                                returnToPlayerRoute = currentRouteIdentity
+                                navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                            },
+                            onNavigateToArtist = { artistName ->
+                                returnToPlayerRoute = currentRouteIdentity
+                                navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                            },
+                            onNavigateToMetadataCategory = { type, name ->
+                                returnToPlayerRoute = currentRouteIdentity
+                                navController.navigate(Screen.MetadataCategoryDetail.createRoute(type, name))
+                            },
+                            onNavigateToEqualizer = {
+                                returnToPlayerRoute = currentRouteIdentity
+                                navController.navigate(Screen.Equalizer.createRoute())
+                            },
+                            onDismissProgressChange = { progress ->
+                                playerDismissProgress = progress
+                            },
+                            openToken = playerOverlayOpenToken
+                        )
+                    }
                 }
             }
 
@@ -1129,51 +1172,6 @@ fun EllaApp(
                     scope.launch { settingsManager.setAllFilesAccessPromptHandled(true) }
                     runCatching {
                         allFilesAccessLauncher.launch(AllFilesAccess.settingsIntent(context))
-                    }
-                }
-            )
-
-            InitialScanPromptDialog(
-                show = showInitialScanPrompt,
-                onDismiss = {
-                    showInitialScanPrompt = false
-                    scope.launch {
-                        settingsManager.setInitialScanPromptHandled(true)
-                        settingsManager.setAutoScan(false)
-                    }
-                },
-                onCustomFolderScan = {
-                    showInitialScanPrompt = false
-                    scope.launch {
-                        settingsManager.setInitialScanPromptHandled(true)
-                        settingsManager.setUseAndroidMediaLibrary(false)
-                        settingsManager.setAutoScan(false)
-                    }
-                    initialScanFolderPicker.launch(null)
-                },
-                onMediaLibraryScan = {
-                    showInitialScanPrompt = false
-                    scope.launch {
-                        settingsManager.setInitialScanPromptHandled(true)
-                        settingsManager.setUseAndroidMediaLibrary(true)
-                        settingsManager.setAutoScan(false)
-                        mainViewModel.scanMusic()
-                    }
-                }
-            )
-
-            FullTagSearchPromptDialog(
-                show = showFullTagSearchPrompt,
-                onChoose = { enabled ->
-                    showFullTagSearchPrompt = false
-                    scope.launch {
-                        settingsManager.setFullTagSearchEnabled(enabled)
-                        settingsManager.setFullTagSearchPromptHandled(true)
-                        // On a fresh library, choose the scan strategy before showing the
-                        // initial scan confirmation so the first scan never uses the old mode.
-                        if (!initialScanPromptHandled && librarySongs.isEmpty()) {
-                            showInitialScanPrompt = true
-                        }
                     }
                 }
             )
@@ -1232,6 +1230,19 @@ fun EllaApp(
                 }
             )
 
+            val appUpgradeNotice = pendingAppUpgradeNotice
+            AppUpgradeNoticeDialog(
+                show = appUpgradeNotice != null && libraryCacheLoaded,
+                previousVersionName = appUpgradeNotice?.previousVersionName,
+                onClearData = {
+                    com.ella.music.data.AppUpgradeNotice.acknowledge(context)
+                    if (!openAppDetailsSettings(context)) {
+                        navController.navigate(Screen.SettingsMaintenance.route)
+                    }
+                },
+                onLater = { com.ella.music.data.AppUpgradeNotice.acknowledge(context) }
+            )
+
             val cloudCandidate = pendingWebDavRestore
             WebDavCloudRestorePromptDialog(
                 show = cloudCandidate != null,
@@ -1260,6 +1271,22 @@ fun EllaApp(
                             Toast.makeText(context, R.string.settings_backup_restore_failed, Toast.LENGTH_LONG).show()
                         }
                         webDavRestoreBusy = false
+                    }
+                }
+            )
+            ShuffleAllShortcutConfirmationDialog(
+                show = pendingShuffleAllConfirmation,
+                onDismiss = { pendingShuffleAllConfirmation = false },
+                onConfirm = {
+                    pendingShuffleAllConfirmation = false
+                    scope.launch {
+                        val songs = mainViewModel.songs.first { it.isNotEmpty() }
+                        playerViewModel.setShuffledPlaylist(songs, 0)
+                        runCatching {
+                            navController.navigate(Screen.Player.route) {
+                                launchSingleTop = true
+                            }
+                        }
                     }
                 }
             )

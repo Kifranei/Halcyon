@@ -32,7 +32,8 @@ internal enum class FolderPlaylistSongSortMode(@param:StringRes val labelRes: In
     DateModifiedAsc(R.string.playlist_song_sort_date_modified_asc),
     TitleDesc(R.string.playlist_sort_name),
     FileNameDesc(R.string.playlist_song_sort_file_name),
-    DurationAsc(R.string.playlist_song_sort_duration)
+    DurationAsc(R.string.playlist_song_sort_duration),
+    Random(R.string.common_sort_random)
 }
 
 internal enum class FolderPlaylistFolderSortMode(@param:StringRes val labelRes: Int) {
@@ -102,6 +103,7 @@ internal fun List<Song>.sortedForFolderPlaylistDetail(
     FolderPlaylistSongSortMode.DateAddedAsc -> sortedBy { it.dateAdded }
     FolderPlaylistSongSortMode.DateModified -> sortedByDescending { it.dateModified }
     FolderPlaylistSongSortMode.DateModifiedAsc -> sortedBy { it.dateModified }
+    FolderPlaylistSongSortMode.Random -> shuffled(kotlin.random.Random(com.ella.music.ui.LibrarySortUiState.randomSortSeed))
 }
 
 internal fun List<FolderPlaylistFolderEntry>.sortedForFolderPlaylistDetail(

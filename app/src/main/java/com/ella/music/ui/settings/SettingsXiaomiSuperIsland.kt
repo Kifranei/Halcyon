@@ -44,12 +44,15 @@ internal fun SettingsXiaomiSuperIslandControls() {
     }
 
     SmallTitle(text = stringResource(R.string.settings_xiaomi_super_island_display_section))
+    SettingsCardGroup {
 
     val contentLabels = listOf(
         stringResource(R.string.settings_live_update_lyric_original),
         stringResource(R.string.settings_live_update_lyric_translation),
         stringResource(R.string.settings_live_update_lyric_pronunciation)
     )
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_lyric_content) {
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_lyric_content),
         summary = stringResource(R.string.settings_xiaomi_super_island_lyric_content_summary),
@@ -57,11 +60,15 @@ internal fun SettingsXiaomiSuperIslandControls() {
         selectedIndex = settings.lyricTextMode,
         onSelected = { update(settings.copy(lyricTextMode = it)) }
     )
+    } // search-anchor:end
+
 
     val lyricModeLabels = listOf(
         stringResource(R.string.settings_xiaomi_super_island_mode_standard),
         stringResource(R.string.settings_xiaomi_super_island_mode_full)
     )
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_lyric_mode) {
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_lyric_mode),
         summary = stringResource(R.string.settings_xiaomi_super_island_lyric_mode_summary),
@@ -69,14 +76,22 @@ internal fun SettingsXiaomiSuperIslandControls() {
         selectedIndex = settings.lyricMode,
         onSelected = { update(settings.copy(lyricMode = it)) }
     )
-    if (settings.lyricMode == XiaomiSuperIslandSettings.LYRIC_MODE_FULL) {
+    } // search-anchor:end
+
+    if (settings.lyricMode == XiaomiSuperIslandSettings.LYRIC_MODE_FULL /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_xiaomi_super_island_left_cover)) {
+        // search-anchor:start
+        SettingsSearchAnchor(R.string.settings_xiaomi_super_island_left_cover) {
         SwitchPreference(
             title = stringResource(R.string.settings_xiaomi_super_island_left_cover),
             summary = stringResource(R.string.settings_xiaomi_super_island_left_cover_summary),
             checked = settings.fullLyricShowLeftCover,
             onCheckedChange = { update(settings.copy(fullLyricShowLeftCover = it)) }
         )
+        } // search-anchor:end
+
     }
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_scrolling) {
     SwitchPreference(
         title = stringResource(R.string.settings_xiaomi_super_island_scrolling),
         summary = stringResource(R.string.settings_xiaomi_super_island_scrolling_summary),
@@ -84,6 +99,10 @@ internal fun SettingsXiaomiSuperIslandControls() {
         enabled = settings.lyricMode == XiaomiSuperIslandSettings.LYRIC_MODE_STANDARD,
         onCheckedChange = { update(settings.copy(scrollingEnabled = it)) }
     )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_right_limit) {
     SettingsIntSliderPreference(
         title = stringResource(R.string.settings_xiaomi_super_island_right_limit),
         summary = stringResource(R.string.settings_xiaomi_super_island_text_limit_summary),
@@ -93,13 +112,17 @@ internal fun SettingsXiaomiSuperIslandControls() {
         steps = 7,
         onValueChange = { update(settings.copy(rightTextChars = it)) }
     )
-    if (settings.lyricMode == XiaomiSuperIslandSettings.LYRIC_MODE_FULL) {
+    } // search-anchor:end
+
+    if (settings.lyricMode == XiaomiSuperIslandSettings.LYRIC_MODE_FULL /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_xiaomi_super_island_left_limit)) {
         val leftValue = if (settings.fullLyricShowLeftCover) {
             settings.leftWithCoverTextChars
         } else {
             settings.leftWithoutCoverTextChars
         }
         val leftRange = if (settings.fullLyricShowLeftCover) 4..10 else 6..14
+        // search-anchor:start
+        SettingsSearchAnchor(R.string.settings_xiaomi_super_island_left_limit) {
         SettingsIntSliderPreference(
             title = stringResource(R.string.settings_xiaomi_super_island_left_limit),
             summary = stringResource(R.string.settings_xiaomi_super_island_text_limit_summary),
@@ -117,8 +140,11 @@ internal fun SettingsXiaomiSuperIslandControls() {
                 )
             }
         )
-    }
+        } // search-anchor:end
 
+    }
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_colorize) {
     SwitchPreference(
         title = stringResource(R.string.settings_xiaomi_super_island_colorize),
         summary = stringResource(R.string.settings_xiaomi_super_island_colorize_summary),
@@ -127,11 +153,15 @@ internal fun SettingsXiaomiSuperIslandControls() {
             update(settings.copy(textColorEnabled = it, progressColorEnabled = it))
         }
     )
-    if (settings.textColorEnabled) {
+    } // search-anchor:end
+
+    if (settings.textColorEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_xiaomi_super_island_color_source)) {
         val colorSourceLabels = listOf(
             stringResource(R.string.settings_xiaomi_super_island_color_album),
             stringResource(R.string.common_custom)
         )
+        // search-anchor:start
+        SettingsSearchAnchor(R.string.settings_xiaomi_super_island_color_source) {
         SuperIslandSpinner(
             title = stringResource(R.string.settings_xiaomi_super_island_color_source),
             summary = stringResource(R.string.settings_xiaomi_super_island_color_source_summary),
@@ -139,6 +169,8 @@ internal fun SettingsXiaomiSuperIslandControls() {
             selectedIndex = settings.colorSource,
             onSelected = { update(settings.copy(colorSource = it)) }
         )
+        } // search-anchor:end
+
         if (settings.colorSource == XiaomiSuperIslandSettings.COLOR_SOURCE_CUSTOM) {
             var pickerColor by remember(settings.customColor) {
                 mutableStateOf(Color(settings.customColor))
@@ -162,17 +194,25 @@ internal fun SettingsXiaomiSuperIslandControls() {
             }
         }
     }
+    }
 
     SmallTitle(text = stringResource(R.string.settings_xiaomi_super_island_notification_section))
+    SettingsCardGroup {
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_progress_color) {
     SwitchPreference(
         title = stringResource(R.string.settings_xiaomi_super_island_progress_color),
         checked = settings.progressColorEnabled,
         onCheckedChange = { update(settings.copy(progressColorEnabled = it)) }
     )
+    } // search-anchor:end
+
     val actionLabels = listOf(
         stringResource(R.string.settings_xiaomi_super_island_actions_off),
         stringResource(R.string.settings_xiaomi_super_island_actions_media)
     )
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_actions) {
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_actions),
         summary = stringResource(R.string.settings_xiaomi_super_island_actions_summary),
@@ -180,33 +220,29 @@ internal fun SettingsXiaomiSuperIslandControls() {
         selectedIndex = settings.actionStyle,
         onSelected = { update(settings.copy(actionStyle = it)) }
     )
-    if (settings.actionStyle == XiaomiSuperIslandSettings.ACTION_STYLE_MEDIA_CONTROLS) {
-        val notificationStyleLabels = listOf(
-            stringResource(R.string.settings_xiaomi_super_island_style_standard),
-            stringResource(R.string.settings_xiaomi_super_island_style_advanced)
+    } // search-anchor:end
+
+    if (settings.actionStyle == XiaomiSuperIslandSettings.ACTION_STYLE_MEDIA_CONTROLS /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_xiaomi_super_island_button_layout)) {
+        val mediaLayoutLabels = listOf(
+            stringResource(R.string.settings_xiaomi_super_island_buttons_two),
+            stringResource(R.string.settings_xiaomi_super_island_buttons_three)
         )
+        // search-anchor:start
+        SettingsSearchAnchor(R.string.settings_xiaomi_super_island_button_layout) {
         SuperIslandSpinner(
-            title = stringResource(R.string.settings_xiaomi_super_island_notification_style),
-            summary = stringResource(R.string.settings_xiaomi_super_island_notification_style_summary),
-            labels = notificationStyleLabels,
-            selectedIndex = settings.notificationStyle,
-            onSelected = { update(settings.copy(notificationStyle = it)) }
+            title = stringResource(R.string.settings_xiaomi_super_island_button_layout),
+            summary = stringResource(R.string.settings_xiaomi_super_island_button_layout_summary),
+            labels = mediaLayoutLabels,
+            selectedIndex = settings.mediaButtonLayout,
+            onSelected = { update(settings.copy(mediaButtonLayout = it)) }
         )
-        if (settings.notificationStyle == XiaomiSuperIslandSettings.NOTIFICATION_STYLE_STANDARD) {
-            val mediaLayoutLabels = listOf(
-                stringResource(R.string.settings_xiaomi_super_island_buttons_two),
-                stringResource(R.string.settings_xiaomi_super_island_buttons_three)
-            )
-            SuperIslandSpinner(
-                title = stringResource(R.string.settings_xiaomi_super_island_button_layout),
-                summary = stringResource(R.string.settings_xiaomi_super_island_button_layout_summary),
-                labels = mediaLayoutLabels,
-                selectedIndex = settings.mediaButtonLayout,
-                onSelected = { update(settings.copy(mediaButtonLayout = it)) }
-            )
-        }
+        } // search-anchor:end
+
     }
+    }
+
     SmallTitle(text = stringResource(R.string.settings_xiaomi_super_island_compat_section))
+    SettingsCardGroup {
     val xmsfLabels = listOf(
         stringResource(R.string.settings_xiaomi_super_island_xmsf_disabled),
         stringResource(R.string.settings_xiaomi_super_island_xmsf_standard),
@@ -225,6 +261,8 @@ internal fun SettingsXiaomiSuperIslandControls() {
         }
     }
     val selectedXmsfMode = settings.xmsfBypassMode.coerceIn(0, xmsfLabels.lastIndex)
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_xmsf_mode) {
     WindowSpinnerPreference(
         title = stringResource(R.string.settings_xiaomi_super_island_xmsf_mode),
         summary = xmsfSummaries[selectedXmsfMode],
@@ -232,8 +270,12 @@ internal fun SettingsXiaomiSuperIslandControls() {
         selectedIndex = selectedXmsfMode,
         onSelectedIndexChange = { update(settings.copy(xmsfBypassMode = it)) }
     )
-    if (settings.xmsfBypassMode == XiaomiSuperIslandSettings.XMSF_MODE_CUSTOM) {
+    } // search-anchor:end
+
+    if (settings.xmsfBypassMode == XiaomiSuperIslandSettings.XMSF_MODE_CUSTOM /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_xiaomi_super_island_xmsf_duration)) {
         val durationStep = (settings.xmsfCustomDurationMs / 50).coerceIn(2, 10)
+        // search-anchor:start
+        SettingsSearchAnchor(R.string.settings_xiaomi_super_island_xmsf_duration) {
         SettingsIntSliderPreference(
             title = stringResource(R.string.settings_xiaomi_super_island_xmsf_duration),
             summary = stringResource(R.string.settings_xiaomi_super_island_xmsf_duration_summary),
@@ -243,6 +285,8 @@ internal fun SettingsXiaomiSuperIslandControls() {
             steps = 7,
             onValueChange = { update(settings.copy(xmsfCustomDurationMs = it * 50)) }
         )
+        } // search-anchor:end
+
     }
     val dismissValues = listOf(0, 1_000, 3_000, 5_000)
     val dismissLabels = listOf(
@@ -251,6 +295,8 @@ internal fun SettingsXiaomiSuperIslandControls() {
         stringResource(R.string.settings_xiaomi_super_island_dismiss_three),
         stringResource(R.string.settings_xiaomi_super_island_dismiss_five)
     )
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_xiaomi_super_island_dismiss_delay) {
     SuperIslandSpinner(
         title = stringResource(R.string.settings_xiaomi_super_island_dismiss_delay),
         summary = stringResource(R.string.settings_xiaomi_super_island_dismiss_delay_summary),
@@ -258,6 +304,9 @@ internal fun SettingsXiaomiSuperIslandControls() {
         selectedIndex = dismissValues.indexOf(settings.dismissDelayMs).coerceAtLeast(0),
         onSelected = { index -> update(settings.copy(dismissDelayMs = dismissValues[index])) }
     )
+    } // search-anchor:end
+
+    }
 }
 
 @Composable

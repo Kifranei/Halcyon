@@ -46,14 +46,6 @@ internal fun SongTagEditorMenu(
             color = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
         )
-        ExplicitSongTitle(
-            title = song.title,
-            fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
         if (options.isEmpty()) {
             Text(
                 text = stringResource(R.string.player_no_metadata_editor_found),

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_visualizer_height">可视化高度</string>
+    <string name="player_visualizer_height_summary">调整播放页可视化的高度，默认与流光曲线高度一致</string>
+    <string name="player_visualizer_style_cover_overlay">封面覆盖</string>
+</resources>

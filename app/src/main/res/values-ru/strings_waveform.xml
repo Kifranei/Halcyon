@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_waveform_scale_animation">Анимация масштабирования волны</string>
+    <string name="player_waveform_scale_animation_summary">Масштабировать волну при паузе, нажатии или перетаскивании индикатора прогресса</string>
+    <string name="player_waveform_density">Плотность волны</string>
+    <string name="player_waveform_density_summary">Настроить количество и интервал столбцов волны</string>
+    <string name="player_waveform_peak_height">Высота пиков волны</string>
+    <string name="player_waveform_peak_height_summary">Настроить максимальную высоту столбцов волны</string>
+</resources>

@@ -95,12 +95,18 @@ internal fun PlayerScreenPageHost(
         // but hide it immediately before composing the lyric page. This prevents the cover's mini
         // lyric layer from showing underneath the full lyric layer.
         Box(modifier = modifier.fillMaxSize()) {
+            // The hidden (alpha 0) cover must not claim the cover-overlay visualizer, so it falls
+            // back to the bottom overlay above the lyric page.
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalPlayerCoverVisualizerHost provides LocalPlayerCoverVisualizerHost.current.takeUnless { showLyrics }
+            ) {
             coverPage(
                 onShowImmersiveLyrics,
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer { alpha = if (showLyrics) 0f else 1f }
             )
+            }
             if (showLyrics) {
             lyricsPage(
                 onDismissImmersiveLyrics,

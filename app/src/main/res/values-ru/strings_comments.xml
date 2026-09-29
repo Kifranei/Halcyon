@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">Комментарии</string>
+    <string name="netease_comments_title">Комментарии</string>
+    <string name="netease_comments_title_count">Комментарии (%1$s)</string>
+    <string name="netease_comments_sort_recommend">Рекомендуемые</string>
+    <string name="netease_comments_sort_hot">Популярные</string>
+    <string name="netease_comments_sort_latest">Новые</string>
+    <string name="netease_comments_empty">Комментариев пока нет</string>
+    <string name="netease_comments_error">Не удалось загрузить комментарии</string>
+    <string name="netease_comments_retry">Повторить</string>
+    <string name="netease_comments_expand_replies">Показать ответы (%1$d)</string>
+    <string name="netease_comments_more_replies">Ещё ответы</string>
+    <string name="netease_comments_collapse_replies">Скрыть ответы</string>
+    <string name="netease_comments_reply_to">"Ответ @%1$s: "</string>
+    <string name="netease_comments_load_more_failed">Ошибка загрузки. Нажмите, чтобы повторить</string>
+    <string name="netease_comments_no_more">Больше комментариев нет</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">Нравится</string>
+    <string name="netease_comments_reply">Ответить</string>
+    <string name="netease_comments_input_hint">Напишите что-нибудь…</string>
+    <string name="netease_comments_reply_hint">Ответ @%1$s</string>
+    <string name="netease_comments_send">Отправить</string>
+    <string name="netease_comments_cancel_reply">Отменить ответ</string>
+    <string name="netease_comments_login_required">Сначала войдите в NetEase Cloud Music</string>
+    <string name="netease_comments_like_failed">Не удалось поставить отметку. Повторите позже</string>
+    <string name="netease_comments_send_failed">Не удалось отправить. Повторите позже</string>
+    <string name="netease_comments_send_failed_code">Не удалось отправить (ошибка %1$d)</string>
+    <string name="netease_comments_sent">Отправлено</string>
+</resources>

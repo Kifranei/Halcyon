@@ -1,7 +1,5 @@
 package com.ella.music.ui.player
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +14,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
@@ -76,6 +78,8 @@ internal fun AppleMusicLyricsView(
     lineSpacing: Dp = 25.dp,
     focusOffsetRatio: Float = 0.24f,
     focusOffsetNudgeDp: Dp = 0.dp,
+    focusOffsetDp: Dp? = null,
+    useFocusLeadingPadding: Boolean = true,
     nonCurrentLineBlurEnabled: Boolean = true,
     userScrollEnabled: Boolean = true,
     reserveExtraLyricSpace: Boolean = false,
@@ -86,14 +90,19 @@ internal fun AppleMusicLyricsView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    // Seed the collectors from the resident player's already-loaded values. These pages enter
+    // composition on demand, and a cold DataStore collector only delivers a frame later.
+    val residentPreferences = LocalAppleMusicLyricsViewPreferences.current
+    val sustainMotion by remember(context) { com.ella.music.data.SettingsManager.getInstance(context).lyricSustainMotion }
+        .collectAsState(initial = residentPreferences?.sustainMotion ?: true)
     val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
-        .collectAsState(initial = false)
+        .collectAsState(initial = residentPreferences?.pronunciationBelow ?: false)
     val sustainThresholdMs by remember(context) {
         SettingsManager.getInstance(context).appleMusicLyricsSustainThresholdMs
     }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
     val nonCurrentLineBlurPercent by remember(context) {
         SettingsManager.getInstance(context).lyricNonCurrentBlurPercent
-    }.collectAsState(initial = 40)
+    }.collectAsState(initial = residentPreferences?.nonCurrentLineBlurPercent ?: 40)
     val wordSeekEnabled by remember(context) {
         SettingsManager.getInstance(context).lyricWordSeekEnabled
     }.collectAsState(initial = false)
@@ -105,7 +114,7 @@ internal fun AppleMusicLyricsView(
     }.collectAsState(initial = false)
     val pauseCurrentOnly by remember(context) {
         SettingsManager.getInstance(context).lyricPauseCurrentOnly
-    }.collectAsState(initial = true)
+    }.collectAsState(initial = residentPreferences?.pauseCurrentOnly ?: true)
     val revealAllLinesWhilePaused = brightenAllLinesWhenPaused ?: !pauseCurrentOnly
     if (lyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -176,17 +185,30 @@ internal fun AppleMusicLyricsView(
     val interludes = remember(lyrics) { lyrics.interludes() }
     val initialActiveIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
     val initialActiveInterlude = interludes.firstOrNull { it.isActiveAt(currentPositionMs) }
+    fun hasVisibleBackground(index: Int): Boolean {
+        val line = lyrics.getOrNull(index) ?: return false
+        val presentation = linePresentation?.invoke(index, line)
+        return showBackgroundText &&
+            (presentation?.showBackgroundText ?: true) &&
+            line.text.isNotBlank() &&
+            !line.backgroundText.isNullOrBlank()
+    }
+    val initialBackgroundFocusIndex = resolveAppleMusicLyricsBackgroundFocusIndex(
+        activeLyricIndex = initialActiveIndex,
+        lyricCount = lyrics.size,
+        hasBackground = hasVisibleBackground(initialActiveIndex)
+    )
     val initialScrollTargetIndex = resolveAppleMusicLyricsScrollTargetIndex(
         activeLyricIndex = initialActiveIndex,
         activeInterlude = initialActiveInterlude,
-        interludes = interludes
+        interludes = interludes,
+        backgroundFocusLineIndex = initialBackgroundFocusIndex
     )
     // Start at the currently playing row. Waiting for the first post-layout effect while the
     // state still points at item 0 makes the lyric page flash the beginning of the song first.
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = initialScrollTargetIndex
     )
-    val scrollSpring = remember { Animatable(0f) }
     val userDragging by listState.interactionSource.collectIsDraggedAsState()
     var trailingLineHeightPx by remember(lyrics) { mutableIntStateOf(0) }
     var hasPositionedScroll by remember(lyrics) { mutableStateOf(false) }
@@ -201,19 +223,11 @@ internal fun AppleMusicLyricsView(
             deferAutoScroll = false
         }
     }
-    val parkedPositionMs = remember { mutableLongStateOf(currentPositionMs) }
-    val parkedCurrentIndex = remember { mutableIntStateOf(currentIndex) }
-    LaunchedEffect(pageVisible) {
-        parkedPositionMs.longValue = currentPositionMs
-        parkedCurrentIndex.intValue = currentIndex
-    }
     val renderIsPlaying = isPlaying && pageVisible
-    val renderPositionMs = if (pageVisible) currentPositionMs else parkedPositionMs.longValue
-    val renderCurrentIndex = if (pageVisible) currentIndex else parkedCurrentIndex.intValue
-    var keepLinesSharp by remember { mutableStateOf(!renderIsPlaying) }
-    LaunchedEffect(userDragging, renderIsPlaying) {
+    var keepLinesSharp by remember { mutableStateOf(!isPlaying) }
+    LaunchedEffect(userDragging, isPlaying) {
         when {
-            !renderIsPlaying -> keepLinesSharp = true
+            !isPlaying -> keepLinesSharp = true
             userDragging -> keepLinesSharp = true
             else -> {
                 delay(MANUAL_SCROLL_BLUR_RESUME_DELAY_MS)
@@ -221,15 +235,30 @@ internal fun AppleMusicLyricsView(
             }
         }
     }
-    var smoothPositionMs by remember { mutableLongStateOf(renderPositionMs) }
-    LaunchedEffect(renderCurrentIndex) {
-        val lineStartMs = lyrics.getOrNull(renderCurrentIndex)?.timeMs ?: return@LaunchedEffect
-        if (smoothPositionMs < lineStartMs) {
-            smoothPositionMs = renderPositionMs.coerceAtLeast(lineStartMs)
+    var smoothPositionMs by remember { mutableLongStateOf(currentPositionMs) }
+    val latestCurrentPositionMs by rememberUpdatedState(currentPositionMs)
+    val latestPlaying by rememberUpdatedState(renderIsPlaying)
+
+    LaunchedEffect(currentPositionMs, pageVisible, renderIsPlaying) {
+        if (!pageVisible || !renderIsPlaying) {
+            smoothPositionMs = currentPositionMs
         }
     }
-    val latestRenderPositionMs by rememberUpdatedState(renderPositionMs)
-    val latestPlaying by rememberUpdatedState(renderIsPlaying)
+
+    LaunchedEffect(currentIndex) {
+        val line = lyrics.getOrNull(currentIndex) ?: return@LaunchedEffect
+        val startMs = line.timeMs
+        val endMs = line.endMs
+            ?: line.words.maxOfOrNull { it.endMs }
+            ?: line.backgroundEndMs
+            ?: (startMs + 4_000L)
+        val sampled = latestCurrentPositionMs
+        smoothPositionMs = when {
+            sampled in startMs until endMs.coerceAtLeast(startMs + 1L) -> sampled
+            smoothPositionMs < startMs -> startMs
+            else -> smoothPositionMs
+        }
+    }
     // Keep one frame-clock loop for the lifetime of this lyric list. Keying it on the 10 Hz
     // player sample (or word-lift) cancelled interpolation every tick and made the karaoke
     // fill jump like a slideshow.
@@ -238,13 +267,13 @@ internal fun AppleMusicLyricsView(
         // latest sample so reopening starts from the correct line, then let the active playing
         // page resume the smooth karaoke clock below.
         if (!pageVisible || !renderIsPlaying) {
-            smoothPositionMs = latestRenderPositionMs
+            smoothPositionMs = latestCurrentPositionMs
             return@LaunchedEffect
         }
         var lastFrameNs = 0L
         while (true) {
             val frameNs = withFrameNanos { it }
-            val sampled = latestRenderPositionMs
+            val sampled = latestCurrentPositionMs
             val playing = latestPlaying
             if (lastFrameNs == 0L) {
                 lastFrameNs = frameNs
@@ -261,92 +290,73 @@ internal fun AppleMusicLyricsView(
             )
         }
     }
-    val activeInterlude = interludes.firstOrNull { it.isActiveAt(smoothPositionMs) }
-    val activeIndex = renderCurrentIndex.coerceIn(0, lyrics.lastIndex)
-    val renderedScrollTargetIndex = resolveAppleMusicLyricsScrollTargetIndex(
+    // Reading the frame clock in this composable's own body recomposed the whole lyric view --
+    // and rebuilt the LazyColumn's interval content for every line of the song -- on every one
+    // of the 120 ticks a second. Derive the interlude instead: it changes a handful of times per
+    // song, and the per-frame reads below now sit inside the item bodies that actually need them.
+    val activeInterlude by remember(interludes) {
+        derivedStateOf { interludes.firstOrNull { it.isActiveAt(smoothPositionMs) } }
+    }
+    val activeIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+    val backgroundFocusIndex = resolveAppleMusicLyricsBackgroundFocusIndex(
+        activeLyricIndex = activeIndex,
+        lyricCount = lyrics.size,
+        hasBackground = hasVisibleBackground(activeIndex)
+    )
+    val scrollTargetIndex = resolveAppleMusicLyricsScrollTargetIndex(
         activeLyricIndex = activeIndex,
         activeInterlude = activeInterlude,
-        interludes = interludes
+        interludes = interludes,
+        backgroundFocusLineIndex = backgroundFocusIndex
     )
-    // Keep only the lightweight list position synchronized while this retained page is hidden.
-    // Karaoke rendering remains parked, but the page is ready on the correct row before it is
-    // brought on screen again.
-    val playbackActiveIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
-    val playbackActiveInterlude = interludes.firstOrNull { it.isActiveAt(currentPositionMs) }
-    val playbackScrollTargetIndex = resolveAppleMusicLyricsScrollTargetIndex(
-        activeLyricIndex = playbackActiveIndex,
-        activeInterlude = playbackActiveInterlude,
-        interludes = interludes
-    )
-    val scrollTargetIndex = if (pageVisible) renderedScrollTargetIndex else playbackScrollTargetIndex
-    val focusOffsetNudgePx = with(LocalDensity.current) { focusOffsetNudgeDp.toPx() }
-    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, focusOffsetNudgePx) {
+    val density = LocalDensity.current
+    val focusOffsetNudgePx = with(density) { focusOffsetNudgeDp.toPx() }
+    val focusOffsetPx = focusOffsetDp?.let { with(density) { it.toPx() } }
+    val autoScrollShift = remember(listState) { LyricAutoScrollShift() }
+    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, focusOffsetNudgePx, focusOffsetPx) {
         if (userDragging || deferAutoScroll) return@LaunchedEffect
         // Do not issue the first scroll before LazyColumn has a viewport; that was making the
         // focus line land under the page header until the user manually scrolled.
         val viewportHeight = snapshotFlow {
             listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
         }.filter { it > 0 }.first()
-        val desiredItemOffset = (
-            viewportHeight * focusOffsetRatio - focusOffsetNudgePx
-        ).coerceAtLeast(0f)
+        val desiredItemOffset = if (focusOffsetPx != null) {
+            (focusOffsetPx - focusOffsetNudgePx).coerceAtLeast(0f)
+        } else {
+            (viewportHeight * focusOffsetRatio - focusOffsetNudgePx).coerceAtLeast(0f)
+        }
 
         if (!hasPositionedScroll) {
             // Initial positioning should not fly through the whole song when the player is
             // restored in the middle of a track.
             listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
-            scrollSpring.snapTo(0f)
             hasPositionedScroll = true
             return@LaunchedEffect
         }
 
         if (!pageVisible) {
             listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
-            scrollSpring.snapTo(0f)
             return@LaunchedEffect
         }
 
-        // ConePlayer does not restart a fixed-duration list animation for each lyric. It changes
-        // every row's spring target (damping 1.25, stiffness 200) and lets the retained velocity
-        // carry the content into place. Drive the LazyColumn with the same overdamped spring and
-        // correct the distance after variable-height rows have entered the viewport.
-        // Jumping with scrollToItem on every line change was the post-1.2.4 stutter.
-        repeat(CONE_SCROLL_CORRECTION_PASSES) {
-            val layoutInfo = listState.layoutInfo
-            val visibleItems = layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) return@repeat
-            val targetItem = visibleItems.firstOrNull { it.index == scrollTargetIndex }
-            val distance = if (targetItem != null) {
-                targetItem.offset - desiredItemOffset
+        // Move the layout target once; each visible row follows with its own retained spring.
+        // A single LazyColumn spring moves all lines as a rigid block and cannot produce the wave.
+        repeat(LYRIC_SCROLL_CORRECTION_PASSES) {
+            val info = listState.layoutInfo
+            val items = info.visibleItemsInfo
+            if (items.isEmpty()) return@repeat
+            val target = items.firstOrNull { it.index == scrollTargetIndex }
+            if (target == null) {
+                listState.scrollToItem(scrollTargetIndex, -desiredItemOffset.toInt())
             } else {
-                val firstItem = visibleItems.first()
-                val averageItemExtent = visibleItems.sumOf { it.size }.toFloat() / visibleItems.size +
-                    layoutInfo.mainAxisItemSpacing
-                firstItem.offset - desiredItemOffset +
-                    (scrollTargetIndex - firstItem.index) * averageItemExtent
-            }
-            if (abs(distance) <= CONE_SCROLL_VISIBILITY_THRESHOLD_PX) return@LaunchedEffect
-
-            // A line change can cancel the preceding spring while it still carries position and
-            // velocity. Reusing that stale Animatable state makes the list travel past the new
-            // row and then visibly pull the entire lyric block backwards. Keep the spring motion,
-            // but restart each measured correction from zero so only the current distance is
-            // applied to LazyColumn.
-            scrollSpring.snapTo(0f)
-            var appliedValue = 0f
-            listState.scroll {
-                scrollSpring.animateTo(
-                    targetValue = distance,
-                    animationSpec = spring(
-                        dampingRatio = CONE_SCROLL_DAMPING_RATIO,
-                        stiffness = CONE_SCROLL_STIFFNESS,
-                        visibilityThreshold = CONE_SCROLL_VISIBILITY_THRESHOLD_PX
-                    )
-                ) {
-                    val consumed = scrollBy(value - appliedValue)
-                    appliedValue += consumed
+                val distance = target.offset - desiredItemOffset
+                if (abs(distance) <= LYRIC_SCROLL_VISIBILITY_THRESHOLD_PX) return@LaunchedEffect
+                if (!listState.isScrollInProgress) {
+                    autoScrollShift.record(distance)
+                    listState.dispatchRawDelta(distance)
                 }
             }
+            androidx.compose.runtime.withFrameNanos { }
         }
     }
     val defaultTextAlign = when (lyricTextAlign) {
@@ -355,17 +365,22 @@ internal fun AppleMusicLyricsView(
         else -> TextAlign.Start
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().clipToBounds()) {
         val trailingLineHeight = with(LocalDensity.current) { trailingLineHeightPx.toDp() }
         // The first lyric has no preceding rows that LazyColumn can scroll through. Reserve its
         // focus offset as actual leading content so 00:00 lyrics land at the same visual anchor
         // instead of sticking to the top edge of compact/immersive lyric viewports.
-        val leadingFocusPadding = resolveAppleMusicLyricsLeadingPadding(
-            viewportHeight = maxHeight,
-            focusOffsetRatio = focusOffsetRatio,
-            focusOffsetNudge = focusOffsetNudgeDp,
-            minimumTopPadding = topContentPadding
-        )
+        val leadingFocusPadding = if (useFocusLeadingPadding) {
+            resolveAppleMusicLyricsLeadingPadding(
+                viewportHeight = maxHeight,
+                focusOffsetRatio = focusOffsetRatio,
+                focusOffsetNudge = focusOffsetNudgeDp,
+                minimumTopPadding = topContentPadding,
+                fixedFocusOffset = focusOffsetDp
+            )
+        } else {
+            topContentPadding
+        }
         // The mini preview is a bounded, non-scrollable line window. Adding enough trailing
         // padding to scroll the final row to the normal focus offset leaves a large blank tail
         // under the lyrics (and pushes the waveform/action area down). Only the full, scrollable
@@ -376,11 +391,13 @@ internal fun AppleMusicLyricsView(
                 focusOffsetRatio = focusOffsetRatio,
                 focusOffsetNudge = focusOffsetNudgeDp,
                 trailingLineHeight = trailingLineHeight,
-                minimumBottomPadding = bottomContentPadding
+                minimumBottomPadding = bottomContentPadding,
+                fixedFocusOffset = focusOffsetDp
             )
         } else {
             bottomContentPadding
         }
+        androidx.compose.runtime.CompositionLocalProvider(LocalReferenceLyricMotion provides sustainMotion) {
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(top = leadingFocusPadding, bottom = trailingFocusPadding),
@@ -391,17 +408,26 @@ internal fun AppleMusicLyricsView(
             lyrics.forEachIndexed { index, line ->
                 interludes.firstOrNull { it.nextLineIndex == index }?.let { interlude ->
                     item(key = "interlude-${interlude.startMs}-${interlude.endMs}") {
+                        Box(Modifier.referenceLyricRowMotion(
+                            targetY = { listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                                it.key == "interlude-${interlude.startMs}-${interlude.endMs}"
+                            }?.offset?.toFloat() },
+                            enabled = pageVisible && !userDragging && !listState.isScrollInProgress,
+                            distance = index - activeIndex,
+                            maxTravelPx = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat(),
+                            enterShift = autoScrollShift
+                        )) {
                         AppleMusicInterlude(
                             interlude = interlude,
                             positionMs = smoothPositionMs,
                             contentColor = contentColor,
-                            textAlign = lyrics[if (interlude.nextLineIndex == 0) 0 else interlude.nextLineIndex - 1]
-                                .duetTextAlign(defaultTextAlign),
+                            textAlign = line.duetTextAlign(defaultTextAlign),
                             touchFeedbackEnabled = touchFeedbackEnabled,
                             onSeek = { positionMs ->
                                 onLineClick(LyricLine(timeMs = positionMs, text = ""))
                             }
                         )
+                        }
                     }
                 }
                 item(key = "${line.timeMs}-$index") {
@@ -414,7 +440,7 @@ internal fun AppleMusicLyricsView(
                         paused = isPaused && revealAllLinesWhilePaused,
                         distance = (index - activeIndex).coerceIn(-4, 4),
                         userScrolling = userDragging || keepLinesSharp,
-                        nonCurrentLineBlurEnabled = nonCurrentLineBlurEnabled && renderIsPlaying,
+                        nonCurrentLineBlurEnabled = nonCurrentLineBlurEnabled && isPlaying,
                         nonCurrentLineBlurPercent = nonCurrentLineBlurPercent,
                         // Do not invalidate every retained LazyColumn row for every playback tick.
                         // Only the active (or simultaneous duet) line needs a changing karaoke position.
@@ -446,16 +472,67 @@ internal fun AppleMusicLyricsView(
                         } else null,
                         onTapFraction = line.openingSeekHandler(onLineClick),
                         touchFeedbackEnabled = touchFeedbackEnabled,
-                        modifier = if (index == lyrics.lastIndex) {
+                        modifier = (if (index == lyrics.lastIndex) {
                             Modifier.onSizeChanged { trailingLineHeightPx = it.height }
-                        } else {
-                            Modifier
-                        }
+                        } else Modifier).referenceLyricRowMotion(
+                            targetY = {
+                                listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                                    it.key == "${line.timeMs}-$index"
+                                }?.offset?.toFloat()
+                            },
+                            enabled = pageVisible && !userDragging && !listState.isScrollInProgress,
+                            distance = index - activeIndex,
+                            maxTravelPx = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat(),
+                            enterShift = autoScrollShift
+                        )
                     )
                 }
             }
         }
+        }
     }
+}
+
+/**
+ * [AppleMusicLyricsView]'s own display preferences, collected once by the resident PlayerScreen.
+ *
+ * The full lyric pages (immersive-cover lyrics, the Apple Music lyrics session) enter composition
+ * only when opened, and each view's cold DataStore collector delivers the stored value one frame
+ * late. With `lyricSustainMotion` off, that first frame rendered every inactive row at the
+ * reference 0.98 scale before animating it down to 0.91 -- the lyrics visibly jumped size on
+ * entry. Seeding the collectors from here keeps the first frame on the stored values.
+ */
+internal data class AppleMusicLyricsViewPreferences(
+    val sustainMotion: Boolean,
+    val pronunciationBelow: Boolean,
+    val nonCurrentLineBlurPercent: Int,
+    val pauseCurrentOnly: Boolean
+)
+
+internal val LocalAppleMusicLyricsViewPreferences =
+    compositionLocalOf<AppleMusicLyricsViewPreferences?> { null }
+
+@Composable
+internal fun rememberAppleMusicLyricsViewPreferences(
+    settingsManager: SettingsManager
+): AppleMusicLyricsViewPreferences? {
+    val flow = remember(settingsManager) {
+        combine(
+            settingsManager.lyricSustainMotion,
+            settingsManager.lyricPronunciationBelow,
+            settingsManager.lyricNonCurrentBlurPercent,
+            settingsManager.lyricPauseCurrentOnly
+        ) { sustainMotion, pronunciationBelow, blurPercent, pauseCurrentOnly ->
+            AppleMusicLyricsViewPreferences(
+                sustainMotion = sustainMotion,
+                pronunciationBelow = pronunciationBelow,
+                nonCurrentLineBlurPercent = blurPercent,
+                pauseCurrentOnly = pauseCurrentOnly
+            )
+        }
+    }
+    val preferences by flow.collectAsState(initial = null)
+    return preferences
 }
 
 internal fun lyricLineDoubleTapEnabled(wordSeekEnabled: Boolean): Boolean = !wordSeekEnabled
@@ -480,10 +557,11 @@ internal fun resolveAppleMusicLyricsLeadingPadding(
     viewportHeight: Dp,
     focusOffsetRatio: Float,
     minimumTopPadding: Dp,
-    focusOffsetNudge: Dp = 0.dp
+    focusOffsetNudge: Dp = 0.dp,
+    fixedFocusOffset: Dp? = null
 ): Dp = maxOf(
     minimumTopPadding,
-    (viewportHeight * focusOffsetRatio.coerceIn(0f, 1f) - focusOffsetNudge).coerceAtLeast(0.dp)
+    ((fixedFocusOffset ?: (viewportHeight * focusOffsetRatio.coerceIn(0f, 1f))) - focusOffsetNudge).coerceAtLeast(0.dp)
 )
 
 /**
@@ -497,11 +575,12 @@ internal fun resolveAppleMusicLyricsTrailingPadding(
     focusOffsetRatio: Float,
     trailingLineHeight: Dp,
     minimumBottomPadding: Dp,
-    focusOffsetNudge: Dp = 0.dp
+    focusOffsetNudge: Dp = 0.dp,
+    fixedFocusOffset: Dp? = null
 ): Dp {
-    val clampedFocusRatio = focusOffsetRatio.coerceIn(0f, 1f)
+    val offset = fixedFocusOffset ?: (viewportHeight * focusOffsetRatio.coerceIn(0f, 1f))
     val requiredPadding = (
-        viewportHeight * (1f - clampedFocusRatio) + focusOffsetNudge - trailingLineHeight
+        viewportHeight - offset + focusOffsetNudge - trailingLineHeight
     ).coerceAtLeast(0.dp)
     return maxOf(minimumBottomPadding, requiredPadding)
 }
@@ -519,10 +598,27 @@ internal fun resolveAppleMusicLyricsFocusOffset(
 internal fun resolveAppleMusicLyricsScrollTargetIndex(
     activeLyricIndex: Int,
     activeInterlude: AppleMusicInterlude?,
-    interludes: List<AppleMusicInterlude>
-): Int = activeInterlude?.let { interlude ->
-    interlude.nextLineIndex + interludes.count { it.nextLineIndex < interlude.nextLineIndex }
-} ?: activeLyricIndex + interludes.count { it.nextLineIndex <= activeLyricIndex }
+    interludes: List<AppleMusicInterlude>,
+    backgroundFocusLineIndex: Int? = null
+): Int {
+    activeInterlude?.let { interlude ->
+        return interlude.nextLineIndex + interludes.count { it.nextLineIndex < interlude.nextLineIndex }
+    }
+    val sourceIndex = backgroundFocusLineIndex ?: activeLyricIndex
+    return sourceIndex + interludes.count { it.nextLineIndex <= sourceIndex }
+}
+
+/**
+ * x-bg is rendered inside its original lyric row, but the row grows when the backing vocal
+ * appears. Keep the next original line at the focus position for the whole source row once a
+ * backing vocal is present. This mirrors the waiting-dot treatment and, importantly, does not
+ * snap back after the x-bg animation finishes; consecutive x-bg rows advance one line at a time.
+ */
+internal fun resolveAppleMusicLyricsBackgroundFocusIndex(
+    activeLyricIndex: Int,
+    lyricCount: Int,
+    hasBackground: Boolean
+): Int? = null
 
 internal fun nextSmoothLyricPositionMs(
     displayMs: Long,
@@ -553,7 +649,5 @@ private fun LyricLine.isActiveAt(positionMs: Long): Boolean {
 
 private const val MANUAL_SCROLL_BLUR_RESUME_DELAY_MS = 3_000L
 private const val MANUAL_SCROLL_RECENTER_DELAY_MS = 2_000L
-private const val CONE_SCROLL_DAMPING_RATIO = 1.25f
-private const val CONE_SCROLL_STIFFNESS = 200f
-private const val CONE_SCROLL_VISIBILITY_THRESHOLD_PX = 0.75f
-private const val CONE_SCROLL_CORRECTION_PASSES = 2
+private const val LYRIC_SCROLL_VISIBILITY_THRESHOLD_PX = 0.75f
+private const val LYRIC_SCROLL_CORRECTION_PASSES = 2

@@ -40,6 +40,7 @@ object TagEditorOptionIds {
     const val BUILTIN_LYRIC_TIMING = "builtin_lyric_timing"
     const val LUNABEAT_METADATA = "lunabeat_metadata"
     const val LUNABEAT_LYRIC_TIMING = "lunabeat_lyric_timing"
+    const val SPOTIFLAC = "spotiflac"
     const val MUSIC_TAG = "music_tag"
 }
 
@@ -293,6 +294,23 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
                     dataUri = musicTagEditUri,
                     streamUri = musicTagEditUri,
                     contentUri = musicTagEditUri
+                )
+            ),
+            sourceSong = song
+        ),
+        TagEditorOption(
+            id = TagEditorOptionIds.SPOTIFLAC,
+            label = context.getString(R.string.settings_editor_spotiflac),
+            summary = context.getString(R.string.tag_editor_spotiflac_summary),
+            kind = TagEditorOptionKind.Metadata,
+            intents = listOf(
+                tagEditorIntent(
+                    label = context.getString(R.string.settings_editor_spotiflac),
+                    action = Intent.ACTION_SEND,
+                    component = ComponentName(
+                        "com.zarz.spotiflac",
+                        "com.zarz.spotiflac.MainActivity"
+                    )
                 )
             ),
             sourceSong = song

@@ -5,7 +5,11 @@ import com.ella.music.R
 import com.ella.music.data.AppNetworkLoggingInterceptor
 import com.ella.music.data.model.Song
 import com.ella.music.data.LxSourceConfig
+import com.ella.music.data.readUtf8Bounded
+import com.ella.music.data.requireHttpsRequests
+import com.ella.music.data.requireHttpsUrl
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -13,6 +17,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.net.URLEncoder
+import java.io.InputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -31,6 +36,10 @@ data class LxOnlineSong(
     val sourceMetadata: Map<String, String> = emptyMap()
 )
 
+internal const val MAX_LX_SOURCE_BYTES = 9_000_000L
+
+internal fun InputStream.readLxSourceText(): String = readUtf8Bounded(MAX_LX_SOURCE_BYTES)
+
 enum class LxSearchPlatform(
     val source: String,
     val displayName: String
@@ -48,15 +57,21 @@ class LxOnlineService(private val context: Context) {
         .readTimeout(20, TimeUnit.SECONDS)
         .addInterceptor(AppNetworkLoggingInterceptor("LxNetwork"))
         .build()
+    private val sourceHttpClient = client.newBuilder()
+        .requireHttpsRequests()
+        .build()
 
     suspend fun importSource(url: String): Pair<String, String> = withContext(Dispatchers.IO) {
+        val secureUrl = url.requireHttpsUrl("LX source")
         val request = Request.Builder()
-            .url(url.trim())
+            .url(secureUrl)
             .header("User-Agent", USER_AGENT)
             .build()
-        client.newCall(request).execute().use { response ->
+        sourceHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(context.getString(R.string.lx_service_import_failed_http, response.code))
-            val script = unwrapImportedSource(url.trim(), response.body?.string().orEmpty())
+            require(response.request.url.isHttps) { "LX source redirects must remain HTTPS" }
+            val responseText = response.body?.byteStream()?.use { it.readLxSourceText() }.orEmpty()
+            val script = unwrapImportedSource(secureUrl, responseText)
             // Validate downloaded sources with the same QuickJS runtime used for playback.
             // This catches encrypted/obfuscated sources that fail during initialization instead
             // of accepting them and surfacing an opaque error only when a song is played.
@@ -72,12 +87,25 @@ class LxOnlineService(private val context: Context) {
         if (normalized.length !in 50..9_000_000) error(context.getString(R.string.lx_service_source_script_abnormal))
         val name = extractSourceName(normalized)
         if (allowRuntimeInspect) {
-            LxUserApiRuntime(context, client).use { runtime ->
+            LxUserApiRuntime(context, sourceHttpClient).use { runtime ->
                 runtime.load(normalized, normalized.hashCode().toString(), name, "")
                     ?: error(context.getString(R.string.lx_service_source_init_failed))
             }
         }
         return name to normalized
+    }
+
+    /** Read the initialized contract, including obfuscated scripts, rather than guessing names. */
+    suspend fun supportedSources(config: LxSourceConfig): Set<String> = withContext(Dispatchers.IO) {
+        LxUserApiRuntime(context, sourceHttpClient).use { runtime ->
+            val info = runtime.load(config.script, config.id, config.name, "")
+                ?: error("LX source did not declare capabilities")
+            val sources = info.optJSONObject("sources") ?: return@withContext emptySet()
+            sources.keys().asSequence().filter { key ->
+                val actions = sources.optJSONObject(key)?.optJSONArray("actions")
+                actions != null && (0 until actions.length()).any { actions.optString(it) == "musicUrl" }
+            }.toSet()
+        }
     }
 
     suspend fun search(
@@ -527,10 +555,10 @@ class LxOnlineService(private val context: Context) {
         item.song.copy(path = playableUrl, fileName = "${item.song.title}.${if (format == "flac") "flac" else "mp3"}")
     }
 
-    private fun resolveByImportedSource(item: LxOnlineSong, sourceScript: String): String? {
+    private suspend fun resolveByImportedSource(item: LxOnlineSong, sourceScript: String): String? {
         if (sourceScript.isNotBlank()) {
             runCatching {
-                return LxUserApiRuntime(context, client).use { runtime ->
+                return LxUserApiRuntime(context, sourceHttpClient).use { runtime ->
                     runtime.requestMusicUrl(item, sourceScript, extractSourceName(sourceScript))
                 }
             }.onFailure { quickJsError ->
@@ -539,20 +567,24 @@ class LxOnlineService(private val context: Context) {
             }
         }
         val config = extractRenderApiConfig(sourceScript) ?: return null
-        val quality = config.bestQuality(item.source, item.quality)
+        val requestedQuality = com.ella.music.data.SettingsManager.getInstance(context).onlinePlaybackQuality.first()
+        val quality = config.qualitys[item.source].orEmpty().let { available ->
+            com.ella.music.data.OnlinePlaybackQuality.lxTier(requestedQuality, available)
+        } ?: config.bestQuality(item.source, item.quality)
         val sourceId = when (item.source) {
             LxSearchPlatform.Kugou.source -> item.sourceMetadata["hash"]
             LxSearchPlatform.Migu.source -> item.sourceMetadata["copyrightId"]
             else -> null
         }.orEmpty().ifBlank { item.songmid }
-        val url = "${config.apiUrl}/url/${item.source}/$sourceId/$quality"
+        val url = "${config.apiUrl.trimEnd('/')}/url/${item.source}/$sourceId/$quality"
+            .requireHttpsUrl("LX source API")
         val request = Request.Builder()
             .url(url)
             .header("Content-Type", "application/json")
             .header("User-Agent", "lx-music-mobile/1.0.0")
             .header("X-Request-Key", config.apiKey)
             .build()
-        return client.newCall(request).execute().use { response ->
+        return sourceHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(context.getString(R.string.lx_service_source_resolve_failed_http, response.code))
             val body = response.body?.string().orEmpty()
             val root = JSONObject(body)
@@ -681,13 +713,15 @@ class LxOnlineService(private val context: Context) {
     }
 
     private fun fetchImportedScript(jsUrl: String): String {
+        val secureUrl = jsUrl.requireHttpsUrl("LX script")
         val request = Request.Builder()
-            .url(jsUrl)
+            .url(secureUrl)
             .header("User-Agent", USER_AGENT)
             .build()
-        return client.newCall(request).execute().use { response ->
+        return sourceHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(context.getString(R.string.lx_service_import_failed_http, response.code))
-            val script = response.body?.string().orEmpty().trim()
+            require(response.request.url.isHttps) { "LX script redirects must remain HTTPS" }
+            val script = response.body?.byteStream()?.use { it.readLxSourceText() }.orEmpty().trim()
             if (looksLikeHtmlDocument(script) ||
                 (looksLikeJsonDocument(script) && "EVENT_NAMES" !in script && "globalThis.lx" !in script)
             ) {
@@ -700,7 +734,7 @@ class LxOnlineService(private val context: Context) {
     suspend fun fetchLyrics(item: LxOnlineSong, sourceScript: String = ""): String? = withContext(Dispatchers.IO) {
         if (sourceScript.isNotBlank()) {
             runCatching {
-                LxUserApiRuntime(context, client).use { runtime ->
+                LxUserApiRuntime(context, sourceHttpClient).use { runtime ->
                     runtime.requestLyric(item, sourceScript, extractSourceName(sourceScript))
                 }
             }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return@withContext it }

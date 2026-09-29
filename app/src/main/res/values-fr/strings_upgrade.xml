@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cross-version install notice -->
+    <string name="app_upgrade_title_unknown">Mise à jour depuis une ancienne version détectée</string>
+    <string name="app_upgrade_title">Mise à jour depuis une ancienne version (%1$s) détectée</string>
+    <string name="app_upgrade_message">Version actuelle : %1$s. Les paramètres et données hérités d\'anciennes versions peuvent être incompatibles avec cette version et provoquer des bugs inattendus qui n\'apparaissent pas en utilisation normale. Il est recommandé d\'effacer les données de l\'application pour repartir d\'une installation propre.\n\nLes données s\'effacent dans Infos sur l\'application › Stockage du système. Pour réinitialiser uniquement les paramètres, utilisez aussi Paramètres › Maintenance › Restaurer la configuration par défaut (les titres, playlists et l\'historique d\'écoute sont conservés).\n\nLorsque vous signalez un problème, assurez-vous qu\'il survient sur une installation propre de la dernière version avec les données effacées, et non après une installation par-dessus une ancienne version sans effacer les données.</string>
+    <string name="app_upgrade_clear_data">Effacer les données</string>
+    <string name="app_upgrade_later">Plus tard</string>
+    <string name="app_upgrade_clear_data_hint">Ouvrez Stockage puis choisissez Effacer les données</string>
+
+    <!-- Backup restore compatibility check -->
+    <string name="backup_compat_title">Les paramètres de la sauvegarde diffèrent de cette version</string>
+    <string name="backup_compat_from_older">Cette sauvegarde provient d\'une ancienne version (%1$s) ; la version actuelle est %2$s.</string>
+    <string name="backup_compat_from_older_unknown">Cette sauvegarde provient d\'une ancienne version ; la version actuelle est %1$s.</string>
+    <string name="backup_compat_from_newer">Cette sauvegarde provient d\'une version plus récente (%1$s) ; la version actuelle est %2$s.</string>
+    <string name="backup_compat_same_version">Les paramètres de cette sauvegarde ne correspondent pas à la structure de la version actuelle (%1$s).</string>
+    <string name="backup_compat_details">%1$d paramètres n\'existent plus, %2$d nouveaux paramètres et %3$d paramètres dont le format a changé ont été détectés. Une reconfiguration est recommandée. Reconfigurer ignore les paramètres ; les playlists, l\'historique d\'écoute et les autres contenus sélectionnés sont tout de même restaurés.</string>
+    <string name="backup_compat_details_legacy">%1$d paramètres n\'existent plus et %2$d paramètres ont changé de format. Cette ancienne sauvegarde n\'enregistre pas sa liste de paramètres, le nombre de nouveaux paramètres ne peut donc pas être déterminé. Une reconfiguration est recommandée. Reconfigurer ignore les paramètres ; les playlists, l\'historique d\'écoute et les autres contenus sélectionnés sont tout de même restaurés.</string>
+    <string name="backup_compat_reconfigure">Reconfigurer (sans les paramètres)</string>
+    <string name="backup_compat_restore_anyway">Restaurer quand même</string>
+</resources>

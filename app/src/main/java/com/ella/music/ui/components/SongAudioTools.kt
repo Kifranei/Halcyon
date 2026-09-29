@@ -6,7 +6,10 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +38,11 @@ import com.ella.music.data.sanitizeExportFileName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 import java.nio.charset.Charset
@@ -136,7 +143,8 @@ private data class PreparedAudioSource(
 internal fun SongAudioToolsSheet(
     song: Song,
     onDismiss: () -> Unit,
-    onExported: () -> Unit
+    onExported: () -> Unit,
+    onBack: (() -> Unit)? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -258,6 +266,17 @@ internal fun SongAudioToolsSheet(
         show = true,
         enableNestedScroll = false,
         title = sheetTitle,
+        startAction = if (page != AudioToolsPage.Home) {
+            {
+                IconButton(onClick = { page = AudioToolsPage.Home }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        } else null,
         onDismissRequest = onDismiss
     ) {
         // Keep the current song context visually outside the action card. This makes it read as
@@ -267,14 +286,6 @@ internal fun SongAudioToolsSheet(
             spacing = 0.dp,
             showHandle = false
         ) {
-            ExplicitSongTitle(
-                title = song.title.ifBlank { song.fileName },
-                fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
             EllaMiuixActionMenuGroup {
                 when (page) {
                 AudioToolsPage.Home -> {
@@ -299,16 +310,12 @@ internal fun SongAudioToolsSheet(
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                     )
-                    SongMenuItem(stringResource(R.string.common_cancel), onDismiss)
                 }
 
                 AudioToolsPage.Format -> {
                     AudioExportFormat.entries.forEach { format ->
                         SongMenuItem(format.label(context), onClick = { startConversion(format) })
                     }
-                    SongMenuItem(stringResource(R.string.common_back), onClick = {
-                        page = AudioToolsPage.Home
-                    })
                 }
 
                 AudioToolsPage.Tracks -> when (val state = probeState) {
@@ -330,9 +337,6 @@ internal fun SongAudioToolsSheet(
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                         )
-                        SongMenuItem(stringResource(R.string.common_back), onClick = {
-                            page = AudioToolsPage.Home
-                        })
                     }
 
                     is AudioTrackProbeState.Ready -> {
@@ -359,9 +363,6 @@ internal fun SongAudioToolsSheet(
                                 onClick = { startTrackExport(state.tracks) }
                             )
                         }
-                        SongMenuItem(stringResource(R.string.common_back), onClick = {
-                            page = AudioToolsPage.Home
-                        })
                     }
                 }
 
@@ -381,7 +382,6 @@ internal fun SongAudioToolsSheet(
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                         )
-                        SongMenuItem(stringResource(R.string.common_back), onClick = { page = AudioToolsPage.Home })
                     }
 
                     is CueProbeState.NeedsAudioChoice -> {
@@ -399,13 +399,11 @@ internal fun SongAudioToolsSheet(
                         SongMenuItem(stringResource(R.string.audio_tools_cue_choose_other_audio), onClick = {
                             audioPicker.launch(arrayOf("audio/*", "application/octet-stream"))
                         })
-                        SongMenuItem(stringResource(R.string.common_back), onClick = { page = AudioToolsPage.Home })
                     }
 
                     is CueProbeState.Ready -> {
                         CueAlbumPreview(album = state.album)
                         SongMenuItem(stringResource(R.string.audio_tools_cue_start), onClick = { startCueSplit(state.album) })
-                        SongMenuItem(stringResource(R.string.common_back), onClick = { page = AudioToolsPage.Home })
                     }
                 }
             }
@@ -431,8 +429,20 @@ internal fun SongAudioToolsSheet(
             } ?: stringResource(R.string.audio_tools_processing_summary),
             onDismissRequest = {}
         ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                EllaLoadingIndicator()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EllaLoadingIndicator()
+                }
                 if (activeOperation == AudioToolsOperation.SplitCue) {
                     SongMenuItem(
                         stringResource(R.string.common_cancel),

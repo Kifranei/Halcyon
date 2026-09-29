@@ -2,6 +2,7 @@ package com.ella.music.data.lastfm
 
 import android.content.Intent
 import android.net.Uri
+import com.ella.music.data.blockCredentialedHttpRequests
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -17,6 +18,7 @@ class LastFmApi {
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .blockCredentialedHttpRequests()
         .build()
 
     suspend fun requestAuthorizationToken(credentials: LastFmCredentials): String = withContext(Dispatchers.IO) {
@@ -29,14 +31,12 @@ class LastFmApi {
             ?: error("Last.fm did not return an authorization token")
     }
 
-    fun authorizationIntent(apiKey: String, token: String): Intent = Intent(
-        Intent.ACTION_VIEW,
-        Uri.parse("https://www.last.fm/api/auth/")
-            .buildUpon()
-            .appendQueryParameter("api_key", apiKey)
-            .appendQueryParameter("token", token)
-            .build()
-    )
+    fun authorizationIntent(apiKey: String? = null, token: String? = null): Intent {
+        val builder = Uri.parse("https://www.last.fm/api/auth/").buildUpon()
+        if (!apiKey.isNullOrBlank()) builder.appendQueryParameter("api_key", apiKey)
+        if (!token.isNullOrBlank()) builder.appendQueryParameter("token", token)
+        return Intent(Intent.ACTION_VIEW, builder.build())
+    }
 
     suspend fun finishAuthorization(credentials: LastFmCredentials, token: String): LastFmSession = withContext(Dispatchers.IO) {
         require(credentials.hasAppCredentials) { "Missing Last.fm API key or shared secret" }

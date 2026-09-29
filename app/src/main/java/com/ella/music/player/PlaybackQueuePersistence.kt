@@ -5,6 +5,8 @@ import android.util.JsonReader
 import android.util.JsonToken
 import com.ella.music.data.model.Song
 import java.io.StringReader
+import java.io.Reader
+import java.io.Writer
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -82,20 +84,22 @@ internal fun shouldHydrateSavedQueue(
     controllerMediaItemCount > 0 &&
     (savedSongCount == controllerMediaItemCount || savedCurrentIndex >= 0)
 
-internal fun playbackQueueJson(snapshot: PlaybackStateSnapshot, songs: List<Song>): JSONObject =
-    JSONObject()
-        .put("index", snapshot.index)
-        .put("positionMs", snapshot.positionMs)
-        .put("repeatMode", snapshot.repeatMode)
-        .put("shuffle", snapshot.shuffle)
-        .put("speed", snapshot.speed)
-        .put("pitch", snapshot.pitch)
-        .put("queueLocked", snapshot.queueLocked)
-        .put("songs", JSONArray().apply {
-            songs.forEach { song -> put(song.toPlaybackQueueJson()) }
-        })
+/** Stream one song at a time instead of retaining a full JSON tree and giant string. */
+internal fun writePlaybackQueue(writer: Writer, snapshot: PlaybackStateSnapshot, songs: List<Song>) {
+    val state = snapshot.toJson().toString()
+    writer.write(state.dropLast(1))
+    writer.write(",\"songs\":[")
+    songs.forEachIndexed { index, song ->
+        if (index > 0) writer.write(",")
+        writer.write(song.toPlaybackQueueJson().toString())
+    }
+    writer.write("]}")
+}
 
 internal fun parseSavedQueue(rawQueue: String, rawState: String?): SavedQueue? =
+    parseSavedQueue(StringReader(rawQueue), rawState)
+
+internal fun parseSavedQueue(reader: Reader, rawState: String?): SavedQueue? =
     runCatching {
         val state = rawState?.let { runCatching { JSONObject(it) }.getOrNull() }
         var payloadIndex = 0
@@ -108,7 +112,7 @@ internal fun parseSavedQueue(rawQueue: String, rawState: String?): SavedQueue? =
         var songs = emptyList<Song>()
         var parsedIndexOffset = 0
 
-        JsonReader(StringReader(rawQueue)).use { json ->
+        JsonReader(reader).use { json ->
             json.beginObject()
             while (json.hasNext()) {
                 when (json.nextName()) {
@@ -170,6 +174,7 @@ internal fun Song.toPlaybackQueueJson(): JSONObject = JSONObject()
     .put("coverUrl", coverUrl)
     .put("onlineSource", onlineSource)
     .put("onlineId", onlineId)
+    .put("onlineMvId", onlineMvId)
     .apply {
         playbackSourceKey?.let { put("playbackSourceKey", it) }
     }
@@ -200,6 +205,7 @@ internal fun JSONObject.toPlaybackQueueSongOrNull(): Song? {
         coverUrl = optString("coverUrl"),
         onlineSource = optString("onlineSource"),
         onlineId = optString("onlineId"),
+        onlineMvId = optString("onlineMvId"),
         playbackSourceKey = if (has("playbackSourceKey")) {
             optString("playbackSourceKey")
         } else {
@@ -283,6 +289,7 @@ private fun JsonReader.readPlaybackQueueSongOrNull(): Song? {
     var coverUrl = ""
     var onlineSource = ""
     var onlineId = ""
+    var onlineMvId = ""
     var playbackSourceKey: String? = null
     var hasPlaybackSourceKey = false
 
@@ -312,6 +319,7 @@ private fun JsonReader.readPlaybackQueueSongOrNull(): Song? {
             "coverUrl" -> coverUrl = nextStringOrEmpty()
             "onlineSource" -> onlineSource = nextStringOrEmpty()
             "onlineId" -> onlineId = nextStringOrEmpty()
+            "onlineMvId" -> onlineMvId = nextStringOrEmpty()
             "playbackSourceKey" -> {
                 hasPlaybackSourceKey = true
                 playbackSourceKey = nextStringOrNull()
@@ -347,6 +355,7 @@ private fun JsonReader.readPlaybackQueueSongOrNull(): Song? {
         coverUrl = coverUrl,
         onlineSource = onlineSource,
         onlineId = onlineId,
+        onlineMvId = onlineMvId,
         playbackSourceKey = if (hasPlaybackSourceKey) playbackSourceKey else null
     )
 }

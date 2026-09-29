@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_comments_open">Comments</string>
+    <string name="netease_comments_title">Comments</string>
+    <string name="netease_comments_title_count">Comments (%1$s)</string>
+    <string name="netease_comments_sort_recommend">Recommended</string>
+    <string name="netease_comments_sort_hot">Hot</string>
+    <string name="netease_comments_sort_latest">Latest</string>
+    <string name="netease_comments_empty">No comments yet</string>
+    <string name="netease_comments_error">Couldn\'t load comments</string>
+    <string name="netease_comments_retry">Retry</string>
+    <string name="netease_comments_expand_replies">View replies (%1$d)</string>
+    <string name="netease_comments_more_replies">Show more replies</string>
+    <string name="netease_comments_collapse_replies">Hide replies</string>
+    <string name="netease_comments_reply_to">"Reply to @%1$s: "</string>
+    <string name="netease_comments_load_more_failed">Loading failed. Tap to retry</string>
+    <string name="netease_comments_no_more">No more comments</string>
+    <string name="netease_comments_vip_badge">VIP</string>
+    <string name="netease_comments_like">Like</string>
+    <string name="netease_comments_reply">Reply</string>
+    <string name="netease_comments_input_hint">Say something…</string>
+    <string name="netease_comments_reply_hint">Reply to @%1$s</string>
+    <string name="netease_comments_send">Send</string>
+    <string name="netease_comments_cancel_reply">Cancel reply</string>
+    <string name="netease_comments_login_required">Sign in to NetEase Cloud Music first</string>
+    <string name="netease_comments_like_failed">Couldn\'t update like. Try again later</string>
+    <string name="netease_comments_send_failed">Couldn\'t send. Try again later</string>
+    <string name="netease_comments_send_failed_code">Couldn\'t send (error %1$d)</string>
+    <string name="netease_comments_sent">Sent</string>
+</resources>

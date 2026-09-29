@@ -16,6 +16,7 @@ class CenterChannelSuppressorAudioProcessorTest {
     fun disabledProcessorCopiesStereoPcm16() {
         val processor = CenterChannelSuppressorAudioProcessor()
         processor.configure(AudioProcessor.AudioFormat(44_100, 2, C.ENCODING_PCM_16BIT))
+        processor.flush()
         processor.enabled = false
         val input = stereoShortBuffer(left = 12_000, right = -4_000, frames = 4)
         processor.queueInput(input)
@@ -29,6 +30,7 @@ class CenterChannelSuppressorAudioProcessorTest {
     fun enabledReducesCenteredVocals() {
         val processor = CenterChannelSuppressorAudioProcessor()
         processor.configure(AudioProcessor.AudioFormat(44_100, 2, C.ENCODING_PCM_FLOAT))
+        processor.flush()
         processor.enabled = true
         val input = stereoFloatBuffer(left = 0.8f, right = 0.8f, frames = 8)
         processor.queueInput(input)

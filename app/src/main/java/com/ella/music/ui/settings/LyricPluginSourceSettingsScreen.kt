@@ -1,9 +1,13 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.ella.music.ui.settings
 
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,11 +18,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,7 +58,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
@@ -79,8 +85,8 @@ fun LyricPluginSourceSettingsScreen(
     val sources by produceState(initialValue = emptyList<LyricoPluginSource>(), context, reloadToken) {
         value = pluginManager.availableSources()
     }
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val pageBackground = com.ella.music.ui.components.ellaPageBackground()
+    val settingsBackdrop = rememberLayerBackdrop()
     val contentScrollState = rememberSettingsScrollState("settings_lyric_plugin_sources")
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -106,44 +112,36 @@ fun LyricPluginSourceSettingsScreen(
         }
     }
 
-    Column(
+    val systemBarsMode by settingsManager.systemBarsMode.collectAsState(
+        initial = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
+    )
+    val systemBarsReserveSpace by settingsManager.systemBarsReserveSpace.collectAsState(
+        initial = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
+    )
+    val shouldReserveStatus = systemBarsReserveSpace || systemBarsMode !in setOf(
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+    )
+    val statusBarHeight = if (shouldReserveStatus) {
+        WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    } else {
+        0.dp
+    }
+    val topBarHeight = 56.dp + statusBarHeight
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        EllaSmallTopAppBar(
-            title = stringResource(R.string.settings_lyric_plugin_sources),
-            color = pageBackground,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = stringResource(R.string.common_back),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            },
-            actions = {
-                IconButton(onClick = { importLauncher.launch(PLUGIN_ZIP_MIME_TYPES) }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Download,
-                        contentDescription = stringResource(R.string.settings_lyric_plugin_import),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .layerBackdrop(settingsBackdrop)
                 .verticalScroll(contentScrollState)
                 .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
             SettingsCardGroup {
                 Column {
                     if (sources.isEmpty()) {
@@ -230,6 +228,34 @@ fun LyricPluginSourceSettingsScreen(
             )
             Spacer(modifier = Modifier.height(160.dp))
         }
+
+        EllaSmallTopAppBar(
+            backdrop = settingsBackdrop,
+            title = stringResource(R.string.settings_lyric_plugin_sources),
+            color = pageBackground,
+            defaultWindowInsetsPadding = shouldReserveStatus,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = stringResource(R.string.common_back),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            actions = {
+                IconButton(onClick = { importLauncher.launch(PLUGIN_ZIP_MIME_TYPES) }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Download,
+                        contentDescription = stringResource(R.string.settings_lyric_plugin_import),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 
     val deleteTarget = pendingDelete
@@ -403,7 +429,7 @@ private fun PluginConfigTextField(
                 modifier = Modifier.padding(bottom = 6.dp)
             )
         }
-        EllaMiuixTextField(
+        TextField(
             value = value,
             onValueChange = onValueChange,
             label = field.title,

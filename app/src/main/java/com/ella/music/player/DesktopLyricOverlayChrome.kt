@@ -6,8 +6,7 @@ internal fun desktopLyricControlPanelVisible(
     controlsVisible: Boolean
 ): Boolean = !locked && !statusBarMode && controlsVisible
 
-internal fun desktopLyricPassThroughTouches(locked: Boolean, statusBarMode: Boolean): Boolean =
-    locked || statusBarMode
+internal fun desktopLyricPassThroughTouches(statusBarMode: Boolean): Boolean = statusBarMode
 
 internal fun desktopLyricUsesCompactWindow(locked: Boolean, statusBarMode: Boolean): Boolean =
-    false
+    locked && !statusBarMode

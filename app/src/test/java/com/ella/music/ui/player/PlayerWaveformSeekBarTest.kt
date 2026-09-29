@@ -1,37 +1,27 @@
 package com.ella.music.ui.player
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 class PlayerWaveformSeekBarTest {
-    @Test
-    fun waveformLevelsAreStableAndBounded() {
-        val first = progressWaveformLevels(seed = 539, count = 76, segmented = false)
-        val second = progressWaveformLevels(seed = 539, count = 76, segmented = false)
-
-        assertEquals(first, second)
-        assertEquals(76, first.size)
-        assertTrue(first.all { it in 0.08f..1f })
+    @Test fun verticalDragDoesNotSeek() {
+        assertEquals(PlayerTimelineGestureAxis.VerticalScene, resolvePlayerTimelineGestureAxis(3f, 24f, 8f))
     }
-
-    @Test
-    fun segmentedTimelineKeepsBarsVisible() {
-        val levels = progressWaveformLevels(seed = 542, count = 52, segmented = true)
-
-        assertEquals(52, levels.size)
-        assertTrue(levels.all { it in 0.34f..1f })
+    @Test fun horizontalDragOwnsTheTimeline() {
+        assertEquals(PlayerTimelineGestureAxis.HorizontalSeek, resolvePlayerTimelineGestureAxis(24f, 3f, 8f))
     }
-
-    @Test
-    fun waveformEndsTaperForDifferentSongsAndNarrowTimelines() {
-        for (seed in listOf(0, 539, -1, Int.MAX_VALUE)) {
-            for (count in listOf(1, 2, 20, 76)) {
-                val levels = progressWaveformLevels(seed, count, segmented = false)
-                assertEquals(0.08f, levels.first(), 0.0001f)
-                assertEquals(0.08f, levels.last(), 0.0001f)
-                assertTrue(levels.all { it.isFinite() && it in 0.08f..1f })
-            }
-        }
+    @Test fun secondScaleSeeksRelativeToCentreAndClamps() {
+        assertEquals(45f, resolveSecondTimelineTapSecond(50f, 50f, 200f, 10f, 100f), .001f)
+        assertEquals(0f, resolveSecondTimelineTapSecond(2f, 0f, 200f, 10f, 100f), .001f)
+        assertEquals(100f, resolveSecondTimelineTapSecond(99f, 200f, 200f, 10f, 100f), .001f)
+    }
+    @Test fun silenceDoesNotInventSpectrumEnergy() {
+        assertTrue(coneSpectrumTargets(ByteArray(512)).all { it == 0f })
+    }
+    @Test fun spectrumIsBoundedForFullScaleInput() {
+        val targets = coneSpectrumTargets(ByteArray(512) { 127 })
+        assertEquals(64, targets.size)
+        assertTrue(targets.all { it.isFinite() && it in 0f..1f })
+        assertTrue(targets.any { it > 0f })
     }
 }

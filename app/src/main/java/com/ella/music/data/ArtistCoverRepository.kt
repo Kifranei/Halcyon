@@ -9,13 +9,6 @@ import java.util.Locale
 class ArtistCoverRepository private constructor(
     private val context: Context
 ) {
-    @Volatile
-    private var cachedFolderLocation: String? = null
-    @Volatile
-    private var cachedIgnoreCase: Boolean? = null
-    @Volatile
-    private var cachedIndex: Map<String, List<ArtistCoverAsset>> = emptyMap()
-    private val indexLock = Any()
 
     fun getArtistCoverUri(
         artistName: String,
@@ -45,26 +38,49 @@ class ArtistCoverRepository private constructor(
         val artistKey = normalizeArtistCoverKey(artistName, ignoreCase)
         val safeFolderLocation = folderLocation.trim()
         if (artistKey.isBlank() || safeFolderLocation.isBlank()) return emptyList()
-        return ensureIndex(safeFolderLocation, ignoreCase)[artistKey].orEmpty()
+        // Downloaded images retain the provider's case-sensitive artist identity. Prefer
+        // that exact filename even when general library tag matching ignores case (#668).
+        val exactKey = normalizeArtistCoverKey(artistName, ignoreCase = false)
+        val exact = ensureIndex(safeFolderLocation, false)[exactKey].orEmpty()
+        val candidates = exact.ifEmpty {
+            if (ignoreCase) ensureIndex(safeFolderLocation, true)[artistKey].orEmpty() else emptyList()
+        }
+        val usable = candidates.filter { asset ->
+            runCatching {
+                if (asset.uri.scheme == "file") File(requireNotNull(asset.uri.path)).isFile
+                else DocumentFile.fromSingleUri(context, asset.uri)?.exists() == true
+            }.getOrDefault(false)
+        }
+        if (usable.size != candidates.size) {
+            synchronized(indexLock) {
+                cachedIndices.remove(safeFolderLocation to false)
+                cachedIndices.remove(safeFolderLocation to true)
+            }
+        }
+        return usable
+    }
+
+    private val indexLock = Any()
+    private val cachedIndices = mutableMapOf<Pair<String, Boolean>, Map<String, List<ArtistCoverAsset>>>()
+    private val mutableGeneration = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    val generation: kotlinx.coroutines.flow.StateFlow<Long> = mutableGeneration
+
+    fun clearCache() {
+        synchronized(indexLock) {
+            cachedIndices.clear()
+            mutableGeneration.value += 1
+        }
     }
 
     private fun ensureIndex(
         folderLocation: String,
         ignoreCase: Boolean
     ): Map<String, List<ArtistCoverAsset>> {
-        cachedFolderLocation
-            ?.takeIf { it == folderLocation && cachedIgnoreCase == ignoreCase }
-            ?.let { return cachedIndex }
-
+        val key = folderLocation to ignoreCase
         synchronized(indexLock) {
-            cachedFolderLocation
-                ?.takeIf { it == folderLocation && cachedIgnoreCase == ignoreCase }
-                ?.let { return cachedIndex }
-
+            cachedIndices[key]?.let { return it }
             val built = buildIndex(folderLocation, ignoreCase)
-            cachedFolderLocation = folderLocation
-            cachedIgnoreCase = ignoreCase
-            cachedIndex = built
+            cachedIndices[key] = built
             return built
         }
     }
@@ -188,8 +204,13 @@ private class ArtistCoverAccumulator {
 
     fun build(): Map<String, List<ArtistCoverAsset>> =
         entries.mapValues { (_, list) ->
-            // sortedBy 稳定：同一 order（如重复编号）保持发现顺序。
-            list.sortedBy { it.order }.map { it.asset }
+            val videos = list.filter { it.asset.kind == ArtistCoverKind.Video }
+                .sortedBy { it.order }
+                .map { it.asset }
+            val images = list.filter { it.asset.kind == ArtistCoverKind.Image }
+                .sortedBy { it.order }
+                .map { it.asset }
+            videos + images
         }
 
     private data class OrderedAsset(val order: Int, val asset: ArtistCoverAsset)

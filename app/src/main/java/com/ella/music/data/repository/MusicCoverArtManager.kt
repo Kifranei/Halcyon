@@ -85,6 +85,7 @@ internal class MusicCoverArtManager(
                     null
                 } else {
                     audioTagRepository.readEmbeddedCoverDataBlocking(metadataPath)
+                        ?: com.ella.music.data.metadata.EmbeddedArtworkReader.extractCoverArt(metadataPath, context)
                         ?: if (metadataPath.isHttpAudioSource()) null
                         else readEmbeddedPictureWithRetriever(metadataPath)
                 }
@@ -147,6 +148,11 @@ internal class MusicCoverArtManager(
      * embedded artwork in favor of a shared album URI.
      */
     private fun decodeCoverMaster(song: Song, sidecar: File?): Bitmap? {
+        if (song.prefersEmbeddedArtwork()) {
+            getCoverArt(song)?.let { data ->
+                decodeCoverDataToBitmap(data, MASTER_COVER_SIZE)?.let { return it }
+            }
+        }
         if (sidecar != null) {
             decodeBitmapFile(sidecar, MASTER_COVER_SIZE, Bitmap.Config.ARGB_8888)?.let { return it }
         }
@@ -156,7 +162,11 @@ internal class MusicCoverArtManager(
         song.folderAlbumCoverFile()?.let { folderCover ->
             decodeBitmapFile(folderCover, MASTER_COVER_SIZE, Bitmap.Config.ARGB_8888)?.let { return it }
         }
-        return getSharedAlbumArtBitmap(song.albumId)
+        getSharedAlbumArtBitmap(song.albumId)?.let { return it }
+        song.songThumbnailCoverFile()?.let { thumbFile ->
+            decodeBitmapFile(thumbFile, MASTER_COVER_SIZE, Bitmap.Config.ARGB_8888)?.let { return it }
+        }
+        return null
     }
 
     /** Full-size decode for surfaces above master size (player, metadata editor, notification). */
@@ -168,6 +178,13 @@ internal class MusicCoverArtManager(
         exactKey: String
     ): Bitmap? {
         val config = if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+        if (song.prefersEmbeddedArtwork()) {
+            getCoverArt(song)?.let { data ->
+                decodeCoverDataToBitmap(data, targetSize)
+                    ?.also { coverBitmapCache.put(exactKey, it) }
+                    ?.let { return it }
+            }
+        }
         if (sidecar != null) {
             decodeBitmapFile(sidecar, targetSize, config)
                 ?.also { coverBitmapCache.put(exactKey, it) }
@@ -184,6 +201,10 @@ internal class MusicCoverArtManager(
                 ?.let { return it }
         }
         return decodeAlbumArtBitmap(song.albumId, targetSize, usage)
+            ?: song.songThumbnailCoverFile()?.let { thumbFile ->
+                decodeBitmapFile(thumbFile, targetSize, config)
+                    ?.also { coverBitmapCache.put(exactKey, it) }
+            }
     }
 
     private fun decodeCoverDataToBitmap(data: ByteArray, targetSize: Int): Bitmap? {
@@ -250,13 +271,17 @@ internal class MusicCoverArtManager(
     fun getOriginalCoverModel(song: Song): Any? {
         // Online artwork is the actual source for remote songs. For local files prefer embedded
         // bytes, but do not let a stale embedded thumbnail replace an explicitly supplied cover.
-        return song.coverUrl.takeIf {
-            it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
+        if (song.coverUrl.isNotBlank() && !song.coverUrl.isMediaStoreAlbumArtworkUri()) {
+            return song.coverUrl
         }
-            ?: song.songNamedSidecarCoverFile()
+        if (song.prefersEmbeddedArtwork()) {
+            getCoverArt(song)?.let { return it }
+        }
+        return song.songNamedSidecarCoverFile()
             ?: getCoverArt(song)
             ?: song.folderAlbumCoverFile()
             ?: readableAlbumArtUri(song.albumId)
+            ?: song.songThumbnailCoverFile()
     }
 
     /**
@@ -265,13 +290,17 @@ internal class MusicCoverArtManager(
      * rebuilding its cache, and Coil then never reaches the embedded/album fallback.
      */
     fun getArtistCoverModel(song: Song): Any? {
-        return song.coverUrl.takeIf {
-            it.isNotBlank() && !it.isMediaStoreAlbumArtworkUri()
+        if (song.coverUrl.isNotBlank() && !song.coverUrl.isMediaStoreAlbumArtworkUri()) {
+            return song.coverUrl
         }
-            ?: song.songNamedSidecarCoverFile()
+        if (song.prefersEmbeddedArtwork()) {
+            getCoverArt(song)?.let { return it }
+        }
+        return song.songNamedSidecarCoverFile()
             ?: getCoverArt(song)
             ?: song.folderAlbumCoverFile()
             ?: readableAlbumArtUri(song.albumId)
+            ?: song.songThumbnailCoverFile()
     }
 
     fun getAlbumArtUri(albumId: Long): Uri? {
@@ -381,6 +410,23 @@ internal class MusicCoverArtManager(
             fileName = fileName.ifBlank { songFile.name },
             path = metadataPath,
             songId = id,
+            musicThumbnailsDir = null
+        ).firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+    }
+
+    private fun Song.songThumbnailCoverFile(): File? {
+        val metadataPath = effectiveLocalPathForMetadataBlocking(
+            settingsManager,
+            httpClient,
+            remoteAudioCacheDir,
+            remoteMetadataHeaderCacheDir
+        )
+        val songFile = File(metadataPath)
+        return songThumbnailCoverFileCandidates(
+            songDirectory = songFile.parentFile,
+            fileName = fileName.ifBlank { songFile.name },
+            path = metadataPath,
+            songId = id,
             musicThumbnailsDir = File(
                 android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC),
                 ".thumbnails"
@@ -401,3 +447,4 @@ internal class MusicCoverArtManager(
             .firstOrNull { it.exists() && it.isFile && it.length() > 0L }
     }
 }
+

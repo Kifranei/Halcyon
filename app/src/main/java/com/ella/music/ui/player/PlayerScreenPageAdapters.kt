@@ -96,7 +96,6 @@ internal fun CoverPageContent(
     lyricPerspectiveEffect: Boolean,
     lyricPerspectiveYAngle: Int,
     lyricTextAlign: Int,
-    lyricPageVerticalAlignment: Int,
     playerTapSeekEnabled: Boolean,
     playerShowTotalDuration: Boolean,
     coverSwipeEnabled: Boolean,
@@ -110,6 +109,7 @@ internal fun CoverPageContent(
     queueExpanded: Boolean,
     onQueueExpandedChange: (Boolean) -> Unit,
     playlist: List<Song>,
+    librarySongs: List<Song> = emptyList(),
     favoriteSongKeys: Set<String> = emptySet(),
     loadSongRating: (Song) -> Int = { 0 },
     ratingRevision: Int = 0,
@@ -146,6 +146,7 @@ internal fun CoverPageContent(
     onNavigateToAlbum: (Long) -> Unit,
     onNavigateToArtist: (String) -> Unit,
     openLyricSharePicker: (LyricLine) -> Unit,
+    onLyricShare: () -> Unit,
     navigateToArtistOrChoose: (String) -> Unit,
     onShowLyrics: () -> Unit,
     onSwipePrevious: () -> Unit,
@@ -237,7 +238,6 @@ internal fun CoverPageContent(
         lyricPerspectiveEffect = lyricPerspectiveEffect,
         lyricPerspectiveYAngle = lyricPerspectiveYAngle,
         lyricTextAlign = lyricTextAlign,
-        lyricPageVerticalAlignment = lyricPageVerticalAlignment,
         playerTapSeekEnabled = playerTapSeekEnabled,
         playerShowTotalDuration = playerShowTotalDuration,
         coverSwipeEnabled = coverSwipeEnabled,
@@ -249,6 +249,7 @@ internal fun CoverPageContent(
         menuExpanded = menuExpanded,
         queueExpanded = queueExpanded,
         playlist = playlist,
+        librarySongs = librarySongs,
         currentQueueIndexHint = currentQueueIndex,
         favoriteSongKeys = favoriteSongKeys,
         loadSongRating = loadSongRating,
@@ -273,6 +274,10 @@ internal fun CoverPageContent(
         onShowLyrics = onShowLyrics,
         onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
         onLyricLineLongClick = openLyricSharePicker,
+        onLyricShare = {
+            onMenuExpandedChange(false)
+            onLyricShare()
+        },
         onTogglePronunciation = {
             playerViewModel.setLyricPagePronunciation(!showLyricPronunciation)
         },
@@ -361,8 +366,12 @@ internal fun CoverPageContent(
             onMenuExpandedChange(false)
             val current = song
             if (current != null) {
-                enqueuePlayerDownload(context, current)
-                Toast.makeText(context, context.getString(R.string.player_download_started), Toast.LENGTH_SHORT).show()
+                if (current.onlineSource == "netease") {
+                    com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, current)
+                } else {
+                    enqueuePlayerDownload(context, current)
+                    Toast.makeText(context, context.getString(R.string.player_download_started), Toast.LENGTH_SHORT).show()
+                }
             }
         },
         onLandscape = {
@@ -549,7 +558,6 @@ internal fun LyricsPageContent(
     lyricPerspectiveEffect: Boolean,
     lyricPerspectiveYAngle: Int,
     lyricTextAlign: Int,
-    lyricPageVerticalAlignment: Int,
     lyricPalette: PlayerPalette,
     isPlaying: Boolean,
     playerBackgroundEnabled: Boolean,
@@ -606,7 +614,6 @@ internal fun LyricsPageContent(
         perspectiveEffect = lyricPerspectiveEffect,
         perspectiveYAngle = lyricPerspectiveYAngle,
         lyricTextAlign = lyricTextAlign,
-        lyricPageVerticalAlignment = lyricPageVerticalAlignment,
         palette = lyricPalette,
         flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
         currentPositionMs = currentPosition,
@@ -719,6 +726,16 @@ internal fun DetailPageContent(
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    var neteaseCommentsSongId by androidx.compose.runtime.remember(song) { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val commentsSong = song
+    if (commentsSong != null) {
+        NeteaseCommentsSheet(
+            show = neteaseCommentsSongId != null,
+            song = commentsSong,
+            onDismiss = { neteaseCommentsSongId = null },
+            songIdOverride = neteaseCommentsSongId
+        )
+    }
     PlayerDetailPage(
         song = song,
         embeddedCover = embeddedCover,
@@ -753,12 +770,34 @@ internal fun DetailPageContent(
         onLyricist = { name -> onNavigateToMetadataCategory("lyricist", name) },
         onYear = { year -> onNavigateToMetadataCategory("year", year) },
         onGenre = { genre -> onNavigateToMetadataCategory("genre", genre) },
-        onNeteaseSong = { openNetease(neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let(::neteaseSongUrl)) },
-        onNeteaseMusicVideo = {
-            openNetease(neteaseInfo?.mvId?.takeIf { it.isNotBlank() }?.let(::neteaseMvUrl))
+        onNeteaseSong = {
+            neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let {
+                com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.Song, it)
+            }
         },
-        onNeteaseArtist = { id -> openNetease(neteaseArtistUrl(id)) },
-        onNeteaseAlbum = { openNetease(neteaseInfo?.albumId?.takeIf { it.isNotBlank() }?.let(::neteaseAlbumUrl)) },
+        onNeteaseComments = {
+            neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let { id ->
+                if (com.ella.music.data.netease.NeteaseLinks.commentsOpenExternally(context)) {
+                    com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.Comment, id)
+                } else {
+                    neteaseCommentsSongId = id
+                }
+            }
+        },
+        onNeteaseArtistWiki = { id ->
+            com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.ArtistWiki, id)
+        },
+        onNeteaseMusicVideo = {
+            neteaseInfo?.mvId?.let { com.ella.music.MusicVideoLauncher.openNetease(context, song, it) }
+        },
+        onNeteaseArtist = { id ->
+            com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.Artist, id)
+        },
+        onNeteaseAlbum = {
+            neteaseInfo?.albumId?.takeIf { it.isNotBlank() }?.let {
+                com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.Album, it)
+            }
+        },
         musicVideoEnabled = musicVideoEnabled,
         musicVideoCustomFolders = musicVideoCustomFolders,
         dynamicCoverCustomFolders = dynamicCoverCustomFolders,

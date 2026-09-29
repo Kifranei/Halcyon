@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">冷启动自动扫描新增歌曲</string>
+    <string name="settings_cold_start_auto_scan_summary">每次冷启动时自动扫描本地与远程曲库的新增歌曲；网易云音乐只静默同步，不提示</string>
+    <string name="settings_wizard_flow_background_summary">首页、音乐库等浏览页跟随当前歌曲流光。低端设备建议不要启用，以免卡顿和耗电</string>
+    <string name="settings_wizard_interface">界面</string>
+</resources>

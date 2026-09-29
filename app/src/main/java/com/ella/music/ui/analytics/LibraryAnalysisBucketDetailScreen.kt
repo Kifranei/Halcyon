@@ -72,6 +72,7 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteResultHandler
 import com.ella.music.ui.components.sortLabel
+import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.home.HomeSortField
 import com.ella.music.ui.home.HomeSortMode
 import com.ella.music.ui.home.cachedSortedForHomeMode
@@ -139,7 +140,7 @@ internal fun LibraryAnalysisBucketDetailScreen(
                 it.fileName.contains(query, ignoreCase = true)
         }
     }
-    val sortedResult = remember(filteredSongs, sortMode) {
+    val sortedResult = remember(filteredSongs, sortMode, LibrarySortUiState.randomSortSeed) {
         filteredSongs.cachedSortedForHomeMode(sortMode)
     }
     val sortedSongs = sortedResult.songs

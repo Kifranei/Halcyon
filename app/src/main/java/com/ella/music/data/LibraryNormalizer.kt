@@ -73,7 +73,7 @@ object LibraryNormalizer {
     }
 
     fun looksLikeLastFolderName(value: String, path: String): Boolean {
-        val folderName = path.parentFolderName()
+        val folderName = parentFolderName(path)
         return folderName.isNotBlank() && value.trim().equals(folderName, ignoreCase = true)
     }
 
@@ -85,15 +85,52 @@ object LibraryNormalizer {
             .lowercase()
             .replace(Regex("""[\s_\-:：/\\|,.，。;；()\[\]{}<>《》「」『』]+"""), "")
 
-    private fun String.parentFolderName(): String =
+    fun parentFolderName(path: String): String =
         runCatching {
-            if (isHttpAudioSource()) {
-                java.net.URI(this).path.orEmpty().trim('/').substringBeforeLast('/', "")
+            if (path.isHttpAudioSource()) {
+                java.net.URI(path).path.orEmpty().trim('/').substringBeforeLast('/', "")
                     .substringAfterLast('/')
             } else {
-                File(this).parentFile?.name.orEmpty()
+                File(path).parentFile?.name.orEmpty()
             }
         }
             .getOrDefault("")
             .trim()
+
+    /**
+     * Album text for grouping/display when [folderNameAsAlbumWhenMissing] is disabled:
+     * parent-folder lookalikes are treated as missing (#658).
+     */
+    fun effectiveAlbumForLibrary(
+        album: String?,
+        path: String,
+        folderNameAsAlbumWhenMissing: Boolean
+    ): String {
+        val cleaned = cleanedAlbumText(album)
+        if (cleaned.isBlank()) return ""
+        if (!folderNameAsAlbumWhenMissing && looksLikeLastFolderName(cleaned, path)) return ""
+        return cleaned
+    }
+
+    /**
+     * Final library album text. A parent-folder lookalike only counts as missing when it was
+     * inferred (MediaStore/filename) while [folderNameAsAlbumWhenMissing] is off (#658). An album
+     * read from the file's own tags is always kept, even in Artist/Album/01.flac layouts where it
+     * naturally equals the folder name (#675).
+     */
+    fun resolveLibraryAlbum(
+        album: String?,
+        path: String,
+        folderNameAsAlbumWhenMissing: Boolean,
+        albumFromTag: Boolean
+    ): String {
+        val usable = album?.takeIf { isUsableAlbumText(it) }
+            ?.takeUnless {
+                !albumFromTag && !folderNameAsAlbumWhenMissing && looksLikeLastFolderName(it, path)
+            }
+        if (usable != null) return usable
+        val folderAlbum = if (folderNameAsAlbumWhenMissing) parentFolderName(path) else ""
+        return folderAlbum.ifBlank { "Unknown Album" }
+    }
+
 }

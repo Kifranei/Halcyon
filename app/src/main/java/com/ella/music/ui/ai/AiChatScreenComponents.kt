@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.ui.components.EllaMiuixChip
-import com.ella.music.ui.components.EllaMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -147,7 +147,7 @@ internal fun AiChatInputBar(
             .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        EllaMiuixTextField(
+        TextField(
             value = input,
             onValueChange = onInputChange,
             label = stringResource(R.string.ai_chat_input_hint),

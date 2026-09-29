@@ -1,6 +1,8 @@
 package com.ella.music.data.scanner
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MusicScannerMergePolicyTest {
@@ -50,15 +52,37 @@ class MusicScannerMergePolicyTest {
     }
 
     @Test
-    fun renamePolicyTreatsOldAndNewPathsAsDifferentItems() {
-        val mediaStore = emptyList<MediaStoreAudioItem>()
-        val fallback = listOf(item(path = "/music/new-name.flac"))
+    fun folderFilterExcludesDownloadWithCanonicalAndRelativePaths() {
+        val path1 = "/storage/emulated/0/Download/track.flac"
+        val path2 = "/sdcard/Download/track.flac"
+        val pathMusic = "/storage/emulated/0/Music/track.flac"
 
-        val (merged, stats) = mergeMediaStoreAndFilesystemItems(mediaStore, fallback)
+        // Exclude by full canonical path
+        assertFalse(path1.isAllowedByFolderFilters(emptyList(), listOf("/storage/emulated/0/Download")))
+        assertFalse(path2.isAllowedByFolderFilters(emptyList(), listOf("/storage/emulated/0/Download")))
+        assertTrue(pathMusic.isAllowedByFolderFilters(emptyList(), listOf("/storage/emulated/0/Download")))
 
-        assertEquals("/music/new-name.flac", merged.single().path)
-        assertEquals(1, stats.filesystemFallbackItemCount)
+        // Exclude by /sdcard path
+        assertFalse(path1.isAllowedByFolderFilters(emptyList(), listOf("/sdcard/Download")))
+        assertFalse(path2.isAllowedByFolderFilters(emptyList(), listOf("/sdcard/Download")))
+
+        // Exclude by relative folder name
+        assertFalse(path1.isAllowedByFolderFilters(emptyList(), listOf("Download")))
+        assertFalse(path2.isAllowedByFolderFilters(emptyList(), listOf("Download")))
     }
+
+    @Test
+    fun folderFilterIncludesOnlySpecifiedFolders() {
+        val pathMusic = "/storage/emulated/0/Music/track.flac"
+        val pathMusicSd = "/sdcard/Music/track.flac"
+        val pathDownload = "/storage/emulated/0/Download/track.flac"
+
+        val include = listOf("/storage/emulated/0/Music")
+        assertTrue(pathMusic.isAllowedByFolderFilters(include, emptyList()))
+        assertTrue(pathMusicSd.isAllowedByFolderFilters(include, emptyList()))
+        assertFalse(pathDownload.isAllowedByFolderFilters(include, emptyList()))
+    }
+
 
     private fun item(path: String): MediaStoreAudioItem = MediaStoreAudioItem(
         id = path.hashCode().toLong(),

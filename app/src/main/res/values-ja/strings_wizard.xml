@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">コールド起動時に新しい曲をスキャン</string>
+    <string name="settings_cold_start_auto_scan_summary">コールド起動のたびにローカルとリモートのライブラリの新しい曲をスキャンします。NetEase は通知なしで同期します</string>
+    <string name="settings_wizard_flow_background_summary">ホームやライブラリなどの画面が再生中の曲のフロー背景に追従します。低性能端末ではカクつきや電池消費のため非推奨</string>
+    <string name="settings_wizard_interface">インターフェース</string>
+</resources>

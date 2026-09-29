@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cross-version install notice -->
+    <string name="app_upgrade_title_unknown">旧バージョンからのアップグレードを検出しました</string>
+    <string name="app_upgrade_title">旧バージョン（%1$s）からのアップグレードを検出しました</string>
+    <string name="app_upgrade_message">現在のバージョンは %1$s です。旧バージョンから引き継がれた設定やデータは新しいバージョンと互換性がない場合があり、通常の使用では起こらない予期しない不具合の原因になることがあります。アプリのデータを消去し、クリーンインストールの状態で使用することをおすすめします。\n\nデータの消去はシステムの「アプリ情報 › ストレージ」で行います。設定だけをリセットしたい場合は、「設定 › メンテナンス › 既定の設定に戻す」でも初期値に戻せます（曲、プレイリスト、再生履歴は保持されます）。\n\n不具合を報告する際は、旧バージョンからデータを消去せずに上書きインストールした環境ではなく、最新バージョンでデータを消去したクリーンインストールの環境で発生したことを確認してください。</string>
+    <string name="app_upgrade_clear_data">データを消去</string>
+    <string name="app_upgrade_later">後で</string>
+    <string name="app_upgrade_clear_data_hint">「ストレージ」で「データを消去」を選択してください</string>
+
+    <!-- Backup restore compatibility check -->
+    <string name="backup_compat_title">バックアップの設定が現在のバージョンと一致しません</string>
+    <string name="backup_compat_from_older">このバックアップは旧バージョン（%1$s）で作成されました。現在のバージョンは %2$s です。</string>
+    <string name="backup_compat_from_older_unknown">このバックアップは旧バージョンで作成されました。現在のバージョンは %1$s です。</string>
+    <string name="backup_compat_from_newer">このバックアップは新しいバージョン（%1$s）で作成されました。現在のバージョンは %2$s です。</string>
+    <string name="backup_compat_same_version">このバックアップの設定構造は現在のバージョン（%1$s）と一致しません。</string>
+    <string name="backup_compat_details">存在しなくなった設定が %1$d 件、新しい設定が %2$d 件、形式が変わった設定が %3$d 件見つかりました。再設定をおすすめします。「再設定」を選ぶと設定項目は復元されず、プレイリストや再生履歴など選択したその他の内容は復元されます。</string>
+    <string name="backup_compat_details_legacy">存在しなくなった設定が %1$d 件、形式が変わった設定が %2$d 件見つかりました。古いバックアップには設定一覧が記録されていないため、新しい設定の数は判定できません。再設定をおすすめします。「再設定」を選ぶと設定項目は復元されず、プレイリストや再生履歴など選択したその他の内容は復元されます。</string>
+    <string name="backup_compat_reconfigure">再設定（設定を復元しない）</string>
+    <string name="backup_compat_restore_anyway">それでも復元</string>
+</resources>

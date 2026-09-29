@@ -31,6 +31,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.ella.music.R
 import com.ella.music.ui.components.ScriptFontPaths
+import com.ella.music.ui.player.ensureBundledInterPath
 import com.ella.music.ui.player.ensureBundledMiSansBoldPath
 import com.ella.music.ui.player.PlayerPalette
 import com.ella.music.ui.player.coverContentColor
@@ -71,6 +72,10 @@ class DesktopLyricService : Service() {
     private var translationScale = 1.1f
     private var opacityPercent = 100
     private var lyricTextColor = Color.WHITE
+    private var lyricGlowEnabled = false
+    private var lyricOutlineEnabled = false
+    private var lyricBackgroundMode = 0
+    private var lyricBackgroundOpacity = 58
     private var configuredLyricTextColor = Color.WHITE
     private var syncCoverContentColor = false
     private var statusBarMode = false
@@ -120,6 +125,14 @@ class DesktopLyricService : Service() {
                 if (appleMusicWordLiftEnabled == enabled) return@collect
                 appleMusicWordLiftEnabled = enabled
                 withContext(Dispatchers.Main.immediate) { applyCurrentSettingsToViews() }
+            }
+        }
+        serviceScope.launch {
+            settingsManager.desktopLyricOutlineEnabled.distinctUntilChanged().collect { enabled ->
+                withContext(Dispatchers.Main.immediate) {
+                    lyricOutlineEnabled = enabled
+                    lyricView?.refreshOutlineEnabled(enabled && !statusBarMode)
+                }
             }
         }
         controllerFuture = MediaController.Builder(
@@ -345,7 +358,7 @@ class DesktopLyricService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            if (desktopLyricPassThroughTouches(locked, statusBarMode)) {
+            if (desktopLyricPassThroughTouches(statusBarMode)) {
                 baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             } else {
                 baseFlags
@@ -489,7 +502,7 @@ class DesktopLyricService : Service() {
 
     private fun closeByUser() {
         userHidden = true
-        serviceScope.launch { SettingsManager.getInstance(this@DesktopLyricService).setDesktopLyricEnabled(false) }
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { SettingsManager.getInstance(applicationContext).setDesktopLyricEnabled(false) }
         rootView?.let { runCatching { windowManager.removeView(it) } }
         rootView = null
         lyricView = null
@@ -545,7 +558,7 @@ class DesktopLyricService : Service() {
             params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
             params.setBlurBehindRadius(0)
         }
-        params.flags = if (desktopLyricPassThroughTouches(lock, statusBarMode)) {
+        params.flags = if (desktopLyricPassThroughTouches(statusBarMode)) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
             params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
@@ -590,7 +603,6 @@ class DesktopLyricService : Service() {
         lyricView?.outlineProvider = null
         lyricView?.clipToOutline = false
         lyricView?.foreground = null
-        lyricView?.setBackgroundColor(Color.TRANSPARENT)
         if (!desktopLyricControlPanelVisible(
                 locked = locked,
                 statusBarMode = statusBarMode,
@@ -832,14 +844,19 @@ class DesktopLyricService : Service() {
         // truth for its primary color so switching modes cannot make the text jump to a stale
         // independently stored color.
         lyricTextColor = settingsManager.desktopLyricTextColor.first(),
+        lyricGlowEnabled = settingsManager.desktopLyricGlowEnabled.first(),
+        lyricOutlineEnabled = settingsManager.desktopLyricOutlineEnabled.first(),
+        lyricBackgroundMode = settingsManager.desktopLyricBackgroundMode.first(),
+        lyricBackgroundOpacity = settingsManager.desktopLyricBackgroundOpacity.first(),
         syncCoverContentColor = settingsManager.desktopLyricSyncCoverContentColor.first(),
         // When "apply font to desktop lyric" is off, pass an empty path so the lyric view falls
         // back to the system default typeface instead of the custom lyric font.
         lyricFontPath = if (settingsManager.lyricFontApplyToDesktop.first()) {
+            val defaultInterPath = ensureBundledInterPath(this@DesktopLyricService)
             val defaultCjkPath = ensureBundledMiSansBoldPath(this@DesktopLyricService)
             val western = settingsManager.lyricOriginalWesternFontPath.first()
                 .ifBlank { settingsManager.lyricWesternFontPath.first() }
-                .ifBlank { defaultCjkPath }
+                .ifBlank { defaultInterPath }
             val cjk = settingsManager.lyricOriginalCjkFontPath.first()
                 .ifBlank { settingsManager.lyricCjkFontPath.first() }
                 .ifBlank { defaultCjkPath }
@@ -881,6 +898,10 @@ class DesktopLyricService : Service() {
         translationScale = settings.translationScale
         opacityPercent = settings.opacityPercent
         lyricTextColor = settings.lyricTextColor
+        lyricGlowEnabled = settings.lyricGlowEnabled
+        lyricOutlineEnabled = settings.lyricOutlineEnabled
+        lyricBackgroundMode = settings.lyricBackgroundMode
+        lyricBackgroundOpacity = settings.lyricBackgroundOpacity
         configuredLyricTextColor = settings.lyricTextColor
         syncCoverContentColor = settings.syncCoverContentColor
         if (syncCoverContentColor) {
@@ -957,7 +978,11 @@ class DesktopLyricService : Service() {
             lyricFontPath = lyricFontPath,
             lyricFontWeight = lyricFontWeight,
             lyricFontItalic = lyricFontItalic,
-            wordLiftEnabled = appleMusicWordLiftEnabled
+            wordLiftEnabled = appleMusicWordLiftEnabled,
+            glowEnabled = lyricGlowEnabled && !statusBarMode,
+            outlineEnabled = lyricOutlineEnabled && !statusBarMode,
+            backgroundMode = if (statusBarMode) 0 else lyricBackgroundMode,
+            backgroundOpacity = lyricBackgroundOpacity
         )
         rootView?.alpha = 1f
         lyricView?.alpha = 1f
@@ -1068,6 +1093,10 @@ class DesktopLyricService : Service() {
         val translationScale: Float,
         val opacityPercent: Int,
         val lyricTextColor: Int,
+        val lyricGlowEnabled: Boolean,
+        val lyricOutlineEnabled: Boolean,
+        val lyricBackgroundMode: Int,
+        val lyricBackgroundOpacity: Int,
         val syncCoverContentColor: Boolean,
         val lyricFontPath: String,
         val lyricFontWeight: Int,
@@ -1130,6 +1159,12 @@ class DesktopLyricService : Service() {
             Color.rgb(255, 224, 150),
             Color.rgb(255, 87, 34)
         )
-        private var userHidden = false
+        @Volatile
+        internal var userHidden = false
+            private set
+
+        fun resetUserHidden() {
+            userHidden = false
+        }
     }
 }

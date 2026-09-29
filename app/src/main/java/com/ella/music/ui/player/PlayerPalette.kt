@@ -114,16 +114,17 @@ internal data class PlayerPalette(
         private val LightContent = Color(0xFF16181C)
 
         val Default = PlayerPalette(
-            top = Color(0xFF171717),
-            middle = Color(0xFF0B0B0D),
-            bottom = Color.Black,
-            accent = Color(0xFF2F7DFF)
+            // Missing art has a stable blue seed; never sample transparent placeholder pixels.
+            top = Color(0xFF263F55),
+            middle = Color(0xFF182A3B),
+            bottom = Color(0xFF0D1823),
+            accent = Color(0xFF90CAF9)
         )
 
         val LightDefault = PlayerPalette(
-            top = Color(0xFFFCFCFD),
-            middle = Color(0xFFF1F2F5),
-            bottom = Color(0xFFE6E8EC),
+            top = Color(0xFFEAF5FD),
+            middle = Color(0xFFDDECF8),
+            bottom = Color(0xFFCFDFEE),
             accent = Color(0xFF2F7DFF),
             onBackground = LightContent,
             isLight = true
@@ -178,8 +179,12 @@ internal data class PlayerPalette(
             isLight = true
         )
 
-        private fun representativeAccent(bitmap: Bitmap?): Color? {
-            if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return null
+        private fun representativeAccent(source: Bitmap?): Color? {
+            if (source == null || source.isRecycled || source.width <= 0 || source.height <= 0) return null
+            // getPixel() throws on HARDWARE bitmaps (e.g. images decoded by Coil); sample a software copy.
+            val bitmap = if (source.config == Bitmap.Config.HARDWARE) {
+                source.copy(Bitmap.Config.ARGB_8888, false) ?: return null
+            } else source
             val sampleStep = (minOf(bitmap.width, bitmap.height) / 36).coerceAtLeast(1)
             val buckets = linkedMapOf<Int, LongArray>()
             val fallback = LongArray(4)

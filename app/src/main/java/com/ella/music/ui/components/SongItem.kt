@@ -1,5 +1,7 @@
 package com.ella.music.ui.components
 
+import com.ella.music.data.model.playlistIdentityKey
+
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -90,6 +92,7 @@ fun SongItem(
     titleMarqueeEnabledOverride: Boolean? = null,
     showPlayNextInLists: Boolean = false,
     compactMultiRow: Boolean = false,
+    detailed: Boolean = false,
     dragSelectedSongs: List<Song> = emptyList(),
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
     showTrailingContentInSelectionMode: Boolean = false,
@@ -101,9 +104,7 @@ fun SongItem(
     val onlineMusicVideoDescription = stringResource(R.string.online_mv)
     val context = androidx.compose.ui.platform.LocalContext.current
     val televisionDevice = remember(context) {
-        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
-            (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
-            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+        com.ella.music.util.isTelevisionDevice(context)
     }
     val sourceView = LocalView.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
@@ -198,10 +199,11 @@ fun SongItem(
             Spacer(modifier = Modifier.width(10.dp))
         }
 
-        val coverSize = if (compactMultiRow) 64.dp else 48.dp
+        val coverSize = if (detailed) 120.dp else if (compactMultiRow) 64.dp else 48.dp
         Box(
             modifier = Modifier
                 .size(coverSize)
+                .libraryMorphPart(song.playlistIdentityKey(), "cover")
                 .clip(RoundedCornerShape(8.dp))
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
@@ -209,13 +211,14 @@ fun SongItem(
             if (coverModel != null) {
                 SafeCoverImage(
                     model = coverModel,
+                    artworkIdentity = song.playlistIdentityKey(),
                     contentDescription = null,
                     modifier = Modifier.size(coverSize),
                     contentScale = ContentScale.Crop,
                     // These thumbnails render at 48/64dp. Decode at a modest 2x density target
                     // instead of 384/512px per row; this keeps the same crisp appearance while
                     // reducing bitmap memory and GPU upload work during fast scrolling.
-                    sizePx = if (compactMultiRow) 320 else 256,
+                    sizePx = if (detailed) 480 else if (compactMultiRow) 320 else 256,
                     showDefaultPlaceholder = false
                 )
             } else {
@@ -238,7 +241,7 @@ fun SongItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().libraryMorphPart(song.playlistIdentityKey(), "title"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ExplicitSongTitle(
@@ -280,7 +283,7 @@ fun SongItem(
             }
             Spacer(modifier = Modifier.height(2.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().libraryMorphPart(song.playlistIdentityKey(), "subtitle"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (qualityTag != null) {
@@ -313,6 +316,25 @@ fun SongItem(
                             }
                         )
                 )
+            }
+            if (detailed) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = song.album.ifBlank { unknown },
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+                audioInfo?.let { info ->
+                    Text(
+                        text = audioQualitySummary(info).detailLabel,
+                        fontSize = 11.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
             }
             if (compactMultiRow) {
                 Spacer(modifier = Modifier.height(4.dp))
@@ -364,7 +386,7 @@ fun SongItem(
                     label = stringResource(R.string.online_mv),
                     contentDescription = onlineMusicVideoDescription,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    onClick = { openSongExternalUrl(context, url) }
+                    onClick = { MusicVideoLauncher.openNetease(context, song, Uri.parse(url).getQueryParameter("id").orEmpty()) }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }

@@ -6,6 +6,8 @@ This document lists the main third-party projects, libraries, native components,
 
 | Project                     | Purpose                                                                                                                          | License    | Link                                               | Notes                                                                                                                              |
 | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :--------- | :------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| CatClawMusic.Plugins.Netease | NetEase protocol client, EAPI encryption, account/library/playlist/lyrics and playback integration | MIT | https://github.com/kankejiang/CatClawMusic.Plugins.Netease | Copyright (c) 2026 kankejiang. Kotlin adaptation of NeteaseEapi.cs and NetEaseOpenApiClient.cs at dbb4db84904cd339fbebaf5a43f6b87e5818d17d. Full notice bundled at app/src/main/assets/licenses/CatClawMusic-Netease-MIT.txt. No MAUI/.ccp runtime is bundled. |
+| CatClawMusic | Host/plugin interface and browser-session login integration reference | MIT | https://github.com/kankejiang/CatClawMusic | Copyright (c) 2024–2026 kankejiang. Reference revision 9dc3e08d9699a69dd20a806d7c3edc8ab6b10da5. Full notice bundled at app/src/main/assets/licenses/CatClawMusic-MIT.txt. |
 | Miuix                       | MIUI / HyperOS-style Compose UI components                                                                                       | Apache-2.0 | https://github.com/compose-miuix-ui/miuix          | Gradle artifacts: `top.yukonga.miuix.kmp:*`                                                                                        |
 | AndroidX / Jetpack Compose  | Android framework libraries, Compose UI/runtime, lifecycle, navigation, DataStore, DocumentFile, and related AndroidX components | Apache-2.0 | https://developer.android.com/jetpack/androidx     | Includes AndroidX libraries used by the app UI and platform integration                                                            |
 | AndroidX Media3             | Playback, media session, ExoPlayer, and FFmpeg decoder integration                                                               | Apache-2.0 | https://github.com/androidx/media                  | Gradle artifacts: `androidx.media3:*`                                                                                              |
@@ -27,9 +29,37 @@ This document lists the main third-party projects, libraries, native components,
 | 163KeyDecrypter             | NetEase Music 163 key decoding reference                                                                                         | MIT        | https://github.com/lycode404/163KeyDecrypter       | Used as decoding reference                                                                                                         |
 | Reorderable                 | Drag-to-reorder list component for Compose                                                                                        | Apache-2.0 | https://github.com/Calvin-LL/Reorderable           | Gradle artifact: `sh.calvin.reorderable:reorderable`                                                                              |
 | Inter                       | Bundled Western lyric typeface                                                                                                    | OFL-1.1    | https://github.com/rsms/inter                       | Bundled variable font from the official Inter 4.1 release                                                                         |
-| RawS Music                  | Software DSP core and player waveform / mirrored-spectrum visual references                                                       | Apache-2.0 | https://github.com/QFDY-GZC/RawS-Music             | Halcyon's `com.ella.music.dsp` includes Kotlin ports/adaptations of RawS BiQuad / EQ / surround / panoramic audio / loudness / dynamic-EQ / Moog ladder / limiter algorithms for Media3 PCM. The player waveform and mirrored-spectrum presentations are adapted for Halcyon's Compose UI. The USB-exclusive native output core, BRIR renderer, and FFT convolver are not included. |
+| RawS Music                  | Software DSP core and player waveform / mirrored-spectrum visual references                                                       | Apache-2.0 | https://github.com/QFDY-GZC/RawS-Music             | Halcyon's `com.ella.music.dsp` includes Kotlin ports/adaptations of RawS BiQuad / EQ / surround / panoramic audio / loudness / dynamic-EQ / Moog ladder / limiter algorithms for Media3 PCM. The player waveform and mirrored-spectrum presentations are adapted for Halcyon's Compose UI. Mini-player surface and artwork morph geometry references RawS ComposePlayerContainer and PlayerArtworkHandoffMotion (Copyright 2024–2026 RawSMusic Contributors). The USB-exclusive native output core, BRIR renderer, and FFT convolver are not included. |
 
 
 LGPL-2.1 components are listed separately here so the Apache-2.0 license of the Halcyon main project is not confused with the licenses of bundled or linked third-party components.
 
 For FFmpeg, FFmpegKit, TagLib, LyricGetter-API, SuperLyricApi, and other LGPL/MPL components, redistribution must follow the corresponding upstream license terms. If the native build configuration or bundled binaries change, this document should be updated before release.
+
+Home daily-shuffle icon: Google Material Symbols Outlined (Apache-2.0), using the user-selected 24dp, weight 400, unfilled shuffle vector from fonts.gstatic.com.
+
+RawS timeline port: ImmersiveWaveformProgress, ImmersiveClimaxAnalysis, PlayerTimelineGesturePolicy and RawWaveformCache, Copyright 2024–2026 RawSMusic Contributors, Apache-2.0. Halcyon supplies an independent MediaCodec PCM scanner.
+
+RawS library pinch adaptation: LibraryPinchState uses VirtualListZoomGesturePolicy's 30-percent/500-dp-per-second release decision, endpoint velocity forwarding, and 500-ms accelerate/decelerate settling. LibraryItemMorph adapts VirtualList's retained source/target holder geometry to Halcyon's Compose cover/title/subtitle layers, preserving the focal song and existing library actions. Copyright 2024–2026 RawSMusic Contributors, Apache-2.0.
+
+RawS cover-overlay visualizer: RawSArtworkSpectrum adapts ComposeAudioVisualizer's AlbumArtworkSpectrumOverlay (AudioVisualizerLayer.Foreground) and DisplaySpectrumMotion, plus the band mapping and rise/fall smoothing of stereo_spectrum_analyzer.cpp (MonoSpectrumAnalyzer::transform / updateSmoothedBands), to Android Visualizer FFT data, Copyright 2024–2026 RawSMusic Contributors, Apache-2.0.
+
+ConePlayer reference: supplied v1.3.0-dev(3f88eb12f), renderer le.u, frame provider cf.c and spectrum processor se.a; the four visualizer motion models were reconstructed for Compose. No ConePlayer binaries are bundled.
+
+Speed menu icon: Google Material Symbols Outlined, Apache-2.0, user-selected 24dp speed vector.
+
+Comment like icon (`ic_comment_like.xml`): Google Material Icons thumb-up outline, Apache-2.0.
+
+Lyrics motion references: user-supplied Apple Music Android decompilation (player.C.j0/q0, FullWidthAlphaGradientFlexboxLayout and lyrics dimensions) and Flamingo 1.0.0-2608212119 (t7.A0/B0/C1). The spring equations, mask geometry and motion parameters are adapted to Halcyon Compose layouts; no reference APK binaries are bundled.
+
+## BetterLyrics visualization reference
+
+[BetterLyrics](https://github.com/jayfunc/BetterLyrics), jayfunc and contributors, GPL-3.0,
+was consulted for its centered frequency layout, smooth curve and bottom gradient behavior
+(`SpectrumAnalyzer.cs` and `SpectrumRenderer.cs`, `dev` branch, 2026-09-28).
+Halcyon's `CenteredSpectrum.kt` is an independent Android implementation using mixed FFT
+from Android Visualizer; BetterLyrics source/binaries and its stereo WASAPI capture are not bundled.
+
+### MusicFree plugin compatibility
+
+Halcyon restores its own historical QuickJS compatibility layer for the [MusicFree plugin protocol](https://musicfree.catcat.work/plugin/protocol.html). Plugin names and search functions are read from plugin exports. MusicFree application binaries and plugins are not bundled; user-imported plugins retain their respective licenses. This adapter supports a subset of Node/React Native dependencies and does not imply compatibility with every plugin.

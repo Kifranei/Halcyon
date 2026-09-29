@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">Rechercher les nouveaux titres au démarrage à froid</string>
+    <string name="settings_cold_start_auto_scan_summary">À chaque démarrage à froid, rechercher les nouveaux titres des bibliothèques locales et distantes ; NetEase se synchronise sans notification</string>
+    <string name="settings_wizard_flow_background_summary">L\'accueil, la bibliothèque, etc. suivent le fond animé du titre en cours. Déconseillé sur les appareils d\'entrée de gamme (saccades, batterie)</string>
+    <string name="settings_wizard_interface">Interface</string>
+</resources>

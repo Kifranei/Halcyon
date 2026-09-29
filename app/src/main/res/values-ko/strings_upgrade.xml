@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cross-version install notice -->
+    <string name="app_upgrade_title_unknown">이전 버전에서 업그레이드 설치됨</string>
+    <string name="app_upgrade_title">이전 버전(%1$s)에서 업그레이드 설치됨</string>
+    <string name="app_upgrade_message">현재 버전은 %1$s입니다. 이전 버전에서 남은 설정과 데이터는 새 버전과 호환되지 않을 수 있으며, 일반적인 사용에서는 발생하지 않는 예기치 않은 문제를 일으킬 수 있습니다. 앱 데이터를 삭제하고 새로 설치한 상태로 사용하는 것을 권장합니다.\n\n데이터 삭제는 시스템의 앱 정보 › 저장공간에서 할 수 있습니다. 설정만 초기화하려면 설정 › 유지 관리 › 기본 구성 복원을 사용할 수도 있습니다(노래, 재생목록, 재생 기록은 유지됨).\n\n문제를 보고할 때는 이전 버전 위에 데이터를 삭제하지 않고 덮어 설치한 상태가 아니라, 최신 버전에서 데이터를 삭제한 깨끗한 설치 상태에서 발생한 문제인지 확인해 주세요.</string>
+    <string name="app_upgrade_clear_data">데이터 삭제</string>
+    <string name="app_upgrade_later">나중에</string>
+    <string name="app_upgrade_clear_data_hint">저장공간에서 데이터 삭제를 선택하세요</string>
+
+    <!-- Backup restore compatibility check -->
+    <string name="backup_compat_title">백업 설정이 현재 버전과 다릅니다</string>
+    <string name="backup_compat_from_older">이 백업은 이전 버전(%1$s)에서 만들어졌습니다. 현재 버전은 %2$s입니다.</string>
+    <string name="backup_compat_from_older_unknown">이 백업은 이전 버전에서 만들어졌습니다. 현재 버전은 %1$s입니다.</string>
+    <string name="backup_compat_from_newer">이 백업은 더 최신 버전(%1$s)에서 만들어졌습니다. 현재 버전은 %2$s입니다.</string>
+    <string name="backup_compat_same_version">이 백업의 설정 구조가 현재 버전(%1$s)과 일치하지 않습니다.</string>
+    <string name="backup_compat_details">더 이상 존재하지 않는 설정 %1$d개, 새 설정 %2$d개, 형식이 바뀐 설정 %3$d개가 발견되었습니다. 다시 구성하는 것을 권장합니다. 다시 구성을 선택하면 설정 항목은 복원하지 않으며, 재생목록과 재생 기록 등 선택한 다른 항목은 계속 복원됩니다.</string>
+    <string name="backup_compat_details_legacy">더 이상 존재하지 않는 설정 %1$d개, 형식이 바뀐 설정 %2$d개가 발견되었습니다. 이전 백업에는 설정 목록이 기록되어 있지 않아 새 설정 수를 알 수 없습니다. 다시 구성하는 것을 권장합니다. 다시 구성을 선택하면 설정 항목은 복원하지 않으며, 재생목록과 재생 기록 등 선택한 다른 항목은 계속 복원됩니다.</string>
+    <string name="backup_compat_reconfigure">다시 구성(설정 복원 안 함)</string>
+    <string name="backup_compat_restore_anyway">그래도 복원</string>
+</resources>

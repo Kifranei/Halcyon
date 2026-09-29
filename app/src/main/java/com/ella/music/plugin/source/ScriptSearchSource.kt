@@ -32,7 +32,8 @@ class ScriptSearchSource(
         PluginJsRuntime(
             hostApi = QuickJsHostApi(
                 pluginId = id,
-                cacheRootDir = source.cacheRootDir
+                cacheRootDir = source.cacheRootDir,
+                pluginStrings = source.strings
             )
         ).also { it.eval(source.script, source.manifest.entry) }
     }

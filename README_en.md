@@ -10,13 +10,12 @@
   <a href="https://github.com/Kifranei/Halcyon/releases"><img src="https://img.shields.io/github/v/release/Kifranei/Halcyon?style=flat&color=6750A4" alt="Version"></a>
   <a href="https://github.com/Kifranei/Halcyon/releases"><img src="https://img.shields.io/github/downloads/Kifranei/Halcyon/total?style=flat&color=orange" alt="Downloads"></a>
   <a href="https://github.com/Kifranei/Halcyon/commits"><img src="https://img.shields.io/github/last-commit/Kifranei/Halcyon?style=flat" alt="Last Commit"></a>
-  <a href="https://github.com/Kifranei/Halcyon/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Kifranei/Halcyon?style=flat" alt="License"></a>
   <a href="README.md"><img src="https://img.shields.io/badge/Document-Chinese-red.svg" alt="CN"></a>
 </p>
 
 <p align="center">
   <a href="https://qm.qq.com/q/6MHSXRrjTq"><img src="https://img.shields.io/badge/QQ交流群-0084FF?style=flat&logo=qq&logoColor=white" alt="QQ Group"></a>
-  <!-- <a href="https://t.me/halcyonplayer"><img src="https://img.shields.io/badge/Telegram-0084FF?style=flat&logo=telegram&logoColor=white" alt="Telegram"></a> -->
+  <a href="https://t.me/HalcyonPlayer"><img src="https://img.shields.io/badge/Telegram-0084FF?style=flat&logo=telegram&logoColor=white" alt="Telegram"></a>
 </p>
 
 <p align="center">
@@ -29,22 +28,31 @@
 
 **Halcyon** is an Android local music player built with **Jetpack Compose, Miuix, and AndroidX Media3**.
 
-It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, Compose word-by-word lyrics, floating lyrics, status-bar lyrics, dynamic covers, an in-app equalizer, Monet dynamic color, online lyric matching, WebDAV / Navidrome / Emby remote libraries, LX Music API sources, Last.fm listening history, library analytics, full app-data backup, and a highly customizable player experience.
+It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, Compose word-by-word lyrics, floating lyrics, status-bar lyrics, dynamic covers, an in-app equalizer, Monet dynamic color, online lyric matching, WebDAV / Navidrome / Emby remote libraries, online music accounts and user-supplied online source plugins, Last.fm listening history, library analytics, full app-data backup, and a highly customizable player experience.
 
 ---
 
 ## 🚀 Features
 
+### ☁️ Online Music Account
+
+- Sign in to an online music account from the library-source settings: liked songs become the library, account playlists appear under Playlists, and listening history can merge into Recently Played.
+- Separate playback and download quality, a playback cache (replaying a song does not download it again; clearable in Maintenance), and downloads that embed full tags, lyrics, artwork, and translation / transliteration.
+- Online MV playback with quality switching, comments with likes and replies, and online artist images, biographies, and album introductions.
+- Credentials are encrypted with Android Keystore and excluded from backups; available content depends on account and region permissions.
+
 ### 🎵 Library & Playlists
 
-- Supports local MediaStore scanning and custom folder scanning, with browsing by album, artist, folder, genre, year, composer, and lyricist; long-press the scan button to trigger a deep full-tag rescan.
+- Supports local MediaStore scanning and custom folder scanning, with browsing by album, artist, folder, genre, year, composer, and lyricist; refactored two-stage rapid scanning architecture: Stage 1 zero-overhead shallow scan presents songs and covers in seconds, Stage 2 background multi-coroutine concurrency completes deep tag enrichment; supports pull-to-refresh and folder change auto-rescanning.
 - Before the first scan, choose whether to enable full-tag search. It searches composer, lyricist, comments, aliases, and custom tags, while the faster basic MediaStore scan searches title, artist, album, and other core metadata only.
-- The library source can switch between Local, Navidrome, and Emby, and the visible library refreshes to the selected source instead of keeping songs from the previous source.
+- The library source can switch between Local, an online music account, Navidrome, OpenSubsonic, Emby, and WebDAV, and the visible library refreshes to the selected source instead of keeping songs from the previous source.
 - Provides a dedicated library search page with song, album, artist, lyric, duplicate-song, and full-tag search, plus search history, multi-select, and range selection.
 - Supports local playlists, favorites, five-star songs, playlist import / export, desktop shortcuts, and custom drag sorting.
 - Playlist and folder-playlist pages can expose independent rating / favorite filters. The library supports list, two-/multi-column, and artwork-grid layouts with pinch-to-switch, separate phone/tablet grid columns, and position preservation when switching.
 - Album grouping uses both album name and album artist to avoid merging same-name albums from different artists.
-- Album details include a dedicated, editable introduction page. Local albums prefer the `<review>` field in a neighboring `album.nfo`; when the folder is not writable, the introduction is stored inside the app.
+- Artist matching & multi-source info: supports custom local artist folder matching, associating images and video backgrounds; supports custom artist splitters (e.g. `/`, `;`, `&`, `、`, etc.) to accurately parse and group collaboration tracks; fetches artist bios and multilingual info from Wikipedia, Last.fm, and other sources, with selectable artist-image sources and priority, with a built-in Cloudflare challenge Sheet for secure retries.
+- Smart artist artwork & background priority: custom local resources > sole/collaborative album artist > sole/collaborative song artist; supports multi-image carousel and MP4/MKV/WebM/MOV video backgrounds, prioritizing video when both are available.
+- Album details include a dedicated, editable introduction page with online album introductions from a source chosen each time. Local albums prefer the `<review>` field in a neighboring `album.nfo`; when the folder is not writable, the introduction is stored inside the app.
 - Includes library analytics, listening calendar, play-count ranking, listening-duration ranking, format distribution, and quality distribution.
 - Listening counts can use configurable percentage and elapsed-time thresholds, and long-pressing an analytics legend entry opens its matching tracks.
 - Supports Last.fm authorization, full-history sync, automatic scrobbling, and Local / Last.fm / combined listening-history views. Records can be deleted individually, while cached Last.fm entries can be hidden locally. Sensitive credentials are encrypted with Android Keystore and excluded from backups.
@@ -55,17 +63,19 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Provides selectable landscape playback styles plus independent status/navigation-bar visibility and optional reserved space for hidden bars, covering phones, tablets, car displays, and ultra-wide screens.
 - New installs default to the non-immersive rounded-cover player; non-square artwork is rounded at its actual image bounds.
 - Supports dynamic video covers matched by song, album, or global fallback.
-- Supports a custom artist-cover folder and dynamic artist video covers on artist pages.
+- Supports custom artist cover folders, multi-cover carousel, and a full-screen gallery preview with swipe navigation, bottom save/share pill bar, and a 3-column thumbnail drawer.
+- Supports local MP4/MKV/WebM/MOV artist videos as dynamic backgrounds, prioritizing video playback when both images and video exist; full-screen preview always places the video first (`1/xxx`) with click-to-play/pause.
 - Static artist artwork is selected in this order: custom asset, sole/collaborative album artist, then sole/collaborative song artist.
+- Apple Music immersive player supports a 1:1 square cover toggle; MV immersive lyrics mode defaults to hiding system status and navigation bars on entry.
 - Supports global custom wallpapers, launch posters, custom Hi-Res badges, and optional player button outlines.
 - Supports Beautiful Lyrics-style dynamic backgrounds for the lyrics page, tablet landscape player, and landscape cover page, with speed, blur, and brightness controls.
 - The Compose lyrics page supports an Apple Music-style dynamic background, word-lift animation, smooth relayout, and consistent transitions between immersive lyrics and the player.
 - Apple Music flow has an independent speed control. The current track's flow background can extend across Home, Library, and list pages while sharing coordinates and animation state with immersive player / lyrics pages.
 - Supports Monet dynamic color derived from the system wallpaper or the current song cover.
 - Non-immersive player covers can show a Hi-Res / MQ badge.
-- The player supports pull-down dismissal, dynamic backgrounds, blurred cover backgrounds, cover swipe-to-skip, and landscape queue-cover switching; tablet landscape docks can show the current lyric.
+- The player supports pull-down dismissal, dynamic backgrounds, blurred cover backgrounds, cover swipe-to-skip, and landscape queue-cover switching; tablet landscape docks can show the current lyric, and bottom dock supports normal, floating, and Liquid Glass styles with customizable parameters.
 - Player progress styles include glow, waveform, and segmented ticks, with flowing-curve and RawS mirrored-spectrum visualizers. Quality, audio details, ReplayGain, and output-device capsules are independently configurable.
-- Supports both local and NetEase Cloud Music MVs. Local videos may use MP4, MKV, WebM, or MOV, can play silently in sync on the player, and can play independently with audio from the detail page. When a `163 key` contains `mvid`, the detail page adds a clearly labeled NetEase MV link; both entries can be shown together.
+- Supports both local and online MVs. Local videos may use MP4, MKV, WebM, or MOV, can play silently in sync on the player, and can play independently with audio from the detail page. Songs with online MV info add an online MV entry that opens in the built-in player or externally; both entries can be shown together.
 - Local MVs opened from song details start directly in landscape and support manual/automatic background picture-in-picture, a glowing progress bar, screenshot sharing, a translucent scrollable caption-settings panel, draggable/lockable captions, KTV lyrics, accompaniment testing, and LunaBeat `mv_offsets.json` subtitle offsets.
 - New installs enable Apple Music background motion, transport-button outlines, total-duration display, and silent synchronized MV playback by default. Existing saved choices are preserved on upgrade.
 - Long-press player artwork to preview the original cover, with double-tap zoom, one-finger panning, sharing, and saving.
@@ -77,52 +87,52 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Supports word-by-word lyrics, line-timed TTML, translations, romanization / phonetics, background vocals, TTML duets, and ELRC V1/V2 duet tags.
 - The lyric-page more menu now keeps font size, scaling, and perspective sliders inside a secondary "Lyric style" page to reduce the length of the top-level menu.
 - Reads embedded lyrics and external lyric files, including matching `.lrc`, `.ttml`, and `.elrc` files.
-- Supports online lyric matching for local songs via Lyrico-compatible plugins: import / delete plugin bundles from zip files, configure plugin fields, and write results to embedded tags, `TTMLLYRIC`, or a `.lrc` file.
+- Supports online lyric matching for local songs: fully compatible with **Lyrico Plugin API 5** specification plugins, supporting batch import and deletion from zip bundles; supports concurrent multi-source search, match scoring, and album art preview; supports independent plugin parameter configuration and persistence; matching results can be written directly to embedded audio tags (`TTMLLYRIC`, `USLT`, etc.) or exported as external `.lrc` / `.ttml` files.
 - Includes a LunaBeat TTML Hub source for high-precision beat-timed TTML lyrics; Lyrico match results display artwork for easier identification.
-- Provides floating desktop lyrics, status-bar lyrics, media notification lyrics, lyric barrage, SuperLyricApi, and Lyric Getter API integration.
+- Provides floating desktop lyrics, status-bar lyrics, media notification lyrics, lyric barrage, Xiaomi HyperOS Super Island / Focus Notification lyrics, SuperLyricApi, and Lyric Getter API integration.
 - Long status-bar lyrics loop continuously with a gap instead of visibly jumping back to the start.
 - Lyricist/composer credit lines, including short `词` / `曲` forms, can be hidden on demand; MV caption translations have a separate visibility switch.
-- Supports lyric card sharing, font import with a system-font picker, lyric offset, tap-to-seek, and secondary-line configuration.
+- Lyric card sharing upgraded to Apple Music sticker style with flowing frosted chin; supports font import with a system-font picker, lyric offset, tap-to-seek, and secondary-line configuration.
 - Player mini lyrics have independent scale, font-size, spacing, and alignment controls. Lyric taps can seek to an exact timed word or a continuous timestamp and may show an optional expanding outline response.
 - A configurable opening template can show title, artist, album, and other metadata before the first lyric. Paused playback can highlight only the current line, and immersive lyric-area swipe-to-skip is separately gated by a setting.
 - Includes a dedicated full-screen lyric timing editor with line/word timing, fixed transport controls, undo/redo, V1/V2/V1000 vocal roles, translation, romanization, `x-bg` backing vocals, and embedded or exported LRC, ELRC, and TTML.
 
-### 🌐 WebDAV, Navidrome, Emby & LX Online Music
+### 🌐 WebDAV, Navidrome, Emby & Online Sources
 
 - Supports WebDAV remote libraries with connection testing, Digest authentication, remote browsing, and remote playback.
 - Supports Navidrome / Subsonic and Emby music library entries with the same directory-browsing style and input-field styling as WebDAV.
-- Navidrome / Emby remote libraries support paged loading and full-library caching; Navidrome libraries over 500 songs continue loading additional pages.
-- Supports LX Music API sources, online search, streaming playback, cover / lyric retrieval, and local downloads.
-- LX search can switch horizontally between NetEase Cloud Music, QQ Music, KuGou, and Migu, with encrypted LX user-source runtime support.
-- Includes a Beta LAN Web music service for browsing, playback, and upload from a browser on a trusted local network. This release has no access password; do not expose it to public networks or port forwarding.
+- Navidrome / Emby remote music libraries support paginated loading and whole-library caching; Navidrome libraries exceeding 500 tracks continue to load in batches.
+- Import user-supplied online source plugins (no sources are bundled) for online search, playback, cover/lyric retrieval, and local downloading.
+- Search sources are generated from the platforms each plugin declares; plugins can be imported from local files, links, or plugin repositories.
+- Provides a local Web Music Service Beta to browse, play, and upload music via a browser within a trusted LAN. Currently unauthenticated; do not expose on public networks or forwarded ports.
 
 ### 🎚 Audio Effects, Decoding, Tags & Quality
 
-- Includes an in-app software 10-band parametric equalizer that does not depend on the system Equalizer, with bass boost and virtualizer shown based on device capability.
-- The equalizer includes an independent master gain applied after all software effects, with clipping-risk guidance for positive gain.
-- Supports the native Oboe output backend and USB DAC exclusive mode. Crossfade offers equal-power, linear, smooth, and full-volume curves.
-- The player can inspect the source format, effective playback chain, resampling state, and output device in real time. Crossfade hands the UI to the incoming track early and preserves paused-state skip semantics.
-- Uses lyrico-audiotag as the primary local metadata path, supporting artwork, basic tags, embedded lyrics, and multi-value tags for common audio formats.
-- The built-in tag editor supports editing basic tags, lyrics, embedded artwork, and interactive star ratings.
-- Provides system, FFmpeg, and automatic decoding modes for better ALAC / AAC / M4A compatibility.
-- Supports ReplayGain, shuffle queue restoration, quality labels, and 24-bit / 96 kHz recognition.
-- Reads 163 keys from standalone tags, Comment, and Description fields, extracting song, album, artist, and `mvid` data with links to the corresponding NetEase song, album, artist, and MV pages.
-- Provides local audio tools for format conversion, multi-stream audio export, and CUE album splitting; the built-in spectrum viewer can also launch Aspect Pro or Kaspek directly.
-- A unified casting page exposes system audio routes, Chromecast, and DLNA MediaRenderers; DLNA playback uses an in-app local-network media server for the current track.
+- Built-in 10-band software parametric equalizer independent of the system equalizer, with bass-boost and virtualization toggles based on device capabilities.
+- The equalizer includes an overall post-effects gain control with a clipping risk indicator for positive peaks.
+- Supports native Oboe audio output and USB DAC exclusive mode; crossfade supports constant-loudness, linear, smooth, and retain-original-volume curves.
+- Real-time audio output details on the player show source parameters, actual playback pipeline, resampling status, and output device; crossfade hands over UI metadata early while preserving pause semantics.
+- Local audio tag reading uses the lyrico-audiotag main pipeline, supporting cover artwork, basic metadata, embedded lyrics, and multi-value tags across common formats.
+- Built-in card-based tag editor for basic metadata, track details, creative credits, lyrics, artwork, and interactive star ratings.
+- Offers System, FFmpeg, and Auto decoding modes for broader ALAC / AAC / M4A compatibility.
+- Supports ReplayGain, shuffle-queue restoration, quality badges, and hi-res format detection up to 24-bit / 96 kHz.
+- Reads embedded source-info tags to extract song, album, artist, and MV identifiers, with navigation to the matching pages using web, app, or custom link templates.
+- Includes local audio tools for format conversion, multi-stream export, and CUE sheet splitting; built-in spectrum viewer integrates with Aspect Pro and Kaspek.
+- Casting page unifies system audio output, Chromecast, and DLNA MediaRenderer; DLNA streams via an in-app local-network media service.
 
 ### 🎨 UI & Integrations
 
-- Built with Miuix 0.9.3 for a MIUI / HyperOS-inspired interface, including floating bottom navigation, MiniPlayer, blur / Liquid Glass effects, and unified sheets. The launch screen follows the dark system theme to avoid a bright flash under system launch masks.
-- Supports 8 interface languages, in-app language switching, app font sizing and full interface scaling, GitHub update page, app logs, full app-data backup / restore, and Prism Music listening-history export.
-- Backups can include library-presentation state such as pinned artists and albums. WebDAV detects newer automatic cloud backups and can remember the default categories for manual and automatic restore.
+- Built with Miuix 0.9.3 for a MIUI / HyperOS aesthetic, featuring a floating bottom navigation bar, MiniPlayer, blur / Liquid Glass effects, and unified dialog styling; bottom dock supports normal, floating, and iOS-style Liquid Glass, pages support swipe switching, and search bar can be merged into bottom dock custom entry while expanding mini-player to full-width lyric view; launch screen stays dark under dark system theme to prevent white flash.
+- Supports 10 UI languages (newly added Turkish and Arabic with complete RTL mirrored layout adaptation), in-app language switching; global font and lyric Latin font default to Inter Bold, CJK fallback defaults to MiSans Bold; supports app font sizing, UI scaling, GitHub update page, app logging, full data backup/restore, and Prism Music history export; log export bundles device properties, `getprop`, and readable `build.prop`.
+- Backups include artist/album pin states and library display settings; WebDAV prompts when a newer cloud backup exists and allows preconfiguring categories for manual and auto restore.
 - Supports switching app icons, configuring long-press launcher shortcuts, pinning home-category shortcuts, and compact / expanded playback widgets. Widgets keep artwork across process restarts, use a blurred artwork-derived background, show live playback time and controls, and provide a compatibility-layout switch for launcher grids that crop the play-button outline.
-- Supports song information, tag editing, lyric timing tools, external tag-editor adaptation, and AI song interpretation.
+- Supports song information, tag editing, lyric timing tools, external tag-editor adaptation, and generic AI song interpretation.
 - Player and list action menus can be independently reordered or hidden. Notification-to-player navigation and search-result queue behavior are configurable as well.
-- Supports MediaSession custom commands for favorite and playback-mode controls in notifications / control centers.
+- Supports MediaSession custom commands for favorite and playback-mode controls in notifications / control centers; automatically pauses when Bluetooth audio disconnects and resumes upon reconnect according to settings.
 
 ### 🤖 AI & MCP
 
-- Includes an OpenAI library listening assistant that can make recommendations from the local library, recent plays, and listening statistics, or explain listening preferences. It can only read the library and play local songs; it cannot delete or modify files.
+- AI song interpretation upgraded to generic AI provider configuration with native DeepSeek and Anthropic protocol support, customizable Base URL / models, and one-click model fetching; includes an AI library listening assistant to recommend playlists or explain listening preferences from local library statistics.
 - The Home AI playlist-assistant entry is enabled by default, displays the actual local-library track count, and can be disabled in Settings.
 - Includes an MCP server built with the official Kotlin SDK, Ktor CIO, and Streamable HTTP, allowing MCP hosts such as Claude Desktop to control Halcyon playback.
 - Enable it from Settings → MCP server, then connect to `http://<device-ip>:8384/mcp`.
@@ -138,8 +148,8 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 |:--|:------------------------------------------------------------------------|
 | Android Version | Android 11 / API 30 or higher                                           |
 | Target SDK | Android 17 / API 37                                                     |
-| Default ABI | `arm64-v8a`                                                             |
-| Network | Required for WebDAV, LX online sources, and online lyrics               |
+| Supported ABIs | `arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`, `Universal`              |
+| Network | Required for WebDAV, online sources, and online lyrics                  |
 | Video Permission | Android 13+ may require video media permission for dynamic video covers |
 | Overlay Permission | Required when using floating lyrics                                     |
 | Notification Permission | Required on Android 13 and above                                        |
@@ -202,7 +212,7 @@ Actual matching order depends on the implementation: it usually checks the song'
 
 ---
 
-## 🎬 Local MVs, NetEase MVs, and Subtitle Offsets
+## 🎬 Local MVs, Online MVs, and Subtitle Offsets
 
 ### Recommended: use dedicated MV folders
 
@@ -240,9 +250,9 @@ Lookup priority is: dedicated MV folders → the song's folder → legacy dynami
 The player detail page shows separate entries:
 
 - **MV section → Local MV** — shows a video thumbnail and duration, and opens the audible built-in Halcyon player.
-- **NetEase section → NetEase Cloud Music MV** — shown when the song's `163 key` contains a non-zero `mvid`, and opens `https://y.music.163.com/m/mv?id=<mvid>`.
+- **Online MV** — shown when the song carries online MV info; plays in the built-in player (with quality switching) or opens externally.
 
-When both exist, each remains visible in its own section. A NetEase link does not displace or replace the local MV and is not used for silent synchronized playback.
+When both exist, each remains visible in its own section. An online MV does not displace or replace the local MV and is not used for silent synchronized playback.
 
 ### LunaBeat MV offsets
 
@@ -327,22 +337,15 @@ Normal `assembleDebug` builds do not rebuild native code by default. Before rele
 
 ---
 
-## 🧱 Open Source & Licenses
-
-The Halcyon main project is licensed under **Apache-2.0**. Third-party components retain their own licenses; see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
-
----
-
 ## 👥 Credits
 
 - **BetterLyrics** — Visual reference for blurred cover backgrounds and lyric display.
 - **Beautiful Lyrics** — Reference for dynamic backgrounds, fullscreen lyrics, and lyric visual experience.
-- **LySy** — Interaction and timeline-algorithm reference for the built-in native Kotlin / Compose lyric-timing screen (MIT; its Web source code and dependencies are not bundled).
+- **LySy** — Interaction and timeline-algorithm reference for the built-in native Kotlin / Compose lyric-timing screen.
 - **Lyrico** — Reference for external tag editor adaptation and log page interaction.
-- **LX Music Mobile** — Provides LX Music API compatibility implementation and testing reference.
-- **RawS Music** — Apache-2.0 reference and Kotlin-port foundation for the 10-band EQ, BiQuad parametric EQ, 360-degree surround / panoramic audio, loudness processing, dynamic EQ/de-essing, Moog ladder filtering, and peak protection.
+- **RawS Music** — Reference and Kotlin-port foundation for the 10-band EQ, BiQuad parametric EQ, 360-degree surround / panoramic audio, loudness processing, dynamic EQ/de-essing, Moog ladder filtering, and peak protection.
 - **Light Cone Music** — Interface design and feature implementation reference.
-- Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, lyrico-audiotag / Lyrico, TagLib, 163KeyDecrypter, Coil, OkHttp, Reorderable, LySy, Beautiful Lyrics, RawS Music, and other open source projects used by Halcyon.
+- Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, lyrico-audiotag / Lyrico, TagLib, Coil, OkHttp, Reorderable, LySy, Beautiful Lyrics, RawS Music, and other open source projects used by Halcyon.
 
 ---
 
@@ -357,7 +360,7 @@ The Halcyon main project is licensed under **Apache-2.0**. Third-party component
 ## Community Recommendations
 
 - [Lyrico](https://github.com/Replica0110/Lyrico)
-  A powerful Miuix-based music tag editor with lyric and cover matching, ReplayGain, NetEase Music comments, and more.
+  A powerful Miuix-based music tag editor with lyric and cover matching, ReplayGain, and more.
 
 - [RawS Music](https://github.com/QFDY-GZC/RawS-Music)
   An open-source Miuix-based local player with USB DAC exclusive mode, EQ, surround effects, and more.
@@ -369,4 +372,8 @@ The Halcyon main project is licensed under **Apache-2.0**. Third-party component
   A local music player by leguan with a beautifully designed playback experience.
 
 - [LunaBeat](https://github.com/2755337087/LunaBeat)
-  A mobile lyric timing editor and music player with polished player and lyric pages. It can also match lyrics for songs.
+  A mobile lyric timing editor and music player with polished player and lyric pages. Halcyon references aspects of its lyric timing interface design.
+
+The update page offers Stable and Prerelease channels in its top-right menu. Prerelease also accepts subsequent stable releases.
+
+Before reporting a problem, please make sure you are on the latest version and can reproduce it on a clean install (after clearing app data). Installing over an old version without clearing data can leave stale settings that cause bugs you would not see in normal use.

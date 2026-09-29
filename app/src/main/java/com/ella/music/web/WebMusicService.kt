@@ -16,9 +16,13 @@ import android.provider.MediaStore
 import android.util.Log
 import com.ella.music.MainActivity
 import com.ella.music.R
+import com.ella.music.data.InputTooLargeException
+import com.ella.music.data.copyToBoundedOrThrow
 import com.ella.music.data.model.Song
 import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.ui.listmodel.fastIndexSection
+import com.ella.music.ui.listmodel.musicSortKey
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.cio.CIO
@@ -41,7 +45,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -74,17 +83,31 @@ class WebMusicService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        server?.stop(gracePeriodMillis = 500, timeoutMillis = 1_500)
+        val runningServer = server ?: activeServer
         server = null
+        activeServer = null
+        scope.launch {
+            runCatching {
+                runningServer?.stop(gracePeriodMillis = 100, timeoutMillis = 500)
+            }
+        }
         scope.cancel()
         super.onDestroy()
     }
 
     private suspend fun startServer() {
-        runCatching {
+        serverMutex.withLock {
+            runCatching {
+                activeServer?.stop(gracePeriodMillis = 100, timeoutMillis = 500)
+                activeServer = null
+            }
             val repository = MusicRepository.getInstance(this@WebMusicService)
             if (repository.songs.value.isEmpty()) repository.loadCachedLibrary()
-            server = embeddedServer(CIO, host = "0.0.0.0", port = PORT) {
+            var attempts = 0
+            var started = false
+            while (attempts < 3 && !started) {
+                try {
+                    val instance = embeddedServer(CIO, host = "0.0.0.0", port = PORT) {
                 routing {
                     get("/") {
                         val page = assets.open(WEB_ASSET).use { it.readBytes() }
@@ -112,8 +135,11 @@ class WebMusicService : Service() {
                                         put("artist", song.artist)
                                         put("album", song.album)
                                         put("duration", song.duration)
+                                        put("dateAdded", song.dateAdded)
                                         put("cover", "/api/cover/${song.id}")
                                         put("stream", "/api/stream/${song.id}")
+                                        put("section", song.fastIndexSection().let { if (it == "0") "#" else it })
+                                        put("sortKey", song.title.musicSortKey())
                                     })
                                 }
                             }.toString(),
@@ -195,9 +221,25 @@ class WebMusicService : Service() {
                                 status = HttpStatusCode.BadRequest
                             )
                         }
-                        val uploadStream = call.receiveStream()
-                        val result = saveUpload(fileName, call.request.contentType().toString()) {
-                            uploadStream.use { input -> input.copyTo(it) }
+                        val contentLength = call.request.headers["Content-Length"]?.toLongOrNull()
+                        if (contentLength != null && contentLength > MAX_UPLOAD_BYTES) {
+                            return@put call.respondText(
+                                "Upload exceeds the $MAX_UPLOAD_BYTES byte limit",
+                                status = HttpStatusCode.PayloadTooLarge
+                            )
+                        }
+                        val result = try {
+                            uploadSemaphore.withPermit {
+                                val uploadStream = call.receiveStream()
+                                saveUpload(fileName, call.request.contentType().toString()) {
+                                    uploadStream.use { input -> input.copyToBoundedOrThrow(it, MAX_UPLOAD_BYTES) }
+                                }
+                            }
+                        } catch (_: InputTooLargeException) {
+                            return@put call.respondText(
+                                "Upload exceeds the $MAX_UPLOAD_BYTES byte limit",
+                                status = HttpStatusCode.PayloadTooLarge
+                            )
                         }
                         if (result != null) {
                             call.respondText("""{"ok":true,"name":${jsonString(fileName)}}""", ContentType.Application.Json)
@@ -206,10 +248,23 @@ class WebMusicService : Service() {
                         }
                     }
                 }
-            }.start(wait = true)
-        }.onFailure {
-            Log.e(TAG, "Web music server failed", it)
-            stopSelf()
+            }
+            server = instance
+                    activeServer = instance
+                    instance.start(wait = false)
+                    started = true
+                    Log.i(TAG, "Web music server started on port $PORT")
+                } catch (error: Throwable) {
+                    attempts++
+                    Log.w(TAG, "Attempt $attempts failed to bind web server on port $PORT", error)
+                    if (attempts >= 3) {
+                        Log.e(TAG, "Web music server failed to start after $attempts attempts", error)
+                        stopSelf()
+                        return@withLock
+                    }
+                    delay(250)
+                }
+            }
         }
     }
 
@@ -253,17 +308,19 @@ class WebMusicService : Service() {
         }
         val uri = contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
             ?: return null
-        return runCatching {
+        return try {
             contentResolver.openOutputStream(uri, "w")?.use(write)
                 ?: error("Cannot open upload destination")
             values.clear()
             values.put(MediaStore.Audio.Media.IS_PENDING, 0)
             contentResolver.update(uri, values, null, null)
             uri
-        }.onFailure {
+        } catch (error: Exception) {
             contentResolver.delete(uri, null, null)
-            Log.e(TAG, "Failed to save web upload", it)
-        }.getOrNull()
+            if (error is java.io.IOException) throw error
+            Log.e(TAG, "Failed to save web upload", error)
+            null
+        }
     }
 
     private fun buildNotification(): Notification {
@@ -296,7 +353,12 @@ class WebMusicService : Service() {
         private const val NOTIFICATION_ID = 7701
         private const val WEB_ASSET = "web_player/index.html"
         private const val MAX_RESULTS = 1_000
+        private const val MAX_UPLOAD_BYTES = 100L * 1024L * 1024L
+        private val uploadSemaphore = Semaphore(2)
         const val PORT = 8199
+
+        private val serverMutex = Mutex()
+        @Volatile private var activeServer: EmbeddedServer<*, *>? = null
 
         fun start(context: Context): Boolean = runCatching {
             context.startForegroundService(Intent(context, WebMusicService::class.java))
@@ -306,7 +368,11 @@ class WebMusicService : Service() {
         }.getOrDefault(false)
 
         fun stop(context: Context) {
-            context.stopService(Intent(context, WebMusicService::class.java))
+            runCatching {
+                context.stopService(Intent(context, WebMusicService::class.java))
+            }.onFailure { error ->
+                Log.e(TAG, "Unable to stop web music service", error)
+            }
         }
 
         fun accessAddresses(): List<String> = runCatching {

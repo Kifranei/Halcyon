@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_sidecar_destination_title">Save to</string>
+    <string name="lyric_sidecar_destination_embedded">Write into song file</string>
+    <string name="lyric_sidecar_destination_lrc">Save as external .LRC</string>
+    <string name="lyric_sidecar_destination_ttml">Save as external .TTML</string>
+    <string name="lyric_sidecar_destination_hint">Saved as a lyrics file with the same name in the song\'s folder. The audio file is not modified, so its date modified is kept.</string>
+    <string name="lyric_sidecar_save_lrc">Save .LRC lyrics file</string>
+    <string name="lyric_sidecar_save_ttml">Save .TTML lyrics file</string>
+    <string name="lyric_sidecar_saved">Saved: %1$s</string>
+    <string name="lyric_sidecar_no_write_access">Cannot save external lyrics: no write access to this folder. Grant all files access, or add the folder with the folder picker in scan settings.</string>
+    <string name="lyric_sidecar_convert_failed">Could not create lyrics in the selected format</string>
+</resources>

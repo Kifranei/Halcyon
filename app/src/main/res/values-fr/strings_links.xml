@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="netease_link_target_web">Web</string>
+    <string name="netease_link_target_app">NetEase Cloud Music</string>
+    <string name="netease_link_target_honor">NetEase Cloud Music (édition Honor)</string>
+    <string name="netease_link_target_custom">Personnalisé</string>
+    <string name="netease_link_open_failed">Impossible d\'ouvrir le lien</string>
+    <string name="netease_link_song_comments">Commentaires du titre</string>
+    <string name="netease_link_artist_wiki">Wiki de l\'artiste</string>
+    <string name="netease_link_mv_open_mode">Ouverture des MV NetEase</string>
+    <string name="netease_link_mv_open_mode_summary">Si un titre a des infos de MV NetEase, le lire dans le lecteur intégré ou l\'ouvrir en externe</string>
+    <string name="netease_link_mv_open_internal">Lecteur intégré</string>
+    <string name="netease_link_mv_open_external">Ouvrir en externe (selon la cible des liens NetEase)</string>
+    <string name="netease_link_target">Cible des liens NetEase</string>
+    <string name="netease_link_target_summary">Ouvrir les liens titre, artiste, album et MV du 163 key sur le web ou dans l\'application NetEase</string>
+    <string name="netease_link_kind_song">Titre</string>
+    <string name="netease_link_kind_artist">Artiste</string>
+    <string name="netease_link_kind_album">Album</string>
+    <string name="netease_link_kind_mv">MV</string>
+    <string name="netease_link_custom_summary">Lien avant l\'ID, ou {id} pour marquer l\'ID. Vide pour utiliser %1$s</string>
+</resources>

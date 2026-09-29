@@ -73,7 +73,8 @@ object WebDavAutoBackupScheduler {
         val config = WebDavConfig(
             url = baseUrl,
             username = settings.webDavBackupUsername.first().ifBlank { settings.webDavUsername.first() },
-            password = settings.webDavBackupPassword.first().ifBlank { settings.webDavPassword.first() }
+            password = settings.webDavBackupPassword.first().ifBlank { settings.webDavPassword.first() },
+            customHeaders = settings.webDavCustomHeaders.first()
         )
         val path = settings.webDavBackupPath.first().trim().ifBlank { "halcyon_backup" }
         val backupDirUrl = "${baseUrl.trimEnd('/')}/$path/"
@@ -145,6 +146,7 @@ object WebDavAutoBackupScheduler {
             )
             val root = runCatching {
                 WebDavClient.downloadToFile(item.url, config, tempFile)
+                validateApplicationBackupFileBudgets(tempFile)
                 readApplicationBackupFile(context, tempFile)
             }.getOrNull().also {
                 runCatching { tempFile.delete() }

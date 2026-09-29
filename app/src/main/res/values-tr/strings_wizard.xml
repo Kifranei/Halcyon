@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_cold_start_auto_scan">Soğuk başlatmada yeni şarkıları tara</string>
+    <string name="settings_cold_start_auto_scan_summary">Her soğuk başlatmada yerel ve uzak kitaplıklarda yeni şarkıları tara; NetEase sessizce eşitlenir</string>
+    <string name="settings_wizard_flow_background_summary">Ana sayfa ve kitaplık gibi sayfalar çalan şarkının akış arka planını izler. Düşük donanımlı cihazlarda önerilmez (takılma, pil tüketimi)</string>
+    <string name="settings_wizard_interface">Arayüz</string>
+</resources>
