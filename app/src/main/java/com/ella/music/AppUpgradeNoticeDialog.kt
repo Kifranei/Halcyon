@@ -33,6 +33,7 @@ internal fun AppUpgradeNoticeDialog(
         EllaMiuixDialogActions(
             cancelText = stringResource(R.string.app_upgrade_later),
             confirmText = stringResource(R.string.app_upgrade_clear_data),
+            confirmDangerous = true,
             onCancel = onLater,
             onConfirm = onClearData
         )

@@ -62,4 +62,7 @@ endif()
 
 # Enable 16 KB ELF alignment.
 target_link_options(ffmpegJNI
-                    PRIVATE "-Wl,-z,max-page-size=16384")
+                    PRIVATE "-Wl,-z,max-page-size=16384"
+                    # FFmpegKit's independent shared libraries can coexist with this
+                    # static decoder without interposing on avcodec/avutil symbols.
+                    PRIVATE "-Wl,--exclude-libs,ALL")

@@ -6,10 +6,8 @@ import android.content.ContextWrapper
 import android.graphics.Color
 import android.os.Build
 import android.view.View
-import android.view.ViewGroup
 import android.view.ViewParent
 import android.view.Window
-import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -25,6 +23,30 @@ import com.ella.music.data.SettingsManager
 
 // Window-scoped override survives Activity focus/theme callbacks while the player is visible.
 private val playerImmersiveWindows = java.util.WeakHashMap<Window, Boolean>()
+private class ImmersiveWindowState(val restore: ImmersiveSystemBarsRestore, val keepScreenOn: Boolean) {
+    val owners = mutableMapOf<Any, Boolean>()
+}
+internal data class ImmersiveSystemBarsRestore(val mode: Int, val reserveSpace: Boolean)
+private val immersiveWindowOwners = java.util.WeakHashMap<Window, ImmersiveWindowState>()
+
+// Independent full-screen surfaces must survive another surface restoring its bar settings.
+internal fun Window.acquireImmersiveSystemBars(owner: Any, keepScreenOn: Boolean = false) {
+    val state = immersiveWindowOwners.getOrPut(this) {
+        ImmersiveWindowState(ImmersiveSystemBarsRestore(currentAppSystemBarsMode,
+            currentAppSystemBarsReserveSpace), decorView.keepScreenOn)
+    }
+    state.owners[owner] = keepScreenOn
+    decorView.keepScreenOn = state.keepScreenOn || state.owners.values.any { it }
+}
+
+internal fun Window.releaseImmersiveSystemBars(owner: Any): ImmersiveSystemBarsRestore? {
+    val state = immersiveWindowOwners[this] ?: return null
+    state.owners.remove(owner)
+    decorView.keepScreenOn = state.keepScreenOn || state.owners.values.any { it }
+    if (state.owners.isNotEmpty()) return null
+    immersiveWindowOwners.remove(this)
+    return state.restore
+}
 
 internal var currentAppSystemBarsMode: Int = SettingsManager.SYSTEM_BARS_MODE_SHOW_BOTH
     private set
@@ -40,7 +62,9 @@ internal fun Window.applyHalcyonSystemBars(
     mode: Int,
     reserveSpace: Boolean = SettingsManager.DEFAULT_SYSTEM_BARS_RESERVE_SPACE
 ) {
-    val effectiveMode = if (playerImmersiveWindows[this] == true) SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH else mode
+    val effectiveMode = if (playerImmersiveWindows[this] == true ||
+        immersiveWindowOwners[this]?.owners?.isNotEmpty() == true
+    ) SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH else mode
     currentAppSystemBarsMode = effectiveMode
     currentAppSystemBarsReserveSpace = reserveSpace
 

@@ -31,8 +31,22 @@ namespace TagLib {
   class ByteVector;
 
   namespace EBML {
-    std::unique_ptr<Element> findElement(File &file, Element::Id id, offset_t maxOffset);
-    std::unique_ptr<Element> findNextElement(File &file, offset_t maxOffset);
+    /*!
+     * Find element with \a id in \a file starting at current file offset.
+     * The end of the element must be before \a maxOffset.
+     * The begin of the element must not be after \a maxScanOffset
+     * (\a maxOffset if not given).
+     */
+    std::unique_ptr<Element> findElement(
+      File &file, Element::Id id, offset_t maxOffset, offset_t maxScanOffset = -1);
+    /*!
+     * Find element in \a file at current file offset.
+     * The end of the element must be before \a maxOffset.
+     * The begin of the element must not be after \a maxScanOffset
+     * (\a maxOffset if not given).
+     */
+    std::unique_ptr<Element> findNextElement(
+      File &file, offset_t maxOffset, offset_t maxScanOffset = -1);
 
     template <int maxSizeLength>
     unsigned int VINTSizeLength(uint8_t firstByte);
@@ -70,6 +84,18 @@ namespace TagLib {
       if(uintId <= 0xFFFFFF)
         return 3;
       return 4;
+    }
+
+    // See https://datatracker.ietf.org/doc/rfc8794/ section 6.2
+    constexpr bool isUnknownSize(unsigned int sizeLength, uint64_t dataSize)
+    {
+      if(sizeLength == 0 || sizeLength > 8) {
+        return false;
+      }
+
+      const unsigned int numDataBits = sizeLength * 8 - sizeLength;
+      const uint64_t mask = (1ULL << numDataBits) - 1;
+      return (dataSize & mask) == mask;
     }
   }
 }

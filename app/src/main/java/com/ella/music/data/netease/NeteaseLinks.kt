@@ -13,7 +13,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Destinations reachable from a 163 key / NetEase id. */
 internal enum class NeteaseLinkKind(val key: String) {
-    Song("song"), Comment("comment"), Artist("artist"), ArtistWiki("artistwiki"), Album("album"), MusicVideo("mv")
+    Song("song"), SongWiki("songwiki"), Comment("comment"), Artist("artist"), ArtistWiki("artistwiki"), Album("album"), MusicVideo("mv"), AlbumComment("album_comment"), MusicVideoComment("mv_comment")
 }
 
 /** Where 163 key links open. Presets follow the prefixes documented by NetEase's web and app schemes. */
@@ -31,32 +31,39 @@ internal enum class NeteaseLinkTarget(val id: String, val titleRes: Int) {
 internal data class NeteaseLinkSettings(
     val target: NeteaseLinkTarget = NeteaseLinkTarget.Web,
     val openMusicVideoExternally: Boolean = false,
-    val custom: Map<NeteaseLinkKind, String> = emptyMap()
+    val custom: Map<NeteaseLinkKind, String> = emptyMap(),
+    val defaultCommentSort: NeteaseCommentSort = NeteaseCommentSort.Recommend
 )
 
 internal object NeteaseLinks {
     private const val PREFS = "netease_links"
     private const val KEY_TARGET = "target"
     private const val KEY_MV_EXTERNAL = "mv_external"
+    private const val KEY_COMMENT_SORT = "comment_default_sort"
     private const val ID = "{id}"
 
     private val webPrefixes = mapOf(
         NeteaseLinkKind.Song to "https://y.music.163.com/m/song?id=",
+        NeteaseLinkKind.SongWiki to "https://music.163.com/#/song?id=",
         NeteaseLinkKind.Comment to "https://music.163.com/#/song?id=",
         NeteaseLinkKind.Artist to "https://y.music.163.com/m/artist?id=",
         NeteaseLinkKind.ArtistWiki to "https://music.163.com/st/artistwiki?artistId=",
         NeteaseLinkKind.Album to "https://y.music.163.com/m/album?id=",
-        NeteaseLinkKind.MusicVideo to "https://y.music.163.com/m/mv?id="
+        NeteaseLinkKind.MusicVideo to "https://y.music.163.com/m/mv?id=",
+        NeteaseLinkKind.AlbumComment to "https://music.163.com/#/album?id=",
+        NeteaseLinkKind.MusicVideoComment to "https://music.163.com/#/mv?id="
     )
 
     private fun appPrefixes(scheme: String) = mapOf(
         NeteaseLinkKind.Song to "$scheme://song/",
+        NeteaseLinkKind.SongWiki to "$scheme://rnpage?component=rn-music-correlation-new&songId=",
         NeteaseLinkKind.Comment to "$scheme://comment?threadId=R_SO_4_",
         NeteaseLinkKind.Artist to "$scheme://artist/",
-        // The app scheme has no wiki page; the web wiki is the documented destination.
-        NeteaseLinkKind.ArtistWiki to webPrefixes.getValue(NeteaseLinkKind.ArtistWiki),
+        NeteaseLinkKind.ArtistWiki to "$scheme://rnpage?component=music-reactnative-artistwiki&artistId=",
         NeteaseLinkKind.Album to "$scheme://album/",
-        NeteaseLinkKind.MusicVideo to "$scheme://mv/"
+        NeteaseLinkKind.MusicVideo to "$scheme://mv/",
+        NeteaseLinkKind.AlbumComment to "$scheme://comment?threadId=R_AL_3_",
+        NeteaseLinkKind.MusicVideoComment to "$scheme://comment?threadId=R_MV_5_"
     )
 
     fun defaultPrefix(target: NeteaseLinkTarget, kind: NeteaseLinkKind): String = when (target) {
@@ -73,19 +80,19 @@ internal object NeteaseLinks {
         return if (ID in template) template.replace(ID, cleanId) else template + cleanId
     }
 
-    /**
-     * Comments open in the NetEase app (or a custom template) only when the user chose an app
-     * target or set a custom comment link; otherwise Halcyon's own comment sheet is used, since
-     * the NetEase website has no standalone comment page.
-     */
-    fun commentsOpenExternally(context: Context): Boolean {
-        val settings = current(context)
-        return when (settings.target) {
-            NeteaseLinkTarget.Web -> false
-            NeteaseLinkTarget.Custom -> !settings.custom[NeteaseLinkKind.Comment].isNullOrBlank()
-            else -> true
-        }
-    }
+    fun commentsOpenExternally(context: Context, kind: NeteaseLinkKind = NeteaseLinkKind.Comment): Boolean =
+        !usesNativeComments(current(context), kind)
+
+    internal fun usesNativeComments(settings: NeteaseLinkSettings, kind: NeteaseLinkKind): Boolean =
+        kind.commentResource() != null && (settings.target == NeteaseLinkTarget.Web ||
+            (settings.target == NeteaseLinkTarget.Custom && settings.custom[kind].isNullOrBlank()))
+
+    val commentSheetTarget = MutableStateFlow<NeteaseCommentTarget?>(null)
+
+    val webSheetUrl = MutableStateFlow<String?>(null)
+    private fun inAppWebKind(kind: NeteaseLinkKind): Boolean = kind in setOf(
+        NeteaseLinkKind.MusicVideo
+    )
 
     /** Web fallback used when the chosen app scheme has no handler on this device. */
     fun webUrl(kind: NeteaseLinkKind, id: String): String? = build(NeteaseLinkSettings(), kind, id)
@@ -99,11 +106,13 @@ internal object NeteaseLinks {
 
     fun current(context: Context): NeteaseLinkSettings = mutableSettings.value ?: read(context).also { mutableSettings.value = it }
 
-    private fun read(context: Context): NeteaseLinkSettings {
+    internal fun read(context: Context): NeteaseLinkSettings {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return NeteaseLinkSettings(
             target = NeteaseLinkTarget.fromId(prefs.getString(KEY_TARGET, null)),
             openMusicVideoExternally = prefs.getBoolean(KEY_MV_EXTERNAL, false),
+            defaultCommentSort = NeteaseCommentSort.fromApiValue(prefs.getInt(KEY_COMMENT_SORT, NeteaseCommentSort.Recommend.apiValue))
+                ?: NeteaseCommentSort.Recommend,
             custom = NeteaseLinkKind.entries.mapNotNull { kind ->
                 prefs.getString("custom_${kind.key}", null)?.takeIf { it.isNotBlank() }?.let { kind to it }
             }.toMap()
@@ -115,6 +124,7 @@ internal object NeteaseLinks {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
             putString(KEY_TARGET, next.target.id)
             putBoolean(KEY_MV_EXTERNAL, next.openMusicVideoExternally)
+            putInt(KEY_COMMENT_SORT, next.defaultCommentSort.apiValue)
             NeteaseLinkKind.entries.forEach { kind ->
                 val value = next.custom[kind]?.trim().orEmpty()
                 if (value.isEmpty()) remove("custom_${kind.key}") else putString("custom_${kind.key}", value)
@@ -123,12 +133,71 @@ internal object NeteaseLinks {
         mutableSettings.value = next
     }
 
+    internal fun backupSchema(): Map<String, com.ella.music.data.SettingsBackupValueType> = buildMap {
+        put("netease_link_target", com.ella.music.data.SettingsBackupValueType.STRING)
+        put("netease_link_mv_external", com.ella.music.data.SettingsBackupValueType.BOOLEAN)
+        put("netease_link_comment_sort", com.ella.music.data.SettingsBackupValueType.INT)
+        NeteaseLinkKind.entries.forEach { put("netease_link_custom_${it.key}", com.ella.music.data.SettingsBackupValueType.STRING) }
+    }
+
+    internal fun exportBackup(context: Context): org.json.JSONObject {
+        val value = read(context)
+        return org.json.JSONObject().put("netease_link_target", value.target.id)
+            .put("netease_link_mv_external", value.openMusicVideoExternally)
+            .put("netease_link_comment_sort", value.defaultCommentSort.apiValue).apply {
+                NeteaseLinkKind.entries.forEach { put("netease_link_custom_${it.key}", value.custom[it].orEmpty()) }
+            }
+    }
+
+    internal fun restoreBackup(context: Context, payload: org.json.JSONObject) {
+        val valid = backupSchema().filter { (key, type) -> payload.has(key) && type.accepts(payload.opt(key)) }.keys
+        if (valid.isEmpty()) return
+        update(context) { old ->
+            old.copy(
+                target = if ("netease_link_target" in valid) NeteaseLinkTarget.fromId(payload.optString("netease_link_target")) else old.target,
+                openMusicVideoExternally = if ("netease_link_mv_external" in valid) payload.optBoolean("netease_link_mv_external") else old.openMusicVideoExternally,
+                defaultCommentSort = if ("netease_link_comment_sort" in valid) NeteaseCommentSort.fromApiValue(payload.optInt("netease_link_comment_sort")) ?: old.defaultCommentSort else old.defaultCommentSort,
+                custom = old.custom.toMutableMap().apply {
+                    NeteaseLinkKind.entries.forEach { kind ->
+                        val key = "netease_link_custom_${kind.key}"
+                        if (key in valid) {
+                            val value = payload.optString(key).trim()
+                            if (value.isBlank()) remove(kind) else put(kind, value)
+                        }
+                    }
+                }
+            )
+        }
+    }
+
     /** Opens [kind]/[id] with the user's link settings, falling back to the web page if no app handles it. */
     fun open(context: Context, kind: NeteaseLinkKind, id: String) {
+        val resource = kind.commentResource()
+        if (resource != null && (id.toLongOrNull() ?: 0L) <= 0L) return
+        if (resource != null && !commentsOpenExternally(context, kind)) {
+            commentSheetTarget.value = NeteaseCommentTarget(id, resource)
+            return
+        }
         val url = build(current(context), kind, id) ?: return
+        val openWebInApp = inAppWebKind(kind) &&
+            !(kind == NeteaseLinkKind.MusicVideo && current(context).openMusicVideoExternally)
+        if (openWebInApp && (url.startsWith("https://") || url.startsWith("http://"))) {
+            webSheetUrl.value = url
+            return
+        }
         if (launch(context, url)) return
+        if (resource != null) {
+            commentSheetTarget.value = NeteaseCommentTarget(id, resource)
+            return
+        }
         val fallback = webUrl(kind, id)
-        if (fallback != null && fallback != url && launch(context, fallback)) return
+        if (fallback != null && fallback != url) {
+            if (openWebInApp) {
+                webSheetUrl.value = fallback
+                return
+            }
+            if (launch(context, fallback)) return
+        }
         Toast.makeText(context, R.string.netease_link_open_failed, Toast.LENGTH_SHORT).show()
     }
 
@@ -157,13 +226,25 @@ internal object NeteaseLinks {
     }
 
     private fun launch(context: Context, url: String): Boolean = try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        val intent = intentForUrl(url)
+        context.startActivity(intent.apply {
             if (context !is android.app.Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
         true
     } catch (_: ActivityNotFoundException) {
         false
+    } catch (_: java.net.URISyntaxException) {
+        false
     } catch (_: SecurityException) {
         false
+    }
+
+    internal fun intentForUrl(url: String): Intent = when {
+        url.startsWith("intent:", ignoreCase = true) -> Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+        url.startsWith("android-app:", ignoreCase = true) -> Intent.parseUri(url, Intent.URI_ANDROID_APP_SCHEME)
+        // URI_INTENT_SCHEME would treat orpheus://...#Intent;... as an opaque VIEW URI.
+        // Zero accepts an Intent fragment on any scheme, preserving package, action and extras.
+        "#Intent;" in url -> Intent.parseUri(url, 0)
+        else -> Intent(Intent.ACTION_VIEW, Uri.parse(url))
     }
 }

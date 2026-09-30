@@ -356,6 +356,8 @@ internal object PlaybackTickerState {
 
     fun current(): Payload? = payload
 
+    fun refresh() { refreshNotification?.invoke() }
+
     fun update(text: String?, translation: String?) {
         payload = text
             ?.takeIf { it.isNotBlank() }

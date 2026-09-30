@@ -49,21 +49,21 @@ class LyricLineTimingTest {
     }
 
     @Test
-    fun primaryEndClampsSequentialDifferentDuetLinesToNextLineStart() {
+    fun primaryEndPreservesSequentialDifferentTtmlVocals() {
         val current = LyricLine(
             timeMs = 1_000L,
             text = "hello there",
             words = listOf(LyricWord("hello there", 1_000L, 2_400L)),
-            agent = "v1"
+            agent = "v1", isTtml = true
         )
         val next = LyricLine(
             timeMs = 2_000L,
             text = "answer back",
             words = listOf(LyricWord("answer back", 2_000L, 2_900L)),
-            agent = "v2"
+            agent = "v2", isTtml = true
         )
 
-        assertEquals(2_000L, current.primaryEndMs(nextLine = next))
+        assertEquals(2_400L, current.primaryEndMs(nextLine = next))
     }
 
     @Test

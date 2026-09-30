@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">Вкладка комментариев NetEase по умолчанию</string>
+    <string name="netease_comments_default_tab_summary">Выберите вкладку, отображаемую при открытии комментариев к песням, альбомам и клипам</string>
     <string name="netease_comments_open">Комментарии</string>
     <string name="netease_comments_title">Комментарии</string>
     <string name="netease_comments_title_count">Комментарии (%1$s)</string>

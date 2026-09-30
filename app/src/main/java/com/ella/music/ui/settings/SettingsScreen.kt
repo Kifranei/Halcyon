@@ -1,6 +1,5 @@
 package com.ella.music.ui.settings
 
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -34,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -59,7 +54,6 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -96,6 +90,7 @@ fun SettingsScreen(
     onNavigateToHighlightedCoverMediaSettings: (String) -> Unit = { onNavigateToCoverMediaSettings() },
     onNavigateToSetupWizard: () -> Unit = {},
     onNavigateToMaintenance: () -> Unit = {},
+    onNavigateToOther: () -> Unit = {},
     onBack: () -> Unit = {},
     showBackButton: Boolean = true,
     mainViewModel: MainViewModel? = null,
@@ -111,6 +106,12 @@ fun SettingsScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val inSearchMode = searchFocused || searchQuery.isNotBlank()
+    androidx.activity.compose.BackHandler(enabled = inSearchMode) {
+        searchQuery = ""
+        searchFocused = false
+        focusManager.clearFocus()
+        keyboardController?.hide()
+    }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = com.ella.music.ui.components.ellaPageBackground()
     val settingsBackdrop = rememberLayerBackdrop()
@@ -243,7 +244,7 @@ fun SettingsScreen(
 
             if (inSearchMode) {
                 if (searchQuery.isNotBlank()) {
-                    SmallTitle(text = stringResource(R.string.settings_search_results))
+                    SmallTitle(text = stringResource(R.string.settings_search_results), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
                     SettingsCardGroup {
                         Column {
                             if (searchResults.isEmpty()) {
@@ -270,7 +271,7 @@ fun SettingsScreen(
                         }
                     }
                 } else if (searchHistory.isNotEmpty()) {
-                    SmallTitle(text = stringResource(R.string.settings_search_history))
+                    SmallTitle(text = stringResource(R.string.settings_search_history), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -316,7 +317,7 @@ fun SettingsScreen(
                 }
             }
             if (!inSearchMode) {
-                SmallTitle(text = stringResource(R.string.settings_customize))
+                SmallTitle(text = stringResource(R.string.settings_customize), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
 
                 SettingsCardGroup {
                     Column {
@@ -333,7 +334,7 @@ fun SettingsScreen(
                     }
                 }
 
-                SmallTitle(text = stringResource(R.string.settings_music_playback))
+                SmallTitle(text = stringResource(R.string.settings_music_playback), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
 
                 SettingsCardGroup {
                     Column {
@@ -355,7 +356,7 @@ fun SettingsScreen(
                     }
                 }
 
-                SmallTitle(text = stringResource(R.string.settings_services))
+                SmallTitle(text = stringResource(R.string.settings_services), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
 
                 SettingsCardGroup {
                     Column {
@@ -372,7 +373,12 @@ fun SettingsScreen(
                     }
                 }
 
-                SmallTitle(text = stringResource(R.string.settings_maintenance))
+                SettingsCardGroup {
+                    ArrowPreference(title = stringResource(R.string.settings_other),
+                        summary = stringResource(R.string.video_tools_summary), onClick = onNavigateToOther)
+                }
+
+                SmallTitle(text = stringResource(R.string.settings_maintenance), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
 
                 SettingsCardGroup {
                     Column {

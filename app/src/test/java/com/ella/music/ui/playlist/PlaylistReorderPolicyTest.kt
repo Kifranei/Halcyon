@@ -91,4 +91,13 @@ class PlaylistReorderPolicyTest {
     }
 
     private fun entries(vararg ids: String): List<Entry> = ids.map(::Entry)
+
+    @Test
+    fun repeatedDragOfTheSameSongKeepsTheFinalOrderUntilItIsSaved() {
+        val firstMove = "A123456789".map(Char::toString).movePlaylistItem(0, 3)
+        val secondMove = firstMove.movePlaylistItem(firstMove.indexOf("A"), 6)
+        assertEquals("123456A789", secondMove.joinToString(""))
+        assertEquals(false, shouldApplyPersistedPlaylistOrder(true, firstMove, secondMove))
+        assertEquals(true, shouldApplyPersistedPlaylistOrder(true, secondMove, secondMove))
+    }
 }

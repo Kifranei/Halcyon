@@ -75,5 +75,24 @@ internal fun preferredArtistImageMatch(query: String, names: List<String>): Int 
     if (exact >= 0) return exact
     val decorated = names.indexOfFirst { it.substringBefore('(').substringBefore('（').trim() == target }
     if (decorated >= 0) return decorated
-    return names.indexOfFirst { artistImageNameMatches(target, it) }
+    return names.indices.filter { artistImageNameMatches(target, names[it]) }
+        .minByOrNull { artistNameCaseRank(target, names[it].substringBefore('(').substringBefore('（').trim()) } ?: -1
 }
+
+internal fun artistBiographyNameCandidates(name: String): List<String> {
+    val clean = name.trim()
+    val lower = clean.lowercase(java.util.Locale.ROOT)
+    val title = lower.split(Regex("\\s+")).joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+    return listOf(clean, title, lower, clean.uppercase(java.util.Locale.ROOT)).distinct()
+}
+
+internal fun artistNameCaseRank(query: String, candidate: String): Int {
+    val priorities = artistBiographyNameCandidates(query)
+    return priorities.indexOf(candidate.trim()).takeIf { it >= 0 } ?: priorities.size
+}
+
+internal fun artistBiographyCandidateIndices(query: String, names: List<String>): List<Int> =
+    names.indices.filter { artistImageNameMatches(query, names[it]) }.sortedWith(
+        compareBy<Int> { artistNameCaseRank(query, names[it].substringBefore('(').substringBefore('（').trim()) }
+            .thenBy { if (names[it].trim() == query.trim()) 0 else 1 }
+    )

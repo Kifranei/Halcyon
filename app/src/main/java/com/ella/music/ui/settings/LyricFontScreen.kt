@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
@@ -52,7 +51,6 @@ import com.ella.music.ui.components.LocalInBottomSheet
 import com.ella.music.ui.components.LocalSettingsCardFrosting
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -72,7 +70,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -158,18 +155,6 @@ fun LyricFontScreen(
             LyricFontTarget.OriginalCjk -> settingsManager.setLyricOriginalFont(originalWesternFontName, originalWesternFontPath, font.name, font.path)
             LyricFontTarget.TranslationWestern -> settingsManager.setLyricTranslationFont(font.name, font.path, translationCjkFontName, translationCjkFontPath)
             LyricFontTarget.TranslationCjk -> settingsManager.setLyricTranslationFont(translationWesternFontName, translationWesternFontPath, font.name, font.path)
-        }
-        notifyDesktopLyricFontChanged(context, settingsManager)
-    }
-
-    suspend fun clearActiveFont() {
-        when (activeTarget) {
-            LyricFontTarget.GlobalWestern -> settingsManager.setGlobalFont("", "", globalCjkFontName, globalCjkFontPath)
-            LyricFontTarget.GlobalCjk -> settingsManager.setGlobalFont(globalWesternFontName, globalWesternFontPath, "", "")
-            LyricFontTarget.OriginalWestern -> settingsManager.setLyricOriginalFont("", "", originalCjkFontName, originalCjkFontPath)
-            LyricFontTarget.OriginalCjk -> settingsManager.setLyricOriginalFont(originalWesternFontName, originalWesternFontPath, "", "")
-            LyricFontTarget.TranslationWestern -> settingsManager.setLyricTranslationFont("", "", translationCjkFontName, translationCjkFontPath)
-            LyricFontTarget.TranslationCjk -> settingsManager.setLyricTranslationFont(translationWesternFontName, translationWesternFontPath, "", "")
         }
         notifyDesktopLyricFontChanged(context, settingsManager)
     }
@@ -734,8 +719,6 @@ private enum class LyricFontTarget {
     TranslationWestern,
     TranslationCjk
 }
-
-private const val DEFAULT_FONT_CHOICE_PATH = "__lyric_slot_default__"
 
 private suspend fun notifyDesktopLyricFontChanged(
     context: Context,

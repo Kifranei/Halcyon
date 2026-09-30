@@ -1,10 +1,6 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -12,7 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.ella.music.resetPlatformApplicationLocale
@@ -131,7 +126,7 @@ internal fun SettingsAppearanceSection(
             title = stringResource(R.string.settings_player_vertical_actions),
             subtitle = stringResource(R.string.settings_action_menu_summary),
             savedLayout = playerActionMenuLayout,
-            defaultOrder = (ActionMenuIds.playerShortcutDefaults + ActionMenuIds.playerDefaults).distinct(),
+            defaultOrder = ActionMenuIds.playerActionMenuDefaults,
             onDismissRequest = { showPlayerActionMenuSheet = false },
             onSave = { value ->
                 scope.launch {
@@ -208,6 +203,9 @@ internal fun SettingsAppearanceSection(
     val appIconStyle by settingsManager.appIconStyle.collectCachedAsState(
         "appIconStyle",
         SettingsManager.APP_ICON_STYLE_DEFAULT
+    )
+    val recentsIconFollowsSystemTheme by settingsManager.recentsIconFollowsSystemTheme.collectCachedAsState(
+        "recentsIconFollowsSystemTheme", SettingsManager.DEFAULT_RECENTS_ICON_FOLLOWS_SYSTEM_THEME
     )
     val widgetSafeLayout by settingsManager.widgetSafeLayout.collectCachedAsState("widgetSafeLayout", false)
     val bottomBarStyle by settingsManager.bottomBarStyle.collectCachedAsState(
@@ -362,6 +360,7 @@ internal fun SettingsAppearanceSection(
         "playerLandscapeStyle",
         SettingsManager.DEFAULT_PLAYER_LANDSCAPE_STYLE
     )
+    val playerClockColor by settingsManager.playerClockColor.collectCachedAsState("playerClockColor", SettingsManager.DEFAULT_PLAYER_CLOCK_COLOR)
     val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectCachedAsState("playlistSpecialEntriesVisible", false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectCachedAsState("showPlayNextInLists", false)
     val listQualityDisplayMode by settingsManager.listQualityDisplayMode.collectCachedAsState(
@@ -471,7 +470,11 @@ internal fun SettingsAppearanceSection(
         SettingsManager.PLAYER_LANDSCAPE_STYLE_COVER_FLOW to
             stringResource(R.string.settings_player_landscape_style_cover_flow),
         SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO to
-            stringResource(R.string.settings_player_landscape_style_music_video)
+            stringResource(R.string.settings_player_landscape_style_music_video),
+        SettingsManager.PLAYER_LANDSCAPE_STYLE_CLASSIC_SPLIT to
+            stringResource(R.string.settings_player_landscape_style_classic_split),
+        SettingsManager.PLAYER_LANDSCAPE_STYLE_COVER_CLOCK to
+            stringResource(R.string.settings_player_landscape_style_cover_clock)
     )
     val bgEffectOptions = remember {
         listOf(
@@ -661,7 +664,8 @@ internal fun SettingsAppearanceSection(
     val appIconOptions = listOf(
         SettingsManager.APP_ICON_STYLE_DEFAULT to stringResource(R.string.settings_app_icon_default),
         SettingsManager.APP_ICON_STYLE_ANIME to stringResource(R.string.settings_app_icon_anime),
-        SettingsManager.APP_ICON_STYLE_LOLI to stringResource(R.string.settings_app_icon_loli)
+        SettingsManager.APP_ICON_STYLE_LOLI to stringResource(R.string.settings_app_icon_loli),
+        SettingsManager.APP_ICON_STYLE_TRADITIONAL to stringResource(R.string.settings_app_icon_traditional)
     )
     val selectedAppIconIndex = appIconOptions.indexOfFirst { it.first == appIconStyle }
         .takeIf { it >= 0 }
@@ -986,6 +990,16 @@ internal fun SettingsAppearanceSection(
                 )
                 } // search-anchor:end
 
+            }
+            SettingsSearchAnchor(R.string.settings_recents_icon_system_theme) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_recents_icon_system_theme),
+                    summary = stringResource(R.string.settings_recents_icon_system_theme_summary),
+                    checked = recentsIconFollowsSystemTheme,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsManager.setRecentsIconFollowsSystemTheme(enabled) }
+                    }
+                )
             }
             SettingsFocusAnchor(active = highlightKey == "desktop_shortcuts") {
                 SettingsAppShortcutsPreference(
@@ -1897,6 +1911,20 @@ internal fun SettingsAppearanceSection(
                 } // search-anchor:end
 
             }
+            SettingsSearchAnchor(R.string.settings_player_clock_color) {
+                val clockColorEntries = listOf(
+                    DropdownItem(title = stringResource(R.string.settings_player_clock_color_cover)),
+                    DropdownItem(title = stringResource(R.string.settings_player_clock_color_white)),
+                    DropdownItem(title = stringResource(R.string.settings_player_clock_color_light_gray))
+                )
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_player_clock_color),
+                    summary = clockColorEntries[playerClockColor].text,
+                    items = clockColorEntries,
+                    selectedIndex = playerClockColor,
+                    onSelectedIndexChange = { color -> scope.launch { settingsManager.setPlayerClockColor(color) } }
+                )
+            }
             SettingsFocusAnchor(active = highlightKey == "transport_button_outlines") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_transport_button_outlines) {
@@ -2148,14 +2176,4 @@ private fun Int.formatBeautifulLyricsSpeed(): String {
     val whole = this / 10
     val decimal = this % 10
     return if (decimal == 0) "${whole}x" else "$whole.${decimal}x"
-}
-
-private fun String.parseSettingsColorOrNull(): Color? {
-    val hex = trim().removePrefix("#")
-    val value = hex.toLongOrNull(16) ?: return null
-    return when (hex.length) {
-        6 -> Color((0xFF000000 or value).toInt())
-        8 -> Color(value.toInt())
-        else -> null
-    }
 }

@@ -32,6 +32,14 @@
 using namespace TagLib;
 using TagLib::FLAC::Properties;
 
+namespace {
+  constexpr int MAX_OGG_FLAC_METADATA_BLOCK_COUNT = 1024;
+  // FLAC metadata payloads use a 24-bit length. The first Ogg FLAC packet
+  // also contains 13 mapping bytes and a 4-byte FLAC metadata header.
+  constexpr unsigned int MAX_OGG_FLAC_METADATA_PACKET_SIZE =
+    (1U << 24) + 17;
+}
+
 class Ogg::FLAC::File::FilePrivate
 {
 public:
@@ -223,9 +231,11 @@ void Ogg::FLAC::File::scan()
     return;
 
   int ipacket = 0;
+  int blockCount = 1;
   offset_t overhead = 0;
 
-  ByteVector metadataHeader = packet(ipacket);
+  ByteVector metadataHeader =
+    packet(ipacket, MAX_OGG_FLAC_METADATA_PACKET_SIZE);
   if(metadataHeader.isEmpty())
     return;
 
@@ -251,7 +261,7 @@ void Ogg::FLAC::File::scan()
   }
   else {
     // FLAC 1.1.0 & 1.1.1
-    metadataHeader = packet(++ipacket);
+    metadataHeader = packet(++ipacket, MAX_OGG_FLAC_METADATA_PACKET_SIZE);
   }
 
   ByteVector header = metadataHeader.mid(0, 4);
@@ -287,7 +297,11 @@ void Ogg::FLAC::File::scan()
   // Search through the remaining metadata
 
   while(!lastBlock) {
-    metadataHeader = packet(++ipacket);
+    if(blockCount++ >= MAX_OGG_FLAC_METADATA_BLOCK_COUNT) {
+      debug("Ogg::FLAC::File::scan() -- Maximum metadata block count exceeded");
+      return;
+    }
+    metadataHeader = packet(++ipacket, MAX_OGG_FLAC_METADATA_PACKET_SIZE);
     header = metadataHeader.mid(0, 4);
     if(header.size() != 4) {
       debug("Ogg::FLAC::File::scan() -- Invalid Ogg/FLAC metadata header");

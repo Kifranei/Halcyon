@@ -124,6 +124,33 @@ internal fun Song.dynamicCoverResolutionKey(): String =
     ).joinToString("|")
 
 @Composable
+internal fun rememberPlayerDynamicCoverSource(
+    song: Song?, localEnabled: Boolean, customFolders: List<String>, failedPath: String?
+): DynamicCoverSource? {
+    val context = LocalContext.current
+    val settings = remember(context) { SettingsManager.getInstance(context) }
+    val spotifyEnabled by settings.spotifyCanvasEnabled.collectAsState(initial = false)
+    val credentials = remember(context) { com.ella.music.data.spotify.SpotifyCanvasCredentialsStore.getInstance(context) }
+    val cookie by credentials.cookie.collectAsState()
+    val songKey = song?.dynamicCoverResolutionKey()
+    val source by produceState<DynamicCoverSource?>(null, songKey, localEnabled, customFolders, failedPath, spotifyEnabled, cookie) {
+        value = null
+        if (song == null) return@produceState
+        val local = withContext(Dispatchers.IO) {
+            song.dynamicCoverSource(context, localEnabled, customFolders)?.takeUnless { it.failureKey == failedPath }
+        }
+        value = local
+        if (local != null || !spotifyEnabled || cookie.isBlank()) return@produceState
+        val clip = com.ella.music.data.spotify.SpotifyCanvasRepository.getInstance(context).resolve(song, cookie)
+        value = clip?.let {
+            DynamicCoverSource(Uri.fromFile(it.file), "spotify-canvas:${it.trackUri}", aspectRatio = 9f / 16f,
+                playbackOwnerKey = song.dynamicCoverResolutionKey()).takeUnless { it.failureKey == failedPath }
+        }
+    }
+    return source?.takeIf { it.playbackOwnerKey == songKey }
+}
+
+@Composable
 internal fun DynamicCoverVideo(
     source: DynamicCoverSource,
     isPlaying: Boolean,
@@ -571,9 +598,6 @@ private fun ByteArray.legacyAnimatedPictureFormat(): LegacyAnimatedPictureFormat
         else -> null
     }
 }
-
-private fun ByteArray.startsWithBytes(vararg bytes: Int): Boolean =
-    size >= bytes.size && bytes.indices.all { (this[it].toInt() and 0xFF) == bytes[it] }
 
 private fun ByteArray.startsWithAscii(prefix: String): Boolean =
     size >= prefix.length && prefix.indices.all { this[it].toInt().toChar() == prefix[it] }
@@ -1243,9 +1267,6 @@ internal object DynamicCoverPlaybackMemory {
 private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFile? =
     listFiles().firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }
 
-private fun DocumentFile.findChildFileIgnoreCase(name: String): DocumentFile? =
-    listFiles().firstOrNull { it.isFile && it.name.equals(name, ignoreCase = true) }
-
 private fun File.toDynamicCoverSource(
     context: Context,
     role: PlayerVideoRole
@@ -1490,16 +1511,6 @@ internal fun buildMusicVideoBaseNameTiers(
 internal fun musicVideoFolderFileNameCandidates(baseNames: Collection<String>): List<String> {
     val trimmed = baseNames.map(String::trim).filter(String::isNotBlank).distinct()
     return (trimmed + buildLandscapeMusicVideoNameCandidates(trimmed)).distinct()
-}
-
-internal fun isLandscapeMusicVideoFileName(
-    nameWithoutExtension: String,
-    songCandidates: Collection<String>
-): Boolean {
-    if (!nameWithoutExtension.hasLandscapeMusicVideoSuffix()) return false
-    val baseToken = nameWithoutExtension.removeLandscapeMusicVideoSuffix().toDynamicCoverMatchToken()
-    val songTokens = songCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
-    return baseToken.isNotBlank() && baseToken in songTokens
 }
 
 private fun String.hasLandscapeMusicVideoSuffix(): Boolean =

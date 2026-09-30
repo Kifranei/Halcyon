@@ -2,7 +2,6 @@ package com.ella.music.data.metadata
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
@@ -162,15 +161,6 @@ class AudioTagRepository(
     fun readEmbeddedCoverDataBlocking(path: String): ByteArray? =
         runBlocking(Dispatchers.IO) { readEmbeddedCover(path)?.bytes }
 
-    fun readEmbeddedCoverBitmapBlocking(path: String, maxSize: Int = 512): Bitmap? {
-        val key = cacheKey(path)?.let { "$it:${maxSize.coerceIn(64, 3000)}" } ?: return null
-        coverBitmapCache.get(key)?.let { return it }
-        val data = readEmbeddedCoverDataBlocking(path) ?: return null
-        return decodeCoverBitmap(data, maxSize)?.also { coverBitmapCache.put(key, it) }
-    }
-
-    fun readEmbeddedLyricsBlocking(path: String): String? = runBlocking(Dispatchers.IO) { readEmbeddedLyrics(path) }
-
     fun readQualityInfoBlocking(path: String): AudioQualityInfo? {
         val key = cacheKey(path) ?: return null
         qualityCache.get(key)?.let { return it }
@@ -252,28 +242,6 @@ class AudioTagRepository(
         val file = File(path)
         if (!file.exists() || !file.isFile) return null
         return "${file.absolutePath}:${file.lastModified()}:${file.length()}"
-    }
-
-    private fun decodeCoverBitmap(data: ByteArray, maxSize: Int): Bitmap? {
-        val targetSize = maxSize.coerceIn(64, 3000)
-        return runCatching {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-            var sampleSize = 1
-            while ((bounds.outWidth / sampleSize) > targetSize || (bounds.outHeight / sampleSize) > targetSize) {
-                sampleSize *= 2
-            }
-            BitmapFactory.decodeByteArray(
-                data,
-                0,
-                data.size,
-                BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize.coerceAtLeast(1)
-                    inPreferredConfig = Bitmap.Config.RGB_565
-                }
-            )
-        }.getOrNull()
     }
 
     private fun AudioTagInfo.hasUsefulTagData(): Boolean =

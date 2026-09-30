@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">NetEase 댓글 기본 탭</string>
+    <string name="netease_comments_default_tab_summary">곡, 앨범 및 MV 댓글을 열 때 표시할 탭 선택</string>
     <string name="netease_comments_open">댓글</string>
     <string name="netease_comments_title">댓글</string>
     <string name="netease_comments_title_count">댓글(%1$s)</string>

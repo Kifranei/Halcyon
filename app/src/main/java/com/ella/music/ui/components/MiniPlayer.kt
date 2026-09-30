@@ -38,15 +38,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -65,8 +61,6 @@ import com.ella.music.R
 import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.model.Song
 import top.yukonga.miuix.kmp.blur.Backdrop
-import top.yukonga.miuix.kmp.blur.drawBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.sign
@@ -510,6 +504,9 @@ fun CompactMiniPlayer(
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit = {},
+    onSkipPrevious: () -> Unit = {},
+    previousSongTitle: String? = null,
+    nextSongTitle: String? = null,
     showSkipButton: Boolean = true,
     swipeUpToOpenPlayer: Boolean = true,
     onLongClick: (() -> Unit)? = null,
@@ -518,6 +515,61 @@ fun CompactMiniPlayer(
     val coverState = rememberMiniPlayerCoverModel(song, albumArtUri, loadCoverArt)
     val textState = rememberMiniPlayerTextState(song, lyricText, lyricTranslation)
     var transitionDirection by remember { mutableIntStateOf(1) }
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    var travelPx by remember { mutableFloatStateOf(0f) }
+    var hintStrength by remember { mutableFloatStateOf(0f) }
+    var settleJob by remember { mutableStateOf<Job?>(null) }
+    val previousLabel = stringResource(R.string.common_previous)
+    val nextLabel = stringResource(R.string.common_next)
+    val measurer = rememberTextMeasurer()
+    val onSurfaceColor = MiuixTheme.colorScheme.onSurface
+    val globalFontFamily = MiuixTheme.textStyles.main.fontFamily
+    val hintStyle = remember(onSurfaceColor, globalFontFamily) {
+        TextStyle(
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = onSurfaceColor,
+            fontFamily = globalFontFamily
+        )
+    }
+    val titleStyle = remember(onSurfaceColor, globalFontFamily) {
+        TextStyle(
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Normal,
+            color = onSurfaceColor,
+            fontFamily = globalFontFamily
+        )
+    }
+    val maxTitleWidthPx = with(LocalDensity.current) { 92.dp.toPx() }.toInt()
+    val previousHint = remember(previousLabel, hintStyle) { measurer.measure(previousLabel, hintStyle) }
+    val nextHint = remember(nextLabel, hintStyle) { measurer.measure(nextLabel, hintStyle) }
+    val previousTitleHint = remember(previousSongTitle, titleStyle, maxTitleWidthPx) {
+        previousSongTitle?.takeIf { it.isNotBlank() }?.let {
+            measurer.measure(
+                text = it,
+                style = titleStyle,
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = maxTitleWidthPx)
+            )
+        }
+    }
+    val nextTitleHint = remember(nextSongTitle, titleStyle, maxTitleWidthPx) {
+        nextSongTitle?.takeIf { it.isNotBlank() }?.let {
+            measurer.measure(
+                text = it,
+                style = titleStyle,
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = maxTitleWidthPx)
+            )
+        }
+    }
+    val maxTravelPx = with(LocalDensity.current) { 96.dp.toPx() }
+    val skipNextState by androidx.compose.runtime.rememberUpdatedState(onSkipNext)
+    val skipPreviousState by androidx.compose.runtime.rememberUpdatedState(onSkipPrevious)
+    val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { 48.dp.toPx() }
     val compact = compactProgress.coerceIn(0f, 1f)
     val compactHeight = androidx.compose.ui.unit.lerp(64.dp, 60.dp, compact)
     val coverSize = 38.dp
@@ -529,7 +581,151 @@ fun CompactMiniPlayer(
         modifier = modifier
             .miniMorphAnchor(radius = (cornerRadiusDp ?: LocalBottomBarCornerRadiusDp.current).dp)
             .fillMaxWidth()
-            .height(compactHeight),
+            .height(compactHeight)
+            .pointerInput(song.id, swipeThreshold) {
+                var dragAmount = 0f
+                var passedThreshold = false
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        dragAmount = 0f
+                        passedThreshold = false
+                    },
+                    onHorizontalDrag = { change, amount ->
+                        dragAmount += amount
+                        change.consume()
+                        settleJob?.cancel()
+                        travelPx = sign(dragAmount) * maxTravelPx * (1f - exp(-abs(dragAmount) / maxTravelPx))
+                        hintStrength = (abs(dragAmount) / swipeThreshold).coerceIn(0f, 1f)
+                        val nowPassed = abs(dragAmount) >= swipeThreshold
+                        if (nowPassed != passedThreshold) {
+                            passedThreshold = nowPassed
+                            if (nowPassed) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
+                    },
+                    onDragEnd = {
+                        val commit = when {
+                            dragAmount <= -swipeThreshold -> -1
+                            dragAmount >= swipeThreshold -> 1
+                            else -> 0
+                        }
+                        if (commit < 0) {
+                            transitionDirection = 1
+                            skipNextState()
+                        } else if (commit > 0) {
+                            transitionDirection = -1
+                            skipPreviousState()
+                        }
+                        settleJob?.cancel()
+                        settleJob = scope.launch {
+                            animate(
+                                initialValue = travelPx,
+                                targetValue = 0f,
+                                animationSpec = spring(dampingRatio = 0.78f, stiffness = 380f)
+                            ) { value, _ ->
+                                travelPx = value
+                                hintStrength = hintStrength * 0.86f
+                            }
+                            travelPx = 0f
+                            hintStrength = 0f
+                        }
+                        dragAmount = 0f
+                    },
+                    onDragCancel = {
+                        settleJob?.cancel()
+                        settleJob = scope.launch {
+                            animate(
+                                initialValue = travelPx,
+                                targetValue = 0f,
+                                animationSpec = spring(dampingRatio = 0.78f, stiffness = 380f)
+                            ) { value, _ ->
+                                travelPx = value
+                                hintStrength = hintStrength * 0.86f
+                            }
+                            travelPx = 0f
+                            hintStrength = 0f
+                        }
+                        dragAmount = 0f
+                    }
+                )
+            }
+            .drawWithCache {
+                val chevron = 4.5.dp.toPx()
+                val chevronGap = 5.dp.toPx()
+                val edgePadding = 14.dp.toPx()
+                onDrawWithContent {
+                    drawContent()
+                    val travel = travelPx
+                    val strength = hintStrength
+                    if (strength <= 0.02f || travel == 0f) return@onDrawWithContent
+                    val towardsPrevious = travel > 0f
+                    val hint = if (towardsPrevious) previousHint else nextHint
+                    val eased = (strength * strength * (3f - 2f * strength)).coerceIn(0f, 1f)
+                    val textAlpha = 0.95f * eased
+                    val midY = size.height / 2f
+                    val direction = if (towardsPrevious) -1f else 1f
+
+                    val chevronX = if (towardsPrevious) {
+                        edgePadding + chevron
+                    } else {
+                        size.width - edgePadding - chevron
+                    }
+
+                    listOf(-chevron, chevron).forEach { dy ->
+                        drawLine(
+                            color = onSurfaceColor.copy(alpha = textAlpha),
+                            start = Offset(chevronX - direction * chevron, midY + dy),
+                            end = Offset(chevronX, midY),
+                            strokeWidth = 1.6.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+
+                    val titleHint = if (towardsPrevious) previousTitleHint else nextTitleHint
+                    val lineGap = 1.5.dp.toPx()
+                    if (titleHint != null) {
+                        val totalHeight = hint.size.height + titleHint.size.height + lineGap
+                        val startY = midY - totalHeight / 2f
+                        if (towardsPrevious) {
+                            val textX = chevronX + chevronGap + chevron
+                            drawText(
+                                textLayoutResult = hint,
+                                color = onSurfaceColor.copy(alpha = textAlpha),
+                                topLeft = Offset(textX, startY)
+                            )
+                            drawText(
+                                textLayoutResult = titleHint,
+                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                topLeft = Offset(textX, startY + hint.size.height + lineGap)
+                            )
+                        } else {
+                            val textRight = chevronX - chevronGap - chevron
+                            drawText(
+                                textLayoutResult = hint,
+                                color = onSurfaceColor.copy(alpha = textAlpha),
+                                topLeft = Offset(textRight - hint.size.width, startY)
+                            )
+                            drawText(
+                                textLayoutResult = titleHint,
+                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                topLeft = Offset(textRight - titleHint.size.width, startY + hint.size.height + lineGap)
+                            )
+                        }
+                    } else {
+                        val textX = if (towardsPrevious) {
+                            chevronX + chevronGap + chevron
+                        } else {
+                            chevronX - chevronGap - chevron - hint.size.width
+                        }
+                        drawText(
+                            textLayoutResult = hint,
+                            color = onSurfaceColor.copy(alpha = textAlpha),
+                            topLeft = Offset(textX, midY - hint.size.height / 2f)
+                        )
+                    }
+                }
+            },
         cornerRadiusDp = cornerRadiusDp,
         glassEffect = glassEffect,
         disableRefraction = disableRefraction,
@@ -546,7 +742,9 @@ fun CompactMiniPlayer(
                 modifier = Modifier
                     .weight(1f)
                     .height(compactHeight)
+                    .graphicsLayer { translationX = travelPx; alpha = 1f - hintStrength * 0.55f }
                     .miniPlayerOpeningGesture(song.id, swipeUpToOpenPlayer, onClick)
+
                     .then(
                         if (onLongClick != null) {
                             Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -584,7 +782,7 @@ fun CompactMiniPlayer(
             }
             IconButton(
                 onClick = onPlayPause,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(36.dp).graphicsLayer { alpha = 1f - hintStrength }
             ) {
                 Icon(
                     painter = painterResource(id = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play_legacy),
@@ -599,7 +797,7 @@ fun CompactMiniPlayer(
                         transitionDirection = 1
                         onSkipNext()
                     },
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(36.dp).graphicsLayer { alpha = 1f - hintStrength }
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_skip_next),

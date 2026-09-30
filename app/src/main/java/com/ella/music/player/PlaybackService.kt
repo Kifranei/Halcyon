@@ -32,10 +32,14 @@ import com.ella.music.R
 import com.ella.music.MainActivity
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.LxSourceConfig
+import com.ella.music.data.MusicFreePluginConfig
 import com.ella.music.data.PlaylistStore
 import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.model.Song
 import com.ella.music.data.neteaseShareSongUrl
+import com.ella.music.data.netease.NETEASE_SCHEME
+import com.ella.music.data.netease.NeteasePlaybackProvider
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
@@ -55,11 +59,33 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import android.os.Bundle
+
+internal data class NeteasePlaybackReloadConfig(
+    val provider: NeteasePlaybackProvider,
+    val quality: String,
+    val lxSource: LxSourceConfig? = null,
+    val musicFreePlugin: MusicFreePluginConfig? = null
+)
+
+/** Inactive providers and unrelated plugin edits must not restart the audible song. */
+internal fun neteasePlaybackReloadConfig(
+    provider: NeteasePlaybackProvider,
+    officialQuality: String,
+    onlineQuality: String,
+    lxSource: LxSourceConfig?,
+    musicFreePlugin: MusicFreePluginConfig?
+): NeteasePlaybackReloadConfig = when (provider) {
+    NeteasePlaybackProvider.Official -> NeteasePlaybackReloadConfig(provider, officialQuality)
+    NeteasePlaybackProvider.Lx -> NeteasePlaybackReloadConfig(provider, onlineQuality, lxSource = lxSource)
+    NeteasePlaybackProvider.MusicFree -> NeteasePlaybackReloadConfig(provider, onlineQuality, musicFreePlugin = musicFreePlugin)
+}
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaLibraryService() {
@@ -224,9 +250,8 @@ class PlaybackService : MediaLibraryService() {
         bluetoothAutoPlayEnabled = runBlocking(Dispatchers.IO) {
             settingsManager.bluetoothAutoPlay.first()
         }
-        val httpDataSourceFactory = OkHttpDataSource.Factory(
-            WebDavClient.newAuthenticatedOkHttpClient { webDavConfig }
-        )
+        val playbackHttpClient = WebDavClient.newAuthenticatedOkHttpClient { webDavConfig }
+        val httpDataSourceFactory = OkHttpDataSource.Factory(playbackHttpClient)
         serviceScope.launch {
             settingsManager.previousButtonAction.collect { action ->
                 previousButtonAction = action.coerceIn(
@@ -328,6 +353,12 @@ class PlaybackService : MediaLibraryService() {
                 com.ella.music.data.netease.NeteaseStreamCache.qualityPreference = quality
             }
         }
+        serviceScope.launch {
+            settingsManager.neteasePlaybackProvider.collect { provider ->
+                com.ella.music.data.netease.NeteaseLibraryStore.getInstance(this@PlaybackService)
+                    .setPlaybackProvider(com.ella.music.data.netease.NeteasePlaybackProvider.fromId(provider))
+            }
+        }
         val resolvingDataSourceFactory = androidx.media3.datasource.ResolvingDataSource.Factory(
             DefaultDataSource.Factory(this, httpDataSourceFactory)
         ) { dataSpec ->
@@ -341,6 +372,17 @@ class PlaybackService : MediaLibraryService() {
         }
         // NetEase streams go through an on-disk cache keyed by song + quality (replays cost no data).
         val dataSourceFactory = com.ella.music.data.netease.NeteaseStreamCache.dataSourceFactory(this, resolvingDataSourceFactory)
+        val pluginPlaybackClient = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .addInterceptor(com.ella.music.data.AppNetworkLoggingInterceptor("PluginPlayback"))
+            .build()
+        val scopedMediaSourceFactory = com.ella.music.data.musicfree.MusicFreeMediaSourceFactory(
+            this, DefaultMediaSourceFactory(dataSourceFactory), pluginPlaybackClient
+        )
+        val mediaSourceFactory = com.ella.music.data.netease.NeteasePlaybackMediaSourceFactory(
+            this, scopedMediaSourceFactory
+        )
 
         val decoderMode = runBlocking(Dispatchers.IO) {
             decoderModeOverride.value ?: settingsManager.decoderMode.first()
@@ -402,7 +444,7 @@ class PlaybackService : MediaLibraryService() {
             // WAKE_MODE_NETWORK for every local album was a measurable standby battery drain.
             // The listener below enables the network wake lock only for remote media.
             .setWakeMode(C.WAKE_MODE_LOCAL)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(mediaSourceFactory)
             .build()
         player.repeatMode = Player.REPEAT_MODE_ALL
         // Pre-buffer the next queue item so skipToNext is decode-ready instead of a cold open.
@@ -413,6 +455,7 @@ class PlaybackService : MediaLibraryService() {
             val remotePlayer = RemoteCastPlayer.Builder(this)
                 .setMediaItemConverter(HalcyonCastMediaItemConverter(mediaServer))
                 .build()
+            bindRemotePlayerReplayGain(remotePlayer, settingsManager, musicRepository, serviceScope)
             CastPlayer.Builder(this)
                 .setLocalPlayer(localPlayer)
                 .setRemotePlayer(remotePlayer)
@@ -435,6 +478,7 @@ class PlaybackService : MediaLibraryService() {
             context = this,
             initialPrimary = player,
             dataSourceFactory = dataSourceFactory,
+            mediaSourceFactory = mediaSourceFactory,
             audioAttributes = mediaAudioAttributes,
             initialPrimaryWaveformProbe = primaryWaveformProbe,
             initialSecondaryWaveformProbe = secondaryWaveformProbe,
@@ -516,8 +560,36 @@ class PlaybackService : MediaLibraryService() {
                 crossfadePresentationSettlementJob = null
                 sessionPresentationPlayer?.clearCrossfadePresentation()
             },
-            scope = serviceScope
+            scope = serviceScope,
+            onPlayerCreated = { decoder, gain ->
+                bindPlayerReplayGain(decoder, gain, settingsManager, musicRepository, serviceScope)
+            }
         )
+        var currentCrossfadeDurationMs = 0
+        serviceScope.launch {
+            val selectedMusicFreePlugin = combine(
+                settingsManager.musicFreePlugins,
+                settingsManager.selectedMusicFreePluginId
+            ) { plugins, selectedId ->
+                plugins.firstOrNull { it.id == selectedId } ?: plugins.firstOrNull()
+            }
+            combine(
+                settingsManager.neteasePlaybackProvider,
+                settingsManager.neteaseQuality,
+                settingsManager.onlinePlaybackQuality,
+                settingsManager.selectedLxSource,
+                selectedMusicFreePlugin
+            ) { provider, officialQuality, onlineQuality, lxSource, musicFreePlugin ->
+                neteasePlaybackReloadConfig(
+                    NeteasePlaybackProvider.fromId(provider), officialQuality, onlineQuality,
+                    lxSource, musicFreePlugin
+                )
+            }.distinctUntilChanged().drop(1).collect {
+                if (sessionPlayer.deviceInfo.playbackType != DeviceInfo.PLAYBACK_TYPE_REMOTE) {
+                    refreshNeteasePlaybackRoutes(localPlayer, currentCrossfadeDurationMs)
+                }
+            }
+        }
         serviceScope.launch {
             settingsManager.karaokeAccompanimentEnabled.collect { enabled ->
                 karaokeAccompanimentProcessor.enabled = enabled
@@ -526,6 +598,7 @@ class PlaybackService : MediaLibraryService() {
         }
         serviceScope.launch {
             settingsManager.crossfadeDurationMs.collect { durationMs ->
+                currentCrossfadeDurationMs = durationMs
                 crossfadePlaybackCoordinator?.setDuration(durationMs)
             }
         }
@@ -711,12 +784,14 @@ class PlaybackService : MediaLibraryService() {
                     PlaybackAudioSession.clear()
                     PlaybackAudioOutputState.clear()
                     PlaybackAudioOutputState.updateBackend("Chromecast")
+                    currentCrossfadeDurationMs = 0
                     crossfadePlaybackCoordinator?.setDuration(0)
                 } else {
                     PlaybackAudioSession.update(localPlayer.activePlayer.audioSessionId)
                     PlaybackAudioOutputState.updateBackend(localOutputBackend)
                     serviceScope.launch {
-                        crossfadePlaybackCoordinator?.setDuration(settingsManager.crossfadeDurationMs.first())
+                        currentCrossfadeDurationMs = settingsManager.crossfadeDurationMs.first()
+                        crossfadePlaybackCoordinator?.setDuration(currentCrossfadeDurationMs)
                     }
                 }
             }
@@ -779,6 +854,52 @@ class PlaybackService : MediaLibraryService() {
 
         Log.i(TAG, "PlaybackService created")
         AppLogStore.info(this, TAG, "PlaybackService created")
+    }
+
+    private fun refreshNeteasePlaybackRoutes(localPlayer: SwitchableLocalPlayer, crossfadeDurationMs: Int) {
+        val previousPlayer = localPlayer.activePlayer
+        if ((0 until previousPlayer.mediaItemCount).none {
+                previousPlayer.getMediaItemAt(it).localConfiguration?.uri?.scheme == NETEASE_SCHEME
+            }) return
+
+        val coordinator = crossfadePlaybackCoordinator
+        // Cancel both an audible transition and its preloaded transport before capturing the
+        // authoritative primary. The local player may have been promoted since service creation.
+        coordinator?.setDuration(0)
+        try {
+            val player = localPlayer.activePlayer
+            val queue = List(player.mediaItemCount) { player.getMediaItemAt(it) }
+            val currentIndex = player.currentMediaItemIndex
+            val positionMs = player.currentPosition.coerceAtLeast(0L)
+            val playWhenReady = player.playWhenReady
+            val wasPrepared = player.playbackState != Player.STATE_IDLE
+            val refreshCurrent = queue.getOrNull(currentIndex)?.localConfiguration?.uri?.scheme == NETEASE_SCHEME
+            // A fresh tag changes LocalConfiguration equality, preventing Media3 from reusing
+            // the old DeferredNeteaseMediaSource while preserving song and queue entry identity.
+            val routeRevision = Any()
+            var index = 0
+            while (index < queue.size) {
+                if (queue[index].localConfiguration?.uri?.scheme != NETEASE_SCHEME) {
+                    index++
+                    continue
+                }
+                val start = index
+                while (index < queue.size && queue[index].localConfiguration?.uri?.scheme == NETEASE_SCHEME) index++
+                player.replaceMediaItems(start, index, queue.subList(start, index).map {
+                    it.buildUpon().setTag(routeRevision).build()
+                })
+            }
+            if (refreshCurrent) {
+                player.seekTo(currentIndex, positionMs)
+                if (wasPrepared || playWhenReady) player.prepare()
+            }
+            player.playWhenReady = playWhenReady
+            AppLogStore.info(this, TAG, "NetEase playback source refreshed without changing queue identity")
+        } catch (error: Exception) {
+            AppLogStore.warn(this, TAG, "Failed to refresh NetEase playback source: ${error.message}")
+        } finally {
+            coordinator?.setDuration(crossfadeDurationMs)
+        }
     }
 
     private fun buildSessionActivityPendingIntent(openPlayer: Boolean): PendingIntent {
@@ -907,10 +1028,6 @@ class PlaybackService : MediaLibraryService() {
             },
             MoreExecutors.directExecutor()
         )
-    }
-
-    fun launchServiceJob(block: suspend () -> Unit) {
-        serviceScope.launch { block() }
     }
 
     private fun ensureBluetoothAutoPlayReceiverRegistered() {

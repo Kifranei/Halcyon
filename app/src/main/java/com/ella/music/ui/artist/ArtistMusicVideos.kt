@@ -25,9 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +43,6 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.EllaMiuixSheetColumn
-import com.ella.music.ui.components.EllaMiuixSheetHandle
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.player.DynamicCoverSource
 import com.ella.music.ui.player.readMusicVideoDurationMs
@@ -132,21 +129,6 @@ internal fun ArtistMusicVideoSortMode.isDescending(): Boolean = when (this) {
     ArtistMusicVideoSortMode.NameDesc -> true
     else -> false
 }
-
-internal suspend fun resolveArtistMusicVideos(
-    context: Context,
-    songs: List<Song>,
-    dynamicCoverFolders: List<String>,
-    musicVideoFolders: List<String>
-): List<ArtistMusicVideo> = enrichArtistMusicVideos(
-    context = context,
-    sources = resolveArtistMusicVideoSources(
-        context = context,
-        songs = songs,
-        dynamicCoverFolders = dynamicCoverFolders,
-        musicVideoFolders = musicVideoFolders
-    )
-)
 
 /** Resolve the lightweight source list first so the MV tab can appear before metadata is read. */
 internal suspend fun resolveArtistMusicVideoSources(
@@ -523,133 +505,13 @@ private fun guessVideoMimeType(uri: Uri): String {
 }
 
 @Composable
-internal fun ArtistMusicVideoActionMenu(
-    onShare: () -> Unit,
-    onInfo: () -> Unit,
-    onDelete: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    EllaMiuixSheetColumn {
-        EllaMiuixMenuItem(
-            text = stringResource(R.string.common_share),
-            onClick = { onDismiss(); onShare() }
-        )
-        EllaMiuixMenuItem(
-            text = stringResource(R.string.artist_music_video_info),
-            onClick = { onDismiss(); onInfo() }
-        )
-        EllaMiuixMenuItem(
-            text = stringResource(R.string.song_more_delete_permanently),
-            onClick = { onDismiss(); onDelete() },
-            danger = true
-        )
-        EllaMiuixMenuItem(
-            text = stringResource(R.string.common_cancel),
-            onClick = onDismiss
-        )
-    }
-}
-
-@Composable
 internal fun ArtistMusicVideoInfoSheet(
     item: ArtistMusicVideo,
-    onOpenMediaInfo: () -> Unit,
-    onDismiss: () -> Unit
+    onOpenMediaInfo: () -> Unit
 ) {
-    val metadata = item.metadata
-    EllaMiuixSheetColumn(
-        maxHeight = 620.dp,
-        spacing = 10.dp
-    ) {
-        Text(
-            text = item.song.title,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = MiuixTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        ArtistMusicVideoInfoRow(R.string.artist_music_video_file_name, metadata.fileName)
-        ArtistMusicVideoInfoRow(R.string.artist_music_video_path, metadata.path)
-        ArtistMusicVideoInfoRow(R.string.artist_music_video_real_path, metadata.realPath)
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_size,
-            Formatter.formatFileSize(LocalContext.current, metadata.sizeBytes)
-        )
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_modified,
-            metadata.modifiedAt.takeIf { it > 0L }?.let {
-                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(it))
-            } ?: "—"
-        )
-        ArtistMusicVideoInfoRow(R.string.artist_music_video_format, metadata.mimeType.ifBlank { "video/*" })
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_resolution,
-            if (metadata.width > 0 && metadata.height > 0) "${metadata.width} × ${metadata.height}" else "—"
-        )
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_duration,
-            metadata.durationMs.takeIf { it > 0L }?.formatPlaybackDuration() ?: "—"
-        )
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_video_frame_rate,
-            metadata.videoFrameRate.ifBlank { "—" }
-        )
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_video_bitrate,
-            metadata.videoBitrate.ifBlank { "—" }
-        )
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_audio_sample_rate,
-            metadata.audioSampleRate.ifBlank { "—" }
-        )
-        ArtistMusicVideoInfoRow(
-            R.string.artist_music_video_audio_bitrate,
-            metadata.audioBitrate.ifBlank { "—" }
-        )
-        EllaMiuixMenuItem(
-            text = stringResource(R.string.artist_music_video_open_media_info),
-            onClick = onOpenMediaInfo
-        )
-        EllaMiuixMenuItem(
-            text = stringResource(R.string.common_cancel),
-            onClick = onDismiss
-        )
-    }
-}
-
-@Composable
-private fun ColumnScope.ArtistMusicVideoInfoRow(@StringRes label: Int, value: String) {
-    val context = LocalContext.current
-    val labelText = stringResource(label)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = {},
-                onLongClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                    clipboard?.setPrimaryClip(ClipData.newPlainText(labelText, value))
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.artist_music_video_info_item_copied, labelText),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            ),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            text = labelText,
-            fontSize = 12.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurface,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
+    com.ella.music.ui.player.MusicVideoInfoContent(
+        title = item.song.title,
+        metadata = item.metadata,
+        onOpenMediaInfo = onOpenMediaInfo
+    )
 }

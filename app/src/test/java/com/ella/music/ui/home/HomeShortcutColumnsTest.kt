@@ -16,16 +16,4 @@ class HomeShortcutColumnsTest {
         assertEquals(8, homeShortcutColumnCount(isLandscape = true, smallestScreenWidthDp = 600))
     }
 
-    @Test
-    fun remainingLibraryTilesStayInFeatureBlocksWithoutBeingDuplicated() {
-        val tiles = (1..7).map { index ->
-            HomeTileSpec("tile$index", "Tile $index", "", "route$index", {})
-        }
-
-        val (shortcuts, featureBlocks) = splitHomeTileSections(tiles, shortcutCount = 4)
-
-        assertEquals(listOf("tile1", "tile2", "tile3", "tile4"), shortcuts.map { it.id })
-        assertEquals(listOf("tile5", "tile6", "tile7"), featureBlocks.map { it.id })
-        assertEquals(tiles, shortcuts + featureBlocks)
-    }
 }

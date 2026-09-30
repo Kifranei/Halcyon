@@ -88,7 +88,7 @@ internal class NoArtworkMediaNotificationProvider(
             ?: metadata.albumTitle
             ?: ""
         val builder = NotificationCompat.Builder(service, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_flyme_ticker)
+            .setSmallIcon(com.ella.music.data.AppIconManager.notificationIconRes())
             .setLargeIcon(largeIcon)
             .setContentTitle(contentTitle)
             .setContentText(contentText)

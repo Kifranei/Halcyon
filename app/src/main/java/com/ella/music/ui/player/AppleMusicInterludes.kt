@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,9 +32,13 @@ internal fun AppleMusicInterlude(
     contentColor: Color,
     textAlign: TextAlign,
     touchFeedbackEnabled: Boolean,
-    onSeek: (Long) -> Unit
+    onSeek: (Long) -> Unit,
+    compact: Boolean = false,
+    positionState: State<Long>? = null
 ) {
-    val visible = interlude.isActiveAt(positionMs)
+    val visible by remember(interlude, positionState, positionMs) {
+        derivedStateOf { interlude.isActiveAt(positionState?.value ?: positionMs) }
+    }
     AnimatedVisibility(
         visible = visible,
         enter = expandVertically(spring(dampingRatio = 0.78f, stiffness = 360f)) + fadeIn(),
@@ -43,7 +47,7 @@ internal fun AppleMusicInterlude(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(if (compact) 20.dp else 48.dp)
                 .appleMusicTouchRipple(
                     key = interlude,
                     color = contentColor,
@@ -62,7 +66,6 @@ internal fun AppleMusicInterlude(
                 else -> Alignment.CenterStart
             }
         ) {
-            val state = resolveAppleMusicInterludeGroupState(interlude, positionMs)
             // Apple's Android renderer animates the three-dot root as one group: a four-second
             // 1.0 -> 1.2 -> 1.0 breath, followed by a 750 ms swell and a 250 ms shrink/fade.
             // Drive it from playback time so pausing and seeking cannot leave a half-finished
@@ -73,6 +76,7 @@ internal fun AppleMusicInterlude(
             Box(modifier = Modifier.padding(INTERLUDE_BREATH_INSET_DP.dp)) {
                 Row(
                     modifier = Modifier.graphicsLayer {
+                        val state = resolveAppleMusicInterludeGroupState(interlude, positionState?.value ?: positionMs)
                         scaleX = state.scale
                         scaleY = state.scale
                         alpha = state.alpha
@@ -83,17 +87,14 @@ internal fun AppleMusicInterlude(
                         // alignment changes cannot accidentally turn the animation back into a
                         // left-to-right disappearance.
                         val timelineIndex = resolveAppleMusicInterludeDotTimelineIndex(visualIndex)
-                        val timelineAlpha = resolveAppleMusicInterludeDotAlpha(
-                            interlude = interlude,
-                            positionMs = positionMs,
-                            dotIndex = timelineIndex
-                        )
-                        Canvas(modifier = Modifier.size(INTERLUDE_DOT_CELL_DP.dp)) {
+                        Canvas(modifier = Modifier.size(if (compact) 8.dp else INTERLUDE_DOT_CELL_DP.dp)) {
+                            val timelineAlpha = resolveAppleMusicInterludeDotAlpha(interlude,
+                                positionState?.value ?: positionMs, timelineIndex)
                             drawCircle(
                                 color = contentColor.copy(
                                     alpha = INTERLUDE_DOT_ALPHA * timelineAlpha
                                 ),
-                                radius = INTERLUDE_DOT_RADIUS_DP.dp.toPx()
+                                radius = (if (compact) 2.5f else INTERLUDE_DOT_RADIUS_DP).dp.toPx()
                             )
                         }
                     }
@@ -191,10 +192,13 @@ internal fun List<LyricLine>.interludes(): List<AppleMusicInterlude> {
         lines.first().takeIf { it.timeMs >= INTERLUDE_MIN_GAP_MS }?.let { firstLine ->
             add(AppleMusicInterlude(startMs = 0L, endMs = firstLine.timeMs, nextLineIndex = 0))
         }
+        var coveredUntil = 0L
         for (index in 1..lines.lastIndex) {
             val previous = lines[index - 1]
             val next = lines[index]
-            val gapStart = previous.primaryEndMs(nextLine = next)
+            // A shorter overlapping vocal cannot start an interlude while another is singing.
+            coveredUntil = maxOf(coveredUntil, previous.primaryEndMs(nextLine = next))
+            val gapStart = coveredUntil
             if (next.timeMs - gapStart >= INTERLUDE_MIN_GAP_MS) {
                 add(AppleMusicInterlude(startMs = gapStart, endMs = next.timeMs, nextLineIndex = index))
             }

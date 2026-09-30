@@ -20,15 +20,10 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
-import com.ella.music.data.neteaseAlbumUrl
-import com.ella.music.data.neteaseArtistUrl
-import com.ella.music.data.neteaseMvUrl
-import com.ella.music.data.neteaseSongUrl
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.components.TagEditorOptionKind
 import com.ella.music.ui.components.SpectrumViewerLauncher
 import com.ella.music.ui.components.shareLocalSong
-import com.ella.music.viewmodel.AbRepeatState
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -726,13 +721,14 @@ internal fun DetailPageContent(
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    var neteaseCommentsSongId by androidx.compose.runtime.remember(song) { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    val commentsSong = song
+    var neteaseCommentsSongId by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var commentsSnapshot by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.ella.music.data.model.Song?>(null) }
+    val commentsSong = commentsSnapshot ?: song
     if (commentsSong != null) {
         NeteaseCommentsSheet(
             show = neteaseCommentsSongId != null,
             song = commentsSong,
-            onDismiss = { neteaseCommentsSongId = null },
+            onDismiss = { neteaseCommentsSongId = null; commentsSnapshot = null },
             songIdOverride = neteaseCommentsSongId
         )
     }
@@ -780,6 +776,7 @@ internal fun DetailPageContent(
                 if (com.ella.music.data.netease.NeteaseLinks.commentsOpenExternally(context)) {
                     com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.Comment, id)
                 } else {
+                    commentsSnapshot = song
                     neteaseCommentsSongId = id
                 }
             }

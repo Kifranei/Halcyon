@@ -5,12 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,15 +59,6 @@ fun diagnosticsCardColor(): Color {
     } else {
         Color(0xFFFFFFFF)
     }
-}
-
-/**
- * Card outline border for diagnostics cards.
- */
-@Composable
-fun diagnosticsCardBorder(): BorderStroke {
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    return BorderStroke(1.dp, MiuixTheme.colorScheme.outline.copy(alpha = if (isDark) 0.16f else 0.10f))
 }
 
 /**

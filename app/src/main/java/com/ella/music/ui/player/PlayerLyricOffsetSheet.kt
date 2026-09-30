@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.ui.settings.SettingsCardGroup
 import kotlin.math.round
-import top.yukonga.miuix.kmp.preference.SliderPreference
+import com.ella.music.ui.settings.SettingsFloatSliderPreference as SliderPreference
 
 @Composable
 internal fun LyricOffsetSheetContent(
@@ -33,6 +33,8 @@ internal fun LyricOffsetSheetContent(
             valueRange = -5000f..5000f,
             steps = 100,
             valueText = offsetMs.formatLyricOffset(),
+            decimalPlaces = 0,
+            onManualValue = { onOffsetChange(it.toLong()) },
             onValueChange = { onOffsetChange(it.toLong().roundToStep(100L)) }
         )
     }

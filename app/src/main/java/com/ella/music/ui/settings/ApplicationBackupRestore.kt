@@ -12,7 +12,7 @@ internal suspend fun restoreApplicationBackup(
     context: Context,
     root: JSONObject,
     selectedTypes: Set<BackupType>,
-    // False when the user chose to reconfigure after the compatibility check: the settings
+    // False when the user chose data only after the compatibility check: the settings
     // DataStore payload is skipped, every other selected section still restores.
     restoreSettings: Boolean = true
 ) = withContext(Dispatchers.IO) {

@@ -1,6 +1,7 @@
 package com.ella.music.ui.player
 
 import android.graphics.Bitmap
+import android.content.Context
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -21,6 +22,12 @@ internal data class AppNowPlayingArtwork(
     val palette: PlayerPalette
 )
 
+internal fun loadAppNowPlayingCoverBitmap(
+    context: Context,
+    song: Song,
+    loadLocalCover: (Song) -> Bitmap?
+): Bitmap? = runCatching { loadLocalCover(song) }.getOrNull() ?: loadPaletteCoverBitmap(context, song)
+
 /**
  * Resolves the same cover bitmap and palette used by the Apple Music-style app background.
  * Keeping this state reusable prevents the mini player from inventing a second, subtly different
@@ -32,15 +39,17 @@ internal fun rememberAppNowPlayingArtwork(
     mainViewModel: MainViewModel,
     light: Boolean
 ): AppNowPlayingArtwork {
+    val context = LocalContext.current
+    val artworkGeneration by com.ella.music.ui.components.artworkResolutionGeneration.collectAsState()
     val songKey = remember(song) {
         listOf(
             song.playlistIdentityKey(), song.id, song.path, song.coverUrl,
             song.dateModified, song.fileSize
         ).joinToString("|")
     }
-    val coverBitmap by produceState<Bitmap?>(initialValue = null, songKey) {
+    val coverBitmap by produceState<Bitmap?>(initialValue = null, songKey, artworkGeneration) {
         value = withContext(Dispatchers.IO) {
-            runCatching { mainViewModel.getMiniPlayerCoverArtBitmap(song) }.getOrNull()
+            loadAppNowPlayingCoverBitmap(context, song, mainViewModel::getMiniPlayerCoverArtBitmap)
         }
     }
     val palette by produceState(

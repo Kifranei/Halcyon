@@ -27,6 +27,7 @@ internal object EllaLyricsParser {
         com.ella.music.data.netease.parseNeteaseYrc(content).takeIf { it.isNotEmpty() }?.let { return LrcParser.LrcResult(lyrics = it) }
         parseTtml(content)?.let { return it }
         val normalized = preprocessLyricContent(content)
+        parseQrc(normalized)?.let { return it }
         if (normalized.lineSequence().any { krcLinePattern.matches(it.trim()) }) {
             return parseKrc(normalized)
         }
@@ -67,6 +68,70 @@ internal object EllaLyricsParser {
         val translations: List<String> = emptyList(),
         val pronunciations: List<List<String>> = emptyList()
     )
+
+    /** Plain QQ QRC uses text(start,duration), with absolute millisecond word times.
+     * Its [start,duration] line header is also used by KRC, whose word markers come BEFORE
+     * the text and contain three fields. Keep the two formats separate. */
+    private fun parseQrc(content: String): LrcParser.LrcResult? {
+        val rawLines = content.lineSequence().map(String::trim).toList()
+        val headers = rawLines.mapNotNull(krcLinePattern::matchEntire)
+        if (headers.any { krcWordPattern.containsMatchIn(it.groupValues[3]) } ||
+            headers.none { lyricifySyllablePattern.containsMatchIn(it.groupValues[3]) }
+        ) return null
+
+        var title: String? = null
+        var artist: String? = null
+        var album: String? = null
+        var offset = 0L
+        val lyrics = rawLines.mapNotNull { line ->
+            lrcMetaPattern.matchEntire(line)?.let { meta ->
+                val value = meta.groupValues[2].trim()
+                when (meta.groupValues[1].lowercase()) {
+                    "ti" -> title = value
+                    "ar" -> artist = value
+                    "al" -> album = value
+                    "offset" -> offset = value.toLongOrNull() ?: 0L
+                }
+                return@mapNotNull null
+            }
+            val header = krcLinePattern.matchEntire(line) ?: return@mapNotNull null
+            val start = header.groupValues[1].toLongOrNull() ?: return@mapNotNull null
+            val duration = header.groupValues[2].toLongOrNull() ?: return@mapNotNull null
+            val body = header.groupValues[3]
+            val matches = lyricifySyllablePattern.findAll(body).toList()
+            val words = mutableListOf<LyricWord>()
+            var lastWordEnd = start
+            matches.forEach { marker ->
+                val text = marker.groupValues[1].cleanTimedLyricSegment()
+                val wordStart = marker.groupValues[2].toLongOrNull() ?: return@forEach
+                val wordDuration = marker.groupValues[3].toLongOrNull() ?: return@forEach
+                val wordEnd = wordStart + wordDuration.coerceAtLeast(1L)
+                lastWordEnd = maxOf(lastWordEnd, wordEnd)
+                if (text.isBlank()) {
+                    // A timed separator has no sung glyph. Keep it on the previous word so
+                    // renderers which skip whitespace-only words still draw the separator.
+                    if (words.isNotEmpty()) words[words.lastIndex] = words.last().copy(text = words.last().text + text)
+                } else {
+                    words += LyricWord(text, wordStart, wordEnd)
+                }
+            }
+            // Closing quotes/parentheses can follow the final timing tuple. They belong to
+            // that last word, rather than disappearing from the displayed lyric.
+            matches.lastOrNull()?.let { last ->
+                val tail = body.substring(last.range.last + 1).cleanTimedLyricSegment()
+                if (tail.isNotEmpty() && words.isNotEmpty()) {
+                    words[words.lastIndex] = words.last().copy(text = words.last().text + tail)
+                }
+            }
+            val text = (if (words.isEmpty()) body else words.joinToString("") { it.text }).cleanLyricText()
+            if (text.isIgnorableLyricText()) return@mapNotNull null
+            LyricLine(start, text, words = words.toDisplayWords(text),
+                hasExplicitWordTiming = words.isNotEmpty(),
+                endMs = maxOf(start + duration, lastWordEnd))
+        }
+        return LrcParser.LrcResult(lyrics.sortedBy { it.timeMs }.shiftedBy(-offset), title, artist, album, offset)
+            .takeIf { it.lyrics.isNotEmpty() }
+    }
 
     private fun parseKrc(content: String): LrcParser.LrcResult {
         val rawLines = content.lines().map(String::trim)
@@ -315,6 +380,7 @@ internal object EllaLyricsParser {
                 timeMs = start,
                 text = text,
                 words = words.toDisplayWords(text),
+                hasExplicitWordTiming = words.size > 1 || timedWordMarkerPattern.matchAt(content, 0) != null,
                 agent = agent,
                 endMs = words.lastOrNull()?.endMs
             )
@@ -475,6 +541,11 @@ internal object EllaLyricsParser {
             .values
             .flatMap { group ->
                 if (group.size == 1) return@flatMap listOf(group.first())
+                // Two independently timed vocal rows must not become a translation pair.
+                if (group.count { it.hasExplicitWordTiming && it.text.isUsefulMainText() } > 1 &&
+                    group.none { it.text.isLikelyWholeLinePronunciation(group.first().text) && it !== group.first() }) {
+                    return@flatMap group
+                }
                 if (group.shouldKeepIndependentDuetLines()) {
                     return@flatMap group.sortedBy { it.agentSortOrder() }
                 }
@@ -688,11 +759,10 @@ internal object EllaLyricsParser {
             lrcTimePattern.replace(line.trim(), "").trim()
         )
 
-    private fun String.isPronunciationLine(): Boolean =
-        isKanaPronunciationLine() || isLatinPronunciationLine()
-
     private fun String.isKanaPronunciationLine(): Boolean {
         val text = cleanLyricText()
+        // A dash followed by a space marks a credit/ordinary lyric, not an inferred reading.
+        if (text.excludesPronunciationInference()) return false
         if (text.isBlank() || text.isMusicSymbolOnly() || text.any { it.isCjkIdeograph() }) return false
         if (!text.any { it.isJapaneseKanaChar() }) return false
         val kanaMarks = setOf('・', '·', 'ー', 'ﾞ', 'ﾟ')
@@ -706,6 +776,7 @@ internal object EllaLyricsParser {
 
     private fun String.isLatinPronunciationLine(): Boolean {
         val text = cleanLyricText()
+        if (text.excludesPronunciationInference()) return false
         if (text.isBlank() || text.hasCjk() || text.isMusicSymbolOnly()) return false
         // A reading may only carry the accents pinyin/romaji/romaja emit. Vietnamese shares
         // acute and grave with pinyin but never `đ ơ ư ă` or the hook/dot-below vowels, so this

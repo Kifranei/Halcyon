@@ -76,7 +76,10 @@ class LibrarySelectionState<T : Any> {
         val targetIndex = indexById[target] ?: return
         if (anchorIndex == targetIndex) return
         val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selectedIds = selectedIds + bounds.map { orderedIds[it] }
+        val rangeIds = bounds.map { orderedIds[it] }
+        // A range is selected in display order, including its already-selected endpoints.
+        // Other manual selections retain their order; manual-only pinning stays tap-ordered.
+        selectedIds = (selectedIds - rangeIds.toSet()) + rangeIds
         // A completed range is one selection gesture. The next two manual taps must create a
         // fresh anchor/target pair instead of extending the previous range from its old target.
         rangeAnchorId = null

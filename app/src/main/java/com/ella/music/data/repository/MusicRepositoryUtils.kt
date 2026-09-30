@@ -154,19 +154,6 @@ internal suspend fun loadWebDavConfig(settingsManager: SettingsManager): WebDavC
     )
 }
 
-internal fun downloadWebDavMetadataHeader(song: Song, config: WebDavConfig, cacheDir: File): File? {
-    val target = song.webDavHeaderCacheFile(cacheDir)
-    if (target.exists() && target.length() > 0L) {
-        val usable = when {
-            song.isLikelyFlacAudio() -> WebDavClient.isFlacMetadataCacheUsable(target, song.fileSize)
-            song.supportsSparseWebDavMetadataWindow() -> song.fileSize <= 0L || target.length() >= song.fileSize
-            else -> false
-        }
-        if (usable) return target
-    }
-    return WebDavClient.downloadHeaderToFile(song.path, config, target)
-}
-
 internal fun downloadHttpMetadataHeader(song: Song, httpClient: OkHttpClient, cacheDir: File): File? {
     val target = song.webDavHeaderCacheFile(cacheDir)
     if (target.exists() && target.length() > 0L) return target

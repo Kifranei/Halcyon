@@ -14,7 +14,6 @@ import android.util.AttributeSet
 import android.util.Base64
 import android.view.View
 import androidx.annotation.RequiresApi
-import android.view.animation.DecelerateInterpolator
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -116,18 +115,6 @@ class GlowGlowProgressBar @JvmOverloads constructor(
 
     fun setProgress(progress: Int, max: Int) {
         progressFraction = if (max <= 0) 0f else progress.toFloat() / max.toFloat()
-    }
-
-    fun animateHeadGlow(targetAlpha: Float, durationMillis: Long = 220L) {
-        glowAnimator?.cancel()
-        glowAnimator = ValueAnimator.ofFloat(headGlowAlpha, targetAlpha.coerceIn(0f, 1f)).apply {
-            duration = durationMillis
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { animator ->
-                headGlowAlpha = animator.animatedValue as Float
-            }
-            start()
-        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -279,7 +266,6 @@ class GlowGlowProgressBar @JvmOverloads constructor(
             canvas.drawRoundRect(left, top, left + progressWidth, bottom, radius, radius, fallbackPaint)
         }
     }
-
 
     /** Mix channel toward 1.0 by (1 - 1/ratio), matching Color.withHdrHighlightBoost. */
     private fun hdrBoostedRgb(color: Int): FloatArray {

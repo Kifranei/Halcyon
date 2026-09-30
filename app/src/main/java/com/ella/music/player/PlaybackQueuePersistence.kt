@@ -7,7 +7,6 @@ import com.ella.music.data.model.Song
 import java.io.StringReader
 import java.io.Reader
 import java.io.Writer
-import org.json.JSONArray
 import org.json.JSONObject
 
 internal data class SavedQueue(

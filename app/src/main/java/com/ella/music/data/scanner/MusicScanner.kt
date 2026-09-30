@@ -12,8 +12,6 @@ import com.ella.music.data.metadata.LyricoAudioTagReaderWriter
 import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
-import com.ella.music.data.model.SongTagInfo
-import com.ella.music.data.looksLikeNeteaseKeyValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -523,56 +521,6 @@ class MusicScanner(private val context: Context) {
         }
     }
 
-    suspend fun scanAlbums(): List<Album> = withContext(Dispatchers.IO) {
-        val albums = mutableListOf<Album>()
-        val collection = MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(
-            MediaStore.Audio.Albums._ID,
-            MediaStore.Audio.Albums.ALBUM,
-            MediaStore.Audio.Albums.ARTIST,
-            MediaStore.Audio.Albums.NUMBER_OF_SONGS,
-            MediaStore.Audio.Albums.FIRST_YEAR
-        )
-        context.contentResolver.query(collection, projection, null, null, "${MediaStore.Audio.Albums.ALBUM} ASC")?.use { cursor ->
-            while (cursor.moveToNext()) {
-                albums.add(Album(
-                    cursor.getLong(0),
-                    LibraryNormalizer.cleanedAlbumText(cursor.getString(1)).ifBlank { "Unknown Album" },
-                    LibraryNormalizer.cleanedArtistText(cursor.getString(2)).ifBlank { "Unknown Artist" },
-                    cursor.getInt(3),
-                    cursor.getInt(4).takeIf { it > 0 }?.toString() ?: ""
-                ))
-            }
-        }
-        albums
-    }
-
-    fun extractEmbeddedLyrics(path: String): String? {
-        val file = File(path)
-        if (!file.exists()) return null
-
-        val audioFileLyrics = readTagsBlocking(path)
-            ?.lyrics
-            ?.takeIf { it.isUsableSynchronizedLyrics() }
-        if (!audioFileLyrics.isNullOrBlank()) {
-            Log.d(TAG, "Found embedded lyrics (${audioFileLyrics.length} chars) for ${file.name}")
-            return audioFileLyrics
-        }
-
-        return runCatching {
-            MediaMetadataRetriever().useCompat { retriever ->
-                retriever.setDataSource(path)
-                val lyrics = retriever.extractMetadata(1000)
-                if (!lyrics.isNullOrBlank()) {
-                    Log.d(TAG, "Found retriever lyrics (${lyrics.length} chars) for ${file.name}")
-                    lyrics
-                } else null
-            }
-        }.onFailure {
-            Log.w(TAG, "Retriever lyrics extraction failed for $path", it)
-        }.getOrNull()
-    }
-
     fun extractCoverArt(path: String): ByteArray? {
         val file = File(path)
         if (!file.exists()) return null
@@ -605,49 +553,6 @@ class MusicScanner(private val context: Context) {
             Log.w(TAG, "ReplayGain extraction failed for $path", e)
             null
         }
-    }
-
-    fun extractSongTagInfo(path: String): SongTagInfo {
-        val file = File(path)
-        if (!file.exists() || !file.isFile) return SongTagInfo()
-
-        val tagInfo = readTagsBlocking(path) ?: AudioTagInfo()
-
-        return SongTagInfo(
-            title = tagInfo.title.orEmpty().cleanTagText(),
-            artist = tagInfo.artist.orEmpty().cleanTagText(),
-            album = LibraryNormalizer.cleanedAlbumText(tagInfo.album),
-            albumArtist = LibraryNormalizer.cleanedArtistText(tagInfo.albumArtist),
-            genre = tagInfo.genre.orEmpty().cleanTagText(),
-            year = tagInfo.year.orEmpty().cleanTagText(),
-            composer = tagInfo.composer.orEmpty().cleanTagText(),
-            arranger = firstNonBlank(
-                tagInfo.arranger,
-                tagInfo.customTagValue("ARRANGER", "ARRANGED BY", "ARRANGEDBY", "ARRANGEMENT", "ARRANGE")
-            ).orEmpty().cleanTagText(),
-            lyricist = firstNonBlank(
-                tagInfo.lyricist,
-                tagInfo.customTagValue("TEXT"),
-                tagInfo.customTagValue("WRITER")
-            ).orEmpty().cleanTagText(),
-            track = tagInfo.trackNumber?.toString().orEmpty().cleanTagText(),
-            comment = tagInfo.comment.orEmpty().cleanTagText(),
-            copyright = tagInfo.copyright.orEmpty().cleanTagText(),
-            neteaseKey = tagInfo.neteaseKey.orEmpty()
-                .takeIf { it.looksLikeNeteaseKeyValue() }
-                .orEmpty()
-                .ifBlank { tagInfo.comment.orEmpty().extractPrefixedNeteaseCommentKey() }
-                .cleanTagText(),
-            rating = ratingStarsFromTagValues(tagInfo.rating?.toString()),
-            lyrics = tagInfo.lyrics.orEmpty().cleanTagText(),
-            ttmlLyrics = tagInfo.ttmlLyrics.orEmpty().cleanTagText(),
-            songwriters = firstNonBlank(
-                tagInfo.songwriters,
-                tagInfo.customTagValue("SONGWRITERS", "SONGWRITER", "AUTHOR")
-            ).orEmpty().cleanTagText(),
-            customTagText = tagInfo.customTags.flattenForSearch(),
-            customTags = tagInfo.customTags
-        )
     }
 
     fun getAlbumArtUri(albumId: Long): Uri =

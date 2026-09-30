@@ -32,9 +32,9 @@ internal object ChineseMusicMetadata {
     private val client = OkHttpClient.Builder().connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS).callTimeout(25, TimeUnit.SECONDS).build()
 
-    private fun get(base: String, vararg parameters: Pair<String, String>): String {
+    private fun get(base: String, vararg parameters: Pair<String, String>, networkClient: OkHttpClient = client): String {
         val url = base.toHttpUrl().newBuilder().apply { parameters.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
-        return client.newCall(Request.Builder().url(url).header("User-Agent", "Mozilla/5.0")
+        return networkClient.newCall(Request.Builder().url(url).header("User-Agent", "Mozilla/5.0")
             .header("Referer", when {
                 url.host.endsWith("qq.com") -> "https://y.qq.com/"
                 url.host.endsWith("kuwo.cn") -> "https://www.kuwo.cn/"
@@ -45,7 +45,7 @@ internal object ChineseMusicMetadata {
         }
     }
 
-    private fun json(base: String, vararg parameters: Pair<String, String>) = JSONObject(get(base, *parameters))
+    private fun json(base: String, vararg parameters: Pair<String, String>, networkClient: OkHttpClient = client) = JSONObject(get(base, *parameters, networkClient = networkClient))
     private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList() else
         (0 until length()).mapNotNull { optJSONObject(it) }
 
@@ -66,37 +66,52 @@ internal object ChineseMusicMetadata {
         return (root.optJSONArray("abslist") ?: root.optJSONArray("albumlist")).objects()
     }
 
-    suspend fun artist(name: String, source: AlbumInfoSource): ChineseArtistBiography? = withContext(Dispatchers.IO) {
-        val result = when (source) {
-            AlbumInfoSource.QQ -> {
-                val artists = qqSearch(name, "9", "singer")
-                val found = artists.getOrNull(preferredArtistImageMatch(name, artists.map { it.optString("singerName") }))
-                    ?: return@withContext null
-                val mid = found.optString("singerMID").ifBlank { found.optString("singerMid") }
-                if (mid.isBlank()) return@withContext null
-                val xml = get("https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_singer_desc.fcg", "singermid" to mid, "format" to "xml")
-                val text = Regex("""<desc>([\s\S]*?)</desc>""").find(xml)?.groupValues?.get(1).orEmpty()
-                ChineseArtistBiography(cleanMusicMetadata(text), "https://y.qq.com/n/ryqq/singer/$mid")
-            }
+    suspend fun artist(name: String, source: AlbumInfoSource, networkClient: OkHttpClient = client): ChineseArtistBiography? = withContext(Dispatchers.IO) {
+        val artists = when (source) {
+            AlbumInfoSource.QQ -> json("https://c.y.qq.com/soso/fcgi-bin/client_search_cp", "w" to name, "t" to "9",
+                "format" to "json", "inCharset" to "utf-8", "outCharset" to "utf-8", "p" to "1", "n" to "20", networkClient = networkClient)
+                .optJSONObject("data")?.optJSONObject("singer")?.optJSONArray("list").objects()
             AlbumInfoSource.Kugou -> {
-                val artists = kugouSearch(name, "singer")
-                val found = artists.getOrNull(preferredArtistImageMatch(name, artists.map { it.optString("singername") }))
-                    ?: return@withContext null
-                val id = found.optLong("singerid").takeIf { it > 0 } ?: return@withContext null
-                val data = json("https://mobileservice.kugou.com/api/v3/singer/info", "singerid" to "$id").optJSONObject("data")
-                ChineseArtistBiography(cleanMusicMetadata(data?.optString("profile").orEmpty()), "https://www.kugou.com/singer/$id.html")
+                val root = json("https://msearch.kugou.com/api/v3/search/singer", "keyword" to name,
+                    "page" to "1", "pagesize" to "20", networkClient = networkClient)
+                (root.optJSONArray("data") ?: root.optJSONObject("data")?.optJSONArray("info")).objects()
             }
-            AlbumInfoSource.Kuwo -> {
-                val artists = kuwoSearch(name, "artist")
-                val found = artists.getOrNull(preferredArtistImageMatch(name, artists.map { cleanMusicMetadata(it.optString("ARTIST")) }))
-                    ?: return@withContext null
-                val id = found.optString("ARTISTID").takeIf { it.toLongOrNull()?.let { n -> n > 0 } == true } ?: return@withContext null
-                val data = json("https://search.kuwo.cn/r.s", "stype" to "artistinfo", "artistid" to id, "rformat" to "json", "encoding" to "utf8")
-                ChineseArtistBiography(cleanMusicMetadata(data.optString("info").ifBlank { data.optString("desc") }), "https://www.kuwo.cn/singer_detail/$id")
-            }
+            AlbumInfoSource.Kuwo -> json("https://search.kuwo.cn/r.s", "all" to name, "ft" to "artist", "itemset" to "artist",
+                "client" to "kt", "pn" to "0", "rn" to "20", "rformat" to "json", "encoding" to "utf8", networkClient = networkClient)
+                .optJSONArray("abslist").objects()
             AlbumInfoSource.Netease -> return@withContext null
         }
-        result.takeIf { it.text.isNotBlank() }
+        val names = artists.map { artist -> when (source) {
+            AlbumInfoSource.QQ -> artist.optString("singerName")
+            AlbumInfoSource.Kugou -> artist.optString("singername")
+            else -> cleanMusicMetadata(artist.optString("ARTIST"))
+        } }
+        for (index in artistBiographyCandidateIndices(name, names)) {
+            val found = artists[index]
+            val result = when (source) {
+                AlbumInfoSource.QQ -> {
+                    val mid = found.optString("singerMID").ifBlank { found.optString("singerMid") }
+                    if (mid.isBlank()) continue
+                    val xml = get("https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_singer_desc.fcg", "singermid" to mid, "format" to "xml", networkClient = networkClient)
+                    val text = Regex("""<desc>([\s\S]*?)</desc>""").find(xml)?.groupValues?.get(1).orEmpty()
+                    ChineseArtistBiography(cleanMusicMetadata(text), "https://y.qq.com/n/ryqq/singer/$mid")
+                }
+                AlbumInfoSource.Kugou -> {
+                    val id = found.optLong("singerid").takeIf { it > 0 } ?: continue
+                    val data = json("https://mobileservice.kugou.com/api/v3/singer/info", "singerid" to "$id", networkClient = networkClient).optJSONObject("data")
+                    ChineseArtistBiography(cleanMusicMetadata(data?.optString("profile").orEmpty()), "https://www.kugou.com/singer/$id.html")
+                }
+                AlbumInfoSource.Kuwo -> {
+                    val id = found.optString("ARTISTID").takeIf { it.toLongOrNull()?.let { n -> n > 0 } == true } ?: continue
+                    val data = json("https://search.kuwo.cn/r.s", "stype" to "artistinfo", "artistid" to id,
+                        "rformat" to "json", "encoding" to "utf8", networkClient = networkClient)
+                    ChineseArtistBiography(cleanMusicMetadata(data.optString("info").ifBlank { data.optString("desc") }), "https://www.kuwo.cn/singer_detail/$id")
+                }
+                AlbumInfoSource.Netease -> return@withContext null
+            }
+            if (result.text.isNotBlank()) return@withContext result
+        }
+        null
     }
 
     suspend fun album(source: AlbumInfoSource, album: Album?, songs: List<Song>, neteaseUrl: String?): String? = withContext(Dispatchers.IO) {

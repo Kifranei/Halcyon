@@ -1,6 +1,8 @@
 package com.ella.music.ui.online
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,6 +16,7 @@ import com.ella.music.R
 import com.ella.music.ui.components.ApplyHalcyonSystemBarsToCurrentWindow
 import com.ella.music.ui.components.isAppWallpaperVisible
 import com.ella.music.ui.components.wallpaperAwareCardColor
+import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowListPopup
@@ -33,7 +36,8 @@ internal fun OnlineSearchControls(
     onProviderSelected: (Int) -> Unit,
     query: String,
     onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    placeholder: String = stringResource(R.string.lx_online_search_placeholder)
 ) {
     var menuVisible by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -80,8 +84,49 @@ internal fun OnlineSearchControls(
             value = query,
             onValueChange = onQueryChange,
             onSearch = onSearch,
-            placeholder = stringResource(R.string.lx_online_search_placeholder),
+            placeholder = placeholder,
             modifier = Modifier.weight(1f)
         )
+    }
+}
+
+@Composable
+internal fun OnlineSearchPaginationEffect(
+    listState: LazyListState,
+    requests: OnlineProviderSearchRequests,
+    resultCount: Int,
+    isBusy: Boolean,
+    onLoadMore: (automatic: Boolean) -> Unit
+) {
+    val currentCount by rememberUpdatedState(resultCount)
+    val currentBusy by rememberUpdatedState(isBusy)
+    val loadMore by rememberUpdatedState(onLoadMore)
+    LaunchedEffect(requests.revision) { listState.scrollToItem(0) }
+    LaunchedEffect(listState, requests) {
+        snapshotFlow {
+            val nearEnd = requests.hasMore && !requests.isLoading && !requests.failed && !currentBusy &&
+                currentCount > 0 &&
+                (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= currentCount - 5
+            if (nearEnd) currentCount else null
+        }.distinctUntilChanged().collect { count ->
+            if (count != null) loadMore(true)
+        }
+    }
+}
+
+@Composable
+internal fun OnlineSearchPageFooter(requests: OnlineProviderSearchRequests, onLoadMore: () -> Unit) {
+    val label = when {
+        requests.isLoading -> R.string.lx_online_processing
+        requests.failed -> R.string.online_search_page_retry
+        requests.hasMore -> R.string.online_search_load_more
+        else -> R.string.online_search_no_more
+    }
+    Box(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+            .clickable(enabled = requests.hasMore && !requests.isLoading, onClick = onLoadMore),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(stringResource(label), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
     }
 }

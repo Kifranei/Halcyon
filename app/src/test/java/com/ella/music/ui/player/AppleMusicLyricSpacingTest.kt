@@ -239,30 +239,6 @@ class AppleMusicLyricSpacingTest {
     }
 
     @Test
-    fun focusOffsetIsClampedWhenLyricRowIsTallerThanTheViewport() {
-        assertEquals(
-            0,
-            resolveAppleMusicLyricsFocusOffset(
-                viewportHeightPx = 240,
-                focusOffsetRatio = 0.12f,
-                itemHeightPx = 300
-            )
-        )
-    }
-
-    @Test
-    fun focusOffsetUsesThePreferredPositionForNormalRows() {
-        assertEquals(
-            144,
-            resolveAppleMusicLyricsFocusOffset(
-                viewportHeightPx = 600,
-                focusOffsetRatio = 0.24f,
-                itemHeightPx = 80
-            )
-        )
-    }
-
-    @Test
     fun initialScrollTargetStartsAtTheCurrentLyricInsteadOfTheFirstRow() {
         assertEquals(
             18,

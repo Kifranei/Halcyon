@@ -38,16 +38,16 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
         this.client = client;
     }
 
-    public JSONArray search(String script, String keyword, int page) throws Exception {
+    public JSONObject search(String script, String keyword, int page) throws Exception {
         load(script);
         callResult = null;
         jsContext.getGlobalObject().getJSFunction("__mf_call_search").call(keyword, page);
         waitFor(() -> callResult != null, 25_000L);
         JSONObject result = readResult("搜索失败");
         JSONObject value = result.optJSONObject("value");
-        if (value == null) return new JSONArray();
-        JSONArray data = value.optJSONArray("data");
-        return data == null ? new JSONArray() : data;
+        if (value != null) return value;
+        JSONArray data = result.optJSONArray("value");
+        return new JSONObject().put("data", data == null ? new JSONArray() : data);
     }
 
     public JSONObject getMediaSource(String script, String musicItemJson, String quality) throws Exception {
@@ -345,7 +345,7 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
         return ""
                 + "function __mf_finish(ok,value,error){ __mf_native_result(JSON.stringify({ok:ok,value:value||null,error:error?String(error):''})); }\n"
                 + "function __mf_call_search(query,page){ try{ var p=__mf_plugin&&__mf_plugin.search; if(!p) throw new Error('插件不支持搜索'); Promise.resolve(p.call(__mf_plugin,query,page,'music')).then(function(r){__mf_finish(true,r,null)},function(e){__mf_finish(false,null,e&&e.message||e)}); }catch(e){__mf_finish(false,null,e&&e.message||e)} }\n"
-                + "function __mf_call_media_source(itemJson,quality){ try{ var item=JSON.parse(itemJson); if(item.url){__mf_finish(true,{url:item.url},null);return;} var p=__mf_plugin&&__mf_plugin.getMediaSource; if(!p) throw new Error('插件不支持播放地址解析'); Promise.resolve(p.call(__mf_plugin,item,quality||'standard')).then(function(r){__mf_finish(true,r,null)},function(e){__mf_finish(false,null,e&&e.message||e)}); }catch(e){__mf_finish(false,null,e&&e.message||e)} }\n"
+                + "function __mf_call_media_source(itemJson,quality){ try{ var item=JSON.parse(itemJson); var p=__mf_plugin&&__mf_plugin.getMediaSource; if(typeof p!=='function'){var q=item.qualities&&item.qualities[quality||'standard'];var fallback=q&&q.url?q:item;if(fallback.url){__mf_finish(true,{url:fallback.url,headers:fallback.headers||item.headers,userAgent:fallback.userAgent||item.userAgent},null);return;} throw new Error('插件不支持播放地址解析');} Promise.resolve(p.call(__mf_plugin,item,quality||'standard')).then(function(r){__mf_finish(true,r,null)},function(e){__mf_finish(false,null,e&&e.message||e)}); }catch(e){__mf_finish(false,null,e&&e.message||e)} }\n"
                 + "function __mf_call_lyric(itemJson){ try{ var item=JSON.parse(itemJson); var p=__mf_plugin&&__mf_plugin.getLyric; if(!p){__mf_finish(true,{},null);return;} Promise.resolve(p.call(__mf_plugin,item)).then(function(r){__mf_finish(true,r,null)},function(e){__mf_finish(false,null,e&&e.message||e)}); }catch(e){__mf_finish(false,null,e&&e.message||e)} }\n";
     }
 

@@ -55,7 +55,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * Process-wide performance tracking singleton that maintains the [FramePerformanceSampler]
@@ -146,7 +145,7 @@ internal object PerformanceFloatingToolbarManager {
             owner.installOn(this)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
-                MiuixTheme {
+                com.ella.music.ui.theme.EllaTheme {
                     val sampler = PerformanceTracker.get(context)
                     val snapshot by sampler.snapshot
                     PerformanceFloatingToolbarContent(

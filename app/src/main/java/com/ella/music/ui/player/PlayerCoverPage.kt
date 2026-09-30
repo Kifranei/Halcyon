@@ -11,7 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.requiredHeight
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.padding
@@ -68,7 +66,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -77,7 +74,6 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -86,9 +82,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.ui.components.CoverPreviewDialog
-import com.ella.music.ui.components.EllaMiuixDialog
-import com.ella.music.ui.components.EllaMiuixDialogActions
-import com.ella.music.ui.components.PlayerQueueListIcon
 import com.ella.music.data.ActionMenuIds
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
@@ -398,6 +391,7 @@ internal fun CoverPlayerPage(
                 (id != ActionMenuIds.VIEW_MV || quickActionMusicVideo.available)
         }
     }
+    val posterNavigator = com.ella.music.ui.navigation.LocalAppNavigator.current
     var localActionMenuPage by remember { mutableStateOf<PlayerActionSheetPage?>(null) }
     val executePlayerAction: (String) -> Unit = { actionId ->
         when (actionId) {
@@ -408,13 +402,16 @@ internal fun CoverPlayerPage(
             ActionMenuIds.PLAY_NEXT -> onPlayNext()
             ActionMenuIds.ADD_TO_QUEUE -> onAddToQueue()
             ActionMenuIds.SHARE -> onShareSong()
+            ActionMenuIds.LYRIC_SHARE -> onLyricShare()
             ActionMenuIds.AI -> onAiInterpret()
             ActionMenuIds.INFO -> onSongInfo()
             ActionMenuIds.AUDIO_OUTPUT -> localActionMenuPage = PlayerActionSheetPage.AudioOutput
             ActionMenuIds.CASTING -> openSystemOutputSwitcher(context)
             ActionMenuIds.AB_REPEAT -> onAbRepeat()
             ActionMenuIds.LANDSCAPE -> onLandscape()
+            ActionMenuIds.POSTER_WALL -> posterNavigator(com.ella.music.ui.navigation.Screen.PosterWall.route)
             ActionMenuIds.LYRICS_DISPLAY -> localActionMenuPage = PlayerActionSheetPage.LyricDisplay
+            ActionMenuIds.MINI_LYRICS_STYLE -> localActionMenuPage = PlayerActionSheetPage.MiniLyricStyle
             ActionMenuIds.SPECTRUM -> onSpectrum()
             ActionMenuIds.RATING -> onSetRating()
             ActionMenuIds.DYNAMIC_COVER -> onMatchDynamicCover()
@@ -442,26 +439,9 @@ internal fun CoverPlayerPage(
     // composition janked every song change (even when no cover exists). Resolve it off the main
     // thread, only while the player page is shown. Clear the previous source first so a song
     // switch never keeps rendering the old video's PlayerView while the next source is resolving.
-    val resolvedDynamicCover by produceState<DynamicCoverSource?>(
-        initialValue = null,
-        dynamicCoverEnabled,
-        dynamicCoverCustomFolders,
-        dynamicCoverSongKey,
-        dynamicCoverFailedPath
-    ) {
-        val current = song
-        if (current == null) {
-            value = null
-        } else {
-            value = withContext(Dispatchers.IO) {
-                current.dynamicCoverSource(
-                    context,
-                    includeExternalFiles = dynamicCoverEnabled,
-                    customRootPaths = dynamicCoverCustomFolders
-                )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
-            }
-        }
-    }
+    val resolvedDynamicCover = rememberPlayerDynamicCoverSource(
+        song, dynamicCoverEnabled, dynamicCoverCustomFolders, dynamicCoverFailedPath
+    )
     // Resolve MV separately.  Its lookup can be relatively expensive, and must never delay the
     // regular dynamic-cover lookup or prevent it from reaching the screen.
     val resolvedMusicVideo by produceState<DynamicCoverSource?>(
@@ -540,9 +520,6 @@ internal fun CoverPlayerPage(
     fun revealAppleMusicChrome() {
         appleMusicChromeVisible = true
         appleMusicChromeGeneration++
-    }
-    fun hideAppleMusicChrome() {
-        appleMusicChromeVisible = false
     }
     LaunchedEffect(appleMusicShowLyrics) {
         if (appleMusicShowLyrics) {
@@ -702,10 +679,10 @@ internal fun CoverPlayerPage(
                     androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
                 when {
-                    videoPlaybackActive && musicVideoVisible && musicVideoSource != null -> {
+                    musicVideoVisible && musicVideoSource != null -> {
                         DynamicCoverVideo(
                             source = musicVideoSource,
-                            isPlaying = isPlaying,
+                            isPlaying = isPlaying && videoPlaybackActive,
                             syncPositionMs = currentPosition,
                             syncDurationMs = duration,
                             onPlaybackError = { onDynamicCoverFailed(musicVideoSource.failureKey) },
@@ -714,10 +691,10 @@ internal fun CoverPlayerPage(
                             resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                         )
                     }
-                    videoPlaybackActive && !musicVideoVisible && dynamicCoverSource != null -> {
+                    !musicVideoVisible && dynamicCoverSource != null -> {
                         DynamicCoverVideo(
                             source = dynamicCoverSource,
-                            isPlaying = isPlaying,
+                            isPlaying = isPlaying && videoPlaybackActive,
                             onPlaybackError = { onDynamicCoverFailed(dynamicCoverSource.failureKey) },
                             modifier = Modifier.fillMaxSize(),
                             cornerRadiusDp = cornerRadius.value,
@@ -2101,7 +2078,7 @@ internal fun CoverPlayerPage(
                         contentAlignment = Alignment.Center
                     ) {
                         // Keep MV silent and on the audio clock while its surface is hidden.
-                        if (videoPlaybackActive && musicVideoVisible) displayedMusicVideo?.let { source ->
+                        if (musicVideoVisible) displayedMusicVideo?.let { source ->
                             DynamicCoverVideo(
                                 source = source,
                                 isPlaying = isPlaying && videoPlaybackActive,
@@ -2115,7 +2092,7 @@ internal fun CoverPlayerPage(
                                 resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                             )
                         }
-                        if (videoPlaybackActive && !musicVideoVisible && displayedDynamicCover != null) {
+                        if (!musicVideoVisible && displayedDynamicCover != null) {
                             DynamicCoverVideo(
                                 source = displayedDynamicCover,
                                 isPlaying = isPlaying && videoPlaybackActive,
@@ -2387,7 +2364,7 @@ internal fun CoverPlayerPage(
                             contentAlignment = Alignment.Center
                         ) {
                             // Keep MV silent and synchronized behind the current cover.
-                            if (videoPlaybackActive && musicVideoVisible) displayedMusicVideo?.let { source ->
+                            if (musicVideoVisible) displayedMusicVideo?.let { source ->
                                 DynamicCoverVideo(
                                     source = source,
                                     isPlaying = isPlaying && videoPlaybackActive,
@@ -2401,7 +2378,7 @@ internal fun CoverPlayerPage(
                                     resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 )
                             }
-                            if (videoPlaybackActive && !musicVideoVisible && displayedDynamicCover != null) {
+                            if (!musicVideoVisible && displayedDynamicCover != null) {
                                 DynamicCoverVideo(
                                     source = displayedDynamicCover,
                                     isPlaying = isPlaying && videoPlaybackActive,

@@ -38,7 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.ApplyHalcyonSystemBarsToCurrentWindow
 import java.net.URLEncoder
 
@@ -53,7 +53,7 @@ fun DynamicCoverWebViewSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    WindowBottomSheet(
+    EllaMiuixBottomSheet(
         show = true,
         enableNestedScroll = false,
         title = context.getString(R.string.player_match_dynamic_cover),

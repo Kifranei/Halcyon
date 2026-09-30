@@ -5,29 +5,35 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ArtistCoverRepositoryTest {
+    @Test fun parenthesizedNumberedCoversPreserveCaseAndOrdering() {
+        assertEquals("LiSA", artistCoverMatch("LiSA (1).jpg", ignoreCase = false)?.key)
+        assertEquals(1, artistCoverMatch("LiSA (1).jpg")?.order)
+        assertEquals(2, artistCoverMatch("LiSA (2).png")?.order)
+        assertEquals("lisa", artistCoverMatch("LISA_001.jpg")?.key)
+    }
     @Test
     fun imageExtensionsMatchArtistNamesCaseInsensitively() {
         assertEquals(
             "fleetwood mac",
-            artistCoverMatchKey("Fleetwood Mac.JPG")
+            artistCoverMatch("Fleetwood Mac.JPG")?.key
         )
         assertEquals(
             "taylor swift",
-            artistCoverMatchKey("Taylor   Swift.webp")
+            artistCoverMatch("Taylor   Swift.webp")?.key
         )
     }
 
     @Test
     fun unsupportedFilesAreIgnored() {
-        assertNull(artistCoverMatchKey("Fleetwood Mac.txt"))
-        assertNull(artistCoverMatchKey("README"))
+        assertNull(artistCoverMatch("Fleetwood Mac.txt")?.key)
+        assertNull(artistCoverMatch("README")?.key)
     }
 
     @Test
     fun videoExtensionsAlsoMatchArtistNames() {
         assertEquals(
             "fleetwood mac",
-            artistCoverMatchKey("Fleetwood Mac.mp4")
+            artistCoverMatch("Fleetwood Mac.mp4")?.key
         )
         assertEquals(
             ArtistCoverKind.Video,
@@ -70,11 +76,11 @@ class ArtistCoverRepositoryTest {
         assertEquals("lisa", normalizeArtistCoverKey("LiSA", ignoreCase = true))
         assertEquals(
             "LiSA",
-            artistCoverMatchKey("LiSA_01.jpg", ignoreCase = false)
+            artistCoverMatch("LiSA_01.jpg", ignoreCase = false)?.key
         )
         assertEquals(
             "LISA",
-            artistCoverMatchKey("LISA.jpg", ignoreCase = false)
+            artistCoverMatch("LISA.jpg", ignoreCase = false)?.key
         )
     }
 }

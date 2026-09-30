@@ -66,12 +66,17 @@ internal fun Modifier.miniMorphAnchor(artwork: Boolean = false, radius: Dp = 0.d
     }
 }
 
-internal fun Modifier.playerMorphArtwork(): Modifier = composed {
-    val state = LocalPlayerMorph.current.takeIf { LocalPlayerMorphSurface.current }
+internal fun Modifier.playerMorphArtwork(enabled: Boolean = true): Modifier = composed {
+    val state = LocalPlayerMorph.current.takeIf { enabled && LocalPlayerMorphSurface.current }
     val layer = rememberGraphicsLayer()
     var bounds by remember { mutableStateOf(Rect.Zero) }
-    DisposableEffect(layer) {
-        onDispose { if (state?.artworkLayer === layer) state.artworkLayer = null }
+    DisposableEffect(state, layer) {
+        onDispose {
+            if (state?.artworkLayer === layer) {
+                state.artworkLayer = null
+                state.artworkBounds = null
+            }
+        }
     }
     if (state == null) this else onGloballyPositioned {
         bounds = Rect(it.positionInRoot(), it.size.toSize())
@@ -95,7 +100,11 @@ internal fun Modifier.playerMorphArtwork(): Modifier = composed {
     }
 }
 
-internal fun Modifier.playerMorphSurface(state: PlayerMorphState, floating: Boolean): Modifier =
+internal fun Modifier.playerMorphSurface(
+    state: PlayerMorphState,
+    floating: Boolean,
+    replayArtwork: () -> Boolean = { true }
+): Modifier =
     drawWithContent {
         state.viewportWidth = size.width
         val t = state.progress
@@ -116,7 +125,7 @@ internal fun Modifier.playerMorphSurface(state: PlayerMorphState, floating: Bool
             val source = state.miniArtwork?.translate(-origin)
             val target = state.artworkBounds?.translate(-origin)
             val layer = state.artworkLayer
-            if (source != null && target != null && layer != null && layer.size.width > 0 && layer.size.height > 0) {
+            if (replayArtwork() && source != null && target != null && layer != null && layer.size.width > 0 && layer.size.height > 0) {
                 val frame = morphRect(source, target, t)
                 val artworkClip = Path().apply {
                     addRoundRect(RoundRect(frame, CornerRadius(state.artworkSourceRadius * (1f - t))))
@@ -131,3 +140,6 @@ internal fun Modifier.playerMorphSurface(state: PlayerMorphState, floating: Bool
             }
         }
     }
+
+internal fun playerMorphPageArtworkEnabled(surface: Boolean, overlayExpanded: Boolean, style: Int): Boolean =
+    surface && !(overlayExpanded && style != com.ella.music.data.SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE)

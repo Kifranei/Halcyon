@@ -48,12 +48,6 @@ object RawWaveformCache {
         return FloatArray(count) { level }
     }
 
-    suspend fun loadOrScan(
-        context: Context,
-        audioFile: Song?,
-        sampleCount: Int = DEFAULT_SAMPLE_COUNT
-    ): FloatArray = loadOrScanResult(context, audioFile, sampleCount).values
-
     suspend fun loadOrScanResult(
         context: Context,
         audioFile: Song?,

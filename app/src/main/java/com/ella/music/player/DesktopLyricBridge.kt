@@ -73,15 +73,18 @@ class DesktopLyricBridge(private val context: Context) {
         dispatchLyric(payload)
     }
 
-    fun sendLyric(
+    internal fun sendLyric(
         line: LyricLine?,
         positionMs: Long,
         showTranslation: Boolean,
-        showPronunciation: Boolean
+        showPronunciation: Boolean,
+        interlude: com.ella.music.ui.player.AppleMusicInterlude? = null
     ) {
-        val lyricLine = line ?: return
+        val lyricLine = line ?: if (interlude != null) LyricLine(interlude.startMs, "", endMs = interlude.endMs) else return
         val payload = Intent(context, DesktopLyricService::class.java)
             .setAction(DesktopLyricService.ACTION_UPDATE)
+            .putExtra(DesktopLyricService.EXTRA_INTERLUDE_START, interlude?.startMs ?: -1L)
+            .putExtra(DesktopLyricService.EXTRA_INTERLUDE_END, interlude?.endMs ?: -1L)
             .putExtra(DesktopLyricService.EXTRA_TEXT, lyricLine.text)
             .putExtra(DesktopLyricService.EXTRA_PRONUNCIATION, if (showPronunciation) lyricLine.pronunciation.orEmpty() else "")
             .putExtra(DesktopLyricService.EXTRA_TRANSLATION, if (showTranslation) lyricLine.translation.orEmpty() else "")
@@ -105,7 +108,7 @@ class DesktopLyricBridge(private val context: Context) {
             .putExtra(DesktopLyricService.EXTRA_BACKGROUND_WORD_ENDS, lyricLine.backgroundWords.map { it.endMs }.toLongArray())
         cacheLatestLyric(payload)
         if (!enabled || !canDrawOverlay() || DesktopLyricService.userHidden) return
-        val key = "${lyricLine.timeMs}:${positionMs / POSITION_ANCHOR_INTERVAL_MS}:$showTranslation:$showPronunciation"
+        val key = "${interlude?.startMs}:${lyricLine.timeMs}:${positionMs / POSITION_ANCHOR_INTERVAL_MS}:$showTranslation:$showPronunciation"
         if (key == lastLineKey) return
         lastLineKey = key
         dispatchLyric(payload)

@@ -120,12 +120,6 @@ internal object MusicVideoPlaybackBridge {
         }
     }
 
-    fun togglePlayback(source: DynamicCoverSource?) {
-        val resolvedSource = source ?: return
-        val entry = entries.getOrPut(keyFor(resolvedSource)) { Entry() }
-        setPlaying(resolvedSource, !entry.playWhenReady)
-    }
-
     fun syncToAudio(
         source: DynamicCoverSource,
         positionMs: Long,

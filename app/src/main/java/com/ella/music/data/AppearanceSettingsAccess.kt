@@ -105,6 +105,7 @@ interface AppearanceSettingsAccess {
     val appFontScalePercent: Flow<Int>
     val appDisplayScalePercent: Flow<Int>
     val appIconStyle: Flow<String>
+    val recentsIconFollowsSystemTheme: Flow<Boolean>
     val widgetSafeLayout: Flow<Boolean>
     val bottomBarStyle: Flow<BottomBarStyle>
     val bottomBarGlassEffect: Flow<BottomBarGlassEffect>
@@ -149,11 +150,16 @@ interface AppearanceSettingsAccess {
     val homeFeatureWallpaperUri: Flow<String>
     val homeAiMixVisible: Flow<Boolean>
     val continuePlaybackRowVisible: Flow<Boolean>
+    val categoryContinuePlaybackRowVisible: Flow<Boolean>
     val homeRecentSectionMode: Flow<Int>
     val homeSectionOrder: Flow<String>
     val homeHiddenSections: Flow<String>
     val homeShortcutItems: Flow<String>
     val homeFeatureItems: Flow<String>
+    val posterWallInfiniteScroll: Flow<Boolean>
+    suspend fun setPosterWallInfiniteScroll(enabled: Boolean)
+    val posterWallLyricStyle: Flow<Int>
+    suspend fun setPosterWallLyricStyle(style: Int)
     suspend fun setHomeShortcutItems(value: String)
     suspend fun setHomeFeatureItems(value: String)
     val homeLibraryTileOrder: Flow<String>
@@ -173,6 +179,7 @@ interface AppearanceSettingsAccess {
     suspend fun setAppFontScalePercent(percent: Int)
     suspend fun setAppDisplayScalePercent(percent: Int)
     suspend fun setAppIconStyle(style: String)
+    suspend fun setRecentsIconFollowsSystemTheme(enabled: Boolean)
     suspend fun setWidgetSafeLayout(enabled: Boolean)
     suspend fun setBottomBarStyle(style: BottomBarStyle)
     suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect)
@@ -207,6 +214,7 @@ interface AppearanceSettingsAccess {
     suspend fun setHomeFeatureWallpaperUri(uri: String)
     suspend fun setHomeAiMixVisible(visible: Boolean)
     suspend fun setContinuePlaybackRowVisible(visible: Boolean)
+    suspend fun setCategoryContinuePlaybackRowVisible(visible: Boolean)
     suspend fun setHomeRecentSectionMode(mode: Int)
     suspend fun setHomeSectionOrder(order: String)
     suspend fun setHomeHiddenSections(hidden: String)
@@ -242,6 +250,10 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
         }
     override val appIconStyle: Flow<String> =
         context.dataStore.data.map { AppIconManager.normalize(it[KEY_APP_ICON_STYLE]) }
+    override val recentsIconFollowsSystemTheme: Flow<Boolean> = context.dataStore.data.map {
+        it[SettingsManager.KEY_RECENTS_ICON_FOLLOWS_SYSTEM_THEME]
+            ?: SettingsManager.DEFAULT_RECENTS_ICON_FOLLOWS_SYSTEM_THEME
+    }
     override val widgetSafeLayout: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_WIDGET_SAFE_LAYOUT] ?: false }
     override val bottomBarStyle: Flow<BottomBarStyle> = context.dataStore.data.map { preferences ->
@@ -305,6 +317,19 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
                 SettingsManager.BOTTOM_BAR_LIQUID_CHROMATIC_ABERRATION_MAX_PERCENT,
             )
     }
+    override val posterWallInfiniteScroll: Flow<Boolean> = context.dataStore.data.map {
+        it[SettingsManager.KEY_POSTER_WALL_INFINITE_SCROLL] ?: false
+    }
+    override suspend fun setPosterWallInfiniteScroll(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_POSTER_WALL_INFINITE_SCROLL] = enabled }
+    }
+    override val posterWallLyricStyle: Flow<Int> = context.dataStore.data.map {
+        (it[SettingsManager.KEY_POSTER_WALL_LYRIC_STYLE] ?: 0).coerceIn(0, 3)
+    }
+    override suspend fun setPosterWallLyricStyle(style: Int) {
+        context.dataStore.edit { it[SettingsManager.KEY_POSTER_WALL_LYRIC_STYLE] = style.coerceIn(0, 3) }
+    }
+
     override val homeSearchTarget: Flow<String> = context.dataStore.data.map {
         normalizeHomeSearchTarget(it[SettingsManager.KEY_HOME_SEARCH_TARGET].orEmpty())
     }
@@ -408,7 +433,9 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
     override val homeAiMixVisible: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HOME_AI_MIX_VISIBLE] ?: true }
     override val continuePlaybackRowVisible: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_CONTINUE_PLAYBACK_ROW_VISIBLE] ?: true }
+        context.dataStore.data.map { resolveContinuePlaybackVisibility(it, library = true) }
+    override val categoryContinuePlaybackRowVisible: Flow<Boolean> =
+        context.dataStore.data.map { resolveContinuePlaybackVisibility(it, library = false) }
     override val homeRecentSectionMode: Flow<Int> =
         context.dataStore.data.map {
             (it[KEY_HOME_RECENT_SECTION_MODE] ?: HOME_RECENT_SECTION_MODE_ADDED)
@@ -426,16 +453,25 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
             it[KEY_HOME_LIBRARY_TILE_ORDER] ?: DEFAULT_HOME_LIBRARY_TILE_ORDER,
             it[KEY_HOME_HIDDEN_LIBRARY_TILES].orEmpty(), true)
     }
-    override val homeFeatureItems: Flow<String> = context.dataStore.data.map {
-        it[SettingsManager.KEY_HOME_FEATURE_ITEMS] ?: migratedHomeItems(
-            it[KEY_HOME_LIBRARY_TILE_ORDER] ?: DEFAULT_HOME_LIBRARY_TILE_ORDER,
-            it[KEY_HOME_HIDDEN_LIBRARY_TILES].orEmpty(), false)
+    override val homeFeatureItems: Flow<String> = context.dataStore.data.map { preferences ->
+        val order = preferences[KEY_HOME_LIBRARY_TILE_ORDER] ?: DEFAULT_HOME_LIBRARY_TILE_ORDER
+        val hidden = preferences[KEY_HOME_HIDDEN_LIBRARY_TILES].orEmpty()
+        val shortcuts = preferences[SettingsManager.KEY_HOME_SHORTCUT_ITEMS] ?: migratedHomeItems(order, hidden, true)
+        val features = preferences[SettingsManager.KEY_HOME_FEATURE_ITEMS] ?: migratedHomeItems(order, hidden, false)
+        resolvePosterWallHomeFeatureItems(features, shortcuts,
+            preferences[SettingsManager.KEY_HOME_POSTER_WALL_CONFIGURED] == true, hidden)
     }
     override suspend fun setHomeShortcutItems(value: String) {
-        context.dataStore.edit { it[SettingsManager.KEY_HOME_SHORTCUT_ITEMS] = value }
+        context.dataStore.edit {
+            it[SettingsManager.KEY_HOME_SHORTCUT_ITEMS] = value
+            if ("poster_wall" in value.split(',')) it[SettingsManager.KEY_HOME_POSTER_WALL_CONFIGURED] = true
+        }
     }
     override suspend fun setHomeFeatureItems(value: String) {
-        context.dataStore.edit { it[SettingsManager.KEY_HOME_FEATURE_ITEMS] = value }
+        context.dataStore.edit {
+            it[SettingsManager.KEY_HOME_FEATURE_ITEMS] = value
+            it[SettingsManager.KEY_HOME_POSTER_WALL_CONFIGURED] = true
+        }
     }
     override val homeLibraryTileOrder: Flow<String> =
         context.dataStore.data.map { it[KEY_HOME_LIBRARY_TILE_ORDER] ?: DEFAULT_HOME_LIBRARY_TILE_ORDER }
@@ -511,6 +547,10 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
 
     override suspend fun setAppIconStyle(style: String) {
         context.dataStore.edit { it[KEY_APP_ICON_STYLE] = AppIconManager.normalize(style) }
+    }
+
+    override suspend fun setRecentsIconFollowsSystemTheme(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_RECENTS_ICON_FOLLOWS_SYSTEM_THEME] = enabled }
     }
 
     override suspend fun setWidgetSafeLayout(enabled: Boolean) {
@@ -777,7 +817,11 @@ internal class AppearanceSettingsAccessImpl(private val context: Context) : Appe
     }
 
     override suspend fun setContinuePlaybackRowVisible(visible: Boolean) {
-        context.dataStore.edit { it[KEY_CONTINUE_PLAYBACK_ROW_VISIBLE] = visible }
+        context.dataStore.edit { it[SettingsManager.KEY_LIBRARY_CONTINUE_PLAYBACK_ROW_VISIBLE] = visible }
+    }
+
+    override suspend fun setCategoryContinuePlaybackRowVisible(visible: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_CATEGORY_CONTINUE_PLAYBACK_ROW_VISIBLE] = visible }
     }
 
     override suspend fun setHomeRecentSectionMode(mode: Int) {

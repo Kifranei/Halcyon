@@ -6,7 +6,7 @@ import android.os.Environment
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.ella.music.data.SettingsManager
-import com.ella.music.data.blockCredentialedHttpRequests
+import com.ella.music.data.allowUserConfiguredCleartext
 import com.ella.music.data.copyToBoundedOrThrow
 import com.ella.music.data.sanitizeExportFileName
 import com.ella.music.data.model.Song
@@ -33,7 +33,7 @@ internal class DynamicCoverDownloadHelper(
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(60, TimeUnit.SECONDS)
-        .blockCredentialedHttpRequests()
+        .allowUserConfiguredCleartext()
         .build()
     private val settingsManager by lazy { SettingsManager.getInstance(context) }
 

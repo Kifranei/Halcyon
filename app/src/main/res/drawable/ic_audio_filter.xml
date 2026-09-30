@@ -1,0 +1,6 @@
+<!-- Material Symbols Outlined filter_alt, supplied fonts.gstatic.com vector (24/400/FILL0/GRAD0/ROND50). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FF000000"
+        android:pathData="M11,20 q-0.42,0 -0.71,-0.29 Q10,19.43 10,19 V13 L4.2,5.6 Q3.83,5.1 4.09,4.55 T5,4 H19 q0.65,0 0.91,0.55 T19.8,5.6 L14,13 v6 q0,0.43 -0.29,0.71 T13,20 H11 Z M12,12.3 L16.95,6 H7.05 L12,12.3 Z"/>
+</vector>

@@ -59,9 +59,9 @@ class OPlusLyricPayloadTest {
         )
 
         val json = payload ?: error("payload is null")
-        assertEquals("[00:01.00]Hello world", OPlusLyricPayload.stringField(json, "lyric"))
+        assertEquals("[00:01.000]Hello world", OPlusLyricPayload.stringField(json, "lyric"))
         assertEquals(
-            "[00:01.000]Hello [00:01.500]world[00:02.200]\n[00:01.000]你好世界",
+            "[00:01.000]<00:01.000>Hello <00:01.500>world<00:02.200>",
             OPlusLyricPayload.stringField(json, "rawLyric")
         )
         assertEquals("[00:01.000]你好世界", OPlusLyricPayload.stringField(json, "translationLyric"))
@@ -78,7 +78,7 @@ class OPlusLyricPayloadTest {
         )
 
         val json = payload ?: error("payload is null")
-        assertEquals("[00:02.34]Plain line", OPlusLyricPayload.stringField(json, "lyric"))
+        assertEquals("[00:02.345]Plain line", OPlusLyricPayload.stringField(json, "lyric"))
         assertEquals("[00:02.345]Plain line", OPlusLyricPayload.stringField(json, "rawLyric"))
         assertEquals(null, OPlusLyricPayload.stringField(json, "translationLyric"))
     }
@@ -131,12 +131,12 @@ class OPlusLyricPayloadTest {
 
         val json = payload ?: error("payload is null")
         assertEquals(
-            "[00:08.50]Hey Dorothea do you ever stop and think about me",
+            "[00:08.509]Hey Dorothea do you ever stop and think about me",
             OPlusLyricPayload.stringField(json, "lyric")
         )
         val rawLyric = OPlusLyricPayload.stringField(json, "rawLyric")!!
-        assertTrue(rawLyric.startsWith("[00:08.509]Hey "))
-        assertTrue(rawLyric.contains("[00:08.509]嘿 多萝西娅 你是否停下过脚步 思念起我"))
+        assertTrue(rawLyric.startsWith("[00:08.509]<00:08.509>Hey "))
+        assertFalse(rawLyric.contains("嘿 多萝西娅"))
         assertEquals(
             "[00:08.509]嘿 多萝西娅 你是否停下过脚步 思念起我",
             OPlusLyricPayload.stringField(json, "translationLyric")
@@ -159,10 +159,67 @@ class OPlusLyricPayloadTest {
         )
 
         val json = payload ?: error("payload is null")
-        assertEquals("[00:04.00]Actual lyric", OPlusLyricPayload.stringField(json, "lyric"))
+        assertEquals("[00:04.000]Actual lyric", OPlusLyricPayload.stringField(json, "lyric"))
         assertFalse(json.contains("Lyricist"))
         assertFalse(json.contains("Arranger"))
         assertFalse(json.contains("Performer"))
+    }
+
+    @Test
+    fun modulePayloadKeepsLineTranslationAlignedWhenFirstWordStartsLater() {
+        val json = OPlusLyricPayload.buildModulePayload(
+            song(),
+            listOf(
+                LyricLine(
+                    timeMs = 1_235L,
+                    text = "Hello",
+                    words = listOf(LyricWord("Hello", 1_500L, 2_000L)),
+                    translation = "你好",
+                    endMs = 2_100L
+                )
+            )
+        ) ?: error("payload is null")
+
+        assertEquals("[00:01.235]Hello", OPlusLyricPayload.stringField(json, "lyric"))
+        assertEquals("[00:01.235]<00:01.500>Hello<00:02.100>", OPlusLyricPayload.rawLyric(json))
+        assertEquals("[00:01.235]你好", OPlusLyricPayload.stringField(json, "translationLyric"))
+    }
+
+    @Test
+    fun modulePayloadOrdersMixedTimedLinesAndKeepsTranslationOutOfRawLane() {
+        val json = OPlusLyricPayload.buildModulePayload(
+            song(),
+            listOf(
+                LyricLine(timeMs = 2_000L, text = "Second", translation = "第二句"),
+                LyricLine(
+                    timeMs = 1_000L,
+                    text = "First",
+                    words = listOf(LyricWord("First", 1_000L, 1_800L)),
+                    translation = "第一句"
+                )
+            )
+        ) ?: error("payload is null")
+
+        assertEquals(
+            "[00:01.000]<00:01.000>First<00:01.800>\n[00:02.000]Second",
+            OPlusLyricPayload.rawLyric(json)
+        )
+        assertEquals(
+            "[00:01.000]第一句\n[00:02.000]第二句",
+            OPlusLyricPayload.stringField(json, "translationLyric")
+        )
+    }
+
+    @Test
+    fun modulePayloadDoesNotTreatPronunciationAsTranslation() {
+        val json = OPlusLyricPayload.buildModulePayload(
+            song(),
+            listOf(LyricLine(timeMs = 1_000L, text = "ふたり", pronunciation = "futari"))
+        ) ?: error("payload is null")
+
+        assertFalse(OPlusLyricPayload.hasTranslation(json))
+        assertFalse(json.contains("futari"))
+        assertEquals("[00:01.000]ふたり", OPlusLyricPayload.rawLyric(json))
     }
 
     private fun song(): Song = Song(

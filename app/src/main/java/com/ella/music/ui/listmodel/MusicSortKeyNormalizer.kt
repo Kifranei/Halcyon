@@ -130,6 +130,7 @@ private object MusicSortTransliterator {
         runCatching { Transliterator.getInstance(Rules) }.getOrNull()
     }
 
+    @Synchronized
     fun transliterate(text: String): String =
         runCatching { value?.transliterate(text) ?: text }.getOrDefault(text)
 }

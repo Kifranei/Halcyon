@@ -58,7 +58,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.Dp
@@ -110,7 +109,8 @@ internal fun MiniPlayerAnimatedText(
                 fallbackProgress = lyricProgress,
                 smoothedPositionMs = smoothedPositionMs,
                 lyricTiming = lyricTiming,
-                wordTiming = if (state.showingLyric) lyricTiming?.words.orEmpty() else emptyList<LyricWord>()
+                wordTiming = if (state.showingLyric) lyricTiming?.words.orEmpty() else emptyList<LyricWord>(),
+                alignEnd = state.showingLyric && miniPlayerAlignEnd(lyricTiming?.agent)
             )
         }
         if (textState.scrollSecondary) {
@@ -127,11 +127,14 @@ internal fun MiniPlayerAnimatedText(
                     fontWeight = FontWeight.Normal,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     enabled = true,
-                    highlightWithProgress = state.highlightSecondaryWithProgress,
+                    highlightWithProgress = state.highlightSecondaryWithProgress ||
+                        (state.showingLyric && !lyricTiming?.backgroundText.isNullOrBlank()),
                     fallbackProgress = lyricProgress,
                     smoothedPositionMs = smoothedPositionMs,
                     lyricTiming = lyricTiming,
-                    wordTiming = emptyList<LyricWord>()
+                    wordTiming = if (state.showingLyric && !lyricTiming?.backgroundText.isNullOrBlank())
+                        lyricTiming.backgroundWords else emptyList(),
+                    alignEnd = state.showingLyric && miniPlayerAlignEnd(lyricTiming?.agent)
                 )
             }
         } else {
@@ -186,7 +189,8 @@ private fun MiniPlayerTextRow(
     fallbackProgress: Float,
     smoothedPositionMs: State<Long>,
     lyricTiming: MiniPlayerLyricTiming?,
-    wordTiming: List<LyricWord>
+    wordTiming: List<LyricWord>,
+    alignEnd: Boolean = false
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val textMeasurer = rememberTextMeasurer()
@@ -215,7 +219,8 @@ private fun MiniPlayerTextRow(
         val textWidth = measuredTextWidth.coerceAtLeast(1.dp)
             .coerceAtMost((maxWidth - badgeReservation).coerceAtLeast(1.dp))
         Row(
-            modifier = Modifier.width(textWidth + badgeReservation),
+            modifier = Modifier.width(textWidth + badgeReservation)
+                .align(if (alignEnd) Alignment.CenterEnd else Alignment.CenterStart),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AutoScrollingMiniText(
@@ -574,7 +579,10 @@ private fun AutoScrollingMiniText(
 data class MiniPlayerLyricTiming(
     val lineStartMs: Long,
     val lineEndMs: Long,
-    val words: List<LyricWord>
+    val words: List<LyricWord>,
+    val agent: String? = null,
+    val backgroundWords: List<LyricWord> = emptyList(),
+    val backgroundText: String? = null
 ) {
     fun progressAt(positionMs: Long): Float {
         val effectiveEnd = maxOf(lineEndMs, words.maxOfOrNull { it.endMs } ?: lineEndMs)
@@ -589,29 +597,9 @@ private fun rememberSmoothedMiniPlayerLyricPosition(
     isPlaying: Boolean,
     timing: MiniPlayerLyricTiming?
 ): State<Long> {
-    val smoothPositionMs = remember(timing?.lineStartMs, timing?.lineEndMs) {
-        mutableLongStateOf(sampledPositionMs)
-    }
+    return com.ella.music.ui.player.rememberLyricFramePosition(
+        sampledPositionMs, isPlaying, active = timing != null)
 
-    LaunchedEffect(sampledPositionMs, isPlaying, timing?.lineStartMs, timing?.lineEndMs) {
-        if (!isPlaying || timing == null) {
-            smoothPositionMs.longValue = sampledPositionMs
-            return@LaunchedEffect
-        }
-
-        val anchorPositionMs = sampledPositionMs
-        val terminalPositionMs = maxOf(timing.lineEndMs, timing.words.maxOfOrNull { it.endMs } ?: timing.lineEndMs)
-        var anchorFrameNanos = 0L
-        while (isActive) {
-            withFrameNanos { frameNanos ->
-                if (anchorFrameNanos == 0L) anchorFrameNanos = frameNanos
-                smoothPositionMs.longValue = (anchorPositionMs +
-                    (frameNanos - anchorFrameNanos) / 1_000_000L)
-                    .coerceAtMost(terminalPositionMs)
-            }
-        }
-    }
-    return smoothPositionMs
 }
 
 /**

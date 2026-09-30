@@ -447,7 +447,9 @@ internal fun actionMenuIcon(id: String): ImageVector? = when (id) {
     ActionMenuIds.AB_REPEAT -> MiuixIcons.Regular.Reset
     ActionMenuIds.REMOTE_QUALITY -> MiuixIcons.Regular.CloudFill
     ActionMenuIds.LANDSCAPE -> MiuixIcons.Regular.HorizontalSplit
+    ActionMenuIds.POSTER_WALL -> com.ella.music.ui.poster.PosterWallIcon
     ActionMenuIds.LYRICS_DISPLAY -> MiuixIcons.Regular.Notes
+    ActionMenuIds.MINI_LYRICS_STYLE -> MiuixIcons.Regular.Notes
     ActionMenuIds.DYNAMIC_COVER -> MiuixIcons.Regular.Image
     ActionMenuIds.VISUALIZER -> MenuVisualizerIcon
     ActionMenuIds.ONLINE_LYRICS -> MiuixIcons.Regular.Search
@@ -458,6 +460,7 @@ internal fun actionMenuIcon(id: String): ImageVector? = when (id) {
     ActionMenuIds.KEEP_SCREEN_ON -> MiuixIcons.Regular.Show
     ActionMenuIds.DOWNLOAD_MV, ActionMenuIds.DOWNLOAD -> MiuixIcons.Regular.Download
     ActionMenuIds.VIEW_MV -> MenuMusicVideoIcon
+    ActionMenuIds.SONG_COMMENTS, ActionMenuIds.MV_COMMENTS -> MiuixIcons.Regular.Notes
     PlayerExtraActionIds.LYRIC_SHARE -> MiuixIcons.Regular.Notes
     else -> null
 }

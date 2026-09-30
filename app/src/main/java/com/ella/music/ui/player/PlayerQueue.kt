@@ -2,9 +2,6 @@ package com.ella.music.ui.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,13 +28,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerInputChange
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
-import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -48,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ella.music.R
+import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.CoverUsage
@@ -64,13 +58,11 @@ import com.ella.music.data.model.AudioInfo
 import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import sh.calvin.reorderable.DragGestureDetector
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.ella.music.ui.components.rememberEllaReorderableLazyListState
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Unlock
@@ -241,7 +233,9 @@ internal fun PlayerQueueMenu(
                 }.takeIf { it >= 0 }
                 ?: manualPlaylist.indexOfFirst { it.song.playlistIdentityKey() == currentSongKey }
     }
-    LaunchedEffect(currentIndex) {
+    // Moving rows changes the index without changing the playing occurrence. Recentring on
+    // every index change fights edge scrolling and makes a drag jump through the queue.
+    LaunchedEffect(manualPlaylist.getOrNull(currentIndex)?.stableKey) {
         if (currentIndex >= 0) {
             listState.scrollToItem(currentIndex)
         }
@@ -252,11 +246,11 @@ internal fun PlayerQueueMenu(
             pendingMoveTarget = null
         }
     }
-    val reorderableLazyListState = rememberReorderableLazyListState(
+    val reorderableLazyListState = rememberEllaReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            if (queueLocked) return@rememberReorderableLazyListState
-            if (from.index !in manualPlaylist.indices || to.index !in manualPlaylist.indices) return@rememberReorderableLazyListState
+            if (queueLocked) return@rememberEllaReorderableLazyListState
+            if (from.index !in manualPlaylist.indices || to.index !in manualPlaylist.indices) return@rememberEllaReorderableLazyListState
             if (trackedCurrentEntryKey == null && currentIndex >= 0) {
                 trackedCurrentEntryKey = manualPlaylist[currentIndex].stableKey
             }
@@ -414,7 +408,7 @@ internal fun PlayerQueueMenu(
                             Modifier
                         } else {
                             Modifier.draggableHandle(
-                                dragGestureDetector = LongPressDragHandleGestureDetector,
+                                dragGestureDetector = ImmediateOrLongPressDragGestureDetector,
                                 onDragStopped = {
                                     val move = resolveQueueMoveCommit(
                                         fromIndex = pendingMoveStart,
@@ -549,7 +543,7 @@ internal fun PlayerQueueMenu(
                                         painter = painterResource(R.drawable.ic_link_chain),
                                         contentDescription = stringResource(R.string.player_queue_source),
                                         tint = MiuixTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = -45f }
                                     )
                                 }
                             }
@@ -610,40 +604,6 @@ internal fun PlayerQueueMenu(
     )
 }
 
-private object LongPressDragHandleGestureDetector : DragGestureDetector {
-    override suspend fun PointerInputScope.detect(
-        onDragStart: (Offset) -> Unit,
-        onDragEnd: () -> Unit,
-        onDragCancel: () -> Unit,
-        onDrag: (PointerInputChange, Offset) -> Unit
-    ) {
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            val longPress = awaitLongPressOrCancellation(down.id)
-            if (longPress == null) {
-                onDragCancel()
-                return@awaitEachGesture
-            }
-            onDragStart(longPress.position)
-            while (true) {
-                val event = awaitPointerEvent()
-                val change = event.changes.firstOrNull { it.id == longPress.id } ?: run {
-                    onDragCancel()
-                    break
-                }
-                if (!change.pressed || change.changedToUpIgnoreConsumed()) {
-                    onDragEnd()
-                    break
-                }
-                val dragAmount = change.positionChange()
-                if (dragAmount != Offset.Zero) {
-                    onDrag(change, dragAmount)
-                    change.consume()
-                }
-            }
-        }
-    }
-}
 
 @Composable
 internal fun QueueAlbumArtView(

@@ -35,6 +35,7 @@ internal data class ResolvedArtistImage(
 
 /** Network-backed artist images with a small app-private disk cache. */
 internal object ArtistImageRepository {
+    private val storageLock = Any()
     private const val CACHE_DIRECTORY = "artist_images"
     private const val MAX_IMAGE_BYTES = 12L * 1024L * 1024L
     private const val FAILED_LOOKUP_TTL_MS = 15 * 60 * 1_000L
@@ -73,7 +74,8 @@ internal object ArtistImageRepository {
         spotifyClientId: String,
         spotifyClientSecret: String,
         downloadFolderUri: String = "",
-        customFolderUri: String = ""
+        customFolderUri: String = "",
+        spotifyRegion: String = spotifyMarketForLastFmRegion(lastFmRegion)
     ): Uri? = resolveDetailed(
         context,
         artistName,
@@ -83,7 +85,8 @@ internal object ArtistImageRepository {
         spotifyClientId,
         spotifyClientSecret,
         downloadFolderUri,
-        customFolderUri
+        customFolderUri,
+        spotifyRegion
     )?.uri
 
     suspend fun findCached(
@@ -93,7 +96,8 @@ internal object ArtistImageRepository {
         lastFmRegion: String,
         spotifyClientId: String,
         downloadFolderUri: String = "",
-        customFolderUri: String = ""
+        customFolderUri: String = "",
+        spotifyRegion: String = spotifyMarketForLastFmRegion(lastFmRegion)
     ): ResolvedArtistImage? = withContext(Dispatchers.IO) {
         val normalizedArtist = artistName.trim()
         if (normalizedArtist.isBlank()) return@withContext null
@@ -106,21 +110,23 @@ internal object ArtistImageRepository {
                 runCatching {
                     val treeUri = Uri.parse(targetFolder)
                     DocumentFile.fromTreeUri(context, treeUri)?.let { root ->
-                        for (ext in listOf("png", "jpg", "jpeg", "webp")) {
-                            root.findFile("$safeName.$ext")?.takeIf { it.isFile && it.length() > 0L }?.let { doc ->
-                                return@withContext ResolvedArtistImage(doc.uri, "")
-                            }
+                        val key = normalizeArtistCoverKey(safeName, ignoreCase = false)
+                        root.listFiles().mapNotNull { doc ->
+                            val match = artistCoverMatch(doc.name.orEmpty(), doc.type, ignoreCase = false)
+                            if (doc.isFile && doc.length() > 0 && match?.key == key && match.kind == ArtistCoverKind.Image) doc to match.order else null
+                        }.minByOrNull { it.second }?.first?.let { doc ->
+                            val source = root.findFile("${doc.name}.source")?.let { sidecar ->
+                                runCatching { context.contentResolver.openInputStream(sidecar.uri)?.bufferedReader()?.use { it.readLine() } }.getOrNull()
+                            }.orEmpty()
+                            return@withContext ResolvedArtistImage(doc.uri, source)
                         }
                     }
                 }
             } else {
                 val dir = File(targetFolder.removePrefix("file://"))
                 if (dir.isDirectory) {
-                    for (ext in listOf("png", "jpg", "jpeg", "webp")) {
-                        val f = File(dir, "$safeName.$ext")
-                        if (f.isFile && f.length() > 0L) {
-                            return@withContext ResolvedArtistImage(Uri.fromFile(f), "")
-                        }
+                    matchingArtistImageFiles(dir, safeName).firstOrNull()?.let { file ->
+                        return@withContext ResolvedArtistImage(Uri.fromFile(file), readCachedSource(file).orEmpty())
                     }
                 }
             }
@@ -129,26 +135,21 @@ internal object ArtistImageRepository {
         // 2. App-specific external files, migrated from the previous private/cache paths.
         val internalDir = downloadDirectory(context)
         if (internalDir.isDirectory) {
-            for (ext in listOf("png", "jpg", "jpeg", "webp")) {
-                val f = File(internalDir, "$safeName.$ext")
-                if (f.isFile && f.length() > 0L) {
-                    return@withContext ResolvedArtistImage(Uri.fromFile(f), readCachedSource(f) ?: "")
-                }
+            matchingArtistImageFiles(internalDir, safeName).firstOrNull()?.let { file ->
+                return@withContext ResolvedArtistImage(Uri.fromFile(file), readCachedSource(file).orEmpty())
             }
-            // Check legacy cacheKey.jpg and auto-migrate to safeName.jpg
+            // Keep hash-named cache entries in place with their source sidecars. Renaming to
+            // an unreserved artist filename could alias a differently cased name on some volumes.
             val sources = SettingsManager.normalizeArtistImageSources(sourceOrder)
             val cacheKey = artistImageCacheKey(
                 artistName = normalizedArtist,
                 sourceOrder = sources,
-                regionCode = lastFmRegion,
+                regionCode = "$lastFmRegion|$spotifyRegion",
                 spotifyClientId = spotifyClientId
             )
             val legacy = File(internalDir, "$cacheKey.jpg")
             if (legacy.isFile && legacy.length() > 0L) {
-                val migrated = File(internalDir, "$safeName.jpg")
-                if (!migrated.exists()) legacy.renameTo(migrated)
-                val finalFile = if (migrated.isFile) migrated else legacy
-                return@withContext ResolvedArtistImage(Uri.fromFile(finalFile), readCachedSource(finalFile) ?: "")
+                return@withContext ResolvedArtistImage(Uri.fromFile(legacy), readCachedSource(legacy).orEmpty())
             }
         }
 
@@ -164,7 +165,8 @@ internal object ArtistImageRepository {
         spotifyClientId: String,
         spotifyClientSecret: String,
         downloadFolderUri: String = "",
-        customFolderUri: String = ""
+        customFolderUri: String = "",
+        spotifyRegion: String = spotifyMarketForLastFmRegion(lastFmRegion)
     ): ResolvedArtistImage? = withContext(Dispatchers.IO) {
         val normalizedArtist = artistName.trim()
         if (normalizedArtist.isBlank()) return@withContext null
@@ -172,7 +174,7 @@ internal object ArtistImageRepository {
         val cacheKey = artistImageCacheKey(
             artistName = normalizedArtist,
             sourceOrder = sources,
-            regionCode = lastFmRegion,
+            regionCode = "$lastFmRegion|$spotifyRegion",
             spotifyClientId = spotifyClientId
         )
 
@@ -183,7 +185,8 @@ internal object ArtistImageRepository {
             lastFmRegion = lastFmRegion,
             spotifyClientId = spotifyClientId,
             downloadFolderUri = downloadFolderUri,
-            customFolderUri = customFolderUri
+            customFolderUri = customFolderUri,
+            spotifyRegion = spotifyRegion
         )?.let { return@withContext it }
 
         val lock = artistLocks.getOrPut(cacheKey) { Mutex() }
@@ -195,7 +198,8 @@ internal object ArtistImageRepository {
                 lastFmRegion = lastFmRegion,
                 spotifyClientId = spotifyClientId,
                 downloadFolderUri = downloadFolderUri,
-                customFolderUri = customFolderUri
+                customFolderUri = customFolderUri,
+                spotifyRegion = spotifyRegion
             )?.let { return@withLock it }
 
             val now = System.currentTimeMillis()
@@ -216,7 +220,7 @@ internal object ArtistImageRepository {
                                 artistName = normalizedArtist,
                                 clientId = spotifyClientId,
                                 clientSecret = spotifyClientSecret,
-                                marketCode = spotifyMarketForLastFmRegion(lastFmRegion)
+                                marketCode = spotifyRegion
                             )
                             SettingsManager.ARTIST_IMAGE_SOURCE_NETEASE -> fetchNeteaseArtistImage(normalizedArtist)
                             SettingsManager.ARTIST_IMAGE_SOURCE_KUGOU -> fetchChineseArtistImage(client, normalizedArtist, false)
@@ -285,8 +289,8 @@ internal object ArtistImageRepository {
         downloadFolderUri: String,
         customFolderUri: String
     ): ResolvedArtistImage? {
-        val tempFile = File(context.cacheDir, "artist_dl_${System.currentTimeMillis()}.tmp")
-        val downloaded = downloadImage(imageUrl, tempFile)
+        val tempFile = File.createTempFile("artist-dl-", ".tmp", context.cacheDir)
+        val downloaded = preferredArtistImageUrls(source, imageUrl).any { downloadImage(it, tempFile) }
         if (!downloaded || !tempFile.isFile || tempFile.length() <= 0L) {
             tempFile.delete()
             return null
@@ -296,45 +300,43 @@ internal object ArtistImageRepository {
         val ext = if (isPng) "png" else "jpg"
         val mimeType = if (isPng) "image/png" else "image/jpeg"
         val safeName = artistName.sanitizeExportFileName(fallback = "artist")
-        val targetFileName = "$safeName.$ext"
         val targetFolder = artistImageDownloadFolder(downloadFolderUri, customFolderUri)
 
         return try {
-            if (targetFolder.isNotBlank()) {
+            synchronized(storageLock) {
                 if (targetFolder.startsWith("content://", ignoreCase = true)) {
-                    val root = DocumentFile.fromTreeUri(context, Uri.parse(targetFolder))
-                    if (root != null && root.canWrite()) {
-                        ensureNoMedia(root)
-                        val existing = root.findFile(targetFileName)
-                        val docFile = existing ?: root.createFile(mimeType, targetFileName)
-                        if (docFile != null) {
-                            context.contentResolver.openOutputStream(docFile.uri, "wt")?.use { out ->
-                                tempFile.inputStream().use { input -> input.copyTo(out) }
-                            }
-                            ArtistCoverRepository.getInstance(context).clearCache()
-                            ResolvedArtistImage(docFile.uri, source)
-                        } else null
-                    } else null
-                } else {
-                    val dir = File(targetFolder.removePrefix("file://"))
-                    if (!dir.exists()) dir.mkdirs()
-                    ensureNoMedia(dir)
-                    val targetFile = File(dir, targetFileName)
-                    if (tempFile.renameTo(targetFile) || runCatching { tempFile.copyTo(targetFile, overwrite = true); tempFile.delete(); true }.getOrDefault(false)) {
+                    val root = DocumentFile.fromTreeUri(context, Uri.parse(targetFolder)) ?: return@synchronized null
+                    if (!root.canWrite()) return@synchronized null
+                    ensureNoMedia(root)
+                    val name = nextArtistImageFileName(safeName, ext, root.listFiles().mapNotNull { it.name })
+                    val doc = root.createFile(mimeType, name) ?: return@synchronized null
+                    try {
+                        val output = context.contentResolver.openOutputStream(doc.uri, "wt") ?: throw java.io.IOException("Cannot write artist image")
+                        output.use { out -> tempFile.inputStream().use { it.copyTo(out) } }
+                        root.createFile("application/octet-stream", "${doc.name}.source")?.let { metadata ->
+                            context.contentResolver.openOutputStream(metadata.uri, "wt")?.use { it.write(source.toByteArray(Charsets.UTF_8)) }
+                        }
                         ArtistCoverRepository.getInstance(context).clearCache()
-                        ResolvedArtistImage(Uri.fromFile(targetFile), source)
-                    } else null
+                        ResolvedArtistImage(doc.uri, source)
+                    } catch (error: Exception) { doc.delete(); throw error }
+                } else {
+                    val dir = if (targetFolder.isBlank()) downloadDirectory(context) else File(targetFolder.removePrefix("file://"))
+                    if (!dir.isDirectory && !dir.mkdirs()) return@synchronized null
+                    ensureNoMedia(dir)
+                    var target: File
+                    do {
+                        target = File(dir, nextArtistImageFileName(safeName, ext, dir.list()?.toList().orEmpty()))
+                    } while (!target.createNewFile())
+                    try {
+                        tempFile.copyTo(target, overwrite = true)
+                        writeCachedSource(target, source)
+                        ArtistCoverRepository.getInstance(context).clearCache()
+                        ResolvedArtistImage(Uri.fromFile(target), source)
+                    } catch (error: Exception) { target.delete(); throw error }
                 }
-            } else {
-                val dir = downloadDirectory(context)
-                if (!dir.exists()) dir.mkdirs()
-                ensureNoMedia(dir)
-                val targetFile = File(dir, targetFileName)
-                if (tempFile.renameTo(targetFile) || runCatching { tempFile.copyTo(targetFile, overwrite = true); tempFile.delete(); true }.getOrDefault(false)) {
-                    writeCachedSource(targetFile, source)
-                    ResolvedArtistImage(Uri.fromFile(targetFile), source)
-                } else null
             }
+        } catch (_: Exception) {
+            null
         } finally {
             if (tempFile.exists()) tempFile.delete()
         }
@@ -485,7 +487,7 @@ internal object ArtistImageRepository {
         }
     }
 
-    private fun parseSpotifyArtistImageUrl(raw: String, artistName: String): String? {
+    internal fun parseSpotifyArtistImageUrl(raw: String, artistName: String): String? {
         val items = runCatching {
             JSONObject(raw).optJSONObject("artists")?.optJSONArray("items")
         }.getOrNull() ?: return null
@@ -495,16 +497,15 @@ internal object ArtistImageRepository {
                 items.optJSONObject(index)?.let(::add)
             }
         }.sortedWith(compareBy { artist ->
-            if (artist.optString("name").trim() == requested) 0 else 1
+            artistNameCaseRank(requested, artist.optString("name").trim())
         })
         return candidates.asSequence()
             .filter { artist -> artist.optString("name").trim().equals(requested, ignoreCase = true) }
             .mapNotNull { artist ->
-                artist.optJSONArray("images")
-                    ?.optJSONObject(0)
-                    ?.optString("url")
-                    ?.trim()
-                    ?.takeIf(::isUsableArtistImageUrl)
+                val images = artist.optJSONArray("images") ?: return@mapNotNull null
+                (0 until images.length()).mapNotNull { images.optJSONObject(it) }
+                    .sortedByDescending { it.optLong("width") * it.optLong("height") }
+                    .firstNotNullOfOrNull { it.optString("url").trim().takeIf(::isUsableArtistImageUrl) }
             }
             .firstOrNull()
     }

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -40,12 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import com.ella.music.R
+import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
-import com.ella.music.ui.components.DefaultAlbumCover
-import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.ella.music.ui.components.rememberEllaReorderableLazyListState
 import androidx.compose.ui.graphics.vector.ImageVector
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -87,10 +85,11 @@ internal fun AppleMusicQueueSessionPage(
     }
     var pendingMoveStart by remember { mutableStateOf<Int?>(null) }
     var pendingMoveTarget by remember { mutableStateOf<Int?>(null) }
+    var trackedCurrentEntryKey by remember(queueSnapshotKey(playlist), song, currentQueueIndexHint) { mutableStateOf<String?>(null) }
 
     val currentSongKey = song?.playlistIdentityKey()
-    val currentIndex = remember(currentSongKey, currentQueueIndexHint, manualPlaylist) {
-        currentQueueIndexHint.takeIf {
+    val currentIndex = remember(currentSongKey, currentQueueIndexHint, manualPlaylist, trackedCurrentEntryKey) {
+        manualPlaylist.indexOfFirst { it.stableKey == trackedCurrentEntryKey }.takeIf { it >= 0 } ?: currentQueueIndexHint.takeIf {
             it in manualPlaylist.indices && manualPlaylist[it].song.playlistIdentityKey() == currentSongKey
         } ?: manualPlaylist.indexOfFirst { it.song.playlistIdentityKey() == currentSongKey }
     }
@@ -99,7 +98,7 @@ internal fun AppleMusicQueueSessionPage(
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
 
     var hasRenderedFirstTime by remember { mutableStateOf(false) }
-    LaunchedEffect(currentIndex) {
+    LaunchedEffect(manualPlaylist.getOrNull(currentIndex)?.stableKey) {
         if (!hasRenderedFirstTime) {
             hasRenderedFirstTime = true
             return@LaunchedEffect
@@ -109,10 +108,13 @@ internal fun AppleMusicQueueSessionPage(
         }
     }
 
-    val reorderableLazyListState = rememberReorderableLazyListState(
+    val reorderableLazyListState = rememberEllaReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            if (from.index !in manualPlaylist.indices || to.index !in manualPlaylist.indices) return@rememberReorderableLazyListState
+            if (from.index !in manualPlaylist.indices || to.index !in manualPlaylist.indices) return@rememberEllaReorderableLazyListState
+            if (trackedCurrentEntryKey == null && currentIndex >= 0) {
+                trackedCurrentEntryKey = manualPlaylist[currentIndex].stableKey
+            }
             manualPlaylist = manualPlaylist.toMutableList().apply {
                 add(to.index, removeAt(from.index))
             }
@@ -242,6 +244,7 @@ internal fun AppleMusicQueueSessionPage(
                     val queueSong = item.song
                     val isCurrentSong = index == currentIndex
                     val dragHandleModifier = Modifier.draggableHandle(
+                        dragGestureDetector = ImmediateOrLongPressDragGestureDetector,
                         onDragStopped = {
                             val move = resolveQueueMoveCommit(
                                 fromIndex = pendingMoveStart,

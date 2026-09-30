@@ -1,6 +1,31 @@
 package com.ella.music.data.netease
 
 import com.ella.music.R
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.io.IOException
+import org.json.JSONObject
+
+/** Retain the server's preview marker instead of presenting a trial as the full recording. */
+internal fun parseNeteaseStreamInfo(data: JSONObject, requestedLevel: String): NeteaseStreamInfo {
+    val parsed = data.optString("url").toHttpUrlOrNull() ?: throw IOException("Invalid NetEase stream URL")
+    return NeteaseStreamInfo(
+        url = parsed.newBuilder().scheme("https").build().toString(),
+        level = data.optString("level").ifBlank { requestedLevel },
+        type = data.optString("type").ifBlank { data.optString("encodeType") },
+        bitRate = data.optInt("br"), sampleRate = data.optInt("sr"),
+        isTrial = data.optJSONObject("freeTrialInfo") != null
+    )
+}
+
+internal fun encodeNeteaseServedQuality(info: NeteaseStreamInfo): String =
+    listOf(info.level, info.type, info.bitRate, info.sampleRate, if (info.isTrial) "trial" else "full").joinToString("|")
+
+internal fun decodeNeteaseServedQuality(raw: String): NeteaseStreamInfo? {
+    val parts = raw.split('|')
+    if (parts.size < 4) return null
+    return NeteaseStreamInfo("", parts[0], parts[1], parts[2].toIntOrNull() ?: 0,
+        parts[3].toIntOrNull() ?: 0, parts.getOrNull(4) == "trial")
+}
 
 internal enum class NeteaseQuality(val id: String, val titleRes: Int) {
     Auto("auto", R.string.netease_quality_auto),

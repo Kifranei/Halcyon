@@ -120,6 +120,8 @@ object AppLogStore {
 
     fun recordCrash(context: Context, threadName: String, throwable: Throwable) {
         val appContext = context.applicationContext
+        val outOfMemory = throwable is OutOfMemoryError
+        if (outOfMemory) AppLogcatCollector.clearSnapshot()
         val crashDir = File(appContext.filesDir, "crash_logs").apply { mkdirs() }
         val now = System.currentTimeMillis()
         val crashFile = File(crashDir, "crash-$now.log")
@@ -147,7 +149,9 @@ object AppLogStore {
             appendLine()
             appendLine("=== 近期系统 Logcat 缓冲 ===")
             // Only the tail: a full dump was ~1.5 MB, slow to write during a crash and to open later.
-            val logcatDump = runCatching { AppLogcatCollector.dumpTail(CRASH_LOGCAT_TAIL_LINES) }
+            val logcatDump = if (outOfMemory) {
+                "内存不足时跳过启动 logcat 子进程，避免崩溃报告再次耗尽内存。"
+            } else runCatching { AppLogcatCollector.dumpTail(CRASH_LOGCAT_TAIL_LINES) }
                 .getOrElse { "读取 Logcat 失败: ${it.message}" }
             appendLine(logcatDump)
         }

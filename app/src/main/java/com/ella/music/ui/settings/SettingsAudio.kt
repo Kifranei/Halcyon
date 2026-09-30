@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -29,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,7 +44,6 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -94,6 +91,7 @@ fun AudioSettingsScreen(
     )
     var showCrossfadeDurationDialog by remember { mutableStateOf(false) }
     val replayGainMode by settingsManager.replayGainMode.collectAsState(initial = SettingsManager.REPLAY_GAIN_OFF)
+    val replayGainPreamp by settingsManager.replayGainPreampDb.collectAsState(initial = 0f)
     val resumePlaybackPosition by settingsManager.resumePlaybackPosition.collectAsState(initial = false)
     val audioFocusDisabled by settingsManager.audioFocusDisabled.collectAsState(initial = false)
     val shuffleMode by settingsManager.shuffleMode.collectAsState(initial = SettingsManager.SHUFFLE_MODE_PSEUDO)
@@ -597,6 +595,20 @@ fun AudioSettingsScreen(
                             scope.launch { settingsManager.setReplayGainMode(index) }
                         }
                     )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_replay_gain_preamp) {
+                        SettingsFloatSliderPreference(
+                            title = stringResource(R.string.settings_replay_gain_preamp),
+                            summary = stringResource(R.string.settings_replay_gain_preamp_summary),
+                            value = replayGainPreamp,
+                            valueRange = -12f..12f,
+                            manualValueRange = -30f..30f,
+                            valueText = String.format(java.util.Locale.getDefault(), "%+.2f dB", replayGainPreamp),
+                            decimalPlaces = 2,
+                            onValueChange = { scope.launch { settingsManager.setReplayGainPreampDb(it) } }
+                        )
                     } // search-anchor:end
 
                     // search-anchor:start

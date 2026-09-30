@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">音楽ライブラリに最後に再生した曲を表示</string>
+    <string name="settings_category_continue_playback_row">各カテゴリの詳細ページ：「再生を続ける」を表示</string>
+    <string name="settings_category_continue_playback_row_summary">アルバム、アーティスト、プレイリスト、フォルダの詳細に最後に再生した曲を表示</string>
+    <string name="netease_link_custom_comments_summary">空欄の場合はアプリ内のコメント画面を使用します。ページ切替、スレッド、いいね、返信に対応。{id} はリソースIDに置き換わります</string>
+    <string name="recent_playback_folder_types">フォルダタブの表示タイプ</string>
+    <string name="recent_playback_mv_types">MVタブの表示タイプ</string>
+    <string name="recent_playback_nested_folder">階層フォルダ</string>
+    <string name="recent_playback_local_mv">ローカルMV</string>
+    <string name="recent_playback_online_mv">オンラインMV</string>
+    <string name="recent_playback_delete_online_mv_message">「%1$s」のMV再生記録を完全に削除しますか？</string>
+</resources>

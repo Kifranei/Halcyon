@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -77,7 +78,6 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -319,9 +319,14 @@ internal fun PluginLyricsMatchSheet(
         onDismissRequest = { showPreviewSheet = false },
         enableNestedScroll = false
     ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val previewMaxHeight = minOf(280.dp, maxHeight * 0.30f)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Measure controls/buttons at their natural height instead of squeezing the
+                // last actions into the space left by a long lyric preview.
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             LyricsRenderControls(
@@ -374,7 +379,7 @@ internal fun PluginLyricsMatchSheet(
                 fontSize = 12.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 120.dp, max = 280.dp)
+                    .heightIn(min = minOf(120.dp, previewMaxHeight), max = previewMaxHeight)
                     .combinedClickable(
                         onClick = {
                             val now = android.os.SystemClock.uptimeMillis()
@@ -481,6 +486,7 @@ internal fun PluginLyricsMatchSheet(
                     }
                 }
             }
+        }
         }
     }
 

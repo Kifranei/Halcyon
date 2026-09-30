@@ -8,17 +8,35 @@ import com.ella.music.data.LxSourceConfig
 import com.ella.music.data.readUtf8Bounded
 import com.ella.music.data.requireHttpsRequests
 import com.ella.music.data.requireHttpsUrl
+import com.ella.music.data.detectAudioContainerFormat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.net.URLEncoder
 import java.io.InputStream
+import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
+import java.util.Base64
+import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 
 data class LxOnlineQuality(
@@ -42,22 +60,102 @@ internal fun InputStream.readLxSourceText(): String = readUtf8Bounded(MAX_LX_SOU
 
 enum class LxSearchPlatform(
     val source: String,
-    val displayName: String
+    val displayName: String,
+    val supportsNameSearch: Boolean = true
 ) {
     Kuwo("kw", "酷我"),
     Netease("wy", "网易云"),
     QQ("tx", "QQ音乐"),
     Kugou("kg", "酷狗"),
-    Migu("mg", "咪咕音乐")
+    Migu("mg", "咪咕音乐"),
+    Qishui("qs", "汽水音乐（测试）", supportsNameSearch = false);
+
+    // Source scripts use both identifiers for Qishui; keep their own key for requests.
+    val sourceKeys: List<String>
+        get() = if (this == Qishui) listOf("qs", "sd") else listOf(source)
+
+    fun declaredSourceKey(declaredSources: Set<String>): String? =
+        sourceKeys.firstOrNull { it in declaredSources }
 }
 
-class LxOnlineService(private val context: Context) {
-    private val client = OkHttpClient.Builder()
+private val QISHUI_TRACK_ID = Regex("[1-9][0-9]{0,19}")
+
+private fun isQishuiTrackUrl(url: HttpUrl): Boolean =
+    url.isHttps && url.port == 443 && url.username.isEmpty() && url.password.isEmpty() && when (url.host) {
+        "qishui.douyin.com" -> Regex("/s/[A-Za-z0-9]+/?").matches(url.encodedPath)
+        "music.douyin.com" -> url.encodedPath.trimEnd('/') == "/qishui/share/track"
+        "www.douyin.com", "douyin.com" -> Regex("/qishui/song/[1-9][0-9]{0,19}/?").matches(url.encodedPath)
+        else -> false
+    }
+
+private fun qishuiTrackInputUrl(input: String): HttpUrl? {
+    val text = input.trim()
+    val candidates = sequenceOf(text) + Regex("https://[^\\s<>\\\"“”]+")
+        .findAll(text).map { it.value.trimEnd('.', ',', ';', '!', '。', '，', '；', '！', '）', ')') }
+    return candidates.mapNotNull { it.toHttpUrlOrNull() }.firstOrNull(::isQishuiTrackUrl)
+}
+
+/** Keep the platform's identifier as text; numeric IDs can exceed JavaScript's safe integers. */
+internal fun parseQishuiTrackId(input: String): String? {
+    val text = input.trim()
+    if (QISHUI_TRACK_ID.matches(text)) return text
+    val url = qishuiTrackInputUrl(text) ?: return null
+    val id = when (url.host) {
+        "music.douyin.com" -> url.queryParameter("track_id")
+        "www.douyin.com", "douyin.com" -> url.pathSegments.lastOrNull { it.isNotBlank() }
+        else -> null
+    }
+    return id?.takeIf { QISHUI_TRACK_ID.matches(it) }
+}
+
+internal data class QishuiTrackDetails(
+    val title: String,
+    val artist: String,
+    val album: String,
+    val durationMs: Long,
+    val coverUrl: String
+)
+
+/** Read public song metadata only; the page's audio URLs and playback permissions stay untouched. */
+internal fun parseQishuiTrackPage(html: String, expectedId: String): QishuiTrackDetails? = runCatching {
+    val start = Regex("\\b_ROUTER_DATA\\s*=\\s*").find(html)?.range?.last?.plus(1) ?: return null
+    val root = JSONTokener(html.substring(start)).nextValue() as? JSONObject ?: return null
+    val page = root.optJSONObject("loaderData")?.optJSONObject("track_page") ?: return null
+    if (page.optString("track_id") != expectedId) return null
+    val audio = page.optJSONObject("audioWithLyricsOption") ?: return null
+    val track = audio.optJSONObject("trackInfo") ?: return null
+    if (track.optString("id") != expectedId) return null
+    val artists = track.optJSONArray("artists")
+    val artist = if (artists == null) "" else (0 until artists.length())
+        .map { artists.optJSONObject(it)?.optString("name").orEmpty() }.filter { it.isNotBlank() }.joinToString("、")
+    QishuiTrackDetails(
+        title = track.optString("name").ifBlank { audio.optString("trackName") },
+        artist = artist.ifBlank { audio.optString("artistName") },
+        album = track.optJSONObject("album")?.optString("name").orEmpty(),
+        durationMs = track.optLong("duration").coerceAtLeast(0L),
+        coverUrl = audio.optString("coverURL").takeIf { it.toHttpUrlOrNull()?.isHttps == true }.orEmpty()
+    )
+}.getOrNull()
+
+private const val MAX_QISHUI_PAGE_BYTES = 2_000_000L
+
+class LxOnlineService internal constructor(
+    private val context: Context,
+    httpClient: OkHttpClient? = null,
+    private val importedSourceResolver: (suspend (LxOnlineSong, String) -> String?)?
+) {
+    constructor(context: Context) : this(context, null, null)
+    private val client = httpClient ?: OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .addInterceptor(AppNetworkLoggingInterceptor("LxNetwork"))
         .build()
     private val sourceHttpClient = client.newBuilder()
+        .requireHttpsRequests()
+        .build()
+    private val qishuiPageClient = client.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
         .requireHttpsRequests()
         .build()
 
@@ -112,7 +210,8 @@ class LxOnlineService(private val context: Context) {
         keyword: String,
         sourceConfig: LxSourceConfig?,
         page: Int = 1,
-        platform: LxSearchPlatform = LxSearchPlatform.Kuwo
+        platform: LxSearchPlatform = LxSearchPlatform.Kuwo,
+        declaredSources: Set<String>? = null
     ): List<LxOnlineSong> = withContext(Dispatchers.IO) {
         if (sourceConfig == null) error(context.getString(R.string.lx_service_select_source_first))
         when (platform) {
@@ -121,7 +220,66 @@ class LxOnlineService(private val context: Context) {
             LxSearchPlatform.QQ -> searchQQ(keyword, page)
             LxSearchPlatform.Kugou -> searchKugou(keyword, page)
             LxSearchPlatform.Migu -> searchMigu(keyword, page)
+            LxSearchPlatform.Qishui -> if (page == 1) {
+                val sourceKey = platform.declaredSourceKey(declaredSources.orEmpty()) ?: platform.source
+                listOf(qishuiTrack(keyword, sourceKey))
+            } else emptyList()
         }
+    }
+
+    private fun qishuiTrack(input: String, sourceKey: String): LxOnlineSong {
+        val suppliedId = parseQishuiTrackId(input)
+        val shortLink = qishuiTrackInputUrl(input)?.takeIf { it.host == "qishui.douyin.com" }
+        if (suppliedId == null && shortLink == null) error(context.getString(R.string.lx_qishui_invalid_track))
+        val page = if (shortLink != null) readQishuiSharePage(shortLink) else runCatching {
+            readQishuiSharePage(HttpUrl.Builder().scheme("https").host("music.douyin.com")
+                .addPathSegments("qishui/share/track").addQueryParameter("track_id", suppliedId).build())
+        }.getOrNull()
+        val id = suppliedId ?: page?.first?.toString()?.let(::parseQishuiTrackId)
+            ?: error(context.getString(R.string.lx_qishui_link_failed))
+        val details = page?.second?.let { parseQishuiTrackPage(it, id) }
+        val title = details?.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.lx_qishui_track_title, id)
+        val cover = details?.coverUrl.orEmpty()
+        return LxOnlineSong(
+            song = Song(
+                id = "lx_qs_$id".hashCode().toLong(),
+                title = title,
+                artist = details?.artist?.takeIf { it.isNotBlank() } ?: context.getString(R.string.player_unknown_artist),
+                album = details?.album?.takeIf { it.isNotBlank() } ?: context.getString(R.string.player_unknown_album),
+                albumId = 0L,
+                duration = details?.durationMs ?: 0L,
+                path = "",
+                fileName = "$title.mp3",
+                mimeType = "audio/mpeg",
+                coverUrl = cover,
+                onlineSource = sourceKey,
+                onlineId = id
+            ),
+            source = sourceKey,
+            songmid = id,
+            quality = "320k",
+            coverUrl = cover
+        )
+    }
+
+    private fun readQishuiSharePage(initialUrl: HttpUrl): Pair<HttpUrl, String> {
+        var url = initialUrl
+        repeat(5) {
+            if (!isQishuiTrackUrl(url)) error(context.getString(R.string.lx_qishui_link_failed))
+            val page = qishuiPageClient.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
+                .execute().use { response ->
+                    if (response.code in listOf(301, 302, 303, 307, 308)) {
+                        url = response.header("Location")?.let { url.resolve(it) }
+                            ?: error(context.getString(R.string.lx_qishui_link_failed))
+                        null
+                    } else {
+                        if (!response.isSuccessful) error(context.getString(R.string.lx_service_search_failed_http, response.code))
+                        url to response.body?.byteStream()?.use { it.readUtf8Bounded(MAX_QISHUI_PAGE_BYTES) }.orEmpty()
+                    }
+                }
+            if (page != null) return page
+        }
+        error(context.getString(R.string.lx_qishui_link_failed))
     }
 
     private fun searchKuwo(keyword: String, page: Int): List<LxOnlineSong> {
@@ -261,25 +419,60 @@ class LxOnlineService(private val context: Context) {
     }
 
     private fun searchQQ(keyword: String, page: Int): List<LxOnlineSong> {
+        val body = createQqSearchBody(keyword, page).toString()
+        val signedRequest = Request.Builder()
+            .url("https://u.y.qq.com/cgi-bin/musics.fcg?sign=${createQqSearchSignature(body)}")
+            .header("User-Agent", "QQMusic 14090508(android 12)")
+            .header("Referer", "https://y.qq.com/")
+            .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .build()
+        val songs = try {
+            requestQqSearchSongs(signedRequest, signed = true)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            // Compatibility for regions where the public desktop search endpoint is unavailable.
+            // This only searches metadata; it never substitutes the selected playback source.
+            try {
+                requestQqSearchSongs(legacyQqSearchRequest(keyword, page), signed = false)
+            } catch (fallbackError: Exception) {
+                fallbackError.addSuppressed(error)
+                throw fallbackError
+            }
+        }
+        return parseQqSearchSongs(songs)
+    }
+
+    private fun legacyQqSearchRequest(keyword: String, page: Int): Request {
         val encoded = URLEncoder.encode(keyword.trim(), "UTF-8")
         val url = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=${page.coerceAtLeast(1)}" +
             "&n=30&w=$encoded&format=json&new_json=1"
-        val request = Request.Builder()
+        return Request.Builder()
             .url(url)
             .header("User-Agent", USER_AGENT)
             .header("Referer", "https://y.qq.com/")
             .build()
-        return client.newCall(request).execute().use { response ->
+    }
+
+    private fun requestQqSearchSongs(request: Request, signed: Boolean): JSONArray =
+        sourceHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(context.getString(R.string.lx_service_search_failed_http, response.code))
-            val songs = JSONObject(response.body?.string().orEmpty())
-                .optJSONObject("data")
-                ?.optJSONObject("song")
-                ?.optJSONArray("list")
-                ?: return@use emptyList()
+            val root = JSONObject(response.body?.string().orEmpty())
+            if (root.optInt("code", -1) != 0) error(context.getString(R.string.lx_online_search_failed))
+            val data = if (signed) {
+                val result = root.optJSONObject("music.search.SearchCgiService") ?: root.optJSONObject("req")
+                    ?: error(context.getString(R.string.lx_online_search_failed))
+                if (result.optInt("code", -1) != 0) error(context.getString(R.string.lx_online_search_failed))
+                result.optJSONObject("data")?.optJSONObject("body")
+            } else root.optJSONObject("data")
+            data?.optJSONObject("song")?.optJSONArray("list")
+                ?: error(context.getString(R.string.lx_online_search_failed))
+        }
+
+    private fun parseQqSearchSongs(songs: JSONArray): List<LxOnlineSong> =
             List(songs.length()) { index ->
                 val item = songs.getJSONObject(index)
                 val mid = item.optString("mid").ifBlank { item.optString("songmid") }
-                val title = decodeHtml(item.optString("name").ifBlank { item.optString("songname") })
+                val title = decodeHtml(item.optString("title").ifBlank { item.optString("name") }.ifBlank { item.optString("songname") })
                 val singers = item.optJSONArray("singer")
                 val artist = if (singers != null) {
                     List(singers.length()) { singerIndex ->
@@ -293,11 +486,13 @@ class LxOnlineService(private val context: Context) {
                 val albumMid = album?.optString("mid").orEmpty()
                 val coverUrl = albumMid.takeIf { it.isNotBlank() }
                     ?.let { "https://y.gtimg.cn/music/photo_new/T002R500x500M000$it.jpg" }
+                    ?: singers?.optJSONObject(0)?.optString("mid")?.takeIf { it.isNotBlank() }
+                        ?.let { "https://y.gtimg.cn/music/photo_new/T001R500x500M000$it.jpg" }
                     .orEmpty()
                 val file = item.optJSONObject("file")
                 val qualities = buildList {
-                    if ((file?.optLong("size_128") ?: 0L) > 0L) add(LxOnlineQuality("128k"))
-                    if ((file?.optLong("size_320") ?: 0L) > 0L) add(LxOnlineQuality("320k"))
+                    if ((file?.let { it.optLong("size_128mp3", it.optLong("size_128")) } ?: 0L) > 0L) add(LxOnlineQuality("128k"))
+                    if ((file?.let { it.optLong("size_320mp3", it.optLong("size_320")) } ?: 0L) > 0L) add(LxOnlineQuality("320k"))
                     if ((file?.optLong("size_flac") ?: 0L) > 0L) add(LxOnlineQuality("flac"))
                     if ((file?.optLong("size_hires") ?: 0L) > 0L) add(LxOnlineQuality("flac24bit"))
                 }.ifEmpty { listOf(LxOnlineQuality("128k")) }
@@ -331,8 +526,6 @@ class LxOnlineService(private val context: Context) {
                     }
                 )
             }.filter { it.songmid.isNotBlank() && it.song.title.isNotBlank() }
-        }
-    }
 
     private fun searchKugou(keyword: String, page: Int): List<LxOnlineSong> {
         val encoded = URLEncoder.encode(keyword.trim(), "UTF-8")
@@ -518,7 +711,18 @@ class LxOnlineService(private val context: Context) {
     }
 
     suspend fun resolvePlayableSong(item: LxOnlineSong, sourceScript: String = ""): Song = withContext(Dispatchers.IO) {
-        val importedResolution = runCatching { resolveByImportedSource(item, sourceScript) }
+        val importedResolution = runCatching {
+            if (importedSourceResolver != null) importedSourceResolver.invoke(item, sourceScript)
+            else resolveByImportedSource(item, sourceScript)
+        }
+        importedResolution.exceptionOrNull()?.let { error ->
+            // An explicitly selected source must report its own failure. Quietly switching to
+            // a built-in URL can substitute a preview and hide the source's actual error.
+            if (error is CancellationException || sourceScript.isNotBlank()) throw error
+        }
+        if (sourceScript.isNotBlank() && importedResolution.getOrNull().isNullOrBlank()) {
+            error(context.getString(R.string.lx_service_source_no_playback_url))
+        }
         importedResolution.getOrNull()
             ?.let { playableUrl ->
             val extension = playableUrl.substringBefore('?')
@@ -558,10 +762,12 @@ class LxOnlineService(private val context: Context) {
     private suspend fun resolveByImportedSource(item: LxOnlineSong, sourceScript: String): String? {
         if (sourceScript.isNotBlank()) {
             runCatching {
+                val requestedQuality = com.ella.music.data.SettingsManager.getInstance(context).onlinePlaybackQuality.first()
                 return LxUserApiRuntime(context, sourceHttpClient).use { runtime ->
-                    runtime.requestMusicUrl(item, sourceScript, extractSourceName(sourceScript))
+                    runtime.requestMusicUrl(item, sourceScript, extractSourceName(sourceScript), requestedQuality)
                 }
             }.onFailure { quickJsError ->
+                if (quickJsError is CancellationException) throw quickJsError
                 val config = extractRenderApiConfig(sourceScript)
                 if (config == null) throw quickJsError
             }
@@ -750,19 +956,10 @@ class LxOnlineService(private val context: Context) {
         item: LxOnlineSong,
         sourceScript: String,
         targetFile: java.io.File
-    ) = withContext(Dispatchers.IO) {
+    ): File = withContext(Dispatchers.IO) {
         val playable = resolvePlayableSong(item, sourceScript)
-        val request = Request.Builder()
-            .url(playable.path)
-            .header("User-Agent", USER_AGENT)
-            .build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error(context.getString(R.string.lx_service_resolve_url_failed_http, response.code))
-            targetFile.parentFile?.mkdirs()
-            response.body?.byteStream()?.use { input ->
-                targetFile.outputStream().use { output -> input.copyTo(output) }
-            } ?: error(context.getString(R.string.lx_online_download_failed))
-        }
+        val downloaded = downloadAudioToFile(playable, targetFile)
+        val actualFile = File(downloaded.path)
         val lyrics = runCatching { fetchLyrics(item, sourceScript) }.getOrNull()
         val coverBytes = item.coverUrl.takeIf { it.startsWith("http") }?.let { url ->
             runCatching {
@@ -777,22 +974,98 @@ class LxOnlineService(private val context: Context) {
         val writer = com.ella.music.data.metadata.AudioTagRepository(
             com.ella.music.data.metadata.LyricoAudioTagReaderWriter(context)
         )
-        if (!lyrics.isNullOrBlank()) {
-            writer.writeTags(
-                targetFile.absolutePath,
-                com.ella.music.data.metadata.AudioTagInfo(
-                    title = item.song.title,
-                    artist = item.song.artist,
-                    album = item.song.album,
-                    lyrics = lyrics
-                )
+        writer.writeTags(
+            actualFile.absolutePath,
+            com.ella.music.data.metadata.AudioTagInfo(
+                title = item.song.title,
+                artist = item.song.artist,
+                album = item.song.album,
+                lyrics = lyrics?.takeIf { it.isNotBlank() }
             )
-        }
+        )
         if (coverBytes != null) {
             writer.writeEmbeddedCover(
-                targetFile.absolutePath,
+                actualFile.absolutePath,
                 com.ella.music.data.metadata.AudioCoverInfo(coverBytes, "image/jpeg")
             )
+        }
+        android.media.MediaScannerConnection.scanFile(context, arrayOf(actualFile.path), arrayOf(downloaded.mimeType), null)
+        actualFile
+    }
+
+    internal suspend fun downloadAudioToFile(playable: Song, targetFile: File): Song = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(playable.path)
+            .header("User-Agent", USER_AGENT)
+            .build()
+        val call = client.newCall(request)
+        val cancellationWatcher = launch(start = CoroutineStart.UNDISPATCHED) {
+            try { awaitCancellation() } finally { call.cancel() }
+        }
+        var stage: File? = null
+        var destination: File? = null
+        try {
+            runInterruptible { call.execute() }.use { response ->
+                if (!response.isSuccessful) error(context.getString(R.string.lx_service_resolve_url_failed_http, response.code))
+                val body = response.body ?: throw IOException(context.getString(R.string.lx_online_download_failed))
+                val completeRange = if (response.code == 206) {
+                    val range = Regex("bytes\\s+0-(\\d+)/(\\d+)", RegexOption.IGNORE_CASE)
+                        .matchEntire(response.header("Content-Range").orEmpty().trim())
+                    val end = range?.groupValues?.get(1)?.toLongOrNull()
+                    val total = range?.groupValues?.get(2)?.toLongOrNull()
+                    if (total == null || total <= 0L || end != total - 1L) {
+                        throw IOException(context.getString(R.string.lx_online_download_failed))
+                    }
+                    total
+                } else null
+                val source = body.source()
+                runInterruptible { source.request(512L) }
+                val prefix = source.peek().readByteArray(minOf(512L, source.buffer.size))
+                val textPrefix = prefix.toString(Charsets.UTF_8).trimStart { it.isWhitespace() || it == '\uFEFF' }
+                if (textPrefix.startsWith("#EXTM3U", true) || textPrefix.startsWith("<!DOCTYPE", true) ||
+                    textPrefix.startsWith("<html", true) || body.contentType()?.subtype?.contains("mpegurl", true) == true
+                ) throw IOException(context.getString(R.string.lx_online_download_failed))
+                val format = detectAudioContainerFormat(prefix, body.contentType()?.toString(), playable.fileName, playable.mimeType)
+                val temporary = File.createTempFile("lx-download-", ".${format.extension}", context.cacheDir)
+                stage = temporary
+                var copied = 0L
+                body.byteStream().use { input ->
+                    temporary.outputStream().buffered().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            currentCoroutineContext().ensureActive()
+                            val count = runInterruptible { input.read(buffer) }
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                            copied += count
+                        }
+                    }
+                }
+                if (copied == 0L || (body.contentLength() >= 0L && copied != body.contentLength()) ||
+                    (completeRange != null && copied != completeRange)
+                ) throw IOException(context.getString(R.string.lx_online_download_failed))
+                currentCoroutineContext().ensureActive()
+                val directory = targetFile.absoluteFile.parentFile!!
+                if (!directory.isDirectory && !directory.mkdirs()) throw IOException(context.getString(R.string.lx_online_download_failed))
+                val stem = targetFile.nameWithoutExtension
+                val desired = File(directory, "$stem.${format.extension}")
+                val actual = if (desired.createNewFile()) desired else {
+                    File(directory, "$stem-${UUID.randomUUID()}.${format.extension}").also {
+                        if (!it.createNewFile()) throw IOException(context.getString(R.string.lx_online_download_failed))
+                    }
+                }
+                destination = actual
+                temporary.copyTo(actual, overwrite = true)
+                playable.copy(path = actual.absolutePath, fileName = actual.name, mimeType = format.mimeType, fileSize = copied)
+            }
+        } catch (error: Exception) {
+            call.cancel()
+            destination?.delete()
+            currentCoroutineContext().ensureActive()
+            throw error
+        } finally {
+            stage?.delete()
+            cancellationWatcher.cancel()
         }
     }
 
@@ -945,6 +1218,55 @@ private fun List<LxOnlineQuality>.bestQuality(): String = when {
     any { it.type == "flac" } -> "flac"
     any { it.type == "320k" } -> "320k"
     else -> "128k"
+}
+
+// QQ metadata search protocol adapted from LX Music Mobile v1.9.1 (Apache-2.0),
+// commit fb8480728d875fa5e0da25eebd3a26bb71723aae, musicSdk/tx/musicSearch.js and utils/crypto.js.
+internal fun createQqSearchBody(
+    keyword: String,
+    page: Int,
+    searchId: String = UUID.randomUUID().toString().replace("-", "").uppercase(Locale.ROOT) +
+        ThreadLocalRandom.current().nextInt(100000).toString().padStart(5, '0')
+): JSONObject = JSONObject()
+    .put("comm", JSONObject()
+        .put("_channelid", "0")
+        .put("_os_version", "6.2.9200-2")
+        .put("ct", "19")
+        .put("cv", "2151")
+        .put("guid", "1F70E520B2EAA7D25E11760783C53CA9")
+        .put("patch", "118")
+        .put("psrf_access_token_expiresAt", 0)
+        .put("psrf_qqaccess_token", "")
+        .put("psrf_qqopenid", "")
+        .put("psrf_qqunionid", "")
+        .put("tmeAppID", "qqmusic")
+        .put("tmeLoginType", 0)
+        .put("uin", "0")
+        .put("wid", "7223299733393904640"))
+    .put("music.search.SearchCgiService", JSONObject()
+        .put("module", "music.search.SearchCgiService")
+        .put("method", "DoSearchForQQMusicDesktop")
+        .put("param", JSONObject()
+            .put("grp", 1)
+            .put("num_per_page", 30)
+            .put("page_num", page.coerceAtLeast(1))
+            .put("query", keyword.trim())
+            .put("remoteplace", "txt.newclient.top")
+            .put("search_type", 0)
+            .put("searchid", searchId)))
+
+/** Sign the exact UTF-8 JSON text sent in the public search request. */
+internal fun createQqSearchSignature(body: String): String {
+    val hash = MessageDigest.getInstance("SHA-1").digest(body.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(Locale.ROOT, byte.toInt() and 0xff) }
+    fun pick(indices: List<Int>) = indices.mapNotNull(hash::getOrNull).joinToString("")
+    val scramble = listOf(89, 39, 179, 150, 218, 82, 58, 252, 177, 52, 186, 123, 120, 64, 242, 133, 143, 161, 121, 179)
+    val bytes = ByteArray(scramble.size) { index ->
+        (scramble[index] xor hash.substring(index * 2, index * 2 + 2).toInt(16)).toByte()
+    }
+    val encoded = Base64.getEncoder().encodeToString(bytes).filterNot { it in "\\/+=" }
+    return ("zzc" + pick(listOf(23, 14, 6, 36, 16, 40, 7, 19)) + encoded +
+        pick(listOf(16, 1, 32, 12, 19, 27, 8, 5))).lowercase(Locale.ROOT)
 }
 
 internal fun createMiguSearchSignature(keyword: String, timestamp: String, deviceId: String): String {

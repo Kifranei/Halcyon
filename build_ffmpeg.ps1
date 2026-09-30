@@ -1,193 +1,79 @@
-# build_ffmpeg_windows.ps1
-# Run this script in PowerShell to build FFmpeg for Android
-# Requires: WSL (Windows Subsystem for Linux) with git, make, and Android NDK
-
+# Build pinned LGPL-only FFmpeg audio decoders through an existing WSL installation.
 $ErrorActionPreference = "Stop"
-
 $REPO_ROOT = $PSScriptRoot
 $FFMPEG_MODULE_PATH = Join-Path $REPO_ROOT "ffmpeg-decoder\src\main"
-$SDK_PATH = $env:ANDROID_HOME
-$FFMPEG_PREBUILT_DIR = Join-Path $FFMPEG_MODULE_PATH "jni\ffmpeg"
+$FFMPEG_VERSION = "9.0.2"
+$FFMPEG_SHA256 = "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e"
+$SOURCE_PARENT = Join-Path $REPO_ROOT "build\ffmpeg-sources"
+$SOURCE_ARCHIVE = Join-Path $SOURCE_PARENT "ffmpeg-$FFMPEG_VERSION.tar.xz"
 $LINUX_NDK_VERSION = "r29"
-$LINUX_NDK_URL = "https://dl.google.com/android/repository/android-ndk-$LINUX_NDK_VERSION-linux.zip"
 $LINUX_NDK_PARENT = Join-Path $REPO_ROOT "build\android-ndk-linux"
-$LINUX_NDK_PATH = Join-Path $LINUX_NDK_PARENT "android-ndk-$LINUX_NDK_VERSION"
-
-function ConvertTo-WslPath([string]$Path) {
-    $resolved = (Resolve-Path $Path).Path
-    $drive = $resolved.Substring(0, 1).ToLowerInvariant()
-    $rest = $resolved.Substring(2).Replace("\", "/")
-    return "/mnt/$drive$rest"
-}
-
-function Repair-LinuxNdkSymlinks([string]$NdkPath) {
-    $wslNdk = ConvertTo-WslPath $NdkPath
-    $wslBin = "$wslNdk/toolchains/llvm/prebuilt/linux-x86_64/bin"
-    $links = @{
-        "clang" = "clang-21"
-        "clang++" = "clang"
-        "ld" = "ld.lld"
-        "ld.lld" = "lld"
-        "ld64.lld" = "lld"
-        "lld-link" = "lld"
-        "llvm-addr2line" = "llvm-symbolizer"
-        "llvm-dlltool" = "llvm-ar"
-        "llvm-lib" = "llvm-ar"
-        "llvm-ranlib" = "llvm-ar"
-        "llvm-readelf" = "llvm-readobj"
-        "llvm-strip" = "llvm-objcopy"
-        "llvm-windres" = "llvm-rc"
-        "perf2bolt" = "llvm-bolt"
-        "wasm-ld" = "lld"
-    }
-    foreach ($entry in $links.GetEnumerator()) {
-        $link = $entry.Key
-        $target = $entry.Value
-        wsl bash -lc "cd '$wslBin' && if [ -e '$target' ] && [ ! -L '$link' ]; then rm -f '$link' && ln -s '$target' '$link'; fi"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "ERROR: Failed to repair Linux NDK symlink $link -> $target."
-            exit 1
-        }
-    }
-}
-
-function Reset-FfmpegPrebuiltDirectory {
-    if (Test-Path $FFMPEG_PREBUILT_DIR) {
-        Remove-Item -LiteralPath $FFMPEG_PREBUILT_DIR -Recurse -Force
-    }
-    New-Item -ItemType Directory -Force -Path $FFMPEG_PREBUILT_DIR | Out-Null
-}
-
-function Cleanup-FfmpegSourceTree {
-    if (-not (Test-Path $FFMPEG_PREBUILT_DIR)) {
-        return
-    }
-
-    Get-ChildItem -LiteralPath $FFMPEG_PREBUILT_DIR -Force | ForEach-Object {
-        if ($_.Name -notin @("android-libs", "include")) {
-            Remove-Item -LiteralPath $_.FullName -Recurse -Force
-        }
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($SDK_PATH)) {
-    $localProperties = Join-Path $REPO_ROOT "local.properties"
-    if (Test-Path $localProperties) {
-        $sdkLine = Get-Content $localProperties | Where-Object { $_ -match "^sdk\.dir=" } | Select-Object -First 1
-        if ($sdkLine) {
-            $SDK_PATH = ($sdkLine -replace "^sdk\.dir=", "").Replace("\:", ":").Replace("\\", "\")
-        }
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($SDK_PATH) -or -not (Test-Path $SDK_PATH)) {
-    Write-Host "ERROR: Android SDK not found. Set ANDROID_HOME or sdk.dir in local.properties."
-    exit 1
-}
-
-$NDK_PATH = Join-Path $SDK_PATH "ndk\29.0.14206865"
-
-# Check NDK
-if (-not (Test-Path $NDK_PATH)) {
-    # Try common NDK locations
-    $ndkVersions = Get-ChildItem (Join-Path $SDK_PATH "ndk") -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending
-    if ($ndkVersions.Count -gt 0) {
-        $NDK_PATH = $ndkVersions[0].FullName
-        Write-Host "Using NDK: $NDK_PATH"
-    } else {
-        Write-Host "ERROR: Android NDK not found. Install it via Android Studio > SDK Manager > SDK Tools > NDK"
-        exit 1
-    }
-}
-
-if (-not (Test-Path (Join-Path $NDK_PATH "toolchains\llvm\prebuilt\linux-x86_64"))) {
-    Write-Host "Windows NDK found, but WSL needs the Linux NDK toolchain."
-    if (-not (Test-Path (Join-Path $LINUX_NDK_PATH "toolchains\llvm\prebuilt\linux-x86_64"))) {
-        $zipPath = Join-Path $LINUX_NDK_PARENT "android-ndk-$LINUX_NDK_VERSION-linux.zip"
-        New-Item -ItemType Directory -Force -Path $LINUX_NDK_PARENT | Out-Null
-        if (-not (Test-Path $zipPath)) {
-            Write-Host "Downloading Linux NDK $LINUX_NDK_VERSION..."
-            curl.exe -L $LINUX_NDK_URL -o $zipPath
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "ERROR: Failed to download Linux NDK."
-                exit 1
-            }
-        }
-        Write-Host "Extracting Linux NDK..."
-        Expand-Archive -Path $zipPath -DestinationPath $LINUX_NDK_PARENT -Force
-    }
-    $NDK_PATH = $LINUX_NDK_PATH
-    Repair-LinuxNdkSymlinks $NDK_PATH
-    Write-Host "Using Linux NDK for WSL: $NDK_PATH"
-}
-
+$LINUX_NDK_ARCHIVE = Join-Path $LINUX_NDK_PARENT "android-ndk-$LINUX_NDK_VERSION-linux.zip"
 $ENABLED_DECODERS = @("alac", "aac", "ape", "mp3", "vorbis", "opus", "flac", "ac3", "eac3", "truehd", "dca", "amrnb", "amrwb", "pcm_mulaw", "pcm_alaw")
 
-Write-Host "=== Building FFmpeg for Android ==="
-Write-Host "Module path: $FFMPEG_MODULE_PATH"
-Write-Host "NDK path: $NDK_PATH"
-Write-Host "Decoders: $($ENABLED_DECODERS -join ', ')"
-
-# Check if FFmpeg source exists
-$ffmpegDir = $FFMPEG_PREBUILT_DIR
-if (-not (Test-Path (Join-Path $ffmpegDir "configure"))) {
-    Reset-FfmpegPrebuiltDirectory
-    Write-Host ""
-    Write-Host "FFmpeg source not found. Cloning..."
-    git -c core.autocrlf=false clone https://git.ffmpeg.org/ffmpeg.git --branch=release/6.0 --depth=1 $ffmpegDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Failed to clone FFmpeg."
-        exit 1
-    }
+function ConvertTo-WslPath([string]$Path) {
+    $absolute = [System.IO.Path]::GetFullPath($Path)
+    if ($absolute -notmatch '^[A-Za-z]:\\') { throw "Expected an absolute Windows drive path: $Path" }
+    return "/mnt/" + $absolute.Substring(0, 1).ToLowerInvariant() + $absolute.Substring(2).Replace("\", "/")
 }
 
-# Convert Windows paths to WSL paths
-$wslModulePath = ConvertTo-WslPath $FFMPEG_MODULE_PATH
-$wslNdkPath = ConvertTo-WslPath $NDK_PATH
-
-Write-Host ""
-Write-Host "Building FFmpeg via WSL..."
-Write-Host "WSL module path: $wslModulePath"
-Write-Host "WSL NDK path: $wslNdkPath"
-
-$decoderList = $ENABLED_DECODERS -join " "
-$wslToolPath = "$wslNdkPath/prebuilt/linux-x86_64/bin:$wslNdkPath/toolchains/llvm/prebuilt/linux-x86_64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-wsl bash -c "export PATH='$wslToolPath' && cd '${wslModulePath}/jni' && sed -i 's/\r$//' build_ffmpeg.sh && chmod +x build_ffmpeg.sh && ./build_ffmpeg.sh '${wslModulePath}' '${wslNdkPath}' 'linux-x86_64' 21 $decoderList"
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host ""
-    Write-Host "=== FFmpeg build completed successfully ==="
-    Write-Host "Static libraries are in: $FFMPEG_MODULE_PATH\jni\ffmpeg\android-libs\"
-    Write-Host "Building libffmpegJNI.so and refreshing the packaged arm64-v8a prebuilt..."
-
-    Push-Location $REPO_ROOT
-    try {
-        .\gradlew.bat :ffmpeg-decoder:assembleRelease -PellaBuildNative=true -PellaAbi=arm64-v8a
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "ERROR: Failed to build libffmpegJNI.so."
-            exit 1
-        }
-
-        $builtSo = Join-Path $REPO_ROOT "ffmpeg-decoder\build\intermediates\stripped_native_libs\release\stripReleaseDebugSymbols\out\lib\arm64-v8a\libffmpegJNI.so"
-        $outputDir = Join-Path $REPO_ROOT "ffmpeg-decoder\src\main\jniLibs\arm64-v8a"
-        if (-not (Test-Path $builtSo)) {
-            Write-Host "ERROR: Built library not found: $builtSo"
-            exit 1
-        }
-        New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-        Copy-Item -LiteralPath $builtSo -Destination (Join-Path $outputDir "libffmpegJNI.so") -Force
-        Write-Host "Copied prebuilt library to $outputDir"
-        Cleanup-FfmpegSourceTree
-        Write-Host "Removed full FFmpeg source tree and kept only include/android-libs prebuilt inputs."
-    } finally {
-        Pop-Location
-    }
-
-    Write-Host ""
-    Write-Host "Now rebuild the app normally: .\gradlew.bat :app:assembleRelease"
-} else {
-    Write-Host ""
-    Write-Host "=== FFmpeg build FAILED ==="
-    exit 1
+function ConvertTo-ShellLiteral([string]$Value) {
+    return "'" + $Value.Replace("'", "'\''") + "'"
 }
+
+New-Item -ItemType Directory -Force -Path $LINUX_NDK_PARENT, $SOURCE_PARENT, (Join-Path $FFMPEG_MODULE_PATH "jni\ffmpeg") | Out-Null
+if (-not (Test-Path -LiteralPath $LINUX_NDK_ARCHIVE)) {
+    curl.exe --fail --location "https://dl.google.com/android/repository/android-ndk-$LINUX_NDK_VERSION-linux.zip" --output $LINUX_NDK_ARCHIVE
+    if ($LASTEXITCODE -ne 0) { throw "Linux NDK download failed." }
+}
+if (-not (Test-Path -LiteralPath $SOURCE_ARCHIVE)) {
+    curl.exe --fail --location "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.xz" --output $SOURCE_ARCHIVE
+    if ($LASTEXITCODE -ne 0) { throw "FFmpeg source download failed." }
+}
+if ((Get-FileHash -LiteralPath $SOURCE_ARCHIVE -Algorithm SHA256).Hash.ToLowerInvariant() -ne $FFMPEG_SHA256) {
+    throw "FFmpeg source checksum mismatch; expected the official $FFMPEG_VERSION archive."
+}
+
+# Extract the Linux NDK in Linux: this preserves its original symlinks and avoids
+# slow per-file compiler/header access through the Windows filesystem mount.
+# Each run uses a fresh temporary directory; neither sources nor previous inputs are deleted.
+$runner = Join-Path $SOURCE_PARENT "build-android.sh"
+$buildJobs = if ($env:FFMPEG_BUILD_JOBS) { $env:FFMPEG_BUILD_JOBS } else { "4" }
+$moduleLiteral = ConvertTo-ShellLiteral (ConvertTo-WslPath $FFMPEG_MODULE_PATH)
+$scriptLiteral = ConvertTo-ShellLiteral (ConvertTo-WslPath (Join-Path $FFMPEG_MODULE_PATH "jni\build_ffmpeg.sh"))
+$ndkArchiveLiteral = ConvertTo-ShellLiteral (ConvertTo-WslPath $LINUX_NDK_ARCHIVE)
+$sourceArchiveLiteral = ConvertTo-ShellLiteral (ConvertTo-WslPath $SOURCE_ARCHIVE)
+$lines = @(
+    '#!/bin/bash',
+    'set -euo pipefail',
+    'for tool in make gcc xz pkg-config unzip; do command -v "$tool" >/dev/null || { echo "WSL requires make gcc libc6-dev xz-utils pkg-config unzip" >&2; exit 1; }; done',
+    'task_tmp=$(mktemp -d /var/tmp/halcyon-ffmpeg9-XXXXXX)',
+    '[[ "$task_tmp" =~ ^/var/tmp/halcyon-ffmpeg9-[A-Za-z0-9]+$ && ! -L "$task_tmp" ]] || exit 1',
+    'printf "Native build workspace: %s\n" "$task_tmp"',
+    ("unzip -oq " + $ndkArchiveLiteral + ' -d "$task_tmp"'),
+    'mkdir -p "$task_tmp/source"',
+    ("tar -xJf " + $sourceArchiveLiteral + ' -C "$task_tmp/source"'),
+    ('export FFMPEG_SOURCE_DIR="$task_tmp/source/ffmpeg-' + $FFMPEG_VERSION + '"'),
+    'export FFMPEG_BUILD_DIR="$task_tmp/native"',
+    ("export FFMPEG_BUILD_JOBS=" + (ConvertTo-ShellLiteral $buildJobs)),
+    ('[[ "$(cat "$FFMPEG_SOURCE_DIR/RELEASE")" == "' + $FFMPEG_VERSION + '" ]] || exit 1'),
+    ('sed ''s/\r$//'' ' + $scriptLiteral + ' > "$task_tmp/build_ffmpeg.sh"'),
+    ('bash "$task_tmp/build_ffmpeg.sh" ' + $moduleLiteral + ' "$task_tmp/android-ndk-' + $LINUX_NDK_VERSION + '" linux-x86_64 21 ' + ($ENABLED_DECODERS -join " "))
+)
+[System.IO.File]::WriteAllText($runner, ($lines -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
+Write-Host "Building FFmpeg $FFMPEG_VERSION for all four Android ABIs (LGPL-only)."
+wsl.exe -- bash (ConvertTo-WslPath $runner)
+if ($LASTEXITCODE -ne 0) { throw "FFmpeg native build failed; previous inputs have been retained." }
+
+Push-Location $REPO_ROOT
+try {
+    .\gradlew.bat :ffmpeg-decoder:assembleRelease -PellaBuildNative=true -PellaAbi=arm64-v8a
+    if ($LASTEXITCODE -ne 0) { throw "FFmpeg JNI build failed." }
+    $builtSo = Join-Path $REPO_ROOT "ffmpeg-decoder\build\intermediates\stripped_native_libs\release\stripReleaseDebugSymbols\out\lib\arm64-v8a\libffmpegJNI.so"
+    if (-not (Test-Path -LiteralPath $builtSo)) { throw "Built FFmpeg JNI library was not found." }
+    $outputDir = Join-Path $FFMPEG_MODULE_PATH "jniLibs\arm64-v8a"
+    New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+    Copy-Item -LiteralPath $builtSo -Destination (Join-Path $outputDir "libffmpegJNI.so") -Force
+} finally { Pop-Location }
+Write-Host "FFmpeg $FFMPEG_VERSION headers, four-ABI static libraries, and arm64 JNI prebuilt updated."
+Write-Host "Build the APK with .\gradlew.bat :app:assembleRelease"

@@ -48,6 +48,7 @@ import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
+import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.SongItem
@@ -65,7 +66,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.ella.music.ui.components.rememberEllaReorderableLazyListState
 
 @Composable
 fun PlaylistDetailScreen(
@@ -228,21 +229,22 @@ fun PlaylistDetailScreen(
         }
     }
     val showScrollIndicator = displayedSongs.size > 30 && !showSongSideIndex
-    val reorderableLazyListState = rememberReorderableLazyListState(
+    val songActionsEndPadding = if (showScrollIndicator) ScrollIndicatorListEndPadding else 0.dp
+    val reorderableLazyListState = rememberEllaReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            if (!reorderHandlesVisible) return@rememberReorderableLazyListState
+            if (!reorderHandlesVisible) return@rememberEllaReorderableLazyListState
             val fromSong = reorderableSongs.getOrNull(from.index - songListHeaderCount)
-                ?: return@rememberReorderableLazyListState
+                ?: return@rememberEllaReorderableLazyListState
             val toSong = reorderableSongs.getOrNull(to.index - songListHeaderCount)
-                ?: return@rememberReorderableLazyListState
+                ?: return@rememberEllaReorderableLazyListState
             val fromSongIndex = manualOrder.indexOfFirst {
                 it.playlistIdentityKey() == fromSong.playlistIdentityKey()
             }
             val toSongIndex = manualOrder.indexOfFirst {
                 it.playlistIdentityKey() == toSong.playlistIdentityKey()
             }
-            if (fromSongIndex !in manualOrder.indices || toSongIndex !in manualOrder.indices) return@rememberReorderableLazyListState
+            if (fromSongIndex !in manualOrder.indices || toSongIndex !in manualOrder.indices) return@rememberEllaReorderableLazyListState
             manualOrder = manualOrder.moveSelectedItemsAsBlock(
                 from = fromSongIndex,
                 to = toSongIndex,
@@ -416,6 +418,7 @@ fun PlaylistDetailScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
+                // Keep the hero's gradient full width; reserve the scrollbar space on actions.
                 contentPadding = PaddingValues(bottom = 150.dp)
             ) {
                 item {
@@ -429,6 +432,7 @@ fun PlaylistDetailScreen(
                         songCount = sortedSongs.size,
                         playCount = playlistPlayCount,
                         duration = sortedSongs.sumOf { it.duration },
+                        contentEndPadding = songActionsEndPadding,
                         onShuffle = if (selection.selectionMode) {
                             null
                         } else {
@@ -456,6 +460,7 @@ fun PlaylistDetailScreen(
 
                 item {
                     PlaylistPlayAllBar(
+                        modifier = Modifier.padding(end = songActionsEndPadding),
                         songCount = displayedSongs.size,
                         sortLabel = com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending()),
                         onPlayAll = {
@@ -545,6 +550,7 @@ fun PlaylistDetailScreen(
 
                 item {
                     com.ella.music.ui.components.ContinuePlaybackRow(
+                        modifier = Modifier.padding(end = songActionsEndPadding),
                         songs = displayedSongs,
                         categoryKey = com.ella.music.data.CategoryResumeKeys.playlist(playlistId),
                         playbackStats = playbackStats,
@@ -681,7 +687,7 @@ fun PlaylistDetailScreen(
                                 }
                             } else null,
                             showTrailingContentInSelectionMode = reorderHandlesVisible,
-                            modifier = Modifier
+                            modifier = Modifier.padding(end = songActionsEndPadding)
                         )
                     }
                 }
@@ -716,8 +722,8 @@ fun PlaylistDetailScreen(
                 currentItemIndex = if (selection.selectionMode) -1 else currentSongItemIndex,
                 locateRequest = locateCurrentSongRequest,
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
+                .align(Alignment.BottomEnd)
+                .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
             )
 
             FloatingSelectionControls(

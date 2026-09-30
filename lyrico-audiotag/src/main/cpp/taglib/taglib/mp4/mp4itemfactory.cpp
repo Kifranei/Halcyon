@@ -30,6 +30,7 @@
 
 #include "tbytevector.h"
 #include "tdebug.h"
+#include "tutils.h"
 
 #include "id3v1genres.h"
 
@@ -39,6 +40,40 @@ using namespace MP4;
 namespace {
 
 constexpr char freeFormPrefix[] = "----:com.apple.iTunes:";
+
+/*!
+ * Returns the atom data type denoted by \a flags, the type field of an
+ * iTunes metadata atom, or TypeUndefined if it cannot be represented.
+ *
+ * The field is 32 bits wide and comes from the file, while the range of the
+ * enumeration is 0..255, so it cannot simply be cast.
+ */
+MP4::AtomDataType atomDataTypeFromFlags(int flags)
+{
+  if(flags >= MP4::TypeImplicit && flags <= MP4::TypeUndefined)
+    return static_cast<MP4::AtomDataType>(flags);
+
+  return MP4::TypeUndefined;
+}
+
+MP4::CoverArt::Format detectImageFormat(const ByteVector &payload)
+{
+  const unsigned int size = payload.size();
+  if(size >= 2 &&
+     static_cast<unsigned char>(payload[0]) == 0xff &&
+     static_cast<unsigned char>(payload[1]) == 0xd8)
+    return MP4::CoverArt::JPEG;
+  if(size >= 8 && payload.startsWith("\x89PNG\x0d\x0a\x1a\x0a"))
+    return MP4::CoverArt::PNG;
+  if(size >= 6 && payload.startsWith("GIF8"))
+    return MP4::CoverArt::GIF;
+  if(size >= 14 &&
+     static_cast<unsigned char>(payload[0]) == 'B' &&
+     static_cast<unsigned char>(payload[1]) == 'M' &&
+     payload.toUInt(6, false) == 0)
+    return MP4::CoverArt::BMP;
+  return MP4::CoverArt::Unknown;
+}
 
 }  // namespace
 
@@ -172,7 +207,7 @@ std::pair<ByteVector, Item> ItemFactory::itemFromProperty(
     case ItemHandlerType::UInt:
       return {name, Item(static_cast<unsigned int>(values.front().toInt()))};
     case ItemHandlerType::LongLong:
-      return {name, Item(static_cast<long long>(values.front().toInt()))};
+      return {name, Item(values.front().toLongLong())};
     case ItemHandlerType::Byte:
       return {name, Item(static_cast<unsigned char>(values.front().toInt()))};
     case ItemHandlerType::Bool:
@@ -299,7 +334,7 @@ ItemFactory::NameHandlerMap ItemFactory::nameHandlerMap() const
     {"rate", ItemHandlerType::TextOrInt},
     {"tvsn", ItemHandlerType::UInt},
     {"tves", ItemHandlerType::UInt},
-    {"cnID", ItemHandlerType::UInt},
+    {"cnID", ItemHandlerType::LongLong},
     {"sfID", ItemHandlerType::UInt},
     {"atID", ItemHandlerType::UInt},
     {"geID", ItemHandlerType::UInt},
@@ -432,7 +467,7 @@ MP4::AtomDataList ItemFactory::parseData2(
         debug("MP4: Unexpected atom \"" + name + "\", expecting \"name\"");
         return result;
       }
-      result.append(AtomData(static_cast<AtomDataType>(flags),
+      result.append(AtomData(atomDataTypeFromFlags(flags),
                     data.mid(pos + 12, length - 12)));
     }
     else {
@@ -441,7 +476,7 @@ MP4::AtomDataList ItemFactory::parseData2(
         return result;
       }
       if(expectedFlags == -1 || flags == expectedFlags) {
-        result.append(AtomData(static_cast<AtomDataType>(flags),
+        result.append(AtomData(atomDataTypeFromFlags(flags),
                       data.mid(pos + 16, length - 16)));
       }
     }
@@ -625,13 +660,21 @@ std::pair<String, Item> ItemFactory::parseCovr(
       debug("MP4: Unexpected atom \"" + name + "\", expecting \"data\"");
       break;
     }
+    const ByteVector payload = data.mid(pos + 16, length - 16);
     if(flags == TypeJPEG || flags == TypePNG || flags == TypeBMP ||
        flags == TypeGIF || flags == TypeImplicit) {
-      value.append(MP4::CoverArt(static_cast<MP4::CoverArt::Format>(flags),
-                                 data.mid(pos + 16, length - 16)));
+      value.append(MP4::CoverArt(static_cast<MP4::CoverArt::Format>(flags), payload));
     }
     else {
-      debug("MP4: Unknown covr format " + String::number(flags));
+      // The flags field holds an unexpected type written by several buggy encoders/taggers
+      // (e.g. files where flags == TypeUTF8 == 1 but the payload is a JPEG image).
+      // Because 'covr' is semantically an image-only atom, try to recover the
+      // real format by sniffing the payload's magic bytes rather than silently
+      // discarding the artwork.
+      const auto format = detectImageFormat(payload);
+      debug(Utils::formatString(
+        "MP4: Replacing unexpected covr flags %d by detected format %d", flags, format));
+      value.append(MP4::CoverArt(format, payload));
     }
     pos += length;
   }

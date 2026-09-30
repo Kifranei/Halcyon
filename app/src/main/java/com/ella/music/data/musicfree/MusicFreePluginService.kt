@@ -4,6 +4,8 @@ import android.content.Context
 import com.ella.music.data.AppNetworkLoggingInterceptor
 import com.ella.music.data.MusicFreePluginConfig
 import com.ella.music.data.model.Song
+import com.ella.music.data.netease.matchesNeteasePluginTrack
+import com.ella.music.data.netease.toNeteaseMusicFreeItem
 import com.ella.music.data.readUtf8Bounded
 import com.ella.music.data.requireHttpsUrl
 import com.ella.music.data.requireHttpsRequests
@@ -13,6 +15,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -30,12 +33,31 @@ data class MusicFreeOnlineSong(
     val coverUrl: String = ""
 )
 
+data class MusicFreeSearchPage(
+    val songs: List<MusicFreeOnlineSong>,
+    val isEnd: Boolean?
+)
+
+internal data class MusicFreeRawSearchPage(val data: JSONArray, val isEnd: Boolean?) {
+    companion object {
+        fun fromJson(value: JSONObject) = MusicFreeRawSearchPage(
+            data = value.optJSONArray("data") ?: JSONArray(),
+            isEnd = value.opt("isEnd") as? Boolean
+        )
+    }
+}
+
 data class MusicFreeImportResult(
     val plugins: List<MusicFreePluginConfig>,
     val skippedCount: Int = 0
 )
 
-class MusicFreePluginService(private val context: Context? = null) {
+class MusicFreePluginService internal constructor(
+    private val context: Context?,
+    private val mediaSourceResolver: (suspend (MusicFreePluginConfig, String, String) -> JSONObject)?,
+    private val lyricResolver: (suspend (MusicFreePluginConfig, String) -> JSONObject)?
+) {
+    constructor(context: Context? = null) : this(context, null, null)
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
@@ -85,19 +107,6 @@ class MusicFreePluginService(private val context: Context? = null) {
                 )
             )
         )
-    }
-
-    @Deprecated("Use importPlugins so repository links and single scripts are handled consistently.")
-    suspend fun importPlugin(url: String): Pair<String, String> = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url(url.trim().requireHttpsUrl("MusicFree source"))
-            .header("User-Agent", USER_AGENT)
-            .header("Cache-Control", "no-cache")
-            .build()
-        importClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("导入失败: HTTP ${response.code}")
-            importPluginScript(response.body?.byteStream()?.use { it.readUtf8Bounded(9_000_000L) }.orEmpty(), allowRuntimeInspect = context != null)
-        }
     }
 
     fun importPluginScript(
@@ -193,51 +202,80 @@ class MusicFreePluginService(private val context: Context? = null) {
         keyword: String,
         plugin: MusicFreePluginConfig?,
         page: Int = 1
-    ): List<MusicFreeOnlineSong> = withContext(Dispatchers.IO) {
+    ): MusicFreeSearchPage = withContext(Dispatchers.IO) {
         if (plugin == null) error("请先选择一个 MusicFree 插件")
         if (context == null) error("MusicFree 运行环境未初始化")
         val normalizedKeyword = keyword.trim()
         val safePage = page.coerceAtLeast(1)
-        val rawItems = runCatching {
+        val rawResult = runCatching {
             MusicFreePluginRuntime(context, client).use { runtime ->
                 runtime.search(plugin.script, normalizedKeyword, safePage)
             }
         }.getOrElse { error ->
+            if (error is CancellationException) throw error
             if (error.message?.contains("lists", ignoreCase = true) == true && plugin.looksLikeKugouPlugin()) {
-                searchKugouFallback(normalizedKeyword, safePage)
+                val data = searchKugouFallback(normalizedKeyword, safePage)
+                JSONObject().put("data", data).put("isEnd", data.length() < 20)
             } else {
                 throw error
             }
         }
-        val items = rawItems.toJsonObjects()
+        val rawPage = MusicFreeRawSearchPage.fromJson(rawResult)
+        val items = rawPage.data.toJsonObjects()
         val durationBySongMid = fetchQqDurationsIfNeeded(plugin.name, items)
-        items.mapNotNull { item ->
+        val songs = items.mapNotNull { item ->
             item.toOnlineSong(plugin.name)?.let { onlineSong ->
                 enrichMissingDuration(item, onlineSong, durationBySongMid)
             }
         }
+        MusicFreeSearchPage(songs, rawPage.isEnd)
     }
 
-    suspend fun resolvePlayableSong(item: MusicFreeOnlineSong, plugin: MusicFreePluginConfig?): Song = withContext(Dispatchers.IO) {
-        if (plugin == null) error("请先选择一个 MusicFree 插件")
-        if (item.song.path.startsWith("http://") || item.song.path.startsWith("https://")) return@withContext item.song
-        if (context == null) error("MusicFree 运行环境未初始化")
-        val mediaSource = MusicFreePluginRuntime(context, client).use { runtime ->
-            runtime.getMediaSource(plugin.script, item.rawJson, preferredQuality(item.rawJson, com.ella.music.data.SettingsManager.getInstance(requireNotNull(context)).onlinePlaybackQuality.first()))
+    suspend fun resolveNeteaseSong(song: Song, plugin: MusicFreePluginConfig): Song {
+        val platform = extractPlatform(plugin.script).ifBlank { plugin.name }
+        val neteasePlatform = platform.contains("网易") || platform.contains("網易") ||
+            platform.contains("netease", ignoreCase = true)
+        val item = if (neteasePlatform) song.toNeteaseMusicFreeItem(platform) else {
+            search("${song.title} ${song.artist}", plugin).songs
+                .firstOrNull { song.matchesNeteasePluginTrack(it.song) }
+                ?: throw java.io.IOException(context?.getString(com.ella.music.R.string.netease_playback_no_match)
+                    ?: "The selected MusicFree source could not match this track")
         }
-        val lyricPayload = runCatching {
+        return resolvePlayableSong(item, plugin, includeLyrics = false)
+    }
+
+    suspend fun resolvePlayableSong(item: MusicFreeOnlineSong, plugin: MusicFreePluginConfig?, includeLyrics: Boolean = true): Song = withContext(Dispatchers.IO) {
+        if (plugin == null) error("请先选择一个 MusicFree 插件")
+        if (context == null) error("MusicFree 运行环境未初始化")
+        val quality = preferredQuality(
+            item.rawJson,
+            com.ella.music.data.SettingsManager.getInstance(context).onlinePlaybackQuality.first()
+        )
+        // A search item may already contain a preview or expired URL. The plugin owns media
+        // resolution; only its runtime can fall back to item.url when no resolver is declared.
+        val mediaSource = mediaSourceResolver?.invoke(plugin, item.rawJson, quality)
+            ?: MusicFreePluginRuntime(context, client).use { runtime ->
+                runtime.getMediaSource(plugin.script, item.rawJson, quality)
+            }
+        val url = mediaSource.optString("url").takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?: error("插件没有返回播放地址")
+        val lyricPayload = if (!includeLyrics) null else try {
+            lyricResolver?.invoke(plugin, item.rawJson) ?:
             MusicFreePluginRuntime(context, client).use { runtime ->
                 runtime.getLyric(plugin.script, item.rawJson)
             }
-        }.getOrNull()
-        val url = mediaSource.optString("url").takeIf { it.startsWith("http://") || it.startsWith("https://") }
-            ?: error("插件没有返回播放地址")
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        }
         val ext = url.substringBefore('?')
+            .substringBefore('#')
             .substringAfterLast('.', "")
             .takeIf { it.length in 2..5 }
             ?: "mp3"
         item.song.copy(
-            path = url,
+            path = MusicFreeStreamHeaders.getInstance(context).register(url, mediaSource),
             fileName = "${item.song.title}.$ext",
             mimeType = mimeTypeFromExtension(ext),
             onlineLyrics = lyricPayload?.extractLyrics().orEmpty().ifBlank { item.song.onlineLyrics },
@@ -470,6 +508,7 @@ class MusicFreePluginService(private val context: Context? = null) {
 
     private fun mimeTypeFromExtension(ext: String): String {
         return when (ext.lowercase()) {
+            "m3u8" -> androidx.media3.common.MimeTypes.APPLICATION_M3U8
             "flac" -> "audio/flac"
             "m4a" -> "audio/mp4"
             "ogg", "opus" -> "audio/ogg"

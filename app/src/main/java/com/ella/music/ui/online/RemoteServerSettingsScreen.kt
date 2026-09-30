@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,14 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.isInsecureHttpUrl
 import com.ella.music.data.remote.EmbyService
 import com.ella.music.data.remote.NavidromeService
 import com.ella.music.data.remote.RemoteMusicProvider
@@ -44,9 +41,6 @@ import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.data.remote.SavedRemoteServer
 import com.ella.music.data.remote.isSubsonicLike
 import com.ella.music.ui.components.ConfirmDangerDialog
-import com.ella.music.ui.components.EllaMiuixAction
-import com.ella.music.ui.components.EllaMiuixActionRow
-import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.folder.WebDavTextField
@@ -54,8 +48,6 @@ import com.ella.music.ui.settings.SettingsCardGroup
 import com.ella.music.ui.settings.rememberSettingsLazyListState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -422,6 +414,16 @@ fun RemoteServerEditorScreen(
                 ) {
                     WebDavTextField(stringResource(R.string.remote_server_name_label), name, onValueChange = { name = it })
                     WebDavTextField(stringResource(R.string.webdav_url), url, onValueChange = { url = it })
+                    // Plain HTTP is supported on purpose (a self-hosted machine without a
+                    // certificate), so say out loud what that costs instead of refusing it.
+                    if (isInsecureHttpUrl(url) || isInsecureHttpUrl(secondaryUrl)) {
+                        Text(
+                            text = stringResource(R.string.remote_server_http_warning),
+                            color = MiuixTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp)
+                        )
+                    }
                     if (isSubsonicLike) {
                         WebDavTextField(
                             stringResource(R.string.remote_server_secondary_url_label),

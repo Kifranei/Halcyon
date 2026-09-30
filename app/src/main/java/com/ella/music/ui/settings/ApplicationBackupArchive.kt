@@ -171,12 +171,6 @@ internal fun readApplicationBackupFile(context: Context, file: File): JSONObject
     }
 }
 
-internal fun readApplicationBackupUri(context: Context, uri: Uri): JSONObject {
-    context.contentResolver.openInputStream(uri)?.buffered()?.use { input ->
-        return readApplicationBackupStream(context, input)
-    } ?: error("Unable to open backup file")
-}
-
 private fun readApplicationBackupStream(context: Context, input: InputStream): JSONObject {
     val buffered = if (input is BufferedInputStream) input else BufferedInputStream(input)
     buffered.mark(4)
@@ -468,7 +462,6 @@ private const val ARTIST_DESCRIPTIONS_FILE = "artist_descriptions.properties"
 private const val ALBUM_DESCRIPTIONS_FILE = "album_descriptions.properties"
 private const val DESCRIPTIONS_ZIP_PREFIX = "descriptions/"
 private const val DESCRIPTIONS_DIR_EXTRACTED = "descriptions"
-private const val ARTIST_IMAGES_DIR = "artist_images"
 private const val ARTIST_IMAGES_ZIP_PREFIX = "artist_images/"
 private const val ARTIST_IMAGES_DIR_EXTRACTED = "artist_images"
 

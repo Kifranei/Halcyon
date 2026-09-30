@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">إظهار آخر أغنية في مكتبة الموسيقى</string>
+    <string name="settings_category_continue_playback_row">صفحات الفئات: إظهار متابعة التشغيل</string>
+    <string name="settings_category_continue_playback_row_summary">إظهار آخر أغنية في تفاصيل الألبومات والفنانين وقوائم التشغيل والمجلدات</string>
+    <string name="netease_link_custom_comments_summary">اتركه فارغًا للتعليقات داخل التطبيق مع الصفحات والمواضيع والإعجابات والردود. يستبدل {id} بمعرّف المورد</string>
+    <string name="recent_playback_folder_types">أنواع العرض في تبويب المجلدات</string>
+    <string name="recent_playback_mv_types">أنواع العرض في تبويب الفيديوهات الموسيقية</string>
+    <string name="recent_playback_nested_folder">المجلدات المتداخلة</string>
+    <string name="recent_playback_local_mv">فيديوهات موسيقية محلية</string>
+    <string name="recent_playback_online_mv">فيديوهات موسيقية عبر الإنترنت</string>
+    <string name="recent_playback_delete_online_mv_message">حذف سجل تشغيل الفيديو الموسيقي «%1$s» نهائيًا؟</string>
+</resources>

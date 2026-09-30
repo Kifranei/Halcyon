@@ -18,13 +18,6 @@ enum class AiApiProtocol {
     Anthropic
 }
 
-fun Int.toAiApiProtocol(): AiApiProtocol =
-    if (this == SettingsManager.AI_API_PROTOCOL_ANTHROPIC) {
-        AiApiProtocol.Anthropic
-    } else {
-        AiApiProtocol.Compatible
-    }
-
 internal fun resolveAiApiProtocol(stored: Int, baseUrl: String): AiApiProtocol {
     if (stored == SettingsManager.AI_API_PROTOCOL_ANTHROPIC) return AiApiProtocol.Anthropic
     return if (baseUrl.contains("anthropic", ignoreCase = true)) {

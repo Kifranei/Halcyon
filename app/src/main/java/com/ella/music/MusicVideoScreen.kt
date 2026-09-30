@@ -18,7 +18,6 @@ import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -26,14 +25,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -53,6 +50,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import com.ella.music.data.VideoPlaybackSpeedState
+import com.ella.music.data.videoSpeedLabel
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -130,6 +130,7 @@ import top.yukonga.miuix.kmp.icon.basic.Check
 @Composable
 internal fun DetailMusicVideoScreen(
     song: Song,
+    isMusicVideo: Boolean,
     source: Uri,
     videoAspectRatio: Float?,
     initialLandscape: Boolean,
@@ -176,9 +177,13 @@ internal fun DetailMusicVideoScreen(
         )
     }
     var showCaptionSettings by remember { mutableStateOf(false) }
+    var showSpeedSettings by remember { mutableStateOf(false) }
+    var speedState by remember(source) { mutableStateOf(VideoPlaybackSpeedState()) }
     var showCaptureActions by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val speedScope = rememberCoroutineScope()
+    val holdSpeedPercent by settingsManager.videoHoldSpeedPercent.collectAsState(initial = 200)
     val captureSubtitles by settingsManager.musicVideoCaptureSubtitles.collectAsState(initial = false)
     val musicVideoStretchEnabled by settingsManager.musicVideoStretchEnabled.collectAsState(
         initial = SettingsManager.DEFAULT_MUSIC_VIDEO_STRETCH_ENABLED
@@ -198,7 +203,7 @@ internal fun DetailMusicVideoScreen(
         videoResizeMode
     }
     val repository = remember(context) { MusicRepository.getInstance(context) }
-    val lyricsNeeded = captionsEnabled || ktvLyricsEnabled || (showCaptureActions && captureSubtitles)
+    val lyricsNeeded = isMusicVideo && (captionsEnabled || ktvLyricsEnabled || (showCaptureActions && captureSubtitles))
     val lyrics by produceState<List<LyricLine>>(
         emptyList(),
         song.path,
@@ -249,7 +254,7 @@ internal fun DetailMusicVideoScreen(
                 true
             )
             if (source.scheme != "halcyon-netease-mv") {
-                setMediaItem(context.buildMusicVideoMediaItem(source))
+                setMediaItem(context.buildMusicVideoMediaItem(source, song.mimeType.takeIf { source.toString() == song.path && it.isNotBlank() }))
                 prepare()
                 playWhenReady = true
             }
@@ -276,8 +281,9 @@ internal fun DetailMusicVideoScreen(
             }
         }
     }
-    LaunchedEffect(accompanimentEnabled) {
-        accompanimentProcessor.enabled = accompanimentEnabled
+    LaunchedEffect(player, speedState.effective) { player.setPlaybackSpeed(speedState.effective) }
+    LaunchedEffect(accompanimentEnabled, isMusicVideo) {
+        accompanimentProcessor.enabled = isMusicVideo && accompanimentEnabled
     }
     DisposableEffect(activity, player) {
         activity.attachMusicVideoPlayer(player)
@@ -365,6 +371,8 @@ internal fun DetailMusicVideoScreen(
         if (inPictureInPictureMode) {
             controlsVisible = false
             showCaptionSettings = false
+            showSpeedSettings = false
+            speedState = speedState.release()
             showCaptureActions = false
         } else {
             controlsVisible = true
@@ -382,7 +390,7 @@ internal fun DetailMusicVideoScreen(
             activity.setLandscapeImmersive(false)
         }
     }
-    val captionsAvailable = song.duration > 0L && duration > 0L && abs(song.duration - duration) <= 10_000L
+    val captionsAvailable = isMusicVideo && song.duration > 0L && duration > 0L && abs(song.duration - duration) <= 10_000L
     val effectiveCaptionsEnabled = captionsEnabled && captionsAvailable
 
     Box(modifier = Modifier.fillMaxSize().background(ComposeColor.Black)) {
@@ -410,6 +418,17 @@ internal fun DetailMusicVideoScreen(
         } else if (landscape) {
             LandscapeMusicVideoLayout(
                 song = song,
+                isMusicVideo = isMusicVideo,
+                speedLabel = if (isMusicVideo) null else videoSpeedLabel(speedState.selected),
+                onOpenSpeedSettings = {
+                    showCaptionSettings = false
+                    showCaptureActions = false
+                    speedState = speedState.release()
+                    controlsVisible = true
+                    showSpeedSettings = true
+                },
+                onHoldSpeedStart = if (isMusicVideo) null else ({ speedState = speedState.hold(holdSpeedPercent / 100f) }),
+                onHoldSpeedEnd = if (isMusicVideo) null else ({ speedState = speedState.release() }),
                 player = player,
                 isPlaying = isPlaying,
                 position = position,
@@ -469,6 +488,17 @@ internal fun DetailMusicVideoScreen(
         } else {
             PortraitMusicVideoLayout(
                 song = song,
+                isMusicVideo = isMusicVideo,
+                speedLabel = if (isMusicVideo) null else videoSpeedLabel(speedState.selected),
+                onOpenSpeedSettings = {
+                    showCaptionSettings = false
+                    showCaptureActions = false
+                    speedState = speedState.release()
+                    controlsVisible = true
+                    showSpeedSettings = true
+                },
+                onHoldSpeedStart = if (isMusicVideo) null else ({ speedState = speedState.hold(holdSpeedPercent / 100f) }),
+                onHoldSpeedEnd = if (isMusicVideo) null else ({ speedState = speedState.release() }),
                 lyrics = lyrics,
                 captionsEnabled = effectiveCaptionsEnabled,
                 captionTranslationEnabled = captionTranslationEnabled,
@@ -513,6 +543,19 @@ internal fun DetailMusicVideoScreen(
                     }
                 )
             }
+        }
+        androidx.activity.compose.BackHandler(enabled = showSpeedSettings) { showSpeedSettings = false }
+        if (speedState.held != null && !inPictureInPictureMode) {
+            Text(stringResource(R.string.video_holding_speed, videoSpeedLabel(speedState.effective)),
+                color = ComposeColor.White, modifier = Modifier.align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars).padding(top = 12.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(ComposeColor.Black.copy(alpha = .55f)).padding(12.dp))
+        }
+        if (showSpeedSettings && !inPictureInPictureMode) {
+            VideoPlaybackSpeedOverlay(speedState.selected, holdSpeedPercent,
+                onSpeed = { speedState = speedState.select(it) },
+                onHoldSpeed = { percent -> speedScope.launch { settingsManager.setVideoHoldSpeedPercent(percent) } },
+                onDismiss = { showSpeedSettings = false })
         }
         if (showCaptionSettings) {
             MusicVideoCaptionSettingsOverlay(
@@ -606,6 +649,11 @@ internal fun DetailMusicVideoScreen(
 @Composable
 private fun PortraitMusicVideoLayout(
     song: Song,
+    isMusicVideo: Boolean,
+    speedLabel: String?,
+    onOpenSpeedSettings: () -> Unit,
+    onHoldSpeedStart: (() -> Unit)?,
+    onHoldSpeedEnd: (() -> Unit)?,
     lyrics: List<LyricLine>,
     captionsEnabled: Boolean,
     captionTranslationEnabled: Boolean,
@@ -654,7 +702,9 @@ private fun PortraitMusicVideoLayout(
                     onSeek = onSeek,
                     onFeedback = { gestureFeedback = it; feedbackRevision += 1 },
                     onTap = { onControlsVisibleChange(!controlsVisible) },
-                    onDoubleTap = onTogglePlay
+                    onDoubleTap = onTogglePlay,
+                    onHoldSpeedStart = onHoldSpeedStart,
+                    onHoldSpeedEnd = onHoldSpeedEnd
                 )
         )
         gestureFeedback?.let { MusicVideoGestureFeedbackOverlay(feedback = it) }
@@ -699,15 +749,17 @@ private fun PortraitMusicVideoLayout(
                     }
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    ArtistTitleBlock(song = song)
+                    ArtistTitleBlock(song = song, showArtist = isMusicVideo)
                     VideoTransport(
                         isPlaying = isPlaying,
                         position = position,
                         duration = duration,
                         onTogglePlay = onTogglePlay,
                         onSeek = onSeek,
+                        speedLabel = speedLabel,
+                        onSpeed = onOpenSpeedSettings,
                         trailingLabel = stringResource(R.string.player_music_video_landscape),
-                        secondaryTrailingLabel = stringResource(R.string.music_video_captions),
+                        secondaryTrailingLabel = if (isMusicVideo) stringResource(R.string.music_video_captions) else null,
                         onSecondaryTrailing = onOpenCaptionSettings,
                         secondaryTrailingSelected = captionsEnabled,
                         trailingIconRes = R.drawable.ic_fullscreen,
@@ -722,6 +774,11 @@ private fun PortraitMusicVideoLayout(
 @Composable
 private fun LandscapeMusicVideoLayout(
     song: Song,
+    isMusicVideo: Boolean,
+    speedLabel: String?,
+    onOpenSpeedSettings: () -> Unit,
+    onHoldSpeedStart: (() -> Unit)?,
+    onHoldSpeedEnd: (() -> Unit)?,
     player: ExoPlayer,
     videoResizeMode: Int,
     isPlaying: Boolean,
@@ -784,7 +841,9 @@ private fun LandscapeMusicVideoLayout(
                         gestureFeedbackRevision += 1
                     },
                     onTap = { onControlsVisibleChange(!controlsVisible) },
-                    onDoubleTap = onTogglePlay
+                    onDoubleTap = onTogglePlay,
+                    onHoldSpeedStart = onHoldSpeedStart,
+                    onHoldSpeedEnd = onHoldSpeedEnd
                 )
         )
         gestureFeedback?.let { feedback ->
@@ -825,7 +884,7 @@ private fun LandscapeMusicVideoLayout(
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
                     Text(song.title.ifBlank { song.fileName }, color = ComposeColor.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                    ArtistChip(song = song)
+                    if (isMusicVideo) ArtistChip(song = song)
                     IconButton(onClick = onPictureInPicture) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(
@@ -864,8 +923,10 @@ private fun LandscapeMusicVideoLayout(
                     duration = duration,
                     onTogglePlay = onTogglePlay,
                     onSeek = onSeek,
-                    secondaryTrailingLabel = stringResource(R.string.music_video_accompaniment),
-                    onSecondaryTrailing = onToggleAccompaniment,
+                    speedLabel = speedLabel,
+                    onSpeed = onOpenSpeedSettings,
+                    secondaryTrailingLabel = if (isMusicVideo) stringResource(R.string.music_video_accompaniment) else null,
+                    onSecondaryTrailing = if (isMusicVideo) onToggleAccompaniment else null,
                     secondaryTrailingSelected = accompanimentEnabled,
                     trailingLabel = stringResource(R.string.music_video_captions),
                     onTrailing = onOpenCaptionSettings,
@@ -880,7 +941,7 @@ private fun LandscapeMusicVideoLayout(
                     .padding(end = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                VideoIconButton(
+                if (isMusicVideo) VideoIconButton(
                     MiuixIcons.Regular.Mic,
                     stringResource(R.string.music_video_ktv),
                     onToggleKtvLyrics,
@@ -926,7 +987,9 @@ private fun Modifier.musicVideoGestureControls(
     onSeek: (Long) -> Unit,
     onFeedback: (MusicVideoGestureFeedback) -> Unit,
     onTap: () -> Unit,
-    onDoubleTap: () -> Unit
+    onDoubleTap: () -> Unit,
+    onHoldSpeedStart: (() -> Unit)? = null,
+    onHoldSpeedEnd: (() -> Unit)? = null
 ): Modifier {
     val context = LocalContext.current
     val activity = context as? MusicVideoActivity
@@ -939,6 +1002,8 @@ private fun Modifier.musicVideoGestureControls(
     val currentOnFeedback by rememberUpdatedState(onFeedback)
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnDoubleTap by rememberUpdatedState(onDoubleTap)
+    val currentHoldStart by rememberUpdatedState(onHoldSpeedStart)
+    val currentHoldEnd by rememberUpdatedState(onHoldSpeedEnd)
     return pointerInput(
         player,
         activity,
@@ -997,6 +1062,17 @@ private fun Modifier.musicVideoGestureControls(
             var releaseTimeMs = down.uptimeMillis
             var releasePosition = down.position
             var pointerPressed = true
+            var holdingSpeed = false
+            val holdJob = if (currentHoldStart != null) launch {
+                delay(viewConfiguration.longPressTimeoutMillis)
+                if (pointerPressed && mode == null && accumulated.getDistance() < viewConfiguration.touchSlop && !currentControlsLocked) {
+                    pendingSingleTap?.cancel()
+                    lastTapTimeMs = 0L
+                    holdingSpeed = true
+                    currentHoldStart?.invoke()
+                }
+            } else null
+            try {
             while (pointerPressed) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -1004,6 +1080,8 @@ private fun Modifier.musicVideoGestureControls(
                 releaseTimeMs = change.uptimeMillis
                 releasePosition = change.position
                 accumulated = change.position - startTouch
+                if (holdingSpeed) { change.consume(); continue }
+                if (accumulated.getDistance() >= viewConfiguration.touchSlop) holdJob?.cancel()
                 if (
                     mode == null &&
                     accumulated.getDistance() >= viewConfiguration.touchSlop
@@ -1083,9 +1161,13 @@ private fun Modifier.musicVideoGestureControls(
                     null -> Unit
                 }
             }
+            } finally {
+                holdJob?.cancel()
+                if (holdingSpeed) currentHoldEnd?.invoke()
+            }
             latestSeekTarget?.let(currentOnSeek)
             if (
-                mode == null &&
+                !holdingSpeed && mode == null &&
                 accumulated.getDistance() < viewConfiguration.touchSlop
             ) {
                 val elapsed = releaseTimeMs - lastTapTimeMs
@@ -1361,7 +1443,7 @@ private fun MusicVideoCaptionSettingsOverlay(
                         offsetInput = filtered
                         filtered.toLongOrNull()?.let(onSyncOffsetChange)
                     },
-                    textStyle = androidx.compose.ui.text.TextStyle(
+                    textStyle = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.main.copy(
                         color = ComposeColor.White,
                         fontSize = 15.sp,
                         textAlign = TextAlign.Center
@@ -1579,9 +1661,9 @@ private fun PlayerView.configureEmbeddedSubtitles() {
 }
 
 @Composable
-private fun ArtistTitleBlock(song: Song) {
+private fun ArtistTitleBlock(song: Song, showArtist: Boolean = true) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        ArtistChip(song = song)
+        if (showArtist) ArtistChip(song = song)
         Text(song.title.ifBlank { song.fileName }, color = ComposeColor.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -1628,6 +1710,8 @@ private fun VideoTransport(
     duration: Long,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
+    speedLabel: String? = null,
+    onSpeed: (() -> Unit)? = null,
     secondaryTrailingLabel: String? = null,
     onSecondaryTrailing: (() -> Unit)? = null,
     secondaryTrailingSelected: Boolean = false,
@@ -1656,6 +1740,9 @@ private fun VideoTransport(
                 selected = secondaryTrailingSelected,
                 modifier = Modifier.padding(start = 8.dp)
             )
+        }
+        if (speedLabel != null && onSpeed != null) {
+            VideoTextButton(speedLabel, onSpeed, modifier = Modifier.padding(start = 8.dp))
         }
         if (trailingIconRes != null) {
             IconButton(onClick = onTrailing, modifier = Modifier.padding(start = 8.dp)) {
@@ -1706,7 +1793,7 @@ private fun VideoIconButton(
 }
 
 @Composable
-private fun VideoTextButton(text: String, onClick: () -> Unit, selected: Boolean = false, modifier: Modifier = Modifier) {
+internal fun VideoTextButton(text: String, onClick: () -> Unit, selected: Boolean = false, modifier: Modifier = Modifier) {
     Text(text, color = ComposeColor.White, fontSize = 13.sp, modifier = modifier.clip(RoundedCornerShape(16.dp)).background(if (selected) ComposeColor(0xFF4D7CFE) else ComposeColor.Black.copy(alpha = 0.42f)).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 7.dp))
 }
 

@@ -35,7 +35,7 @@ internal data class LyricShareCardContent(
     /** NetEase song id used for the QR code of [LyricShareCardStyle.NetEase]; blank when unknown. */
     val neteaseSongId: String = "",
     /** Brand label drawn in the footer of [LyricShareCardStyle.NetEase]. */
-    val brandText: String = ""
+    val brandText: String = "Halcyon"
 )
 
 /** The built-in card arrangements exposed by the lyric-share picker. */
@@ -43,7 +43,9 @@ enum class LyricShareCardStyle {
     Current,
     LegacyTopMetadata,
     /** NetEase Cloud Music style: solid cover-tinted card, big lyrics, QR code footer. */
-    NetEase
+    NetEase,
+    Historical127, Spotify, Magazine, Cinematic, Polaroid, Calligraphy,
+    Vinyl, Receipt, Journal, Minimal, Cyberpunk, Swiss, AncientBook, StickyNote, Ticket, CD
 }
 
 /** The independently selectable lyric fields and card arrangement in the share picker. */
@@ -154,7 +156,6 @@ internal fun buildLyricShareCardContent(
                 includePronunciation = includePronunciation
             )
         }
-        .take(SHARE_CARD_MAX_BLOCKS)
 
     return LyricShareCardContent(
         title = song?.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.lyric_share_unknown_song),
@@ -166,13 +167,7 @@ internal fun buildLyricShareCardContent(
         appendEllipsis = appendEllipsis,
         style = style,
         neteaseSongId = shareCardNeteaseSongId(context, song),
-        // The bottom-left brand only belongs on songs from the NetEase library; other songs
-        // (including local files with a 163 key) keep the style without it.
-        brandText = if (style == LyricShareCardStyle.NetEase && song?.onlineSource == "netease") {
-            context.getString(R.string.lyric_share_netease_brand)
-        } else {
-            ""
-        }
+        brandText = lyricShareBrandName(context, customInfo)
     )
 }
 
@@ -319,12 +314,6 @@ internal fun copySelectedLyricText(
     }
 }.filter(String::isNotBlank).joinToString("\n")
 
-internal fun LyricLine.sharePrimaryText(): String {
-    return text.trim().ifBlank {
-        backgroundText?.trim().orEmpty()
-    }
-}
-
 internal fun LyricLine.toShareLyricBlock(
     includeOriginal: Boolean = true,
     includeTranslation: Boolean = true,
@@ -357,17 +346,8 @@ internal fun LyricLine.toShareLyricBlock(
     }
 }
 
-internal fun LyricLine.shareLyricFieldTexts(
-    includeOriginal: Boolean,
-    includeTranslation: Boolean,
-    includePronunciation: Boolean
-): List<String> = toShareLyricBlock(
-    includeOriginal = includeOriginal,
-    includeTranslation = includeTranslation,
-    includePronunciation = includePronunciation
-).let { block ->
-    if (block == null) emptyList() else listOf(block.primary) + block.secondary
-}
+internal fun lyricShareBrandName(context: Context, customInfo: String): String =
+    customInfo.trim().removePrefix("@").trim().ifBlank { context.getString(R.string.lyric_share_footer_default) }
 
 private fun lyricShareFooter(context: Context, customInfo: String): String {
     val normalized = customInfo.trim().removePrefix("@").trim()

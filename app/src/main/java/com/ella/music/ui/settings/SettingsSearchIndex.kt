@@ -40,6 +40,8 @@ internal data class SettingsSearchDefinition(
  * a preference between settings pages cannot silently leave a stale name-based fallback route.
  */
 private val manualSettingsSearchCatalog = listOf(
+    SettingsSearchDefinition(R.string.video_tools_title, R.string.video_tools_summary, "视频 m3u m3u8 mp4 播放 下载 video player", SettingsSearchTarget.Page("video_player")),
+    SettingsSearchDefinition(R.string.settings_other, null, "其他 视频 other", SettingsSearchTarget.Page("other_settings")),
     SettingsSearchDefinition(R.string.settings_setup_wizard, R.string.settings_setup_wizard_summary, "向导 引导 初始设置 新手 setup", SettingsSearchTarget.SetupWizard),
     SettingsSearchDefinition(R.string.settings_appearance_home, R.string.settings_appearance_home_summary, "主题 深色 浅色 跟随系统 语言 图标 壁纸 启动画面 底栏 沉浸 播放页 背景 theme language appearance", SettingsSearchTarget.AppearanceHub),
     SettingsSearchDefinition(R.string.settings_bottom_dock_items, R.string.settings_bottom_dock_items_summary, "底栏 底部导航 导航栏 入口 顺序 预览 搜索 dock navigation", SettingsSearchTarget.BottomNavigation),
@@ -60,7 +62,8 @@ private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_theme_mode, null, "主题 深色 浅色 跟随系统 外观", SettingsSearchTarget.Appearance("theme_mode")),
     SettingsSearchDefinition(R.string.settings_progressive_top_bar_blur, R.string.settings_progressive_top_bar_blur_summary, "顶栏 渐进 模糊 blur", SettingsSearchTarget.Appearance("progressive_top_bar_blur")),
     SettingsSearchDefinition(R.string.settings_language, null, "语言 language app language system 系统 英文 中文", SettingsSearchTarget.Appearance("language")),
-    SettingsSearchDefinition(R.string.settings_app_icon, R.string.settings_app_icon_summary, "图标 启动器 icon anime loli", SettingsSearchTarget.Appearance("app_icon")),
+    SettingsSearchDefinition(R.string.settings_app_icon, R.string.settings_app_icon_summary, "图标 启动器 传统 音符 海浪 icon anime loli traditional", SettingsSearchTarget.Appearance("app_icon")),
+    SettingsSearchDefinition(R.string.settings_recents_icon_system_theme, R.string.settings_recents_icon_system_theme_summary, "最近任务 图标 系统主题 MIUI 方形 recents icon theme", SettingsSearchTarget.Appearance("app_icon")),
     SettingsSearchDefinition(R.string.settings_custom_launcher_icon, R.string.settings_custom_launcher_icon_summary, "图标 自定义 桌面 shortcut launcher", SettingsSearchTarget.Appearance("app_icon")),
     SettingsSearchDefinition(R.string.settings_app_wallpaper, R.string.settings_app_wallpaper_summary, "壁纸 图片 背景 模糊 毛玻璃 wallpaper", SettingsSearchTarget.Appearance("wallpaper")),
     SettingsSearchDefinition(R.string.settings_app_now_playing_flow_background, R.string.settings_app_now_playing_flow_background_summary, "首页 音乐库 艺术家 专辑 当前歌曲 流光 动态背景", SettingsSearchTarget.Appearance("app_now_playing_flow_background")),
@@ -72,7 +75,8 @@ private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_player_show_song_annotation, R.string.settings_player_show_song_annotation_summary, "播放页 歌曲注释 annotation", SettingsSearchTarget.Appearance("player_show_song_annotation")),
     SettingsSearchDefinition(R.string.settings_player_tap_seek, R.string.settings_player_tap_seek_summary, "进度条 点击 跳转 拖动", SettingsSearchTarget.Appearance("player_tap_seek")),
     SettingsSearchDefinition(R.string.settings_transport_button_outlines, R.string.settings_transport_button_outlines_summary, "播放页 控制 按钮 轮廓 外框", SettingsSearchTarget.Appearance("transport_button_outlines")),
-    SettingsSearchDefinition(R.string.settings_player_landscape_style, null, "横屏播放 宽屏 歌词 CoverFlow MV 流光", SettingsSearchTarget.Appearance("player_landscape")),
+    SettingsSearchDefinition(R.string.settings_player_landscape_style, null, "横屏播放 宽屏 歌词 CoverFlow MV 流光 经典分栏 铺满封面", SettingsSearchTarget.Appearance("player_landscape")),
+    SettingsSearchDefinition(R.string.settings_player_clock_color, null, "时钟 横屏 封面取色 白色 浅灰色 clock color", SettingsSearchTarget.Appearance("player_landscape")),
     SettingsSearchDefinition(R.string.settings_beautiful_lyrics_background, R.string.settings_beautiful_lyrics_background_summary, "Apple Music 动态背景 歌词页 流光 取色", SettingsSearchTarget.Appearance("beautiful_lyrics")),
     SettingsSearchDefinition(R.string.settings_player_dynamic_flow, R.string.settings_player_dynamic_flow_summary, "Apple Music 流光 动态 背景 流动", SettingsSearchTarget.Appearance("player_dynamic_flow")),
     SettingsSearchDefinition(R.string.settings_apple_flow_speed, R.string.settings_apple_flow_speed_summary, "Apple Music 流光速度 动态背景 封面", SettingsSearchTarget.Appearance("apple_flow_speed")),
@@ -85,6 +89,7 @@ private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_artist_image_sources, R.string.settings_artist_image_sources_summary, "艺术家 图片 封面 来源 优先级 Last.fm Spotify 网易云 酷狗 QQ音乐", SettingsSearchTarget.CoverMedia("artist_image_sources")),
 
     SettingsSearchDefinition(R.string.settings_library_source, R.string.settings_library_source_summary, "音乐来源 音乐库来源 本地 Navidrome Emby 远程 曲库", SettingsSearchTarget.Library("library_source")),
+    SettingsSearchDefinition(R.string.netease_playback_provider_title, R.string.netease_playback_provider_summary, "网易云 账号 歌单 收藏 搜索 播放解析 LX MusicFree 音源 插件", SettingsSearchTarget.Library("library_source")),
     SettingsSearchDefinition(R.string.settings_library_scan, R.string.settings_library_scan_summary, "音乐库 扫描 标签 搜索 艺术家 歌手", SettingsSearchTarget.Library("scan")),
     SettingsSearchDefinition(R.string.settings_scan_folders, R.string.settings_scan_folders_summary, "扫描 文件夹 USB 隐藏目录 存储权限", SettingsSearchTarget.Scan("scan_folders")),
     SettingsSearchDefinition(R.string.settings_full_tag_search, R.string.settings_full_tag_search_summary_on, "全字段 全标签 元数据 作曲 作词 注释 别名 标签", SettingsSearchTarget.Scan("scan_media_source")),

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">Varsayılan NetEase yorum sekmesi</string>
+    <string name="netease_comments_default_tab_summary">Şarkı, albüm ve MV yorumları açıldığında gösterilecek sekmeyi seçin</string>
     <string name="netease_comments_open">Yorumlar</string>
     <string name="netease_comments_title">Yorumlar</string>
     <string name="netease_comments_title_count">Yorumlar (%1$s)</string>

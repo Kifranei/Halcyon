@@ -51,6 +51,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_DISABLE_SEQUENTIAL_PLAY
 import com.ella.music.data.SettingsManager.Companion.KEY_SLEEP_TIMER_CUSTOM_MINUTES
 import com.ella.music.data.SettingsManager.Companion.KEY_SLEEP_TIMER_STOP_AFTER_CURRENT
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_AUTO_PLAY
+import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_OPEN_PLAYER
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_PLAY_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_USB_DAC_MODE
 import com.ella.music.player.PlaybackOutputSettings
@@ -78,6 +79,7 @@ interface PlaybackSettingsAccess {
     val playCountThresholdDurationMs: Flow<Int>
     val replayGainEnabled: Flow<Boolean>
     val replayGainMode: Flow<Int>
+    val replayGainPreampDb: Flow<Float>
     val resumePlaybackPosition: Flow<Boolean>
     val audioFocusDisabled: Flow<Boolean>
     val audioOutputBackend: Flow<Int>
@@ -95,6 +97,7 @@ interface PlaybackSettingsAccess {
     val openPlayerOnPlay: Flow<Boolean>
     val openPlayerFromNotification: Flow<Boolean>
     val startupAutoPlay: Flow<Boolean>
+    val startupOpenPlayer: Flow<Boolean>
     val bluetoothAutoPlay: Flow<Boolean>
     val startupPlayMode: Flow<Int>
     val decoderMode: Flow<Int>
@@ -107,6 +110,7 @@ interface PlaybackSettingsAccess {
     suspend fun setPlayCountThresholdDurationMs(durationMs: Int)
     suspend fun setReplayGainEnabled(enabled: Boolean)
     suspend fun setReplayGainMode(mode: Int)
+    suspend fun setReplayGainPreampDb(value: Float)
     suspend fun setResumePlaybackPosition(enabled: Boolean)
     suspend fun setAudioFocusDisabled(disabled: Boolean)
     suspend fun setShuffleMode(mode: Int)
@@ -120,6 +124,7 @@ interface PlaybackSettingsAccess {
     suspend fun setOpenPlayerOnPlay(enabled: Boolean)
     suspend fun setOpenPlayerFromNotification(enabled: Boolean)
     suspend fun setStartupAutoPlay(enabled: Boolean)
+    suspend fun setStartupOpenPlayer(enabled: Boolean)
     suspend fun setBluetoothAutoPlay(enabled: Boolean)
     suspend fun setStartupPlayMode(mode: Int)
     suspend fun setDecoderMode(mode: Int)
@@ -162,6 +167,15 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
             )
     }
 
+    override val replayGainPreampDb: Flow<Float> = context.dataStore.data.map {
+        (it[SettingsManager.KEY_REPLAYGAIN_PREAMP_HUNDREDTHS_DB] ?: 0).coerceIn(-3000, 3000) / 100f
+    }
+    override suspend fun setReplayGainPreampDb(value: Float) {
+        if (!value.isFinite()) return
+        context.dataStore.edit {
+            it[SettingsManager.KEY_REPLAYGAIN_PREAMP_HUNDREDTHS_DB] = kotlin.math.round(value.coerceIn(-30f, 30f) * 100f).toInt()
+        }
+    }
     override val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_REPLAYGAIN_ENABLED] ?: false }
     override val replayGainMode: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[KEY_REPLAYGAIN_MODE]
@@ -204,7 +218,11 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
         context.dataStore.data.map { it[KEY_USB_DAC_MODE] ?: false }
 
     override val sleepTimerCustomMinutes: Flow<Int> =
-        context.dataStore.data.map { it[KEY_SLEEP_TIMER_CUSTOM_MINUTES]?.coerceIn(5, 120) ?: 45 }
+        context.dataStore.data.map {
+            it[KEY_SLEEP_TIMER_CUSTOM_MINUTES]?.coerceIn(
+                SettingsManager.SLEEP_TIMER_MIN_MINUTES, SettingsManager.SLEEP_TIMER_MAX_MINUTES
+            ) ?: 45
+        }
     override val sleepTimerStopAfterCurrent: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SLEEP_TIMER_STOP_AFTER_CURRENT] ?: false }
 
@@ -212,6 +230,8 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
     override val openPlayerFromNotification: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_OPEN_PLAYER_FROM_NOTIFICATION] ?: false }
     override val startupAutoPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_STARTUP_AUTO_PLAY] ?: false }
+    override val startupOpenPlayer: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_STARTUP_OPEN_PLAYER] ?: false }
     override val bluetoothAutoPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_BLUETOOTH_AUTO_PLAY] ?: false }
     override val startupPlayMode: Flow<Int> = context.dataStore.data.map {
         it[KEY_STARTUP_PLAY_MODE]
@@ -318,7 +338,11 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
     }
 
     override suspend fun setSleepTimerCustomMinutes(minutes: Int) {
-        context.dataStore.edit { it[KEY_SLEEP_TIMER_CUSTOM_MINUTES] = minutes.coerceIn(5, 120) }
+        context.dataStore.edit {
+            it[KEY_SLEEP_TIMER_CUSTOM_MINUTES] = minutes.coerceIn(
+                SettingsManager.SLEEP_TIMER_MIN_MINUTES, SettingsManager.SLEEP_TIMER_MAX_MINUTES
+            )
+        }
     }
 
     override suspend fun setSleepTimerStopAfterCurrent(enabled: Boolean) {
@@ -335,6 +359,10 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
 
     override suspend fun setStartupAutoPlay(enabled: Boolean) {
         setStartupPlayMode(if (enabled) STARTUP_PLAY_RANDOM else STARTUP_PLAY_OFF)
+    }
+
+    override suspend fun setStartupOpenPlayer(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_STARTUP_OPEN_PLAYER] = enabled }
     }
 
     override suspend fun setBluetoothAutoPlay(enabled: Boolean) {

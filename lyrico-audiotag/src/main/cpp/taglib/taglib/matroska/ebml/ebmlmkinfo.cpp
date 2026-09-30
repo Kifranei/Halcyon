@@ -24,6 +24,9 @@
  ***************************************************************************/
 
 #include "ebmlmkinfo.h"
+
+#include <limits>
+
 #include "ebmlstringelement.h"
 #include "ebmluintelement.h"
 #include "ebmlfloatelement.h"
@@ -53,7 +56,6 @@ void EBML::MkInfo::parse(Matroska::Properties *properties) const
 
   unsigned long long timestampScale = 1000000;
   double duration = 0.0;
-  String title;
   for(const auto &element : elements) {
     if(const Id id = element->getId(); id == Id::MkTimestampScale) {
       timestampScale = element_cast<Id::MkTimestampScale>(element)->getValue();
@@ -61,12 +63,20 @@ void EBML::MkInfo::parse(Matroska::Properties *properties) const
     else if(id == Id::MkDuration) {
       duration = element_cast<Id::MkDuration>(element)->getValueAsDouble();
     }
-    else if(id == Id::MkTitle) {
-      title = element_cast<Id::MkTitle>(element)->getValue();
-    }
   }
 
-  properties->setLengthInMilliseconds(
-    static_cast<int>(duration * static_cast<double>(timestampScale) / 1000000.0));
-  properties->setTitle(title);
+  const double length = duration * static_cast<double>(timestampScale) / 1000000.0;
+  if(length >= 0.0 && length + 0.5 <= static_cast<double>(std::numeric_limits<int>::max()))
+    properties->setLengthInMilliseconds(static_cast<int>(length));
+  properties->setTitle(parseTitle());
+}
+
+String EBML::MkInfo::parseTitle() const
+{
+  for(const auto &element : elements) {
+    if(element->getId() == Id::MkTitle) {
+      return element_cast<Id::MkTitle>(element)->getValue();
+    }
+  }
+  return String();
 }

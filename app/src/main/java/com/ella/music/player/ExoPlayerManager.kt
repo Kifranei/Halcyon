@@ -140,7 +140,6 @@ class ExoPlayerManager(private val context: Context) {
     private var isRestoringSavedQueue = false
     private var playNextAnchorKey: String? = null
     private var playNextForwardCount = 0
-    private var replayGainVolume = 1f
     private var resumePlaybackPositionEnabled = false
     private val perSongResumePositions = LinkedHashMap<String, Long>()
     private var externalSnapshotGuard: ExternalSnapshotGuard? = null
@@ -691,7 +690,6 @@ class ExoPlayerManager(private val context: Context) {
         playerListener = listener
         controller.addListener(listener)
         // A recreated MediaController does not retain app-owned ReplayGain state.
-        controller.volume = replayGainVolume
 
         val pending = pendingPlaylist
         if (pending != null) {
@@ -1489,26 +1487,6 @@ class ExoPlayerManager(private val context: Context) {
         savePlaybackState(force = true)
     }
 
-    fun restartSong(song: Song?) {
-        val controller = activeController() ?: return
-        cancelPendingSeekCommand()
-        val target = song ?: _currentSong.value
-        val targetIndex = if (target != null && target.isSamePlaybackIdentity(_currentSong.value)) {
-            currentQueueIndex(controller)
-        } else {
-            target?.let { current -> playlist.indexOfFirst { it.isSamePlaybackIdentity(current) } } ?: -1
-        }
-        val safeIndex = targetIndex.takeIf { it >= 0 } ?: controller.currentMediaItemIndex
-        if (safeIndex < 0) return
-        _currentQueueIndex.value = safeIndex
-        controller.seekToDefaultPosition(safeIndex)
-        requestTransportState(target = true, controller = controller)
-        _currentPosition.value = 0L
-        updateCurrentSong()
-        savePlaybackQueue(force = true)
-        savePlaybackState(force = true)
-    }
-
     private fun scheduleCurrentSongRefresh() {
         currentSongRefreshJob?.cancel()
         currentSongRefreshJob = persistenceScope.launch {
@@ -1740,11 +1718,6 @@ class ExoPlayerManager(private val context: Context) {
         _playbackSpeed.value = safeSpeed
         _playbackPitch.value = safePitch
         savePlaybackState()
-    }
-
-    fun setReplayGainVolume(volume: Float) {
-        replayGainVolume = volume.coerceIn(0f, 1f)
-        mediaController?.volume = replayGainVolume
     }
 
     fun updatePosition() {
@@ -2581,7 +2554,6 @@ class ExoPlayerManager(private val context: Context) {
             QueueOccurrenceToken(identity, ordinal)
         }
     }
-
 
     private fun resolveCurrentPlaybackSong(controller: MediaController): Song? {
         val controllerIndex = currentQueueIndex(controller)

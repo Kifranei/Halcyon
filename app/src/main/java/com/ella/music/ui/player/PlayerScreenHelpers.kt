@@ -23,8 +23,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
@@ -174,18 +172,6 @@ internal fun rememberThrottledPlayerPosition(
     }.value
 }
 
-internal fun adaptiveTitleFontSize(text: String, maxSize: TextUnit): TextUnit {
-    val scale = when {
-        text.length > 72 -> 0.54f
-        text.length > 58 -> 0.62f
-        text.length > 44 -> 0.70f
-        text.length > 32 -> 0.80f
-        text.length > 24 -> 0.90f
-        else -> 1f
-    }
-    return (maxSize.value * scale).sp
-}
-
 internal fun String.toPlayerLyricFontFamily(weight: Int, italic: Boolean): FontFamily? {
     if (isBlank()) return null
     return runCatching {
@@ -213,16 +199,6 @@ internal fun ensureBundledMiSansBoldPath(context: Context): String {
         }
     }
     return target.takeIf { it.exists() && it.canRead() && it.length() > 0L }?.absolutePath.orEmpty()
-}
-
-internal fun isXiaomiFamilyPlayerDevice(): Boolean {
-    val brand = Build.BRAND.orEmpty()
-    val manufacturer = Build.MANUFACTURER.orEmpty()
-    return listOf(brand, manufacturer).any { value ->
-        value.contains("xiaomi", ignoreCase = true) ||
-            value.contains("redmi", ignoreCase = true) ||
-            value.contains("poco", ignoreCase = true)
-    }
 }
 
 internal tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -570,11 +546,6 @@ internal fun AudioInfo.isHiResLogoTrack(): Boolean {
     }
     val fmt = normalizedAudioFormat(format)
     return fmt in setOf("FLAC", "ALAC", "WAV", "APE", "DSD") && sampleRate >= 48_000
-}
-
-internal fun Float.nextPlaybackStep(): Float {
-    val next = ((this * 4).toInt() + 1) / 4f
-    return if (next > 2f) 0.5f else next.coerceIn(0.5f, 2f)
 }
 
 internal fun enqueuePlayerDownload(context: Context, song: Song) {

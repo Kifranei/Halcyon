@@ -26,7 +26,7 @@ internal const val NETEASE_SCHEME = "halcyon-netease"
 internal data class NeteaseCollections(val favorites: List<Song>, val playlists: List<UserPlaylist>, val favoritePlaylistId: String)
 internal class NeteaseApiException(val code: Int) : IOException("NetEase API ($code)")
 /** Quality actually served for a resolved stream; drives the player badge and live-output sheet. */
-internal data class NeteaseStreamInfo(val url: String, val level: String, val type: String, val bitRate: Int, val sampleRate: Int)
+internal data class NeteaseStreamInfo(val url: String, val level: String, val type: String, val bitRate: Int, val sampleRate: Int, val isTrial: Boolean = false)
 
 internal class CatClawNeteaseClient(context: Context) {
     private val accounts = NeteaseAccountStore.getInstance(context)
@@ -145,15 +145,8 @@ internal class CatClawNeteaseClient(context: Context) {
             val url = data.optString("url").takeUnless { it == "null" }.orEmpty()
             failureCode = data.optInt("code", -1)
             if (failureCode == 200 && url.isNotBlank()) {
-                val parsed = url.toHttpUrlOrNull() ?: throw IOException("Invalid NetEase stream URL")
-                val resolved = NeteaseStreamInfo(
-                    url = parsed.newBuilder().scheme("https").build().toString(),
-                    level = data.optString("level").ifBlank { level },
-                    type = data.optString("type").ifBlank { data.optString("encodeType") },
-                    bitRate = data.optInt("br"),
-                    sampleRate = data.optInt("sr")
-                )
-                if (data.optJSONObject("freeTrialInfo") != null) {
+                val resolved = parseNeteaseStreamInfo(data, level)
+                if (resolved.isTrial) {
                     if (trial == null) trial = resolved
                     continue
                 }
@@ -198,12 +191,13 @@ internal class CatClawNeteaseClient(context: Context) {
         sortType: Int = NeteaseCommentSort.Recommend.apiValue,
         pageNo: Int = 1,
         cursor: String = "",
-        pageSize: Int = 20
+        pageSize: Int = 20,
+        resource: NeteaseCommentResource = NeteaseCommentResource.Song
     ): NeteaseCommentPage = withContext(Dispatchers.IO) {
         require((songId.toLongOrNull() ?: 0L) > 0L)
         val page = pageNo.coerceAtLeast(1)
         val root = request("/eapi/v2/resource/comments", JSONObject()
-            .put("threadId", neteaseSongThreadId(songId)).put("pageNo", page)
+            .put("threadId", resource.threadId(songId)).put("pageNo", page)
             .put("pageSize", pageSize.coerceIn(1, 50)).put("sortType", sortType)
             .put("cursor", if (page == 1) "" else cursor).put("showInner", true),
             accounts.account.value.cookie)
@@ -215,11 +209,12 @@ internal class CatClawNeteaseClient(context: Context) {
         songId: String,
         parentCommentId: Long,
         time: Long = -1L,
-        limit: Int = 20
+        limit: Int = 20,
+        resource: NeteaseCommentResource = NeteaseCommentResource.Song
     ): NeteaseFloorPage = withContext(Dispatchers.IO) {
         require((songId.toLongOrNull() ?: 0L) > 0L && parentCommentId > 0L)
         val root = request("/eapi/resource/comment/floor/get", JSONObject()
-            .put("parentCommentId", parentCommentId).put("threadId", neteaseSongThreadId(songId))
+            .put("parentCommentId", parentCommentId).put("threadId", resource.threadId(songId))
             .put("limit", limit.coerceIn(1, 50)).put("time", time), accounts.account.value.cookie)
         parseNeteaseFloorPage(root)
     }
@@ -228,11 +223,11 @@ internal class CatClawNeteaseClient(context: Context) {
     fun signedInAccount(): NeteaseAccount? = accounts.account.value.takeIf { it.loggedIn }
 
     /** Likes or unlikes a song comment; throws [NeteaseApiException] (301 = not signed in). */
-    suspend fun likeComment(songId: String, commentId: Long, like: Boolean) = withContext(Dispatchers.IO) {
+    suspend fun likeComment(songId: String, commentId: Long, like: Boolean, resource: NeteaseCommentResource = NeteaseCommentResource.Song) = withContext(Dispatchers.IO) {
         require((songId.toLongOrNull() ?: 0L) > 0L && commentId > 0L)
         val account = signedInAccount() ?: throw NeteaseApiException(301)
         request(if (like) "/eapi/v1/comment/like" else "/eapi/v1/comment/unlike", JSONObject()
-            .put("threadId", neteaseSongThreadId(songId)).put("commentId", commentId), account.cookie)
+            .put("threadId", resource.threadId(songId)).put("commentId", commentId), account.cookie)
         Unit
     }
 
@@ -245,12 +240,13 @@ internal class CatClawNeteaseClient(context: Context) {
         songId: String,
         content: String,
         replyToCommentId: Long = 0L,
-        parentCommentId: Long = 0L
+        parentCommentId: Long = 0L,
+        resource: NeteaseCommentResource = NeteaseCommentResource.Song
     ): NeteaseComment? = withContext(Dispatchers.IO) {
         val text = content.trim()
         require((songId.toLongOrNull() ?: 0L) > 0L && text.isNotEmpty() && neteaseCommentLength(text) <= NETEASE_COMMENT_MAX_LENGTH)
         val account = signedInAccount() ?: throw NeteaseApiException(301)
-        val params = JSONObject().put("threadId", neteaseSongThreadId(songId)).put("content", text)
+        val params = JSONObject().put("threadId", resource.threadId(songId)).put("content", text)
         val root = if (replyToCommentId > 0L) {
             request("/eapi/resource/comments/reply", params.put("commentId", replyToCommentId), account.cookie)
         } else {

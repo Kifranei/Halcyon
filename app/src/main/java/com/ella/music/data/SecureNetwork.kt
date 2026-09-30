@@ -7,6 +7,51 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 
+/**
+ * User-typed server addresses (Navidrome / OpenSubsonic / Emby / WebDAV) may be plain HTTP: a
+ * self-hosted machine on a home LAN or a public IPv6 address usually has no certificate, and
+ * forcing TLS would lock those libraries out. Embedded credentials stay rejected so the address
+ * itself never doubles as a secret store.
+ */
+internal fun String.requireRemoteServerUrl(label: String): String {
+    val parsed = trim().toHttpUrlOrNull()
+        ?: throw IllegalArgumentException("$label URL is invalid")
+    return parsed.requireRemoteServerUrl(label).toString()
+}
+
+/** [HttpUrl] counterpart of [requireRemoteServerUrl] for callers that already parsed the address. */
+internal fun HttpUrl.requireRemoteServerUrl(label: String = "Request"): HttpUrl {
+    require(username.isEmpty() && password.isEmpty()) {
+        "$label URL must not contain embedded credentials"
+    }
+    return this
+}
+
+/** True when the address is an explicit cleartext HTTP URL (a bare host or an HTTPS URL is not). */
+internal fun isInsecureHttpUrl(rawUrl: String): Boolean =
+    rawUrl.trim().toHttpUrlOrNull()?.isHttps == false
+
+/**
+ * True when a call that started on TLS must not continue because it dropped to cleartext.
+ * Cleartext is allowed when the user configured a cleartext server; an HTTPS origin that redirects
+ * down to HTTP is still refused, so nothing that began encrypted ever travels in the open.
+ */
+internal fun refusesCleartextDowngrade(startedSecure: Boolean, requestIsHttps: Boolean): Boolean =
+    startedSecure && !requestIsHttps
+
+/**
+ * Accepts the cleartext server the user configured while refusing HTTPS-to-HTTP downgrades.
+ * Used by the remote library clients and the playback / cache paths that talk to them.
+ */
+internal fun OkHttpClient.Builder.allowUserConfiguredCleartext(): OkHttpClient.Builder =
+    addNetworkInterceptor { chain ->
+        val request = chain.request()
+        if (refusesCleartextDowngrade(chain.call().request().url.isHttps, request.url.isHttps)) {
+            throw IOException("HTTPS requests must not be redirected to cleartext HTTP")
+        }
+        chain.proceed(request)
+    }
+
 internal fun String.requireHttpsUrl(label: String): String {
     val parsed = trim().toHttpUrlOrNull()
         ?: throw IllegalArgumentException("$label URL is invalid")

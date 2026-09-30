@@ -154,60 +154,6 @@ class LyriconBridge(private val context: Context) {
         }
     }
 
-    fun sendTranslation(song: Song, lyrics: List<LyricLine>, translationMap: Map<Long, String>) {
-        if (!enabled) return
-        val p = provider ?: return
-
-        try {
-            val richLyrics = lyrics.mapIndexed { index, line ->
-                val words = line.words.withLineSpacing(line.text).map { word ->
-                    LyricWord(
-                        text = word.text,
-                        begin = word.startMs,
-                        end = word.endMs
-                    )
-                }
-                val backgroundWords = line.backgroundWords.withLineSpacing(line.backgroundText.orEmpty()).map { word ->
-                    LyricWord(
-                        text = word.text,
-                        begin = word.startMs,
-                        end = word.endMs
-                    )
-                }
-
-                val nextLineTime = line.primaryEndMs(
-                    nextLine = lyrics.getOrNull(index + 1),
-                    fallbackDurationMs = 3_000L
-                )
-
-                RichLyricLine(
-                    begin = line.timeMs,
-                    end = nextLineTime,
-                    isAlignedRight = line.agent.equals("v2", ignoreCase = true),
-                    text = line.text,
-                    words = words.ifEmpty { null },
-                    secondary = line.backgroundText,
-                    secondaryWords = backgroundWords.ifEmpty { null },
-                    translation = line.secondaryTranslationForLyricon(translationMap[line.timeMs]),
-                    roma = line.romaForLyricon()
-                )
-            }
-
-            val lyriconSong = io.github.proify.lyricon.lyric.model.Song(
-                id = song.id.toString(),
-                name = song.title,
-                artist = song.artist,
-                duration = song.duration,
-                lyrics = richLyrics
-            )
-
-            p.player.setSong(lyriconSong)
-            p.player.setDisplayTranslation(secondaryMode.displayTranslation)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to send translation to Lyricon", e)
-        }
-    }
-
     fun sendPlaybackState(playing: Boolean) {
         if (!enabled) return
         try {

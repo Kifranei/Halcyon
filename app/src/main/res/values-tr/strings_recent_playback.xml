@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">Müzik kitaplığında son çalınan şarkıyı göster</string>
+    <string name="settings_category_continue_playback_row">Kategori ayrıntıları: Çalmaya devam et satırını göster</string>
+    <string name="settings_category_continue_playback_row_summary">Albüm, sanatçı, çalma listesi ve klasör ayrıntılarında son çalınan şarkıyı göster</string>
+    <string name="netease_link_custom_comments_summary">Sayfalar, konular, beğeniler ve yanıtlarla uygulama içi yorumlar için boş bırakın. {id}, kaynak kimliğine dönüşür</string>
+    <string name="recent_playback_folder_types">Klasör sekmesi görüntüleme türleri</string>
+    <string name="recent_playback_mv_types">Müzik videosu sekmesi görüntüleme türleri</string>
+    <string name="recent_playback_nested_folder">İç içe klasörler</string>
+    <string name="recent_playback_local_mv">Yerel müzik videoları</string>
+    <string name="recent_playback_online_mv">Çevrimiçi müzik videoları</string>
+    <string name="recent_playback_delete_online_mv_message">“%1$s” müzik videosunun oynatma kaydı kalıcı olarak silinsin mi?</string>
+</resources>

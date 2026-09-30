@@ -52,7 +52,12 @@ fun ContinuePlaybackRow(
     if (songs.isEmpty()) return
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val visible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
+    val visibility = if (categoryKey == com.ella.music.data.CategoryResumeKeys.HOME) {
+        settingsManager.continuePlaybackRowVisible
+    } else {
+        settingsManager.categoryContinuePlaybackRowVisible
+    }
+    val visible by visibility.collectAsState(initial = true)
     if (!visible) return
     // This row is commonly hosted inside a LazyColumn. A plain remember would be lost when the
     // item leaves the viewport, making a dismissed row reappear while scrolling. Key the state by
@@ -65,15 +70,20 @@ fun ContinuePlaybackRow(
     var dismissed by rememberSaveable(dismissalKey) { mutableStateOf(false) }
     if (dismissed) return
     val playbackSourceKey by com.ella.music.data.PlaybackSourceNavigation.sourceKey.collectAsState()
+    val recentHistory by com.ella.music.data.RecentPlaybackStore.getInstance(context).history.collectAsState()
+    val latestEntry = remember(recentHistory, categoryKey) {
+        com.ella.music.data.latestCategoryPlayback(recentHistory, categoryKey)
+    }
     val storedResumeKey = CategoryResumeStore.getInstance(context).lastSongKey(categoryKey)
     val currentSongKey = currentSong?.playlistIdentityKey()
-    val resumeIndex = remember(songs, categoryKey, playbackSourceKey, currentSongKey, storedResumeKey) {
+    val resumeIndex = remember(songs, categoryKey, playbackSourceKey, currentSongKey, storedResumeKey, latestEntry) {
         resolveContinuePlaybackIndex(
             songs = songs,
             categoryKey = categoryKey,
             playbackSourceKey = playbackSourceKey,
             currentSong = currentSong,
-            storedResumeKey = storedResumeKey
+            storedResumeKey = storedResumeKey,
+            latestEntry = latestEntry
         )
     }
     if (resumeIndex < 0) return
@@ -107,8 +117,8 @@ fun ContinuePlaybackRow(
             Text(
                 text = stringResource(
                     R.string.continue_playback,
-                    song.title.ifBlank { song.fileName },
-                    song.artist
+                    latestEntry?.title?.takeIf { it.isNotBlank() } ?: song.title.ifBlank { song.fileName },
+                    latestEntry?.artist ?: song.artist
                 ),
                 color = MiuixTheme.colorScheme.onSurface,
                 fontSize = 14.sp,
@@ -143,7 +153,8 @@ internal fun resolveContinuePlaybackIndex(
     categoryKey: String,
     playbackSourceKey: String?,
     currentSong: Song?,
-    storedResumeKey: String?
+    storedResumeKey: String?,
+    latestEntry: com.ella.music.data.PlaybackHistoryEntry? = null
 ): Int {
     if (playbackSourceKey == categoryKey && currentSong != null) {
         // The current list is already the playback surface. Showing a "continue" row here after
@@ -151,17 +162,7 @@ internal fun resolveContinuePlaybackIndex(
         // stale-looking header above the newly playing item on library and playlist pages.
         return -1
     }
+    if (latestEntry != null) return com.ella.music.data.categoryPlaybackSongIndex(songs, latestEntry)
     if (storedResumeKey.isNullOrBlank()) return -1
     return songs.indexOfFirst { it.playlistIdentityKey() == storedResumeKey }
-}
-
-internal fun List<Song>.containsPlayingSong(currentSong: Song?): Boolean {
-    val current = currentSong ?: return false
-    val currentKey = current.playlistIdentityKey()
-    val currentPath = current.path.trim().lowercase()
-    return any { song ->
-        song.playlistIdentityKey() == currentKey ||
-            (current.id > 0L && song.id == current.id) ||
-            (currentPath.isNotBlank() && song.path.trim().lowercase() == currentPath)
-    }
 }

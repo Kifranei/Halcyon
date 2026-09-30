@@ -48,26 +48,6 @@ internal fun AllFilesAccessPromptDialog(
 }
 
 @Composable
-internal fun FullTagSearchPromptDialog(
-    show: Boolean,
-    onChoose: (Boolean) -> Unit
-) {
-    EllaMiuixDialog(
-        show = show,
-        title = stringResource(R.string.full_tag_search_prompt_title),
-        summary = stringResource(R.string.full_tag_search_prompt_message),
-        onDismissRequest = { onChoose(false) }
-    ) {
-        EllaMiuixDialogActions(
-            cancelText = stringResource(R.string.full_tag_search_prompt_basic),
-            confirmText = stringResource(R.string.full_tag_search_prompt_enable),
-            onCancel = { onChoose(false) },
-            onConfirm = { onChoose(true) }
-        )
-    }
-}
-
-@Composable
 internal fun WebDavCloudRestorePromptDialog(
     show: Boolean,
     restoring: Boolean,
@@ -83,6 +63,7 @@ internal fun WebDavCloudRestorePromptDialog(
         EllaMiuixDialogActions(
             cancelText = stringResource(R.string.common_cancel),
             confirmText = stringResource(R.string.settings_backup_webdav_restore_now),
+            confirmDangerous = true,
             onCancel = { if (!restoring) onDismiss() },
             onConfirm = { if (!restoring) onRestore() }
         )

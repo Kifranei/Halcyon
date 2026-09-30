@@ -32,11 +32,7 @@ import com.ella.music.ui.player.secondaryScaleRangePercent
 import com.ella.music.ui.player.secondaryTextSizeRangeSp
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.Alignment
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -639,7 +635,7 @@ private fun SettingsPlayerLyricSizingControls(initialBlurPercent: Int? = null) {
 }
 
 @Composable
-private fun SettingsPlayerMiniLyricControls() {
+internal fun SettingsPlayerMiniLyricControls() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
@@ -742,6 +738,5 @@ private fun SettingsPlayerLyricAlignmentPreference() {
         }
     )
     } // search-anchor:end
-
 
 }

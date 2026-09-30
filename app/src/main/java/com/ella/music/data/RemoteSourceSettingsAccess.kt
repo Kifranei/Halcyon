@@ -86,6 +86,8 @@ interface RemoteSourceSettingsAccess {
     suspend fun setNeteaseMvDownloadResolution(value: Int)
     val neteaseQuality: Flow<String>
     suspend fun setNeteaseQuality(quality: String)
+    val neteasePlaybackProvider: Flow<String>
+    suspend fun setNeteasePlaybackProvider(value: String)
     val mcpServerEnabled: Flow<Boolean>
     val webMusicServerEnabled: Flow<Boolean>
     val webDavUrl: Flow<String>
@@ -173,6 +175,14 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
     override suspend fun setNeteaseMvDownloadResolution(value: Int) { context.dataStore.edit { it[SettingsManager.KEY_NETEASE_MV_DOWNLOAD_RESOLUTION] = value } }
     override val neteaseQuality: Flow<String> = context.dataStore.data.map {
         com.ella.music.data.netease.NeteaseQuality.fromId(it[SettingsManager.KEY_NETEASE_QUALITY].orEmpty()).id
+    }
+    override val neteasePlaybackProvider: Flow<String> = context.dataStore.data.map {
+        com.ella.music.data.netease.NeteasePlaybackProvider.fromId(it[SettingsManager.KEY_NETEASE_PLAYBACK_PROVIDER]).id
+    }
+    override suspend fun setNeteasePlaybackProvider(value: String) {
+        context.dataStore.edit {
+            it[SettingsManager.KEY_NETEASE_PLAYBACK_PROVIDER] = com.ella.music.data.netease.NeteasePlaybackProvider.fromId(value).id
+        }
     }
     override suspend fun setNeteaseQuality(quality: String) {
         context.dataStore.edit {

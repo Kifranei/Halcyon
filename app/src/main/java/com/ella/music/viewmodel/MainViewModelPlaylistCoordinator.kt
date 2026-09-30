@@ -41,6 +41,15 @@ internal class MainViewModelPlaylistCoordinator(
 
     fun playlistSongs(playlist: UserPlaylist): List<Song> {
         val libraryByKey = currentSongs().associateBy { it.playlistIdentityKey() }
+        return playlistSongs(playlist, libraryByKey)
+    }
+
+    fun playlistSongsById(playlists: List<UserPlaylist>): Map<String, List<Song>> {
+        val libraryByKey = currentSongs().associateBy { it.playlistIdentityKey() }
+        return playlists.associate { it.id to playlistSongs(it, libraryByKey) }
+    }
+
+    private fun playlistSongs(playlist: UserPlaylist, libraryByKey: Map<String, Song>): List<Song> {
         return playlist.songs.map { item ->
             val storedSong = item.toSong()
             // A WebDAV playlist record is the durable metadata source after hydration. The

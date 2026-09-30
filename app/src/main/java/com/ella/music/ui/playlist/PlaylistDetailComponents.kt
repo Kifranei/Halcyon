@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.UserPlaylist
@@ -46,6 +47,7 @@ internal fun PlaylistDetailHero(
     songCount: Int,
     playCount: Int = 0,
     duration: Long,
+    contentEndPadding: Dp = 0.dp,
     onShuffle: (() -> Unit)? = null
 ) {
     Box(
@@ -59,7 +61,7 @@ internal fun PlaylistDetailHero(
                     1f to Color.Transparent
                 )
             )
-            .padding(horizontal = 18.dp, vertical = 18.dp)
+            .padding(start = 18.dp, end = 18.dp + contentEndPadding, top = 18.dp, bottom = 18.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -142,10 +144,11 @@ internal fun PlaylistPlayAllBar(
     sortLabel: String,
     onPlayAll: () -> Unit,
     onShuffle: (() -> Unit)? = null,
-    sortItems: List<SortDropdownItem>
+    sortItems: List<SortDropdownItem>,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically

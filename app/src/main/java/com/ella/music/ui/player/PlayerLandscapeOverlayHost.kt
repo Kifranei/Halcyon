@@ -53,6 +53,7 @@ internal fun PlayerLandscapeOverlayHost(
     showTotalDuration: Boolean,
     queueExpanded: Boolean,
     playlist: List<Song>,
+    selectedQueueIndex: Int = -1,
     audioSessionId: Int,
     visualizerEnabled: Boolean,
     visualizerOpacity: Float,
@@ -80,12 +81,20 @@ internal fun PlayerLandscapeOverlayHost(
     onArtist: () -> Unit,
     onDismiss: () -> Unit,
     interceptBack: Boolean = true,
-    showBackButton: Boolean = true
+    showBackButton: Boolean = true,
+    forceLandscape: Boolean = true
 ) {
     if (!expanded) return
 
-    ForceLandscapePlayerBars(onDismiss = onDismiss, interceptBack = interceptBack)
+    ForceLandscapePlayerBars(onDismiss = onDismiss, interceptBack = interceptBack, forceLandscape = forceLandscape)
     if (layoutStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE) return
+    if (layoutStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_COVER_CLOCK) {
+        LandscapeClockPlayer(song, embeddedCover, palette, isPlaying,
+            onPrevious, onPlayPause, onNext, onDismiss, showBackButton = showBackButton || forceLandscape,
+            lyrics = lyrics, currentLyricIndex = currentLyricIndex, currentPosition = currentPosition,
+            fontFamily = fontFamily, fontWeight = fontWeight, fontScale = fontScale)
+        return
+    }
 
     val dynamicCoverSongKey = song?.dynamicCoverResolutionKey().orEmpty()
     val useMusicVideoBackground =
@@ -94,36 +103,27 @@ internal fun PlayerLandscapeOverlayHost(
     // Resolve off the main thread (file scan + media probe) so opening the landscape player
     // doesn't jank, even for songs without a dynamic cover. Clear the previous source first so
     // switching songs cannot keep the old video attached while the next source is resolving.
-    val landscapeDynamicCoverSource by produceState<DynamicCoverSource?>(
-        initialValue = null,
-        dynamicCoverEnabled,
-        musicVideoEnabled,
-        useMusicVideoBackground,
-        dynamicCoverCustomFolders,
-        musicVideoCustomFolders,
-        dynamicCoverSongKey,
-        dynamicCoverFailedPath
+    val coverSource = rememberPlayerDynamicCoverSource(
+        if (useMusicVideoBackground) null else song, dynamicCoverEnabled, dynamicCoverCustomFolders, dynamicCoverFailedPath
+    )
+    val musicVideoSource by produceState<DynamicCoverSource?>(null,
+        useMusicVideoBackground, dynamicCoverCustomFolders, musicVideoCustomFolders, dynamicCoverSongKey, dynamicCoverFailedPath
     ) {
-        val current = song
-        if (current == null) {
-            value = null
-        } else {
-            value = withContext(Dispatchers.IO) {
-                if (useMusicVideoBackground) {
-                    current.musicVideoSource(
-                        context,
-                        customRootPaths = dynamicCoverCustomFolders,
-                        musicVideoCustomFolders = musicVideoCustomFolders
-                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
-                } else {
-                    current.dynamicCoverSource(
-                        context,
-                        includeExternalFiles = dynamicCoverEnabled,
-                        customRootPaths = dynamicCoverCustomFolders
-                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
-                }
-            }
+        value = null
+        value = if (!useMusicVideoBackground || song == null) null else withContext(Dispatchers.IO) {
+            song.musicVideoSource(context, customRootPaths = dynamicCoverCustomFolders,
+                musicVideoCustomFolders = musicVideoCustomFolders)?.takeUnless { it.failureKey == dynamicCoverFailedPath }
         }
+    }
+    val landscapeDynamicCoverSource = if (useMusicVideoBackground) musicVideoSource else coverSource
+    if (layoutStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_CLASSIC_SPLIT) {
+        ClassicSplitLandscapePlayer(song, embeddedCover, paletteBitmap, beautifulLyricsBackground, landscapeDynamicCoverSource,
+            isPlaying, currentPosition, palette, lyrics, currentLyricIndex,
+            showTranslation, showPronunciation, fontFamily, translationFontFamily, fontWeight, fontScale,
+            secondaryFontScale, primaryTextSizeSp, secondaryTextSizeSp, isFavorite,
+            onToggleFavorite, onLyricLineClick, onLyricLineLongClick,
+            onPrevious, onPlayPause, onNext, onArtist, onDismiss, onDynamicCoverFailed)
+        return
     }
     LandscapeCoverPlaybackOverlay(
         song = song,
@@ -153,6 +153,7 @@ internal fun PlayerLandscapeOverlayHost(
         showTotalDuration = showTotalDuration,
         queueExpanded = queueExpanded,
         playlist = playlist,
+        selectedQueueIndex = selectedQueueIndex,
         audioSessionId = audioSessionId,
         visualizerEnabled = visualizerEnabled,
         visualizerOpacity = visualizerOpacity,

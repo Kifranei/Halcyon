@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="poster_wall_remote_hint">Arrows to move · OK to expand · Hold OK or Menu for actions · Back to close</string>
+    <string name="poster_wall_infinite_scroll">Infinite scrolling</string>
+    <string name="poster_wall_fullscreen_wall">Fullscreen poster wall</string>
+    <string name="poster_wall_fullscreen_player">Fullscreen lyrics player</string>
+    <string name="poster_wall_lyrics_style">Lyric style</string>
+    <string name="poster_lyric_orbit">Orbit</string>
+    <string name="poster_lyric_clock">Clockwork</string>
+    <string name="poster_lyric_color">Color fields</string>
+    <string name="poster_lyric_glow">Luminous</string>
+    <string name="poster_wall_title">Poster wall</string>
+    <string name="poster_wall_summary">Explore music through a movable, zoomable cover wall</string>
+    <string name="poster_wall_count">%1$d music posters</string>
+    <string name="poster_wall_queue">Play queue</string>
+    <string name="poster_wall_library">Library</string>
+    <string name="poster_wall_current">CURRENT TRACK</string>
+    <string name="poster_wall_selected">MUSIC POSTER</string>
+    <string name="poster_wall_expand">Expand music poster</string>
+    <string name="poster_wall_open_player">Open player</string>
+    <string name="poster_wall_search">Search tracks, artists or albums</string>
+    <string name="poster_wall_zoom_in">Zoom in</string>
+    <string name="poster_wall_zoom_out">Zoom out</string>
+    <string name="poster_wall_gesture_hint">Drag to browse · Pinch to zoom · Tap to expand · Hold for actions</string>
+    <string name="poster_wall_empty_queue">Your play queue is empty</string>
+    <string name="poster_wall_empty_library">There are no tracks in your library yet</string>
+    <string name="poster_wall_no_results">No matching music</string>
+    <string name="poster_wall_loading">Opening your music world…</string>
+    <string name="poster_wall_browse_library">Browse library</string>
+</resources>

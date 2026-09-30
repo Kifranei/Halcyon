@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,7 +54,6 @@ import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.player.openPlatformOutputSwitcher
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.theme.MONET_COVER
-import com.ella.music.ui.theme.THEME_DARK
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.launch
@@ -93,9 +91,21 @@ class CastingDeviceActivity : FragmentActivity() {
             val settings = remember { SettingsManager.getInstance(this) }
             val themeMode by settings.themeMode.collectAsState(initial = THEME_FOLLOW_SYSTEM)
             val monetMode by settings.monetColorMode.collectAsState(initial = 0)
+            val legacyFont by settings.lyricFontPath.collectAsState(initial = "")
+            val westernFont by settings.globalWesternFontPath.collectAsState(initial = "")
+            val cjkFont by settings.globalCjkFontPath.collectAsState(initial = "")
+            val appFontWeight by settings.lyricFontWeight.collectAsState(initial = 700)
+            val appFontPath = remember(legacyFont, westernFont, cjkFont) {
+                com.ella.music.ui.components.ScriptFontPaths(
+                    westernFont.ifBlank { legacyFont.ifBlank { com.ella.music.ui.player.ensureBundledInterPath(this@CastingDeviceActivity) } },
+                    cjkFont.ifBlank { com.ella.music.ui.player.ensureBundledMiSansBoldPath(this@CastingDeviceActivity) }
+                ).encode()
+            }
             val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
             EllaTheme(
                 themeMode = themeMode,
+                appFontPath = appFontPath,
+                appFontWeight = appFontWeight,
                 monetMode = if (monetMode == MONET_COVER) 0 else monetMode,
                 systemDarkOverride = systemDark
             ) {

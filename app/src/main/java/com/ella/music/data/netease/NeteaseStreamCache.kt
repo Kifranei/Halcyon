@@ -25,7 +25,9 @@ internal object NeteaseStreamCache {
     @Volatile private var cache: SimpleCache? = null
     @Volatile var qualityPreference: String = "auto"
 
-    fun cacheKey(songId: String, quality: String = qualityPreference): String = "netease:$songId:$quality"
+    // Re-resolve old entries once: their stored quality did not distinguish previews from full
+    // streams, so replaying old cached bytes could never restore the correct preview notice.
+    fun cacheKey(songId: String, quality: String = qualityPreference): String = "netease:v2:$songId:$quality"
 
     private fun get(context: Context): SimpleCache = cache ?: synchronized(this) {
         cache ?: SimpleCache(

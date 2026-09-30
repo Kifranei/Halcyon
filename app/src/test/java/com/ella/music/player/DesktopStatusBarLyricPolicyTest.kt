@@ -1,35 +1,20 @@
 package com.ella.music.player
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DesktopStatusBarLyricPolicyTest {
-    @Test
-    fun mergedSecondaryUsesExactlyOneSpace() {
-        assertEquals(
-            "Original Translation",
-            mergeDesktopStatusBarLyric("Original ", " Translation", mergeSecondary = true)
-        )
-    }
 
     @Test
-    fun disabledMergeLeavesMainTextUntouched() {
-        assertEquals(
-            "Original ",
-            mergeDesktopStatusBarLyric("Original ", " Translation", mergeSecondary = false)
-        )
-    }
-
-    @Test
-    fun multiFragmentSecondaryIsFlattenedBeforeMerging() {
-        assertEquals(
-            "Main translation one pronunciation two",
-            mergeDesktopStatusBarLyric(
-                mainText = "Main",
-                secondaryText = " translation one\n  pronunciation\ttwo ",
-                mergeSecondary = true
-            )
-        )
+    fun dashSpaceCreditsStayOrdinarySecondaryTextInDesktopAndStatusBarLyrics() {
+        for (candidate in listOf("- harmoe", "  - harmoe", "- ka ze", "- chūn xiāo", "- ハルモエ", "ka ze\n- harmoe")) {
+            assertFalse(candidate, isLikelyRomanizationSecondary("ふたりピノキオ", candidate))
+            assertFalse(candidate, isLikelyRomanizationSecondary("風が変わっても", candidate))
+        }
+        assertTrue(isLikelyRomanizationSecondary("風が変わっても", "ka ze ga ka wat te mo"))
+        assertTrue(isLikelyRomanizationSecondary("風が変わっても", "ka-ze ga ka-wat-te-mo"))
     }
 
     @Test

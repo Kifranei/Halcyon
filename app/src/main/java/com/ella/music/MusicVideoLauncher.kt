@@ -12,6 +12,7 @@ import java.io.File
 
 /** Intent bridge for the audible MV opened from the song-detail page. */
 internal object MusicVideoLauncher {
+    private const val EXTRA_GENERIC_VIDEO = "generic_video"
     private const val EXTRA_SONG = "music_video_song"
     private const val EXTRA_VIDEO_URI = "music_video_uri"
     private const val EXTRA_VIDEO_KEY = "music_video_key"
@@ -30,6 +31,20 @@ internal object MusicVideoLauncher {
         )
     }
 
+    fun openVideo(context: Context, uri: Uri, title: String, mimeType: String? = null) {
+        val song = Song(id = -uri.toString().hashCode().toLong(), title = title, artist = "", album = "",
+            albumId = 0, duration = 0, path = uri.toString(), fileName = title, mimeType = mimeType.orEmpty())
+        com.ella.music.player.PlaybackService.pausePlayback()
+        context.startActivity(Intent(context, MusicVideoActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .putExtra(EXTRA_SONG, song.toMusicVideoJson().toString())
+            .putExtra(EXTRA_VIDEO_URI, uri.toString())
+            .putExtra(EXTRA_VIDEO_KEY, "video:$uri")
+            .putExtra(EXTRA_GENERIC_VIDEO, true)
+            .putExtra("video_tools_mime", mimeType)
+            .apply { clipData = ClipData.newUri(context.contentResolver, title, uri) })
+    }
+
     fun openNetease(context: Context, song: Song?, mvId: String) {
         if ((mvId.toLongOrNull() ?: 0L) <= 0L) return
         if (com.ella.music.data.netease.NeteaseLinks.current(context).openMusicVideoExternally) {
@@ -42,6 +57,8 @@ internal object MusicVideoLauncher {
             role = com.ella.music.ui.player.PlayerVideoRole.MusicVideo
         ))
     }
+
+    fun isMusicVideo(intent: Intent): Boolean = !intent.getBooleanExtra(EXTRA_GENERIC_VIDEO, false)
 
     fun songFrom(intent: Intent): Song? = intent.getStringExtra(EXTRA_SONG)
         ?.let(::JSONObject)

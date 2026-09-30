@@ -22,6 +22,7 @@
 #include "ebmlvoidelement.h"
 #include "ebmlmasterelement.h"
 #include "ebmlbinaryelement.h"
+#include "ebmldeferredbinaryelement.h"
 #include "ebmlfloatelement.h"
 #include "ebmlmkseekhead.h"
 #include "ebmlmksegment.h"
@@ -41,7 +42,7 @@ using namespace TagLib;
 #define RETURN_ELEMENT_FOR_CASE(eid) \
   case (eid): return make_unique_element<eid>(id, sizeLength, dataSize, offset)
 
-std::unique_ptr<EBML::Element> EBML::Element::factory(File &file)
+std::unique_ptr<EBML::Element> EBML::Element::factory(File &file, offset_t maxOffset)
 {
   // Get the element ID
   const offset_t offset = file.tell();
@@ -52,9 +53,18 @@ std::unique_ptr<EBML::Element> EBML::Element::factory(File &file)
   }
 
   // Get the size length and data length
-  const auto &[sizeLength, dataSize] = readVINT(file);
+  auto [sizeLength, dataSize] = readVINT(file);
   if(!sizeLength)
     return nullptr;
+
+  if(const offset_t currentOffset = file.tell();
+     isUnknownSize(sizeLength, dataSize)) {
+    dataSize = maxOffset - currentOffset;
+  } else if(static_cast<offset_t>(dataSize) > maxOffset - currentOffset) {
+    debug(Utils::formatString("EBML: datasize too great: %lu > (%lld - %lld)",
+      dataSize, maxOffset, currentOffset));
+    return nullptr;
+  }
 
   // Return the subclass
   // The enum switch without default will give us a warning if an ID is missing

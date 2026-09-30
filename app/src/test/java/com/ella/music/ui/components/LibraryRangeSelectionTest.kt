@@ -4,6 +4,31 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LibraryRangeSelectionTest {
+    @Test fun rangePinsInDisplayOrderIncludingPreviouslySelectedEndpoints() {
+        val ids = ('A'..'G').toList()
+        val indexes = ids.withIndex().associate { it.value to it.index }
+        val state = LibrarySelectionState<Char>()
+        state.toggleSelection('B')
+        state.toggleSelection('E')
+        state.applyRangeSelection(ids, indexes)
+        assertEquals("BCDE".toList(), state.selectedIdsInSelectionOrder())
+    }
+
+    @Test fun ordinaryMultiSelectionStillPinsInTapOrder() {
+        val state = LibrarySelectionState<Char>()
+        "BECD".forEach(state::toggleSelection)
+        assertEquals("BECD".toList(), state.selectedIdsInSelectionOrder())
+    }
+
+    @Test fun reverseRangeKeepsOutsideSelectionsInTheirOriginalOrder() {
+        val ids = ('A'..'G').toList()
+        val indexes = ids.withIndex().associate { it.value to it.index }
+        val state = LibrarySelectionState<Char>()
+        "GEB".forEach(state::toggleSelection)
+        state.applyRangeSelection(ids, indexes)
+        assertEquals("GBCDE".toList(), state.selectedIdsInSelectionOrder())
+    }
+
     @Test fun rangesUseLastTwoManualTapsAndResetAfterEachRange() {
         val ids = ('A'..'N').toList()
         val indexes = ids.withIndex().associate { it.value to it.index }

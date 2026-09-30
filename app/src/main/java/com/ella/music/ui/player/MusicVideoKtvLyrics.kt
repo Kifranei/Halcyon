@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -187,7 +186,7 @@ private fun KtvOutlinedText(
             fontWeight = FontWeight.ExtraBold,
             textAlign = textAlign,
             maxLines = 4,
-            style = TextStyle(drawStyle = Stroke(width = 5f)),
+            style = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.main.copy(drawStyle = Stroke(width = 5f)),
             modifier = modifier.fillMaxWidth()
         )
     }

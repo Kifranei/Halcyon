@@ -1,8 +1,5 @@
 package com.ella.music.data.parser
 
-import android.os.ParcelFileDescriptor
-import java.io.File
-import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.Charset
@@ -51,7 +48,7 @@ object LrcParser {
         if (bgWords.isNotEmpty()) {
             val wordTexts = bgWords.map { it.text.trim() }.filter { it.isNotBlank() }
             if (wordTexts.size > 1) {
-                val rebuilt = wordTexts.joinToString(" ")
+                val rebuilt = bgWords.joinLyricText()
                 if (rebuilt != bgText.trim()) {
                     return line.copy(backgroundText = rebuilt)
                 }
@@ -72,48 +69,6 @@ object LrcParser {
             block == Character.UnicodeBlock.HIRAGANA ||
             block == Character.UnicodeBlock.KATAKANA ||
             block == Character.UnicodeBlock.HANGUL_SYLLABLES
-    }
-
-    private val lyricExtensions = listOf("lrc", "ttml", "elrc")
-
-    fun findLrcFile(songPath: String): String? {
-        val baseName = songPath.substringBeforeLast('.')
-        for (ext in lyricExtensions) {
-            readViaFd("$baseName.$ext")?.let { return it }
-        }
-
-        val parentDir = File(songPath).parentFile ?: return null
-        val songName = File(songPath).nameWithoutExtension
-        return try {
-            parentDir.listFiles()
-                ?.filter { file -> file.extension.lowercase() in lyricExtensions }
-                ?.sortedWith(
-                    compareBy<File> { lyricExtensions.indexOf(it.extension.lowercase()) }
-                        .thenBy { it.name }
-                )
-                ?.firstNotNullOfOrNull { file ->
-                    file.takeIf { it.nameWithoutExtension.contains(songName, ignoreCase = true) }
-                        ?.let { readViaFd(it.absolutePath) }
-                }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun readViaFd(path: String): String? {
-        return try {
-            val file = File(path)
-            if (!file.exists()) return null
-            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
-                FileInputStream(pfd.fileDescriptor).use { fis ->
-                    val bytes = fis.readBytes()
-                    if (bytes.isEmpty()) return null
-                    readTextWithFallback(bytes)
-                }
-            }
-        } catch (_: Exception) {
-            null
-        }
     }
 
     private fun readTextWithFallback(bytes: ByteArray): String {

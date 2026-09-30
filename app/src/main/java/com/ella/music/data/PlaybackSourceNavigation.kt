@@ -80,17 +80,6 @@ internal object PlaybackSourceNavigation {
 
     fun activeScreen(): String? = activeScreenKey
 
-    fun recordSongSource(songKey: String, sourceKey: String?) {
-        val resolved = sourceKey?.takeIf(::isNavigableSourceKey)
-            ?: activeScreenKey?.takeIf(::isNavigableSourceKey)
-            ?: return
-        if (songKey.isBlank()) return
-        songSources.remove(songKey)
-        songSources[songKey] = resolved
-        trimSongSources()
-        persist()
-    }
-
     fun recordSongSources(sources: Map<String, String>) {
         if (sources.isEmpty()) return
         sources.forEach { (songKey, sourceKey) ->

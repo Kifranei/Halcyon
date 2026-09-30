@@ -1,7 +1,6 @@
 package com.ella.music.ui.folder
 
 import com.ella.music.ui.settings.SettingsSearchAnchor
-import com.ella.music.ui.settings.SettingsSearchFocus
 import android.provider.DocumentsContract
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi

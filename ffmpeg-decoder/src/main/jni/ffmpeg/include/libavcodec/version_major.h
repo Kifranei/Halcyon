@@ -25,7 +25,7 @@
  * Libavcodec version macros.
  */
 
-#define LIBAVCODEC_VERSION_MAJOR  60
+#define LIBAVCODEC_VERSION_MAJOR  63
 
 /**
  * FF_API_* defines may be placed below to indicate public API that will be
@@ -37,16 +37,9 @@
  * at once through the bump. This improves the git bisect-ability of the change.
  */
 
-#define FF_API_INIT_PACKET         (LIBAVCODEC_VERSION_MAJOR < 61)
-#define FF_API_IDCT_NONE           (LIBAVCODEC_VERSION_MAJOR < 61)
-#define FF_API_SVTAV1_OPTS         (LIBAVCODEC_VERSION_MAJOR < 61)
-#define FF_API_AYUV_CODECID        (LIBAVCODEC_VERSION_MAJOR < 61)
-#define FF_API_VT_OUTPUT_CALLBACK  (LIBAVCODEC_VERSION_MAJOR < 61)
-#define FF_API_AVCODEC_CHROMA_POS  (LIBAVCODEC_VERSION_MAJOR < 61)
-#define FF_API_VT_HWACCEL_CONTEXT  (LIBAVCODEC_VERSION_MAJOR < 61)
-#define FF_API_AVCTX_FRAME_NUMBER  (LIBAVCODEC_VERSION_MAJOR < 61)
+#define FF_API_INIT_PACKET         (LIBAVCODEC_VERSION_MAJOR < 64)
 
-// reminder to remove CrystalHD decoders on next major bump
-#define FF_CODEC_CRYSTAL_HD        (LIBAVCODEC_VERSION_MAJOR < 61)
+#define FF_API_INTRA_DC_PRECISION  (LIBAVCODEC_VERSION_MAJOR < 64)
+#define FF_API_MJPEG_EXTERN_HUFF   (LIBAVCODEC_VERSION_MAJOR < 64)
 
 #endif /* AVCODEC_VERSION_MAJOR_H */

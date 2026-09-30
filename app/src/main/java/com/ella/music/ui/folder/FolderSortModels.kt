@@ -44,6 +44,11 @@ internal fun List<FolderTreeEntry>.sortedForFolderList(
         FolderListSortMode.DateModified -> sortedWith(compareByDescending<FolderTreeEntry> { it.dateModified }.thenBy { it.name.musicSortKey() })
         FolderListSortMode.DateModifiedAsc -> sortedWith(compareBy<FolderTreeEntry> { it.dateModified }.thenBy { it.name.musicSortKey() })
     }
+    return sorted.withPinnedFolders(pinnedPaths)
+}
+
+internal fun List<FolderTreeEntry>.withPinnedFolders(pinnedPaths: List<String>): List<FolderTreeEntry> {
+    val sorted = this
     if (pinnedPaths.isEmpty()) return sorted
     val pinnedRank = pinnedPaths
         .mapIndexed { index, path -> path.lowercase(Locale.ROOT) to index }

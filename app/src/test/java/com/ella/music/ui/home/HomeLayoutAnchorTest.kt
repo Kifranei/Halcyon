@@ -34,38 +34,6 @@ class HomeLayoutAnchorTest {
     }
 
     @Test
-    fun pinchOutMovesOneStepTowardTheCoverGrid() {
-        assertEquals(
-            SettingsManager.LIBRARY_LAYOUT_MULTI_ROW,
-            libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_LIST, scaleDelta = 0.25f)
-        )
-        assertEquals(
-            SettingsManager.LIBRARY_LAYOUT_DETAILS,
-            libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_MULTI_ROW, scaleDelta = 0.25f)
-        )
-    }
-
-    @Test
-    fun pinchInMovesOneStepTowardTheDetailedList() {
-        assertEquals(
-            SettingsManager.LIBRARY_LAYOUT_DETAILS,
-            libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_GRID, scaleDelta = -0.25f)
-        )
-        assertEquals(
-            SettingsManager.LIBRARY_LAYOUT_LIST,
-            libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_MULTI_ROW, scaleDelta = -0.25f)
-        )
-    }
-
-    @Test
-    fun shortPinchDoesNotChangeLayout() {
-        assertEquals(
-            SettingsManager.LIBRARY_LAYOUT_MULTI_ROW,
-            libraryLayoutAfterPinch(SettingsManager.LIBRARY_LAYOUT_MULTI_ROW, scaleDelta = 0.1f)
-        )
-    }
-
-    @Test
     fun libraryPinchFromTwoColumnsTargetsDetailsBeforeCoverGrid() {
         val state = LibraryPinchState(SettingsManager.LIBRARY_LAYOUT_MULTI_ROW)
 

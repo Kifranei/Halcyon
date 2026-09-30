@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -39,7 +38,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,7 +67,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -87,6 +84,7 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
     val startupItem by settingsManager.bottomDockStartupItem.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_STARTUP_ITEM
     )
+    val startupOpenPlayer by settingsManager.startupOpenPlayer.collectAsState(initial = false)
     val bottomBarCornerRadius by settingsManager.bottomBarCornerRadius.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_BAR_CORNER_RADIUS_DP
     )
@@ -339,6 +337,20 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 }
+            }
+
+            SettingsCardGroup {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_startup_open_player) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_startup_open_player),
+                    summary = stringResource(R.string.settings_startup_open_player_summary),
+                    checked = startupOpenPlayer,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsManager.setStartupOpenPlayer(enabled) }
+                    }
+                )
+                } // search-anchor:end
             }
 
             var showReorderSheet by remember { mutableStateOf(false) }
@@ -631,146 +643,6 @@ private fun PreviewItem(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun SelectedDockRow(
-    tab: BottomDockTab,
-    position: Int,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    canRemove: Boolean,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    onRemove: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = tab.icon,
-            contentDescription = null,
-            tint = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.size(25.dp)
-        )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 12.dp)
-        ) {
-            Text(
-                text = tab.label,
-                color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = stringResource(R.string.settings_bottom_dock_position, position),
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                fontSize = 12.sp
-            )
-        }
-        DockActionButton(
-            text = "↑",
-            contentDescription = stringResource(R.string.common_move_up),
-            enabled = canMoveUp,
-            onClick = onMoveUp
-        )
-        DockActionButton(
-            text = "↓",
-            contentDescription = stringResource(R.string.common_move_down),
-            enabled = canMoveDown,
-            onClick = onMoveDown
-        )
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .alpha(if (canRemove) 1f else 0.28f)
-                .clickable(enabled = canRemove, onClick = onRemove),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Delete,
-                contentDescription = stringResource(R.string.common_remove),
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun DockActionButton(
-    text: String,
-    contentDescription: String,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .alpha(if (enabled) 1f else 0.28f)
-            .semantics { this.contentDescription = contentDescription }
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = MiuixTheme.colorScheme.primary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-        )
-    }
-}
-
-@Composable
-private fun AvailableDockTile(
-    tab: BottomDockTab,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val foreground = when {
-        selected -> MiuixTheme.colorScheme.primary
-        enabled -> MiuixTheme.colorScheme.onSurface
-        else -> MiuixTheme.colorScheme.onSurfaceVariantSummary
-    }
-    Row(
-        modifier = modifier
-            .alpha(if (enabled) 1f else 0.42f)
-            .background(
-                color = if (selected) {
-                    MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-                } else {
-                    MiuixTheme.colorScheme.onSurface.copy(alpha = 0.05f)
-                },
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = tab.icon,
-            contentDescription = null,
-            tint = foreground,
-            modifier = Modifier.size(23.dp)
-        )
-        Text(
-            text = tab.label,
-            color = foreground,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 9.dp)
         )
     }
 }

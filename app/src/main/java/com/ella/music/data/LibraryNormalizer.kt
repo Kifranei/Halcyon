@@ -98,21 +98,6 @@ object LibraryNormalizer {
             .trim()
 
     /**
-     * Album text for grouping/display when [folderNameAsAlbumWhenMissing] is disabled:
-     * parent-folder lookalikes are treated as missing (#658).
-     */
-    fun effectiveAlbumForLibrary(
-        album: String?,
-        path: String,
-        folderNameAsAlbumWhenMissing: Boolean
-    ): String {
-        val cleaned = cleanedAlbumText(album)
-        if (cleaned.isBlank()) return ""
-        if (!folderNameAsAlbumWhenMissing && looksLikeLastFolderName(cleaned, path)) return ""
-        return cleaned
-    }
-
-    /**
      * Final library album text. A parent-folder lookalike only counts as missing when it was
      * inferred (MediaStore/filename) while [folderNameAsAlbumWhenMissing] is off (#658). An album
      * read from the file's own tags is always kept, even in Artist/Album/01.flac layouts where it

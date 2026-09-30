@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">網易雲評論預設分頁</string>
+    <string name="netease_comments_default_tab_summary">選擇歌曲、專輯和 MV 評論頁預設開啟的分頁</string>
     <string name="netease_comments_open">評論</string>
     <string name="netease_comments_title">評論</string>
     <string name="netease_comments_title_count">評論(%1$s)</string>

@@ -37,7 +37,6 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Calendar
 
 @Composable
@@ -53,13 +52,19 @@ fun AnalyticsScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val playbackHistory by mainViewModel.playbackHistory.collectAsState()
     val dailyListenMs by mainViewModel.dailyListenMs.collectAsState()
-    val replayMonthTabs = remember { buildReplayMonthTabs() }
+    val now = remember { Calendar.getInstance() }
+    val replayYears = remember(playbackHistory, dailyListenMs, now) {
+        buildReplayYears(playbackHistory, dailyListenMs, now)
+    }
     var selectedMonthOffset by rememberSaveable { mutableIntStateOf(0) }
-    val selectedMonth = remember(selectedMonthOffset) {
-        Calendar.getInstance().apply {
+    val selectedMonth = remember(selectedMonthOffset, now) {
+        (now.clone() as Calendar).apply {
+            set(Calendar.DAY_OF_MONTH, 1)
             add(Calendar.MONTH, -selectedMonthOffset)
         }
     }
+    val selectedYear = selectedMonth.get(Calendar.YEAR)
+    val replayMonthTabs = remember(selectedYear, now) { buildReplayMonthTabs(now = now, year = selectedYear) }
     val libraryById = remember(songs) { songs.associateBy { it.id } }
     val libraryByStatsKey = remember(songs) { songs.associateBy { it.analyticsStatsKey() } }
     val monthlyReport = remember(playbackHistory, dailyListenMs, songs, selectedMonthOffset) {
@@ -127,7 +132,11 @@ fun AnalyticsScreen(
                     report = monthlyReport,
                     monthTabs = replayMonthTabs,
                     selectedMonthOffset = selectedMonthOffset,
-                    onMonthSelected = { selectedMonthOffset = it }
+                    onMonthSelected = { selectedMonthOffset = it },
+                    availableYears = replayYears,
+                    onYearSelected = { year ->
+                        selectedMonthOffset = replayMonthOffset(year, selectedMonth.get(Calendar.MONTH), now)
+                    }
                 )
             }
 

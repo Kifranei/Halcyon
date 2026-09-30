@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">Onglet par défaut des commentaires NetEase</string>
+    <string name="netease_comments_default_tab_summary">Choisissez l\'onglet affiché à l\'ouverture des commentaires des titres, albums et clips</string>
     <string name="netease_comments_open">Commentaires</string>
     <string name="netease_comments_title">Commentaires</string>
     <string name="netease_comments_title_count">Commentaires (%1$s)</string>

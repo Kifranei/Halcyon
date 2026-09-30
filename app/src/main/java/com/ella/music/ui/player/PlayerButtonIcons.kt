@@ -382,25 +382,3 @@ internal fun HeartIcon(
         }
     }
 }
-
-@Composable
-internal fun CloseIcon(
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        val stroke = size.minDimension * 0.12f
-        drawLine(
-            color = color,
-            start = Offset(size.width * 0.22f, size.height * 0.22f),
-            end = Offset(size.width * 0.78f, size.height * 0.78f),
-            strokeWidth = stroke
-        )
-        drawLine(
-            color = color,
-            start = Offset(size.width * 0.78f, size.height * 0.22f),
-            end = Offset(size.width * 0.22f, size.height * 0.78f),
-            strokeWidth = stroke
-        )
-    }
-}

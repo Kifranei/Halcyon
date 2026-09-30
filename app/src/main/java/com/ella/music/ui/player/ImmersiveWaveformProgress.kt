@@ -8,11 +8,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -41,13 +38,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Song
-import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.RawWaveformCache
 import com.ella.music.data.SettingsManager
 
@@ -850,7 +844,7 @@ private fun DrawScope.drawRoundedWaveform(
 
     val dragFocus = if (isDragging) 1f else 0f
     val needleWidth = (1.48f + dragFocus * 0.36f) * density
-    val needleHeight = size.height * 1.36f
+    val needleHeight = size.height * 1.12f
     val needleTop = (size.height - needleHeight) * 0.5f
     drawRoundRect(
         color = colors.needle.copy(alpha = 0.98f),

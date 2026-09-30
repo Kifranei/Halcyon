@@ -49,6 +49,7 @@ internal fun SettingsDesktopLyricControls(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectSettingsState(initialValue = false)
+    val desktopLyricWordLift by settingsManager.desktopLyricWordLift.collectSettingsState(initialValue = true)
     val desktopLyricHideWhenPaused by settingsManager.desktopLyricHideWhenPaused.collectSettingsState(initialValue = false)
     val desktopLyricHideInLandscape by settingsManager.desktopLyricHideInLandscape.collectSettingsState(initialValue = false)
     val desktopLyricHideOnPlayerPage by settingsManager.desktopLyricHideOnPlayerPage.collectSettingsState(initialValue = false)
@@ -185,7 +186,17 @@ internal fun SettingsDesktopLyricControls(
 
     }
 
-    if (desktopLyricEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.desktop_lyric_status_bar_mode, R.string.settings_status_lyric_hide_when_paused, R.string.settings_status_lyric_hide_in_landscape, R.string.settings_status_lyric_top_offset_value, R.string.settings_status_bar_lyric_position, R.string.settings_status_lyric_width_value, R.string.settings_status_lyric_x_offset_value, R.string.settings_status_bar_lyric_text_align, R.string.settings_status_bar_lyric_vertical_align, R.string.settings_status_bar_lyric_secondary, R.string.settings_status_lyric_secondary_opacity_value, R.string.settings_status_lyric_merge_secondary, R.string.settings_floating_lyric_hide_when_paused, R.string.settings_desktop_lyric_hide_in_landscape, R.string.settings_desktop_lyric_width_value, R.string.settings_lock_desktop_lyric, R.string.desktop_lyric_reset_position, R.string.settings_desktop_lyric_hide_on_player_page, R.string.settings_desktop_lyric_hide_on_lyrics_page, R.string.settings_desktop_lyric_sync_cover_content_color, R.string.settings_desktop_lyric_glow, R.string.settings_desktop_lyric_outline, R.string.settings_desktop_lyric_background, R.string.settings_desktop_lyric_background_opacity, R.string.settings_desktop_lyric_color, R.string.common_custom)) {
+    if (desktopLyricEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_desktop_lyric_word_lift, R.string.desktop_lyric_status_bar_mode, R.string.settings_status_lyric_hide_when_paused, R.string.settings_status_lyric_hide_in_landscape, R.string.settings_status_lyric_top_offset_value, R.string.settings_status_bar_lyric_position, R.string.settings_status_lyric_width_value, R.string.settings_status_lyric_x_offset_value, R.string.settings_status_bar_lyric_text_align, R.string.settings_status_bar_lyric_vertical_align, R.string.settings_status_bar_lyric_secondary, R.string.settings_status_lyric_secondary_opacity_value, R.string.settings_status_lyric_merge_secondary, R.string.settings_floating_lyric_hide_when_paused, R.string.settings_desktop_lyric_hide_in_landscape, R.string.settings_desktop_lyric_width_value, R.string.settings_lock_desktop_lyric, R.string.desktop_lyric_reset_position, R.string.settings_desktop_lyric_hide_on_player_page, R.string.settings_desktop_lyric_hide_on_lyrics_page, R.string.settings_desktop_lyric_sync_cover_content_color, R.string.settings_desktop_lyric_glow, R.string.settings_desktop_lyric_outline, R.string.settings_desktop_lyric_background, R.string.settings_desktop_lyric_background_opacity, R.string.settings_desktop_lyric_color, R.string.common_custom)) {
+        // search-anchor:start
+        SettingsSearchAnchor(R.string.settings_desktop_lyric_word_lift) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_desktop_lyric_word_lift),
+                summary = stringResource(R.string.settings_desktop_lyric_word_lift_summary),
+                checked = desktopLyricWordLift,
+                onCheckedChange = { enabled -> scope.launch { settingsManager.setDesktopLyricWordLift(enabled) } }
+            )
+        } // search-anchor:end
+
         // search-anchor:start
         SettingsSearchAnchor(R.string.desktop_lyric_status_bar_mode) {
         SwitchPreference(

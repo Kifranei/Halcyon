@@ -15,11 +15,6 @@ internal data class SortedListResult<T>(
     val fastIndexKeysById: Map<Long, String> = emptyMap()
 )
 
-internal data class FastIndexSpec<T>(
-    val enabled: Boolean,
-    val keySelector: (T) -> String
-)
-
 internal interface DisplaySpec<T> {
     fun displayTitleFor(item: T): String
 }
@@ -28,9 +23,4 @@ internal data class ListScreenIdentity(
     val screen: String,
     val entityId: String = "",
     val sortKey: String = ""
-)
-
-internal data class ScrollMemoryKey(
-    val identity: ListScreenIdentity,
-    val contentFingerprint: Long = 0L
 )

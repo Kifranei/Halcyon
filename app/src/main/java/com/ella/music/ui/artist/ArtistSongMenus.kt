@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
-import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.ExplicitSongTitle
 import com.ella.music.ui.components.EllaMiuixMenuItem
@@ -41,100 +40,9 @@ import com.ella.music.ui.components.TagEditorOptionKind
 import com.ella.music.ui.components.buildTagEditorOptions
 import com.ella.music.ui.components.openSongWithMediaInfo
 import com.ella.music.viewmodel.MainViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlinx.coroutines.withContext
-
-@Composable
-internal fun ArtistSongActionMenu(
-    song: Song,
-    onDismiss: () -> Unit,
-    onAddToPlaylist: () -> Unit,
-    onPlayNext: () -> Unit,
-    onShare: () -> Unit,
-    onSpectrum: () -> Unit,
-    onInfo: () -> Unit,
-    onAiInterpret: () -> Unit,
-    onArtist: () -> Unit,
-    onAlbum: () -> Unit,
-    onEditTag: () -> Unit,
-    onDelete: () -> Unit
-) {
-    ArtistSheetColumn {
-        ArtistSheetHandle()
-        ExplicitSongTitle(
-            title = song.title,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
-        )
-        ArtistMenuItem(stringResource(R.string.player_add_to_playlist), onAddToPlaylist)
-        ArtistMenuItem(stringResource(R.string.song_more_play_next), onPlayNext)
-        ArtistMenuItem(stringResource(R.string.common_share), onShare)
-        ArtistMenuItem(stringResource(R.string.song_more_view_spectrum), onSpectrum)
-        ArtistMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
-        ArtistMenuItem(stringResource(R.string.song_more_view_song_info), onInfo)
-        ArtistMenuItem(stringResource(R.string.song_more_artist_entry, song.artist.ifBlank { stringResource(R.string.player_unknown_artist) }), onArtist)
-        ArtistMenuItem(stringResource(R.string.song_more_album_entry, song.album.ifBlank { stringResource(R.string.player_unknown_album) }), onAlbum)
-        ArtistMenuItem(stringResource(R.string.song_more_edit_tags_title), onEditTag)
-        ArtistMenuItem(stringResource(R.string.song_more_delete_permanently), onDelete, danger = true)
-        ArtistMenuItem(stringResource(R.string.common_cancel), onDismiss)
-    }
-}
-
-@Composable
-internal fun ArtistAddToPlaylistMenu(
-    playlists: List<UserPlaylist>,
-    onDismiss: () -> Unit,
-    onCreatePlaylist: () -> Unit,
-    onPlaylistsConfirm: (List<UserPlaylist>, Boolean) -> Unit
-) {
-    var selectedPlaylistIds by remember(playlists) { mutableStateOf(emptySet<String>()) }
-    val selectedPlaylists = playlists.filter { it.id in selectedPlaylistIds }
-    ArtistSheetColumn {
-        ArtistSheetHandle()
-        Text(
-            text = stringResource(R.string.player_add_to_playlist),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
-        )
-        ArtistMenuItem(stringResource(R.string.song_more_create_playlist), onCreatePlaylist)
-        if (playlists.isEmpty()) {
-            Text(
-                text = stringResource(R.string.song_more_no_custom_playlists),
-                fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 18.dp)
-            )
-        } else {
-            playlists.forEach { playlist ->
-                val selected = playlist.id in selectedPlaylistIds
-                ArtistMenuItem(stringResource(R.string.song_more_playlist_item_summary, if (selected) "✓ " else "", playlist.name, playlist.songs.size), onClick = {
-                    selectedPlaylistIds = if (selected) {
-                        selectedPlaylistIds - playlist.id
-                    } else {
-                        selectedPlaylistIds + playlist.id
-                    }
-                })
-            }
-        }
-        if (playlists.isNotEmpty()) {
-            ArtistMenuItem(stringResource(R.string.song_more_done_selected, selectedPlaylistIds.size), onClick = {
-                if (selectedPlaylists.isNotEmpty()) {
-                    onPlaylistsConfirm(selectedPlaylists, false)
-                }
-            })
-        }
-        ArtistMenuItem(stringResource(R.string.common_cancel), onDismiss)
-    }
-}
 
 @Composable
 internal fun ArtistCreatePlaylistSheet(
@@ -289,28 +197,4 @@ internal fun ArtistMenuItem(
     danger: Boolean = false
 ) {
     EllaMiuixMenuItem(text = text, onClick = onClick, danger = danger)
-}
-
-@Composable
-internal fun ArtistInfoRow(label: String, value: String) {
-    if (value.isBlank()) return
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurface,
-            maxLines = if (label == stringResource(R.string.song_more_detail_path) || label == stringResource(R.string.artist_info_audio)) 4 else 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp)
-        )
-    }
 }

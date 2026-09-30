@@ -95,11 +95,23 @@ public final class FfmpegAudioRenderer extends DecoderAudioRenderer<FfmpegAudioD
       @Nullable AudioRendererEventListener eventListener,
       AudioSink audioSink,
       @Nullable java.util.Set<String> onlyMimeTypes) {
+    this(eventHandler, eventListener, audioSink, onlyMimeTypes, /* formatFilter= */ null);
+  }
+
+  /** Claims only formats accepted by the compatibility policy, preserving other renderer order. */
+  public FfmpegAudioRenderer(
+      @Nullable Handler eventHandler,
+      @Nullable AudioRendererEventListener eventListener,
+      AudioSink audioSink,
+      @Nullable java.util.Set<String> onlyMimeTypes,
+      @Nullable java.util.function.Predicate<Format> formatFilter) {
     super(eventHandler, eventListener, audioSink);
     this.onlyMimeTypes = onlyMimeTypes;
+    this.formatFilter = formatFilter;
   }
 
   @Nullable private final java.util.Set<String> onlyMimeTypes;
+  @Nullable private final java.util.function.Predicate<Format> formatFilter;
 
   @Override
   public String getName() {
@@ -111,7 +123,8 @@ public final class FfmpegAudioRenderer extends DecoderAudioRenderer<FfmpegAudioD
     String mimeType = checkNotNull(format.sampleMimeType);
     if (!FfmpegLibrary.isAvailable()
         || !MimeTypes.isAudio(mimeType)
-        || (onlyMimeTypes != null && !onlyMimeTypes.contains(mimeType))) {
+        || (onlyMimeTypes != null && !onlyMimeTypes.contains(mimeType))
+        || (formatFilter != null && !formatFilter.test(format))) {
       return C.FORMAT_UNSUPPORTED_TYPE;
     } else if (!FfmpegLibrary.supportsFormat(mimeType)
         || (!sinkSupportsFormat(format, C.ENCODING_PCM_16BIT)

@@ -4,6 +4,26 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NeteaseQualityTest {
+    @Test fun apiPreviewMarkerSurvivesQualityPersistenceWithoutStoringTheStreamUrl() {
+        val data = org.json.JSONObject().put("url", "http://m.music.126.net/preview.mp3")
+            .put("level", "exhigh").put("type", "mp3").put("br", 320000).put("sr", 44100)
+            .put("freeTrialInfo", org.json.JSONObject().put("start", 60).put("end", 90))
+        val info = parseNeteaseStreamInfo(data, "standard")
+        assertTrue(info.isTrial)
+        assertTrue(info.url.startsWith("https://"))
+        val restored = decodeNeteaseServedQuality(encodeNeteaseServedQuality(info))!!
+        assertTrue(restored.isTrial)
+        assertEquals("", restored.url)
+        assertEquals(info.level, restored.level)
+        assertEquals(info.bitRate, restored.bitRate)
+        assertEquals(info.sampleRate, restored.sampleRate)
+        data.put("freeTrialInfo", org.json.JSONObject.NULL)
+        val full = parseNeteaseStreamInfo(data, "standard")
+        assertFalse(full.isTrial)
+        assertFalse(decodeNeteaseServedQuality(encodeNeteaseServedQuality(full))!!.isTrial)
+        assertFalse(decodeNeteaseServedQuality("exhigh|mp3|320000|44100")!!.isTrial)
+        assertNull(decodeNeteaseServedQuality("invalid"))
+    }
     @Test fun automaticStartsAtMasterAndDoesNotForceSpatialMixes() {
         val levels = neteaseQualityLevels("auto")
         assertEquals("jymaster", levels.first())

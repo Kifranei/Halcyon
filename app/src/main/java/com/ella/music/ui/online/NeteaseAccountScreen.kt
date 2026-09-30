@@ -22,8 +22,6 @@ import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.netease.NeteaseAccountStore
 import com.ella.music.data.netease.NeteaseLibraryStore
-import com.ella.music.ui.components.EllaSmallTopAppBar
-import com.ella.music.ui.components.LocalSettingsCloseAction
 import com.ella.music.ui.folder.WebDavTextField
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.CancellationException
@@ -40,6 +38,10 @@ fun NeteaseAccountScreen(onDismiss: () -> Unit, mainViewModel: MainViewModel?) {
     val accounts = remember { NeteaseAccountStore.getInstance(context) }
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val selectedQuality by settingsManager.neteaseQuality.collectAsState(initial = "auto")
+    val playbackProvider by settingsManager.neteasePlaybackProvider.collectAsState(initial = "official")
+    val onlineQuality by settingsManager.onlinePlaybackQuality.collectAsState(initial = "auto")
+    val useOfficialQuality = com.ella.music.data.netease.NeteasePlaybackProvider.fromId(playbackProvider) ==
+        com.ella.music.data.netease.NeteasePlaybackProvider.Official
     val account by accounts.account.collectAsState()
     val status by store.status.collectAsState()
     var cookie by remember { mutableStateOf("") }
@@ -75,16 +77,38 @@ fun NeteaseAccountScreen(onDismiss: () -> Unit, mainViewModel: MainViewModel?) {
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(stringResource(R.string.netease_summary))
                     com.ella.music.ui.components.EllaSheetCardGroup {
-                    com.ella.music.ui.settings.SettingsSearchAnchor(R.string.netease_quality_title) {
+                    com.ella.music.ui.settings.SettingsSearchAnchor(R.string.netease_playback_provider_title) {
                     top.yukonga.miuix.kmp.preference.WindowSpinnerPreference(
-                        title = stringResource(R.string.netease_quality_title),
-                        summary = stringResource(R.string.netease_quality_summary),
-                        items = com.ella.music.data.netease.NeteaseQuality.entries.map {
+                        title = stringResource(R.string.netease_playback_provider_title),
+                        summary = stringResource(R.string.netease_playback_provider_summary),
+                        items = com.ella.music.data.netease.NeteasePlaybackProvider.entries.map {
                             top.yukonga.miuix.kmp.basic.DropdownItem(title = stringResource(it.titleRes))
                         },
-                        selectedIndex = com.ella.music.data.netease.NeteaseQuality.fromId(selectedQuality).ordinal,
+                        selectedIndex = com.ella.music.data.netease.NeteasePlaybackProvider.fromId(playbackProvider).ordinal,
                         onSelectedIndexChange = { index -> scope.launch {
-                            settingsManager.setNeteaseQuality(com.ella.music.data.netease.NeteaseQuality.entries[index].id)
+                            settingsManager.setNeteasePlaybackProvider(com.ella.music.data.netease.NeteasePlaybackProvider.entries[index].id)
+                        } }
+                    )
+                    }
+                    com.ella.music.ui.settings.SettingsSearchAnchor(R.string.netease_quality_title) {
+                    val qualityOptions = if (useOfficialQuality) com.ella.music.data.netease.NeteaseQuality.entries
+                        .map { it.id to stringResource(it.titleRes) } else listOf(
+                            "auto" to stringResource(R.string.netease_quality_auto),
+                            "128k" to stringResource(R.string.netease_quality_standard),
+                            "320k" to stringResource(R.string.netease_quality_extreme),
+                            "flac" to stringResource(R.string.netease_quality_lossless),
+                            "flac24bit" to stringResource(R.string.netease_quality_hires)
+                        )
+                    top.yukonga.miuix.kmp.preference.WindowSpinnerPreference(
+                        title = stringResource(if (useOfficialQuality) R.string.netease_quality_title else R.string.netease_playback_plugin_quality_title),
+                        summary = stringResource(if (useOfficialQuality) R.string.netease_quality_summary else R.string.netease_playback_provider_summary),
+                        items = qualityOptions.map {
+                            top.yukonga.miuix.kmp.basic.DropdownItem(title = it.second)
+                        },
+                        selectedIndex = qualityOptions.indexOfFirst { it.first == if (useOfficialQuality) selectedQuality else onlineQuality }.coerceAtLeast(0),
+                        onSelectedIndexChange = { index -> scope.launch {
+                            if (useOfficialQuality) settingsManager.setNeteaseQuality(qualityOptions[index].first)
+                            else settingsManager.setOnlinePlaybackQuality(qualityOptions[index].first)
                         } }
                     )
                     }
@@ -125,7 +149,7 @@ fun NeteaseAccountScreen(onDismiss: () -> Unit, mainViewModel: MainViewModel?) {
                         }
                     }
                     Text(if (busy) stringResource(R.string.netease_loading) else status.ifBlank { message })
-                    Text(stringResource(R.string.netease_playback_note))
+                    Text(stringResource(if (useOfficialQuality) R.string.netease_playback_note else R.string.netease_plugin_playback_note))
         }
     }
     if (browser) NeteaseBrowserLogin(onDismiss = { browser = false }, onSession = {

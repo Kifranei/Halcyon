@@ -1,5 +1,7 @@
 package com.ella.music.ui.home
 
+import kotlinx.coroutines.ensureActive
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -90,6 +92,7 @@ import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.SideIndexListEndPadding
+import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.DefaultAlbumCover
@@ -126,14 +129,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
-import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
-import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Job
@@ -271,33 +270,36 @@ fun LibraryScreen(
         listCoversEnabled = true
     }
 
+    var audioFiltersExpanded by remember { mutableStateOf(false) }
+    var audioFilter by remember { mutableStateOf(LibraryAudioFilter()) }
     val effectiveRatingFilter = if (libraryShowRatingFilter) ratingFilter else HomeRatingFilterSelection()
     val activeFavoriteSongKeys = if (effectiveRatingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
     val activeRatingRevision = if (effectiveRatingFilter.hasRatingConstraint()) ratingRevision else 0
-    val filteredSongs by produceState(
-        initialValue = songs,
-        songs,
-        searchQuery,
-        effectiveRatingFilter,
-        activeFavoriteSongKeys,
-        activeRatingRevision
+    val filterProgress by produceState(
+        initialValue = LibraryAudioFilterProgress(songs, songs.size, songs.size, true),
+        songs, searchQuery, effectiveRatingFilter, activeFavoriteSongKeys, activeRatingRevision, audioFilter
     ) {
+        val filterSnapshot = audioFilter
+        val ratingSnapshot = effectiveRatingFilter
         val query = searchQuery.trim()
-        val favoriteKeys = activeFavoriteSongKeys
-        if (query.isBlank() && effectiveRatingFilter.isUnfiltered()) {
-            value = songs
+        if (filterSnapshot.isEmpty && ratingSnapshot.isUnfiltered() && query.isBlank()) {
+            value = LibraryAudioFilterProgress(songs, songs.size, songs.size, true)
             return@produceState
         }
+        value = LibraryAudioFilterProgress(emptyList(), 0, songs.size, false)
         val base = withContext(Dispatchers.IO) {
-            songs.filter { song ->
-                effectiveRatingFilter.matches(
+            if (ratingSnapshot.isUnfiltered()) songs else songs.filter { song ->
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                ratingSnapshot.matches(
                     rating = mainViewModel.getSongRating(song),
-                    isFavorite = song.playlistIdentityKey() in favoriteKeys
+                    isFavorite = song.playlistIdentityKey() in activeFavoriteSongKeys
                 )
             }
         }
-        value = if (query.isBlank()) base else mainViewModel.filterSongsBySearchSnapshot(base, query)
+        val searched = if (query.isBlank()) base else mainViewModel.filterSongsBySearchSnapshot(base, query)
+        filterLibraryAudio(searched, filterSnapshot, mainViewModel.audioQualityRevision, mainViewModel::getAudioQualityInfo).collect { value = it }
     }
+    val filteredSongs = filterProgress.songs
     // Keep initialValue O(1) and avoid rendering the full unsorted list before the background
     // sort completes. Large libraries can otherwise allocate several 60k-entry helper
     // collections twice while switching into this screen.
@@ -375,7 +377,7 @@ fun LibraryScreen(
                 titleStartPadding = if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) 108.dp else 20.dp,
                 // Selection mode adds a download action on the left of the row. The old 144dp
                 // inset left that button under the double-tap overlay, so taps never arrived (#657).
-                titleEndPadding = if (selection.selectionMode) 216.dp else 144.dp,
+                titleEndPadding = if (selection.selectionMode) 216.dp else 192.dp,
                 navigationIcon = {
                     if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) {
                         RatingFilterMenu(
@@ -450,6 +452,16 @@ fun LibraryScreen(
                         }
                     } else {
                         IconButton(onClick = {
+                            audioFiltersExpanded = true
+                        }) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_audio_filter),
+                                contentDescription = stringResource(R.string.library_audio_filter),
+                                tint = if (audioFiltersExpanded || !audioFilter.isEmpty) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = {
                             selection.selectionMode = true
                             selection.selectedIds = emptySet()
                         }) {
@@ -514,15 +526,16 @@ fun LibraryScreen(
                     .fillMaxWidth()
                     .height(56.dp),
                 startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 108.dp else 20.dp,
-                endPadding = if (selection.selectionMode) 216.dp else 140.dp
+                endPadding = if (selection.selectionMode) 216.dp else 188.dp
             )
         }
 
-        BackHandler(enabled = selection.selectionMode || searchExpanded) {
+        BackHandler(enabled = selection.selectionMode || searchExpanded || audioFiltersExpanded) {
             when {
                 selection.selectionMode -> {
                     selection.finishSelectionMode()
                 }
+                audioFiltersExpanded -> { audioFiltersExpanded = false }
                 searchExpanded -> {
                     searchExpanded = false
                     searchQuery = ""
@@ -530,6 +543,32 @@ fun LibraryScreen(
             }
         }
 
+        com.ella.music.ui.components.EllaMiuixBottomSheet(
+            show = audioFiltersExpanded,
+            title = stringResource(R.string.library_audio_filter),
+            onDismissRequest = { audioFiltersExpanded = false }
+        ) {
+            Column {
+                LibraryAudioFilterPanel(audioFilter) { audioFilter = it }
+                Text(
+                    text = if (filterProgress.complete) stringResource(R.string.library_audio_filter_count, filteredSongs.size)
+                        else stringResource(R.string.library_audio_filter_progress, filterProgress.checked, filterProgress.total, filteredSongs.size),
+                    fontSize = 13.sp, modifier = Modifier.padding(12.dp),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+                com.ella.music.ui.components.EllaMiuixSheetActions(
+                    cancelText = stringResource(R.string.common_reset),
+                    confirmText = stringResource(R.string.common_done),
+                    onCancel = { audioFilter = LibraryAudioFilter() },
+                    onConfirm = { audioFiltersExpanded = false }
+                )
+            }
+        }
+        if (!filterProgress.complete) Text(
+            stringResource(R.string.library_audio_filter_progress, filterProgress.checked, filterProgress.total, filteredSongs.size),
+            color = MiuixTheme.colorScheme.primary, fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        )
         if (searchExpanded) {
             EllaSearchBar(
                 query = searchQuery,
@@ -559,14 +598,33 @@ fun LibraryScreen(
         if (songs.isEmpty() && !libraryCacheLoaded && !isScanning) {
             EllaCenteredLoadingIndicator()
         } else if (songs.isEmpty() && !isScanning) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            PullToRefresh(
+                isRefreshing = libraryRefreshing,
+                onRefresh = { libraryRefreshing = true; mainViewModel.scanMusic() },
+                pullToRefreshState = libraryPullToRefreshState,
+                color = MiuixTheme.colorScheme.onSurface,
+                refreshTexts = listOf(
+                    stringResource(R.string.library_pull_to_refresh),
+                    stringResource(R.string.library_release_to_refresh),
+                    stringResource(R.string.library_refreshing),
+                    stringResource(R.string.library_refresh_complete)
+                ),
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text(
-                    text = stringResource(R.string.library_empty_hint),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item {
+                        Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = stringResource(R.string.library_empty_hint),
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (filterProgress.complete && filteredSongs.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.library_search_no_results), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             }
         } else if (sortedResult == null) {
             Box(
@@ -821,7 +879,8 @@ fun LibraryScreen(
                 val showScrollIndicator = sortedSongs.size > 30 && !showFastIndexBar
                 // Keep a small inset so the more button sits near, but not under, the side index bar.
                 val listEndInset = when {
-                    showFastIndexBar || showScrollIndicator -> SideIndexListEndPadding
+                    showFastIndexBar -> SideIndexListEndPadding
+                    showScrollIndicator -> ScrollIndicatorListEndPadding
                     else -> 0.dp
                 }
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -1395,6 +1454,7 @@ private fun LibrarySongsList(
                 SongItem(
                     song = song,
                     detailed = detailed,
+                    loadOriginalCoverArt = mainViewModel::getOriginalCoverModel,
                     compactMultiRow = detailed,
                     showAlbumInSubtitle = !detailed,
                     titleOverride = sortMode.songDisplaySpec().displayTitleFor(song),
@@ -1564,18 +1624,6 @@ internal fun libraryLayoutAnchorSongIndex(firstVisibleItemIndex: Int, columns: I
 internal fun libraryLayoutItemIndexForSong(songIndex: Int, columns: Int): Int =
     if (columns > 1) songIndex.coerceAtLeast(0) / columns
     else songIndex.coerceAtLeast(0)
-
-internal fun libraryLayoutAfterPinch(
-    currentLayout: Int,
-    scaleDelta: Float,
-    threshold: Float = 0.2f
-): Int = when {
-    // A positive scale delta means the fingers spread apart. In the library that moves toward
-    // the denser cover grid: detailed list -> multi-row -> cover grid.
-    scaleDelta >= threshold -> LibraryPinchState.layoutForOrder(LibraryPinchState.layoutOrder(currentLayout) - 1)
-    scaleDelta <= -threshold -> LibraryPinchState.layoutForOrder(LibraryPinchState.layoutOrder(currentLayout) + 1)
-    else -> currentLayout
-}
 
 @Composable
 private fun Modifier.libraryPinchGesture(

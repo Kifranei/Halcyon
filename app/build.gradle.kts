@@ -16,7 +16,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-val appVersionName = "1.2.9"
+val appVersionName = "1.3.0"
 val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 val configuredAbis = providers.gradleProperty("ellaAbi")
     .orNull
@@ -105,6 +105,7 @@ abstract class CopyRenamedApksTask : DefaultTask() {
 android {
     namespace = "com.ella.music"
     compileSdk = 37
+    testOptions { unitTests.isIncludeAndroidResources = true }
     val releaseStoreFile = System.getenv("RELEASE_STORE_FILE")
         ?.takeIf { it.isNotBlank() }
         ?.let { file(it) }
@@ -125,7 +126,7 @@ android {
         applicationId = "com.ella.music"
         minSdk = 29
         targetSdk = 37
-        versionCode = 39
+        versionCode = 40
         versionName = appVersionName
         externalNativeBuild {
             cmake {
@@ -268,22 +269,24 @@ androidComponents {
 }
 
 dependencies {
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation(libs.androidx.appcompat)
     // Installs the bundled baseline profile (src/main/baseline-prof.txt) so ART AOT-compiles
     // the startup/library paths at install time instead of JIT-compiling them on first launch.
-    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.media3.exoplayer)
+    implementation("androidx.media3:media3-inspector:${libs.versions.media3.get()}")
+    implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.cast)
     // Optional on-device enhancement: enables HONOR's 96-192 kHz playback path when the
     // device exposes HNAUDIO_SERVICE_HIGHSAMPLERATEPLAY. Unsupported devices simply no-op.
-    implementation("com.hihonor.mcs:media-audio:1.2.0.300")
+    implementation(libs.honor.media.audio)
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
@@ -292,21 +295,21 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.lyricon.provider)
     implementation(libs.lyric.getter.api)
-    implementation("com.github.HChenX:SuperLyricApi:3.4")
+    implementation(libs.superlyric.api)
     // Full LGPL build supplies muxers and encoders for the local conversion tool.
-    implementation("com.arthenica:ffmpeg-kit-full:6.0-2.LTS")
+    implementation(libs.ffmpeg.kit.full)
     implementation(libs.reorderable)
     implementation(libs.compose.material.icons.extended)
     implementation(project(":lyrico-audiotag"))
-    implementation("wang.harlon.quickjs:wrapper-android:2.4.0")
+    implementation(libs.quickjs.wrapper)
     implementation(project(":ffmpeg-decoder"))
-    implementation("com.google.oboe:oboe:1.9.0")
+    implementation(libs.oboe)
 
     implementation(libs.miuix.ui)
     implementation(libs.miuix.icons)
     implementation(libs.miuix.blur)
     implementation(libs.miuix.preference)
-    implementation("androidx.webkit:webkit:1.12.1")
+    implementation(libs.androidx.webkit)
 
     // MCP Server
     implementation(libs.mcp.server)
@@ -320,6 +323,9 @@ dependencies {
     implementation(libs.hidden.api.bypass)
     compileOnly(project(":hidden-api"))
 
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20240303")
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.json.test)
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

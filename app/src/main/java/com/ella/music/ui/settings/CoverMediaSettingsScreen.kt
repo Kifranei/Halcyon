@@ -2,27 +2,24 @@
 
 package com.ella.music.ui.settings
 
+import com.ella.music.data.netease.commentResource
+
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.documentfile.provider.DocumentFile
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -35,15 +32,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lastfm.DEFAULT_LAST_FM_WIKI_REGION
@@ -57,8 +50,6 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Switch
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -109,6 +100,7 @@ fun CoverMediaSettingsScreen(
             SettingsArtistCoverSection(highlightKey = highlightKey)
             SettingsArtistImageSection(highlightKey = highlightKey)
             SettingsDynamicCoverSection(highlightKey = highlightKey)
+            SettingsSpotifyCanvasSection()
             SettingsMusicVideoSection(highlightKey = highlightKey)
             Spacer(modifier = Modifier.height(160.dp))
         }
@@ -165,8 +157,9 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
     )
     val selectedDownloadMode = downloadOptions.indexOfFirst { it.first == SettingsManager.normalizeArtistImageDownload(downloadMode) }
         .coerceAtLeast(0)
-    val selectedImageRegion = normalizeLastFmWikiRegion(imageRegion)
-    val selectedImageRegionIndex = LAST_FM_WIKI_REGIONS.indexOfFirst { it.code == selectedImageRegion }
+    val spotifyRegion by settingsManager.artistSpotifyRegion.collectAsState(initial = "US")
+    val selectedImageRegion = com.ella.music.data.lastfm.normalizeArtistImageLastFmRegion(imageRegion)
+    val selectedImageRegionIndex = com.ella.music.data.lastfm.ARTIST_IMAGE_LASTFM_REGIONS.indexOfFirst { it.code == selectedImageRegion }
         .takeIf { it >= 0 } ?: 0
     val sourceOptions = listOf(
         SettingsManager.ARTIST_IMAGE_SOURCE_LASTFM to stringResource(R.string.settings_artist_image_source_lastfm),
@@ -241,12 +234,12 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
                 WindowSpinnerPreference(
                     title = stringResource(R.string.settings_artist_image_region),
                     summary = stringResource(R.string.settings_artist_image_region_summary),
-                    items = LAST_FM_WIKI_REGIONS.map {
+                    items = com.ella.music.data.lastfm.ARTIST_IMAGE_LASTFM_REGIONS.map {
                         DropdownItem(title = stringResource(it.countryNameRes))
                     },
                     selectedIndex = selectedImageRegionIndex,
                     onSelectedIndexChange = { index ->
-                        LAST_FM_WIKI_REGIONS.getOrNull(index)?.let { region ->
+                        com.ella.music.data.lastfm.ARTIST_IMAGE_LASTFM_REGIONS.getOrNull(index)?.let { region ->
                             scope.launch { settingsManager.setArtistImageRegion(region.code) }
                         }
                     }
@@ -254,6 +247,16 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
                 } // search-anchor:end
 
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_artist_spotify_region) {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_artist_spotify_region),
+                    summary = stringResource(R.string.settings_artist_spotify_region_summary),
+                    items = com.ella.music.data.lastfm.SPOTIFY_ARTIST_REGIONS.map { DropdownItem(title = stringResource(it.countryNameRes)) },
+                    selectedIndex = com.ella.music.data.lastfm.SPOTIFY_ARTIST_REGIONS.indexOfFirst { it.code == spotifyRegion }.coerceAtLeast(0),
+                    onSelectedIndexChange = { index -> com.ella.music.data.lastfm.SPOTIFY_ARTIST_REGIONS.getOrNull(index)?.let { region -> scope.launch { settingsManager.setArtistSpotifyRegion(region.code) } } }
+                )
+            } // search-anchor:end
             val artistSourceSummary = remember(enabledSourceIds, sourceLabels) {
                 enabledSourceIds.mapNotNull { sourceLabels[it] }.joinToString(" · ")
             }
@@ -324,6 +327,7 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    var confirmRemoveFolder by remember { mutableStateOf(false) }
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectCachedAsState("artistCoverFolderUri", "")
     val artistCoverDownloadFolderUri by settingsManager.artistCoverDownloadFolderUri.collectCachedAsState("artistCoverDownloadFolderUri", "")
     val artistCoverCarousel by settingsManager.artistCoverCarousel.collectCachedAsState("artistCoverCarousel", true)
@@ -410,8 +414,7 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
                     title = stringResource(R.string.settings_artist_cover_folder_remove),
                     summary = stringResource(R.string.settings_artist_cover_folder_remove_summary),
                     onClick = {
-                        scope.launch { settingsManager.setArtistCoverFolderUri("") }
-                        Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_cleared), Toast.LENGTH_SHORT).show()
+                        confirmRemoveFolder = true
                     }
                 )
                 } // search-anchor:end
@@ -470,6 +473,24 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
             }
         }
     }
+    com.ella.music.ui.components.EllaMiuixDialog(
+        show = confirmRemoveFolder,
+        title = stringResource(R.string.settings_artist_cover_folder_remove),
+        summary = stringResource(R.string.settings_artist_cover_folder_remove_confirm),
+        onDismissRequest = { confirmRemoveFolder = false }
+    ) {
+        com.ella.music.ui.components.EllaMiuixDialogActions(
+            cancelText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.common_confirm),
+            confirmDangerous = true,
+            onCancel = { confirmRemoveFolder = false },
+            onConfirm = {
+                confirmRemoveFolder = false
+                scope.launch { settingsManager.setArtistCoverFolderUri("") }
+            }
+        )
+    }
+
 }
 
 @Composable
@@ -808,6 +829,25 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
             } // search-anchor:end
 
             // search-anchor:start
+            SettingsSearchAnchor(R.string.netease_comments_default_tab) {
+            WindowSpinnerPreference(
+                title = stringResource(R.string.netease_comments_default_tab),
+                summary = stringResource(R.string.netease_comments_default_tab_summary),
+                items = listOf(
+                    DropdownItem(title = stringResource(R.string.netease_comments_sort_recommend)),
+                    DropdownItem(title = stringResource(R.string.netease_comments_sort_hot)),
+                    DropdownItem(title = stringResource(R.string.netease_comments_sort_latest))
+                ),
+                selectedIndex = com.ella.music.data.netease.NeteaseCommentSort.entries.indexOf(neteaseLinkSettings.defaultCommentSort),
+                onSelectedIndexChange = { index ->
+                    com.ella.music.data.netease.NeteaseCommentSort.entries.getOrNull(index)?.let { sort ->
+                        com.ella.music.data.netease.NeteaseLinks.update(context) { it.copy(defaultCommentSort = sort) }
+                    }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
             SettingsSearchAnchor(R.string.netease_link_target) {
             WindowSpinnerPreference(
                 title = stringResource(R.string.netease_link_target),
@@ -825,16 +865,21 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
             if (neteaseLinkSettings.target == com.ella.music.data.netease.NeteaseLinkTarget.Custom) {
                 listOf(
                     com.ella.music.data.netease.NeteaseLinkKind.Song to R.string.netease_link_kind_song,
+                    com.ella.music.data.netease.NeteaseLinkKind.SongWiki to R.string.netease_link_song_wiki,
                     com.ella.music.data.netease.NeteaseLinkKind.Comment to R.string.netease_link_song_comments,
                     com.ella.music.data.netease.NeteaseLinkKind.Artist to R.string.netease_link_kind_artist,
                     com.ella.music.data.netease.NeteaseLinkKind.ArtistWiki to R.string.netease_link_artist_wiki,
                     com.ella.music.data.netease.NeteaseLinkKind.Album to R.string.netease_link_kind_album,
-                    com.ella.music.data.netease.NeteaseLinkKind.MusicVideo to R.string.netease_link_kind_mv
+                    com.ella.music.data.netease.NeteaseLinkKind.AlbumComment to R.string.netease_link_album_comments,
+                    com.ella.music.data.netease.NeteaseLinkKind.MusicVideo to R.string.netease_link_kind_mv,
+                    com.ella.music.data.netease.NeteaseLinkKind.MusicVideoComment to R.string.netease_link_mv_comments
                 ).forEach { (kind, labelRes) ->
                     SplitSettingTextField(
                         label = stringResource(labelRes),
                         value = neteaseLinkSettings.custom[kind].orEmpty(),
-                        summary = stringResource(
+                        summary = if (kind.commentResource() != null) {
+                            stringResource(R.string.netease_link_custom_comments_summary)
+                        } else stringResource(
                             R.string.netease_link_custom_summary,
                             com.ella.music.data.netease.NeteaseLinks.defaultPrefix(com.ella.music.data.netease.NeteaseLinkTarget.Web, kind)
                         ),

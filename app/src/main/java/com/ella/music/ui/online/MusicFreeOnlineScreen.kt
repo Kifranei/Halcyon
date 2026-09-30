@@ -6,25 +6,20 @@ import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,7 +51,6 @@ import com.ella.music.viewmodel.MusicFreeOnlineViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -94,18 +88,58 @@ fun MusicFreeOnlineScreen(
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val currentPluginId = selectedPlugin?.id.orEmpty()
-    var observedPluginId by remember { mutableStateOf<String?>(null) }
     var actionItem by remember { mutableStateOf<MusicFreeOnlineSong?>(null) }
-    LaunchedEffect(currentPluginId) {
-        val previousPluginId = observedPluginId
-        if (previousPluginId != null && previousPluginId != currentPluginId) {
-            state.clearResults("")
-        }
-        observedPluginId = currentPluginId
-    }
+    var searchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val resultsListState = rememberLazyListState()
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { searchJob?.cancel() } }
 
     fun showToast(text: String) {
         Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    }
+
+    fun searchSelectedPlugin(automatic: Boolean = false, loadMore: Boolean = false) {
+        if (loadMore && state.isBusy) return
+        val plugin = selectedPlugin ?: return
+        val request = (if (loadMore) state.searchRequests.nextPage(automatic)
+            else state.searchRequests.request(state.searchQuery, automatic)) ?: return
+        searchJob?.cancel()
+        if (!loadMore) state.clearResults("")
+        searchJob = scope.launch {
+            if (!loadMore) state.isBusy = true
+            try {
+                val page = service.search(request.query, plugin, page = request.page)
+                if (state.searchRequests.isCurrent(request)) {
+                    val previousCount = state.results.size
+                    state.results = appendDistinctSearchResults(state.results, page.songs) { it.song.id }
+                    state.searchRequests.complete(request, state.results.size - previousCount, page.isEnd)
+                    state.message = if (state.results.isEmpty()) context.getString(R.string.lx_online_no_songs_found)
+                        else context.getString(R.string.lx_online_songs_found, state.results.size)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (state.searchRequests.isCurrent(request)) {
+                    state.searchRequests.fail(request)
+                    state.message = error.localizedMessage ?: "搜索失败"
+                    showToast(state.message)
+                }
+            } finally {
+                state.searchRequests.cancel(request)
+                if (!loadMore && state.searchRequests.isCurrent(request)) state.isBusy = false
+            }
+        }
+    }
+    LaunchedEffect(currentPluginId, loadedPlugins) {
+        if (loadedPlugins == null) return@LaunchedEffect
+        val previousPluginId = state.observedPluginId
+        if (previousPluginId != null && previousPluginId != currentPluginId) {
+            state.searchRequests.invalidate()
+            searchJob?.cancel()
+            state.isBusy = false
+            state.clearResults("")
+            searchSelectedPlugin(automatic = true)
+        }
+        state.observedPluginId = currentPluginId
     }
 
     suspend fun playLazyOnlineQueue(startItem: MusicFreeOnlineSong) {
@@ -176,8 +210,8 @@ fun MusicFreeOnlineScreen(
                 onClick = onNavigateToPluginSettings
             ) {
                 BasicComponent(
-                    title = selectedPlugin?.name ?: stringResource(R.string.lx_online_no_source_selected),
-                    summary = selectedPlugin?.url ?: stringResource(R.string.lx_online_no_source_hint)
+                    title = selectedPlugin?.name ?: stringResource(R.string.musicfree_online_no_source_selected),
+                    summary = selectedPlugin?.url ?: stringResource(R.string.musicfree_online_no_source_hint)
                 )
             }
 
@@ -186,29 +220,15 @@ fun MusicFreeOnlineScreen(
                 selectedIndex = plugins.indexOfFirst { it.id == selectedPlugin?.id },
                 onProviderSelected = { index ->
                     plugins.getOrNull(index)?.let { plugin ->
-                        if (!state.isBusy) scope.launch { settingsManager.selectMusicFreePlugin(plugin.id) }
+                        scope.launch { settingsManager.selectMusicFreePlugin(plugin.id) }
                     }
                 },
                 query = state.searchQuery,
                 onQueryChange = { state.searchQuery = it },
                 onSearch = {
-                    if (state.searchQuery.isNotBlank() && !state.isBusy) {
-                        if (selectedPlugin == null) {
-                            showToast(context.getString(R.string.lx_online_no_source_hint))
-                        } else scope.launch {
-                            state.isBusy = true
-                            try {
-                                state.results = service.search(state.searchQuery, selectedPlugin)
-                                state.message = if (state.results.isEmpty()) "没有找到相关歌曲" else "找到 ${state.results.size} 首歌曲"
-                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                                throw cancelled
-                            } catch (error: Exception) {
-                                state.message = error.localizedMessage ?: "搜索失败"
-                                showToast(state.message)
-                            } finally {
-                                state.isBusy = false
-                            }
-                        }
+                    if (state.searchQuery.isNotBlank()) {
+                        if (selectedPlugin == null) showToast(context.getString(R.string.musicfree_online_no_source_hint))
+                        else searchSelectedPlugin()
                     }
                 }
             )
@@ -236,8 +256,12 @@ fun MusicFreeOnlineScreen(
                     )
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(state.results) { item ->
+                OnlineSearchPaginationEffect(resultsListState, state.searchRequests, state.results.size,
+                    state.isBusy || selectedPlugin == null || loadedPlugins == null) {
+                    searchSelectedPlugin(automatic = it, loadMore = true)
+                }
+                LazyColumn(state = resultsListState, modifier = Modifier.fillMaxSize()) {
+                items(state.results, key = { it.song.id }) { item ->
                     SongItem(
                         song = item.song,
                         loadSongTagInfo = mainViewModel::getSongTagInfo,
@@ -278,7 +302,8 @@ fun MusicFreeOnlineScreen(
                                     enqueueMusicFreeDownload(context, playable)
                                     showToast("已开始下载到 Music/Ella")
                                 }.onFailure {
-                                    state.message = it.localizedMessage ?: "下载失败"
+                                    state.message = com.ella.music.data.musicfree.MusicFreeStreamDownload.failureReason(context, it)
+                                        ?: context.getString(R.string.lx_online_download_failed)
                                     showToast(state.message)
                                 }
                                 state.isBusy = false
@@ -289,10 +314,12 @@ fun MusicFreeOnlineScreen(
                         }
                     )
                 }
+                item(key = "pagination") {
+                    OnlineSearchPageFooter(state.searchRequests) { searchSelectedPlugin(loadMore = true) }
+                }
                 item { Spacer(modifier = Modifier.height(120.dp)) }
                 }
             }
-
 
         }
     }
@@ -310,12 +337,18 @@ fun MusicFreeOnlineScreen(
     )
 }
 
-private fun enqueueMusicFreeDownload(context: Context, song: com.ella.music.data.model.Song) {
-    val fileName = song.fileName.ifBlank { "${song.title}-${song.artist}.mp3" }.sanitizeMusicFreeFileName()
+private suspend fun enqueueMusicFreeDownload(context: Context, song: com.ella.music.data.model.Song) {
+    val suggestedFileName = song.fileName.ifBlank { "${song.title}-${song.artist}.mp3" }.sanitizeMusicFreeFileName()
+    if (com.ella.music.data.musicfree.MusicFreeStreamHeaders.getInstance(context).isMarked(song.path)) {
+        com.ella.music.data.musicfree.MusicFreeStreamDownload.enqueue(context, song, suggestedFileName)
+        return
+    }
+    val format = com.ella.music.data.musicfree.MusicFreeStreamDownload.probeFormat(song.path, suggestedFileName, song.mimeType)
+    val fileName = com.ella.music.data.musicfree.MusicFreeStreamDownload.fileNameForFormat(suggestedFileName, format)
     val request = DownloadManager.Request(Uri.parse(song.path))
         .setTitle(fileName)
         .setDescription("${song.title} - ${song.artist}")
-        .setMimeType(song.mimeType.ifBlank { "audio/*" })
+        .setMimeType(format.mimeType)
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "Ella/$fileName")
         .setAllowedOverMetered(true)
@@ -330,4 +363,3 @@ private fun String.sanitizeMusicFreeFileName(): String {
         .trim()
         .ifBlank { "Ella Music.mp3" }
 }
-

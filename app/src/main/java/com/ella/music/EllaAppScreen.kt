@@ -1,7 +1,6 @@
 package com.ella.music
 
 import android.app.Activity
-import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -15,11 +14,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.platform.LocalWindowInfo
 import top.yukonga.miuix.kmp.basic.NavigationRailValue
@@ -27,15 +22,12 @@ import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -59,10 +51,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -74,8 +66,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.core.view.WindowCompat
@@ -91,7 +81,6 @@ import com.ella.music.data.BottomBarStyle
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.MusicScanSummary
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
@@ -134,12 +123,6 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.blur.layerBackdrop as layerMiuixBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop as rememberMiuixLayerBackdrop
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -191,7 +174,8 @@ fun EllaApp(
                 appNowPlayingFlowBackground = settingsManager.appNowPlayingFlowBackground.first(),
                 startupPosterEnabled = settingsManager.startupPosterEnabled.first(),
                 startupPosterUri = settingsManager.startupPosterUri.first(),
-                startupPosterDurationMs = settingsManager.startupPosterDurationMs.first()
+                startupPosterDurationMs = settingsManager.startupPosterDurationMs.first(),
+                startupOpenPlayer = settingsManager.startupOpenPlayer.first()
             )
         }
     }
@@ -213,10 +197,14 @@ fun EllaApp(
                 it.getBooleanExtra(MainActivity.EXTRA_OPEN_PLAYER_FROM_NOTIFICATION, false)
         } == true
     }
-    var showPlayerOverlay by remember { mutableStateOf(initialNotificationPlayer) }
+    // 打开应用自动进入播放界面 (设置 → 底部导航 → 启动页): the now-playing surface is part of the very
+    // first frame, exactly like a media-notification tap, so a cold start lands on the player
+    // instead of Home. The preference is read before composition, so no open animation runs at boot.
+    val startupPlayerOpen = initialUiSettings.startupOpenPlayer
+    var showPlayerOverlay by remember { mutableStateOf(initialNotificationPlayer || startupPlayerOpen) }
     var playerDismissProgress by remember { mutableFloatStateOf(0f) }
     var playerOverlayOpenToken by remember { mutableIntStateOf(0) }
-    var snapPlayerOverlay by remember { mutableStateOf(initialNotificationPlayer) }
+    var snapPlayerOverlay by remember { mutableStateOf(initialNotificationPlayer || startupPlayerOpen) }
     var handledNotificationIntent by remember { mutableStateOf(if (initialNotificationPlayer) currentProcessingIntent.value else null) }
     val incomingPlayerIntent = currentProcessingIntent.value
     if (incomingPlayerIntent !== handledNotificationIntent &&
@@ -330,10 +318,12 @@ fun EllaApp(
     // Drive the surface/artwork morph instead of adding/removing the whole
     // (very heavy) PlayerScreen each time. This removes the first-composition cost that used
     // to land on the slide-in animation frames and caused a stutter on every open.
-    var playerEverShown by remember { mutableStateOf(initialNotificationPlayer) }
+    var playerEverShown by remember { mutableStateOf(initialNotificationPlayer || startupPlayerOpen) }
     val playerResident = showPlayerOverlay || playerEverShown
     // 0f = expanded player, 1f = collapsed mini-player.
-    val playerOpenAnim = remember { Animatable(if (initialNotificationPlayer) 0f else 1f) }
+    val playerOpenAnim = remember {
+        Animatable(if (initialNotificationPlayer || startupPlayerOpen) 0f else 1f)
+    }
     val playerMorph = remember { PlayerMorphState {
         if (!showPlayerOverlay && snapPlayerOverlay) 0f
         else (1f - playerOpenAnim.value) * (1f - playerDismissProgress)
@@ -560,7 +550,8 @@ fun EllaApp(
     val effectiveBottomBarStyle = bottomBarStyle
     val canCompactBottomDock = showBottomBar && !showNavigationRail
     var bottomDockMode by rememberSaveable { mutableStateOf(BottomDockMode.Expanded) }
-    var normalBottomDockHeightPx by remember { mutableIntStateOf(0) }
+    var bottomDockHeightPx by remember { mutableIntStateOf(0) }
+    var posterWallFullscreen by rememberSaveable { mutableStateOf(false) }
 
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
@@ -706,7 +697,8 @@ fun EllaApp(
         null
     }
     val miniPlayerLyricSecondaryText = if (isPlaying && miniPlayerLyricsVisible) {
-        when (miniPlayerLyricSecondary) {
+        com.ella.music.ui.components.miniPlayerBackingText(currentLyricLine)
+            ?: when (miniPlayerLyricSecondary) {
             SettingsManager.LYRIC_SECONDARY_TRANSLATION -> currentLyricLine?.translation?.takeIf { it.isNotBlank() }
             SettingsManager.LYRIC_SECONDARY_PRONUNCIATION -> currentLyricLine?.pronunciation?.takeIf { it.isNotBlank() }
             else -> null
@@ -723,7 +715,10 @@ fun EllaApp(
             lineEndMs = currentLyricLine.endMs
                 ?: nextLyricLine?.timeMs
                 ?: (lineStartMs + 5_000L),
-            words = currentLyricLine.words
+            words = currentLyricLine.words,
+            agent = currentLyricLine.agent,
+            backgroundWords = currentLyricLine.backgroundWords,
+            backgroundText = currentLyricLine.backgroundText
         )
     } else {
         null
@@ -732,6 +727,7 @@ fun EllaApp(
     val miniPlayerLyricProgress = miniPlayerLyricTiming?.progressAt(currentPosition) ?: 0f
 
     val showMiniPlayer = currentSong != null &&
+        !(currentRoute == Screen.PosterWall.route && posterWallFullscreen) &&
         currentRoute != Screen.Player.route &&
         currentRoute != Screen.AiChat.route &&
         currentRoute != Screen.Update.route &&
@@ -768,7 +764,7 @@ fun EllaApp(
                 bottomDockSpecs[SettingsManager.BOTTOM_DOCK_ITEM_PLAYLISTS]
             )
         }
-    val railState = rememberNavigationRailState(NavigationRailValue.Expanded)
+    val railState = rememberNavigationRailState(NavigationRailValue.Collapsed)
     val currentTabRoute = currentRoute.toCurrentTabRoute()
     val renderedBottomBarGlassEffect = when (effectiveBottomBarStyle) {
         BottomBarStyle.Floating -> BottomBarGlassEffect.Blur
@@ -837,7 +833,7 @@ fun EllaApp(
     val contentModifier = Modifier
         .fillMaxSize()
         .then(if (sharedAppBackgroundVisible) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
-    val normalBottomDockHeight = with(LocalDensity.current) { normalBottomDockHeightPx.toDp() }
+    val bottomDockHeight = with(LocalDensity.current) { bottomDockHeightPx.toDp() }
     val normalBottomDockSwipe = normalBottomDockSwipeModifier(
         enabled = showBottomBar && !showNavigationRail && !showPlayerOverlay,
         tabs = tabs,
@@ -888,6 +884,10 @@ fun EllaApp(
             val librarySearchDockState = rememberLibrarySearchDockState()
             val sharedBackgroundBackdrop = rememberMiuixLayerBackdrop()
             val hasSharedBackground = wallpaperVisible || nowPlayingFlowVisible
+            // The dock still samples both page content and the now full-window background.
+            val contentWithBackgroundBackdrop = com.ella.music.ui.components.liquid.rememberCombinedBackdrop(
+                sharedBackgroundBackdrop, miuixBackdrop
+            )
             val blurSupported = remember { isRenderEffectSupported() }
             val cardBlendColors = remember(isDarkTheme) { aboutCardBlendColors(isDarkTheme) }
             val settingsFrosting = remember(sharedBackgroundBackdrop, blurSupported, cardBlendColors) {
@@ -895,6 +895,7 @@ fun EllaApp(
             }
             CompositionLocalProvider(
                 LocalPlayerMorph provides playerMorph,
+                com.ella.music.ui.player.LocalPlayerLyricPositionProvider provides remember(playerViewModel) { playerViewModel::livePositionMs },
                 LocalAppNavigator provides { route ->
                     if (showPlayerOverlay) {
                         returnToPlayerRoute = currentRouteIdentity
@@ -910,12 +911,88 @@ fun EllaApp(
                 LocalBackdrop provides (if (hasSharedBackground) sharedBackgroundBackdrop else null),
                 LocalSettingsCardFrosting provides (if (hasSharedBackground) settingsFrosting else null)
             ) {
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().then(
+                    if (hasSharedBackground) Modifier.layerMiuixBackdrop(sharedBackgroundBackdrop) else Modifier
+                )) {
+                    if (wallpaperVisible) {
+                        val wallpaperDimAlpha = appWallpaperDim.coerceIn(0, 80) / 100f
+                        val wallpaperWash = if (isDarkTheme) ComposeColor.Black else ComposeColor.White
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = appWallpaperOpacity.coerceIn(20, 100) / 100f }
+                        ) {
+                            SafeCoverImage(
+                                model = Uri.parse(appWallpaperUri),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                sizePx = 1600,
+                                showDefaultPlaceholder = false
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                wallpaperWash.copy(alpha = wallpaperDimAlpha * 0.95f),
+                                                wallpaperWash.copy(alpha = wallpaperDimAlpha * 0.55f),
+                                                wallpaperWash.copy(alpha = (wallpaperDimAlpha * 1.15f).coerceAtMost(0.9f))
+                                            )
+                                        )
+                                    )
+                            )
+                        }
+                        val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
+                        val contentOverlayColor = if (isDarkTheme) {
+                            ComposeColor.Black.copy(alpha = (contentOverlayAlpha * 0.82f).coerceAtMost(0.70f))
+                        } else {
+                            ComposeColor.White.copy(alpha = (contentOverlayAlpha * 0.95f).coerceAtMost(0.78f))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(contentOverlayColor)
+                        )
+                    } else if (nowPlayingFlowVisible) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                        ) {
+                            currentSong?.let { song ->
+                                AppNowPlayingFlowBackground(
+                                    song = song,
+                                    mainViewModel = mainViewModel,
+                                    currentPositionMs = currentPosition,
+                                    isPlaying = isPlaying,
+                                    light = !isDarkTheme,
+                                    modifier = Modifier.fillMaxSize(),
+                                    artwork = appNowPlayingArtwork
+                                )
+                            }
+                        }
+                        val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
+                        val contentOverlayColor = if (isDarkTheme) {
+                            ComposeColor.Black.copy(alpha = (contentOverlayAlpha * 0.82f).coerceAtMost(0.70f))
+                        } else {
+                            ComposeColor.White.copy(alpha = (contentOverlayAlpha * 0.95f).coerceAtMost(0.78f))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(contentOverlayColor)
+                        )
+                    }
+                }
             // Keep one navigation/content composition across window changes; only the rail's
             // measured width changes, so page state and the mini-player survive rotation.
             Row(Modifier.fillMaxSize()) {
                 if (showNavigationRail) {
                     MainNavigationRail(
                         state = railState,
+                        backdrop = if (hasSharedBackground) sharedBackgroundBackdrop else null,
                         tabs = tabs,
                         currentTabRoute = currentTabRoute,
                         currentRoute = currentRoute,
@@ -945,78 +1022,6 @@ fun EllaApp(
                     .fillMaxSize()
                     .layerMiuixBackdrop(miuixBackdrop)
             ) {
-            if (wallpaperVisible) {
-                val wallpaperDimAlpha = appWallpaperDim.coerceIn(0, 80) / 100f
-                val wallpaperWash = if (isDarkTheme) ComposeColor.Black else ComposeColor.White
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .layerMiuixBackdrop(sharedBackgroundBackdrop)
-                        .graphicsLayer { alpha = appWallpaperOpacity.coerceIn(20, 100) / 100f }
-                ) {
-                    SafeCoverImage(
-                        model = Uri.parse(appWallpaperUri),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        sizePx = 1600,
-                        showDefaultPlaceholder = false
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        wallpaperWash.copy(alpha = wallpaperDimAlpha * 0.95f),
-                                        wallpaperWash.copy(alpha = wallpaperDimAlpha * 0.55f),
-                                        wallpaperWash.copy(alpha = (wallpaperDimAlpha * 1.15f).coerceAtMost(0.9f))
-                                    )
-                                )
-                            )
-                    )
-                }
-                val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
-                val contentOverlayColor = if (isDarkTheme) {
-                    ComposeColor.Black.copy(alpha = (contentOverlayAlpha * 0.82f).coerceAtMost(0.70f))
-                } else {
-                    ComposeColor.White.copy(alpha = (contentOverlayAlpha * 0.95f).coerceAtMost(0.78f))
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(contentOverlayColor)
-                )
-            } else if (nowPlayingFlowVisible) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .layerMiuixBackdrop(sharedBackgroundBackdrop)
-                ) {
-                    currentSong?.let { song ->
-                        AppNowPlayingFlowBackground(
-                            song = song,
-                            mainViewModel = mainViewModel,
-                            currentPositionMs = currentPosition,
-                            isPlaying = isPlaying,
-                            light = !isDarkTheme,
-                            modifier = Modifier.fillMaxSize(),
-                            artwork = appNowPlayingArtwork
-                        )
-                    }
-                }
-                val contentOverlayAlpha = appWallpaperContentOverlay.coerceIn(0, 80) / 100f
-                val contentOverlayColor = if (isDarkTheme) {
-                    ComposeColor.Black.copy(alpha = (contentOverlayAlpha * 0.82f).coerceAtMost(0.70f))
-                } else {
-                    ComposeColor.White.copy(alpha = (contentOverlayAlpha * 0.95f).coerceAtMost(0.78f))
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(contentOverlayColor)
-                )
-            }
                 AppNavigation(
                     navController = navController,
                     mainViewModel = mainViewModel,
@@ -1024,6 +1029,8 @@ fun EllaApp(
                     initialBottomDockItems = initialUiSettings.bottomDockItems,
                     initialStartDestination = startupRoute,
                     modifier = appNavigationModifier,
+                    posterWallBottomPadding = if (showMiniPlayer) bottomDockHeight else 0.dp,
+                    onPosterWallFullscreenChanged = { posterWallFullscreen = it },
                     onNavigateToPlayer = {
                         playerDismissProgress = 0f
                         playerOverlayOpenToken++
@@ -1051,7 +1058,7 @@ fun EllaApp(
                     currentRoute = currentRoute,
                     bottomDockMode = bottomDockMode,
                     canCompact = canCompactBottomDock,
-                    backdrop = miuixBackdrop,
+                    backdrop = if (hasSharedBackground) contentWithBackgroundBackdrop else miuixBackdrop,
                     bottomBarStyle = effectiveBottomBarStyle,
                     glassEffect = renderedBottomBarGlassEffect,
                     bottomBarCornerRadiusDp = bottomBarCornerRadius,
@@ -1098,16 +1105,16 @@ fun EllaApp(
                         Modifier
                             .fillMaxWidth()
                             .align(androidx.compose.ui.Alignment.BottomCenter)
-                            .onSizeChanged { size -> normalBottomDockHeightPx = size.height }
                     } else {
                         Modifier.align(androidx.compose.ui.Alignment.BottomCenter)
-                    }).graphicsLayer {
+                    }).onSizeChanged { size -> bottomDockHeightPx = size.height }.graphicsLayer {
                         val openProgress = playerMorph.progress
                         translationY = 0f
                         alpha = (1f - openProgress * 2.2f).coerceIn(0f, 1f)
                     }
                 )
                 }
+            }
             }
             if (playerResident) {
                 Box(
@@ -1117,7 +1124,10 @@ fun EllaApp(
                         .graphicsLayer {
                             translationY = if (playerMorph.progress <= 0f) size.height else 0f
                         }
-                        .playerMorphSurface(playerMorph, effectiveBottomBarStyle != BottomBarStyle.Normal)
+                        .playerMorphSurface(playerMorph, effectiveBottomBarStyle != BottomBarStyle.Normal,
+                            // A direct lyric entry must not replay the resident cover layer over
+                            // the lyric page. Read the request before asynchronous flow collection.
+                            replayArtwork = { !playerViewModel.showLyrics.value })
                 ) {
                     CompositionLocalProvider(
                         LocalPlayerMorphSurface provides true,
@@ -1349,4 +1359,5 @@ private data class EllaInitialUiSettings(
     val startupPosterEnabled: Boolean,
     val startupPosterUri: String,
     val startupPosterDurationMs: Int,
+    val startupOpenPlayer: Boolean,
 )

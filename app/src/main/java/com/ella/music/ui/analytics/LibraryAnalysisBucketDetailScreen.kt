@@ -62,7 +62,7 @@ import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.RememberPlaybackSourceScreen
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.ShuffleAllSummaryButton
-import com.ella.music.ui.components.SideIndexListEndPadding
+import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SortDropdownMenu
@@ -396,7 +396,7 @@ internal fun LibraryAnalysisBucketDetailScreen(
                     listState = listState
                 )
                 val showScrollIndicator = sortedSongs.size > 30
-                val listEndInset = if (showScrollIndicator) SideIndexListEndPadding else 0.dp
+                val listEndInset = if (showScrollIndicator) ScrollIndicatorListEndPadding else 0.dp
                 Box(modifier = Modifier.fillMaxSize()) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         com.ella.music.ui.components.SortSummaryHeader(

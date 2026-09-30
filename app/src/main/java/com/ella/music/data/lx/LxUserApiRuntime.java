@@ -5,6 +5,7 @@ import android.util.Base64;
 import android.util.Log;
 
 import com.ella.music.data.model.Song;
+import com.ella.music.data.OnlinePlaybackQuality;
 import com.whl.quickjs.android.QuickJSLoader;
 import com.whl.quickjs.wrapper.QuickJSContext;
 
@@ -119,27 +120,32 @@ public final class LxUserApiRuntime implements AutoCloseable {
     }
 
     public String requestMusicUrl(LxOnlineSong item, String script, String sourceName) throws Exception {
+        return requestMusicUrl(item, script, sourceName, OnlinePlaybackQuality.AUTO);
+    }
+
+    public String requestMusicUrl(LxOnlineSong item, String script, String sourceName, String preferredQuality) throws Exception {
         JSONObject info = load(script, sourceName, sourceName, "");
         JSONObject sources = info == null ? null : info.optJSONObject("sources");
-        JSONObject source = sources == null ? null : sources.optJSONObject(item.getSource());
+        String sourceKey = selectSourceKey(sources, item.getSource(), "musicUrl");
+        JSONObject source = sources == null ? null : sources.optJSONObject(sourceKey);
         if (source == null) {
             throw new IllegalStateException("当前源不支持 " + item.getSource());
         }
         if (!contains(source.optJSONArray("actions"), "musicUrl")) {
             throw new IllegalStateException("当前源不支持播放地址解析");
         }
-        String quality = bestQuality(source.optJSONArray("qualitys"), item.getQuality());
+        String quality = selectRequestedQuality(source.optJSONArray("qualitys"), item.getQuality(), preferredQuality);
         requestResponse = null;
         lastError = null;
 
         JSONObject request = new JSONObject()
                 .put("requestKey", "ella_" + System.nanoTime())
                 .put("data", new JSONObject()
-                        .put("source", item.getSource())
+                        .put("source", sourceKey)
                         .put("action", "musicUrl")
                         .put("info", new JSONObject()
                                 .put("type", quality)
-                                .put("musicInfo", buildMusicInfo(item, quality))));
+                                .put("musicInfo", buildMusicInfo(item, quality, sourceKey))));
 
         callJs("request", request.toString());
         waitFor(() -> requestResponse != null || lastError != null, 40_000L);
@@ -170,7 +176,8 @@ public final class LxUserApiRuntime implements AutoCloseable {
     public String requestLyric(LxOnlineSong item, String script, String sourceName) throws Exception {
         JSONObject info = load(script, sourceName, sourceName, "");
         JSONObject sources = info == null ? null : info.optJSONObject("sources");
-        JSONObject source = sources == null ? null : sources.optJSONObject(item.getSource());
+        String sourceKey = selectSourceKey(sources, item.getSource(), "lyric");
+        JSONObject source = sources == null ? null : sources.optJSONObject(sourceKey);
         if (source == null) {
             throw new IllegalStateException("当前源不支持 " + item.getSource());
         }
@@ -184,11 +191,11 @@ public final class LxUserApiRuntime implements AutoCloseable {
         JSONObject request = new JSONObject()
                 .put("requestKey", "ella_" + System.nanoTime())
                 .put("data", new JSONObject()
-                        .put("source", item.getSource())
+                        .put("source", sourceKey)
                         .put("action", "lyric")
                         .put("info", new JSONObject()
                                 .put("type", quality)
-                                .put("musicInfo", buildMusicInfo(item, quality))));
+                                .put("musicInfo", buildMusicInfo(item, quality, sourceKey))));
 
         callJs("request", request.toString());
         waitFor(() -> requestResponse != null || lastError != null, 40_000L);
@@ -214,9 +221,29 @@ public final class LxUserApiRuntime implements AutoCloseable {
         return lyric;
     }
 
-    private JSONObject buildMusicInfo(LxOnlineSong item, String quality) throws Exception {
+    static String selectSourceKey(JSONObject sources, String preferred, String action) {
+        JSONObject original = sources == null ? null : sources.optJSONObject(preferred);
+        if (original != null && contains(original.optJSONArray("actions"), action)) return preferred;
+        String alternate = "qs".equals(preferred) ? "sd" : "sd".equals(preferred) ? "qs" : null;
+        JSONObject alias = sources == null || alternate == null ? null : sources.optJSONObject(alternate);
+        return alias != null && contains(alias.optJSONArray("actions"), action) ? alternate : preferred;
+    }
+
+    static String selectRequestedQuality(JSONArray available, String itemQuality, String preferredQuality) {
+        java.util.ArrayList<String> declared = new java.util.ArrayList<>();
+        if (available != null) {
+            for (int i = 0; i < available.length(); i++) declared.add(available.optString(i));
+        }
+        String selected = OnlinePlaybackQuality.INSTANCE.lxTier(preferredQuality, declared);
+        if (selected != null && contains(available, selected)) return selected;
+        if (contains(available, itemQuality)) return itemQuality;
+        String highest = OnlinePlaybackQuality.INSTANCE.lxTier("flac24bit", declared);
+        if (highest != null && contains(available, highest)) return highest;
+        throw new IllegalStateException("当前源没有声明可用音质");
+    }
+
+    private JSONObject buildMusicInfo(LxOnlineSong item, String quality, String source) throws Exception {
         Song song = item.getSong();
-        String source = item.getSource();
         String songmid = item.getSongmid();
         Map<String, String> sourceMetadata = item.getSourceMetadata();
         List<LxOnlineQuality> availableQualities = item.getQualities();
@@ -555,7 +582,7 @@ public final class LxUserApiRuntime implements AutoCloseable {
         }
     }
 
-    private boolean contains(JSONArray array, String value) {
+    private static boolean contains(JSONArray array, String value) {
         if (array == null) return false;
         for (int i = 0; i < array.length(); i++) {
             if (value.equals(array.optString(i))) return true;

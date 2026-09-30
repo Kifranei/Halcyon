@@ -13,7 +13,7 @@ OWNERS = {
  'SettingsDesktopLyrics': 'Lyrics("")', 'SettingsLyricDelivery': 'Lyrics("")',
  'SettingsXiaomiSuperIsland': 'Lyrics("")',
  'SettingsAudio': 'Audio("")', 'SettingsBackup': 'Backup("")',
- 'CoverMediaSettingsScreen': 'CoverMedia("")',
+ 'CoverMediaSettingsScreen': 'CoverMedia("")', 'SpotifyCanvasSettings': 'CoverMedia("")',
  'SettingsHomeDisplay': 'HomeDisplay("")',
  'SettingsPreferenceSections': 'Library("")',
  'EqualizerScreen': 'Equalizer("")',

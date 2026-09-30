@@ -1,8 +1,6 @@
 package com.ella.music.ui.settings
 
 import android.app.ActivityManager
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -18,7 +16,6 @@ import android.os.StatFs
 import android.os.SystemClock
 import android.view.Choreographer
 import android.view.Display
-import android.view.View
 import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,14 +23,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -49,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -851,7 +844,7 @@ internal fun PerformanceDiagnosticsScreen(
             SelectionContainer {
                 Text(
                     text = formatPerformanceLogLine(entry),
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MiuixTheme.textStyles.main.fontFamily,
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -873,7 +866,7 @@ private fun PerformanceLogItem(
         ) {
             Text(
                 text = formatPerformanceLogLine(entry),
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MiuixTheme.textStyles.main.fontFamily,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
                 color = if (entry.level == "W") MiuixTheme.colorScheme.error

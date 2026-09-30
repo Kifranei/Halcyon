@@ -59,7 +59,15 @@ android {
     }
 }
 
+androidComponents {
+    finalizeDsl { extension ->
+        if (buildNative) {
+            extension.sourceSets.getByName("main").jniLibs.setSrcDirs(emptyList<String>())
+        }
+    }
+}
+
 dependencies {
-    implementation("androidx.annotation:annotation:1.9.1")
+    implementation(libs.androidx.annotation)
     implementation(libs.kotlinx.coroutines.android)
 }

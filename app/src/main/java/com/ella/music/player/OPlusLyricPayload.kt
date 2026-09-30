@@ -37,7 +37,7 @@ internal object OPlusLyricPayload {
 
     fun buildModulePayload(song: Song, lyrics: List<LyricLine>): String? {
         val moduleLyrics = lyrics.withoutOplusPreamble(song)
-        val lrc = moduleLyrics.toOplusLrc().takeIf { it.isNotBlank() } ?: return null
+        val lrc = moduleLyrics.toOplusLrc(TimestampPrecision.Milli).takeIf { it.isNotBlank() } ?: return null
         val rawLyric = moduleLyrics.toOplusRawLyric().takeIf { it.isNotBlank() } ?: lrc
         val translationLyric = moduleLyrics.toOplusTranslationLyric().takeIf { it.isNotBlank() }
         val fields = mutableListOf(
@@ -132,14 +132,14 @@ internal object OPlusLyricPayload {
         return rawJson.parseJsonString(index)
     }
 
-    private fun List<LyricLine>.toOplusLrc(): String {
+    private fun List<LyricLine>.toOplusLrc(precision: TimestampPrecision = TimestampPrecision.Centi): String {
         return mapNotNull { line ->
             val primaryText = line.primaryOplusTextOrNull() ?: return@mapNotNull null
             line.timeMs.coerceAtLeast(0L) to primaryText
         }
             .sortedBy { it.first }
             .joinToString("\n") { (timeMs, text) ->
-                "${timeMs.toOplusLrcTimestamp(precision = TimestampPrecision.Centi)}$text"
+                "${timeMs.toOplusLrcTimestamp(precision = precision)}$text"
             }
     }
 
@@ -148,7 +148,7 @@ internal object OPlusLyricPayload {
             val translation = line.translation.toOplusLrcTextOrNull()
                 ?.takeIf { it != line.primaryOplusTextOrNull() }
                 ?: return@mapNotNull null
-            line.rawLyricStartMs() to translation
+            line.timeMs.coerceAtLeast(0L) to translation
         }
             .sortedBy { it.first }
             .joinToString("\n") { (timeMs, text) ->
@@ -157,15 +157,9 @@ internal object OPlusLyricPayload {
     }
 
     private fun List<LyricLine>.toOplusRawLyric(): String {
-        return mapNotNull { line ->
-            val main = line.toOplusRawMainLine() ?: return@mapNotNull null
-            val translation = line.translation.toOplusLrcTextOrNull()
-                ?.takeIf { it != line.primaryOplusTextOrNull() }
-                ?: return@mapNotNull main
-            val translationLine =
-                "${line.rawLyricStartMs().toOplusLrcTimestamp(precision = TimestampPrecision.Milli)}$translation"
-            "$main\n$translationLine"
-        }
+        // Bridge 4.4 consumes translations from translationLyric. Repeating them in rawLyric
+        // creates a second row at the same timestamp and can confuse line/translation matching.
+        return sortedBy { it.timeMs }.mapNotNull { it.toOplusRawMainLine() }
             .joinToString("\n")
     }
 
@@ -183,20 +177,23 @@ internal object OPlusLyricPayload {
             .sortedBy { it.startMs }
             .toList()
         if (rawWords.isEmpty()) {
+            // Keep a real line-timed lane: the stable 4.4 renderer also uses rawLyric to enter
+            // its styling/translation path. No word markers or synthetic word timing are added.
             return "${timeMs.coerceAtLeast(0L).toOplusLrcTimestamp(precision = TimestampPrecision.Milli)}$primaryText"
         }
 
         val builder = StringBuilder(primaryText.length + rawWords.size * 14)
+        builder.append(timeMs.coerceAtLeast(0L).toOplusLrcTimestamp(precision = TimestampPrecision.Milli))
         rawWords.forEach { word ->
             builder
-                .append(word.startMs.toOplusLrcTimestamp(precision = TimestampPrecision.Milli))
+                .append(word.startMs.toOplusWordTimestamp())
                 .append(word.text)
         }
         val lineEndMs = listOfNotNull(endMs, rawWords.maxOfOrNull { it.endMs })
             .maxOrNull()
             ?.takeIf { it > rawWords.last().startMs }
         if (lineEndMs != null) {
-            builder.append(lineEndMs.toOplusLrcTimestamp(precision = TimestampPrecision.Milli))
+            builder.append(lineEndMs.toOplusWordTimestamp())
         }
         return builder.toString()
     }
@@ -258,6 +255,9 @@ internal object OPlusLyricPayload {
             }
         }
     }
+
+    private fun Long.toOplusWordTimestamp(): String =
+        toOplusLrcTimestamp(TimestampPrecision.Milli).replace('[', '<').replace(']', '>')
 
     private fun List<LyricWord>.withLineSpacing(lineText: String): List<LyricWord> {
         if (isEmpty() || lineText.isBlank() || !lineText.any { it.isWhitespace() }) return this

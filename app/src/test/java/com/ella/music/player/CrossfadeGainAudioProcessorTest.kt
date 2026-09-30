@@ -10,6 +10,20 @@ import org.junit.Test
 
 @UnstableApi
 class CrossfadeGainAudioProcessorTest {
+    @Test fun replayGainAndPreampRemainIndependentAcrossBothDecoders() {
+        assertEquals(0.398107f, replayGainMultiplier(-10f, 2f), 0.000001f)
+        assertEquals(0.251189f, replayGainMultiplier(-10f, -2f), 0.000001f)
+        val outgoing = configuredProcessor(0.5f).apply { replayGain = 0.1f }
+        val incoming = configuredProcessor(0.5f).apply { replayGain = 0.8f }
+        incoming.replayGain = 0.2f
+        outgoing.queueInput(pcm16(20_000))
+        incoming.queueInput(pcm16(20_000))
+        assertEquals(listOf(1_000.toShort()), readPcm16(outgoing.output))
+        assertEquals(listOf(2_000.toShort()), readPcm16(incoming.output))
+        val boosted = configuredProcessor(1f).apply { replayGain = replayGainMultiplier(0f, 6.0206f) }
+        boosted.queueInput(pcm16(10_000))
+        org.junit.Assert.assertTrue(kotlin.math.abs(20_000 - readPcm16(boosted.output).single().toInt()) <= 1)
+    }
 
     @Test
     fun `zero gain silences pcm without changing persistent player volume`() {

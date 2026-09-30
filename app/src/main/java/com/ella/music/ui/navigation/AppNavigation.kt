@@ -10,16 +10,15 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.ella.music.data.SettingsManager
-import com.ella.music.isSettingsGraphRoute
-import com.ella.music.isSettingsHomeRoute
 import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.ui.about.AboutScreen
 import com.ella.music.ui.about.UpdateScreen
@@ -84,6 +83,7 @@ private const val AlbumListRestoreAnchorOffsetKey = "album_list_restore_anchor_o
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object Library : Screen("library")
+    data object PosterWall : Screen("poster_wall")
     data object LibrarySearch : Screen("library_search?type={type}&keyword={keyword}&focus={focus}&localOnly={localOnly}") {
         const val baseRoute = "library_search"
         fun createRoute(type: String? = null, keyword: String? = null, focus: Boolean = false, localOnly: Boolean = false): String {
@@ -200,6 +200,8 @@ sealed class Screen(val route: String) {
     }
     data object SettingsWizard : Screen("settings_wizard")
     data object SettingsMaintenance : Screen("settings_maintenance")
+    data object OtherSettings : Screen("other_settings")
+    data object VideoPlayer : Screen("video_player")
     data object PerformanceDiagnostics : Screen("performance_diagnostics")
     data object AppearanceSubpage : Screen("appearance_subpage/{page}?highlight={highlight}") {
         fun createRoute(page: String, highlight: String = ""): String {
@@ -245,7 +247,9 @@ fun AppNavigation(
     initialBottomDockItems: List<String> = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(','),
     initialStartDestination: String = Screen.Home.route,
     modifier: Modifier = Modifier,
-    onNavigateToPlayer: () -> Unit = {}
+    onNavigateToPlayer: () -> Unit = {},
+    posterWallBottomPadding: Dp = 0.dp,
+    onPosterWallFullscreenChanged: (Boolean) -> Unit = {}
 ) {
     val bottomDockItems by mainViewModel.settingsManager.bottomDockItems.collectAsState(
         initial = initialBottomDockItems
@@ -264,6 +268,10 @@ fun AppNavigation(
         }
     }
 
+    // Navigation 2.10 has separate predictive transitions and a NavigationEvent handler.
+    // Keep the existing pop animations, but dispatch Back only when the gesture completes so
+    // transparent pages never shrink and reveal the preceding page while the finger is down.
+    NavigationBackScope {
     NavHost(
         navController = navController,
         startDestination = initialStartDestination,
@@ -306,6 +314,7 @@ fun AppNavigation(
                 onNavigateToWebDav = { navController.navigate(Screen.WebDav.route) },
                 onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
                 onNavigateToRecentPlayback = { navController.navigate(Screen.RecentPlayback.createRoute()) },
+                onNavigateToPosterWall = { navController.navigate(Screen.PosterWall.route) },
                 onNavigateToAiChat = { navController.navigate(Screen.AiChat.route) },
                 onNavigateToMetadataCategory = { type -> navigateRestorableTopLevel(Screen.MetadataCategory.createRoute(type)) },
                 onNavigateToPlayer = onNavigateToPlayer,
@@ -316,6 +325,17 @@ fun AppNavigation(
                         navController.navigate(Screen.Settings.createRoute())
                     }
                 }
+            )
+        }
+
+        composable(Screen.PosterWall.route) {
+            com.ella.music.ui.poster.PosterWallScreen(
+                mainViewModel, playerViewModel,
+                onBack = { navController.popBackStack() }, onOpenPlayer = onNavigateToPlayer,
+                onAlbum = { navController.navigate(Screen.AlbumDetail.createRoute(it)) },
+                onArtist = { navController.navigate(Screen.ArtistDetail.createRoute(it)) },
+                bottomContentPadding = posterWallBottomPadding,
+                onFullscreenChanged = onPosterWallFullscreenChanged
             )
         }
 
@@ -442,10 +462,8 @@ fun AppNavigation(
                 onBack = {
                     val previousEntry = navController.previousBackStackEntry
                     if (previousEntry?.destination?.route == Screen.Album.route) {
-                        val nextRequest = previousEntry.savedStateHandle
-                            .get<Int>(AlbumListRestoreScrollRequestKey)
-                            ?: 0
-                            .plus(1)
+                        val nextRequest = (previousEntry.savedStateHandle
+                            .get<Int>(AlbumListRestoreScrollRequestKey) ?: 0) + 1
                         previousEntry.savedStateHandle[AlbumListRestoreScrollRequestKey] = nextRequest
                     }
                     navController.popBackStack()
@@ -651,6 +669,7 @@ fun AppNavigation(
                 artistName = artistName,
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
+                onOpenLastFmSettings = { navController.navigate(Screen.LastFmSettings.route) },
                 onBack = { navController.popBackStack() },
                 onAlbumClick = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
                 onArtistClick = { targetArtist -> navController.navigate(Screen.ArtistDetail.createRoute(targetArtist)) },
@@ -761,11 +780,21 @@ fun AppNavigation(
                 },
                 onNavigateToSetupWizard = { navController.navigate(Screen.SettingsWizard.route) },
                 onNavigateToMaintenance = { navController.navigate(Screen.SettingsMaintenance.route) },
+                onNavigateToOther = { navController.navigate(Screen.OtherSettings.route) },
                 onBack = { navController.popBackStack() },
                 showBackButton = !(fromDock && isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS)),
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel
             )
+        }
+
+        composable(Screen.OtherSettings.route) {
+            com.ella.music.ui.settings.OtherSettingsScreen(
+                onBack = { navController.popBackStack() },
+                onVideo = { navController.navigate(Screen.VideoPlayer.route) })
+        }
+        composable(Screen.VideoPlayer.route) {
+            com.ella.music.ui.video.VideoToolsScreen(onBack = { navController.popBackStack() })
         }
 
         composable(
@@ -1231,6 +1260,7 @@ fun AppNavigation(
                 onBack = { navController.popBackStack() }
             )
         }
+    }
     }
 }
 

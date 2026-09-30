@@ -321,7 +321,10 @@ fun ScanSettingsScreen(
                                 it.normalizeFolderPath().equals(normalizedPath, ignoreCase = true)
                             }.joinToString("；")
                         )
-                        mainViewModel.scanMusic()
+                        // Removing a directory only saves the selection, exactly like the row
+                        // checkbox: the library is not rescanned behind the user's back. Press the
+                        // scan button in this card (or pull to refresh) when the change should apply.
+                        Toast.makeText(context, R.string.scan_folder_removed, Toast.LENGTH_SHORT).show()
                     }
                     pendingRemoveScanFolder = null
                 }

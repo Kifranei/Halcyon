@@ -1,9 +1,5 @@
 package com.ella.music.ui.settings
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.runtime.Composable
@@ -380,7 +376,6 @@ internal fun SettingsLyricOutputControls(
     )
     } // search-anchor:end
 
-
     if (tickerEnabled && !isFlymeDevice /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_heads_up_lyric_notifications, R.string.settings_heads_up_lyric_secondary)) {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_heads_up_lyric_notifications) {
@@ -394,7 +389,6 @@ internal fun SettingsLyricOutputControls(
             }
         )
         } // search-anchor:end
-
 
         if (tickerHeadsUpLyrics /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_heads_up_lyric_secondary)) {
             // search-anchor:start
@@ -487,7 +481,6 @@ internal fun SettingsLyricOutputControls(
         }
     )
     } // search-anchor:end
-
 
     if (bluetoothLyricEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_secondary_delivery_content)) {
         // search-anchor:start

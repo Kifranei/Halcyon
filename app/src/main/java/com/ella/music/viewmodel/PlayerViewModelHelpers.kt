@@ -5,12 +5,6 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.player.LyriconBridge
 import com.ella.music.player.SuperLyricBridge
-import kotlin.math.pow
-
-internal fun Float?.toReplayGainVolume(): Float {
-    val gainDb = this?.coerceIn(-24f, 0f) ?: return 1f
-    return 10f.pow(gainDb / 20f).coerceIn(0.05f, 1f)
-}
 
 internal fun replayGainPrefetchSongs(
     playlist: List<Song>,

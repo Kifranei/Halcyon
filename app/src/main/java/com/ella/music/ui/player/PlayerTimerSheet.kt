@@ -1,6 +1,7 @@
 package com.ella.music.ui.player
 
 import android.os.SystemClock
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -23,9 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.SelectionCheck
 import com.ella.music.ui.components.ellaOverlayCardColor
+import com.ella.music.ui.settings.SettingsNumberInputDialog
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
@@ -36,11 +40,10 @@ import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private const val SLEEP_TIMER_MAX_HOURS = 6
-private const val SLEEP_TIMER_MIN_MINUTE = 1
+private const val SLEEP_TIMER_MAX_HOURS = SettingsManager.SLEEP_TIMER_MAX_HOURS
+private const val SLEEP_TIMER_MIN_MINUTE = SettingsManager.SLEEP_TIMER_MIN_MINUTES
 private const val SLEEP_TIMER_MAX_MINUTE = 59
-private const val SLEEP_TIMER_MAX_TOTAL_MINUTES =
-    SLEEP_TIMER_MAX_HOURS * 60 + SLEEP_TIMER_MAX_MINUTE
+private const val SLEEP_TIMER_MAX_TOTAL_MINUTES = SettingsManager.SLEEP_TIMER_MAX_MINUTES
 
 internal fun sleepTimerRemainingLabel(
     endRealtimeMs: Long,
@@ -66,25 +69,18 @@ internal fun rememberSleepTimerRemaining(endRealtimeMs: Long?): String? {
     return sleepTimerRemainingLabel(end, nowRealtimeMs)
 }
 
-/** Split total minutes into hours 0..6 and minutes 1..59 for the dual NumberPicker. */
+/** Whole hours keep minute zero; a zero-hour timer starts at one minute. */
 internal fun splitSleepTimerMinutes(totalMinutes: Int): Pair<Int, Int> {
     val total = totalMinutes.coerceIn(SLEEP_TIMER_MIN_MINUTE, SLEEP_TIMER_MAX_TOTAL_MINUTES)
-    var hours = total / 60
-    var minutes = total % 60
-    if (minutes == 0) {
-        // e.g. 60 / 120: keep whole hours by borrowing one hour into 59 minutes only when
-        // hours would exceed max; otherwise show hours with minutes forced to 1 (tiny drift
-        // until user confirms). Prefer exact: hours-1 + 60 is invalid, so hours + 1 min.
-        minutes = SLEEP_TIMER_MIN_MINUTE
-    }
-    hours = hours.coerceIn(0, SLEEP_TIMER_MAX_HOURS)
-    minutes = minutes.coerceIn(SLEEP_TIMER_MIN_MINUTE, SLEEP_TIMER_MAX_MINUTE)
-    return hours to minutes
+    return total / 60 to total % 60
 }
 
-private fun combineSleepTimerMinutes(hours: Int, minutes: Int): Int {
+internal fun sleepTimerMinuteRange(hours: Int): IntRange =
+    (if (hours > 0) 0 else SLEEP_TIMER_MIN_MINUTE)..SLEEP_TIMER_MAX_MINUTE
+
+internal fun combineSleepTimerMinutes(hours: Int, minutes: Int): Int {
     val h = hours.coerceIn(0, SLEEP_TIMER_MAX_HOURS)
-    val m = minutes.coerceIn(SLEEP_TIMER_MIN_MINUTE, SLEEP_TIMER_MAX_MINUTE)
+    val m = minutes.coerceIn(sleepTimerMinuteRange(h))
     return (h * 60 + m).coerceIn(SLEEP_TIMER_MIN_MINUTE, SLEEP_TIMER_MAX_TOTAL_MINUTES)
 }
 
@@ -104,6 +100,7 @@ internal fun TimerSheetContent(
     val initial = remember(sleepTimerCustomMinutes) { splitSleepTimerMinutes(sleepTimerCustomMinutes) }
     var customHours by remember(sleepTimerCustomMinutes) { mutableIntStateOf(initial.first) }
     var customMinutePart by remember(sleepTimerCustomMinutes) { mutableIntStateOf(initial.second) }
+    var showDurationInput by remember { mutableStateOf(false) }
     val customTotalMinutes = combineSleepTimerMinutes(customHours, customMinutePart)
     var nowRealtimeMs by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     val remainingMs = sleepTimerEndRealtimeMs
@@ -114,7 +111,7 @@ internal fun TimerSheetContent(
     fun persistCustom(hours: Int, minutes: Int) {
         val total = combineSleepTimerMinutes(hours, minutes)
         customHours = hours.coerceIn(0, SLEEP_TIMER_MAX_HOURS)
-        customMinutePart = minutes.coerceIn(SLEEP_TIMER_MIN_MINUTE, SLEEP_TIMER_MAX_MINUTE)
+        customMinutePart = minutes.coerceIn(sleepTimerMinuteRange(customHours))
         onCustomTimerMinutes(total)
     }
 
@@ -163,7 +160,8 @@ internal fun TimerSheetContent(
                 text = stringResource(R.string.player_custom_duration),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = MiuixTheme.colorScheme.onSurface
+                color = MiuixTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth().clickable { showDurationInput = true }
             )
             Spacer(modifier = Modifier.height(6.dp))
             Row(
@@ -187,9 +185,9 @@ internal fun TimerSheetContent(
                     modifier = Modifier.padding(start = 2.dp, end = 12.dp)
                 )
                 NumberPicker(
-                    value = customMinutePart.coerceIn(SLEEP_TIMER_MIN_MINUTE, SLEEP_TIMER_MAX_MINUTE),
+                    value = customMinutePart.coerceIn(sleepTimerMinuteRange(customHours)),
                     onValueChange = { persistCustom(customHours, it) },
-                    range = SLEEP_TIMER_MIN_MINUTE..SLEEP_TIMER_MAX_MINUTE,
+                    range = sleepTimerMinuteRange(customHours),
                     modifier = Modifier.width(88.dp)
                 )
                 Text(
@@ -238,6 +236,16 @@ internal fun TimerSheetContent(
             Text(text = stringResource(R.string.player_cancel_sleep_timer))
         }
     }
+    SettingsNumberInputDialog(
+        show = showDurationInput,
+        title = "${stringResource(R.string.player_custom_duration)} (${stringResource(R.string.player_minutes_unit)})",
+        value = customTotalMinutes.toFloat(), valueRange = 1f..SLEEP_TIMER_MAX_TOTAL_MINUTES.toFloat(),
+        onDismissRequest = { showDurationInput = false },
+        onSave = { total ->
+            val (hours, minutes) = splitSleepTimerMinutes(total.toInt())
+            persistCustom(hours, minutes)
+        }
+    )
 }
 
 @Composable

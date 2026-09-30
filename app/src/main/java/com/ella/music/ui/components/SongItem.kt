@@ -93,6 +93,7 @@ fun SongItem(
     showPlayNextInLists: Boolean = false,
     compactMultiRow: Boolean = false,
     detailed: Boolean = false,
+    loadOriginalCoverArt: ((Song) -> Any?)? = null,
     dragSelectedSongs: List<Song> = emptyList(),
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
     showTrailingContentInSelectionMode: Boolean = false,
@@ -122,8 +123,9 @@ fun SongItem(
         song = song,
         albumArtUri = albumArtUri,
         loadCoverArt = loadCoverArt,
-        usage = ArtworkUsage.ListThumbnail,
-        showDefaultWhenMissing = false
+        usage = if (detailed) ArtworkUsage.LibraryDetail else ArtworkUsage.ListThumbnail,
+        showDefaultWhenMissing = false,
+        loadOriginalCoverArt = if (detailed) loadOriginalCoverArt else null
     )
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
         value = withContext(Dispatchers.IO) { loadAudioInfo?.invoke(song) }
@@ -215,10 +217,10 @@ fun SongItem(
                     contentDescription = null,
                     modifier = Modifier.size(coverSize),
                     contentScale = ContentScale.Crop,
-                    // These thumbnails render at 48/64dp. Decode at a modest 2x density target
-                    // instead of 384/512px per row; this keeps the same crisp appearance while
-                    // reducing bitmap memory and GPU upload work during fast scrolling.
-                    sizePx = if (detailed) 480 else if (compactMultiRow) 320 else 256,
+                    // Detailed rows use the same original source/request as the full-size cover.
+                    // Small rows retain their bounded thumbnail decode.
+                    sizePx = if (detailed) 2048 else if (compactMultiRow) 320 else 256,
+                    loadOriginal = detailed,
                     showDefaultPlaceholder = false
                 )
             } else {

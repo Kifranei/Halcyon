@@ -97,6 +97,7 @@ internal fun rememberArtistCoverResolution(
     val lastFmRegion by settingsManager.artistImageRegion.collectAsState(
         initial = DEFAULT_LAST_FM_WIKI_REGION
     )
+    val spotifyRegion by settingsManager.artistSpotifyRegion.collectAsState(initial = "US")
     val spotifyClientId by settingsManager.spotifyClientId.collectAsState(initial = "")
     val spotifyClientSecret by settingsManager.spotifyClientSecret.collectAsState(initial = "")
     val networkDownloadAllowed = when (artistImageDownload) {
@@ -144,6 +145,7 @@ internal fun rememberArtistCoverResolution(
         networkDownloadAllowed,
         lastFmCredentials.apiKey,
         lastFmRegion,
+        spotifyRegion,
         spotifyClientId,
         spotifyClientSecret,
         artistCoverDownloadFolderUri,
@@ -158,7 +160,8 @@ internal fun rememberArtistCoverResolution(
                 lastFmRegion = lastFmRegion,
                 spotifyClientId = spotifyClientId,
                 downloadFolderUri = artistCoverDownloadFolderUri,
-                customFolderUri = folderLocation
+                customFolderUri = folderLocation,
+                spotifyRegion = spotifyRegion
             )
         } else {
             ArtistImageRepository.resolveDetailed(
@@ -170,7 +173,8 @@ internal fun rememberArtistCoverResolution(
                 spotifyClientId = spotifyClientId,
                 spotifyClientSecret = spotifyClientSecret,
                 downloadFolderUri = artistCoverDownloadFolderUri,
-                customFolderUri = folderLocation
+                customFolderUri = folderLocation,
+                spotifyRegion = spotifyRegion
             )
         }
     }
@@ -188,30 +192,6 @@ internal fun rememberArtistCoverResolution(
 
 /** Session cache of NetEase artist picture URLs so list rows don't repeat the search request. */
 private val neteaseArtistImageCache = java.util.concurrent.ConcurrentHashMap<String, String>()
-
-@Composable
-internal fun rememberArtistCoverAsset(
-    artistName: String,
-    folderLocation: String,
-    mainViewModel: MainViewModel
-): ArtistCoverAsset? {
-    val generation by com.ella.music.data.ArtistCoverRepository.getInstance(LocalContext.current).generation.collectAsState()
-    val state by produceState<ArtistCoverAsset?>(
-        initialValue = null,
-        artistName,
-        folderLocation,
-        generation
-    ) {
-        value = if (artistName.isBlank() || folderLocation.isBlank()) {
-            null
-        } else {
-            withContext(Dispatchers.IO) {
-                mainViewModel.getArtistCoverAsset(artistName, folderLocation)
-            }
-        }
-    }
-    return state
-}
 
 @Composable
 internal fun rememberArtistCoverAssets(

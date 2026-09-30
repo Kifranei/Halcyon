@@ -113,19 +113,11 @@ internal class PlayerPlaybackSettingsBridge(
             ) { mode, song, playlist -> Triple(mode, song, playlist) }
                 .collectLatest { (mode, song, playlist) ->
                     if (mode == SettingsManager.REPLAY_GAIN_OFF || song == null) {
-                        playerManager.setReplayGainVolume(1f)
                         return@collectLatest
                     }
 
-                    // Do not carry the previous song's gain into this song while metadata loads.
-                    // Cached values are available synchronously; uncached songs start neutral.
-                    playerManager.setReplayGainVolume(
-                        repository.getCachedReplayGain(song, mode).toReplayGainVolume()
-                    )
-                    val volume = withContext(Dispatchers.IO) {
-                        repository.getReplayGain(song, mode)
-                    }.toReplayGainVolume()
-                    playerManager.setReplayGainVolume(volume)
+                    // Per-decoder PCM gain is owned by PlaybackService. Presentation may already
+                    // show the incoming crossfade item while the outgoing decoder is still audible.
 
                     // Warm nearby entries so normal automatic transitions already have a gain.
                     withContext(Dispatchers.IO) {

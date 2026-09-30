@@ -27,6 +27,7 @@ class NeteaseLibraryStore private constructor(private val context: Context) {
     private val mutableFavorites = MutableStateFlow<List<Song>>(emptyList())
     private val mutableStatus = MutableStateFlow("")
     private val mutableStreamInfo = MutableStateFlow<Map<String, NeteaseStreamInfo>>(emptyMap())
+    @Volatile private var playbackProvider = NeteasePlaybackProvider.Official
     private val mutableRecentPlays = MutableStateFlow<List<NeteaseRecentPlay>>(emptyList())
     /** Cloud listening history of the signed-in account; empty when signed out. */
     internal val recentPlays = mutableRecentPlays.asStateFlow()
@@ -102,7 +103,28 @@ class NeteaseLibraryStore private constructor(private val context: Context) {
         return resolved.url
     }
     fun audioInfoFor(songId: String): AudioInfo? =
-        (mutableStreamInfo.value[songId] ?: servedQualityFromCache(songId))?.let(::neteaseStreamAudioInfo)
+        (mutableStreamInfo.value[songId] ?: if (playbackProvider == NeteasePlaybackProvider.Official) servedQualityFromCache(songId) else null)
+            ?.let(::neteaseStreamAudioInfo)
+
+    internal fun setPlaybackProvider(provider: NeteasePlaybackProvider) {
+        if (playbackProvider != provider) {
+            playbackProvider = provider
+            mutableStreamInfo.value = emptyMap()
+        }
+    }
+
+    internal fun rememberPluginPlayback(songId: String, mimeType: String) {
+        val type = when (mimeType) {
+            "audio/flac" -> "flac"
+            "audio/mp4" -> "m4a"
+            "audio/mpeg" -> "mp3"
+            "audio/ogg" -> "ogg"
+            "audio/wav" -> "wav"
+            else -> ""
+        }
+        // No official tier, preview flag, or persistent official cache-quality record is reused.
+        mutableStreamInfo.update { it + (songId to NeteaseStreamInfo("", "plugin", type, 0, 0)) }
+    }
 
     /**
      * A cached stream is replayed without resolving a URL, so the served tier is remembered per
@@ -112,16 +134,14 @@ class NeteaseLibraryStore private constructor(private val context: Context) {
 
     private fun rememberServedQuality(songId: String, info: NeteaseStreamInfo) {
         servedQualityPrefs.edit()
-            .putString(NeteaseStreamCache.cacheKey(songId), listOf(info.level, info.type, info.bitRate, info.sampleRate).joinToString("|"))
+            .putString(NeteaseStreamCache.cacheKey(songId), encodeNeteaseServedQuality(info))
             .apply()
     }
 
     private fun servedQualityFromCache(songId: String): NeteaseStreamInfo? {
         val raw = servedQualityPrefs.getString(NeteaseStreamCache.cacheKey(songId), null) ?: return null
-        val parts = raw.split('|')
-        if (parts.size < 4) return null
-        return NeteaseStreamInfo("", parts[0], parts[1], parts[2].toIntOrNull() ?: 0, parts[3].toIntOrNull() ?: 0)
-            .also { info -> mutableStreamInfo.update { it + (songId to info) } }
+        return decodeNeteaseServedQuality(raw)
+            ?.also { info -> mutableStreamInfo.update { it + (songId to info) } }
     }
 
     fun clearServedQuality() { servedQualityPrefs.edit().clear().apply() }

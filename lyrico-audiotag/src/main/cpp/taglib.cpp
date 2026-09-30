@@ -113,7 +113,11 @@ TagLib::File* createFileFromContent(TagLib::IOStream *stream,
         if (file->isValid()) {
             return file;
         }
-        bool hasTags = (file->tag() && !file->tag()->isEmpty()) || !file->properties().isEmpty();
+        // A truncated MP4 can be detected by its ftyp box but rejected before
+        // its Tag object is created. properties() delegates to that object;
+        // only inspect surviving tags when it actually exists.
+        const TagLib::Tag *tag = file->tag();
+        const bool hasTags = tag && (!tag->isEmpty() || !file->properties().isEmpty());
 
         if (hasTags) {
             return file;
@@ -139,13 +143,16 @@ Java_com_lonx_audiotag_TagLib_getAudioProperties(
         std::unique_ptr<TagLib::File> file(createFileFromContent(stream.get(), true, style));
 
         if (!file) {
-            return nullptr;
+            return emptyAudioProperties(env);
         }
 
         return getAudioProperties(env, file.get());
     } catch (const std::exception &e) {
         LOGE("Error reading audio properties: %s", e.what());
-        return nullptr;
+        return emptyAudioProperties(env);
+    } catch (...) {
+        LOGE("Unknown error reading audio properties");
+        return emptyAudioProperties(env);
     }
 }
 
@@ -172,13 +179,16 @@ Java_com_lonx_audiotag_TagLib_getMetadata(
         const bool supportsPictureTypes =
                 dynamic_cast<TagLib::MP4::File *>(file.get()) == nullptr;
 
-        return env->NewObject(
+        jobject metadata = env->NewObject(
                 metadataClass,
                 metadataConstructor,
                 propertiesMap,
                 pictures,
                 supportsPictureTypes ? JNI_TRUE : JNI_FALSE
         );
+        env->DeleteLocalRef(propertiesMap);
+        env->DeleteLocalRef(pictures);
+        return metadata;
     } catch (const std::exception &e) {
         LOGE("Error reading metadata: %s", e.what());
         return nullptr;
@@ -266,6 +276,9 @@ Java_com_lonx_audiotag_TagLib_savePropertyMap(
         TagLib::PropertyMap props = file->properties();
 
         const PropertyMap updates = JniHashMapToPropertyMap(env, property_map);
+        if (env->ExceptionCheck()) {
+            return false;
+        }
 
         for (const auto & update : updates) {
             const TagLib::String &key = update.first;
@@ -301,6 +314,9 @@ Java_com_lonx_audiotag_TagLib_savePictures(
         }
 
         auto pictureList = JniPictureArrayToPictureList(env, pictures);
+        if (env->ExceptionCheck()) {
+            return false;
+        }
         file->setComplexProperties("PICTURE", pictureList);
 
         return file->save();

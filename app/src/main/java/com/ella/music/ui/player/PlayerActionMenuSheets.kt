@@ -1,16 +1,13 @@
 package com.ella.music.ui.player
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,14 +16,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,8 +37,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -289,90 +282,6 @@ internal fun HalfSheetPill(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-    }
-}
-
-@Composable
-internal fun DottedValueSlider(
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    onValueChange: (Float) -> Unit,
-    onValueChangeFinished: ((Float) -> Unit)? = null,
-    modifier: Modifier = Modifier,
-    label: String? = null
-) {
-    val safeValue = value.coerceIn(valueRange.start, valueRange.endInclusive)
-    val sliderColors = SliderDefaults.sliderColors(
-        foregroundColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.88f),
-        backgroundColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f),
-        thumbColor = Color.White,
-        keyPointColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
-        keyPointForegroundColor = Color.White.copy(alpha = 0.72f)
-    )
-
-    if (label == null) {
-        Slider(
-            value = safeValue,
-            onValueChange = { next ->
-                onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
-            },
-            onValueChangeFinished = { onValueChangeFinished?.invoke(safeValue) },
-            valueRange = valueRange,
-            steps = (steps - 1).coerceAtLeast(0),
-            showKeyPoints = true,
-            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
-            colors = sliderColors,
-            modifier = modifier
-        )
-    } else {
-        val fraction = ((safeValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
-        BoxWithConstraints(modifier = modifier) {
-            // Miuix owns drag semantics, keyboard/accessibility actions, haptics, and key-point
-            // rendering. Keep the value bubble as a small overlay that follows the thumb.
-            val labelWidth = 96.dp
-            val maxLabelOffset = (maxWidth - labelWidth).coerceAtLeast(0.dp)
-            val labelOffset = maxLabelOffset * fraction
-            Box(modifier = Modifier.fillMaxSize()) {
-                Slider(
-                    value = safeValue,
-                    onValueChange = { next ->
-                        onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
-                    },
-                    onValueChangeFinished = { onValueChangeFinished?.invoke(safeValue) },
-                    valueRange = valueRange,
-                    // Miuix counts intermediate key points; the old helper counted intervals.
-                    steps = (steps - 1).coerceAtLeast(0),
-                    showKeyPoints = true,
-                    hapticEffect = SliderDefaults.SliderHapticEffect.Step,
-                    colors = sliderColors,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(top = 26.dp)
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(x = labelOffset)
-                        .width(labelWidth)
-                        .padding(top = 2.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MiuixTheme.colorScheme.onPrimary,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(MiuixTheme.colorScheme.primary)
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
-            }
-        }
     }
 }
 

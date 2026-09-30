@@ -23,8 +23,13 @@ internal object OnlinePlaybackQuality {
     fun lxTier(requested: String, available: Collection<String>): String? {
         val wanted = normalize(requested).takeUnless { it == AUTO } ?: return null
         if (available.isEmpty() || wanted in available) return wanted
-        return TIERS.take(TIERS.indexOf(wanted) + 1).lastOrNull { it in available }
-            ?: TIERS.firstOrNull { it in available }
+        val ranked = available.mapNotNull { key ->
+            val rank = TIERS.indexOf(normalize(key))
+            if (rank < 0) null else key to rank
+        }
+        // Keep the declared spelling (for example sd's hires) in the source request.
+        return ranked.filter { it.second <= TIERS.indexOf(wanted) }.maxByOrNull { it.second }?.first
+            ?: ranked.minByOrNull { it.second }?.first
             ?: available.last()
     }
 

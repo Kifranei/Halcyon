@@ -4,7 +4,6 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.ui.search.searchIdentityKey
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,7 +15,7 @@ class LibraryAnalysisBucketSongsTest {
     )
 
     @Test
-    fun bucketsIncludeKeysAndFilterSongs() {
+    fun bucketsIncludeSongKeys() {
         val first = song(1, "first")
         val second = song(2, "second")
         val rows = listOf(
@@ -24,15 +23,6 @@ class LibraryAnalysisBucketSongsTest {
             SongWithInfo(second, AudioInfo(format = "MP3"))
         )
         val buckets = rows.toBuckets { it.info.format }
-        val analysis = LibraryAnalysis(
-            formatBuckets = buckets,
-            qualityBuckets = emptyList(),
-            sampleRateBuckets = emptyList(),
-            bitDepthBuckets = emptyList(),
-            totalCount = 2,
-            totalSizeBytes = 0L
-        )
-        assertEquals(listOf(first), analysis.songsForBucket(listOf(first, second), false, "FLAC"))
         assertEquals(first.searchIdentityKey(), buckets.first { it.label == "FLAC" }.songKeys.single())
     }
 

@@ -56,41 +56,11 @@ class SuperLyricBridge {
         if (!enabled || line == null) return
         val song = lastSong
         val secondary = line.secondaryForSuperLyric(showTranslation)
-        val pronunciation = line.pronunciation?.takeIf { secondaryMode == SecondaryMode.Pronunciation && it.isNotBlank() }
         val key = "${song?.id}:${line.timeMs}:${line.endMs}:$secondaryMode:$showTranslation:${secondary.orEmpty()}"
-        if (force && !registered) lastKey = null
-        if (key == lastKey) return
+        if (!force && key == lastKey) return
         if (!register()) return
         runCatching {
-            val end = line.endMs ?: (line.words.maxOfOrNull { it.endMs } ?: (line.timeMs + 3000L))
-            SuperLyricHelper.sendLyric(
-                SuperLyricData()
-                    .setTitle(song?.title)
-                    .setArtist(song?.artist)
-                    .setAlbum(song?.album)
-                    .setLyric(
-                        SuperLyricLine(
-                            line.text.ifBlank { line.backgroundText.orEmpty() },
-                            line.words.toSuperWords(line.text),
-                            line.timeMs,
-                            end
-                        )
-                    )
-                    .setSecondary(line.backgroundText?.takeIf { it.isNotBlank() }?.let {
-                        SuperLyricLine(it, line.backgroundWords.toSuperWords(it), line.timeMs, end)
-                    })
-                    .setTranslation(
-                        secondary?.takeIf { it.isNotBlank() }?.let {
-                            SuperLyricLine(it, line.timeMs, end)
-                        }
-                    )
-                    .setExtra(pronunciation?.let {
-                        Bundle().apply {
-                            putString("pronunciation", it)
-                            putString("phonetic", it)
-                        }
-                    })
-            )
+            SuperLyricHelper.sendLyric(dataForLine(song, line, positionMs, showTranslation))
             lastKey = key
             resetRetryState()
         }.onFailure {
@@ -131,6 +101,47 @@ class SuperLyricBridge {
             }
             SecondaryMode.Pronunciation -> pronunciation?.takeIf { it.isNotBlank() }
         }
+    }
+
+    internal fun dataForLine(
+        song: Song?,
+        line: LyricLine,
+        positionMs: Long,
+        showTranslation: Boolean
+    ): SuperLyricData {
+        val end = line.endMs ?: (line.words.maxOfOrNull { it.endMs } ?: (line.timeMs + 3000L))
+        val secondary = line.secondaryForSuperLyric(showTranslation)
+        val pronunciation = line.pronunciation
+            ?.takeIf { secondaryMode == SecondaryMode.Pronunciation && it.isNotBlank() }
+        return SuperLyricData()
+            .setTitle(song?.title)
+            .setArtist(song?.artist)
+            .setAlbum(song?.album)
+            // API 3.6 receivers can resume/seek inside the current line using the real clock.
+            .setDuration(song?.duration?.coerceAtLeast(0L) ?: 0L)
+            .setPosition(positionMs.coerceAtLeast(0L))
+            .setLyric(
+                SuperLyricLine(
+                    line.text.ifBlank { line.backgroundText.orEmpty() },
+                    line.words.toSuperWords(line.text),
+                    line.timeMs,
+                    end
+                )
+            )
+            .setSecondary(line.backgroundText?.takeIf { it.isNotBlank() }?.let {
+                SuperLyricLine(it, line.backgroundWords.toSuperWords(it), line.timeMs, end)
+            })
+            .setTranslation(
+                secondary?.takeIf { it.isNotBlank() }?.let {
+                    SuperLyricLine(it, line.timeMs, end)
+                }
+            )
+            .setExtra(pronunciation?.let {
+                Bundle().apply {
+                    putString("pronunciation", it)
+                    putString("phonetic", it)
+                }
+            })
     }
 
     enum class SecondaryMode {

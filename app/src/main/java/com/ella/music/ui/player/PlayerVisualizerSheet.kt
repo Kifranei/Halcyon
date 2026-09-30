@@ -36,6 +36,7 @@ internal fun VisualizerSheetContent(
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val scope = rememberCoroutineScope()
+    val rainbow by settingsManager.audioVisualizerRainbow.collectAsState(initial = false)
     val blurRadius by settingsManager.audioVisualizerBlur.collectAsState(initial = 0)
     val visualizerStyle by settingsManager.audioVisualizerStyle.collectAsState(
         initial = SettingsManager.DEFAULT_AUDIO_VISUALIZER_STYLE
@@ -81,6 +82,11 @@ internal fun VisualizerSheetContent(
             title = stringResource(R.string.player_music_visualizer),
             checked = enabled,
             onCheckedChange = onEnabledChange
+        )
+        SwitchPreference(
+            title = stringResource(R.string.player_visualizer_rainbow),
+            checked = rainbow,
+            onCheckedChange = { scope.launch { settingsManager.setAudioVisualizerRainbow(it) } }
         )
         WindowSpinnerPreference(
             title = stringResource(R.string.player_visualizer_style),

@@ -434,7 +434,23 @@ private fun LyricShareOptionsToggle(
         listOf(
             LyricShareCardStyle.Current to stringResource(R.string.lyric_share_style_current),
             LyricShareCardStyle.LegacyTopMetadata to stringResource(R.string.lyric_share_style_legacy),
-            LyricShareCardStyle.NetEase to stringResource(R.string.lyric_share_style_netease)
+            LyricShareCardStyle.NetEase to stringResource(R.string.lyric_share_style_netease),
+            LyricShareCardStyle.Historical127 to stringResource(R.string.lyric_share_style_historical127),
+            LyricShareCardStyle.Spotify to stringResource(R.string.lyric_share_style_spotify),
+            LyricShareCardStyle.Magazine to stringResource(R.string.lyric_share_style_magazine),
+            LyricShareCardStyle.Cinematic to stringResource(R.string.lyric_share_style_cinematic),
+            LyricShareCardStyle.Polaroid to stringResource(R.string.lyric_share_style_polaroid),
+            LyricShareCardStyle.Calligraphy to stringResource(R.string.lyric_share_style_calligraphy),
+            LyricShareCardStyle.Vinyl to stringResource(R.string.lyric_share_style_vinyl),
+            LyricShareCardStyle.Receipt to stringResource(R.string.lyric_share_style_receipt),
+            LyricShareCardStyle.Journal to stringResource(R.string.lyric_share_style_journal),
+            LyricShareCardStyle.Minimal to stringResource(R.string.lyric_share_style_minimal),
+            LyricShareCardStyle.Cyberpunk to stringResource(R.string.lyric_share_style_cyberpunk),
+            LyricShareCardStyle.Swiss to stringResource(R.string.lyric_share_style_swiss),
+            LyricShareCardStyle.AncientBook to stringResource(R.string.lyric_share_style_ancientbook),
+            LyricShareCardStyle.StickyNote to stringResource(R.string.lyric_share_style_stickynote),
+            LyricShareCardStyle.Ticket to stringResource(R.string.lyric_share_style_ticket),
+            LyricShareCardStyle.CD to stringResource(R.string.lyric_share_style_cd),
         ).forEach { (style, label) ->
             val selected = options.style == style
             Box(
@@ -592,12 +608,34 @@ private fun LyricSharePreviewCard(
             style = options.style
         )
     }
-    val layout = remember(content, shareTypeface) {
-        runCatching { calculateLyricShareLayout(content, shareTypeface = shareTypeface) }.getOrNull()
+    val preview by androidx.compose.runtime.produceState<Pair<LyricShareCardLayout, Bitmap>?>(
+        initialValue = null, content, shareTypeface, cover
+    ) {
+        value = null
+        val pending = java.util.concurrent.atomic.AtomicReference<Bitmap?>(null)
+        try {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                runCatching {
+                    val measured = calculateLyricShareLayout(content, shareTypeface = shareTypeface)
+                    val original = renderLyricShareCardBitmap(content, measured, cover)
+                    pending.set(original)
+                    val scale = minOf(1f, 4096f / original.height, 1080f / original.width)
+                    val bitmap = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(original,
+                        (original.width * scale).toInt().coerceAtLeast(1), (original.height * scale).toInt().coerceAtLeast(1), true)
+                        .also { original.recycle() } else original
+                    pending.set(bitmap)
+                    measured to bitmap
+                }.getOrNull()
+            }
+            if (value != null) pending.set(null)
+        } finally {
+            // A rapid style switch cancels delivery; recycle that undelivered bitmap too.
+            pending.getAndSet(null)?.takeUnless { it.isRecycled }?.recycle()
+        }
     }
-    val previewBitmap = remember(content, layout, cover) {
-        layout?.let { runCatching { renderLyricShareCardBitmap(content, it, cover) }.getOrNull() }
-    }
+
+    val layout = preview?.first
+    val previewBitmap = preview?.second
 
     DisposableEffect(previewBitmap) {
         onDispose {

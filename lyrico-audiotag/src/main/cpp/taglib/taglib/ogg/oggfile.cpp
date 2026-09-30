@@ -25,6 +25,7 @@
 
 #include "oggfile.h"
 
+#include <limits>
 #include <utility>
 
 #include "tdebug.h"
@@ -57,6 +58,16 @@ public:
   std::unique_ptr<PageHeader> firstPageHeader;
   std::unique_ptr<PageHeader> lastPageHeader;
   Map<unsigned int, ByteVector> dirtyPackets;
+
+  // File offset of the next page to read while scanning the file.  This tracks
+  // the physical position independently of the logical stream's pages so that
+  // pages of other multiplexed streams can be skipped.
+  offset_t currentPageOffset { -1 };
+
+  // Serial number of the logical bitstream packets are read from.  In a
+  // multiplexed Ogg stream only pages of this stream are considered.
+  unsigned int streamSerialNumber { 0 };
+  bool streamSerialNumberSet { false };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,16 +78,26 @@ Ogg::File::~File() = default;
 
 ByteVector Ogg::File::packet(unsigned int i)
 {
+  return packet(i, std::numeric_limits<unsigned int>::max());
+}
+
+ByteVector Ogg::File::packet(unsigned int i, unsigned int maxSize)
+{
   // Check to see if we're called setPacket() for this packet since the last
   // save:
 
-  if(d->dirtyPackets.contains(i))
+  if(d->dirtyPackets.contains(i)) {
+    if(d->dirtyPackets[i].size() > maxSize) {
+      debug("Ogg::File::packet() -- Maximum packet size exceeded");
+      return ByteVector();
+    }
     return d->dirtyPackets[i];
+  }
 
   // If we haven't indexed the page where the packet we're interested in starts,
   // begin reading pages until we have.
 
-  if(!readPages(i)) {
+  if(!readPages(i, maxSize)) {
     debug("Ogg::File::packet() -- Could not find the requested packet.");
     return ByteVector();
   }
@@ -98,7 +119,12 @@ ByteVector Ogg::File::packet(unsigned int i)
 
   while(nextPacketIndex(*it) <= i) {
     ++it;
-    packet.append((*it)->packets().front());
+    const ByteVector packetPart = (*it)->packets().front();
+    if(packetPart.size() > maxSize - packet.size()) {
+      debug("Ogg::File::packet() -- Maximum packet size exceeded");
+      return ByteVector();
+    }
+    packet.append(packetPart);
   }
 
   return packet;
@@ -171,45 +197,131 @@ Ogg::File::File(IOStream *stream) :
 {
 }
 
+bool Ogg::File::selectStream(const ByteVector &magic)
+{
+  // All beginning-of-stream pages of a (possibly multiplexed) Ogg stream
+  // appear at the very start of the file, before any secondary pages.  Inspect
+  // each one's first packet and lock onto the first logical bitstream whose
+  // identification header matches magic.
+
+  offset_t offset = find("OggS");
+  if(offset < 0)
+    return false;
+
+  while(true) {
+    Page page(this, offset);
+    if(!page.header()->isValid())
+      return false;
+
+    // Once the beginning-of-stream pages are exhausted there are no more
+    // logical bitstreams to discover.
+    if(!page.header()->firstPageOfStream())
+      return false;
+
+    const ByteVectorList packets = page.packets();
+    if(!packets.isEmpty() && packets.front().startsWith(magic)) {
+      d->streamSerialNumber = page.header()->streamSerialNumber();
+      d->streamSerialNumberSet = true;
+      return true;
+    }
+
+    offset += page.size();
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // private members
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Ogg::File::readPages(unsigned int i)
 {
+  return readPages(i, std::numeric_limits<unsigned int>::max());
+}
+
+bool Ogg::File::readPages(unsigned int i, unsigned int maxSize)
+{
+  const bool limitPacketSize = maxSize != std::numeric_limits<unsigned int>::max();
+  unsigned int packetSize = 0;
+  const auto addPacketPartSize = [&](const Page *page) {
+    if(page->containsPacket(i) == Page::DoesNotContainPacket)
+      return true;
+
+    const ByteVectorList packets = page->packets();
+    const unsigned int packetPartIndex = i - page->firstPacketIndex();
+    if(packetPartIndex >= packets.size())
+      return false;
+
+    const unsigned int packetPartSize = packets[packetPartIndex].size();
+    if(packetPartSize > maxSize - packetSize)
+      return false;
+
+    packetSize += packetPartSize;
+    return true;
+  };
+
+  if(limitPacketSize) {
+    for(const auto &page : std::as_const(d->pages)) {
+      if(!addPacketPartSize(page)) {
+        debug("Ogg::File::readPages() -- Maximum packet size exceeded");
+        return false;
+      }
+    }
+  }
+
   while(true) {
-    unsigned int packetIndex;
-    offset_t offset;
 
-    if(d->pages.isEmpty()) {
-      packetIndex = 0;
-      offset = find("OggS");
-      if(offset < 0)
-        return false;
-    }
-    else {
+    // If we've already indexed the page containing packet i, we're done.
+
+    if(!d->pages.isEmpty()) {
       const Page *page = d->pages.back();
-      packetIndex = nextPacketIndex(page);
-      offset = page->fileOffset() + page->size();
-
-      // Enough pages have been fetched.
-      if(packetIndex > i) {
+      if(nextPacketIndex(page) > i)
         return true;
-      }
-      else if(page->header()->lastPageOfStream()) {
+      if(page->header()->lastPageOfStream())
         return false;
-      }
     }
 
-    // Read the next page and add it to the page list.
+    // Locate the first page in the file if we haven't started scanning yet.
 
-    auto nextPage = new Page(this, offset);
-    if(!nextPage->header()->isValid()) {
+    if(d->currentPageOffset < 0) {
+      d->currentPageOffset = find("OggS");
+      if(d->currentPageOffset < 0)
+        return false;
+    }
+
+    // Read pages until we find the next one belonging to our logical bitstream,
+    // skipping pages of other streams in a multiplexed Ogg stream.
+
+    Page *nextPage;
+    while(true) {
+      nextPage = new Page(this, d->currentPageOffset);
+      if(!nextPage->header()->isValid()) {
+        delete nextPage;
+        return false;
+      }
+
+      d->currentPageOffset += nextPage->size();
+
+      const unsigned int serial = nextPage->header()->streamSerialNumber();
+      if(!d->streamSerialNumberSet) {
+        d->streamSerialNumber = serial;
+        d->streamSerialNumberSet = true;
+      }
+
+      if(serial == d->streamSerialNumber)
+        break;
+
+      delete nextPage;
+    }
+
+    const unsigned int packetIndex
+      = d->pages.isEmpty() ? 0 : nextPacketIndex(d->pages.back());
+
+    nextPage->setFirstPacketIndex(packetIndex);
+    if(limitPacketSize && !addPacketPartSize(nextPage)) {
+      debug("Ogg::File::readPages() -- Maximum packet size exceeded");
       delete nextPage;
       return false;
     }
-
-    nextPage->setFirstPacketIndex(packetIndex);
     d->pages.append(nextPage);
   }
 }
@@ -295,4 +407,5 @@ void Ogg::File::writePacket(unsigned int i, const ByteVector &packet)
   // Discard all the pages to keep them up-to-date by fetching them again.
 
   d->pages.clear();
+  d->currentPageOffset = -1;
 }

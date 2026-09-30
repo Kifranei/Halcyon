@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">在音乐库页显示上次播放的歌曲</string>
+    <string name="settings_category_continue_playback_row">各分类详情页：显示“继续播放”功能条</string>
+    <string name="settings_category_continue_playback_row_summary">在专辑、艺术家、歌单、文件夹等详情页显示该分类上次播放的歌曲</string>
+    <string name="netease_link_custom_comments_summary">留空使用原生评论界面；支持分页、楼层、点赞和回复。自定义链接可使用 {id} 替换资源ID</string>
+    <string name="recent_playback_folder_types">文件夹标签页显示类型</string>
+    <string name="recent_playback_mv_types">MV标签页显示类型</string>
+    <string name="recent_playback_nested_folder">嵌套文件夹</string>
+    <string name="recent_playback_local_mv">本地MV</string>
+    <string name="recent_playback_online_mv">在线MV</string>
+    <string name="recent_playback_delete_online_mv_message">永久删除“%1$s”的MV播放记录？</string>
+</resources>

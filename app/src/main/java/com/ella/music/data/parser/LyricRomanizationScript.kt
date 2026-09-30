@@ -35,6 +35,10 @@ internal fun String.usesOnlyRomanizationLetters(): Boolean = all { char ->
     !char.isLetter() || char.code < 0x80 || char.lowercaseChar() in romanizationLetters
 }
 
+/** Dash-space credits remain ordinary secondary lyrics, including in combined display rows. */
+internal fun String.excludesPronunciationInference(): Boolean =
+    lineSequence().any { it.trimStart().startsWith("- ") }
+
 /** Pinyin/romaji readings are compared syllable-by-syllable, so drop the diacritics first. */
 private fun Char.toRomanizationBaseLetter(): Char = when (lowercaseChar()) {
     'ā', 'á', 'ǎ', 'à', 'â' -> 'a'
@@ -108,6 +112,7 @@ private fun String.readingTokens(): List<String> =
  * because `khi`, `vừa` and `buông` are not syllables either system can produce.
  */
 internal fun String.looksLikeCjkReading(): Boolean {
+    if (excludesPronunciationInference()) return false
     if (!usesOnlyRomanizationLetters()) return false
     val tokens = readingTokens()
     if (tokens.isEmpty()) return false
@@ -122,8 +127,8 @@ internal fun String.looksLikeCjkReading(): Boolean {
  *
  * The test is deliberately "is there anything here that is not Latin" rather than a CJK
  * allow-list: Arabic, Cyrillic, Thai and Hangul rows all benefit from a per-word transliteration
- * sitting over the glyph. What must never happen is ruby over a Latin-script lyric, because then
- * the small row is not a reading of the large one — it is the song, shrunk to 8 pt.
+ * sitting over the glyph. Latin-script romanizations of Latin lyrics stay on their own row;
+ * the renderer separately allows explicit timed kana readings of English loanwords.
  */
 internal fun String.needsPhoneticAnnotation(): Boolean {
     var index = 0

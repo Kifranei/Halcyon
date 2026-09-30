@@ -42,9 +42,17 @@ android {
     }
 }
 
+androidComponents {
+    finalizeDsl { extension ->
+        if (buildNative) {
+            extension.sourceSets.getByName("main").jniLibs.setSrcDirs(emptyList<String>())
+        }
+    }
+}
+
 dependencies {
     compileOnly(libs.androidx.media3.decoder)
     compileOnly(libs.androidx.media3.exoplayer)
-    compileOnly("androidx.annotation:annotation:1.9.1")
+    compileOnly(libs.androidx.annotation)
     compileOnly(libs.kotlin.annotations.jvm)
 }

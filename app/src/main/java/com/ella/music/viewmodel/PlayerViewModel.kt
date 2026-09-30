@@ -14,6 +14,7 @@ import com.ella.music.data.lastfm.ListeningHistorySource
 import com.ella.music.data.PlaylistStore
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
+import com.ella.music.ui.player.interludes
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
@@ -73,7 +74,6 @@ private const val LIVE_UPDATE_ARTWORK_SIZE = 256
 private const val AB_REPEAT_MIN_LENGTH_MS = 300L
 private const val AB_REPEAT_LOOP_GUARD_MS = 250L
 
-private const val DECODER_MODE_SYSTEM = 0
 private const val DECODER_MODE_AUTO = 2
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -1383,6 +1383,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    private var desktopInterludeLyrics: List<LyricLine>? = null
+    private var desktopInterludeWindows = emptyList<com.ella.music.ui.player.AppleMusicInterlude>()
+
+    private fun desktopInterludeAt(lyrics: List<LyricLine>, position: Long): com.ella.music.ui.player.AppleMusicInterlude? {
+        if (desktopInterludeLyrics !== lyrics) {
+            desktopInterludeLyrics = lyrics
+            desktopInterludeWindows = lyrics.interludes()
+        }
+        return desktopInterludeWindows.firstOrNull { it.isActiveAt(position) }
+    }
+
     private fun resendDesktopLyric() {
         if (!desktopLyricBridge.isEnabled()) return
         if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) return
@@ -1393,7 +1404,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             line = currentLyrics.getOrNull(index),
             positionMs = effectiveLyricPositionMs(),
             showTranslation = _showLyricTranslation.value,
-            showPronunciation = _showLyricPronunciation.value
+            showPronunciation = _showLyricPronunciation.value,
+            interlude = desktopInterludeAt(currentLyrics, effectiveLyricPositionMs())
         )
     }
 
@@ -1401,12 +1413,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!desktopLyricBridge.isEnabled()) return
         if (activeDesktopLyricHideWhenPaused() && !isPlaying.value) return
         val index = _currentLyricIndex.value
-        val line = loadedLyricsForCurrentSong().getOrNull(index) ?: return
+        val currentLyrics = loadedLyricsForCurrentSong()
+        val position = effectiveLyricPositionMs()
         desktopLyricBridge.sendLyric(
-            line,
-            effectiveLyricPositionMs(),
-            _showLyricTranslation.value,
-            _showLyricPronunciation.value
+            currentLyrics.getOrNull(index), position,
+            _showLyricTranslation.value, _showLyricPronunciation.value,
+            desktopInterludeAt(currentLyrics, position)
         )
     }
 
@@ -1982,10 +1994,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (nowMs - lastAbRepeatLoopAtMs < AB_REPEAT_LOOP_GUARD_MS) return
         lastAbRepeatLoopAtMs = nowMs
         playerManager.seekTo(startMs)
-    }
-
-    fun toggleLyrics() {
-        _showLyrics.value = !_showLyrics.value
     }
 
     fun setShowLyrics(show: Boolean) {

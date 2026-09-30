@@ -422,23 +422,41 @@ ByteVector Ogg::XiphComment::render(bool addFramingBit) const
 
 void Ogg::XiphComment::parse(const ByteVector &data)
 {
+  static constexpr unsigned int MAX_XIPH_COMMENT_FIELD_COUNT = 50000;
+
   // The first thing in the comment data is the vendor ID length, followed by a
   // UTF8 string with the vendor ID.
+
+  if(data.size() < 8) {
+    debug("Ogg::XiphComment::parse() - Comment data is too short.");
+    return;
+  }
 
   unsigned int pos = 0;
 
   const unsigned int vendorLength = data.toUInt(0, false);
   pos += 4;
+  if(vendorLength > data.size() - pos) {
+    debug("Ogg::XiphComment::parse() - Vendor ID exceeds comment data.");
+    return;
+  }
 
   d->vendorID = String(data.mid(pos, vendorLength), String::UTF8);
   pos += vendorLength;
+
+  if(data.size() - pos < 4) {
+    debug("Ogg::XiphComment::parse() - Missing comment field count.");
+    return;
+  }
 
   // Next the number of fields in the comment vector.
 
   const unsigned int commentFields = data.toUInt(pos, false);
   pos += 4;
 
-  if(commentFields > (data.size() - 8) / 4) {
+  if(commentFields > MAX_XIPH_COMMENT_FIELD_COUNT ||
+     commentFields > (data.size() - 8) / 4) {
+    debug("Ogg::XiphComment::parse() - Maximum comment field count exceeded.");
     return;
   }
 
@@ -447,16 +465,17 @@ void Ogg::XiphComment::parse(const ByteVector &data)
     // Each comment field is in the format "KEY=value" in a UTF8 string and has
     // 4 bytes before the text starts that gives the length.
 
+    if(data.size() - pos < 4)
+      break;
+
     const unsigned int commentLength = data.toUInt(pos, false);
     pos += 4;
 
+    if(commentLength > data.size() - pos)
+      break;
+
     const ByteVector entry = data.mid(pos, commentLength);
     pos += commentLength;
-
-    // Don't go past data end
-
-    if(pos > data.size())
-      break;
 
     // Check for field separator
 

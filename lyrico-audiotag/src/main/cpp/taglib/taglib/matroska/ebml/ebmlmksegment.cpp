@@ -45,7 +45,7 @@ std::unique_ptr<ElementType> readElementAt(File &file,
   }
 
   file.seek(offset);
-  auto element = EBML::Element::factory(file);
+  auto element = EBML::Element::factory(file, maxOffset);
   if(!element || element->getId() != Id) {
     return nullptr;
   }
@@ -95,13 +95,13 @@ bool EBML::MkSegment::readLimited(File &file, offset_t scanLimit)
   MasterElement *pendingPaddingTarget = nullptr;
   offset_t accumulatedPadding = 0;
   std::unique_ptr<Element> element;
-  while((element = findNextElement(file, maxScanOffset))) {
+  while((element = findNextElement(file, maxOffset, maxScanOffset))) {
     if(const Id id = element->getId(); id == Id::MkSeekHead) {
       seekHead = element_cast<Id::MkSeekHead>(std::move(element));
       if(!seekHead->read(file))
         return false;
       // We have a seek head, let's use it for faster access to the other elements
-      if(const auto elementAfterSeekHead = findNextElement(file, maxScanOffset);
+      if(const auto elementAfterSeekHead = findNextElement(file, maxOffset, maxScanOffset);
          elementAfterSeekHead && elementAfterSeekHead->getId() == Id::VoidElement)
         seekHead->setPadding(elementAfterSeekHead->getSize());
       const offset_t segDataOffset = segmentDataOffset();
@@ -125,7 +125,7 @@ bool EBML::MkSegment::readLimited(File &file, offset_t scanLimit)
       // Follow such MkSeekHead -> MkSeekHead chains so the real entries are
       // not silently dropped.
       List<std::pair<unsigned int, offset_t>> entries =
-        matroskaSeekHead->entryList();
+        matroskaSeekHead ? matroskaSeekHead->entryList() : List<std::pair<unsigned int, offset_t>>();
       // Guard against pathological / circular chains.
       int chainedSeekHeadsFollowed = 0;
       constexpr int MAX_CHAINED_SEEKHEADS = 8;
@@ -296,4 +296,9 @@ void EBML::MkSegment::parseTracks(Matroska::Properties *properties) const
   if(tracks) {
     tracks->parse(properties);
   }
+}
+
+String EBML::MkSegment::parseSegmentTitle() const
+{
+  return info ? info->parseTitle() : String();
 }

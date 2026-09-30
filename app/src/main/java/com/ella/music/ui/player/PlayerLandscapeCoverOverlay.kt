@@ -3,8 +3,8 @@
 package com.ella.music.ui.player
 
 import android.graphics.Bitmap
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -38,6 +38,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,6 +101,7 @@ internal fun LandscapeCoverPlaybackOverlay(
     showTotalDuration: Boolean,
     queueExpanded: Boolean,
     playlist: List<Song>,
+    selectedQueueIndex: Int = -1,
     audioSessionId: Int,
     visualizerEnabled: Boolean,
     visualizerOpacity: Float,
@@ -146,16 +149,18 @@ internal fun LandscapeCoverPlaybackOverlay(
     }
     val lyricPosition = (currentPosition - mvOffsetMs).coerceAtLeast(0L)
     val songKey = remember(song) { song?.playlistIdentityKey() }
-    val coverItems = remember(playlist, songKey) {
-        val source = playlist.takeIf { it.isNotEmpty() } ?: listOfNotNull(song)
-        val centerIndex = source.indexOfFirst { it.playlistIdentityKey() == songKey }.takeIf { it >= 0 } ?: 0
-        listOf(-3, -2, -1, 0, 1, 2, 3)
-            .mapNotNull { offset -> source.getOrNull(centerIndex + offset)?.let { offset to it } }
-            .ifEmpty { listOfNotNull(song?.let { 0 to it }) }
-    }
     val swipeThresholdPx = with(LocalDensity.current) { 92.dp.toPx() }
     val swipeScope = rememberCoroutineScope()
-    val dragOffset = remember { Animatable(0f) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragSettleJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val latestPrevious by rememberUpdatedState(onSwipePrevious)
+    val latestNext by rememberUpdatedState(onNext)
+    fun settleCoverDrag() {
+        dragSettleJob?.cancel()
+        dragSettleJob = swipeScope.launch {
+            animate(dragOffset, 0f, animationSpec = spring()) { value, _ -> dragOffset = value }
+        }
+    }
     var coverControlsVisible by remember(songKey) { mutableStateOf(false) }
     var coverControlsInteraction by remember(songKey) { mutableStateOf(0) }
     // Entering through the cover's MV rotation starts in the focused, Spotify-like layout.
@@ -171,18 +176,19 @@ internal fun LandscapeCoverPlaybackOverlay(
     }
     suspend fun PointerInputScope.detectCoverSwipeToSkip() {
         detectHorizontalDragGestures(
-            onDragCancel = { swipeScope.launch { dragOffset.animateTo(0f) } },
+            onDragStart = { dragSettleJob?.cancel() },
+            onDragCancel = { settleCoverDrag() },
             onDragEnd = {
-                val travel = dragOffset.value
-                swipeScope.launch { dragOffset.animateTo(0f) }
+                val travel = dragOffset
+                settleCoverDrag()
                 when {
-                    travel > swipeThresholdPx -> onSwipePrevious()
-                    travel < -swipeThresholdPx -> onNext()
+                    travel > swipeThresholdPx -> latestPrevious()
+                    travel < -swipeThresholdPx -> latestNext()
                 }
             },
             onHorizontalDrag = { change, dragAmount ->
                 change.consume()
-                swipeScope.launch { dragOffset.snapTo(dragOffset.value + dragAmount) }
+                dragOffset += dragAmount
             }
         )
     }
@@ -203,8 +209,8 @@ internal fun LandscapeCoverPlaybackOverlay(
                 }
             )
             .then(
-                if (coverSwipeEnabled) {
-                    Modifier.pointerInput(onSwipePrevious, onNext) {
+                if (coverSwipeEnabled && hideNeighborCovers) {
+                    Modifier.pointerInput(coverSwipeEnabled, hideNeighborCovers) {
                         detectCoverSwipeToSkip()
                     }
                 } else {
@@ -278,16 +284,8 @@ internal fun LandscapeCoverPlaybackOverlay(
                     .padding(top = if (hideNeighborCovers) 0.dp else 18.dp)
                     // Follow the finger (damped) so swiping the cover wall feels direct; the
                     // offset springs back to 0 on release while the song change re-centers.
-                    .graphicsLayer { translationX = dragOffset.value * 0.5f }
-                    .then(
-                        if (coverSwipeEnabled) {
-                            Modifier.pointerInput(onSwipePrevious, onNext) {
-                                detectCoverSwipeToSkip()
-                            }
-                        } else {
-                            Modifier
-                        }
-                    ),
+                    .graphicsLayer { if (hideNeighborCovers) translationX = dragOffset * 0.5f }
+,
                 contentAlignment = Alignment.Center
             ) {
                 when {
@@ -335,7 +333,10 @@ internal fun LandscapeCoverPlaybackOverlay(
                             embeddedCover = embeddedCover,
                             dynamicCoverSource = dynamicCoverSource,
                             isPlaying = isPlaying,
-                            coverItems = coverItems,
+                            playlist = playlist,
+                            selectedQueueIndex = selectedQueueIndex,
+                            onSelectSong = onQueueSongClick,
+                            swipeEnabled = coverSwipeEnabled,
                             onDynamicCoverFailed = onDynamicCoverFailed,
                             onCenterCoverClick = {
                                 coverControlsVisible = true
@@ -388,42 +389,9 @@ internal fun LandscapeCoverPlaybackOverlay(
                         .padding(horizontal = 34.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Crossfade(targetState = currentLyricIndex, label = "coverOverlayLyric") { lineIndex ->
-                        val line = lyrics.getOrNull(lineIndex)
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = line?.text?.trim().orEmpty(),
-                                color = LocalPlayerContentColor.current.copy(alpha = 0.92f),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = fontFamily,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            val secondary = line?.translation?.trim()
-                                ?.takeIf { showTranslation && it.isNotEmpty() }
-                            if (secondary != null) {
-                                Text(
-                                    text = secondary,
-                                    color = LocalPlayerContentColor.current.copy(alpha = 0.55f),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = translationFontFamily,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 2.dp)
-                                )
-                            }
-                        }
-                    }
+                    CoverFlowLyricPreview(lyrics, currentLyricIndex, lyricPosition, isPlaying,
+                        mvOffsetMs, showTranslation, fontFamily, translationFontFamily,
+                        onSeek = { position -> onSeek((position.toFloat() / duration.coerceAtLeast(1)).coerceIn(0f, 1f)) })
                 }
                 Spacer(modifier = Modifier.height(10.dp))
             }
@@ -526,7 +494,8 @@ private fun CompactLandscapeNowPlaying(
     ) {
         Box(
             modifier = Modifier
-                .size(62.dp)
+                .size(68.dp)
+                .playerMorphArtwork()
                 .clip(RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {

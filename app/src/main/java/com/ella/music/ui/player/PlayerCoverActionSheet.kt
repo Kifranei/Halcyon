@@ -125,6 +125,7 @@ internal fun PlayerCoverActionSheet(
         PlayerActionSheetPage.AudioOutput -> stringResource(R.string.player_audio_output_info)
         PlayerActionSheetPage.LyricDisplay -> stringResource(R.string.player_lyrics_display)
         PlayerActionSheetPage.LyricStyle -> stringResource(R.string.player_lyric_style_settings)
+        PlayerActionSheetPage.MiniLyricStyle -> stringResource(R.string.player_mini_lyrics_style)
     }
 
     val startAction: @Composable (() -> Unit)? = if (page != PlayerActionSheetPage.Main) {
@@ -212,6 +213,7 @@ internal fun PlayerCoverActionSheet(
             onAddToQueue = onAddToQueue,
             onPlayNext = onPlayNext,
             onShare = onShareSong,
+            onLyricShare = onLyricShare,
             onSetRating = onSetRating,
             onAiInterpret = onAiInterpret,
             onSpectrum = onSpectrum,

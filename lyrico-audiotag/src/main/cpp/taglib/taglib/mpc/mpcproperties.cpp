@@ -27,6 +27,7 @@
 
 #include <array>
 #include <cmath>
+#include <limits>
 
 #include "tdebug.h"
 #include "tstring.h"
@@ -186,7 +187,19 @@ void MPC::Properties::readSV8(File *file, offset_t streamLength)
       break;
     }
 
-    const unsigned long dataSize = packetSize - 2 - packetSizeLength;
+    const unsigned long headerSize = 2 + packetSizeLength;
+    const offset_t offset = file->tell();
+    if(packetSize < headerSize || offset < 0 || offset > streamLength) {
+      debug("MPC::Properties::readSV8() - Invalid packet size.");
+      break;
+    }
+
+    const unsigned long dataSize = packetSize - headerSize;
+    const auto remaining = static_cast<unsigned long long>(streamLength - offset);
+    if(dataSize > remaining || dataSize > std::numeric_limits<unsigned int>::max()) {
+      debug("MPC::Properties::readSV8() - Packet size exceeds remaining data.");
+      break;
+    }
 
     const ByteVector data = file->readBlock(dataSize);
     if(data.size() != dataSize) {
@@ -227,9 +240,20 @@ void MPC::Properties::readSV8(File *file, offset_t streamLength)
 
       if(const auto frameCount = d->sampleFrames - begSilence;
          frameCount > 0 && d->sampleRate > 0) {
+        // frameCount comes from counts in the file, so the millisecond figure can land
+        // outside int, and converting a double the destination type cannot represent is
+        // undefined. Leave the fields at their defaults rather than converting.
         const auto length = static_cast<double>(frameCount) * 1000.0 / d->sampleRate;
-        d->length  = static_cast<int>(length + 0.5);
-        d->bitrate = static_cast<int>(static_cast<double>(streamLength) * 8.0 / length + 0.5);
+
+        if(length > 0.0 &&
+           length + 0.5 <= static_cast<double>(std::numeric_limits<int>::max())) {
+          d->length = static_cast<int>(length + 0.5);
+
+          const double bitrate = static_cast<double>(streamLength) * 8.0 / length;
+          if(bitrate >= 0.0 &&
+             bitrate + 0.5 <= static_cast<double>(std::numeric_limits<int>::max()))
+            d->bitrate = static_cast<int>(bitrate + 0.5);
+        }
       }
     }
     else if (packetType == "RG") {
@@ -328,9 +352,14 @@ void MPC::Properties::readSV7(const ByteVector &data, offset_t streamLength)
 
   if(d->sampleFrames > 0 && d->sampleRate > 0) {
     const auto length = static_cast<double>(d->sampleFrames) * 1000.0 / d->sampleRate;
-    d->length = static_cast<int>(length + 0.5);
+    if(length + 0.5 <= static_cast<double>(std::numeric_limits<int>::max())) {
+      d->length = static_cast<int>(length + 0.5);
 
-    if(d->bitrate == 0)
-      d->bitrate = static_cast<int>(static_cast<double>(streamLength) * 8.0 / length + 0.5);
+      if(d->bitrate == 0) {
+        const double bitrate = static_cast<double>(streamLength) * 8.0 / length;
+        if(bitrate + 0.5 <= static_cast<double>(std::numeric_limits<int>::max()))
+          d->bitrate = static_cast<int>(bitrate + 0.5);
+      }
+    }
   }
 }

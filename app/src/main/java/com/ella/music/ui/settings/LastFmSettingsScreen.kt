@@ -150,6 +150,19 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
             SettingsCardGroup {
                 Column {
                     // search-anchor:start
+                    SettingsSearchAnchor(R.string.lastfm_create_api_key) {
+                    BasicComponent(
+                        title = stringResource(R.string.lastfm_create_api_key),
+                        summary = stringResource(R.string.lastfm_biography_api_hint),
+                        onClick = {
+                            context.startActivity(Intent(
+                                Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://www.last.fm/api/account/create")
+                            ))
+                        }
+                    )
+                    } // search-anchor:end
+                    // search-anchor:start
                     SettingsSearchAnchor(R.string.lastfm_api_key) {
                     SplitSettingTextField(
                         label = stringResource(R.string.lastfm_api_key),

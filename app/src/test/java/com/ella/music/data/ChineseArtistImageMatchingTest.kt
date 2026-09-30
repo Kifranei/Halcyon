@@ -5,6 +5,12 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ChineseArtistImageMatchingTest {
+    @Test fun biographyFallbackUsesTitleLowerUpperThenOtherCase() {
+        assertEquals(3, preferredArtistImageMatch("sweet ARMS", listOf("sWeEt ArMs", "SWEET ARMS", "sweet arms", "Sweet Arms")))
+        assertEquals(2, preferredArtistImageMatch("sweet ARMS", listOf("sWeEt ArMs", "SWEET ARMS", "sweet arms")))
+        assertEquals(1, preferredArtistImageMatch("sweet ARMS", listOf("sWeEt ArMs", "SWEET ARMS")))
+        assertEquals(2, preferredArtistImageMatch("sweet ARMS", listOf("Sweet Arms", "SWEET ARMS", "sweet ARMS")))
+    }
     @Test fun exactCaseWinsEvenWhenAnotherSingerAppearsFirst() {
         assertEquals(1, preferredArtistImageMatch("LISA", listOf("LiSA", "LISA")))
         assertEquals(1, preferredArtistImageMatch("LiSA", listOf("LISA", "LiSA")))

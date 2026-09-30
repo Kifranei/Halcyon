@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">Показывать последний трек в музыкальной библиотеке</string>
+    <string name="settings_category_continue_playback_row">Страницы категорий: показывать продолжение воспроизведения</string>
+    <string name="settings_category_continue_playback_row_summary">Показывать последний трек на страницах альбомов, исполнителей, плейлистов и папок</string>
+    <string name="netease_link_custom_comments_summary">Оставьте пустым для встроенных комментариев со страницами, ветками, лайками и ответами. {id} заменяется ID ресурса</string>
+    <string name="recent_playback_folder_types">Типы на вкладке папок</string>
+    <string name="recent_playback_mv_types">Типы на вкладке клипов</string>
+    <string name="recent_playback_nested_folder">Вложенные папки</string>
+    <string name="recent_playback_local_mv">Локальные клипы</string>
+    <string name="recent_playback_online_mv">Онлайн-клипы</string>
+    <string name="recent_playback_delete_online_mv_message">Навсегда удалить запись воспроизведения клипа «%1$s»?</string>
+</resources>

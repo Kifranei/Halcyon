@@ -14,6 +14,7 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
         const val MAX_WIDTH_PERCENT = 100
 
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
+        val KEY_DESKTOP_LYRIC_WORD_LIFT = booleanPreferencesKey("desktop_lyric_word_lift")
         val KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_hide_when_paused")
         val KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE = booleanPreferencesKey("desktop_lyric_hide_in_landscape")
         val KEY_DESKTOP_LYRIC_HIDE_ON_PLAYER_PAGE = booleanPreferencesKey("desktop_lyric_hide_on_player_page")
@@ -50,6 +51,10 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     }
 
     val desktopLyricEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_ENABLED] ?: false }
+    val desktopLyricWordLift: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_WORD_LIFT] ?: true }
+    suspend fun setDesktopLyricWordLift(enabled: Boolean) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_WORD_LIFT] = enabled }
+    }
     val desktopLyricHideWhenPaused: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED] ?: true }
     val desktopLyricHideInLandscape: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_HIDE_IN_LANDSCAPE] ?: false }
     val desktopLyricHideOnPlayerPage: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_HIDE_ON_PLAYER_PAGE] ?: false }

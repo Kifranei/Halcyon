@@ -189,7 +189,7 @@ private val supportedArtistCoverVideoExtensions = setOf(
 )
 
 // 匹配 "<Artist>_01"、"<Artist>_02" 之类的编号后缀。
-private val numberedArtistCoverSuffix = Regex("""_(\d{1,3})$""")
+private val numberedArtistCoverSuffix = Regex("""(?:_(\d{1,6})|\s+\((\d{1,6})\))$""")
 
 /**
  * 每个艺术家 key 累积一组有序封面。带编号后缀的图按编号排序，未编号者（order=0）排在最前。
@@ -219,14 +219,6 @@ private class ArtistCoverAccumulator {
 private fun List<ArtistCoverAsset>.preferredCover(): ArtistCoverAsset? =
     firstOrNull { it.kind == ArtistCoverKind.Video } ?: firstOrNull()
 
-internal fun artistCoverMatchKey(
-    fileName: String,
-    mimeType: String? = null,
-    ignoreCase: Boolean = true
-): String? {
-    return artistCoverMatch(fileName, mimeType, ignoreCase)?.key
-}
-
 internal fun artistCoverMatch(
     fileName: String,
     mimeType: String? = null,
@@ -244,7 +236,7 @@ internal fun artistCoverMatch(
     }
     val baseName = trimmedName.substringBeforeLast('.', trimmedName)
     val numberedMatch = numberedArtistCoverSuffix.find(baseName)
-    val order = numberedMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+    val order = numberedMatch?.groupValues?.drop(1)?.firstNotNullOfOrNull(String::toIntOrNull) ?: 0
     val coreName = if (numberedMatch != null) {
         baseName.substring(0, numberedMatch.range.first)
     } else {

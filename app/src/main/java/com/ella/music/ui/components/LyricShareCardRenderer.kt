@@ -19,6 +19,8 @@ internal fun renderLyricShareCardBitmap(
     layout: LyricShareCardLayout,
     cover: Bitmap?
 ): Bitmap {
+    layout.historical?.let { return historicalRenderLyricShareCardBitmap(content, it, cover) }
+    layout.artistic?.let { return renderArtisticShareCard(content, layout, it, cover) }
     layout.netease?.let { netease ->
         return renderNeteaseLyricShareCard(content, layout, netease, cover)
     }
