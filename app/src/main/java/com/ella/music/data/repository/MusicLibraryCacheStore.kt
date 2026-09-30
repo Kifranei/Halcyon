@@ -9,7 +9,6 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 /**
  * On-disk persistence for the music library snapshots (primary cache, local scan baseline and
@@ -78,4 +77,3 @@ internal class MusicLibraryCacheStore(
         saveLibraryCacheTo(localScanBaselineFile, songs, albums)
     }
 }
-

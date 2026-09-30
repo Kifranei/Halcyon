@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,34 +20,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
-import com.ella.music.ui.about.aboutCardFallbackColor
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
 import top.yukonga.miuix.kmp.basic.TextField
-import com.ella.music.ui.components.isAppWallpaperVisible
-import com.ella.music.ui.components.wallpaperAwareCardColor
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurColors
-import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.roundToInt
 
 internal object SettingsRememberedValues {
     private val values = mutableMapOf<String, Any?>()
@@ -158,8 +151,6 @@ internal fun SettingsFocusAnchor(
     }
 }
 
-
-
 @Composable
 internal fun SplitSettingTextField(
     label: String,
@@ -235,6 +226,7 @@ internal fun SettingsIntSliderPreference(
     onValueChange: (Int) -> Unit
 ) {
     val safeRange = valueRange.first.toFloat()..valueRange.last.toFloat()
+    var showInput by rememberSaveable { mutableStateOf(false) }
     SliderPreference(
         title = title,
         summary = summary.takeIf { it.isNotBlank() },
@@ -244,12 +236,115 @@ internal fun SettingsIntSliderPreference(
         steps = steps,
         showKeyPoints = showKeyPoints,
         enabled = enabled,
-        onClick = onClick,
-        holdDownState = holdDownState,
+        onClick = onClick ?: { showInput = true },
+        holdDownState = holdDownState || showInput,
         onValueChange = { next ->
             onValueChange(next.toInt().coerceIn(valueRange))
         }
     )
+    SettingsNumberInputDialog(
+        show = showInput && enabled,
+        title = title,
+        value = value.toFloat(),
+        valueRange = safeRange,
+        decimalPlaces = 0,
+        onDismissRequest = { showInput = false },
+        onSave = { onValueChange(it.roundToInt().coerceIn(valueRange)) }
+    )
+}
+
+@Composable
+internal fun SettingsFloatSliderPreference(
+    title: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    valueText: String,
+    onValueChange: (Float) -> Unit,
+    summary: String? = null,
+    steps: Int = 0,
+    decimalPlaces: Int = 2,
+    inputScale: Float = 1f,
+    onManualValue: ((Float) -> Unit)? = null,
+    onValueChangeFinished: (() -> Unit)? = null
+) {
+    var showInput by rememberSaveable { mutableStateOf(false) }
+    SliderPreference(
+        title = title, summary = summary, value = value.coerceIn(valueRange),
+        valueRange = valueRange, valueText = valueText, steps = steps,
+        onValueChange = onValueChange, onValueChangeFinished = onValueChangeFinished,
+        onClick = { showInput = true }, holdDownState = showInput
+    )
+    SettingsNumberInputDialog(
+        show = showInput, title = title, value = value * inputScale,
+        valueRange = valueRange.start * inputScale..valueRange.endInclusive * inputScale,
+        decimalPlaces = decimalPlaces, onDismissRequest = { showInput = false },
+        onSave = {
+            val next = (it / inputScale).coerceIn(valueRange)
+            if (onManualValue != null) onManualValue(next) else {
+                onValueChange(next)
+                onValueChangeFinished?.invoke()
+            }
+        }
+    )
+}
+
+internal fun parseSettingsNumberInput(
+    text: String,
+    range: ClosedFloatingPointRange<Float>,
+    decimalPlaces: Int
+): Float? {
+    val normalized = text.trim().replace(',', '.')
+    if (!normalized.matches(Regex("[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)"))) return null
+    val next = normalized.toFloatOrNull() ?: return null
+    if (!next.isFinite() || next !in range) return null
+    if (decimalPlaces == 0 && next != next.roundToInt().toFloat()) return null
+    return java.math.BigDecimal(normalized).setScale(decimalPlaces, java.math.RoundingMode.HALF_UP)
+        .toFloat().takeIf { it in range }
+}
+
+private fun formatSettingsNumberInput(value: Float, decimalPlaces: Int): String =
+    java.math.BigDecimal(value.toString()).setScale(decimalPlaces, java.math.RoundingMode.HALF_UP)
+        .stripTrailingZeros().toPlainString()
+
+@Composable
+internal fun SettingsNumberInputDialog(
+    show: Boolean,
+    title: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    decimalPlaces: Int = 0,
+    onDismissRequest: () -> Unit,
+    onSave: (Float) -> Unit
+) {
+    var text by remember(show, value) { mutableStateOf(formatSettingsNumberInput(value, decimalPlaces)) }
+    val parsed = parseSettingsNumberInput(text, valueRange, decimalPlaces)
+    EllaMiuixDialog(
+        show = show, title = title,
+        summary = stringResource(R.string.settings_number_input_range,
+            formatSettingsNumberInput(valueRange.start, decimalPlaces),
+            formatSettingsNumberInput(valueRange.endInclusive, decimalPlaces)),
+        onDismissRequest = onDismissRequest
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            TextField(
+                value = text, onValueChange = { text = it }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = when {
+                    valueRange.start < 0f -> KeyboardType.Text
+                    decimalPlaces == 0 -> KeyboardType.Number
+                    else -> KeyboardType.Decimal
+                }),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            )
+            EllaMiuixDialogActions(
+                cancelText = stringResource(R.string.common_cancel),
+                confirmText = stringResource(R.string.common_confirm),
+                confirmEnabled = parsed != null, onCancel = onDismissRequest,
+                onConfirm = {
+                    parsed?.let { onSave(it); onDismissRequest() }
+                }
+            )
+        }
+    }
 }
 
 internal fun formatMsAsSecondsInput(ms: Int): String =

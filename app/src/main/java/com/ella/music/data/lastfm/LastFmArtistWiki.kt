@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import android.webkit.CookieManager
 import com.ella.music.data.blockCredentialedHttpRequests
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -443,13 +444,6 @@ internal fun isWifiConnected(context: Context): Boolean {
     return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
 }
 
-internal fun isVpnActive(context: Context): Boolean {
-    val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        ?: return false
-    return manager.getNetworkCapabilities(manager.activeNetwork)
-        ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-}
-
 internal suspend fun fetchLastFmArtistWiki(
     artistName: String,
     locale: Locale,
@@ -464,10 +458,10 @@ internal suspend fun fetchLastFmArtistWiki(
     artistName: String,
     regionCode: String,
     apiKey: String? = null,
-    preferredSource: ArtistBioMenuSource? = null
+    preferredSource: ArtistBioMenuSource? = null,
+    client: OkHttpClient = wikiHttpClient()
 ): LastFmArtistWiki = withContext(Dispatchers.IO) {
     val region = normalizeLastFmWikiRegion(regionCode)
-    val client = wikiHttpClient()
     val errors = mutableListOf<Throwable>()
 
     for (source in artistWikiSourceOrder(
@@ -495,16 +489,24 @@ internal suspend fun fetchLastFmArtistWiki(
                 ArtistWikiSource.WikipediaEnglish ->
                     fetchWikipediaArtistWiki(artistName, DEFAULT_LAST_FM_WIKI_REGION, client)
             }
-        }.onFailure(errors::add)
+        }.onFailure { error ->
+            if (error is CancellationException) throw error
+            errors.add(error)
+        }
         val wiki = result.getOrNull()
         if (wiki != null && wiki.text.isNotBlank()) return@withContext wiki
     }
 
     if (errors.isNotEmpty()) {
-        val cfError = errors.filterIsInstance<LastFmCloudflareChallengeException>().firstOrNull()
-        if (cfError != null) throw cfError
         val details = errors.joinToString("\n") { err ->
             err.message?.takeIf(String::isNotBlank) ?: err.localizedMessage?.takeIf(String::isNotBlank) ?: err.toString()
+        }
+        val challenge = errors.filterIsInstance<LastFmVerificationRequiredException>().firstOrNull()
+        if (challenge != null) {
+            // Keep a failed API request visible alongside the actionable website challenge.
+            throw LastFmVerificationRequiredException(challenge.url, details).apply {
+                initCause(errors.first())
+            }
         }
         throw IllegalStateException(details, errors.first())
     }
@@ -589,10 +591,18 @@ private fun fetchNeteaseArtistWiki(
     )
 }
 
-internal class LastFmCloudflareChallengeException(
+internal class LastFmVerificationRequiredException(
     val url: String,
-    message: String = "Cloudflare verification required"
+    message: String = "Last.fm website security verification required"
 ) : Exception(message)
+
+internal class LastFmArtistApiException(val code: Int, detail: String) :
+    Exception("Last.fm API error (code $code): $detail")
+
+internal fun isLastFmWebsiteUrl(url: String): Boolean = runCatching {
+    val parsed = url.toHttpUrl()
+    parsed.scheme == "https" && (parsed.host == "last.fm" || parsed.host.endsWith(".last.fm"))
+}.getOrDefault(false)
 
 private class WebkitCookieJar : CookieJar {
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
@@ -622,18 +632,17 @@ private fun wikiHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .build()
 
 internal fun isBotChallengeHtml(html: String): Boolean {
-    return html.contains("<title>Client Challenge</title>", ignoreCase = true) ||
-        html.contains("Client Challenge", ignoreCase = true) ||
-        html.contains("JavaScript is disabled in your browser", ignoreCase = true) ||
-        html.contains("cf-browser-verification", ignoreCase = true) ||
-        html.contains("px-captcha", ignoreCase = true) ||
-        html.contains("PerimeterX", ignoreCase = true) ||
-        html.contains("HUMAN Security", ignoreCase = true) ||
-        html.contains("Just a moment...", ignoreCase = true) ||
-        html.contains("challenges.cloudflare.com", ignoreCase = true) ||
-        html.contains("cf-chl-widget", ignoreCase = true) ||
-        html.contains("Attention Required! | Cloudflare", ignoreCase = true) ||
-        (html.contains("cloudflare", ignoreCase = true) && html.contains("turnstile", ignoreCase = true))
+    // API JSON and ordinary pages may mention a challenge provider in biography text,
+    // scripts or a noscript fallback. Only an actual challenge page should open verification.
+    if (!html.trimStart().startsWith("<")) return false
+    val markup = html.replace(Regex("""(?is)<!--.*?-->|<(script|style|noscript)\b[^>]*>.*?</\1\s*>"""), "")
+    val title = Regex("""(?is)<title\b[^>]*>(.*?)</title\s*>""")
+        .find(markup)?.groupValues?.get(1)?.let(::htmlToPlainWikiText).orEmpty()
+    if (Regex("""(?i)^(Client Challenge|Just a moment[.!…]*|Attention Required!?\s*\|\s*Cloudflare)$""")
+            .matches(title.trim())) return true
+    if (parseLastFmWikiHtml(markup).isNotBlank()) return false
+    return Regex("""(?is)<[^>]+\bid\s*=\s*["'](?:px-captcha|cf-browser-verification|cf-chl-widget[^"']*)["'][^>]*>""")
+        .containsMatchIn(markup)
 }
 
 private fun fetchLastFmArtistWikiFromApi(
@@ -642,17 +651,20 @@ private fun fetchLastFmArtistWikiFromApi(
     apiKey: String,
     client: OkHttpClient
 ): LastFmArtistWiki {
-    var lastError: String? = null
     for ((autocorrect, ignoreCase) in listOf("0" to false, "1" to true)) {
         val url = LAST_FM_API_ROOT.toHttpUrl().newBuilder()
             .addQueryParameter("method", "artist.getinfo")
             .addQueryParameter("artist", artistName)
             .addQueryParameter("api_key", apiKey)
-            .addQueryParameter("lang", region)
+            .addQueryParameter("lang", lastFmApiLanguage(region))
             .addQueryParameter("autocorrect", autocorrect)
             .addQueryParameter("format", "json")
             .build()
         val raw = client.executeText(url.toString())
+        val root = runCatching { JSONObject(raw) }.getOrNull()
+        if (root?.has("error") == true) {
+            throw LastFmArtistApiException(root.optInt("error"), root.optString("message"))
+        }
         val parsed = parseLastFmArtistGetInfoJson(
             raw = raw,
             regionCode = region,
@@ -660,12 +672,8 @@ private fun fetchLastFmArtistWikiFromApi(
             ignoreCase = ignoreCase
         )
         if (parsed != null && parsed.text.isNotBlank()) return parsed
-        val root = runCatching { JSONObject(raw) }.getOrNull()
-        if (root?.has("message") == true) {
-            lastError = "Last.fm API 错误 (code ${root.optInt("error")}): ${root.optString("message")}"
-        }
     }
-    error(lastError ?: "Last.fm API (artist.getinfo) 未返回该艺术家的有效传记")
+    error("Last.fm API (artist.getinfo) 未返回该艺术家的有效传记")
 }
 
 private fun fetchLastFmArtistWikiFromHtml(
@@ -684,12 +692,6 @@ private fun fetchLastFmArtistWikiFromHtml(
         url = wikiUrl,
         acceptLanguage = lastFmAcceptLanguage(region)
     )
-    if (isBotChallengeHtml(html)) {
-        throw LastFmCloudflareChallengeException(
-            url = wikiUrl,
-            message = "Last.fm 网页返回了防爬人机验证 (Cloudflare Challenge)，无法抓取传记内容 (URL: $wikiUrl)"
-        )
-    }
     val wikiText = parseLastFmWikiHtml(html)
     if (wikiText.isBlank()) {
         error("Last.fm 页面未包含该艺术家的传记内容 (未匹配到 wiki-content，URL: $wikiUrl)")
@@ -749,7 +751,7 @@ private fun fetchWikipediaArtistWiki(
     )
 }
 
-private fun OkHttpClient.executeText(
+internal fun OkHttpClient.executeText(
     url: String,
     acceptLanguage: String? = null
 ): String {
@@ -763,15 +765,20 @@ private fun OkHttpClient.executeText(
     return newCall(request).execute().use { response ->
         val code = response.code
         val body = response.body?.string().orEmpty()
-        if (code in listOf(403, 503) || isBotChallengeHtml(body)) {
-            if (isBotChallengeHtml(body) || code == 403 || code == 503) {
-                throw LastFmCloudflareChallengeException(
-                    url = url,
-                    message = "Last.fm 触发了 Cloudflare 安全验证 (HTTP $code)"
-                )
-            }
+        val responseUrl = response.request.url
+        if (isLastFmWebsiteUrl(responseUrl.toString()) && isBotChallengeHtml(body)) {
+            throw LastFmVerificationRequiredException(
+                url = responseUrl.toString(),
+                message = "Last.fm website security verification required (HTTP $code)"
+            )
         }
-        if (!response.isSuccessful) error("HTTP $code for $url")
+        // Last.fm returns structured API errors with HTTP 4xx/5xx as well as HTTP 200.
+        // Preserve their code/message; a generic server failure is not a website challenge.
+        val apiError = responseUrl.host == "ws.audioscrobbler.com" &&
+            runCatching { JSONObject(body).has("error") }.getOrDefault(false)
+        if (!response.isSuccessful && !apiError) {
+            error("HTTP $code for ${responseUrl.newBuilder().query(null).build()}")
+        }
         body
     }
 }

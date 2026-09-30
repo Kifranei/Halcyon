@@ -27,8 +27,6 @@ import com.ella.music.R
 import com.ella.music.ui.components.ScriptFontPaths
 import com.ella.music.ui.components.loadScriptAwareTypeface
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
@@ -38,69 +36,6 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.ella.music.ui.components.wallpaperAwareCardColors
-
-@Composable
-internal fun LyricFontTargetCard(
-    title: String,
-    currentName: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier.padding(vertical = 4.dp),
-        colors = wallpaperAwareCardColors(defaultAlpha = 0.42f),
-        cornerRadius = 16.dp,
-        onClick = onClick
-    ) {
-        BasicComponent(
-            title = title,
-            summary = stringResource(R.string.settings_lyric_font_target_summary, currentName),
-            endActions = {
-                if (selected) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.Check,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-        )
-    }
-}
-
-@Composable
-internal fun SystemDefaultFontCard(
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier.padding(vertical = 4.dp),
-        colors = wallpaperAwareCardColors(defaultAlpha = 0.42f),
-        cornerRadius = 16.dp,
-        onClick = onClick
-    ) {
-        // search-anchor:start
-        SettingsSearchAnchor(R.string.settings_system_default) {
-        BasicComponent(
-            title = stringResource(R.string.settings_system_default),
-            summary = stringResource(R.string.settings_lyric_font_system_default_summary),
-            endActions = {
-                if (selected) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.Check,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-        )
-        } // search-anchor:end
-
-    }
-}
 
 @Composable
 internal fun LyricFontWeightCard(
@@ -239,16 +174,6 @@ internal fun SystemFontEntryCard(
 }
 
 @Composable
-internal fun LyricFontListTitle() {
-    Text(
-        text = stringResource(R.string.settings_lyric_font_list),
-        fontSize = 14.sp,
-        color = MiuixTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 4.dp)
-    )
-}
-
-@Composable
 internal fun FontChoiceItem(
     font: FontChoice,
     currentWeight: Int,
@@ -319,9 +244,4 @@ internal fun FontChoiceItem(
             }
         }
     }
-}
-
-@Composable
-private fun previewFontFamily(path: String, weight: Int, italic: Boolean): FontFamily? {
-    return remember(path, weight, italic) { path.toFontFamilyOrNull(weight, italic) }
 }

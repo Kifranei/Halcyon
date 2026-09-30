@@ -318,12 +318,3 @@ data class BreadcrumbBarColors(
     val highlightBackgroundColor: Color,
     val disabledBackgroundColor: Color,
 )
-
-/**
- * Joins the [path] segments of all [BreadcrumbItem]s in this list into a single path string using
- * the given [separator].
- *
- * @param separator The separator placed between path segments. Defaults to `"/"`.
- * @return The full path string.
- */
-fun List<BreadcrumbItem>.joinToPath(separator: String = "/"): String = joinToString(separator = separator) { it.path }

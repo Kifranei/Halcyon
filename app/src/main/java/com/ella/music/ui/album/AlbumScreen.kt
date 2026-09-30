@@ -9,7 +9,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +26,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import com.ella.music.ui.components.rememberBackgroundBrowseCalculation
+import com.ella.music.ui.components.rememberBackgroundBrowseResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,11 +60,6 @@ import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
-import com.ella.music.data.ActionMenuIds
-import com.ella.music.ui.components.ActionMenuCommonIcons
-import com.ella.music.ui.components.EllaMiuixActionMenuGroup
-import com.ella.music.ui.components.EllaMiuixMenuItem
-import com.ella.music.ui.components.actionMenuIcon
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.requestPinnedEllaShortcut
@@ -93,12 +89,8 @@ import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -128,7 +120,11 @@ fun AlbumScreen(
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var albumMenuTarget by remember { mutableStateOf<Album?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-    val pinnedAlbumKeys by mainViewModel.settingsManager.pinnedKeysFlow("album").collectAsState(initial = emptyList())
+    val storedPinnedAlbumKeys by mainViewModel.settingsManager.pinnedKeysFlow("album").collectAsState(initial = null)
+    val pinnedAlbumKeys = storedPinnedAlbumKeys.orEmpty()
+    val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
+    var needsInitialPinnedPosition by rememberSaveable { mutableStateOf(true) }
+    var restoredRequest by rememberSaveable { mutableStateOf(0) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val sortIndex by mainViewModel.settingsManager.albumListSortIndex.collectAsState(initial = LibrarySortUiState.albumListSortIndex)
     val sortMode = AlbumSortMode.entries.getOrElse(sortIndex) { AlbumSortMode.Name }
@@ -144,10 +140,13 @@ fun AlbumScreen(
     val scope = rememberCoroutineScope()
     var scrollToTopRequest by remember { mutableStateOf(0) }
     val gridCoversEnabled = true
-    val albumDurations = remember(songs) {
+    val albumDurationResult by rememberBackgroundBrowseResult(emptyMap<Long, Long>(), songs) {
         LibraryAlbumAggregator.durationsByAlbumIdentity(songs)
     }
-    val representativeSongsByAlbumId = remember(songs) {
+    val albumDurations = albumDurationResult.value
+    val durationSort = sortMode == AlbumSortMode.Duration || sortMode == AlbumSortMode.DurationAsc
+    val sortDurations = if (durationSort) albumDurations else emptyMap()
+    val representativeSongsByAlbumId by rememberBackgroundBrowseCalculation(emptyMap<Long, Song>(), songs) {
         LibraryAlbumAggregator.representativeSongsByAlbumIdentity(songs)
     }
 
@@ -161,7 +160,7 @@ fun AlbumScreen(
             }
         }
     }
-    val sortedAlbums = remember(filteredAlbums, sortMode, albumDurations, pinnedAlbumKeys) {
+    val sortedAlbumResult by rememberBackgroundBrowseResult(emptyList<Album>(), filteredAlbums, sortMode, sortDurations, pinnedAlbumKeys) {
         val sorted = when (sortMode) {
             AlbumSortMode.Name -> filteredAlbums.sortedBy { it.name.musicSortKey() }
             AlbumSortMode.NameDesc -> filteredAlbums.sortedByDescending { it.name.musicSortKey() }
@@ -177,8 +176,8 @@ fun AlbumScreen(
             )
             AlbumSortMode.SongCount -> filteredAlbums.sortedByDescending { it.songCount }
             AlbumSortMode.SongCountAsc -> filteredAlbums.sortedBy { it.songCount }
-            AlbumSortMode.Duration -> filteredAlbums.sortedByDescending { albumDurations[it.id] ?: 0L }
-            AlbumSortMode.DurationAsc -> filteredAlbums.sortedBy { albumDurations[it.id] ?: 0L }
+            AlbumSortMode.Duration -> filteredAlbums.sortedByDescending { sortDurations[it.id] ?: 0L }
+            AlbumSortMode.DurationAsc -> filteredAlbums.sortedBy { sortDurations[it.id] ?: 0L }
             AlbumSortMode.YearAsc -> filteredAlbums.sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenBy { it.releaseDateSortKey }.thenBy { it.name.musicSortKey() })
             AlbumSortMode.YearDesc -> filteredAlbums.sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenByDescending { it.releaseDateSortKey }.thenByDescending { it.name.musicSortKey() })
         }
@@ -193,6 +192,11 @@ fun AlbumScreen(
             pinned + sorted.filterNot { it.id.toString() in pinnedSet }
         }
     }
+
+    val sortedAlbums = sortedAlbumResult.value
+    val albumOrderReady = storedPinnedAlbumKeys != null &&
+        (!durationSort || albumDurationResult.isReadyFor(songs)) &&
+        sortedAlbumResult.isReadyFor(filteredAlbums, sortMode, sortDurations, pinnedAlbumKeys)
 
     fun selectedAlbumSongs(): List<Song> {
         if (selection.selectedIds.isEmpty()) return emptyList()
@@ -224,7 +228,7 @@ fun AlbumScreen(
     val rangeSelectionAvailable = remember(selection.selectedIds, selection.rangeAnchorId, selection.rangeTargetId, albumIndexById) {
         selection.isRangeSelectionAvailable(albumIndexById)
     }
-    val randomAlbumSongs = remember(sortedAlbums, songs) {
+    val randomAlbumSongs by rememberBackgroundBrowseCalculation(emptyList<Song>(), sortedAlbums, songs) {
         val visibleAlbumIds = sortedAlbums.mapTo(mutableSetOf()) { it.id }
         songs.filter { it.albumIdentityId() in visibleAlbumIds }.distinctBy { it.id }
     }
@@ -434,6 +438,8 @@ fun AlbumScreen(
 
         if (albums.isEmpty() && !libraryCacheLoaded) {
             EllaCenteredLoadingIndicator()
+        } else if (albums.isNotEmpty() && !albumOrderReady) {
+            EllaCenteredLoadingIndicator()
         } else if (albums.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -445,68 +451,30 @@ fun AlbumScreen(
                 )
             }
         } else {
-            // Use rememberSaveable so the scroll position survives dock-tab switches (the
-            // bottom-dock navigation saves/restores state). A plain rememberLazyGridState would
-            // reset to the top every time the user leaves and returns to the album grid, which
-            // reads as "the page refreshed".
-            val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
             RestoreGridScrollAfterSearch(
                 searchExpanded = searchExpanded,
                 query = searchQuery,
                 gridState = gridState
             )
-            // The pin list is restored asynchronously from DataStore. Lazy grids preserve the
-            // old first-item key while the list is reordered, leaving newly restored pins above
-            // the viewport until the user scrolls. On a fresh album-page entry, explicitly
-            // anchor the first resolved pinned ordering at index zero.
-            var needsInitialPinnedPosition by remember { mutableStateOf(true) }
-            // Navigation restores lazy-grid state by index. Once pinned albums are prepended,
-            // that index can point below every pinned row. Track the actual visible album id
-            // before opening a child and resolve it again after returning instead.
-            // A request can arrive before cache/DataStore-backed pins have finished producing
-            // the final ordering. Remember the restored anchor instead of consuming the request
-            // immediately, then resolve it again whenever the list changes.
-            var restoredRequest by rememberSaveable { mutableStateOf(0) }
-            var restoredPinnedSignature by rememberSaveable { mutableStateOf("") }
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             LaunchedEffect(scrollToTopRequest) {
                 if (scrollToTopRequest > 0) gridState.animateScrollToItem(0)
             }
-            LaunchedEffect(
-                restoreScrollRequest,
-                restoreAnchorAlbumId,
-                restoreAnchorOffset,
-                pinnedAlbumKeys,
-                sortedAlbums
-            ) {
-                if (
-                    (restoreScrollRequest > restoredRequest ||
-                        (restoreScrollRequest == restoredRequest &&
-                            restoredPinnedSignature != pinnedAlbumKeys.sorted().joinToString("|"))) &&
-                    restoreAnchorAlbumId != null &&
-                    sortedAlbums.isNotEmpty()
-                ) {
-                    val restoredIndex = sortedAlbums.indexOfFirst { it.id == restoreAnchorAlbumId }
-                    if (restoredIndex >= 0) {
-                        gridState.scrollToItem(restoredIndex, restoreAnchorOffset.coerceAtLeast(0))
-                        restoredRequest = restoreScrollRequest
-                        restoredPinnedSignature = pinnedAlbumKeys.sorted().joinToString("|")
-                        needsInitialPinnedPosition = false
-                    }
-                }
-            }
-            LaunchedEffect(pinnedAlbumKeys, sortedAlbums.size, restoreScrollRequest) {
-                if (restoreScrollRequest > restoredRequest) {
-                    return@LaunchedEffect
-                }
-                if (
-                    needsInitialPinnedPosition &&
-                    pinnedAlbumKeys.isNotEmpty() &&
-                    sortedAlbums.isNotEmpty()
-                ) {
-                    gridState.scrollToItem(0)
-                    needsInitialPinnedPosition = false
-                }
+            // Restoration is applied only to a result calculated from the final pin/sort inputs.
+            // requestScrollToItem also disables lazy key anchoring for the next remeasure.
+            LaunchedEffect(restoreScrollRequest, restoreAnchorAlbumId, restoreAnchorOffset, sortedAlbums) {
+                val target = albumGridScrollTarget(
+                    orderingReady = albumOrderReady,
+                    albumIds = sortedAlbumIds,
+                    request = restoreScrollRequest,
+                    restoredRequest = restoredRequest,
+                    anchorId = restoreAnchorAlbumId,
+                    anchorOffset = restoreAnchorOffset,
+                    needsInitialPosition = needsInitialPinnedPosition
+                ) ?: return@LaunchedEffect
+                gridState.requestScrollToItem(target.index, target.offset)
+                restoredRequest = target.restoredRequest
+                needsInitialPinnedPosition = false
             }
             val fastIndexLetters = remember(sortedAlbums, sortMode) {
                 sortedAlbums.map { it.indexLetter(sortMode) }
@@ -575,7 +543,9 @@ fun AlbumScreen(
                                     } else {
                                         onAlbumClick(
                                             album.id,
-                                            sortedAlbums.getOrNull(gridState.firstVisibleItemIndex)?.id,
+                                            gridState.layoutInfo.visibleItemsInfo
+                                                .firstOrNull { it.index == gridState.firstVisibleItemIndex }?.key as? Long
+                                                ?: sortedAlbums.getOrNull(gridState.firstVisibleItemIndex)?.id,
                                             gridState.firstVisibleItemScrollOffset
                                         )
                                     }

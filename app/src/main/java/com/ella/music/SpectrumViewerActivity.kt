@@ -485,6 +485,14 @@ private fun SpectrumFrequencyAxis(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val appStyle = MiuixTheme.textStyles.main
+    val fontResolver = androidx.compose.ui.platform.LocalFontFamilyResolver.current
+    val axisTypeface = fontResolver.resolve(
+        appStyle.fontFamily,
+        appStyle.fontWeight ?: androidx.compose.ui.text.font.FontWeight.Bold,
+        appStyle.fontStyle ?: androidx.compose.ui.text.font.FontStyle.Normal,
+        appStyle.fontSynthesis ?: androidx.compose.ui.text.font.FontSynthesis.All
+    ).value as? android.graphics.Typeface
     val label = maxFrequencyHz?.formatSpectrumFrequency() ?: unknownFrequencyLabel
     val onSurface = MiuixTheme.colorScheme.onSurface
     val onSurfaceSummary = MiuixTheme.colorScheme.onSurfaceVariantSummary
@@ -505,7 +513,7 @@ private fun SpectrumFrequencyAxis(
             color = textNativeColor
             textSize = 10.sp.toPx()
             textAlign = android.graphics.Paint.Align.RIGHT
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            typeface = axisTypeface
         }
         val axisX = size.width - 5.dp.toPx()
         val axisTop = 27.dp.toPx()

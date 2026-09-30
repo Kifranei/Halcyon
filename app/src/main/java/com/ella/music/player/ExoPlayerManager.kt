@@ -1489,26 +1489,6 @@ class ExoPlayerManager(private val context: Context) {
         savePlaybackState(force = true)
     }
 
-    fun restartSong(song: Song?) {
-        val controller = activeController() ?: return
-        cancelPendingSeekCommand()
-        val target = song ?: _currentSong.value
-        val targetIndex = if (target != null && target.isSamePlaybackIdentity(_currentSong.value)) {
-            currentQueueIndex(controller)
-        } else {
-            target?.let { current -> playlist.indexOfFirst { it.isSamePlaybackIdentity(current) } } ?: -1
-        }
-        val safeIndex = targetIndex.takeIf { it >= 0 } ?: controller.currentMediaItemIndex
-        if (safeIndex < 0) return
-        _currentQueueIndex.value = safeIndex
-        controller.seekToDefaultPosition(safeIndex)
-        requestTransportState(target = true, controller = controller)
-        _currentPosition.value = 0L
-        updateCurrentSong()
-        savePlaybackQueue(force = true)
-        savePlaybackState(force = true)
-    }
-
     private fun scheduleCurrentSongRefresh() {
         currentSongRefreshJob?.cancel()
         currentSongRefreshJob = persistenceScope.launch {
@@ -2581,7 +2561,6 @@ class ExoPlayerManager(private val context: Context) {
             QueueOccurrenceToken(identity, ordinal)
         }
     }
-
 
     private fun resolveCurrentPlaybackSong(controller: MediaController): Song? {
         val controllerIndex = currentQueueIndex(controller)

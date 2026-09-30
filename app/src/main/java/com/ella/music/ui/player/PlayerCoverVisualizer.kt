@@ -30,6 +30,7 @@ internal class PlayerCoverVisualizerHost {
     val motion = RawSArtworkSpectrumMotion()
 
     /** True while the cover-overlay style is selected, enabled and allowed for this layout. */
+    var rainbow by mutableStateOf(false)
     var active by mutableStateOf(false)
     var playing by mutableStateOf(false)
     var opacity by mutableFloatStateOf(1f)
@@ -88,6 +89,7 @@ internal fun BoxScope.PlayerCoverVisualizerSlot() {
     Canvas(
         modifier = Modifier
             .matchParentSize()
+            .rainbowVisualizer(host.rainbow)
             .onGloballyPositioned { coordinates ->
                 val bounds = coordinates.boundsInWindow()
                 val visible = coverVisualizerVisibleFraction(

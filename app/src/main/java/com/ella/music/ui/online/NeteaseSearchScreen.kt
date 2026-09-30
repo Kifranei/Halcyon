@@ -14,7 +14,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.netease.CatClawNeteaseClient
-import com.ella.music.data.netease.NeteaseLibraryStore
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.*
 import com.ella.music.viewmodel.MainViewModel

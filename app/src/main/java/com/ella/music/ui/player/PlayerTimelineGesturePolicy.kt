@@ -32,25 +32,6 @@ internal fun resolvePlayerTimelineGestureAxis(
     }
 }
 
-
-/**
- * Restricts tap/drag seek ownership to a narrow band around the visible classic track.
- * The classic layout deliberately keeps a taller 28dp gesture row so vertical PLAYER gestures can
- * begin near the timeline, but blank space below the 6dp rail must never become a tap-to-seek zone.
- */
-internal fun isPlayerTimelineSeekDownAllowed(
-    downY: Float,
-    containerHeightPx: Float,
-    trackOffsetYPx: Float,
-    halfTouchBandPx: Float,
-): Boolean {
-    if (containerHeightPx <= 0f || halfTouchBandPx <= 0f) return false
-    val trackCenterY = containerHeightPx * 0.5f + trackOffsetYPx
-    return downY >= trackCenterY - halfTouchBandPx &&
-        downY <= trackCenterY + halfTouchBandPx
-}
-
-
 /**
  * Maps a tap on the fixed-width seconds timeline to the second shown under that x position.
  * The playhead is always the physical centre: taps left seek backwards and taps right seek forward.

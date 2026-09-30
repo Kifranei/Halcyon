@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
@@ -216,7 +215,7 @@ private fun AudioOutputInfoRow(
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onSurface,
-                style = TextStyle(
+                style = MiuixTheme.textStyles.main.copy(
                     textDirection = if (forceLtrValue) TextDirection.Ltr else TextDirection.Content
                 ),
                 modifier = Modifier.padding(top = 3.dp)

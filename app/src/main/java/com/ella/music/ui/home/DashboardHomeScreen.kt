@@ -1,7 +1,6 @@
 package com.ella.music.ui.home
 
 import com.ella.music.data.netease.toNeteaseHistorySong
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +34,6 @@ import com.ella.music.data.CategoryResumeKeys
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.FolderPlaylist
-import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
@@ -85,6 +83,7 @@ fun HomeScreen(
     onNavigateToWebDav: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
     onNavigateToRecentPlayback: () -> Unit = {},
+    onNavigateToPosterWall: () -> Unit = {},
     onNavigateToAiChat: () -> Unit = {},
     onNavigateToMetadataCategory: (String) -> Unit,
     onNavigateToPlayer: () -> Unit,
@@ -295,7 +294,7 @@ fun HomeScreen(
                 val configured = homeLibraryTileOrder.csvIds(
                     SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER
                 )
-                if ("recent_playback" in configured) {
+                val withRecent = if ("recent_playback" in configured) {
                     configured
                 } else {
                     val recentPlaybackIndex = defaults.indexOf("recent_playback")
@@ -304,6 +303,9 @@ fun HomeScreen(
                         defaultIndex >= 0 && defaultIndex > recentPlaybackIndex
                     }.takeIf { it >= 0 } ?: configured.size
                     configured.toMutableList().apply { add(insertAt, "recent_playback") }
+                }
+                if ("poster_wall" in withRecent) withRecent else withRecent.toMutableList().apply {
+                    add((indexOf("recent_playback") + 1).coerceIn(0, size), "poster_wall")
                 }
             }
             val hiddenOnlineTiles = remember(homeHiddenOnlineTiles) { homeHiddenOnlineTiles.csvIdSet() }
@@ -327,6 +329,12 @@ fun HomeScreen(
                 playbackHistory.size
             ) {
                 val all = mapOf(
+                    "poster_wall" to HomeTileSpec(
+                        "poster_wall", context.getString(R.string.poster_wall_title),
+                        context.getString(R.string.poster_wall_summary),
+                        Screen.PosterWall.route, onNavigateToPosterWall,
+                        icon = com.ella.music.ui.poster.PosterWallIcon
+                    ),
                     "artist" to HomeTileSpec(
                         "artist", context.getString(R.string.category_artist),
                         context.getString(R.string.home_count_artists, artistCount),

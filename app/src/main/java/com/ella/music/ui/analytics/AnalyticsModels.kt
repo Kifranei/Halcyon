@@ -203,14 +203,19 @@ internal fun buildMonthlyListeningReport(
 
 internal fun buildReplayMonthTabs(
     count: Int? = null,
-    now: Calendar = Calendar.getInstance()
+    now: Calendar = Calendar.getInstance(),
+    year: Int = now.get(Calendar.YEAR)
 ): List<ReplayMonthTab> {
-    val resolvedCount = (count ?: (now.get(Calendar.MONTH) + 1)).coerceAtMost(12)
+    if (year !in 1..now.get(Calendar.YEAR)) return emptyList()
+    val lastMonth = if (year == now.get(Calendar.YEAR)) now.get(Calendar.MONTH) else Calendar.DECEMBER
+    val resolvedCount = (count ?: (lastMonth + 1)).coerceAtMost(lastMonth + 1)
     if (resolvedCount <= 0) return emptyList()
     val locale = Locale.getDefault()
     val labelPattern = if (locale.language in setOf("zh", "ja", "ko")) "M月" else "MMM"
-    return (resolvedCount - 1 downTo 0).map { offset ->
+    return (lastMonth - resolvedCount + 1..lastMonth).map { index ->
+        val offset = replayMonthOffset(year, index, now)
         val month = (now.clone() as Calendar).apply {
+            set(Calendar.DAY_OF_MONTH, 1)
             add(Calendar.MONTH, -offset)
         }
         ReplayMonthTab(
@@ -219,6 +224,33 @@ internal fun buildReplayMonthTabs(
             year = month.get(Calendar.YEAR)
         )
     }
+}
+
+/** Calendar years are derived from listening dates, including imports with no library match. */
+internal fun buildReplayYears(
+    history: List<PlaybackHistoryEntry>, dailyListenMs: Map<String, Long>,
+    now: Calendar = Calendar.getInstance()
+): List<Int> {
+    val currentYear = now.get(Calendar.YEAR)
+    val calendar = now.clone() as Calendar
+    return buildSet {
+        add(currentYear)
+        history.filter { it.playedAt > 0L }.forEach {
+            calendar.timeInMillis = it.playedAt
+            calendar.get(Calendar.YEAR).takeIf { year -> year in 1..currentYear }?.let(::add)
+        }
+        dailyListenMs.filterValues { it > 0L }.keys.forEach { date ->
+            runCatching { java.time.LocalDate.parse(date).year }.getOrNull()
+                ?.takeIf { it in 1..currentYear }?.let(::add)
+        }
+    }.sortedDescending()
+}
+
+internal fun replayMonthOffset(year: Int, month: Int, now: Calendar): Int {
+    val currentYear = now.get(Calendar.YEAR)
+    val safeYear = year.coerceIn(1, currentYear)
+    val lastMonth = if (safeYear == currentYear) now.get(Calendar.MONTH) else Calendar.DECEMBER
+    return (currentYear - safeYear) * 12 + now.get(Calendar.MONTH) - month.coerceIn(0, lastMonth)
 }
 
 internal fun List<ResolvedHistoryEntry>.favoriteArtistInsight(): ListeningInsight? {
@@ -403,11 +435,11 @@ internal fun buildTasteProfile(
     )
 }
 
-internal fun buildLibraryAnalysis(
+internal suspend fun buildLibraryAnalysis(
     songs: List<Song>,
     mainViewModel: MainViewModel
 ): LibraryAnalysis {
-    val rows = songs.map { song -> SongWithInfo(song, mainViewModel.getAudioInfo(song)) }
+    val rows = loadLibraryQualityRows(songs, mainViewModel::getAudioQualityInfo)
     return LibraryAnalysis(
         formatBuckets = rows.toBuckets { formatLabel(it.song, it.info) },
         qualityBuckets = rows.toBuckets { qualityLabel(it.song, it.info) }
@@ -435,7 +467,7 @@ internal fun readCachedLibraryAnalysis(
         val file = libraryAnalysisCacheFile(context)
         if (!file.exists()) return@runCatching null
         val root = JSONObject(file.readText())
-        if (root.optInt("version", 1) < 3) return@runCatching null
+        if (root.optInt("version", 1) != 4) return@runCatching null
         if (root.optString("key") != cacheKey) return@runCatching null
         root.optJSONObject("analysis")?.toLibraryAnalysis()
     }.getOrNull()?.also { LibraryAnalysisSessionCache.put(cacheKey, it) }
@@ -449,7 +481,7 @@ internal fun writeCachedLibraryAnalysis(
     runCatching {
         val file = libraryAnalysisCacheFile(context)
         val root = JSONObject()
-            .put("version", 3)
+            .put("version", 4)
             .put("key", songs.libraryAnalysisCacheKey())
             .put("updatedAt", System.currentTimeMillis())
             .put("analysis", analysis.toJson())
@@ -459,41 +491,56 @@ internal fun writeCachedLibraryAnalysis(
     }
 }
 
-internal fun prewarmLibraryAnalysisCache(
+internal suspend fun prewarmLibraryAnalysisCache(
     context: Context,
     songs: List<Song>,
     mainViewModel: MainViewModel
 ) {
-    if (songs.isEmpty() || readCachedLibraryAnalysis(context, songs) != null) return
-    val analysis = buildLibraryAnalysis(songs, mainViewModel)
-    writeCachedLibraryAnalysis(context, songs, analysis)
+    if (songs.isNotEmpty()) getOrBuildLibraryAnalysis(context, songs, mainViewModel)
+}
+
+internal fun invalidateLibraryAnalysisCache(context: Context) {
+    LibraryAnalysisSessionCache.clear()
+    libraryAnalysisCacheFile(context).delete()
 }
 
 private fun libraryAnalysisCacheFile(context: Context): File =
     File(context.applicationContext.filesDir, "library_analysis_cache.json")
 
 internal object LibraryAnalysisSessionCache {
-    @Volatile private var key: String? = null
-    @Volatile private var analysis: LibraryAnalysis? = null
-
-    fun get(cacheKey: String): LibraryAnalysis? = analysis.takeIf { key == cacheKey }
-
-    fun put(cacheKey: String, value: LibraryAnalysis) {
-        key = cacheKey
-        analysis = value
-    }
+    @Volatile private var snapshot: Pair<String, LibraryAnalysis>? = null
+    fun get(cacheKey: String): LibraryAnalysis? = snapshot?.takeIf { it.first == cacheKey }?.second
+    fun clear() { snapshot = null }
+    fun put(cacheKey: String, value: LibraryAnalysis) { snapshot = cacheKey to value }
 }
 
 internal fun List<Song>.libraryAnalysisCacheKey(): String {
-    var idHash = 1125899906842597L
-    var modifiedHash = 1469598103934665603L
-    var sizeSum = 0L
+    var sum = 0L
+    var xor = 0L
     for (song in this) {
-        idHash = 31L * idHash + song.id
-        modifiedHash = 1099511628211L * (modifiedHash xor song.dateModified)
-        sizeSum += song.fileSize
+        var hash = 1469598103934665603L
+        fun mix(value: Long) { hash = (hash xor value) * 1099511628211L }
+        mix(song.id); mix(song.dateModified); mix(song.fileSize); mix(song.duration)
+        song.path.forEach { mix(it.code.toLong()) }
+        mix(-1L)
+        song.mimeType.forEach { mix(it.code.toLong()) }
+        sum += hash
+        xor = xor xor java.lang.Long.rotateLeft(hash, (song.id and 63L).toInt())
     }
-    return "$size-$idHash-$modifiedHash-$sizeSum"
+    return "$size:$sum:$xor"
+}
+
+private val libraryAnalysisBuildMutex = kotlinx.coroutines.sync.Mutex()
+
+internal suspend fun getOrBuildLibraryAnalysis(context: Context, songs: List<Song>, mainViewModel: MainViewModel): LibraryAnalysis {
+    libraryAnalysisBuildMutex.lock()
+    try {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            readCachedLibraryAnalysis(context, songs) ?: buildLibraryAnalysis(songs, mainViewModel).also {
+                writeCachedLibraryAnalysis(context, songs, it)
+            }
+        }
+    } finally { libraryAnalysisBuildMutex.unlock() }
 }
 
 private fun LibraryAnalysis.toJson(): JSONObject =
@@ -544,17 +591,6 @@ private fun JSONArray?.toAnalysisBuckets(): List<AnalysisBucket> {
 private fun JSONArray?.toStringList(): List<String> {
     if (this == null) return emptyList()
     return List(length()) { index -> optString(index) }.filter { it.isNotBlank() }
-}
-
-internal fun LibraryAnalysis.songsForBucket(
-    songs: List<Song>,
-    quality: Boolean,
-    label: String
-): List<Song> {
-    val keys = (if (quality) qualityBuckets else formatBuckets)
-        .firstOrNull { it.label == label }?.songKeys?.toSet().orEmpty()
-    if (keys.isEmpty()) return emptyList()
-    return songs.filter { it.searchIdentityKey() in keys }
 }
 
 internal fun List<SongWithInfo>.toBuckets(labelOf: (SongWithInfo) -> String): List<AnalysisBucket> {
@@ -695,15 +731,6 @@ private fun historyDateKey(timestampMs: Long): String {
     return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(timestampMs))
 }
 
-internal fun formatHistoryDateChip(dateKey: String): String {
-    val date = parseHistoryDateKey(dateKey) ?: return dateKey
-    val then = Calendar.getInstance().apply { time = date }
-    return "%02d-%02d".format(
-        then.get(Calendar.MONTH) + 1,
-        then.get(Calendar.DAY_OF_MONTH)
-    )
-}
-
 private fun parseHistoryDateKey(dateKey: String): Date? {
     return runCatching {
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateKey)
@@ -780,10 +807,3 @@ internal val bitDepthPalette = listOf(
     Color(0xFF00B0FF), // Cyan (16-bit)
     Color(0xFF9E9E9E)  // Grey
 )
-
-internal fun dimensionPalette(dimension: AnalysisDimension): List<Color> = when (dimension) {
-    AnalysisDimension.FORMAT -> xiaomiStoragePalette
-    AnalysisDimension.QUALITY -> qualityPalette
-    AnalysisDimension.SAMPLE_RATE -> sampleRatePalette
-    AnalysisDimension.BIT_DEPTH -> bitDepthPalette
-}

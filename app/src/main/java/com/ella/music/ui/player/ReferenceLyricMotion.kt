@@ -5,7 +5,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.*
@@ -154,14 +153,4 @@ internal fun Modifier.referenceLyricRowMotion(
         translationY = if (enabled && target != null && position.isFinite() && abs(position - target) <= maxTravelPx)
             position - target else 0f
     }
-}
-
-/** Apple FullWidthAlphaGradientFlexboxLayout / player.C.q0 trailing 30dp mask. */
-internal fun appleReferenceFillStops(progress: Float, bright: Color, isRtl: Boolean, feather: Float): Array<Pair<Float, Color>> {
-    val soft = feather.coerceIn(0f, 1f)
-    val edge = progress.coerceIn(0f, 1f) * (1f + soft)
-    val solid = (edge - soft).coerceIn(0f, 1f)
-    val clear = edge.coerceIn(0f, 1f)
-    return if (isRtl) arrayOf(0f to Color.Transparent, 1f - clear to Color.Transparent, 1f - solid to bright, 1f to bright)
-    else arrayOf(0f to bright, solid to bright, clear to Color.Transparent, 1f to Color.Transparent)
 }

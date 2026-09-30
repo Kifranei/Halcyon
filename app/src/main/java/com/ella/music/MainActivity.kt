@@ -66,7 +66,6 @@ import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.components.ScriptFontPaths
 import com.ella.music.ui.components.applyHalcyonSystemBars
 import com.ella.music.ui.components.currentAppSystemBarsMode
-import com.ella.music.ui.components.currentAppSystemBarsReserveSpace
 import com.ella.music.ui.theme.MONET_COVER
 import com.ella.music.ui.theme.THEME_DARK
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
@@ -322,6 +321,8 @@ class MainActivity : ComponentActivity() {
                 keyColor = coverSeed,
                 systemDarkOverride = systemDark
             ) {
+                com.ella.music.ui.player.NeteaseWebSheetHost()
+                com.ella.music.ui.player.NeteaseNativeCommentsHost(monetSong)
                 val televisionDevice = remember { isTelevisionDevice() }
                 val televisionFocusRequester = remember { FocusRequester() }
                 val rootHiddenBarsModifier = Modifier

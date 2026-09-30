@@ -8,6 +8,8 @@ import com.ella.music.data.lx.LxSearchPlatform
 import com.ella.music.data.lx.LxOnlineSong
 
 class LxOnlineViewModel : ViewModel() {
+    internal val searchRequests = com.ella.music.ui.online.OnlineProviderSearchRequests()
+    internal var observedSourceId: String? = null
     var importUrl by mutableStateOf("")
     var searchQuery by mutableStateOf("")
     var searchPlatform by mutableStateOf(LxSearchPlatform.Kuwo)

@@ -15,16 +15,66 @@ object AppIconManager {
     private const val ANIME_ALIAS = ".AnimeLauncherAlias"
     private const val LEGACY_BLACK_HAIR_ALIAS = ".BlackHairLauncherAlias"
     private const val LOLI_ALIAS = ".LoliLauncherAlias"
+    private const val TRADITIONAL_ALIAS = ".TraditionalLauncherAlias"
+
+    @Volatile private var activeStyle = SettingsManager.APP_ICON_STYLE_DEFAULT
+    fun selectedIconRes(style: String): Int = when (normalize(style)) {
+        SettingsManager.APP_ICON_STYLE_ANIME -> com.ella.music.R.mipmap.ic_launcher_anime
+        SettingsManager.APP_ICON_STYLE_LOLI -> com.ella.music.R.mipmap.ic_launcher_loli
+        SettingsManager.APP_ICON_STYLE_TRADITIONAL -> com.ella.music.R.mipmap.ic_launcher_traditional
+        else -> com.ella.music.R.mipmap.ic_launcher
+    }
+    // System status-bar icons must be monochrome; full-color launcher artwork is used in recents.
+    fun notificationIconRes(): Int = if (activeStyle == SettingsManager.APP_ICON_STYLE_TRADITIONAL)
+        com.ella.music.R.drawable.ic_launcher_traditional_foreground else com.ella.music.R.drawable.ic_flyme_ticker
+
+    fun updateTaskIcon(context: Context, style: String, followSystemTheme: Boolean = true) {
+        var current = context
+        while (current is android.content.ContextWrapper && current !is android.app.Activity) {
+            val next = current.baseContext
+            if (next === current) return
+            current = next
+        }
+        val activity = current as? android.app.Activity ?: return
+        runCatching {
+            val label = context.getString(com.ella.music.R.string.app_name)
+            // A supplied bitmap bypasses MIUI's themed/adaptive app-icon pipeline. Clearing
+            // it lets recents resolve the activity/application icon through the system theme.
+            if (followSystemTheme) {
+                @Suppress("DEPRECATION")
+                activity.setTaskDescription(android.app.ActivityManager.TaskDescription(label))
+                return
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                activity.setTaskDescription(android.app.ActivityManager.TaskDescription.Builder()
+                    .setLabel(label).setIcon(selectedIconRes(style)).build())
+                return
+            }
+            val drawable = androidx.core.content.ContextCompat.getDrawable(context, selectedIconRes(style)) ?: return
+            val bitmap = android.graphics.Bitmap.createBitmap(192, 192, android.graphics.Bitmap.Config.ARGB_8888)
+            drawable.setBounds(0, 0, 192, 192)
+            drawable.draw(android.graphics.Canvas(bitmap))
+            @Suppress("DEPRECATION")
+            activity.setTaskDescription(android.app.ActivityManager.TaskDescription(context.getString(com.ella.music.R.string.app_name), bitmap))
+        }.onFailure { Log.w(TAG, "Cannot update task icon", it) }
+    }
 
     fun apply(context: Context, style: String) {
         val normalizedStyle = normalize(style)
+        if (activeStyle != normalizedStyle) {
+            activeStyle = normalizedStyle
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                com.ella.music.player.PlaybackTickerState.refresh()
+            }
+        }
         val packageName = context.packageName
         val packageManager = context.packageManager
         val aliases = listOf(
             SettingsManager.APP_ICON_STYLE_DEFAULT to DEFAULT_ALIAS,
             SettingsManager.APP_ICON_STYLE_ANIME to ANIME_ALIAS,
             "black_hair" to LEGACY_BLACK_HAIR_ALIAS,
-            SettingsManager.APP_ICON_STYLE_LOLI to LOLI_ALIAS
+            SettingsManager.APP_ICON_STYLE_LOLI to LOLI_ALIAS,
+            SettingsManager.APP_ICON_STYLE_TRADITIONAL to TRADITIONAL_ALIAS
         )
         val selected = aliases.first { it.first == normalizedStyle }
 
@@ -53,6 +103,7 @@ object AppIconManager {
         when (style) {
             SettingsManager.APP_ICON_STYLE_ANIME -> SettingsManager.APP_ICON_STYLE_ANIME
             SettingsManager.APP_ICON_STYLE_LOLI -> SettingsManager.APP_ICON_STYLE_LOLI
+            SettingsManager.APP_ICON_STYLE_TRADITIONAL -> SettingsManager.APP_ICON_STYLE_TRADITIONAL
             else -> SettingsManager.APP_ICON_STYLE_DEFAULT
         }
 

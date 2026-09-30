@@ -149,36 +149,11 @@ private val neteaseCommentPrefixRegex = Regex(
     RegexOption.IGNORE_CASE
 )
 
-/**
- * Keep the full release date from tags instead of dropping it to its year.  Library year
- * categories extract the first four digits separately, so preserving month/day here keeps
- * album headers and sort order accurate without splitting the year category.
- */
-internal fun String.normalizeReleaseDate(): String {
-    val value = trim()
-    val match = Regex("""(\d{4})(?:[-./](\d{1,2})(?:[-./](\d{1,2}))?)?""").find(value)
-        ?: return value
-    val year = match.groupValues[1]
-    val month = match.groupValues.getOrNull(2).orEmpty()
-    val day = match.groupValues.getOrNull(3).orEmpty()
-    return buildString {
-        append(year)
-        if (month.isNotBlank()) append("-").append(month.padStart(2, '0'))
-        if (day.isNotBlank()) append("-").append(day.padStart(2, '0'))
-    }
-}
-
 internal fun Int.normalizedTrackNumber(): Int =
     if (this > 1000) this % 1000 else this
 
 internal fun Int.normalizedDiscNumber(): Int =
     if (this >= 1000) this / 1000 else 0
-
-internal fun String.normalizedTrackNumberFromTag(): Int =
-    substringBefore('/').trim().toIntOrNull()?.normalizedTrackNumber() ?: 0
-
-internal fun String.normalizedDiscNumberFromTag(): Int =
-    substringBefore('/').trim().toIntOrNull() ?: 0
 
 internal fun String.canonicalizeStoragePath(): String {
     val normalized = replace('\\', '/').trim()

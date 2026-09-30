@@ -11,6 +11,7 @@ internal data class FolderTreeEntry(
     val songCount: Int,
     val albumCount: Int,
     val duration: Long,
+    val coverSong: Song? = null,
     val dateModified: Long = 0L
 )
 
@@ -58,12 +59,14 @@ internal fun List<Song>.childFoldersOf(context: Context, parentPath: String): Li
 private class FolderAccumulator(
     private val path: String
 ) {
+    private var coverSong: Song? = null
     private var songCount = 0
     private var duration = 0L
     private var dateModified = 0L
     private val albumIds = HashSet<Long>()
 
     fun add(song: Song) {
+        if (coverSong == null) coverSong = song
         songCount++
         duration += song.duration
         if (song.dateModified > dateModified) dateModified = song.dateModified
@@ -77,6 +80,7 @@ private class FolderAccumulator(
             songCount = songCount,
             albumCount = albumIds.size,
             duration = duration,
+            coverSong = coverSong,
             dateModified = dateModified
         )
 }

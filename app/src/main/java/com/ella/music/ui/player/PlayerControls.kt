@@ -1,7 +1,6 @@
 package com.ella.music.ui.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,8 +30,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
@@ -45,71 +44,6 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-@Composable
-internal fun LandscapeProgressRow(
-    currentPosition: Long,
-    duration: Long,
-    palette: PlayerPalette,
-    allowTapSeek: Boolean,
-    showTotalDuration: Boolean,
-    onSeek: (Float) -> Unit,
-    fontFamily: FontFamily? = null
-) {
-    var previewProgress by remember { mutableStateOf<Float?>(null) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = formatTime(currentPosition),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = fontFamily,
-                // Keep the real position visible while previewing a seek target.
-                color = palette.onBackground.copy(alpha = if (previewProgress == null) 0.72f else 0.48f)
-            )
-            previewProgress?.let { progress ->
-                Text(
-                    text = formatTime((duration * progress).toLong()),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = fontFamily,
-                    color = palette.onBackground.copy(alpha = 0.82f),
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
-        }
-        GlowSeekBar(
-            value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
-            onSeek = onSeek,
-            accent = palette.accent,
-            allowTapSeek = allowTapSeek,
-            onPreviewProgressChange = { previewProgress = it },
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 12.dp)
-        )
-        Text(
-            text = if (showTotalDuration || previewProgress != null) {
-                formatTime(duration.coerceAtLeast(0L))
-            } else {
-                "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}"
-            },
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = fontFamily,
-            color = palette.onBackground.copy(alpha = 0.72f)
-        )
-    }
-}
 
 @Composable
 internal fun LandscapeTransportControls(
@@ -202,15 +136,19 @@ internal fun PlayerProgressBlock(
     showTotalDuration: Boolean,
     onSeek: (Float) -> Unit,
     fontFamily: FontFamily? = null,
-    onInfoLongPress: (() -> Unit)? = null
+    onInfoLongPress: (() -> Unit)? = null,
+    waveformHeight: Dp = 72.dp,
+    showInfo: Boolean = true,
+    progressStyleOverride: Int? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val savedInfoMode by settingsManager.playerProgressInfoIndex.collectAsState(initial = 0)
-    val progressStyle by settingsManager.playerProgressStyle.collectAsState(
+    val savedProgressStyle by settingsManager.playerProgressStyle.collectAsState(
         initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_STYLE
     )
+    val progressStyle = progressStyleOverride ?: savedProgressStyle
     val progressInfoPriority by settingsManager.playerProgressInfoPriority.collectAsState(
         initial = SettingsManager.DEFAULT_PLAYER_PROGRESS_INFO_PRIORITY
     )
@@ -333,7 +271,7 @@ internal fun PlayerProgressBlock(
                 // larger timeline requested by the portrait/landscape references.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .requiredHeight(72.dp)
+                    .requiredHeight(waveformHeight)
             )
         }
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -358,7 +296,7 @@ internal fun PlayerProgressBlock(
                     )
                 }
             }
-            Row(
+            if (showInfo) Row(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically

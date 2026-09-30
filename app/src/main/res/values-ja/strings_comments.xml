@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">NetEaseコメントの初期タブ</string>
+    <string name="netease_comments_default_tab_summary">曲・アルバム・MVのコメントを開くときに表示するタブを選択</string>
     <string name="netease_comments_open">コメント</string>
     <string name="netease_comments_title">コメント</string>
     <string name="netease_comments_title_count">コメント(%1$s)</string>

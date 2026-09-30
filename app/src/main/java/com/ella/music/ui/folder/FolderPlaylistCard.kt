@@ -30,7 +30,6 @@ import com.ella.music.ui.components.SelectionCheck
 import com.ella.music.ui.components.LocalSettingsCardFrosting
 import com.ella.music.ui.components.frostedCardColor
 import com.ella.music.ui.components.frostedCardModifier
-import com.ella.music.ui.playlist.wallpaperAwarePlaylistCardColor
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -57,8 +56,10 @@ internal fun FolderPlaylistCard(
     onMore: () -> Unit,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
+    val display = rememberFolderDisplaySettings()
+    val scale = display.sizePercent / 100f
     val frosting = LocalSettingsCardFrosting.current
-    val baseModifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    val baseModifier = Modifier.fillMaxWidth().combinedClickable(interactionSource = null, indication = null, onClick = onClick, onLongClick = onLongClick)
     val cardModifier = frostedCardModifier(modifier = baseModifier, cornerRadius = 16.dp, frosting = frosting)
     Card(
         modifier = cardModifier,
@@ -72,14 +73,14 @@ internal fun FolderPlaylistCard(
         )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = (14 * scale).dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (selectionMode) {
                 SelectionCheck(selected = selected, checkColor = Color.White)
                 Spacer(modifier = Modifier.size(12.dp))
             }
-            Box(modifier = Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))) {
+            Box(modifier = Modifier.size((52 * scale).dp).clip(RoundedCornerShape(14.dp))) {
                 if (coverModel != null) {
                     SafeCoverImage(coverModel, playlist.name, Modifier.fillMaxSize(), sizePx = 320)
                 } else {
@@ -93,14 +94,14 @@ internal fun FolderPlaylistCard(
                 Text(
                     text = playlist.name,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
+                    fontSize = (16 * scale).sp,
                     color = MiuixTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     "${stringResource(R.string.folder_playlist_card_summary, playlist.folders.size, songCount)} · ${duration.formatPlaybackDuration()}",
-                    fontSize = 13.sp,
+                    fontSize = (13 * scale).sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

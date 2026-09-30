@@ -15,7 +15,7 @@ class NeteaseLinksAndHistoryTest {
         assertEquals("orpheus://comment?threadId=R_SO_4_7", NeteaseLinks.build(app, NeteaseLinkKind.Comment, "7"))
         val honor = NeteaseLinkSettings(target = NeteaseLinkTarget.HonorApp)
         assertEquals("honororpheus://album/9", NeteaseLinks.build(honor, NeteaseLinkKind.Album, "9"))
-        assertEquals("https://music.163.com/st/artistwiki?artistId=3", NeteaseLinks.build(honor, NeteaseLinkKind.ArtistWiki, "3"))
+        assertEquals("honororpheus://rnpage?component=music-reactnative-artistwiki&artistId=3", NeteaseLinks.build(honor, NeteaseLinkKind.ArtistWiki, "3"))
     }
 
     @Test fun customTemplatesAppendOrSubstituteAndFallBackWhenBlank() {

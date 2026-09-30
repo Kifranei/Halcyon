@@ -19,6 +19,17 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.EllaCheckOptionGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -76,11 +87,14 @@ internal fun MonthlyListeningReportCard(
     report: MonthlyListeningReport,
     monthTabs: List<ReplayMonthTab> = emptyList(),
     selectedMonthOffset: Int = 0,
-    onMonthSelected: (Int) -> Unit = {}
+    onMonthSelected: (Int) -> Unit = {},
+    availableYears: List<Int> = emptyList(),
+    onYearSelected: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     val palette = replayPalette()
     val monthListState = rememberLazyListState()
+    var yearPicker by remember { mutableStateOf(false) }
     LaunchedEffect(monthTabs, selectedMonthOffset) {
         val selectedIndex = monthTabs.indexOfFirst {
             it.offsetFromCurrent == selectedMonthOffset
@@ -138,6 +152,9 @@ internal fun MonthlyListeningReportCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(palette.content.copy(alpha = if (palette.isDark) 0.14f else 0.08f))
+                        .testTag("replay-year-selector")
+                        .clickable(enabled = availableYears.isNotEmpty(), role = Role.Button,
+                            onClickLabel = stringResource(R.string.category_year)) { yearPicker = true }
                         .padding(horizontal = 15.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -172,6 +189,7 @@ internal fun MonthlyListeningReportCard(
                         Column(
                             modifier = Modifier
                                 .width(40.dp)
+                                .testTag("replay-month-${tab.offsetFromCurrent}")
                                 .clickable { onMonthSelected(tab.offsetFromCurrent) },
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
@@ -251,6 +269,16 @@ internal fun MonthlyListeningReportCard(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+    EllaMiuixBottomSheet(show = yearPicker, title = stringResource(R.string.category_year),
+        onDismissRequest = { yearPicker = false }) {
+        Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.60f).dp)
+            .verticalScroll(rememberScrollState())) {
+            EllaCheckOptionGroup(availableYears.map { it to it.toString() }, report.year, onSelect = { year ->
+                onYearSelected(year)
+                yearPicker = false
+            })
         }
     }
 }

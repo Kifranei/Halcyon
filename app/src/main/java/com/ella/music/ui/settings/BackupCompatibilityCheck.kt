@@ -109,6 +109,7 @@ internal fun BackupCompatibilityDialog(
     ) {
         EllaMiuixDialogActions(
             cancelText = stringResource(R.string.backup_compat_restore_anyway),
+            cancelDangerous = true,
             confirmText = stringResource(R.string.backup_compat_reconfigure),
             onCancel = onRestoreAnyway,
             onConfirm = onReconfigure

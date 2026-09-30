@@ -11,8 +11,8 @@ import kotlin.math.roundToInt
 
 internal const val SHARE_CARD_WIDTH = 1080
 internal const val SHARE_CARD_MIN_HEIGHT = 1
-internal const val SHARE_CARD_MAX_HEIGHT = 1920
-internal const val SHARE_CARD_MAX_BLOCKS = 10
+internal const val SHARE_CARD_MAX_HEIGHT = Int.MAX_VALUE
+
 
 /** Apple Music `share_lyrics_sticker_width` (296dp). All sticker metrics scale from this. */
 internal const val APPLE_MUSIC_SHARE_STICKER_WIDTH_DP = 296f
@@ -64,7 +64,9 @@ internal data class LyricShareCardLayout(
     val footerBaseline: Float,
     val style: LyricShareCardStyle,
     /** Extra geometry used only by [LyricShareCardStyle.NetEase]. */
-    val netease: NeteaseShareCardLayout? = null
+    val netease: NeteaseShareCardLayout? = null,
+    val historical: HistoricalLyricShareCardLayout? = null,
+    val artistic: ArtisticShareCardLayout? = null
 )
 
 internal fun appleMusicShareCardScale(canvasWidth: Int): Float =
@@ -83,6 +85,17 @@ internal fun calculateLyricShareLayout(
     maxHeight: Int = SHARE_CARD_MAX_HEIGHT,
     shareTypeface: android.graphics.Typeface? = null
 ): LyricShareCardLayout {
+    if (content.style == LyricShareCardStyle.Historical127) {
+        val old = historicalCalculateLyricShareLayout(content, canvasWidth, 720, maxHeight, shareTypeface)
+        return LyricShareCardLayout(canvasWidth, old.adaptiveCanvasHeight, 40f * canvasWidth / 1080f, 30f,
+            old.safePadding, old.lyricsTop, old.footerTop, old.footerHeight, old.coverRect,
+            old.titleLayout, old.artistLayout, old.songInfoTop, old.songInfoTop,
+            old.lyricBlocks, old.footerPaint, old.footerText, old.viaTextBaseline,
+            content.style, historical = old)
+    }
+    if (content.style !in listOf(LyricShareCardStyle.Current, LyricShareCardStyle.LegacyTopMetadata, LyricShareCardStyle.NetEase)) {
+        return calculateArtisticShareCard(content, canvasWidth, shareTypeface)
+    }
     if (content.style == LyricShareCardStyle.NetEase) {
         return calculateNeteaseLyricShareLayout(
             content = content,
@@ -265,7 +278,7 @@ private fun measureLyricBlocks(
             text = block.primary,
             paint = primaryPaint,
             width = width,
-            maxLines = if (blocks.size <= 2) 6 else 4,
+            maxLines = Int.MAX_VALUE,
             lineSpacingAdd = 0f,
             lineSpacingMult = 1.02f,
             balanced = true
@@ -276,7 +289,7 @@ private fun measureLyricBlocks(
                     text = it,
                     paint = secondaryPaint,
                     width = width,
-                    maxLines = 3,
+                    maxLines = Int.MAX_VALUE,
                     lineSpacingAdd = 0f,
                     lineSpacingMult = 1f,
                     balanced = true

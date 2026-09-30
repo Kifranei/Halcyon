@@ -24,9 +24,14 @@ internal class MusicAudioInfoProvider(
     private val audioTagRepository: AudioTagRepository,
     private val metadataPathResolver: (Song) -> String,
     /** Live quality for streaming sources whose virtual path cannot be probed (NetEase). Never cached. */
-    private val onlineStreamInfo: (Song) -> AudioInfo? = { null }
+    private val onlineStreamInfo: (Song) -> AudioInfo? = { null },
+    qualityCacheFile: java.io.File? = null
 ) {
-    private val audioInfoCache = ConcurrentHashMap<String, AudioInfo>()
+    private val qualityCache = PersistentAudioQualityCache(qualityCacheFile)
+    private val infoLocks = Array(32) { Any() }
+    val qualityRevision: Long get() = revision.get()
+    private val revision = java.util.concurrent.atomic.AtomicLong(epochs.incrementAndGet())
+    companion object { private val epochs = java.util.concurrent.atomic.AtomicLong() }
     private val replayGainCache = ConcurrentHashMap<String, Float>()
     private val replayGainMissingCache = ConcurrentHashMap.newKeySet<String>()
 
@@ -55,9 +60,21 @@ internal class MusicAudioInfoProvider(
 
     fun getAudioInfo(song: Song): AudioInfo {
         onlineStreamInfo(song)?.let { return it }
-        val cacheKey = song.metadataCacheKey()
-        audioInfoCache[cacheKey]?.let { return it }
-        val replayGainDb = getReplayGain(song)
+        return getAudioQualityInfo(song).copy(replayGainDb = getReplayGain(song))
+    }
+
+    fun getAudioQualityInfo(song: Song): AudioInfo {
+        onlineStreamInfo(song)?.let { return it }
+        val key = song.metadataCacheKey() + ":quality:${song.duration}:${song.mimeType}"
+        qualityCache.get(key)?.let { return it }
+        // Foreground filters and background analysis may request the same cold file together.
+        return synchronized(infoLocks[(key.hashCode() and Int.MAX_VALUE) % infoLocks.size]) {
+            qualityCache.get(key) ?: readAudioQualityInfo(song, key)
+        }
+    }
+
+    private fun readAudioQualityInfo(song: Song, cacheKey: String): AudioInfo {
+        val replayGainDb: Float? = null
         val metadataPath = metadataPathResolver(song)
         val wavMetadata = WavMetadataReader.read(metadataPath)
         val estimatedBitRate = song.estimatedBitRate()
@@ -83,7 +100,7 @@ internal class MusicAudioInfoProvider(
                 channels = channels,
                 replayGainDb = replayGainDb
             )
-            audioInfoCache[cacheKey] = info
+            qualityCache.put(cacheKey, info)
             return info
         }
         wavMetadata?.takeIf { it.hasQuality }?.let { quality ->
@@ -102,7 +119,7 @@ internal class MusicAudioInfoProvider(
                 channels = quality.channels,
                 replayGainDb = replayGainDb
             )
-            audioInfoCache[cacheKey] = info
+            qualityCache.put(cacheKey, info)
             return info
         }
         val info = runCatching {
@@ -156,18 +173,19 @@ internal class MusicAudioInfoProvider(
                 replayGainDb = replayGainDb
             )
         }
-        audioInfoCache[cacheKey] = info
+        qualityCache.put(cacheKey, info)
         return info
     }
 
     fun clearCache() {
-        audioInfoCache.clear()
+        revision.set(epochs.incrementAndGet()) // Keep stamped quality entries across a normal library refresh.
         replayGainCache.clear()
         replayGainMissingCache.clear()
     }
 
     fun clearMetadataCache(metadataPrefix: String) {
-        audioInfoCache.removeKeysMatching { it.startsWith(metadataPrefix) }
+        qualityCache.invalidate(metadataPrefix)
+        revision.set(epochs.incrementAndGet())
         replayGainCache.removeKeysMatching { it.startsWith(metadataPrefix) }
         replayGainMissingCache.removeIf { it.startsWith(metadataPrefix) }
     }

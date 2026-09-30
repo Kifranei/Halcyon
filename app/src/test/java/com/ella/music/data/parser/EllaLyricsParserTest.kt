@@ -351,6 +351,24 @@ class EllaLyricsParserTest {
     }
 
     @Test
+    fun dashSpaceCompanionsAreNeverInferredAsPronunciation() {
+        val title = "ふたりピノキオ (双人匹诺曹)"
+        for (companion in listOf("- harmoe", "- ハルモエ", "- ka ze", "- chūn xiāo")) {
+            val pair = LrcParser.parse("[00:00.00]$title\n[00:00.00]  $companion").lyrics.single()
+            assertEquals(title, pair.text)
+            assertEquals(null, pair.pronunciation)
+            assertTrue(pair.pronunciationWords.isEmpty())
+            assertEquals(companion, pair.translation)
+
+            // Three-line groups used to infer any Latin companion as a reading as well.
+            val triple = LrcParser.parse("[00:00.00]風が変わっても\n[00:00.00]$companion\n[00:00.00]就算风向改变").lyrics.single()
+            assertEquals(null, triple.pronunciation)
+            assertTrue(triple.pronunciationWords.isEmpty())
+            assertTrue(triple.translation.orEmpty().lineSequence().contains(companion))
+        }
+    }
+
+    @Test
     fun sameTimestampVietnameseLyricKeepsChineseCompanionAsTranslation() {
         // "Dạ Vũ": the sung Vietnamese row carries the karaoke timings, the Chinese row is the
         // translation. Vietnamese acutes and graves overlap with pinyin tone marks, which used
@@ -765,7 +783,7 @@ class EllaLyricsParserTest {
     }
 
     @Test
-    fun ttmlHyphenatedWordsAreSpacedProperly() {
+    fun ttmlHyphenatedSyllablesKeepTheirOriginalJoin() {
         val ttml = """
             <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
               <body>
@@ -788,8 +806,8 @@ class EllaLyricsParserTest {
         val result = parseTtml(ttml)!!
         val line = result.lyrics.single()
         assertEquals("When I see you again", line.text)
-        assertEquals("Uh - huh", line.backgroundText)
-        assertEquals(listOf("Uh - ", "huh"), line.backgroundWords.map { it.text })
+        assertEquals("Uh-huh", line.backgroundText)
+        assertEquals(listOf("Uh-", "huh"), line.backgroundWords.map { it.text })
     }
 
     @Test

@@ -87,7 +87,21 @@ internal data class NeteaseFloorPage(
     val nextTime: Long
 )
 
-internal fun neteaseSongThreadId(songId: String): String = "R_SO_4_$songId"
+internal enum class NeteaseCommentResource(val prefix: String) {
+    Song("R_SO_4_"), Album("R_AL_3_"), MusicVideo("R_MV_5_");
+    fun threadId(id: String): String {
+        require((id.toLongOrNull() ?: 0L) > 0L)
+        return prefix + id
+    }
+}
+internal data class NeteaseCommentTarget(val id: String, val resource: NeteaseCommentResource)
+internal fun NeteaseLinkKind.commentResource(): NeteaseCommentResource? = when (this) {
+    NeteaseLinkKind.Comment -> NeteaseCommentResource.Song
+    NeteaseLinkKind.AlbumComment -> NeteaseCommentResource.Album
+    NeteaseLinkKind.MusicVideoComment -> NeteaseCommentResource.MusicVideo
+    else -> null
+}
+internal fun neteaseSongThreadId(songId: String): String = NeteaseCommentResource.Song.threadId(songId)
 
 /** Android and JVM org.json disagree on optString for JSON null; normalise both to "". */
 private fun JSONObject.text(key: String): String =

@@ -38,16 +38,16 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
         this.client = client;
     }
 
-    public JSONArray search(String script, String keyword, int page) throws Exception {
+    public JSONObject search(String script, String keyword, int page) throws Exception {
         load(script);
         callResult = null;
         jsContext.getGlobalObject().getJSFunction("__mf_call_search").call(keyword, page);
         waitFor(() -> callResult != null, 25_000L);
         JSONObject result = readResult("搜索失败");
         JSONObject value = result.optJSONObject("value");
-        if (value == null) return new JSONArray();
-        JSONArray data = value.optJSONArray("data");
-        return data == null ? new JSONArray() : data;
+        if (value != null) return value;
+        JSONArray data = result.optJSONArray("value");
+        return new JSONObject().put("data", data == null ? new JSONArray() : data);
     }
 
     public JSONObject getMediaSource(String script, String musicItemJson, String quality) throws Exception {

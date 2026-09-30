@@ -3,8 +3,8 @@ package com.ella.music.data.remote
 import android.content.Context
 import com.ella.music.R
 import com.ella.music.data.AppNetworkLoggingInterceptor
-import com.ella.music.data.requireHttpsRequests
-import com.ella.music.data.requireHttpsUrl
+import com.ella.music.data.allowUserConfiguredCleartext
+import com.ella.music.data.requireRemoteServerUrl
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -37,7 +37,7 @@ class NavidromeService(private val context: Context) {
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(24, TimeUnit.SECONDS)
         .addInterceptor(AppNetworkLoggingInterceptor("NavidromeNetwork"))
-        .requireHttpsRequests()
+        .allowUserConfiguredCleartext()
         .build()
 
     suspend fun test(config: RemoteMusicSourceConfig) = withContext(Dispatchers.IO) {
@@ -168,22 +168,6 @@ class NavidromeService(private val context: Context) {
                 ?.optJSONObject("topSongs")
                 ?.optJSONArray("song") ?: return@withContext emptyList()
             List(songs.length()) { songFromJson(songs.getJSONObject(it), config) }
-        }
-
-    suspend fun getSimilarSongs(config: RemoteMusicSourceConfig, songId: String, count: Int = 50): List<RemoteOnlineSong> =
-        withContext(Dispatchers.IO) {
-            val songs = request(config, "getSimilarSongs2", mapOf("id" to songId, "count" to count.coerceIn(1, 500).toString()))
-                .optJSONObject("subsonic-response")
-                ?.optJSONObject("similarSongs2")
-                ?.optJSONArray("song") ?: return@withContext emptyList()
-            List(songs.length()) { songFromJson(songs.getJSONObject(it), config) }
-        }
-
-    suspend fun getArtistInfo(config: RemoteMusicSourceConfig, artistId: String): JSONObject? =
-        withContext(Dispatchers.IO) {
-            request(config, "getArtistInfo2", mapOf("id" to artistId))
-                .optJSONObject("subsonic-response")
-                ?.optJSONObject("artistInfo2")
         }
 
     suspend fun createPlaylist(config: RemoteMusicSourceConfig, name: String, songIds: List<String>) =
@@ -493,7 +477,7 @@ class NavidromeService(private val context: Context) {
     ): String {
         val base = baseUrl.trimEnd('/')
         val builder = "$base/rest/$endpoint.view".toHttpUrlOrNull()
-            ?.requireHttpsUrl("Remote music provider")
+            ?.requireRemoteServerUrl("Remote music provider")
             ?.newBuilder()
             ?: error(context.getString(R.string.remote_source_url_invalid))
         val salt = UUID.randomUUID().toString().replace("-", "").take(12)

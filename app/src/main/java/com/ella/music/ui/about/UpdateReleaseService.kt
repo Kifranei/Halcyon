@@ -3,47 +3,18 @@ package com.ella.music.ui.about
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.stringResource
 import com.ella.music.BuildConfig
-import com.ella.music.R
 import com.ella.music.data.AppNetworkLoggingInterceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.launch
 
 internal sealed interface UpdateUiState {
     data object Loading : UpdateUiState
     data class Ready(val release: GithubRelease, val hasUpdate: Boolean) : UpdateUiState
     data class Error(val message: String) : UpdateUiState
-}
-
-internal object AppUpdateStateHolder {
-    private val _uiState = kotlinx.coroutines.flow.MutableStateFlow<UpdateUiState>(UpdateUiState.Loading)
-    val uiState: kotlinx.coroutines.flow.StateFlow<UpdateUiState> = _uiState
-
-    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
-    private var checkJob: kotlinx.coroutines.Job? = null
-
-    fun checkUpdate(context: Context, force: Boolean = false) {
-        if (!force && _uiState.value is UpdateUiState.Ready) return
-        if (checkJob?.isActive == true) return
-        checkJob = scope.launch {
-            _uiState.value = UpdateUiState.Loading
-            runCatching {
-                val release = fetchLatestRelease(includePrereleases = UpdateChannelPreferences.includesPrereleases(context))
-                val hasUpdate = compareVersionNames(release.versionName, BuildConfig.VERSION_NAME) > 0
-                UpdateUiState.Ready(release, hasUpdate)
-            }.onSuccess {
-                _uiState.value = it
-            }.onFailure {
-                _uiState.value = UpdateUiState.Error(it.localizedMessage.orEmpty())
-            }
-        }
-    }
 }
 
 internal data class ReleaseApkAsset(
@@ -64,43 +35,6 @@ internal data class GithubRelease(
 ) {
     val versionName: String get() = tagName.trim().removePrefix("v").removePrefix("V")
 }
-
-@Composable
-internal fun UpdateUiState.heroTitle(): String = when (this) {
-    UpdateUiState.Loading -> stringResource(R.string.update_checking)
-    is UpdateUiState.Error -> stringResource(R.string.update_unavailable)
-    is UpdateUiState.Ready -> if (hasUpdate) stringResource(R.string.update_found_version, release.tagName) else stringResource(R.string.update_already_latest)
-}
-
-@Composable
-internal fun UpdateUiState.heroSummary(): String = when (this) {
-    UpdateUiState.Loading -> stringResource(R.string.update_connecting_github)
-    is UpdateUiState.Error -> message
-    is UpdateUiState.Ready -> if (hasUpdate) {
-        stringResource(R.string.update_has_update_summary, BuildConfig.VERSION_NAME)
-    } else {
-        stringResource(R.string.update_no_update_summary, BuildConfig.VERSION_NAME)
-    }
-}
-
-@Composable
-internal fun UpdateUiState.updateButtonText(): String = when (this) {
-    UpdateUiState.Loading -> stringResource(R.string.update_checking_short)
-    is UpdateUiState.Error -> stringResource(R.string.update_view_github)
-    is UpdateUiState.Ready -> if (hasUpdate) stringResource(R.string.update_download) else stringResource(R.string.update_view_github)
-}
-
-internal fun UpdateUiState.updateButtonTargetUrl(): String? = when (this) {
-    UpdateUiState.Loading -> null
-    is UpdateUiState.Error -> GITHUB_RELEASES_URL
-    is UpdateUiState.Ready -> if (hasUpdate) {
-        release.downloadUrl ?: release.htmlUrl
-    } else {
-        release.htmlUrl.ifBlank { GITHUB_RELEASES_URL }
-    }
-}
-
-private const val GITHUB_RELEASES_URL = "https://github.com/Kifranei/Halcyon/releases"
 
 internal fun matchAssetForDevice(
     assets: List<ReleaseApkAsset>,

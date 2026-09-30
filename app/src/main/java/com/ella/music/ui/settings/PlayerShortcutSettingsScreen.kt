@@ -39,7 +39,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,14 +57,12 @@ import com.ella.music.ui.player.QuickActionIcon
 import com.ella.music.ui.player.PlayerExtraActionIds
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Stopwatch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -405,6 +402,7 @@ internal fun playerShortcutLabel(id: String): String = when (id) {
     ActionMenuIds.REMOTE_QUALITY -> stringResource(R.string.settings_action_menu_remote_quality)
     PlayerExtraActionIds.LYRIC_SHARE -> stringResource(R.string.player_lyric_share)
     ActionMenuIds.LANDSCAPE -> stringResource(R.string.player_landscape_lyrics)
+    ActionMenuIds.POSTER_WALL -> stringResource(R.string.poster_wall_title)
     ActionMenuIds.LYRICS_DISPLAY -> stringResource(R.string.player_lyrics_display)
     ActionMenuIds.SPECTRUM -> stringResource(R.string.song_more_view_spectrum)
     ActionMenuIds.RATING -> stringResource(R.string.song_more_set_rating)
@@ -449,153 +447,5 @@ private fun PlayerShortcutPreviewTile(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
-    }
-}
-
-@Composable
-private fun SelectedShortcutRow(
-    id: String,
-    position: Int,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    canRemove: Boolean,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    onRemove: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        PlayerShortcutItemIcon(
-            id = id,
-            tint = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.size(25.dp)
-        )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 12.dp)
-        ) {
-            Text(
-                text = playerShortcutLabel(id),
-                color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = stringResource(R.string.settings_player_shortcut_position, position),
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                fontSize = 12.sp
-            )
-        }
-        ShortcutActionButton(
-            text = "↑",
-            contentDescription = stringResource(R.string.common_move_up),
-            enabled = canMoveUp,
-            onClick = onMoveUp
-        )
-        ShortcutActionButton(
-            text = "↓",
-            contentDescription = stringResource(R.string.common_move_down),
-            enabled = canMoveDown,
-            onClick = onMoveDown
-        )
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .alpha(if (canRemove) 1f else 0.28f)
-                .clickable(enabled = canRemove, onClick = onRemove),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Delete,
-                contentDescription = stringResource(R.string.common_remove),
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun ShortcutActionButton(
-    text: String,
-    contentDescription: String,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .alpha(if (enabled) 1f else 0.28f)
-            .semantics { this.contentDescription = contentDescription }
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = MiuixTheme.colorScheme.primary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-private fun AvailableShortcutTile(
-    id: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val foreground = when {
-        selected -> MiuixTheme.colorScheme.primary
-        enabled -> MiuixTheme.colorScheme.onSurface
-        else -> MiuixTheme.colorScheme.onSurfaceVariantSummary
-    }
-    Row(
-        modifier = modifier
-            .alpha(if (enabled) 1f else 0.42f)
-            .background(
-                color = if (selected) {
-                    MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-                } else {
-                    MiuixTheme.colorScheme.onSurface.copy(alpha = 0.05f)
-                },
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        PlayerShortcutItemIcon(
-            id = id,
-            tint = foreground,
-            modifier = Modifier.size(22.dp)
-        )
-        Text(
-            text = playerShortcutLabel(id),
-            color = foreground,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .padding(start = 10.dp)
-                .weight(1f)
-        )
-        if (selected) {
-            Text(
-                text = "✓",
-                color = MiuixTheme.colorScheme.primary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-        }
     }
 }

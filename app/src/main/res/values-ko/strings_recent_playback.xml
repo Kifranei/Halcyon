@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">음악 라이브러리에 마지막으로 재생한 곡 표시</string>
+    <string name="settings_category_continue_playback_row">분류 상세 페이지: 이어서 재생 표시</string>
+    <string name="settings_category_continue_playback_row_summary">앨범, 아티스트, 재생목록 및 폴더 상세 페이지에 마지막 재생 곡 표시</string>
+    <string name="netease_link_custom_comments_summary">비워 두면 페이지, 스레드, 좋아요와 답글을 지원하는 앱 내 댓글을 사용합니다. {id}는 리소스 ID로 대체됩니다</string>
+    <string name="recent_playback_folder_types">폴더 탭 표시 유형</string>
+    <string name="recent_playback_mv_types">뮤직비디오 탭 표시 유형</string>
+    <string name="recent_playback_nested_folder">중첩 폴더</string>
+    <string name="recent_playback_local_mv">로컬 뮤직비디오</string>
+    <string name="recent_playback_online_mv">온라인 뮤직비디오</string>
+    <string name="recent_playback_delete_online_mv_message">“%1$s” 뮤직비디오 재생 기록을 영구 삭제할까요?</string>
+</resources>

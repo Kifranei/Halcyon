@@ -69,21 +69,6 @@ internal fun PlayerSystemBarsEffect(
 }
 
 @Composable
-internal fun PlayerLyricKeepScreenOnEffect(
-    view: View,
-    showLyrics: Boolean,
-    keepScreenOn: Boolean
-) {
-    DisposableEffect(view, showLyrics, keepScreenOn) {
-        val previousKeepScreenOn = view.keepScreenOn
-        view.keepScreenOn = previousKeepScreenOn || (showLyrics && keepScreenOn)
-        onDispose {
-            view.keepScreenOn = previousKeepScreenOn
-        }
-    }
-}
-
-@Composable
 internal fun PlayerSurfaceKeepScreenOnEffect(
     view: View,
     keepScreenOn: Boolean

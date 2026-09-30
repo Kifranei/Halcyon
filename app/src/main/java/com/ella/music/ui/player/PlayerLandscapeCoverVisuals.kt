@@ -1,12 +1,29 @@
 package com.ella.music.ui.player
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.runtime.mutableIntStateOf
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -113,103 +130,112 @@ internal fun LandscapeCoverModeBackground(
     }
 }
 
+/** One pager position drives dragging, settling and every card transform. */
 @Composable
 internal fun LandscapeCoverStack(
     currentSong: Song?,
     embeddedCover: Bitmap?,
     dynamicCoverSource: DynamicCoverSource?,
     isPlaying: Boolean,
-    coverItems: List<Pair<Int, Song>>,
+    playlist: List<Song>,
+    selectedQueueIndex: Int = -1,
+    onSelectSong: (Int) -> Unit,
+    swipeEnabled: Boolean,
     onDynamicCoverFailed: (String) -> Unit,
     coverWidthFraction: Float = 0.30f,
     onCenterCoverClick: (() -> Unit)? = null,
     centerOverlay: (@Composable BoxScope.() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val visibleItems = remember(coverItems) {
-        coverItems.sortedByDescending { abs(it.first) }
+    val songs = remember(playlist, currentSong) { playlist.ifEmpty { listOfNotNull(currentSong) } }
+    if (songs.isEmpty()) return
+    val songKey = currentSong?.playlistIdentityKey()
+    val selectedIndex = remember(songs, songKey, selectedQueueIndex) {
+        resolveCoverFlowQueueIndex(songs, songKey, selectedQueueIndex)
     }
-    BoxWithConstraints(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        val coverSize = minOf(maxHeight * 0.84f, maxWidth * coverWidthFraction).coerceAtLeast(118.dp)
-        val maxDistance = visibleItems.maxOfOrNull { abs(it.first) } ?: 0
-        val outerScale = (1f - maxDistance * 0.13f).coerceAtLeast(0.58f)
-        val horizontalStep = if (maxDistance > 0) {
-            (((maxWidth - coverSize * outerScale) / 2f) - 4.dp)
-                .coerceAtLeast(126.dp) / maxDistance.toFloat()
-        } else {
-            126.dp
+    val pager = rememberPagerState(initialPage = selectedIndex) { songs.size }
+    val latestSelected by rememberUpdatedState(selectedIndex)
+    val latestSelect by rememberUpdatedState(onSelectSong)
+    val dragging by pager.interactionSource.collectIsDraggedAsState()
+    val latestDragging by rememberUpdatedState(dragging)
+    val sync = remember(pager, songs) { CoverFlowPlaybackSync() }
+    var reconcileRevision by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pager, sync) {
+        coroutineScope {
+            var animation: Job? = null
+            var acknowledgementTimeout: Job? = null
+            snapshotFlow {
+                CoverFlowSyncSnapshot(latestSelected, pager.settledPage,
+                    pager.isScrollInProgress, latestDragging, reconcileRevision)
+            }.collect { state ->
+                when (val command = sync.update(state)) {
+                    CoverFlowSyncCommand.None -> Unit
+                    CoverFlowSyncCommand.CancelAnimation -> animation?.cancel()
+                    is CoverFlowSyncCommand.Select -> {
+                        animation?.cancel()
+                        latestSelect(command.page)
+                        acknowledgementTimeout?.cancel()
+                        val serial = sync.requestSerial
+                        acknowledgementTimeout = launch {
+                            delay(1_500L)
+                            if (sync.expirePending(serial)) reconcileRevision++
+                        }
+                    }
+                    is CoverFlowSyncCommand.Scroll -> {
+                        animation?.cancel()
+                        animation = launch {
+                            pager.animateScrollToPage(command.page,
+                                animationSpec = spring(dampingRatio = 1f, stiffness = 380f))
+                        }
+                    }
+                }
+            }
         }
-        visibleItems.forEach { (offsetIndex, itemSong) ->
-            val distance = abs(offsetIndex)
-            val isCenter = offsetIndex == 0
-            val xOffset = horizontalStep * offsetIndex.toFloat()
-            val scale = (1f - distance * 0.13f).coerceAtLeast(0.58f)
-            val cardAlpha = (1f - distance * 0.14f).coerceAtLeast(0.34f)
-            val rotation = -offsetIndex * 13f
-            val coverModifier = Modifier
-                .size(coverSize)
-                .offset(x = xOffset, y = (distance * 8).dp)
-                .zIndex(10f - distance)
+    }
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val coverSize = minOf(maxHeight * 0.84f, maxWidth * coverWidthFraction).coerceAtLeast(118.dp)
+        val step = minOf(coverSize * 0.74f, 126.dp)
+        HorizontalPager(
+            state = pager, modifier = Modifier.fillMaxSize(),
+            pageSize = PageSize.Fixed(step),
+            contentPadding = PaddingValues(horizontal = ((maxWidth - step) / 2f).coerceAtLeast(0.dp)),
+            beyondViewportPageCount = 2, userScrollEnabled = swipeEnabled && songs.size > 1,
+            key = { page -> "${songs[page].playlistIdentityKey()}:$page" },
+            flingBehavior = PagerDefaults.flingBehavior(pager,
+                snapAnimationSpec = spring(dampingRatio = 1f, stiffness = 380f))
+        ) { page ->
+            val itemSong = songs[page]
+            val isCenter = page == pager.currentPage
+            val isCurrent = itemSong.playlistIdentityKey() == songKey
+            val coverModifier = Modifier.requiredSize(coverSize)
+                .zIndex(10f - abs(page - pager.currentPage))
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    alpha = cardAlpha
-                    rotationY = rotation
+                    val position = (page - pager.currentPage).toFloat() - pager.currentPageOffsetFraction
+                    val distance = abs(position)
+                    translationY = 8.dp.toPx() * distance
+                    scaleX = (1f - distance * 0.13f).coerceAtLeast(0.58f)
+                    scaleY = scaleX
+                    alpha = (1f - distance * 0.14f).coerceAtLeast(0.34f)
+                    rotationY = -position * 13f
                     cameraDistance = 18f * density
                 }
-
-            Box(
-                modifier = if (isCenter && onCenterCoverClick != null) {
-                    coverModifier.playerNoIndicationClick(onCenterCoverClick)
-                } else {
-                    coverModifier
-                },
-                contentAlignment = Alignment.Center
-            ) {
-                val isCurrentSongItem = itemSong.playlistIdentityKey() == currentSong?.playlistIdentityKey()
-                LandscapeCoverReflection(
-                    song = itemSong,
-                    embeddedCover = embeddedCover.takeIf { isCenter && isCurrentSongItem },
-                    cornerRadius = if (isCenter) 14.dp else 10.dp,
-                    alpha = if (isCenter) 0.34f else 0.18f
-                )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(if (isCenter) 14.dp else 10.dp))
-                    .background(Color.White.copy(alpha = 0.10f)),
-                contentAlignment = Alignment.Center
-            ) {
-                val foregroundDynamicCoverSource = dynamicCoverSource
-                    ?.takeUnless { it.preferLandscapeBackground }
-                if (isCenter && foregroundDynamicCoverSource != null) {
-                    DynamicCoverVideo(
-                        source = foregroundDynamicCoverSource,
-                        isPlaying = isPlaying,
-                        onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
-                        modifier = Modifier.fillMaxSize(),
-                        cornerRadiusDp = if (isCenter) 14f else 10f
-                    )
-                } else {
-                        LandscapeStackCoverImage(
-                            song = itemSong,
-                            embeddedCover = embeddedCover.takeIf { isCenter && isCurrentSongItem },
-                            modifier = Modifier.fillMaxSize()
-                        )
+            Box(modifier = if (isCenter && onCenterCoverClick != null)
+                coverModifier.playerNoIndicationClick(onCenterCoverClick) else coverModifier,
+                contentAlignment = Alignment.Center) {
+                LandscapeCoverReflection(itemSong, embeddedCover.takeIf { isCurrent },
+                    cornerRadius = 14.dp, alpha = 0.28f)
+                Box(Modifier.matchParentSize().playerMorphArtwork(enabled = isCenter).clip(RoundedCornerShape(14.dp))
+                    .background(Color.White.copy(alpha = 0.10f)), contentAlignment = Alignment.Center) {
+                    val video = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
+                    if (isCenter && isCurrent && video != null) {
+                        DynamicCoverVideo(video, isPlaying,
+                            onPlaybackError = { onDynamicCoverFailed(video.failureKey) },
+                            modifier = Modifier.fillMaxSize(), cornerRadiusDp = 14f)
+                    } else {
+                        LandscapeStackCoverImage(itemSong, embeddedCover.takeIf { isCurrent }, Modifier.fillMaxSize())
                     }
-                    if (!isCenter) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.16f + distance * 0.05f))
-                        )
-                    }
-                    if (isCenter && centerOverlay != null) {
-                        centerOverlay()
-                    }
+                    if (!isCenter) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.20f)))
+                    if (isCenter && isCurrent && centerOverlay != null) centerOverlay()
                 }
             }
         }

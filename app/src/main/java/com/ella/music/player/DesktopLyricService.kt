@@ -249,7 +249,9 @@ class DesktopLyricService : Service() {
             pronunciationWordEnds = intent.getLongArrayExtra(EXTRA_PRONUNCIATION_WORD_ENDS) ?: LongArray(0),
             backgroundWordTexts = intent.getStringArrayExtra(EXTRA_BACKGROUND_WORD_TEXTS)?.toList().orEmpty(),
             backgroundWordStarts = intent.getLongArrayExtra(EXTRA_BACKGROUND_WORD_STARTS) ?: LongArray(0),
-            backgroundWordEnds = intent.getLongArrayExtra(EXTRA_BACKGROUND_WORD_ENDS) ?: LongArray(0)
+            backgroundWordEnds = intent.getLongArrayExtra(EXTRA_BACKGROUND_WORD_ENDS) ?: LongArray(0),
+            interludeStartMs = intent.getLongExtra(EXTRA_INTERLUDE_START, -1L),
+            interludeEndMs = intent.getLongExtra(EXTRA_INTERLUDE_END, -1L)
         )
         lyricView?.setPlaybackActive(controller?.isPlaying ?: true)
     }
@@ -267,6 +269,7 @@ class DesktopLyricService : Service() {
             desktopLyricHeight()
         }
         val lyric = DesktopComposeLyricView(this).apply {
+            livePositionProvider = { controller?.currentPosition?.coerceAtLeast(0L) }
             windowTouchHandler = ::onDrag
             setBackgroundColor(Color.TRANSPARENT)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -358,7 +361,7 @@ class DesktopLyricService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            if (desktopLyricPassThroughTouches(statusBarMode)) {
+            if (desktopLyricPassThroughTouches(statusBarMode, locked)) {
                 baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             } else {
                 baseFlags
@@ -549,7 +552,7 @@ class DesktopLyricService : Service() {
         )
         if (!lock && revealControls) scheduleControlsAutoHide()
         val params = layoutParams ?: return
-        params.alpha = 1f
+        params.alpha = overlayWindowAlpha()
         params.dimAmount = 0f
         params.buttonBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
@@ -558,7 +561,7 @@ class DesktopLyricService : Service() {
             params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
             params.setBlurBehindRadius(0)
         }
-        params.flags = if (desktopLyricPassThroughTouches(statusBarMode)) {
+        params.flags = if (desktopLyricPassThroughTouches(statusBarMode, locked)) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
             params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
@@ -571,15 +574,25 @@ class DesktopLyricService : Service() {
         if (lock && !statusBarMode) postUnlockNotification() else notificationManager.cancel(NOTIFICATION_ID)
     }
 
+    private fun overlayWindowAlpha(): Float {
+        val supportsLimit = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        val passesTouches = desktopLyricPassThroughTouches(statusBarMode, locked)
+        val limit = if (passesTouches && supportsLimit) {
+            getSystemService(android.hardware.input.InputManager::class.java)
+                ?.maximumObscuringOpacityForTouch ?: 0.8f
+        } else 1f
+        return desktopLyricWindowAlpha(passesTouches, supportsLimit, limit)
+    }
+
     private fun restoreLockedLyricOpacity() {
         val view = rootView ?: return
         val params = layoutParams ?: return
-        params.alpha = 1f
+        params.alpha = overlayWindowAlpha()
         params.dimAmount = 0f
         view.alpha = 1f
         lyricView?.alpha = 1f
         view.post {
-            params.alpha = 1f
+            params.alpha = overlayWindowAlpha()
             params.dimAmount = 0f
             view.alpha = 1f
             lyricView?.alpha = 1f
@@ -1125,6 +1138,8 @@ class DesktopLyricService : Service() {
         const val EXTRA_LINE_END = "line_end"
         const val EXTRA_AGENT = "agent"
         const val EXTRA_IS_TTML = "is_ttml"
+        const val EXTRA_INTERLUDE_START = "interlude_start"
+        const val EXTRA_INTERLUDE_END = "interlude_end"
         const val EXTRA_BACKGROUND_TEXT = "background_text"
         const val EXTRA_BACKGROUND_TRANSLATION = "background_translation"
         const val EXTRA_BACKGROUND_START = "background_start"

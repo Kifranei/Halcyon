@@ -1,6 +1,5 @@
 package com.ella.music.ui.settings
 
-import android.content.Intent
 import android.content.pm.ShortcutManager
 import android.graphics.Bitmap
 import android.graphics.Canvas

@@ -67,6 +67,7 @@ internal fun SettingsHomeCustomizeSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(initial = "")
     val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
+    val categoryContinuePlaybackRowVisible by settingsManager.categoryContinuePlaybackRowVisible.collectAsState(initial = true)
     val homeFeatureWallpaperPicker = rememberAppearanceImagePicker(
         currentUri = homeFeatureWallpaperUri,
         imageName = "home_feature_wallpaper",
@@ -115,10 +116,22 @@ internal fun SettingsHomeCustomizeSection(
             SettingsSearchAnchor(R.string.settings_continue_playback_row) {
             SwitchPreference(
                 title = stringResource(R.string.settings_continue_playback_row),
-                summary = stringResource(R.string.settings_continue_playback_row_summary),
+                summary = stringResource(R.string.settings_library_continue_playback_row_summary),
                 checked = continuePlaybackRowVisible,
                 onCheckedChange = {
                     scope.launch { settingsManager.setContinuePlaybackRowVisible(it) }
+                }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_category_continue_playback_row) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_category_continue_playback_row),
+                summary = stringResource(R.string.settings_category_continue_playback_row_summary),
+                checked = categoryContinuePlaybackRowVisible,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setCategoryContinuePlaybackRowVisible(it) }
                 }
             )
             } // search-anchor:end

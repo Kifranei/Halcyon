@@ -147,7 +147,8 @@ internal fun NeteaseCommentsSheet(
     show: Boolean,
     song: Song,
     onDismiss: () -> Unit,
-    songIdOverride: String? = null
+    songIdOverride: String? = null,
+    resource: com.ella.music.data.netease.NeteaseCommentResource = com.ella.music.data.netease.NeteaseCommentResource.Song
 ) {
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.86f).dp
     EllaMiuixBottomSheet(
@@ -160,7 +161,7 @@ internal fun NeteaseCommentsSheet(
                 .fillMaxWidth()
                 .height(sheetHeight)
         ) {
-            NeteaseCommentsContent(song = song, songIdOverride = songIdOverride)
+            NeteaseCommentsContent(song = song, songIdOverride = songIdOverride, resource = resource)
         }
     }
 }
@@ -180,11 +181,13 @@ private class CommentFloorUi {
 private class NeteaseCommentsUi(
     private val client: CatClawNeteaseClient,
     private val songId: String,
+    private val resource: com.ella.music.data.netease.NeteaseCommentResource,
     private val scope: CoroutineScope,
     /** Application context, only for toasts and their strings. */
-    private val appContext: Context
+    private val appContext: Context,
+    initialSort: NeteaseCommentSort
 ) {
-    var sort by mutableStateOf(NeteaseCommentSort.Recommend)
+    var sort by mutableStateOf(initialSort)
         private set
     val comments = mutableStateListOf<NeteaseComment>()
     val floors = mutableStateMapOf<Long, CommentFloorUi>()
@@ -204,7 +207,7 @@ private class NeteaseCommentsUi(
 
     private var nextPageNo = 1
     private var nextCursor = ""
-    private var nextSortType = NeteaseCommentSort.Recommend.apiValue
+    private var nextSortType = initialSort.apiValue
     private var job: Job? = null
     /** Bumped on every reload so a cancelled request's cleanup cannot touch the new sort's state. */
     private var generation = 0
@@ -276,7 +279,7 @@ private class NeteaseCommentsUi(
         updateComment(id) { it.withLiked(liked) }
         scope.launch {
             try {
-                client.likeComment(songId = songId, commentId = id, like = liked)
+                client.likeComment(songId = songId, resource = resource, commentId = id, like = liked)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -305,7 +308,7 @@ private class NeteaseCommentsUi(
         scope.launch {
             try {
                 val created = client.postComment(
-                    songId = songId,
+                    songId = songId, resource = resource,
                     content = content,
                     replyToCommentId = target?.id ?: 0L,
                     parentCommentId = floorId
@@ -386,7 +389,7 @@ private class NeteaseCommentsUi(
     private suspend fun fetch(first: Boolean, token: Int) {
         try {
             val page = client.songComments(
-                songId = songId,
+                songId = songId, resource = resource,
                 sortType = nextSortType,
                 pageNo = nextPageNo,
                 cursor = nextCursor
@@ -433,7 +436,7 @@ private class NeteaseCommentsUi(
         floor.failed = false
         floor.job = scope.launch {
             try {
-                val page = client.commentFloor(songId = songId, parentCommentId = commentId, time = floor.nextTime)
+                val page = client.commentFloor(songId = songId, resource = resource, parentCommentId = commentId, time = floor.nextTime)
                 val known = floor.replies.mapTo(HashSet<Long>()) { it.id }
                 floor.replies.addAll(page.replies.filter { known.add(it.id) })
                 floor.nextTime = page.nextTime
@@ -450,12 +453,15 @@ private class NeteaseCommentsUi(
 }
 
 @Composable
-private fun ColumnScope.NeteaseCommentsContent(song: Song, songIdOverride: String? = null) {
+private fun ColumnScope.NeteaseCommentsContent(song: Song, songIdOverride: String? = null, resource: com.ella.music.data.netease.NeteaseCommentResource) {
     val context = LocalContext.current
     val songId = songIdOverride?.takeIf { (it.toLongOrNull() ?: 0L) > 0L } ?: song.neteaseCommentSongId() ?: return
     val scope = rememberCoroutineScope()
     val client = remember(context) { CatClawNeteaseClient(context.applicationContext) }
-    val ui = remember(songId) { NeteaseCommentsUi(client, songId, scope, context.applicationContext) }
+    val ui = remember(songId, resource) {
+        NeteaseCommentsUi(client, songId, resource, scope, context.applicationContext,
+            initialSort = com.ella.music.data.netease.NeteaseLinks.current(context).defaultCommentSort)
+    }
     LaunchedEffect(ui) { ui.reload() }
     // A fresh list position per sort, so switching tabs starts at the top.
     val listState = remember(ui, ui.sort) { LazyListState() }

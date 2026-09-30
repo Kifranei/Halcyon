@@ -3,25 +3,23 @@ package com.ella.music.data
 import android.content.Context
 import android.os.Process
 import android.util.Log
-import java.io.BufferedReader
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Reads this process's logcat buffer the same way `adb logcat --pid` does.
  *
- * There is no parallel TSV snapshot and no 3000-line cap. The system logcat ring buffer is the
- * source of truth; this collector only keeps an in-memory view for the in-app log screen.
+ * The system logcat ring buffer is the export source of truth. The live UI snapshot has a
+ * byte-equivalent budget so long playback sessions cannot retain every log line forever.
  */
 object AppLogcatCollector {
     private const val TAG = "AppLogcatCollector"
     private val started = AtomicBoolean(false)
     private val lock = Any()
-    private val entries = ArrayDeque<AppLogEntry>()
+    private val entries = BoundedAppLogBuffer()
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "EllaLogcatCollector").apply { isDaemon = true }
     }
@@ -38,7 +36,7 @@ object AppLogcatCollector {
     }
 
     fun snapshot(): List<AppLogEntry> = synchronized(lock) {
-        entries.toList().asReversed()
+        entries.snapshot()
     }
 
     fun clearSnapshot() = synchronized(lock) {
@@ -48,20 +46,19 @@ object AppLogcatCollector {
     /** Last [maxLines] lines only; used by the crash handler, which must stay fast and small. */
     fun dumpTail(maxLines: Int): String = runCatching {
         val process = startLogcat(dumpOnly = true, tailLines = maxLines)
-        val output = process.inputStream.bufferedReader().use(BufferedReader::readText)
-        if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroy()
-        output.ifBlank { "logcat 暂无可读内容\n" }
+        try {
+            val output = process.inputStream.bufferedReader().use { it.readBoundedLogText(256 * 1024) }
+            output.ifBlank { "logcat 暂无可读内容\n" }
+        } finally { process.destroy() }
     }.getOrElse { error -> "读取 logcat 失败: ${error.message ?: error.javaClass.name}\n" }
 
     fun dumpRaw(): String {
         return runCatching {
             val process = startLogcat(dumpOnly = true)
-            val output = process.inputStream.bufferedReader().use(BufferedReader::readText)
-            if (!process.waitFor(20, TimeUnit.SECONDS)) {
-                process.destroy()
-                return@runCatching output.ifBlank { "读取 logcat 超时\n" }
-            }
-            output.ifBlank { "logcat 暂无可读内容\n" }
+            try {
+                val output = process.inputStream.bufferedReader().use { it.readBoundedLogText(8 * 1024 * 1024) }
+                output.ifBlank { "logcat 暂无可读内容\n" }
+            } finally { process.destroy() }
         }.getOrElse { error ->
             "读取 logcat 失败: ${error.message ?: error.javaClass.name}\n"
         }
@@ -70,14 +67,16 @@ object AppLogcatCollector {
     private fun collectLive() {
         val process = startLogcat(dumpOnly = false)
         var pending: AppLogEntry? = null
-        process.inputStream.bufferedReader().useLines { lines ->
-            lines.forEach { line ->
-                val (completed, nextPending) = AppLogcatParser.consumeLine(line, pending)
-                pending = nextPending
-                completed?.let(::append)
+        try {
+            process.inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    val (completed, nextPending) = AppLogcatParser.consumeLine(line, pending)
+                    pending = nextPending
+                    completed?.let(::append)
+                }
             }
-        }
-        pending?.let(::append)
+            pending?.let(::append)
+        } finally { process.destroy() }
     }
 
     private fun startLogcat(dumpOnly: Boolean, tailLines: Int = 0): java.lang.Process {
@@ -109,18 +108,9 @@ object AppLogcatCollector {
     }
 
     private fun append(entry: AppLogEntry) = synchronized(lock) {
-        val last = entries.lastOrNull()
-        if (last != null &&
-            last.time == entry.time &&
-            last.level == entry.level &&
-            last.tag == entry.tag &&
-            last.message == entry.message &&
-            last.detail == entry.detail
-        ) {
-            return
-        }
-        entries.addLast(entry)
+        entries.add(entry)
     }
+
 }
 
 internal object AppLogcatParser {
@@ -148,13 +138,16 @@ internal object AppLogcatParser {
         if (match == null) {
             if (pending == null || line.isBlank()) return null to pending
             val extra = line.trimEnd()
-            val mergedDetail = listOfNotNull(pending.detail, extra)
-                .filter { it.isNotBlank() }
-                .joinToString("\n")
+            val currentDetail = pending.detail.orEmpty()
+            // Native decoders can emit very large multi-line traces. Stop accumulating once
+            // this pending entry reaches its budget, before it ever enters the ring snapshot.
+            if (currentDetail.length >= 32_768) return null to pending
+            val mergedDetail = if (currentDetail.isBlank()) extra.take(32_768)
+                else (currentDetail + "\n" + extra.take(32_768 - currentDetail.length)).take(32_768)
             return null to pending.copy(
                 message = if (pending.message.isBlank()) extra else pending.message,
                 detail = mergedDetail.takeIf { it.isNotBlank() && it != pending.message }
-            )
+            ).boundedForSnapshot()
         }
         val pid = match.groupValues[3]
         if (pidFilter != null && pid != pidFilter) return null to pending
@@ -165,7 +158,7 @@ internal object AppLogcatParser {
             message = match.groupValues[7],
             type = "${match.groupValues[6]} ${match.groupValues[7]}".detectLogType().name
         )
-        return pending to parsed
+        return pending to parsed.boundedForSnapshot()
     }
 
     private fun parseThreadTime(date: String, time: String): Long {

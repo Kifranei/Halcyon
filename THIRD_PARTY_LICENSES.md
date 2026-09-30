@@ -63,3 +63,11 @@ from Android Visualizer; BetterLyrics source/binaries and its stereo WASAPI capt
 ### MusicFree plugin compatibility
 
 Halcyon restores its own historical QuickJS compatibility layer for the [MusicFree plugin protocol](https://musicfree.catcat.work/plugin/protocol.html). Plugin names and search functions are read from plugin exports. MusicFree application binaries and plugins are not bundled; user-imported plugins retain their respective licenses. This adapter supports a subset of Node/React Native dependencies and does not imply compatibility with every plugin.
+
+## HyperOS Super Island API
+
+HyperNotification / Focus API, xzakota and contributors, Apache-2.0.
+Halcyon directly uses `com.xzakota.hyper.notification:focus-api:1.4` for HyperOS Focus notification payloads.
+Upstream: https://github.com/xzakota/HyperNotification
+License: https://github.com/xzakota/HyperNotification/blob/main/LICENSE
+This identifies the library's license; it does not establish the provenance of application-side integration code.

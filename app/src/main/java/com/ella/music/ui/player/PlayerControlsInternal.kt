@@ -3,7 +3,6 @@ package com.ella.music.ui.player
 import android.content.Context
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Color as AndroidColor
 import android.media.MediaRouter2
 import android.os.Build
 import android.provider.Settings
@@ -50,11 +49,12 @@ import top.yukonga.miuix.kmp.basic.Icon
 internal fun PlayerTransportIconButton(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    buttonSize: androidx.compose.ui.unit.Dp = 56.dp,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(56.dp)
+            .size(buttonSize)
             .playerNoIndicationClick(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center,
         content = content

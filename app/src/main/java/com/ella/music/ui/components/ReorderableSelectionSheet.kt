@@ -13,12 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,7 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
-import sh.calvin.reorderable.ReorderableColumn
+import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
+import sh.calvin.reorderable.ReorderableItem
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -96,10 +97,17 @@ fun ReorderableSelectionSheet(
 
     var localItems by remember(items, show) { mutableStateOf(items) }
     val cardColor = MiuixTheme.colorScheme.surfaceContainer
+    val listState = rememberLazyListState()
+    val reorderState = rememberEllaReorderableLazyListState(listState) { from, to ->
+        if (from.index in localItems.indices && to.index in localItems.indices && from.index != to.index) {
+            localItems = localItems.toMutableList().apply { add(to.index, removeAt(from.index)) }
+        }
+    }
 
     EllaMiuixBottomSheet(
         show = show,
         title = null,
+        enableNestedScroll = false,
         onDismissRequest = onDismissRequest
     ) {
         Column(
@@ -158,74 +166,66 @@ fun ReorderableSelectionSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .weight(1f, fill = false),
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ReorderableColumn(
-                    list = localItems,
-                    onSettle = { fromIndex, toIndex ->
-                        if (fromIndex in localItems.indices && toIndex in localItems.indices && fromIndex != toIndex) {
-                            localItems = localItems.toMutableList().apply {
-                                add(toIndex, removeAt(fromIndex))
-                            }
-                        }
-                    },
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) { _, item, isDragging ->
-                    key(item.id) {
-                        ReorderableItem {
-                            ReorderableSelectionCard(
-                                item = item,
-                                isDragging = isDragging,
-                                cardColor = cardColor,
-                                dragHandleModifier = Modifier.draggableHandle(),
-                                onToggle = {
-                                    val next = !item.enabled
-                                    if (next && maxSelectCount != null && localItems.count { it.enabled } >= maxSelectCount) {
-                                        onExceedMaxSelect?.invoke()
-                                    } else {
-                                        localItems = localItems.map {
-                                            if (it.id == item.id) it.copy(enabled = next) else it
-                                        }
+                items(localItems, key = { it.id }) { item ->
+                    ReorderableItem(state = reorderState, key = item.id) { isDragging ->
+                        ReorderableSelectionCard(
+                            item = item,
+                            isDragging = isDragging,
+                            cardColor = cardColor,
+                            dragHandleModifier = Modifier.draggableHandle(dragGestureDetector = ImmediateOrLongPressDragGestureDetector),
+                            onToggle = {
+                                val next = !item.enabled
+                                if (next && maxSelectCount != null && localItems.count { it.enabled } >= maxSelectCount) {
+                                    onExceedMaxSelect?.invoke()
+                                } else {
+                                    localItems = localItems.map {
+                                        if (it.id == item.id) it.copy(enabled = next) else it
                                     }
                                 }
-                            )
-                        }
-                    }
-                }
-
-                if (defaultItems != null || onReset != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                if (defaultItems != null) {
-                                    localItems = defaultItems
-                                }
-                                onReset?.invoke()
-                            },
-                        cornerRadius = 16.dp,
-                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                        colors = CardDefaults.defaultColors(color = cardColor)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.common_restore),
-                            color = MiuixTheme.colorScheme.primary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
+                            }
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                if (defaultItems != null || onReset != null) {
+                    item(key = "restore-default-order") {
+                        Column {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (defaultItems != null) localItems = defaultItems
+                                        onReset?.invoke()
+                                    },
+                                cornerRadius = 16.dp,
+                                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                                colors = CardDefaults.defaultColors(color = cardColor)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.common_restore),
+                                    color = MiuixTheme.colorScheme.primary,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item(key = "bottom-spacing") {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
         }
     }

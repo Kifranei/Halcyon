@@ -7,22 +7,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.delay
-
-internal fun playerContentSurfaceBrush(
-    palette: PlayerPalette,
-    flowEffectMode: Int
-): Brush {
-    return Brush.verticalGradient(
-        colorStops = arrayOf(
-            // This joins the immersive cover's bottom gradient at the exact same color.
-            0.0f to palette.middle,
-            0.16f to palette.middle.copy(alpha = 0.94f),
-            1.0f to palette.middle.copy(alpha = 0.90f)
-        )
-    )
-}
 
 @Composable
 internal fun rememberSharedFlowProgress(

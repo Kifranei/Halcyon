@@ -57,22 +57,6 @@ fun ellaPageBackground(): Color =
     if (isAppWallpaperVisible()) Color.Transparent else ellaPageCanvasColor()
 
 @Composable
-fun wallpaperContentOverlayColor(): Color {
-    val context = LocalContext.current
-    val settingsManager = androidx.compose.runtime.remember(context) { SettingsManager.getInstance(context) }
-    val visible = isAppWallpaperVisible()
-    if (!visible) return Color.Transparent
-    val strength by settingsManager.appWallpaperContentOverlay.collectAsState(initial = 24)
-    val backgroundIsLight = MiuixTheme.colorScheme.background.luminance() >= 0.5f
-    val baseAlpha = strength.coerceIn(0, 80) / 100f
-    return if (backgroundIsLight) {
-        Color.White.copy(alpha = (baseAlpha * 0.95f).coerceIn(0f, 0.78f))
-    } else {
-        Color.Black.copy(alpha = (baseAlpha * 0.82f).coerceIn(0f, 0.70f))
-    }
-}
-
-@Composable
 fun wallpaperAwareCardColor(defaultAlpha: Float = 0.42f): Color {
     if (!isAppWallpaperVisible()) return MiuixTheme.colorScheme.surface
     val backgroundIsLight = MiuixTheme.colorScheme.background.luminance() >= 0.5f

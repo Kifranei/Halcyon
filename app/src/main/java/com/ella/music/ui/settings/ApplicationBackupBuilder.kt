@@ -11,11 +11,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal suspend fun buildCompleteApplicationBackupJson(
-    context: Context,
-    librarySongs: List<Song> = emptyList()
-): JSONObject = buildApplicationBackupJson(context, librarySongs = librarySongs)
-
 internal suspend fun buildApplicationBackupJson(
     context: Context,
     selectedTypes: Set<BackupType> = BackupType.entries.toSet(),

@@ -127,22 +127,13 @@ fun LibraryAnalysisScreen(
         } else {
             LibraryAnalysisSessionCache.get(analysisCacheKey)
         },
-        songs
+        analysisCacheKey
     ) {
         if (songs.isEmpty()) {
             value = LibraryAnalysis(emptyList(), emptyList(), emptyList(), emptyList(), 0, 0L)
             return@produceState
         }
-        val cachedAnalysis = withContext(Dispatchers.IO) { readCachedLibraryAnalysis(context, songs) }
-        if (cachedAnalysis != null) {
-            value = cachedAnalysis
-            return@produceState
-        }
-        val fresh = withContext(Dispatchers.IO) { buildLibraryAnalysis(songs, mainViewModel) }
-        withContext(Dispatchers.IO) {
-            writeCachedLibraryAnalysis(context, songs, fresh)
-        }
-        value = fresh
+        value = getOrBuildLibraryAnalysis(context, songs, mainViewModel)
     }
 
     LaunchedEffect(selectedBucket, songs, analysis) {
@@ -163,7 +154,7 @@ fun LibraryAnalysisScreen(
         }
         matchingSongs = withContext(Dispatchers.IO) {
             songs.filter { song ->
-                val info = mainViewModel.getAudioInfo(song)
+                val info = mainViewModel.getAudioQualityInfo(song)
                 when (dimension) {
                     AnalysisDimension.FORMAT -> formatLabel(song, info) == label
                     AnalysisDimension.QUALITY -> qualityLabel(song, info) == label
@@ -189,7 +180,7 @@ fun LibraryAnalysisScreen(
             songs.filter { it.searchIdentityKey() in keySet }
         } else withContext(Dispatchers.IO) {
             songs.filter { song ->
-                val info = mainViewModel.getAudioInfo(song)
+                val info = mainViewModel.getAudioQualityInfo(song)
                 when (dimension) {
                     AnalysisDimension.FORMAT -> formatLabel(song, info) == label
                     AnalysisDimension.QUALITY -> qualityLabel(song, info) == label

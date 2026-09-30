@@ -572,9 +572,6 @@ private fun ByteArray.legacyAnimatedPictureFormat(): LegacyAnimatedPictureFormat
     }
 }
 
-private fun ByteArray.startsWithBytes(vararg bytes: Int): Boolean =
-    size >= bytes.size && bytes.indices.all { (this[it].toInt() and 0xFF) == bytes[it] }
-
 private fun ByteArray.startsWithAscii(prefix: String): Boolean =
     size >= prefix.length && prefix.indices.all { this[it].toInt().toChar() == prefix[it] }
 
@@ -1243,9 +1240,6 @@ internal object DynamicCoverPlaybackMemory {
 private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFile? =
     listFiles().firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }
 
-private fun DocumentFile.findChildFileIgnoreCase(name: String): DocumentFile? =
-    listFiles().firstOrNull { it.isFile && it.name.equals(name, ignoreCase = true) }
-
 private fun File.toDynamicCoverSource(
     context: Context,
     role: PlayerVideoRole
@@ -1490,16 +1484,6 @@ internal fun buildMusicVideoBaseNameTiers(
 internal fun musicVideoFolderFileNameCandidates(baseNames: Collection<String>): List<String> {
     val trimmed = baseNames.map(String::trim).filter(String::isNotBlank).distinct()
     return (trimmed + buildLandscapeMusicVideoNameCandidates(trimmed)).distinct()
-}
-
-internal fun isLandscapeMusicVideoFileName(
-    nameWithoutExtension: String,
-    songCandidates: Collection<String>
-): Boolean {
-    if (!nameWithoutExtension.hasLandscapeMusicVideoSuffix()) return false
-    val baseToken = nameWithoutExtension.removeLandscapeMusicVideoSuffix().toDynamicCoverMatchToken()
-    val songTokens = songCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
-    return baseToken.isNotBlank() && baseToken in songTokens
 }
 
 private fun String.hasLandscapeMusicVideoSuffix(): Boolean =

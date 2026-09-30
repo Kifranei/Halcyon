@@ -82,6 +82,7 @@ class MusicVideoActivity : ComponentActivity() {
             EllaTheme(themeMode = themeMode) {
                 DetailMusicVideoScreen(
                     song = song,
+                    isMusicVideo = MusicVideoLauncher.isMusicVideo(intent),
                     source = source,
                     videoAspectRatio = videoAspectRatio,
                     initialLandscape = initialLandscape,

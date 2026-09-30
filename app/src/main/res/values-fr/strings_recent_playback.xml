@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">Afficher le dernier morceau lu dans la bibliothèque musicale</string>
+    <string name="settings_category_continue_playback_row">Pages de catégorie : afficher Reprendre la lecture</string>
+    <string name="settings_category_continue_playback_row_summary">Afficher le dernier morceau lu dans les détails des albums, artistes, playlists et dossiers</string>
+    <string name="netease_link_custom_comments_summary">Laisser vide pour les commentaires natifs, avec pages, fils, mentions et réponses. {id} remplace la ressource</string>
+    <string name="recent_playback_folder_types">Types affichés dans les dossiers</string>
+    <string name="recent_playback_mv_types">Types affichés dans les clips</string>
+    <string name="recent_playback_nested_folder">Dossiers imbriqués</string>
+    <string name="recent_playback_local_mv">Clips locaux</string>
+    <string name="recent_playback_online_mv">Clips en ligne</string>
+    <string name="recent_playback_delete_online_mv_message">Supprimer définitivement la lecture du clip « %1$s » ?</string>
+</resources>

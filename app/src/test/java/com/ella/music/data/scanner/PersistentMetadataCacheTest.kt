@@ -1,7 +1,6 @@
 package com.ella.music.data.scanner
 
 import com.ella.music.data.model.Song
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

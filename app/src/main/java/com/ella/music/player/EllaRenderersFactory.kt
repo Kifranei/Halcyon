@@ -3,7 +3,6 @@ package com.ella.music.player
 import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -13,6 +12,7 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioTrackBufferSizeProvider
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.audio.AudioRendererEventListener
+import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import android.os.Handler
 import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
@@ -78,22 +78,20 @@ class EllaRenderersFactory(context: Context) : DefaultRenderersFactory(context) 
             eventListener,
             out
         )
+        // Preserve Media3's extension ordering and codec-adapter configuration, replacing only
+        // its system audio renderer so unexpected capacity failures reach the playback layer.
+        val systemIndex = out.indexOfFirst { it is MediaCodecAudioRenderer }
+        if (systemIndex >= 0) out[systemIndex] = CapacityAwareAudioRenderer(
+            context, getCodecAdapterFactory(), safeMediaCodecSelector, enableDecoderFallback,
+            eventHandler, eventListener, audioSink)
         if (extensionRendererMode != EXTENSION_RENDERER_MODE_OFF && out.none { it is FfmpegAudioRenderer }) {
             val renderer = FfmpegAudioRenderer(eventHandler, eventListener, audioSink)
             if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) out.add(0, renderer) else out.add(renderer)
         }
-        // MP3 always decodes through FFmpeg, whatever the decoder mode: several vendor
-        // c2.android.mp3.decoder builds skip tracks or go silent mid-song. This renderer claims
-        // only MPEG audio, so every other format keeps the selected system/FFmpeg order.
-        out.add(0, FfmpegAudioRenderer(eventHandler, eventListener, audioSink, FFMPEG_ONLY_MIME_TYPES))
-    }
-
-    private companion object {
-        val FFMPEG_ONLY_MIME_TYPES: Set<String> = setOf(
-            MimeTypes.AUDIO_MPEG,
-            MimeTypes.AUDIO_MPEG_L1,
-            MimeTypes.AUDIO_MPEG_L2
-        )
+        // MP3 and large-frame FLAC need a compatibility decoder even in System mode. The
+        // format predicate leaves normal FLAC, AAC, multichannel Dolby and other codecs alone.
+        out.add(0, FfmpegAudioRenderer(eventHandler, eventListener, audioSink, null,
+            ::needsCompatibleSoftwareAudioDecoder))
     }
 
     override fun buildAudioSink(

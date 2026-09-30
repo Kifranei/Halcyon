@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -50,17 +48,13 @@ import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
-import com.ella.music.ui.components.EllaMiuixActionMenuGroup
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixMenuItem
-import com.ella.music.ui.components.ActionMenuCommonIcons
-import com.ella.music.ui.components.actionMenuIcon
-import com.ella.music.data.ActionMenuIds
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.SideIndexListEndPadding
+import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
 import com.ella.music.ui.components.directionalSortModeDropdownItems
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
@@ -75,7 +69,7 @@ import com.ella.music.ui.settings.findComponentActivity
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.ella.music.ui.components.rememberEllaReorderableLazyListState
 
 @Composable
 fun PlaylistScreen(
@@ -409,10 +403,13 @@ fun PlaylistScreen(
         val targetIndex = playlistIndexById[target] ?: return
         if (anchorIndex == targetIndex) return
         val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
-        selection.selectedIds = selection.selectedIds + bounds
+        val rangeIds = bounds
             .map { displayedCustomPlaylists[it] }
             .filterNot { it.isRemote }
             .map { it.id }
+        // Preserve manual selection order, but make the selected range follow the visible list
+        // order so pinning B..E after tapping B and E is deterministic.
+        selection.selectedIds = (selection.selectedIds - rangeIds.toSet()) + rangeIds
         // A range action completes the current anchor/target gesture. The next two taps must
         // start a fresh range instead of extending the previous one (#246).
         selection.rangeAnchorId = null
@@ -422,18 +419,18 @@ fun PlaylistScreen(
         mainViewModel.reorderPlaylists(manualCustomPlaylists.map(UserPlaylist::id))
     }
     val playlistListHeaderCount = (if (showFavorites) 1 else 0) + (if (showFiveStar) 1 else 0) + 1
-    val reorderableLazyListState = rememberReorderableLazyListState(
+    val reorderableLazyListState = rememberEllaReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            if (!reorderEnabled) return@rememberReorderableLazyListState
+            if (!reorderEnabled) return@rememberEllaReorderableLazyListState
             val fromIndex = from.index - playlistListHeaderCount
             val toIndex = to.index - playlistListHeaderCount
-            val fromPlaylist = reorderablePlaylists.getOrNull(fromIndex) ?: return@rememberReorderableLazyListState
-            val toPlaylist = reorderablePlaylists.getOrNull(toIndex) ?: return@rememberReorderableLazyListState
+            val fromPlaylist = reorderablePlaylists.getOrNull(fromIndex) ?: return@rememberEllaReorderableLazyListState
+            val toPlaylist = reorderablePlaylists.getOrNull(toIndex) ?: return@rememberEllaReorderableLazyListState
             val sourceIndex = manualCustomPlaylists.indexOfFirst { it.id == fromPlaylist.id }
             val targetIndex = manualCustomPlaylists.indexOfFirst { it.id == toPlaylist.id }
             if (sourceIndex !in manualCustomPlaylists.indices || targetIndex !in manualCustomPlaylists.indices) {
-                return@rememberReorderableLazyListState
+                return@rememberEllaReorderableLazyListState
             }
             manualCustomPlaylists = manualCustomPlaylists.moveSelectedItemsAsBlock(
                 from = sourceIndex,
@@ -627,7 +624,11 @@ fun PlaylistScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = 12.dp,
-                end = if (showPlaylistSideIndex) SideIndexListEndPadding else 12.dp,
+                end = when {
+                    !showPlaylistSideIndex -> 12.dp
+                    playlistSortMode == PlaylistSortMode.Name -> SideIndexListEndPadding
+                    else -> ScrollIndicatorListEndPadding
+                },
                 top = 8.dp,
                 bottom = 8.dp
             )

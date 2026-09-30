@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">Show the last played song on the music library page</string>
+    <string name="settings_category_continue_playback_row">Category pages: show Continue Playback row</string>
+    <string name="settings_category_continue_playback_row_summary">Show the last played song on album, artist, playlist and folder detail pages</string>
+    <string name="netease_link_custom_comments_summary">Leave blank for native comments, including pagination, threads, likes and replies. Use {id} for the resource ID in a custom link</string>
+    <string name="recent_playback_folder_types">Types shown on the Folders tab</string>
+    <string name="recent_playback_mv_types">Types shown on the Music Videos tab</string>
+    <string name="recent_playback_nested_folder">Nested folders</string>
+    <string name="recent_playback_local_mv">Local music videos</string>
+    <string name="recent_playback_online_mv">Online music videos</string>
+    <string name="recent_playback_delete_online_mv_message">Permanently delete the music video playback record for “%1$s”?</string>
+</resources>

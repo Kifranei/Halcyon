@@ -218,20 +218,6 @@ private fun JsonReader.nextStringOrEmpty(): String {
     return nextString()
 }
 
-internal fun JSONArray.toLibraryCacheAlbumList(): List<Album> =
-    List(length()) { index ->
-        val item = getJSONObject(index)
-        Album(
-            id = item.getLong("id"),
-            name = item.optString("name"),
-            artist = item.optString("artist"),
-            songCount = item.optInt("songCount"),
-            year = item.optString("year", "").ifBlank { item.optInt("year").takeIf { it > 0 }?.toString() ?: "" },
-            artAlbumId = item.optLong("artAlbumId", item.optLong("id")),
-            albumArtist = item.optString("albumArtist")
-        )
-    }
-
 /** Write one record at a time so large libraries never allocate a full JSON tree and string. */
 internal fun writeLibrarySnapshot(file: File, songs: List<Song>, albums: List<Album>) =
     writeLibraryCacheAtomically(file) { writeLibrarySnapshotJson(it, songs, albums) }

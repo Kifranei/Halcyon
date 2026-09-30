@@ -190,30 +190,6 @@ internal fun rememberArtistCoverResolution(
 private val neteaseArtistImageCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
 @Composable
-internal fun rememberArtistCoverAsset(
-    artistName: String,
-    folderLocation: String,
-    mainViewModel: MainViewModel
-): ArtistCoverAsset? {
-    val generation by com.ella.music.data.ArtistCoverRepository.getInstance(LocalContext.current).generation.collectAsState()
-    val state by produceState<ArtistCoverAsset?>(
-        initialValue = null,
-        artistName,
-        folderLocation,
-        generation
-    ) {
-        value = if (artistName.isBlank() || folderLocation.isBlank()) {
-            null
-        } else {
-            withContext(Dispatchers.IO) {
-                mainViewModel.getArtistCoverAsset(artistName, folderLocation)
-            }
-        }
-    }
-    return state
-}
-
-@Composable
 internal fun rememberArtistCoverAssets(
     artistName: String,
     folderLocation: String,

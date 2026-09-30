@@ -12,7 +12,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import com.ella.music.data.remote.RemoteMusicProvider
 import androidx.annotation.StringRes
 import com.ella.music.R
 import org.json.JSONObject
@@ -43,10 +42,6 @@ data class LxSourceConfig(
     val url: String,
     val name: String,
     val script: String
-)
-
-data class OnlineSourceSelection(
-    val provider: RemoteMusicProvider
 )
 
 enum class BottomBarGlassEffect {
@@ -125,13 +120,6 @@ class SettingsManager(private val context: Context) :
         }
     }
 
-    suspend fun clearMusicFreePlugins() {
-        context.dataStore.edit {
-            it.remove(KEY_MUSICFREE_PLUGINS_JSON)
-            it.remove(KEY_MUSICFREE_SELECTED_PLUGIN_ID)
-        }
-    }
-
     private fun Preferences.musicFreePlugins(): List<MusicFreePluginConfig> {
         val json = this[KEY_MUSICFREE_PLUGINS_JSON].orEmpty()
         if (json.isBlank()) return emptyList()
@@ -195,6 +183,20 @@ class SettingsManager(private val context: Context) :
             ?.toSet()
             ?.takeIf { it.isNotEmpty() }
             ?: DEFAULT_RECENT_PLAYBACK_COLLECTION_TYPES.split(',').toSet()
+    }
+
+    val recentPlaybackFolderTypes: Flow<Set<String>> = context.dataStore.data.map {
+        parseRecentPlaybackTypes(it[KEY_RECENT_PLAYBACK_FOLDER_TYPES], setOf("folder", "nested_folder"))
+    }
+    val recentPlaybackMvTypes: Flow<Set<String>> = context.dataStore.data.map {
+        parseRecentPlaybackTypes(it[KEY_RECENT_PLAYBACK_MV_TYPES], setOf("local", "online"))
+    }
+
+    suspend fun setRecentPlaybackFolderTypes(types: Set<String>) {
+        context.dataStore.edit { it[KEY_RECENT_PLAYBACK_FOLDER_TYPES] = types.sorted().joinToString(",") }
+    }
+    suspend fun setRecentPlaybackMvTypes(types: Set<String>) {
+        context.dataStore.edit { it[KEY_RECENT_PLAYBACK_MV_TYPES] = types.sorted().joinToString(",") }
     }
 
     suspend fun setRecentPlaybackLimit(tab: String, limit: Int) {
@@ -271,6 +273,7 @@ class SettingsManager(private val context: Context) :
         val KEY_APP_DISPLAY_SCALE_PERCENT = intPreferencesKey("app_display_scale_percent")
         val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_APP_ICON_STYLE = stringPreferencesKey("app_icon_style")
+        val KEY_RECENTS_ICON_FOLLOWS_SYSTEM_THEME = booleanPreferencesKey("recents_icon_follows_system_theme")
         val KEY_WIDGET_SAFE_LAYOUT = booleanPreferencesKey("widget_safe_layout")
         val KEY_LIBRARY_SOURCE = stringPreferencesKey("library_source")
         val KEY_BOTTOM_BAR_STYLE = stringPreferencesKey("bottom_bar_style")
@@ -429,6 +432,7 @@ class SettingsManager(private val context: Context) :
         val KEY_SONG_INFO_LAYOUT = stringPreferencesKey("song_info_layout")
         val KEY_QUEUE_TOOLBAR_LAYOUT = stringPreferencesKey("queue_toolbar_layout")
         val KEY_PLAYER_LANDSCAPE_STYLE = intPreferencesKey("player_landscape_style")
+        val KEY_PLAYER_CLOCK_COLOR = intPreferencesKey("player_clock_color")
         val KEY_PLAYER_KEEP_SCREEN_ON = booleanPreferencesKey("player_keep_screen_on")
         val KEY_PLAYER_LANDSCAPE_HIDE_SYSTEM_BARS = booleanPreferencesKey("player_landscape_hide_system_bars")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
@@ -448,6 +452,7 @@ class SettingsManager(private val context: Context) :
         val KEY_HIDE_SYSTEM_BARS = booleanPreferencesKey("hide_system_bars")
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
         val KEY_PLAYER_APPLE_FLOW_SPEED = intPreferencesKey("player_apple_flow_speed")
+        val KEY_AUDIO_VISUALIZER_RAINBOW = booleanPreferencesKey("audio_visualizer_rainbow")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
         val KEY_AUDIO_VISUALIZER_BLUR = intPreferencesKey("audio_visualizer_blur")
         val KEY_HOME_FEATURE_STYLE = intPreferencesKey("home_feature_style")
@@ -511,6 +516,7 @@ class SettingsManager(private val context: Context) :
         val KEY_USB_DAC_MODE = booleanPreferencesKey("usb_dac_mode")
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_MUSIC_VIDEO_SYNC_ENABLED = booleanPreferencesKey("music_video_sync_enabled")
+        val KEY_VIDEO_HOLD_SPEED_PERCENT = intPreferencesKey("video_hold_speed_percent")
         val KEY_MUSIC_VIDEO_CAPTURE_SUBTITLES = booleanPreferencesKey("music_video_capture_subtitles")
         val KEY_MUSIC_VIDEO_STRETCH_ENABLED = booleanPreferencesKey("music_video_stretch_enabled")
         val KEY_MUSIC_VIDEO_ORIENTATION = intPreferencesKey("music_video_orientation")
@@ -589,6 +595,9 @@ class SettingsManager(private val context: Context) :
         val KEY_METADATA_EDITOR_ID = stringPreferencesKey("metadata_editor_id")
         val KEY_LYRIC_TIMING_EDITOR_ID = stringPreferencesKey("lyric_timing_editor_id")
         val KEY_SPECTRUM_VIEWER_ID = stringPreferencesKey("spectrum_viewer_id")
+        const val SLEEP_TIMER_MAX_HOURS = 6
+        const val SLEEP_TIMER_MIN_MINUTES = 1
+        const val SLEEP_TIMER_MAX_MINUTES = SLEEP_TIMER_MAX_HOURS * 60 + 59
         val KEY_SLEEP_TIMER_CUSTOM_MINUTES = intPreferencesKey("sleep_timer_custom_minutes")
         val KEY_SLEEP_TIMER_STOP_AFTER_CURRENT = booleanPreferencesKey("sleep_timer_stop_after_current")
         val KEY_SHORTCUT_LIBRARY_LABEL = stringPreferencesKey("shortcut_library_label")
@@ -647,6 +656,8 @@ class SettingsManager(private val context: Context) :
         val KEY_OPEN_PLAYER_FROM_NOTIFICATION = booleanPreferencesKey("open_player_from_notification")
         val KEY_STARTUP_AUTO_PLAY = booleanPreferencesKey("startup_auto_play")
         val KEY_STARTUP_PLAY_MODE = intPreferencesKey("startup_play_mode")
+        // Open the app straight into the now-playing surface (settings → 底部导航 → 启动页).
+        val KEY_STARTUP_OPEN_PLAYER = booleanPreferencesKey("startup_open_player")
         val KEY_BLUETOOTH_AUTO_PLAY = booleanPreferencesKey("bluetooth_auto_play")
         val KEY_LYRIC_FONT_NAME = stringPreferencesKey("lyric_font_name")
         val KEY_LYRIC_FONT_PATH = stringPreferencesKey("lyric_font_path")
@@ -724,12 +735,16 @@ class SettingsManager(private val context: Context) :
         val KEY_RECENT_PLAYBACK_LIMITS = stringPreferencesKey("recent_playback_limits")
         val KEY_RECENT_PLAYBACK_SHOW_DATES = stringPreferencesKey("recent_playback_show_dates")
         val KEY_RECENT_PLAYBACK_COLLECTION_TYPES = stringPreferencesKey("recent_playback_collection_types")
+        val KEY_RECENT_PLAYBACK_FOLDER_TYPES = stringPreferencesKey("recent_playback_folder_types")
+        val KEY_RECENT_PLAYBACK_MV_TYPES = stringPreferencesKey("recent_playback_mv_types")
         val KEY_HOME_FEATURE_WALLPAPER_URI = stringPreferencesKey("home_feature_wallpaper_uri")
         // This URI points to device-local app storage. Legacy JSON excludes the path; ZIP backups
         // carry the referenced image and restore it into the target app's private directory.
         const val BACKUP_EXCLUDED_HOME_FEATURE_WALLPAPER_URI = "home_feature_wallpaper_uri"
         val KEY_HOME_AI_MIX_VISIBLE = booleanPreferencesKey("home_ai_mix_visible")
         val KEY_CONTINUE_PLAYBACK_ROW_VISIBLE = booleanPreferencesKey("continue_playback_row_visible")
+        val KEY_LIBRARY_CONTINUE_PLAYBACK_ROW_VISIBLE = booleanPreferencesKey("library_continue_playback_row_visible")
+        val KEY_CATEGORY_CONTINUE_PLAYBACK_ROW_VISIBLE = booleanPreferencesKey("category_continue_playback_row_visible")
         val KEY_HOME_RECENT_SECTION_MODE = intPreferencesKey("home_recent_section_mode")
         val KEY_HOME_SECTION_ORDER_UPDATED = booleanPreferencesKey("home_section_order_updated")
         val KEY_HOME_SECTION_ORDER = stringPreferencesKey("home_section_order")
@@ -738,6 +753,9 @@ class SettingsManager(private val context: Context) :
         val KEY_HOME_HIDDEN_TOP_BAR_ACTIONS = stringPreferencesKey("home_hidden_top_bar_actions")
         val KEY_HOME_SHORTCUT_ITEMS = stringPreferencesKey("home_shortcut_items")
         val KEY_HOME_FEATURE_ITEMS = stringPreferencesKey("home_feature_items")
+        val KEY_HOME_POSTER_WALL_CONFIGURED = booleanPreferencesKey("home_poster_wall_configured")
+        val KEY_POSTER_WALL_INFINITE_SCROLL = booleanPreferencesKey("poster_wall_infinite_scroll")
+        val KEY_POSTER_WALL_LYRIC_STYLE = intPreferencesKey("poster_wall_lyric_style")
         val KEY_HOME_LIBRARY_TILE_ORDER = stringPreferencesKey("home_library_tile_order")
         val KEY_HOME_HIDDEN_LIBRARY_TILES = stringPreferencesKey("home_hidden_library_tiles")
         val KEY_HOME_ONLINE_TILE_ORDER = stringPreferencesKey("home_online_tile_order")
@@ -821,12 +839,25 @@ class SettingsManager(private val context: Context) :
         const val PLAYER_LANDSCAPE_STYLE_WIDE = 0
         const val PLAYER_LANDSCAPE_STYLE_COVER_FLOW = 2
         const val PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO = 3
+        const val PLAYER_LANDSCAPE_STYLE_CLASSIC_SPLIT = 4
+        const val PLAYER_LANDSCAPE_STYLE_COVER_CLOCK = 5
         const val DEFAULT_PLAYER_LANDSCAPE_STYLE = PLAYER_LANDSCAPE_STYLE_WIDE
+        const val PLAYER_CLOCK_COLOR_COVER = 0
+        const val PLAYER_CLOCK_COLOR_WHITE = 1
+        const val PLAYER_CLOCK_COLOR_LIGHT_GRAY = 2
+        const val DEFAULT_PLAYER_CLOCK_COLOR = PLAYER_CLOCK_COLOR_COVER
+
+        fun normalizePlayerClockColor(color: Int?): Int = when (color) {
+            PLAYER_CLOCK_COLOR_COVER, PLAYER_CLOCK_COLOR_WHITE, PLAYER_CLOCK_COLOR_LIGHT_GRAY -> color
+            else -> DEFAULT_PLAYER_CLOCK_COLOR
+        }
 
         fun normalizePlayerLandscapeStyle(style: Int?): Int = when (style) {
             PLAYER_LANDSCAPE_STYLE_WIDE,
             PLAYER_LANDSCAPE_STYLE_COVER_FLOW,
-            PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO -> style
+            PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO,
+            PLAYER_LANDSCAPE_STYLE_CLASSIC_SPLIT,
+            PLAYER_LANDSCAPE_STYLE_COVER_CLOCK -> style
             else -> DEFAULT_PLAYER_LANDSCAPE_STYLE
         }
 
@@ -955,12 +986,6 @@ class SettingsManager(private val context: Context) :
         // index 1 means that it keeps those pixels as an empty inset.
         const val SYSTEM_BARS_HIDDEN_SPACE_USE = 0
         const val SYSTEM_BARS_HIDDEN_SPACE_NOT_USE = 1
-
-        fun systemBarsReserveSpaceForSelection(index: Int): Boolean =
-            index == SYSTEM_BARS_HIDDEN_SPACE_NOT_USE
-
-        fun systemBarsSelectionForReserveSpace(reserveSpace: Boolean): Int =
-            if (reserveSpace) SYSTEM_BARS_HIDDEN_SPACE_NOT_USE else SYSTEM_BARS_HIDDEN_SPACE_USE
 
         const val DEFAULT_APP_FONT_SCALE_PERCENT = 100
         const val APP_FONT_SCALE_MIN_PERCENT = 75
@@ -1137,9 +1162,11 @@ class SettingsManager(private val context: Context) :
         const val APP_LANGUAGE_RU = "ru"
         const val APP_LANGUAGE_TR = "tr"
         const val APP_LANGUAGE_AR = "ar"
+        const val DEFAULT_RECENTS_ICON_FOLLOWS_SYSTEM_THEME = true
         const val APP_ICON_STYLE_DEFAULT = "default"
         const val APP_ICON_STYLE_ANIME = "anime"
         const val APP_ICON_STYLE_LOLI = "loli"
+        const val APP_ICON_STYLE_TRADITIONAL = "traditional"
         const val BOTTOM_DOCK_ITEM_HOME = "home"
         const val BOTTOM_DOCK_ITEM_LIBRARY = "library"
         const val BOTTOM_DOCK_ITEM_SEARCH = "search"
@@ -1314,20 +1341,12 @@ class SettingsManager(private val context: Context) :
         @StringRes
         val DEFAULT_SHORTCUT_FOLDER_LABEL_RES = R.string.settings_shortcut_folder
 
-        fun defaultShortcutLibraryLabel(context: Context): String =
-            context.getString(DEFAULT_SHORTCUT_LIBRARY_LABEL_RES)
-
-        fun defaultShortcutPlaylistsLabel(context: Context): String =
-            context.getString(DEFAULT_SHORTCUT_PLAYLISTS_LABEL_RES)
-
-        fun defaultShortcutFolderLabel(context: Context): String =
-            context.getString(DEFAULT_SHORTCUT_FOLDER_LABEL_RES)
         const val DEFAULT_HOME_SECTION_ORDER = "library,online,recent"
         const val DEFAULT_HOME_TOP_BAR_ACTION_ORDER = "shuffle,analytics,ai,settings"
         const val DEFAULT_RANDOM_SORT_SEED = 0
         const val HOME_RECENT_SECTION_MODE_PLAYED = 0
         const val HOME_RECENT_SECTION_MODE_ADDED = 1
-        const val DEFAULT_HOME_LIBRARY_TILE_ORDER = "artist,album,recent_playback,folder,folder_tree,folder_playlist,playlist,genre,year,composer,arranger,lyricist"
+        const val DEFAULT_HOME_LIBRARY_TILE_ORDER = "artist,album,recent_playback,poster_wall,folder,folder_tree,folder_playlist,playlist,genre,year,composer,arranger,lyricist"
         const val DEFAULT_HOME_ONLINE_TILE_ORDER = "lx,musicfree,webdav"
         const val LEGACY_DEFAULT_ARTIST_SEPARATORS = "/\nfeat.\n&\n,"
         const val DEFAULT_ARTIST_SEPARATORS = "/\nfeat.\n&\n,\n、"
@@ -1708,6 +1727,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_MUSIC_VIDEO_LONG_PRESS_IMMERSIVE_LYRICS_ENABLED)
             setBoolean(KEY_MUSIC_VIDEO_IMMERSIVE_LYRICS_HIDE_SYSTEM_BARS)
             setBoolean(KEY_WIDGET_SAFE_LAYOUT)
+            setBoolean(KEY_RECENTS_ICON_FOLLOWS_SYSTEM_THEME)
             setString(KEY_HOME_SEARCH_TARGET)
             setBoolean(KEY_BOTTOM_DOCK_MERGE_SEARCH)
             setInt(KEY_SYSTEM_BARS_MODE)
@@ -1716,6 +1736,7 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_HIDE_SYSTEM_BARS)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setInt(KEY_PLAYER_APPLE_FLOW_SPEED)
+            setBoolean(KEY_AUDIO_VISUALIZER_RAINBOW)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
             setInt(KEY_AUDIO_VISUALIZER_STYLE)
             setInt(KEY_AUDIO_VISUALIZER_HEIGHT)
@@ -1770,8 +1791,11 @@ class SettingsManager(private val context: Context) :
             setBoolean(KEY_OPEN_PLAYER_ON_PLAY)
             setBoolean(KEY_OPEN_PLAYER_FROM_NOTIFICATION)
             setBoolean(KEY_STARTUP_AUTO_PLAY)
+            setBoolean(KEY_STARTUP_OPEN_PLAYER)
             setBoolean(KEY_HOME_AI_MIX_VISIBLE)
             setBoolean(KEY_CONTINUE_PLAYBACK_ROW_VISIBLE)
+            setBoolean(KEY_LIBRARY_CONTINUE_PLAYBACK_ROW_VISIBLE)
+            setBoolean(KEY_CATEGORY_CONTINUE_PLAYBACK_ROW_VISIBLE)
             setBoolean(KEY_MCP_SERVER_ENABLED)
             setBoolean(KEY_WEB_MUSIC_SERVER_ENABLED)
             setBoolean(KEY_SLEEP_TIMER_STOP_AFTER_CURRENT)
@@ -1849,7 +1873,9 @@ class SettingsManager(private val context: Context) :
             setInt(KEY_PLAYER_TITLE_POSITION)
             setInt(KEY_PLAYER_PAGE_STYLE)
             setInt(KEY_PLAYER_LANDSCAPE_STYLE)
+            setInt(KEY_PLAYER_CLOCK_COLOR)
             setInt(KEY_MUSIC_VIDEO_ORIENTATION)
+            setInt(KEY_VIDEO_HOLD_SPEED_PERCENT)
             setInt(KEY_PLAYER_LYRIC_TEXT_ALIGN)
             setInt(KEY_PLAYER_MINI_LYRIC_SCALE)
             setInt(KEY_PLAYER_MINI_LYRIC_PRIMARY_SIZE)
@@ -1939,6 +1965,8 @@ class SettingsManager(private val context: Context) :
             setString(KEY_RECENT_PLAYBACK_LIMITS)
             setString(KEY_RECENT_PLAYBACK_SHOW_DATES)
             setString(KEY_RECENT_PLAYBACK_COLLECTION_TYPES)
+            setString(KEY_RECENT_PLAYBACK_FOLDER_TYPES)
+            setString(KEY_RECENT_PLAYBACK_MV_TYPES)
             setInt(KEY_SONG_RATING_DISPLAY_MODE)
 
             val dynamicSortKeyPrefixes = listOf(
@@ -2059,6 +2087,9 @@ class SettingsManager(private val context: Context) :
             setString(KEY_HOME_LIBRARY_TILE_ORDER)
             setString(KEY_HOME_SHORTCUT_ITEMS)
             setString(KEY_HOME_FEATURE_ITEMS)
+            setBoolean(KEY_HOME_POSTER_WALL_CONFIGURED)
+            setBoolean(KEY_POSTER_WALL_INFINITE_SCROLL)
+            setInt(KEY_POSTER_WALL_LYRIC_STYLE)
             setString(KEY_HOME_HIDDEN_LIBRARY_TILES)
             setString(KEY_APP_LANGUAGE)
             setString(KEY_SETTINGS_SEARCH_HISTORY)

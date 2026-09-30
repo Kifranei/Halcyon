@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">Standardtab für NetEase-Kommentare</string>
+    <string name="netease_comments_default_tab_summary">Wähle den Tab, der beim Öffnen von Song-, Album- und MV-Kommentaren angezeigt wird</string>
     <string name="netease_comments_open">Kommentare</string>
     <string name="netease_comments_title">Kommentare</string>
     <string name="netease_comments_title_count">Kommentare (%1$s)</string>

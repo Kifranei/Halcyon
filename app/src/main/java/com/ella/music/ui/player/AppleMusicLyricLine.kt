@@ -2,13 +2,7 @@ package com.ella.music.ui.player
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -23,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.State
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -43,7 +38,6 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -109,6 +103,7 @@ internal fun AppleMusicSingleLyricLine(
     primaryOutlineWidth: Float = 0f,
     primaryGlowColor: Color? = null,
     primaryGlowRadius: Float = 0f,
+    currentPositionState: State<Long>? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -160,6 +155,7 @@ internal fun AppleMusicSingleLyricLine(
         primaryOutlineWidth = primaryOutlineWidth,
         primaryGlowColor = primaryGlowColor,
         primaryGlowRadius = primaryGlowRadius,
+        currentPositionState = currentPositionState,
         onClick = {},
         onDoubleClick = {},
         onLongClick = {},
@@ -215,6 +211,7 @@ internal fun AppleMusicLyricLine(
     primaryOutlineWidth: Float = 0f,
     primaryGlowColor: Color? = null,
     primaryGlowRadius: Float = 0f,
+    currentPositionState: State<Long>? = null,
     modifier: Modifier = Modifier
 ) {
     // A mini player is a primary-vocal surface. Do not leave a blank row behind when the source
@@ -360,11 +357,12 @@ internal fun AppleMusicLyricLine(
         }
     ) {
         val pronunciation = line.pronunciation.orEmpty()
-        // Ruby only belongs over a script that needs annotating. Timed pronunciation words alone
-        // used to be enough, which stacked a whole Latin-script lyric on top of its own row as
-        // unreadable 8 pt furigana; such a reading goes on its own line instead.
+        // Latin-script romanizations stay on their own row. Explicit timed kana readings can
+        // annotate English loanwords (e.g. "ライ" over "Lie,") just like Japanese words.
         val annotatableBase = line.text.ifBlank { line.backgroundText.orEmpty() }.needsPhoneticAnnotation()
-        val inlineRuby = showPronunciation && pronunciation.isNotBlank() && annotatableBase &&
+        val timedKanaReading = line.pronunciationWords.any { it.endMs > it.startMs } &&
+            line.pronunciationWords.all { isInlineRubyPronunciation(it.text) }
+        val inlineRuby = showPronunciation && pronunciation.isNotBlank() && (annotatableBase || timedKanaReading) &&
             (line.pronunciationWords.isNotEmpty() || isInlineRubyPronunciation(pronunciation))
         val showPronunciationAbove = showPronunciation && pronunciation.isNotBlank() && !pronunciationBelow && !inlineRuby
         val showPronunciationBelow = showPronunciation && pronunciation.isNotBlank() && pronunciationBelow && !inlineRuby
@@ -402,6 +400,7 @@ internal fun AppleMusicLyricLine(
                 primaryWords = primaryWords,
                 secondaryText = inlineStaticSecondaryText,
                 positionMs = currentPositionMs,
+                positionClock = currentPositionState,
                 active = active,
                 primaryStyle = primaryStyle,
                 contentColor = contentColor,
@@ -418,6 +417,7 @@ internal fun AppleMusicLyricLine(
                 secondaryText = inlineStaticSecondaryText,
                 secondaryWords = inlineStaticSecondaryWords,
                 positionMs = currentPositionMs,
+                positionClock = currentPositionState,
                 active = active,
                 primaryStyle = primaryStyle,
                 secondaryStyle = secondaryStyle,
@@ -433,6 +433,7 @@ internal fun AppleMusicLyricLine(
                 text = primaryText,
                 words = primaryWords,
                 positionMs = currentPositionMs,
+                positionClock = currentPositionState,
                 active = active,
                 style = primaryStyle,
                 contentColor = contentColor,
@@ -492,6 +493,7 @@ internal fun AppleMusicLyricLine(
                     text = background,
                     words = line.backgroundWords,
                     positionMs = currentPositionMs,
+                    positionClock = currentPositionState,
                     active = active,
                     style = secondaryStyle.copy(color = contentColor.copy(alpha = 0.72f)),
                     contentColor = contentColor,
@@ -629,6 +631,7 @@ private fun StatusBarSeparatedTimedLyricLines(
     secondaryText: String,
     secondaryWords: List<LyricWord>,
     positionMs: Long,
+    positionClock: State<Long>?,
     active: Boolean,
     primaryStyle: TextStyle,
     secondaryStyle: TextStyle,
@@ -644,6 +647,7 @@ private fun StatusBarSeparatedTimedLyricLines(
             text = primaryText,
             words = primaryWords,
             positionMs = positionMs,
+            positionClock = positionClock,
             active = active,
             style = primaryStyle,
             contentColor = contentColor,
@@ -659,6 +663,7 @@ private fun StatusBarSeparatedTimedLyricLines(
             text = secondaryText,
             words = secondaryWords,
             positionMs = positionMs,
+            positionClock = positionClock,
             active = active,
             style = secondaryStyle,
             contentColor = contentColor,
@@ -680,6 +685,7 @@ private fun StatusBarMergedTimedLyricRow(
     primaryWords: List<LyricWord>,
     secondaryText: String,
     positionMs: Long,
+    positionClock: State<Long>?,
     active: Boolean,
     primaryStyle: TextStyle,
     contentColor: Color,
@@ -690,24 +696,8 @@ private fun StatusBarMergedTimedLyricRow(
     textAlign: TextAlign
 ) {
     val primaryEndMs = remember(primaryWords) { primaryWords.maxOfOrNull { it.endMs } }
-    val secondaryLiftProgress = if (active && wordLiftEnabled && primaryEndMs != null) {
-        ((positionMs - primaryEndMs).toFloat() / STATUS_BAR_SECONDARY_LIFT_DURATION_MS)
-            .coerceIn(0f, 1f)
-    } else {
-        0f
-    }
-    val animatedSecondaryLiftProgress by animateFloatAsState(
-        targetValue = secondaryLiftProgress,
-        animationSpec = tween(durationMillis = STATUS_BAR_SECONDARY_LIFT_ANIMATION_MS),
-        label = "status-bar-secondary-lift"
-    )
-    val secondaryLiftPx = with(LocalDensity.current) {
-        if (wordLiftEnabled) {
-            maxOf(primaryStyle.fontSize.toPx() * 0.06f, 5f) *
-                animatedSecondaryLiftProgress * wordLiftScale.coerceIn(0f, 1f)
-        } else {
-            0f
-        }
+    val secondaryLiftDistance = with(LocalDensity.current) {
+        maxOf(primaryStyle.fontSize.toPx() * 0.06f, 5f) * wordLiftScale.coerceIn(0f, 1f)
     }
     val contentAlignment = when (textAlign) {
         TextAlign.End -> Alignment.CenterEnd
@@ -736,6 +726,7 @@ private fun StatusBarMergedTimedLyricRow(
                 text = primaryText,
                 words = primaryWords,
                 positionMs = positionMs,
+            positionClock = positionClock,
                 active = active,
                 style = primaryStyle,
                 contentColor = contentColor,
@@ -759,20 +750,19 @@ private fun StatusBarMergedTimedLyricRow(
                 // A completed word stays lifted in the primary karaoke renderer.  Move the
                 // static secondary as a whole by the same amount once the primary line ends so
                 // the two pieces keep their baseline instead of visually splitting apart.
-                modifier = Modifier.graphicsLayer { translationY = -secondaryLiftPx }
+                modifier = Modifier.graphicsLayer {
+                    val progress = if (active && wordLiftEnabled && primaryEndMs != null) {
+                        (((positionClock?.value ?: positionMs) - primaryEndMs).toFloat() /
+                            STATUS_BAR_SECONDARY_LIFT_DURATION_MS).coerceIn(0f, 1f)
+                    } else 0f
+                    translationY = -secondaryLiftDistance * progress
+                }
             )
         }
     }
 }
 
 private const val STATUS_BAR_SECONDARY_LIFT_DURATION_MS = 120f
-private const val STATUS_BAR_SECONDARY_LIFT_ANIMATION_MS = 110
-
-private fun LyricLine.isBackgroundActiveAt(positionMs: Long): Boolean {
-    val start = backgroundStartMs ?: backgroundWords.minOfOrNull { it.startMs } ?: return false
-    val end = backgroundEndMs ?: backgroundWords.maxOfOrNull { it.endMs } ?: endMs ?: return false
-    return positionMs in start until end.coerceAtLeast(start + 1L)
-}
 
 internal fun LyricLine.duetTextAlign(default: TextAlign): TextAlign = when {
     agent.equals("v2", true) -> TextAlign.End

@@ -212,6 +212,7 @@ internal fun PlayerCoverActionSheet(
             onAddToQueue = onAddToQueue,
             onPlayNext = onPlayNext,
             onShare = onShareSong,
+            onLyricShare = onLyricShare,
             onSetRating = onSetRating,
             onAiInterpret = onAiInterpret,
             onSpectrum = onSpectrum,

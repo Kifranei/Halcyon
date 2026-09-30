@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="poster_wall_remote_hint">方向键移动 · 确认展开 · 长按确认或菜单打开更多 · 返回关闭</string>
+    <string name="poster_wall_infinite_scroll">无限滚动</string>
+    <string name="poster_wall_fullscreen_wall">全屏海报墙</string>
+    <string name="poster_wall_fullscreen_player">全屏歌词播放</string>
+    <string name="poster_wall_lyrics_style">歌词样式</string>
+    <string name="poster_lyric_orbit">回环</string>
+    <string name="poster_lyric_clock">时计</string>
+    <string name="poster_lyric_color">凝彩</string>
+    <string name="poster_lyric_glow">绘光</string>
+    <string name="poster_wall_title">海报墙</string>
+    <string name="poster_wall_summary">用封面浏览音乐，自由拖动与缩放</string>
+    <string name="poster_wall_count">%1$d 张音乐海报</string>
+    <string name="poster_wall_queue">播放队列</string>
+    <string name="poster_wall_library">音乐库</string>
+    <string name="poster_wall_current">当前歌曲</string>
+    <string name="poster_wall_selected">音乐海报</string>
+    <string name="poster_wall_expand">展开音乐海报</string>
+    <string name="poster_wall_open_player">打开播放页</string>
+    <string name="poster_wall_search">搜索歌曲、艺术家或专辑</string>
+    <string name="poster_wall_zoom_in">放大海报</string>
+    <string name="poster_wall_zoom_out">缩小海报</string>
+    <string name="poster_wall_gesture_hint">拖动浏览 · 双指缩放 · 点击展开 · 长按更多</string>
+    <string name="poster_wall_empty_queue">播放队列还是空的</string>
+    <string name="poster_wall_empty_library">音乐库里还没有歌曲</string>
+    <string name="poster_wall_no_results">没有找到匹配的音乐</string>
+    <string name="poster_wall_loading">正在展开你的音乐世界…</string>
+    <string name="poster_wall_browse_library">浏览音乐库</string>
+</resources>

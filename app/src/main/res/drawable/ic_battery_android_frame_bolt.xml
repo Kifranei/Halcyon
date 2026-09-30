@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols battery vectors supplied by the user. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FF000000" android:fillType="nonZero"
+        android:pathData="M4 18 Q2.75 18 1.88 17.13 T1 15 V9 Q1 7.75 1.88 6.88 T4 6 H18.05 l-1.6 2 H4 Q3.58 8 3.29 8.29 T3 9 v6 q0 0.42 0.29 0.71 T4 16 H15.83 l-0.38 2 H4 Z M17.68 17 l0.7 -4 H15 L19.8 7 h0.53 l-0.7 4 H23 l-4.8 6 H17.68 Z M4 15 V9 H15.65 l-4.8 6 H4 Z" />
+</vector>

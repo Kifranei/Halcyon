@@ -16,7 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -174,7 +173,7 @@ internal fun AppLogDetailSheet(
                             .fillMaxWidth()
                             .padding(top = 4.dp),
                         color = MiuixTheme.colorScheme.onSurface,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = MiuixTheme.textStyles.main.fontFamily
                     )
                 }
             }

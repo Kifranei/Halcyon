@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">网易云评论默认标签</string>
+    <string name="netease_comments_default_tab_summary">选择歌曲、专辑和 MV 评论页默认打开的标签</string>
     <string name="netease_comments_open">评论</string>
     <string name="netease_comments_title">评论</string>
     <string name="netease_comments_title_count">评论(%1$s)</string>

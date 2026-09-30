@@ -39,38 +39,6 @@ class AppleMusicKaraokeStopsTest {
     }
 
     @Test
-    fun rainbowFillStopsStayOrdered() {
-        var progress = 0f
-        while (progress <= 1f) {
-            listOf(0.15f, 0.38f).forEach { feather ->
-                karaokeRainbowFillStops(progress, 1f, isRtl = false, feather = feather)
-                    .assertAscending("rainbow-ltr@$progress/$feather")
-                karaokeRainbowFillStops(progress, 1f, isRtl = true, feather = feather)
-                    .assertAscending("rainbow-rtl@$progress/$feather")
-            }
-            progress += 0.01f
-        }
-    }
-
-    @Test
-    fun sheenStopsStayOrderedWithTrailWidths() {
-        var progress = 0f
-        while (progress <= 1f) {
-            listOf(0.06f, 0.5f, 1f).forEach { glow ->
-                listOf(0.20f, 0.34f, 0.45f).forEach { trail ->
-                    karaokeSheenStops(progress, Color.White, glow, 1f, isRtl = false, trailWidth = trail)
-                        .assertAscending("ltr@$progress/$glow/$trail")
-                    karaokeSheenStops(progress, Color.White, glow, 1f, isRtl = true, trailWidth = trail)
-                        .assertAscending("rtl@$progress/$glow/$trail")
-                }
-            }
-            progress += 0.01f
-        }
-    }
-
-
-
-    @Test
     fun spectrumRainbowHasSevenStopsAndContinuousHue() {
         assertTrue(
             "expected 7 ROYGBIV stops, got ${LyricSpectrumRainbowColors.size}",

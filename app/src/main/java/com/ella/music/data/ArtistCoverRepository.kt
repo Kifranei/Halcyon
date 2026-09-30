@@ -219,14 +219,6 @@ private class ArtistCoverAccumulator {
 private fun List<ArtistCoverAsset>.preferredCover(): ArtistCoverAsset? =
     firstOrNull { it.kind == ArtistCoverKind.Video } ?: firstOrNull()
 
-internal fun artistCoverMatchKey(
-    fileName: String,
-    mimeType: String? = null,
-    ignoreCase: Boolean = true
-): String? {
-    return artistCoverMatch(fileName, mimeType, ignoreCase)?.key
-}
-
 internal fun artistCoverMatch(
     fileName: String,
     mimeType: String? = null,

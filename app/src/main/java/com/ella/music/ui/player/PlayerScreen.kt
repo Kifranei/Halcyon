@@ -16,7 +16,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -36,7 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
@@ -66,7 +65,6 @@ import com.ella.music.ui.components.copySelectedLyricText
 import com.ella.music.ui.components.LyricShareOptions
 import com.ella.music.ui.components.saveLyricCardToPictures
 import com.ella.music.ui.components.shareLyricCard
-import com.ella.music.ui.components.shareLyricVideoFile
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import com.ella.music.ui.settings.rememberMusicVideoSyncPermissionLauncher
@@ -120,6 +118,7 @@ fun PlayerScreen(
     val defaultAppleMusicShowLyrics = isLargeScreenDevice &&
         SettingsManager.normalizePlayerPageStyle(playerPageStyle) == SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
     val playerLandscapeStyle = playerSettings.playerLandscapeStyle
+    val selectedQueueIndex by playerViewModel.currentQueueIndex.collectAsState()
     val playerKeepScreenOn = playerSettings.playerKeepScreenOn
     val lyricSourceMode = playerSettings.lyricSourceMode
     val lyricFontState = rememberPlayerLyricFontState(context, settingsManager)
@@ -246,7 +245,9 @@ fun PlayerScreen(
     val musicVideoVisibleForCurrentSong = song != null &&
         uiState.musicVideoVisible &&
         uiState.musicVideoOwnerKey == musicVideoSongKey
-    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    var playerViewport by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val isLandscape = playerViewport.width > playerViewport.height ||
+        configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isMusicVideoLandscape = (landscapeState.expanded && musicVideoVisibleForCurrentSong) ||
         (isLandscape && playerLandscapeStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO && musicVideoVisibleForCurrentSong)
     val effectivePlayerSystemBarsMode = when {
@@ -318,13 +319,17 @@ fun PlayerScreen(
     LaunchedEffect(openToken, playerVisible, isLandscape, playerLandscapeStyle) {
         if (!playerVisible) {
             landscapeState.expanded = false
-        } else if (isLandscape) {
+            landscapeOverlayFromNaturalLandscape = false
+        } else if (isLandscape && !landscapeState.expanded) {
             // A permanently-landscape device (for example an in-car display) never performs the
             // portrait-to-landscape rotation that used to open this host. Apply the user's chosen
             // landscape presentation as soon as the player page itself opens instead.
             landscapeOverlayFromNaturalLandscape = true
             landscapeState.expanded =
                 playerLandscapeStyle != SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE
+        } else if (!isLandscape && landscapeOverlayFromNaturalLandscape) {
+            landscapeState.expanded = false
+            landscapeOverlayFromNaturalLandscape = false
         }
     }
     val visualizerPermissionState = rememberPlayerVisualizerPermissionState(
@@ -555,14 +560,17 @@ fun PlayerScreen(
             uriHandler.openUri(url)
         }
     }
+    // Read the requested entry directly: a hidden resident player may still be on its cover
+    // when a poster lyric tap sets showLyrics and opens the surface in the same frame.
+    val entryShowLyrics = remember(openToken, immersiveAlbumCover) { playerViewModel.showLyrics.value }
+    val entryPage = if (entryShowLyrics && !immersiveAlbumCover) PLAYER_PAGE_LYRICS else PLAYER_PAGE_COVER
+    var entryAligned by remember(openToken, immersiveAlbumCover) { mutableStateOf(false) }
     val playerPagerState = rememberPagerState(
-        initialPage = PLAYER_PAGE_COVER,
+        initialPage = entryPage,
         pageCount = { PLAYER_PAGE_COUNT }
     )
-    LaunchedEffect(openToken) {
-        if (playerPagerState.currentPage != PLAYER_PAGE_COVER) {
-            playerPagerState.scrollToPage(PLAYER_PAGE_COVER)
-        }
+    PlayerPagerEntryEffects(openToken, immersiveAlbumCover, playerPagerState, entryPage) {
+        entryAligned = true
     }
     // Only clear remembered cover/MV positions when the track identity actually changes.
     // Remounting PlayerScreen (lyrics page / AM playlist leave→return) must NOT wipe
@@ -583,7 +591,7 @@ fun PlayerScreen(
         showLyrics = showLyrics,
         pagerState = playerPagerState,
         onShowLyricsChange = playerViewModel::setShowLyrics,
-        playerVisible = playerVisible
+        playerVisible = playerVisible && entryAligned
     )
 
     PlayerDismissMotionHost(
@@ -641,6 +649,7 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .onSizeChanged { playerViewport = it }
                 .then(playerHiddenSystemBarsConsumptionModifier)
         ) {
           CompositionLocalProvider(
@@ -651,6 +660,7 @@ fun PlayerScreen(
               LocalPlayerTimelinePlaying provides isPlaying,
               LocalPlayerSurfaceActive provides playerVisible,
               LocalPlayerCoverVisualizerHost provides coverVisualizerHost,
+              LocalPlayerLyricPositionProvider provides remember(playerViewModel) { playerViewModel::livePositionMs },
               LocalAppleMusicLyricsViewPreferences provides appleMusicLyricsViewPreferences
           ) {
             // Keep one background composed for both pages. Recreating Apple/Beautiful Lyrics
@@ -671,9 +681,19 @@ fun PlayerScreen(
                 useBlurBackground = false,
                 modifier = Modifier.fillMaxSize()
             )
+            // The orientation effect opens natural landscape. A manual dismissal must be able
+            // to dispose the host and release its orientation lock before rotation completes.
+            val overlayExpanded = landscapeState.expanded
+            val overlayStyle = if (landscapeState.expanded && musicVideoVisibleForCurrentSong) {
+                SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO
+            } else playerLandscapeStyle
+            // The occluded page cannot contribute a second artwork to the shared morph.
+            CompositionLocalProvider(LocalPlayerMorphSurface provides playerMorphPageArtworkEnabled(
+                LocalPlayerMorphSurface.current, overlayExpanded, overlayStyle)) {
             PlayerScreenPageHost(
                 immersiveAlbumCover = immersiveAlbumCover,
-                showLyrics = showLyrics,
+                showLyrics = if (entryAligned) showLyrics else entryShowLyrics,
+                pendingEntryPage = entryPage.takeUnless { entryAligned },
                 pagerState = playerPagerState,
                 userScrollEnabled = !dismissingPlayer &&
                     !(
@@ -684,7 +704,10 @@ fun PlayerScreen(
                             playerPagerState.currentPage == PLAYER_PAGE_COVER
                         ),
                 onShowImmersiveLyrics = { playerViewModel.setShowLyrics(true) },
-                onDismissImmersiveLyrics = { playerViewModel.setShowLyrics(false) },
+                onDismissImmersiveLyrics = {
+                    playerViewModel.setShowLyrics(false)
+                    if (entryShowLyrics) onBack()
+                },
                 onShowPagedLyrics = {
                     scope.launch { playerPagerState.animateScrollToPage(PLAYER_PAGE_LYRICS) }
                 },
@@ -984,16 +1007,14 @@ fun PlayerScreen(
                     .then(playerForegroundSystemBarsModifier)
             )
 
+            }
+
             PlayerLandscapeOverlayHost(
                 context = context,
-                expanded = landscapeState.expanded,
+                expanded = overlayExpanded,
                 // The explicit MV landscape action is an intent to open the MV-backed player,
                 // regardless of the default landscape style selected in Settings.
-                layoutStyle = if (landscapeState.expanded && musicVideoVisibleForCurrentSong) {
-                    SettingsManager.PLAYER_LANDSCAPE_STYLE_MUSIC_VIDEO
-                } else {
-                    playerLandscapeStyle
-                },
+                layoutStyle = overlayStyle,
                 dynamicCoverEnabled = dynamicCoverEnabled,
                 dynamicCoverCustomFolders = dynamicCoverCustomFolders,
                 musicVideoCustomFolders = musicVideoCustomFolders,
@@ -1026,6 +1047,7 @@ fun PlayerScreen(
                 showTotalDuration = playerShowTotalDuration,
                 queueExpanded = uiState.queueExpanded,
                 playlist = playlist,
+                selectedQueueIndex = selectedQueueIndex,
                 audioSessionId = audioSessionId,
                 visualizerEnabled = effectiveAudioVisualizerEnabled,
                 visualizerOpacity = audioVisualizerOpacity,
@@ -1076,6 +1098,7 @@ fun PlayerScreen(
                 interceptBack = playerLandscapeStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE ||
                     !landscapeOverlayFromNaturalLandscape,
                 showBackButton = playerLandscapeStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_WIDE,
+                forceLandscape = !landscapeOverlayFromNaturalLandscape,
                 onDismiss = {
                     landscapeState.expanded = false
                 }

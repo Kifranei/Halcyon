@@ -1,3 +1,87 @@
+# 1.3.0
+
+From `1.2.9` to `1.3.0` — 播放、歌词与曲库更新 / playback, lyrics, and library updates.
+
+中文更新日志
+
+### 歌词
+
+- 修复 TTML 重叠演唱和逐字 LRC/ELRC 的多行高亮；拉长音文字与发光同步逐字羽化，限制旧播放采样停滞时的时钟提前。
+- Beautiful Lyrics 背景支持非当前行歌词模糊，补齐设置与音频信息页面的应用字体。
+- 歌词分享新增旧版 1.2.7、Spotify、杂志、电影感、拍立得、书法等样式；旧版补齐圆角，网易云样式支持 Halcyon 或自定义署名。
+
+- 彩虹色歌词改为整句渐变：当前高亮行共用一条七彩光谱，每个字只取自己所在位置的色段，逐字不再各自循环一遍彩虹，长时间观看不再晃眼睛。
+
+### 音乐库与扫描
+
+- 空曲库可以下拉刷新，修正空状态说明；音质筛选使用底部面板并实际应用到曲库。
+- 曲库分析与音质筛选复用缓存，减少重复构建；双指缩放进入详细列表后请求原始高清封面。
+- 文件夹卡片随宽度自动排列并居中，显示调节入口仅放在文件夹层次结构首页。
+- 修复非沉浸专辑页的随机播放入口与按钮高度，移除首页和文件夹长按的多余遮罩。
+
+- 从「本地扫描目录」移除文件夹只保存设置并提示，不再自动触发扫描（与勾选行为保持一致，需要更新音乐库时手动扫描即可）。
+
+### 播放页与视频
+
+- 收缩迷你播放条支持左右滑动，并显示切歌方向与目标歌曲提示。
+- 横屏新增经典分栏布局：左侧大封面与右侧动态背景渐变衔接，歌名、艺术家长文本循环滚动，顶部播放控制下方保留歌词区域。
+- Miuix 横屏侧边栏默认收起并支持背景模糊；可视化增加彩虹色选项，缩短波形进度指示线。
+- 歌曲、专辑和 MV 评论恢复应用内评论界面。
+- 设置新增「其他 → 视频播放器」，支持外部调用、播放视频和 M3U/M3U8、视频下载及 MP4 导出。
+- 普通视频隐藏歌手和伴奏入口，提供 0.5x–5x 倍速侧栏；默认长按临时 2x，松手恢复原倍速，长按倍速可自定义。
+
+### 设置与界面
+
+- 恢复音符与海浪背景的「传统」应用图标作为可选项，并同步应用内通知图标。
+
+- 新增「打开应用进入播放界面」（设置 → 外观 → 底栏入口 → 启动时打开）：开启后打开应用直接进入当前播放界面，而不是启动页。
+
+### 远程曲库
+
+- 自建的 Navidrome / OpenSubsonic / Emby / WebDAV 服务器可以直接填写 `http://` 明文地址（含公网 IPv6），不再强制 HTTPS；只有在地址里内嵌账号密码时才会拒绝，并且 HTTPS 请求不会被允许跳转到 HTTP。使用 HTTP 时服务器编辑页会提示数据可能在网络中被窃听。
+
+English Changelog
+
+### Lyrics
+
+- Fixed overlapping TTML vocals and simultaneous word-timed LRC/ELRC lines. Held-note text and glow now share the timed feather mask, with bounded interpolation when playback samples stall.
+- Beautiful Lyrics backgrounds support inactive-line blur; settings and audio information surfaces follow the application font.
+- Added historical 1.2.7, Spotify, magazine, cinematic, polaroid, calligraphy and other lyric-card styles. The historical card has rounded corners; NetEase cards use Halcyon or a custom footer name.
+
+- Rainbow lyrics now paint one gradient per line: the highlighted line shares a single seven-color spectrum and each character only shows its own slice, instead of every character sweeping the whole rainbow.
+
+### Library and scanning
+
+- Empty libraries support pull-to-refresh and show accurate guidance. Audio-quality filtering uses a bottom sheet and applies to the library.
+- Library analysis and quality filters reuse cached results. Pinching into detailed rows loads original high-resolution artwork.
+- Folder cards wrap according to available width and center their contents; display controls appear at the hierarchy root.
+- Restored shuffle in non-immersive album pages, refined action heights, and removed extra long-press overlays.
+
+- Removing a folder from Local scan directories only saves the selection and shows a hint; it no longer starts a scan on its own (matching the row checkbox). Run a manual scan when the change should apply.
+
+### Player and video
+
+- Collapsed mini players support horizontal swipes with direction and target-song previews.
+- Added a classic landscape split with a full-height cover, a transition into the shared dynamic background, marquee metadata, compact header controls and a larger lyric area.
+- Miuix landscape navigation starts collapsed and supports background blur. Visualizers have a rainbow option; waveform seek markers are shorter.
+- Song, album and MV comments open the native comments interface.
+- Added Other → Video player for external intents, video and M3U/M3U8 playback, downloads and MP4 export.
+- Generic videos hide artist and accompaniment actions and offer a 0.5x–5x speed sidebar. Hold for temporary 2x by default, release to restore the selected speed, and customize the hold speed in the sidebar.
+
+### Settings and interface
+
+- Restored the traditional note-and-wave launcher icon as an optional choice and synchronized in-app notification icons.
+
+- New "Open the player on launch" switch (Settings → Appearance → Bottom bar entries → Startup destination): opening the app goes straight to the now-playing screen instead of the startup page.
+
+### Remote libraries
+
+- Self-hosted Navidrome / OpenSubsonic / Emby / WebDAV servers may use a plain `http://` address (including a public IPv6 one) instead of requiring HTTPS. Credentials embedded in the address stay rejected and an HTTPS origin is never allowed to redirect down to HTTP; the server editor warns that HTTP traffic can be intercepted.
+
+Version
+- Version name: `1.3.0`
+- Version code: `40`
+
 # 1.2.9
 
 From `1.2.8` to `1.2.9`.

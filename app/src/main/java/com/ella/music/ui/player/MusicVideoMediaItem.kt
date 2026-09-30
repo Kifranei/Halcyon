@@ -11,13 +11,13 @@ import java.util.Locale
  * application/octet-stream (or no type at all), so ExoPlayer cannot reliably infer MKV/WebM/MOV
  * from a content URI even though Media3 already has extractors for those containers.
  */
-internal fun Context.buildMusicVideoMediaItem(uri: Uri): MediaItem {
+internal fun Context.buildMusicVideoMediaItem(uri: Uri, explicitMimeType: String? = null): MediaItem {
     val declaredMimeType = if (uri.scheme.equals("content", ignoreCase = true)) {
         runCatching { contentResolver.getType(uri) }.getOrNull()
     } else {
         null
     }
-    val containerMimeType = inferMusicVideoContainerMimeType(uri.toString(), declaredMimeType)
+    val containerMimeType = inferMusicVideoContainerMimeType(uri.toString(), explicitMimeType ?: declaredMimeType)
     return MediaItem.Builder()
         .setUri(uri)
         .apply {
@@ -35,12 +35,14 @@ internal fun inferMusicVideoContainerMimeType(
         ?.trim()
         ?.lowercase(Locale.ROOT)
         ?.takeUnless { it.isBlank() || it == "application/octet-stream" }
+    if (normalizedDeclaredType in listOf("application/x-mpegurl", "audio/x-mpegurl", "audio/mpegurl", "application/vnd.apple.mpegurl")) return MimeTypes.APPLICATION_M3U8
     if (normalizedDeclaredType != null) return normalizedDeclaredType
 
     val decodedSource = runCatching { Uri.decode(source) }.getOrDefault(source)
         .substringBefore('?')
         .substringBefore('#')
     return when (decodedSource.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+        "m3u", "m3u8" -> MimeTypes.APPLICATION_M3U8
         "mkv" -> MimeTypes.VIDEO_MATROSKA
         "webm" -> MimeTypes.VIDEO_WEBM
         "mov" -> MimeTypes.VIDEO_QUICK_TIME

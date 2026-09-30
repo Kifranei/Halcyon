@@ -69,9 +69,6 @@ internal fun collectSystemFontChoices(context: Context): List<FontChoice> {
         .sortedWith(compareBy<FontChoice> { it.sourceRank }.thenBy { it.name.lowercase() })
 }
 
-internal fun isSystemFontPath(path: String): Boolean =
-    path == SYSTEM_FONT_PATH || path.startsWith("/system/") || path.startsWith("/product/")
-
 internal fun String.toFontFamilyOrNull(weight: Int, italic: Boolean): FontFamily? {
     if (this == SYSTEM_FONT_PATH) {
         return runCatching {

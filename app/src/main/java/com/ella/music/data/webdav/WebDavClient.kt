@@ -10,6 +10,7 @@ import com.ella.music.data.AppLogType
 import com.ella.music.data.AppNetworkLoggingInterceptor
 import com.ella.music.data.copyToBoundedOrThrow
 import com.ella.music.data.readUtf8Bounded
+import com.ella.music.data.refusesCleartextDowngrade
 import com.ella.music.data.scanner.supportedAudioFileExtensions
 import okhttp3.Credentials
 import okhttp3.Call
@@ -446,10 +447,6 @@ object WebDavClient {
                 throw WebDavException(WebDavResponse(response.code, message).toFriendlyMessage(ctx))
             }
         }
-    }
-
-    fun uploadFileFromString(url: String, config: WebDavConfig, content: String, contentType: String = "application/json") {
-        uploadFile(url, config, content.toByteArray(Charsets.UTF_8), contentType)
     }
 
     fun uploadFileFromFile(url: String, config: WebDavConfig, file: File, contentType: String = "application/zip") {
@@ -1229,16 +1226,15 @@ object WebDavClient {
         addNetworkInterceptor { chain ->
             val request = chain.request()
             val config = request.tag(WebDavConfig::class.java)
-            val sameConfiguredHost = config != null && request.url.sameHostAs(config.url)
-            val configuredCredentials = config != null && (
-                config.username.isNotBlank() || config.password.isNotBlank() ||
-                    config.normalizedCustomHeaders().isNotEmpty()
-                )
             if (!request.url.username.isNullOrEmpty() || !request.url.password.isNullOrEmpty()) {
                 throw IOException("URLs with embedded credentials are not allowed")
             }
-            if (!request.url.isHttps && sameConfiguredHost && configuredCredentials) {
-                throw IOException("WebDAV credentials and custom headers require HTTPS")
+            // A self-hosted WebDAV / library server may be plain HTTP: the address is typed by the
+            // user and a home machine rarely has a certificate, so credentials are allowed to the
+            // configured server. A secure origin that redirects down to cleartext is still refused,
+            // because that would silently drop an encrypted session into the open.
+            if (refusesCleartextDowngrade(chain.call().request().url.isHttps, request.url.isHttps)) {
+                throw IOException("HTTPS requests must not be redirected to cleartext HTTP")
             }
 
             val shouldStripConfiguredCredentials = config != null && !request.url.sameOriginAs(config.url)
@@ -1248,34 +1244,12 @@ object WebDavClient {
                 }.build()
             } else request
 
-            if (!sanitized.url.isHttps && sanitized.hasCredentialedHttpUrlOrHeaders()) {
-                throw IOException("Credential-bearing requests require HTTPS")
-            }
             chain.proceed(sanitized)
         }
 
     private fun okhttp3.HttpUrl.sameOriginAs(configuredUrl: String): Boolean {
         val configured = configuredUrl.toHttpUrlOrNull() ?: return false
         return scheme == configured.scheme && host.equals(configured.host, ignoreCase = true) && port == configured.port
-    }
-
-    private fun okhttp3.HttpUrl.sameHostAs(configuredUrl: String): Boolean {
-        val configured = configuredUrl.toHttpUrlOrNull() ?: return false
-        return host.equals(configured.host, ignoreCase = true)
-    }
-
-    private fun Request.hasCredentialedHttpUrlOrHeaders(): Boolean {
-        val credentialQueryKeys = setOf(
-            "api_key", "apikey", "key", "access_token", "auth", "password", "token", "secret",
-            "credential", "client_secret", "session_key", "sk", "api_sig"
-        )
-        return headers.names().any { name ->
-            val key = name.lowercase(Locale.ROOT)
-            key in setOf("authorization", "proxy-authorization", "cookie", "set-cookie") ||
-                listOf("api_key", "apikey", "api-key", "request-key", "token", "auth", "secret", "credential")
-                    .any(key::contains)
-        } ||
-            url.queryParameterNames.any { it.lowercase(Locale.ROOT) in credentialQueryKeys }
     }
 
     private fun Request.Builder.applyPreemptiveBasicAuth(config: WebDavConfig) {
@@ -1293,7 +1267,9 @@ object WebDavClient {
     }
 
     private fun authenticate(response: Response, config: WebDavConfig): Request? {
-        if (!response.request.url.isHttps || !response.request.url.sameOriginAs(config.url)) return null
+        // Cleartext WebDAV servers answer 401 too, so only the origin has to match: the user chose
+        // the address (preemptive Basic already goes out over HTTP when it is configured).
+        if (!response.request.url.sameOriginAs(config.url)) return null
         if (config.username.isBlank()) return null
         if (responseCount(response) >= 3) {
             Log.w(TAG, "WebDAV auth retry limit reached: ${response.request.url.toString().safeLogUrl()}")

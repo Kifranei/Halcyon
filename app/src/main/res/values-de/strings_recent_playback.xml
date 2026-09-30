@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">Den letzten Titel auf der Musikbibliotheksseite anzeigen</string>
+    <string name="settings_category_continue_playback_row">Kategorieseiten: Wiedergabe fortsetzen anzeigen</string>
+    <string name="settings_category_continue_playback_row_summary">Den letzten Titel auf Detailseiten für Alben, Künstler, Wiedergabelisten und Ordner anzeigen</string>
+    <string name="netease_link_custom_comments_summary">Leer lassen für native Kommentare mit Seiten, Threads, Likes und Antworten. {id} ersetzt die Ressourcen-ID</string>
+    <string name="recent_playback_folder_types">Angezeigte Typen im Ordner-Tab</string>
+    <string name="recent_playback_mv_types">Angezeigte Typen im Musikvideo-Tab</string>
+    <string name="recent_playback_nested_folder">Verschachtelte Ordner</string>
+    <string name="recent_playback_local_mv">Lokale Musikvideos</string>
+    <string name="recent_playback_online_mv">Online-Musikvideos</string>
+    <string name="recent_playback_delete_online_mv_message">Den Musikvideo-Wiedergabeeintrag für „%1$s“ dauerhaft löschen?</string>
+</resources>

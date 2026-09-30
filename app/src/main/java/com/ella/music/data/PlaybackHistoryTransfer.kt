@@ -206,29 +206,7 @@ private fun parseJsonPlaybackHistory(
     librarySongs: List<Song>
 ): ParsedPlaybackHistory {
     val root = JSONObject(readUtf8Bounded(file.inputStream().buffered(), MAX_TRANSFER_JSON_BYTES))
-    val payload = root.optJSONObject("playback") ?: root
-
-    if (payload.has("sessions") && !payload.has("history")) {
-        return ParsedPlaybackHistory(
-            format = PlaybackHistoryTransferFormat.PRISM_MUSIC,
-            entries = parsePrismSessions(payload.optJSONArray("sessions") ?: JSONArray(), librarySongs)
-        )
-    }
-
-    val isRaws = root.optString("format").equals("rawsmusic_backup", ignoreCase = true) ||
-        payload.has("daily")
-    return ParsedPlaybackHistory(
-        format = if (isRaws) {
-            PlaybackHistoryTransferFormat.RAWS_MUSIC
-        } else {
-            PlaybackHistoryTransferFormat.HALCYON
-        },
-        entries = parseHistoryPayload(
-            payload = payload,
-            librarySongs = librarySongs,
-            namespace = if (isRaws) "rawsmusic" else "halcyon"
-        )
-    )
+    return parseJsonPlaybackHistoryFromRoot(root, librarySongs)
 }
 
 private fun parsePlainZipPlaybackHistory(
@@ -270,6 +248,12 @@ private fun parseJsonPlaybackHistoryFromRoot(
     root: JSONObject,
     librarySongs: List<Song>
 ): ParsedPlaybackHistory {
+    root.optJSONArray("records")?.let { records ->
+        return ParsedPlaybackHistory(
+            format = PlaybackHistoryTransferFormat.CONE_MUSIC,
+            entries = parseConeJsonRecords(records, librarySongs)
+        )
+    }
     val payload = root.optJSONObject("playback") ?: root
     if (payload.has("sessions") && !payload.has("history")) {
         return ParsedPlaybackHistory(
@@ -288,6 +272,45 @@ private fun parseJsonPlaybackHistoryFromRoot(
         )
     )
 }
+
+/** Cone's JSON export contains completed listens, not the ticks in its database backup. */
+private fun parseConeJsonRecords(
+    records: JSONArray,
+    librarySongs: List<Song>
+): List<PlaybackHistoryEntry> = buildList {
+    val songs = TransferSongLookup(librarySongs)
+    for (index in 0 until records.length()) {
+        val record = records.optJSONObject(index) ?: continue
+        val title = record.optString("audioTitle").trim()
+        val artist = record.optString("artist").trim()
+        val album = record.optString("albumTitle").trim()
+        if (title.isBlank() && artist.isBlank() && album.isBlank()) continue
+        val playedAt = record.optLong("eventTimestamp").takeIf { it > 0L }
+            ?: runCatching {
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).apply {
+                    isLenient = false
+                }.parse(record.optString("eventDate"))?.time
+            }.getOrNull()?.takeIf { it > 0L }
+            ?: continue
+        val song = songs.resolve(title, artist, album)
+        val trackKey = transferTrackKey(title, artist, album)
+        add(PlaybackHistoryEntry(
+            // Neither array order nor export time identifies a listen. This also makes
+            // overlapping/reordered exports harmless without merging nearby repeat plays.
+            entryId = stableTransferEntryId("cone-json", "$trackKey|$playedAt"),
+            songId = song?.id ?: stableExternalSongId(trackKey),
+            title = title,
+            artist = artist,
+            album = album,
+            playedAt = playedAt,
+            durationMs = song?.duration?.coerceAtLeast(0L) ?: 0L,
+            listenedMs = record.optLong("playTime").coerceAtLeast(0L),
+            source = PlaybackHistorySource.LOCAL,
+            playCounted = true
+        ))
+    }
+}.distinctBy(PlaybackHistoryEntry::entryId)
+    .sortedByDescending(PlaybackHistoryEntry::playedAt)
 
 private fun parseConeMusicBackup(
     context: Context,
@@ -773,6 +796,21 @@ private fun coneRowsToHistory(
             playCounted = true
         )
     }.sortedByDescending(PlaybackHistoryEntry::playedAt)
+}
+
+/** Build once for large JSON exports rather than scanning/normalizing the library per record. */
+private class TransferSongLookup(librarySongs: List<Song>) {
+    private val exact = librarySongs.groupBy { transferTrackKey(it.title, it.artist, it.album) }
+        .mapValues { (_, songs) -> songs.minBy(Song::id) }
+    private val titleArtist = librarySongs.groupBy { transferTrackKey(it.title, it.artist, "") }
+        .mapValues { (_, songs) -> songs.minBy(Song::id) }
+    private val titleOnly = librarySongs.groupBy { transferTextKey(it.title) }
+        .mapValues { (_, songs) -> songs.minBy(Song::id) }
+
+    fun resolve(title: String, artist: String, album: String): Song? =
+        exact[transferTrackKey(title, artist, album)]
+            ?: titleArtist[transferTrackKey(title, artist, "")]
+            ?: titleOnly[transferTextKey(title)]
 }
 
 private fun resolveLibrarySong(

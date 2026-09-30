@@ -69,6 +69,7 @@ import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
+import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -93,12 +94,8 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -187,6 +184,8 @@ fun FolderDetailScreen(
         }
     }
     val childFolders = folderContents?.first.orEmpty()
+    val folderColumns = rememberFolderDisplaySettings().columns
+    val childFolderRows = remember(childFolders, folderColumns) { childFolders.chunked(folderColumns) }
     val directSongs = folderContents?.second.orEmpty()
     val recursiveSongs = remember(songs, normalizedFolderPath, searchQuery) {
         if (searchQuery.isBlank()) emptyList() else songs.recursiveSongsInFolder(normalizedFolderPath)
@@ -296,6 +295,7 @@ fun FolderDetailScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+
                 Spacer(modifier = Modifier.width(4.dp))
                 if (!selection.selectionMode) {
                     FolderOutlineIcon(
@@ -533,14 +533,14 @@ fun FolderDetailScreen(
                 if (selection.rangeAnchorId !in visibleIds) selection.rangeAnchorId = null
                 if (selection.rangeTargetId !in visibleIds) selection.rangeTargetId = null
             }
-            val currentSongItemIndex = remember(sortedSongIndexById, childFolders, searchQuery, currentSong?.id, selection.selectionMode) {
+            val currentSongItemIndex = remember(sortedSongIndexById, childFolderRows, searchQuery, currentSong?.id, selection.selectionMode) {
                 if (selection.selectionMode) return@remember -1
                 (currentSong?.id?.let { sortedSongIndexById[it] } ?: -1)
                     .takeIf { it >= 0 }
-                    ?.plus(if (searchQuery.isBlank()) childFolders.size else 0)
+                    ?.plus(if (searchQuery.isBlank()) childFolderRows.size else 0)
                     ?: -1
             }
-            val fastIndexLetters = remember(childFolders, sortedSongs, sortMode, searchQuery) {
+            val fastIndexLetters = remember(childFolders, childFolderRows, sortedSongs, sortMode, searchQuery) {
                 val folderLetters = if (searchQuery.isBlank()) {
                     childFolders.map { it.name.musicSortKey().toFastIndexSection() }
                 } else {
@@ -558,15 +558,15 @@ fun FolderDetailScreen(
                 }
                 folderLetters + songLetters
             }
-            val fastIndexTargets = remember(childFolders, sortedSongs, sortMode, searchQuery) {
+            val fastIndexTargets = remember(childFolders, childFolderRows, sortedSongs, sortMode, searchQuery) {
                 val folderLetters = if (searchQuery.isBlank()) {
                     childFolders.map { it.name.musicSortKey().toFastIndexSection() }
                 } else {
                     emptyList()
                 }
-                val offset = folderLetters.size
+                val offset = if (searchQuery.isBlank()) childFolderRows.size else 0
                 buildMap {
-                    folderLetters.forEachIndexed { index, letter -> putIfAbsent(letter, index) }
+                    folderFastIndexTargets(folderLetters, folderColumns).forEach { (letter, row) -> putIfAbsent(letter, row) }
                     if (
                         sortMode == FolderSongSortMode.Title ||
                             sortMode == FolderSongSortMode.TitleDesc ||
@@ -587,7 +587,11 @@ fun FolderDetailScreen(
                     sortMode == FolderSongSortMode.FileNameDesc
                 )
             val showScrollIndicator = !showFastIndex && sortedSongs.size > 30
-            val listEndInset = if (showFastIndex || showScrollIndicator) SideIndexListEndPadding else 0.dp
+            val listEndInset = when {
+                showFastIndex -> SideIndexListEndPadding
+                showScrollIndicator -> ScrollIndicatorListEndPadding
+                else -> 0.dp
+            }
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     if (!selection.selectionMode) {
@@ -652,17 +656,19 @@ fun FolderDetailScreen(
                         }
                     )
                     LazyColumn(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(end = listEndInset, bottom = 120.dp)
                     ) {
                         if (searchQuery.isBlank()) {
-                            items(childFolders, key = { it.path }) { folder ->
-                                ChildFolderRow(
-                                    folder = folder,
-                                    onClick = { onFolderClick(folder.path) },
-                                    onLongClick = { folderMenuTarget = folder }
-                                )
+                            items(childFolderRows, key = { it.first().path }) { row ->
+                                AdaptiveFolderRow(row, folderColumns, { it.path }) { folder ->
+                                    if (folderColumns == 1) ChildFolderRow(folder,
+                                        onClick = { onFolderClick(folder.path) }, onLongClick = { folderMenuTarget = folder })
+                                    else FolderHierarchyTile(folder,
+                                        onClick = { onFolderClick(folder.path) }, onLongClick = { folderMenuTarget = folder })
+                                }
                             }
                         }
                         itemsIndexed(
@@ -751,8 +757,8 @@ fun FolderDetailScreen(
                     currentItemIndex = currentSongItemIndex,
                     locateRequest = locateCurrentSongRequest,
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
+                .align(Alignment.BottomEnd)
+                .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
                 )
                 FloatingSelectionControls(
                     visible = selection.selectionMode && sortedSongs.isNotEmpty(),

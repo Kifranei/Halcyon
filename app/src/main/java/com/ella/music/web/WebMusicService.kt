@@ -17,6 +17,7 @@ import android.util.Log
 import com.ella.music.MainActivity
 import com.ella.music.R
 import com.ella.music.data.InputTooLargeException
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.copyToBoundedOrThrow
 import com.ella.music.data.model.Song
 import com.ella.music.data.sanitizeExportFileName
@@ -42,10 +43,14 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.Collections
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -63,8 +68,9 @@ import kotlinx.serialization.json.put
  * that limitation visible before the user enables the service.
  */
 class WebMusicService : Service() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + serverExceptionHandler)
     private var server: EmbeddedServer<*, *>? = null
+    @Volatile private var destroyed = false
 
     override fun onCreate() {
         super.onCreate()
@@ -75,7 +81,14 @@ class WebMusicService : Service() {
             stopSelf()
             return
         }
-        scope.launch { startServer() }
+        scope.launch {
+            try {
+                startServer()
+            } catch (error: Exception) {
+                currentCoroutineContext().ensureActive()
+                failStartup(error)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -83,31 +96,70 @@ class WebMusicService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        val runningServer = server ?: activeServer
-        server = null
-        activeServer = null
-        scope.launch {
-            runCatching {
-                runningServer?.stop(gracePeriodMillis = 100, timeoutMillis = 500)
+        destroyed = true
+        scope.cancel()
+        // Cleanup must outlive the service's cancelled startup job. Keep the old listener
+        // registered until it is stopped, so a new service waits for the port to be released.
+        serverScope.launch {
+            serverMutex.withLock {
+                val runningServer = server
+                server = null
+                stopServerLocked(runningServer)
             }
         }
-        scope.cancel()
         super.onDestroy()
     }
 
     private suspend fun startServer() {
         serverMutex.withLock {
-            runCatching {
-                activeServer?.stop(gracePeriodMillis = 100, timeoutMillis = 500)
-                activeServer = null
-            }
+            currentCoroutineContext().ensureActive()
+            stopServerLocked(activeServer)
             val repository = MusicRepository.getInstance(this@WebMusicService)
             if (repository.songs.value.isEmpty()) repository.loadCachedLibrary()
-            var attempts = 0
-            var started = false
-            while (attempts < 3 && !started) {
+            for (attempt in 1..3) {
+                currentCoroutineContext().ensureActive()
+                var instance: EmbeddedServer<*, *>? = null
+                var started = false
                 try {
-                    val instance = embeddedServer(CIO, host = "0.0.0.0", port = PORT) {
+                    instance = createServer(repository)
+                    instance.start(wait = false)
+                    currentCoroutineContext().ensureActive()
+                    server = instance
+                    activeServer = instance
+                    started = true
+                    Log.i(TAG, "Web music server started on port $PORT")
+                    return@withLock
+                } catch (error: Exception) {
+                    // CIO can wrap a bind failure in CancellationException. Retry a failed
+                    // engine, but propagate cancellation when this service was actually stopped.
+                    currentCoroutineContext().ensureActive()
+                    Log.w(TAG, "Attempt $attempt failed to start web server on port $PORT", error)
+                    if (attempt == 3) {
+                        failStartup(error)
+                        return@withLock
+                    }
+                } finally {
+                    if (!started) {
+                        withContext(NonCancellable) { stopServerLocked(instance) }
+                    }
+                }
+                delay(250)
+            }
+        }
+    }
+
+    private suspend fun failStartup(error: Exception) {
+        Log.e(TAG, "Web music server failed to start", error)
+        if (destroyed) return
+        runCatching { SettingsManager.getInstance(applicationContext).setWebMusicServerEnabled(false) }
+            .onFailure { Log.e(TAG, "Unable to reset web music setting", it) }
+        if (!destroyed) stopSelf()
+    }
+
+    private fun createServer(repository: MusicRepository) =
+        // CIO's accept job must inherit a handler: its bind failure is also thrown from a
+        // separate coroutine, which a try/catch around start() alone cannot contain.
+        serverScope.embeddedServer(CIO, host = "0.0.0.0", port = PORT) {
                 routing {
                     get("/") {
                         val page = assets.open(WEB_ASSET).use { it.readBytes() }
@@ -248,25 +300,10 @@ class WebMusicService : Service() {
                         }
                     }
                 }
-            }
-            server = instance
-                    activeServer = instance
-                    instance.start(wait = false)
-                    started = true
-                    Log.i(TAG, "Web music server started on port $PORT")
-                } catch (error: Throwable) {
-                    attempts++
-                    Log.w(TAG, "Attempt $attempts failed to bind web server on port $PORT", error)
-                    if (attempts >= 3) {
-                        Log.e(TAG, "Web music server failed to start after $attempts attempts", error)
-                        stopSelf()
-                        return@withLock
-                    }
-                    delay(250)
-                }
-            }
+        }.also { instance ->
+            // A recently closed browser connection can leave this fixed port in TIME_WAIT.
+            instance.engineConfig.reuseAddress = true
         }
-    }
 
     private fun MusicRepository.findSong(rawId: String?): Song? {
         val id = rawId?.toLongOrNull() ?: return null
@@ -358,7 +395,20 @@ class WebMusicService : Service() {
         const val PORT = 8199
 
         private val serverMutex = Mutex()
+        private val serverExceptionHandler = CoroutineExceptionHandler { _, error ->
+            Log.e(TAG, "Web music engine coroutine failed", error)
+        }
+        private val serverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + serverExceptionHandler)
         @Volatile private var activeServer: EmbeddedServer<*, *>? = null
+
+        /** Called only while holding serverMutex; a stale service must never clear a newer server. */
+        private fun stopServerLocked(instance: EmbeddedServer<*, *>?) {
+            if (instance == null) return
+            runCatching { instance.stop(gracePeriodMillis = 100, timeoutMillis = 2_000) }
+                .onSuccess { Log.i(TAG, "Web music server stopped") }
+                .onFailure { Log.e(TAG, "Unable to stop web music server", it) }
+            if (activeServer === instance) activeServer = null
+        }
 
         fun start(context: Context): Boolean = runCatching {
             context.startForegroundService(Intent(context, WebMusicService::class.java))

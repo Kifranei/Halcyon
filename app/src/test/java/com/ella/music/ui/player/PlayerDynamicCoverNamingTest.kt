@@ -18,24 +18,6 @@ class PlayerDynamicCoverNamingTest {
     }
 
     @Test
-    fun detectsLandscapeMusicVideoFileNameForSongCandidates() {
-        val songCandidates = listOf("Baby", "Justin Bieber - Baby")
-
-        assertTrue(isLandscapeMusicVideoFileName("Baby_MV", songCandidates))
-        assertTrue(isLandscapeMusicVideoFileName("Baby-MV", songCandidates))
-        assertTrue(isLandscapeMusicVideoFileName("Justin Bieber - Baby_MV", songCandidates))
-    }
-
-    @Test
-    fun ignoresRegularDynamicCoverNames() {
-        val songCandidates = listOf("Baby", "Justin Bieber - Baby")
-
-        assertFalse(isLandscapeMusicVideoFileName("Baby", songCandidates))
-        assertFalse(isLandscapeMusicVideoFileName("cover", songCandidates))
-        assertFalse(isLandscapeMusicVideoFileName("Album-MV", songCandidates))
-    }
-
-    @Test
     fun ambientAndMusicVideoCandidateListsAreIndependent() {
         val songCandidates = listOf("Baby", "Justin Bieber - Baby")
 

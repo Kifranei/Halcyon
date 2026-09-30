@@ -5,6 +5,18 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SleepTimerEndClockTest {
+    @Test fun wholeHourDurationsRoundTripWithoutAnExtraMinute() {
+        for (minutes in 1..419) {
+            val (hours, minutePart) = splitSleepTimerMinutes(minutes)
+            assertEquals(minutes, combineSleepTimerMinutes(hours, minutePart))
+        }
+        assertEquals(1 to 0, splitSleepTimerMinutes(60))
+        assertEquals(6 to 0, splitSleepTimerMinutes(360))
+        assertEquals(1..59, sleepTimerMinuteRange(0))
+        assertEquals(0..59, sleepTimerMinuteRange(1))
+        assertEquals(1, combineSleepTimerMinutes(0, 0))
+    }
+
     @Test
     fun expiredTimerHasNoRemainingLabel() {
         assertNull(sleepTimerRemainingLabel(endRealtimeMs = 1_000L, nowRealtimeMs = 1_000L))

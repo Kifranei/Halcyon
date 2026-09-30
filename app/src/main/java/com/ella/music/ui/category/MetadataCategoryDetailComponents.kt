@@ -10,13 +10,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,7 +36,6 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
-import com.ella.music.data.model.UserPlaylist
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.EllaMiuixBottomSheet
@@ -51,61 +47,6 @@ import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-@Composable
-internal fun CategoryAddSelectedSongsToPlaylistSheet(
-    playlists: List<UserPlaylist>,
-    songCount: Int,
-    onDismiss: () -> Unit,
-    onCreatePlaylist: () -> Unit,
-    onPlaylistsConfirm: (List<UserPlaylist>) -> Unit
-) {
-    var selectedPlaylistIds by remember(playlists) { mutableStateOf(emptySet<String>()) }
-    val selectedPlaylists = playlists.filter { it.id in selectedPlaylistIds }
-    val scrollState = rememberScrollState()
-    Column(
-        modifier = Modifier
-            .padding(bottom = 18.dp)
-            .heightIn(max = 400.dp)
-            .verticalScroll(scrollState),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.category_selected_songs, songCount),
-            fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-        )
-        CategorySheetItem(stringResource(R.string.song_more_create_playlist), onCreatePlaylist)
-        if (playlists.isEmpty()) {
-            Text(
-                text = stringResource(R.string.song_more_no_custom_playlists),
-                fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 18.dp)
-            )
-        } else {
-            playlists.forEach { playlist ->
-                val selected = playlist.id in selectedPlaylistIds
-                CategorySheetItem("${if (selected) "✓ " else ""}${playlist.name} · ${playlist.songs.size} ${stringResource(R.string.library_search_song_unit)}") {
-                    selectedPlaylistIds = if (selected) {
-                        selectedPlaylistIds - playlist.id
-                    } else {
-                        selectedPlaylistIds + playlist.id
-                    }
-                }
-            }
-        }
-        if (playlists.isNotEmpty()) {
-            CategorySheetItem(stringResource(R.string.song_more_done_selected, selectedPlaylistIds.size)) {
-                if (selectedPlaylists.isNotEmpty()) {
-                    onPlaylistsConfirm(selectedPlaylists)
-                }
-            }
-        }
-        CategorySheetItem(stringResource(R.string.common_cancel), onDismiss)
-    }
-}
 
 @Composable
 internal fun CategoryCreatePlaylistAndAddSelectedSheet(

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -740,34 +739,6 @@ private fun EditorHistoryBar(canUndo: Boolean, canRedo: Boolean, onUndo: () -> U
                 MiuixIcons.Regular.Redo,
                 stringResource(R.string.lyric_timing_editor_redo),
                 tint = if (canRedo) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.38f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun EditorSongInfo(title: String, artist: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 58.dp)
-            .padding(horizontal = 18.dp, vertical = 3.dp)
-    ) {
-        Text(
-            text = title,
-            color = MiuixTheme.colorScheme.onSurface,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (artist.isNotBlank()) {
-            Text(
-                text = artist,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
             )
         }
     }

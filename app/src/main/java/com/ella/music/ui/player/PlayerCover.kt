@@ -7,7 +7,6 @@ import java.io.File
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,16 +35,11 @@ import androidx.compose.ui.res.painterResource
 import com.ella.music.R
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.media3.common.Player as Media3Player
 import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
 import coil3.size.Size
 import com.ella.music.data.isMediaStoreAlbumArtworkUri
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.DefaultAlbumCover
-import top.yukonga.miuix.kmp.basic.Text
-import androidx.compose.ui.text.font.FontWeight
 
 @Composable
 internal fun FullBleedCover(

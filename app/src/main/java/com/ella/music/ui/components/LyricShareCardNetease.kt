@@ -251,7 +251,7 @@ private fun measureNeteaseBlocks(
     fun measure(block: ShareLyricBlock): MeasuredShareLyricBlock {
         val secondary = block.secondary.map {
             MeasuredTextBlock(
-                layout = neteaseTextLayout(it, secondaryPaint, width, maxLines = 3, spacingMult = 1.1f),
+                layout = neteaseTextLayout(it, secondaryPaint, width, maxLines = Int.MAX_VALUE, spacingMult = 1.1f),
                 gapAfter = secondaryGap
             )
         }
@@ -259,7 +259,7 @@ private fun measureNeteaseBlocks(
             block.primary,
             primaryPaint,
             width,
-            maxLines = 6,
+            maxLines = Int.MAX_VALUE,
             spacingMult = NETEASE_LYRIC_LINE_SPACING
         )
         return MeasuredShareLyricBlock(

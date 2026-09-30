@@ -46,6 +46,7 @@ object ActionMenuIds {
     const val ADD_TO_QUEUE = "add_to_queue"
     const val PLAY_NEXT = "play_next"
     const val SHARE = "share"
+    const val LYRIC_SHARE = "lyric_share"
     const val SPECTRUM = "spectrum"
     const val AI = "ai"
     const val INFO = "info"
@@ -72,11 +73,17 @@ object ActionMenuIds {
     const val DOWNLOAD = "download"
     const val DOWNLOAD_MV = "download_mv"
     const val VIEW_MV = "view_mv"
+    const val SONG_COMMENTS = "song_comments"
+    const val MV_COMMENTS = "mv_comments"
+    const val POSTER_WALL = "poster_wall"
 
     /** New id -> existing id it is inserted after when migrating an older saved layout. */
     internal val insertAfterAnchors = linkedMapOf(
         CASTING to AUDIO_OUTPUT,
-        VIEW_MV to DOWNLOAD_MV
+        VIEW_MV to DOWNLOAD_MV,
+        SONG_COMMENTS to INFO,
+        MV_COMMENTS to VIEW_MV,
+        POSTER_WALL to LANDSCAPE
     )
 
     /** Actions that need a local audio file; hidden for NetEase streams ([Song.isNeteaseStream]). */
@@ -97,20 +104,24 @@ object ActionMenuIds {
         ADD_TO_QUEUE, SHARE, AI, INFO, AUDIO_OUTPUT, CASTING,
         AB_REPEAT, LANDSCAPE, LYRICS_DISPLAY, SPECTRUM, RATING,
         DYNAMIC_COVER, VISUALIZER, EDIT_TAGS, LYRIC_TIMING,
-        ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, VIEW_MV, DELETE
+        ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, VIEW_MV, DELETE, LYRIC_SHARE, POSTER_WALL
     )
 
     val listDefaults = listOf(
         ADD_TO_PLAYLIST, ADD_TO_QUEUE, PLAY_NEXT, SHARE, SPECTRUM, AI, INFO, RATING,
         EDIT_TAGS, LYRIC_TIMING, AUDIO_TOOLS, REMOVE_FROM_PLAYLIST,
-        REMOVE_FROM_RECENT_PLAYBACK, DOWNLOAD, DOWNLOAD_MV, DELETE
+        REMOVE_FROM_RECENT_PLAYBACK, DOWNLOAD, DOWNLOAD_MV, DELETE, SONG_COMMENTS, VIEW_MV, MV_COMMENTS
     )
 
     val playerDefaults = listOf(
         ADD_TO_QUEUE, SHARE, AI, INFO, AUDIO_OUTPUT, CASTING, AB_REPEAT, REMOTE_QUALITY, LANDSCAPE,
         LYRICS_DISPLAY, SPECTRUM, RATING, DYNAMIC_COVER, VISUALIZER, EDIT_TAGS,
-        LYRIC_TIMING, ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, DOWNLOAD_MV, VIEW_MV, DELETE
+        LYRIC_TIMING, ONLINE_LYRICS, LYRIC_OFFSET, KEEP_SCREEN_ON, DOWNLOAD, DOWNLOAD_MV, VIEW_MV, DELETE,
+        LYRIC_SHARE, SONG_COMMENTS, MV_COMMENTS, POSTER_WALL
     )
+
+    /** The settings editor and the rendered menu must normalize against the same actions. */
+    val playerActionMenuDefaults = (playerShortcutDefaults + playerDefaults + playerShortcutCatalog).distinct()
 
     const val SONG_INFO_TITLE = "song_info_title"
     const val SONG_INFO_ARTIST = "song_info_artist"

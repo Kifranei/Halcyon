@@ -177,23 +177,6 @@ class PlaylistStore private constructor(context: Context) {
         }
     }
 
-    suspend fun addSongToPlaylist(playlistId: String, song: Song, appendToEnd: Boolean = false) = withContext(Dispatchers.IO) {
-        val key = song.playlistIdentityKey()
-        synchronized(lock) {
-            val now = System.currentTimeMillis()
-            val next = playlists.value.withPlaylist(playlistId) { playlist ->
-                if (playlist.songs.any { it.key == key }) return@withPlaylist playlist
-                val newSong = song.toPlaylistSong(now)
-                playlist.copy(
-                    songs = if (appendToEnd) playlist.songs + newSong else listOf(newSong) + playlist.songs,
-                    updatedAt = now
-                )
-            }
-            _playlists.value = next
-            saveLocked(next)
-        }
-    }
-
     suspend fun addSongsToPlaylist(playlistId: String, songs: Collection<Song>, appendToEnd: Boolean = false) = withContext(Dispatchers.IO) {
         if (songs.isEmpty()) return@withContext
         synchronized(lock) {
@@ -255,9 +238,6 @@ class PlaylistStore private constructor(context: Context) {
             changed
         }
     }
-
-    suspend fun importSaltPlayerPlaylist(uri: Uri, librarySongs: List<Song>): PlaylistImportResult =
-        importLocalPlaylist(uri, librarySongs, PlaylistImportMode.MergeKeepExisting)
 
     suspend fun importLocalPlaylist(
         uri: Uri,

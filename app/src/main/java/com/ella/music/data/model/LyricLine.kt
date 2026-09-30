@@ -16,7 +16,9 @@ data class LyricLine(
     val backgroundEndMs: Long? = null,
     val isTtml: Boolean = false,
     val endMs: Long? = null,
-    val isOpeningMetadata: Boolean = false
+    val isOpeningMetadata: Boolean = false,
+    /** A terminal line-end marker alone does not make a translation an independent vocal. */
+    val hasExplicitWordTiming: Boolean = words.size > 1
 )
 
 data class LyricWord(
@@ -30,7 +32,7 @@ fun LyricLine.primaryEndMs(
     nextLineStartMs: Long? = null,
     fallbackDurationMs: Long = 4_000L
 ): Long {
-    val resolvedNextLineStartMs = nextLineStartMs ?: nextLine?.timeMs
+    val resolvedNextLineStartMs = (nextLineStartMs ?: nextLine?.timeMs)?.takeIf { it > timeMs }
     if (text.isBlank() && !backgroundText.isNullOrBlank()) {
         val backgroundOnlyEnd = (backgroundEndMs
             ?: backgroundWords.maxOfOrNull { it.endMs }
@@ -64,7 +66,7 @@ fun LyricLine.primaryEndMs(
         mainEnd > resolvedNextLineStartMs &&
             !preservesPrimaryOverlapWith(
                 nextLine = nextLine,
-                sungEndMs = mainWordEndMs ?: backgroundTimedEndMs ?: mainEnd
+                sungEndMs = mainEnd
             ) -> resolvedNextLineStartMs
         else -> mainEnd
     }
@@ -77,6 +79,11 @@ private fun LyricLine.preservesPrimaryOverlapWith(
 ): Boolean {
     val nextLineStartMs = nextLine?.timeMs ?: return false
     if (sungEndMs <= nextLineStartMs) return false
+    // TTML explicitly times each vocal; different text and a missing/same agent are valid overlaps.
+    if (isTtml) return true
+    // Word timings carry their own end, including overlapping ELRC vocals.
+    if (!isTtml && words.isNotEmpty() && nextLine.words.isNotEmpty()) return true
+    if (!isTtml && !nextLine.isTtml && timeMs == nextLineStartMs) return true
     val currentAgent = agent?.trim()?.lowercase()?.takeIf { it.isNotBlank() } ?: return false
     val nextAgent = nextLine.agent?.trim()?.lowercase()?.takeIf { it.isNotBlank() } ?: return false
     if (currentAgent == nextAgent) return false
@@ -97,6 +104,9 @@ private fun LyricLine.normalizedDuetText(): String =
         if (!backgroundText.isNullOrBlank()) append(backgroundText)
     }.lowercase()
         .replace(Regex("""\s+"""), "")
+
+fun LyricLine.isSingingAt(positionMs: Long, nextLine: LyricLine? = null): Boolean =
+    positionMs >= timeMs && positionMs < primaryEndMs(nextLine = nextLine)
 
 fun List<LyricLine>.shiftedBy(offsetMs: Long): List<LyricLine> {
     if (offsetMs == 0L || isEmpty()) return this

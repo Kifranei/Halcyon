@@ -38,9 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.focus.onFocusChanged
@@ -60,7 +58,6 @@ import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.ExplicitSongTitle
 import com.ella.music.ui.components.LocalSettingsCardFrosting
 import com.ella.music.ui.components.SafeCoverImage
-import com.ella.music.ui.components.frostedCardColor
 import com.ella.music.ui.components.frostedCardModifier
 import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.requestPinnedEllaShortcut
@@ -68,86 +65,13 @@ import com.ella.music.viewmodel.MainViewModel
 import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Community
-import top.yukonga.miuix.kmp.icon.extended.Album
-import top.yukonga.miuix.kmp.icon.extended.Favorites
-import top.yukonga.miuix.kmp.icon.extended.Folder
-import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
-
-@Composable
-internal fun AiMixCard(
-    songCount: Int,
-    isLoading: Boolean,
-    onChat: () -> Unit,
-    onPlay: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val aiCardContentColor = Color(0xFF123F49)
-    Card(
-        modifier = modifier,
-        cornerRadius = 16.dp,
-        onClick = onPlay
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF91DFFF), Color(0xFFA4EBCF))
-                    )
-                )
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.home_ai_playlist),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = aiCardContentColor,
-                    maxLines = 1
-                )
-                Text(
-                    text = if (isLoading) {
-                        stringResource(R.string.home_ai_playlist_loading)
-                    } else {
-                        stringResource(R.string.home_ai_playlist_summary, songCount)
-                    },
-                    fontSize = 13.sp,
-                    color = aiCardContentColor.copy(alpha = 0.76f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-            IconButton(onClick = onChat) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Community,
-                    contentDescription = stringResource(R.string.home_ai_chat_open),
-                    tint = aiCardContentColor.copy(alpha = 0.9f),
-                    modifier = Modifier.size(26.dp)
-                )
-            }
-            IconButton(onClick = onPlay) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Play,
-                    contentDescription = stringResource(R.string.home_ai_playlist_play),
-                    tint = aiCardContentColor,
-                    modifier = Modifier.size(30.dp)
-                )
-            }
-        }
-    }
-}
 
 internal data class HomeTileSpec(
     val id: String,
@@ -216,14 +140,6 @@ internal fun HomeTileSection(
         showPinButtons = showPinButtons,
         cardColor = cardColor
     )
-}
-
-internal fun splitHomeTileSections(
-    tiles: List<HomeTileSpec>,
-    shortcutCount: Int
-): Pair<List<HomeTileSpec>, List<HomeTileSpec>> {
-    val splitAt = shortcutCount.coerceAtLeast(0).coerceAtMost(tiles.size)
-    return tiles.subList(0, splitAt) to tiles.subList(splitAt, tiles.size)
 }
 
 @Composable
@@ -428,7 +344,7 @@ private fun HomeShortcutTile(
     }
     Column(
         modifier = modifier
-            .combinedClickable(onClick = tile.onClick, onLongClick = onPinClick)
+            .combinedClickable(interactionSource = null, indication = null, onClick = tile.onClick, onLongClick = onPinClick)
             .padding(bottom = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -599,7 +515,7 @@ private fun HomeTile(
             .clip(RoundedCornerShape(16.dp))
             .background(background)
             .then(if (featureStyle == 2) Modifier.border(1.dp, homeTileAccents[accentIndex % homeTileAccents.size].copy(alpha = .34f), RoundedCornerShape(16.dp)) else Modifier)
-            .then(if (interactive) Modifier.combinedClickable(onClick = onClick, onLongClick = onPinClick) else Modifier)
+            .then(if (interactive) Modifier.combinedClickable(interactionSource = null, indication = null, onClick = onClick, onLongClick = onPinClick) else Modifier)
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {

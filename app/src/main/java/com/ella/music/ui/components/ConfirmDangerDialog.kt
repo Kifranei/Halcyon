@@ -22,6 +22,7 @@ fun ConfirmDangerDialog(
         EllaMiuixDialogActions(
             cancelText = stringResource(R.string.common_cancel),
             confirmText = confirmText ?: stringResource(R.string.common_delete),
+            confirmDangerous = true,
             onCancel = onDismiss,
             onConfirm = onConfirm
         )

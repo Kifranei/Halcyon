@@ -189,6 +189,9 @@ internal fun MiniLyricsPreview(
     legacyWindow: Boolean = false,
     contentColor: Color = Color.White,
     wordLiftEnabled: Boolean = true,
+    blurEnabled: Boolean = true,
+    edgeFeatherEnabled: Boolean = blurEnabled,
+    primaryTextSizeOverrideSp: Float? = null,
     onLineClick: (LyricLine) -> Unit = {},
     onLineDoubleClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -247,13 +250,14 @@ internal fun MiniLyricsPreview(
     val denseMultiPartPreview = !compact && visiblePartCount >= 3
     // In a cramped floating window, shrink the type so long (e.g. English) lines fit the narrow
     // width instead of overflowing, and take less vertical room.
-    val primarySizeSp = miniPrimarySize * if (compact) 0.816f else 1f
+    val primarySizeSp = primaryTextSizeOverrideSp ?: (miniPrimarySize * if (compact) 0.816f else 1f)
     val secondarySizeSp = miniSecondarySize * if (compact) 0.80f else 1f
     AppleMusicLyricsView(
         lyrics = previewLyrics,
         currentIndex = previewCurrentIndex,
         currentPositionMs = currentPositionMs,
-        isPlaying = isPlaying,
+        isPlaying = isPlaying && LocalPlayerSurfaceActive.current,
+        pageVisible = LocalPlayerSurfaceActive.current,
         isPaused = isPaused,
         // Pausing the cover page should keep the mini lyric focused on the current line. The
         // full lyrics page intentionally reveals all rows while paused for easier reading.
@@ -264,7 +268,7 @@ internal fun MiniLyricsPreview(
         translationFontFamily = translationFontFamily,
         fontWeight = fontWeight,
         // Match the 1.2.0 preview density at 100%, while keeping the control accurate to 1%.
-        fontScale = miniScale.coerceIn(50, 150) / 100f * 0.92f,
+        fontScale = miniScale.coerceIn(50, 150) / 100f * if (primaryTextSizeOverrideSp == null) 0.92f else 1f,
         secondaryFontScale = 1f,
         lyricTextAlign = miniTextAlign,
         primaryTextSizeSp = primarySizeSp,
@@ -286,7 +290,9 @@ internal fun MiniLyricsPreview(
         onLineDoubleClick = onLineDoubleClick,
         onLineLongClick = {},
         wordLiftEnabled = wordLiftEnabled,
+        // Keep whole rows sharp until they reach the feathered viewport boundary.
         nonCurrentLineBlurEnabled = false,
+        edgeFeatherEnabled = edgeFeatherEnabled,
         // The mini preview is tap-to-open only; don't let it scroll on drag.
         userScrollEnabled = false,
         reserveExtraLyricSpace = MINI_LYRICS_RESERVE_EXTRA_LYRIC_SPACE,
@@ -299,7 +305,8 @@ internal fun MiniLyricsPreview(
             singleLinePreview || denseMultiPartPreview -> miniLineSpacing.coerceAtMost(4).dp
             else -> miniLineSpacing.dp
         },
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
     )
 }
 

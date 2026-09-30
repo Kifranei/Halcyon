@@ -127,7 +127,7 @@ internal class LocalCastMediaServer(context: Context) {
             return
         }
         source.use {
-            val requested = parseRange(rangeHeader, source.length)
+            val requested = parseHttpByteRange(rangeHeader, source.length)
             val start = requested?.first ?: 0L
             val end = requested?.last ?: (source.length - 1L)
             val count = (end - start + 1L).coerceAtLeast(0L)
@@ -223,9 +223,7 @@ private fun BufferedOutputStream.writeResponse(status: String, length: Long, typ
     writeAscii("$status\r\nContent-Type: $type\r\nContent-Length: $length\r\nConnection: close\r\n\r\n")
 }
 
-internal fun parseHttpByteRange(header: String?, length: Long): LongRange? = parseRange(header, length)
-
-private fun parseRange(header: String?, length: Long): LongRange? {
+internal fun parseHttpByteRange(header: String?, length: Long): LongRange? {
     if (length <= 0L || header.isNullOrBlank() || !header.startsWith("bytes=", true)) return null
     val raw = header.substringAfter('=').substringBefore(',').trim()
     val startRaw = raw.substringBefore('-').trim()

@@ -909,10 +909,6 @@ class PlaybackService : MediaLibraryService() {
         )
     }
 
-    fun launchServiceJob(block: suspend () -> Unit) {
-        serviceScope.launch { block() }
-    }
-
     private fun ensureBluetoothAutoPlayReceiverRegistered() {
         if (bluetoothReceiverRegistered) return
         val receiver = bluetoothReceiver ?: return

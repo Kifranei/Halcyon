@@ -10,13 +10,6 @@ import java.io.File
 internal const val MAX_SESSIONS = 20
 private const val MAX_MESSAGES_PER_SESSION = 100
 
-internal data class AiChatSession(
-    val id: String,
-    val title: String,
-    val createdAt: Long,
-    val messages: List<AiChatMessage>
-)
-
 internal data class AiChatSessionMeta(val id: String, val title: String, val createdAt: Long)
 
 private fun sessionsDir(context: Context): File =

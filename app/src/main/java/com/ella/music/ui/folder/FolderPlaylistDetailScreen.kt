@@ -41,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
@@ -101,11 +100,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -113,7 +108,7 @@ import top.yukonga.miuix.kmp.icon.basic.Search
 import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.ella.music.ui.components.rememberEllaReorderableLazyListState
 
 @Composable
 fun FolderPlaylistDetailScreen(
@@ -390,18 +385,18 @@ fun FolderPlaylistDetailScreen(
             }
         }
     }
-    val songReorderableState = rememberReorderableLazyListState(
+    val songReorderableState = rememberEllaReorderableLazyListState(
         lazyListState = songsListState,
         onMove = { from, to ->
-            if (!songReorderEnabled) return@rememberReorderableLazyListState
+            if (!songReorderEnabled) return@rememberEllaReorderableLazyListState
             val fromSong = reorderableSongs.getOrNull(from.index - FolderPlaylistSongsHeaderCount)
-                ?: return@rememberReorderableLazyListState
+                ?: return@rememberEllaReorderableLazyListState
             val toSong = reorderableSongs.getOrNull(to.index - FolderPlaylistSongsHeaderCount)
-                ?: return@rememberReorderableLazyListState
+                ?: return@rememberEllaReorderableLazyListState
             val fromIndex = manualSongs.indexOfFirst { it.playlistIdentityKey() == fromSong.playlistIdentityKey() }
             val toIndex = manualSongs.indexOfFirst { it.playlistIdentityKey() == toSong.playlistIdentityKey() }
             if (fromIndex !in manualSongs.indices || toIndex !in manualSongs.indices) {
-                return@rememberReorderableLazyListState
+                return@rememberEllaReorderableLazyListState
             }
             manualSongs = manualSongs.moveSelectedItemsAsBlock(
                 from = fromIndex,
@@ -411,18 +406,18 @@ fun FolderPlaylistDetailScreen(
             )
         }
     )
-    val folderReorderableState = rememberReorderableLazyListState(
+    val folderReorderableState = rememberEllaReorderableLazyListState(
         lazyListState = foldersListState,
         onMove = { from, to ->
-            if (!folderReorderEnabled) return@rememberReorderableLazyListState
+            if (!folderReorderEnabled) return@rememberEllaReorderableLazyListState
             val fromEntry = reorderableFolderEntries.getOrNull(from.index - 1)
-                ?: return@rememberReorderableLazyListState
+                ?: return@rememberEllaReorderableLazyListState
             val toEntry = reorderableFolderEntries.getOrNull(to.index - 1)
-                ?: return@rememberReorderableLazyListState
+                ?: return@rememberEllaReorderableLazyListState
             val fromIndex = manualFolderEntries.indexOfFirst { it.path == fromEntry.path }
             val toIndex = manualFolderEntries.indexOfFirst { it.path == toEntry.path }
             if (fromIndex !in manualFolderEntries.indices || toIndex !in manualFolderEntries.indices) {
-                return@rememberReorderableLazyListState
+                return@rememberEllaReorderableLazyListState
             }
             manualFolderEntries = manualFolderEntries.moveSelectedItemsAsBlock(
                 from = fromIndex,
@@ -1143,8 +1138,8 @@ fun FolderPlaylistDetailScreen(
                 locateRequest = locateCurrentSongRequest,
                 enabled = selectedTab == FolderPlaylistTab.Songs && !selectionMode,
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
+                .align(Alignment.BottomEnd)
+                .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
             )
             FloatingSelectionControls(
                 visible = selectionMode && displayedKeysForTab.isNotEmpty(),

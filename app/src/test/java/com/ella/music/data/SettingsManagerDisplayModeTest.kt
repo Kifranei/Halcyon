@@ -17,7 +17,6 @@ class SettingsManagerDisplayModeTest {
         assertEquals(1_000, SettingsManager.DEFAULT_STARTUP_POSTER_DURATION_MS)
     }
 
-
     @Test
     fun `new installations use the adaptive large-screen landscape player`() {
         assertEquals(
@@ -96,30 +95,6 @@ class SettingsManagerDisplayModeTest {
                 storedMode = Int.MAX_VALUE,
                 legacyHideSystemBars = false
             )
-        )
-    }
-
-    @Test
-    fun `hidden system bar area selection uses the inverse of the reserve flag`() {
-        assertEquals(
-            false,
-            SettingsManager.systemBarsReserveSpaceForSelection(
-                SettingsManager.SYSTEM_BARS_HIDDEN_SPACE_USE
-            )
-        )
-        assertEquals(
-            true,
-            SettingsManager.systemBarsReserveSpaceForSelection(
-                SettingsManager.SYSTEM_BARS_HIDDEN_SPACE_NOT_USE
-            )
-        )
-        assertEquals(
-            SettingsManager.SYSTEM_BARS_HIDDEN_SPACE_USE,
-            SettingsManager.systemBarsSelectionForReserveSpace(false)
-        )
-        assertEquals(
-            SettingsManager.SYSTEM_BARS_HIDDEN_SPACE_NOT_USE,
-            SettingsManager.systemBarsSelectionForReserveSpace(true)
         )
     }
 

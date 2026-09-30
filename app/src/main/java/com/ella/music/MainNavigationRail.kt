@@ -1,6 +1,16 @@
 package com.ella.music
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.ella.music.data.BottomBarStyle
@@ -34,13 +44,27 @@ internal fun MainNavigationRail(
     mergeSearch: Boolean,
     onNavigate: (String) -> Unit,
     onNavigateSearch: () -> Unit,
+    backdrop: Backdrop? = null,
     modifier: Modifier = Modifier
 ) {
+    val surface = MiuixTheme.colorScheme.surface
+    val dark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val blurSupported = remember { isRuntimeShaderSupported() }
+    val railBackground = when {
+        backdrop != null && blurSupported -> Modifier.drawBackdrop(
+            backdrop = backdrop,
+            shape = { RectangleShape },
+            effects = { blur(24.dp.toPx()) },
+            onDrawSurface = { drawRect(surface.copy(alpha = if (dark) 0.46f else 0.62f)) }
+        )
+        backdrop != null -> Modifier.background(surface.copy(alpha = 0.86f))
+        else -> Modifier.background(surface)
+    }
     NavigationRail(
         state = state,
-        modifier = modifier,
+        modifier = modifier.then(railBackground),
         defaultWindowInsetsPadding = true,
-        color = MiuixTheme.colorScheme.surface,
+        color = Color.Transparent,
         expandContentDescription = stringResource(R.string.navigation_rail_expand),
         collapseContentDescription = stringResource(R.string.navigation_rail_collapse)
     ) {

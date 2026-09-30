@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
@@ -43,26 +42,6 @@ import com.ella.music.R
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ExplicitSongTitle
 import kotlinx.coroutines.isActive
-
-@Composable
-internal fun LandscapeSongTitle(
-    song: Song?,
-    annotation: String,
-    fontFamily: FontFamily? = null,
-    modifier: Modifier = Modifier
-) {
-    PlayerSongMetaText(
-        song = song,
-        annotation = annotation,
-        titleFontSize = 28.sp,
-        artistFontSize = 16.sp,
-        artistAlpha = 0.50f,
-        fallbackTitle = stringResource(R.string.app_name),
-        contentColor = LocalPlayerContentColor.current,
-        fontFamily = fontFamily,
-        modifier = modifier.padding(end = 16.dp)
-    )
-}
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)

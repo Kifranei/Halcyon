@@ -377,12 +377,6 @@ internal fun Long.formatDuration(): String {
     return formatPlaybackDuration()
 }
 
-internal fun Long.formatDateText(context: android.content.Context): String {
-    if (this <= 0L) return context.getString(R.string.folder_unknown_modified_time)
-    val millis = if (this < 10_000_000_000L) this * 1000L else this
-    return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(millis))
-}
-
 internal fun Long.formatDateTimeText(context: android.content.Context): String {
     if (this <= 0L) return context.getString(R.string.folder_unknown_modified_time)
     val millis = if (this < 10_000_000_000L) this * 1000L else this

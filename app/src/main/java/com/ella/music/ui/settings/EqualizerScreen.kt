@@ -1,6 +1,7 @@
 package com.ella.music.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,12 +25,14 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -291,7 +294,8 @@ fun EqualizerScreen(
                             EqControlSlider(
                                 title = stringResource(R.string.equalizer_master_gain),
                                 valueText = String.format(Locale.ROOT, "%+.1f dB", masterGainTenthsDb / 10f),
-                                value = masterGainTenthsDb,
+                            value = masterGainTenthsDb,
+                            inputScale = 10f,
                                 range = AudioEffectSettings.MASTER_GAIN_MIN_TENTHS_DB..AudioEffectSettings.MASTER_GAIN_MAX_TENTHS_DB,
                                 onChange = { scope.launch { settingsManager.setMasterGainTenthsDb(it) } }
                             )
@@ -319,8 +323,9 @@ fun EqualizerScreen(
                     SettingsSearchAnchor(R.string.equalizer_eq_q) {
                     EqControlSlider(
                         title = stringResource(R.string.equalizer_eq_q),
-                        valueText = String.format(Locale.ROOT, "%.1f", eqQ / 100f),
+                        valueText = String.format(Locale.ROOT, "%.2f", eqQ / 100f),
                         value = eqQ,
+                        inputScale = 100f,
                         range = AudioEffectSettings.EQ_Q_MIN..AudioEffectSettings.EQ_Q_MAX,
                         onChange = { scope.launch { settingsManager.setEqQ(it) } }
                     )
@@ -809,7 +814,8 @@ fun EqualizerScreen(
                             EqControlSlider(
                                 title = stringResource(R.string.equalizer_crossfeed_attenuation),
                                 valueText = String.format(Locale.ROOT, "%.1f dB", crossfeedAttenuationTenthsDb / 10f),
-                                value = crossfeedAttenuationTenthsDb,
+                            value = crossfeedAttenuationTenthsDb,
+                            inputScale = 10f,
                                 range = AudioEffectSettings.CROSSFEED_ATTENUATION_MIN_TENTHS_DB..AudioEffectSettings.CROSSFEED_ATTENUATION_MAX_TENTHS_DB,
                                 onChange = { scope.launch { settingsManager.setCrossfeedAttenuationTenthsDb(it) } }
                             )
@@ -958,6 +964,7 @@ private fun EqBandColumn(
     onLevelChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showInput by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -981,9 +988,16 @@ private fun EqBandColumn(
             text = gainLabel,
             fontSize = 11.sp,
             color = MiuixTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.clickable { showInput = true }
         )
     }
+    SettingsNumberInputDialog(
+        show = showInput, title = "$freqLabel (dB)", value = levelMb / 100f,
+        valueRange = minMb / 100f..maxMb / 100f, decimalPlaces = 2,
+        onDismissRequest = { showInput = false },
+        onSave = { onLevelChange((it * 100f).roundToInt().coerceIn(minMb, maxMb)) }
+    )
 }
 
 @Composable
@@ -992,15 +1006,17 @@ private fun EqControlSlider(
     valueText: String,
     value: Int,
     range: IntRange,
+    inputScale: Float = 1f,
     onChange: (Int) -> Unit
 ) {
+    var showInput by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable { showInput = true },
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = title, fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurface)
@@ -1017,6 +1033,13 @@ private fun EqControlSlider(
             valueRange = range.first.toFloat()..range.last.toFloat()
         )
     }
+    SettingsNumberInputDialog(
+        show = showInput, title = title, value = value / inputScale,
+        valueRange = range.first / inputScale..range.last / inputScale,
+        decimalPlaces = when (inputScale) { 10f -> 1; 100f -> 2; else -> 0 },
+        onDismissRequest = { showInput = false },
+        onSave = { onChange((it * inputScale).roundToInt().coerceIn(range)) }
+    )
 }
 
 @Composable

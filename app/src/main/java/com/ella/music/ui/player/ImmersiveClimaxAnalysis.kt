@@ -1,9 +1,7 @@
 // Adapted from RawS Music, Copyright 2024–2026 RawSMusic Contributors, Apache-2.0.
 package com.ella.music.ui.player
 
-import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 

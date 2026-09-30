@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="netease_comments_default_tab">علامة تبويب تعليقات NetEase الافتراضية</string>
+    <string name="netease_comments_default_tab_summary">اختر علامة التبويب التي تظهر عند فتح تعليقات الأغاني والألبومات ومقاطع الفيديو الموسيقية</string>
     <string name="netease_comments_open">التعليقات</string>
     <string name="netease_comments_title">التعليقات</string>
     <string name="netease_comments_title_count">التعليقات (%1$s)</string>

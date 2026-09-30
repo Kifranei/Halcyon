@@ -73,6 +73,17 @@ class PinnedBackupCategoryTest {
         )
     }
 
+    @Test fun manualNumberInputPreservesExactValuesAndRejectsInvalidRanges() {
+        assertEquals(1000f, parseSettingsNumberInput("1000", 300f..3000f, 0))
+        assertEquals(125f, parseSettingsNumberInput("125", 50f..200f, 0))
+        assertEquals(-123f, parseSettingsNumberInput("-123", -5000f..5000f, 0))
+        assertEquals(0.85f, parseSettingsNumberInput("0,85", 0.5f..2f, 2))
+        for (invalid in listOf("NaN", "Infinity", "abc", "3", "0.4")) {
+            assertEquals(null, parseSettingsNumberInput(invalid, 0.5f..2f, 2))
+        }
+        assertEquals(null, parseSettingsNumberInput("1000.5", 300f..3000f, 0))
+    }
+
     @Test
     fun secondsInputParsesToMilliseconds() {
         assertEquals(1_000, parseSecondsInputToMs("1", 100, 3_000))

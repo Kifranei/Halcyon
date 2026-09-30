@@ -512,12 +512,22 @@ internal fun PlayerDetailPage(
                                 summary = neteaseInfo.albumName.ifBlank { neteaseInfo.albumId },
                                 onClick = onNeteaseAlbum
                             )
+                            PlayerDetailGroupedActionRow(
+                                title = stringResource(R.string.netease_link_album_comments),
+                                summary = neteaseInfo.albumName.ifBlank { neteaseInfo.albumId },
+                                onClick = { com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.AlbumComment, neteaseInfo.albumId) }
+                            )
                         }
                         neteaseInfo.mvId.takeIf(String::isNotBlank)?.let { mvId ->
                             PlayerDetailGroupedActionRow(
                                 title = stringResource(R.string.player_detail_music_video),
                                 summary = neteaseInfo.musicName.ifBlank { mvId },
                                 onClick = onNeteaseMusicVideo
+                            )
+                            PlayerDetailGroupedActionRow(
+                                title = stringResource(R.string.netease_link_mv_comments),
+                                summary = neteaseInfo.musicName.ifBlank { mvId },
+                                onClick = { com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.MusicVideoComment, mvId) }
                             )
                         }
                     }

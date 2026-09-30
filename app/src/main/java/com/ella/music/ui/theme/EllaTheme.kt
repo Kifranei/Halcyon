@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.Density
 import com.ella.music.data.SettingsManager
 import com.ella.music.ui.settings.SYSTEM_FONT_PATH
 import com.ella.music.ui.components.loadAndroidTypeface
+import com.ella.music.ui.components.ScriptFontPaths
+import com.ella.music.ui.player.ensureBundledInterPath
+import com.ella.music.ui.player.ensureBundledMiSansBoldPath
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
@@ -33,8 +36,8 @@ const val MONET_CUSTOM = 3   // user-selected Miuix accent color
 @Composable
 fun EllaTheme(
     themeMode: Int = THEME_FOLLOW_SYSTEM,
-    appFontPath: String = "",
-    appFontWeight: Int = 700,
+    appFontPath: String? = null,
+    appFontWeight: Int? = null,
     monetMode: Int = MONET_OFF,
     keyColor: Color? = null,
     systemDarkOverride: Boolean? = null,
@@ -92,11 +95,29 @@ fun EllaTheme(
             fontScale = baseDensity.fontScale * appFontScalePercent / 100f
         )
     }
+    val appIconStyle by settingsManager.appIconStyle.collectAsState(initial = SettingsManager.APP_ICON_STYLE_DEFAULT)
+    val recentsIconFollowsSystemTheme by settingsManager.recentsIconFollowsSystemTheme.collectAsState(
+        initial = SettingsManager.DEFAULT_RECENTS_ICON_FOLLOWS_SYSTEM_THEME
+    )
+    androidx.compose.runtime.LaunchedEffect(context, appIconStyle, recentsIconFollowsSystemTheme) {
+        com.ella.music.data.AppIconManager.updateTaskIcon(context, appIconStyle, recentsIconFollowsSystemTheme)
+    }
+    val legacyFont by settingsManager.lyricFontPath.collectAsState(initial = "")
+    val westernFont by settingsManager.globalWesternFontPath.collectAsState(initial = "")
+    val cjkFont by settingsManager.globalCjkFontPath.collectAsState(initial = "")
+    val storedFontWeight by settingsManager.lyricFontWeight.collectAsState(initial = 700)
+    val effectiveFontPath = appFontPath ?: remember(context, legacyFont, westernFont, cjkFont) {
+        ScriptFontPaths(
+            westernFont.ifBlank { legacyFont.ifBlank { ensureBundledInterPath(context) } },
+            cjkFont.ifBlank { ensureBundledMiSansBoldPath(context) }
+        ).encode()
+    }
+    val effectiveFontWeight = appFontWeight ?: storedFontWeight
     val appFontFamily = remember(context) {
         bundledMiSansBoldFontFamily(context)
     }
-    val customAppFontFamily = remember(appFontPath, appFontWeight) {
-        appFontPath.toCustomAppFontFamily(appFontWeight)
+    val customAppFontFamily = remember(effectiveFontPath, effectiveFontWeight) {
+        effectiveFontPath.toCustomAppFontFamily(effectiveFontWeight)
     }
     val preferMiSansByDefault = remember {
         !isXiaomiFamilyDevice()

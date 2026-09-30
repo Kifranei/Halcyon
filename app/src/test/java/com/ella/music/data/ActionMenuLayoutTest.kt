@@ -13,6 +13,42 @@ class ActionMenuLayoutTest {
     private val defaults = listOf("a", "b", "c")
 
     @Test
+    fun `comment rows stay configurable for both player and song list menus`() {
+        listOf(ActionMenuIds.playerActionMenuDefaults, ActionMenuIds.listDefaults).forEach { defaults ->
+            val comments = setOf(ActionMenuIds.SONG_COMMENTS, ActionMenuIds.MV_COMMENTS)
+            assertTrue(defaults.containsAll(comments))
+            assertTrue(ActionMenuIds.VIEW_MV in defaults)
+            val saved = defaults.filterNot { it in comments }.reversed()
+            val layout = ActionMenuLayout.parse(saved.joinToString(",") + ";" + comments.joinToString(","), defaults)
+            assertEquals(saved, layout.order.filterNot { it in comments })
+            assertTrue(layout.visibleIds(defaults).none { it in comments })
+            assertEquals(layout, ActionMenuLayout.parse(layout.serialize(), defaults))
+        }
+    }
+
+    @Test
+    fun `lyric sharing is configurable and stays hidden after editing player menu`() {
+        val defaults = ActionMenuIds.playerActionMenuDefaults
+        assertTrue(ActionMenuIds.LYRIC_SHARE in defaults)
+        assertTrue(ActionMenuIds.LYRIC_SHARE in ActionMenuIds.playerShortcutCatalog)
+        val saved = listOf(ActionMenuIds.LYRIC_SHARE) + defaults.filterNot { it == ActionMenuIds.LYRIC_SHARE }
+        val layout = ActionMenuLayout.parse(saved.joinToString(",") + ";" + ActionMenuIds.LYRIC_SHARE, defaults)
+        val edited = ActionMenuLayout.parse(layout.serialize(), defaults)
+        assertEquals(saved, edited.order)
+        assertFalse(ActionMenuIds.LYRIC_SHARE in edited.visibleIds(defaults))
+    }
+
+    @Test
+    fun `older player menus acquire lyric sharing without changing saved order or visibility`() {
+        val defaults = ActionMenuIds.playerActionMenuDefaults
+        val saved = defaults.filterNot { it == ActionMenuIds.LYRIC_SHARE }.reversed()
+        val layout = ActionMenuLayout.parse(saved.joinToString(",") + ";" + ActionMenuIds.SHARE, defaults)
+        assertEquals(saved, layout.order.filterNot { it == ActionMenuIds.LYRIC_SHARE })
+        assertTrue(ActionMenuIds.LYRIC_SHARE in layout.visibleIds(defaults))
+        assertFalse(ActionMenuIds.SHARE in layout.visibleIds(defaults))
+    }
+
+    @Test
     fun `saved order and hidden actions stay independent`() {
         val layout = ActionMenuLayout.parse("c,a,b;b", defaults)
         assertEquals(listOf("c", "a", "b"), layout.order)

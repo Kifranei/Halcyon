@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_library_continue_playback_row_summary">在音樂庫頁顯示上次播放的歌曲</string>
+    <string name="settings_category_continue_playback_row">各分類詳細頁：顯示「繼續播放」功能列</string>
+    <string name="settings_category_continue_playback_row_summary">在專輯、藝人、歌單、資料夾等詳細頁顯示該分類上次播放的歌曲</string>
+    <string name="netease_link_custom_comments_summary">留空使用原生評論頁，支援分頁、樓層、按讚和回覆。自訂連結可使用 {id} 替換資源ID</string>
+    <string name="recent_playback_folder_types">資料夾分頁顯示類型</string>
+    <string name="recent_playback_mv_types">MV分頁顯示類型</string>
+    <string name="recent_playback_nested_folder">巢狀資料夾</string>
+    <string name="recent_playback_local_mv">本機MV</string>
+    <string name="recent_playback_online_mv">線上MV</string>
+    <string name="recent_playback_delete_online_mv_message">永久刪除「%1$s」的MV播放記錄？</string>
+</resources>

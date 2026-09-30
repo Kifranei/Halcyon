@@ -24,7 +24,6 @@ import com.ella.music.data.ArtistCoverAsset
 import com.ella.music.data.ArtistImageRepository
 import com.ella.music.data.matchesArtistName
 import com.ella.music.data.model.Album
-import com.ella.music.data.model.Artist
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.RemoteAudioCache
@@ -52,7 +51,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -235,10 +233,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scanMusicIfAutoEnabled()
     }
 
-    fun selectTab(index: Int) {
-        _selectedTab.value = index
-    }
-
     fun scanMusic(
         fullRescan: Boolean = false,
         deepRescan: Boolean? = null,
@@ -357,21 +351,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scanMusic(fullRescan = true, deepRescan = true)
     }
 
-    fun scanMusicForFolders(folders: List<String>, fullRescan: Boolean = false, deepRescan: Boolean = fullRescan) {
-        if (scanJob?.isActive == true || isScanning.value) return
-        val includeFolders = folders.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        if (includeFolders.isEmpty()) return
-        scanJob = viewModelScope.launch {
-            awaitCachedLibraryRestoreBeforeScanning()
-            scanWithIncludeFolders(
-                includeFolders = includeFolders,
-                preferExplicitFolders = true,
-                fullRescan = fullRescan,
-                deepRescan = deepRescan
-            )
-        }
-    }
-
     /**
      * Refreshes (re-scans) the songs within the given [folders] and **merges** the results into
      * the current library. Unlike [scanMusicForFolders], this does NOT replace the entire library —
@@ -437,11 +416,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun awaitCachedLibraryRestoreBeforeScanning() {
         cachedLibraryLoadJob?.takeIf { it.isActive }?.join()
-    }
-
-    /** Wait until the persisted library snapshot is ready for the very first app frame. */
-    suspend fun awaitInitialLibraryRestore() {
-        cachedLibraryLoadJob?.join()
     }
 
     private suspend fun scanFromCurrentSettings(
@@ -589,24 +563,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return repository.getSongsForAlbum(albumId)
     }
 
-    fun getArtists(includeAlbumArtists: Boolean = false): List<Artist> {
-        return buildArtists(
-            songs = songs.value,
-            albums = albums.value,
-            includeAlbumArtists = includeAlbumArtists
-        )
-    }
-
     fun getSongsForArtist(artistName: String, includeAlbumArtist: Boolean = false): List<Song> {
         return filterSongsForArtist(
             songs = songs.value,
             artistName = artistName,
             includeAlbumArtist = includeAlbumArtist
         )
-    }
-
-    fun getAlbumsForArtist(artistName: String): List<Album> {
-        return getParticipatedAlbumsForArtist(artistName)
     }
 
     fun getParticipatedAlbumsForArtist(artistName: String): List<Album> {
@@ -641,10 +603,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         metadataCategoryItemsCache.entries.removeIf { (key, _) -> key.startsWith("$type:") && key != cacheKey }
         metadataCategoryItemsCache[cacheKey] = MetadataCategoryItemsCacheEntry(items)
         return items
-    }
-
-    fun getMetadataCategoryCount(type: String): Int {
-        return countMetadataCategories(songs.value, type)
     }
 
     fun getMetadataCategoryCounts(types: Collection<String>): Map<String, Int> {
@@ -688,11 +646,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getArtistCoverModel(song: Song): Any? = repository.getArtistCoverModel(song)
 
-    fun getMetadataEditorCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 1600, CoverUsage.Player)
-
     fun getReplayGain(song: Song): Float? {
         return repository.getReplayGain(song)
     }
+
+    fun getAudioQualityInfo(song: Song): AudioInfo = repository.getAudioQualityInfo(song)
+    val audioQualityRevision: Long get() = repository.audioQualityRevision
 
     fun getAudioInfo(song: Song): AudioInfo {
         return repository.getAudioInfo(song)
@@ -748,14 +707,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun interpretSongWithOpenAi(song: Song): String =
         aiCoordinator.interpretSong(song)
 
-    suspend fun recommendPlaylistWithOpenAi(maxItems: Int = 30): AiPlaylistRecommendationResult =
-        aiCoordinator.recommendPlaylist(
-            librarySongs = songs.value,
-            playbackStats = playbackStats.value,
-            playbackHistory = playbackHistory.value,
-            maxItems = maxItems
-        )
-
     suspend fun chatWithOpenAiLibraryAssistant(
         message: String,
         conversationHistory: List<Pair<String, String>> = emptyList(),
@@ -801,10 +752,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (song.onlineId.isBlank() || !config.isConfigured) song
             else song.copy(path = service.streamUrl(config, song.onlineId, config.downloadMaxBitRate))
         }
-    }
-
-    fun cancelRemoteAudioCache() {
-        RemoteAudioCache.cancel()
     }
 
     val remoteAudioCacheProgress = RemoteAudioCache.progress

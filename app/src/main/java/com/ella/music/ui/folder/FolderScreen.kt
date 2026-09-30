@@ -7,7 +7,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,6 +51,7 @@ import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.LazyListScrollIndicator
+import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
@@ -187,7 +187,16 @@ fun FolderScreen(
                 },
                 titleStartPadding = if (showBackButton) 64.dp else 20.dp,
                 onDoubleTapTitle = { scrollToTopRequest++ },
+                bottomContent = {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.folder_display_settings), fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        FolderDisplayButton()
+                    }
+                },
                 actions = {
+
                     IconButton(onClick = onNavigateToScanSettings) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Settings,
@@ -475,6 +484,7 @@ fun FolderScreen(
                                 path = rootFolderPath,
                                 name = rootFolderPath.substringAfterLast('/').ifBlank { context.getString(R.string.folder_root) },
                                 songCount = rootSongs.size,
+                                coverSong = rootSongs.firstOrNull(),
                                 albumCount = rootSongs.map { it.albumIdentityId() }.distinct().size,
                                 duration = rootSongs.sumOf { it.duration },
                                 dateModified = rootSongs.maxOfOrNull { it.dateModified } ?: 0L
@@ -495,6 +505,8 @@ fun FolderScreen(
                         }
                     }
             }
+            val folderColumns = rememberFolderDisplaySettings().columns
+            val folderRows = remember(folders, folderColumns) { folders.chunked(folderColumns) }
             val listState = rememberLazyListState()
             RestoreListScrollAfterSearch(
                 searchExpanded = searchExpanded,
@@ -506,21 +518,22 @@ fun FolderScreen(
             }
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 160.dp)
+                    contentPadding = PaddingValues(bottom = 160.dp, end = if (folders.size > 30) ScrollIndicatorListEndPadding else 0.dp)
                 ) {
                     items(
-                        items = folders,
-                        key = { it.path }
-                    ) { folder ->
-                        FolderListRow(
-                            folder = folder,
-                            sortMode = folderSortMode,
-                            isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) },
-                            onClick = { onFolderClick(folder.path) },
-                            onLongClick = { folderMenuTarget = folder }
-                        )
+                        items = folderRows,
+                        key = { it.first().path }
+                    ) { row ->
+                        AdaptiveFolderRow(row, folderColumns, { it.path }) { folder ->
+                            if (folderColumns == 1) FolderListRow(
+                                folder, folderSortMode,
+                                pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) },
+                                onClick = { onFolderClick(folder.path) }, onLongClick = { folderMenuTarget = folder }
+                            ) else FolderHierarchyTile(folder, onClick = { onFolderClick(folder.path) }, onLongClick = { folderMenuTarget = folder })
+                        }
                     }
                 }
                 if (folders.size > 30) {
@@ -546,7 +559,7 @@ fun FolderScreen(
                 }
                 LocateCurrentSongFloatingButton(
                     listState = listState,
-                    currentItemIndex = currentFolderIndex,
+                    currentItemIndex = if (currentFolderIndex < 0) -1 else currentFolderIndex / folderColumns,
                     locateRequest = locateCurrentSongRequest,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)

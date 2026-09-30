@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -226,7 +224,7 @@ internal fun LyricsPlayerPage(
                             onLineClick = onLineClick,
                             onLineDoubleClick = onLineDoubleClick,
                             onLineLongClick = onLineLongClick,
-                            nonCurrentLineBlurEnabled = !useCustomPlayerBackground,
+                            nonCurrentLineBlurEnabled = true,
                             topContentPadding = 72.dp,
                             bottomContentPadding = 72.dp,
                             useFocusLeadingPadding = false,
@@ -237,8 +235,6 @@ internal fun LyricsPlayerPage(
                 }
             }
         }
-
-
 
         LyricsPlayerMenuSheet(
             show = lyricMenuExpanded,

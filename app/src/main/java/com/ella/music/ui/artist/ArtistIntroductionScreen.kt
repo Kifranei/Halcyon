@@ -50,7 +50,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.collectAsState
 import com.ella.music.data.lastfm.ArtistBioMenuSource
-import com.ella.music.data.lastfm.LastFmCloudflareChallengeException
+import com.ella.music.data.lastfm.LastFmVerificationRequiredException
 import com.ella.music.data.lastfm.fetchLastFmArtistWiki
 import com.ella.music.data.lastfm.LastFmSecureStore
 import com.ella.music.ui.components.EllaMiuixBottomSheet
@@ -65,6 +65,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -75,6 +76,7 @@ internal fun ArtistIntroductionScreen(
     artistName: String,
     songs: List<Song>,
     coverModel: Any?,
+    onOpenLastFmSettings: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -101,7 +103,7 @@ internal fun ArtistIntroductionScreen(
     var fetching by remember { mutableStateOf(false) }
     var pendingFetchOption by remember { mutableStateOf<ArtistBioSourceOption?>(null) }
     var challengeUrl by remember { mutableStateOf<String?>(null) }
-    var showCloudflareSheet by remember { mutableStateOf(false) }
+    var showVerificationSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(contentKey) {
         record = withContext(Dispatchers.IO) { store.load(artistName, songs) }
@@ -361,10 +363,10 @@ internal fun ArtistIntroductionScreen(
                     ).show()
                 }
             }.onFailure { error ->
-                if (error is LastFmCloudflareChallengeException) {
+                if (error is LastFmVerificationRequiredException) {
                     pendingFetchOption = option
                     challengeUrl = error.url
-                    showCloudflareSheet = true
+                    showVerificationSheet = true
                 } else {
                     val errorMsg = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
                     Toast.makeText(
@@ -476,19 +478,38 @@ internal fun ArtistIntroductionScreen(
                         }
                     }
                 }
+                Text(
+                    text = stringResource(R.string.lastfm_biography_api_hint),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+                Button(
+                    onClick = {
+                        showFetchSheet = false
+                        onOpenLastFmSettings()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                ) {
+                    Text(text = stringResource(R.string.lastfm_biography_api_settings))
+                }
             }
         }
     }
 
-    if (showCloudflareSheet && challengeUrl != null) {
-        LastFmCloudflareVerificationSheet(
+    if (showVerificationSheet && challengeUrl != null) {
+        LastFmVerificationSheet(
             url = challengeUrl!!,
+            onOpenApiSettings = {
+                showVerificationSheet = false
+                pendingFetchOption = null
+                onOpenLastFmSettings()
+            },
             onDismissRequest = {
-                showCloudflareSheet = false
+                showVerificationSheet = false
                 pendingFetchOption = null
             },
             onVerified = {
-                showCloudflareSheet = false
+                showVerificationSheet = false
                 val pending = pendingFetchOption
                 pendingFetchOption = null
                 if (pending != null) {

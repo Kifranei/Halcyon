@@ -30,6 +30,20 @@ data class MusicFreeOnlineSong(
     val coverUrl: String = ""
 )
 
+data class MusicFreeSearchPage(
+    val songs: List<MusicFreeOnlineSong>,
+    val isEnd: Boolean?
+)
+
+internal data class MusicFreeRawSearchPage(val data: JSONArray, val isEnd: Boolean?) {
+    companion object {
+        fun fromJson(value: JSONObject) = MusicFreeRawSearchPage(
+            data = value.optJSONArray("data") ?: JSONArray(),
+            isEnd = value.opt("isEnd") as? Boolean
+        )
+    }
+}
+
 data class MusicFreeImportResult(
     val plugins: List<MusicFreePluginConfig>,
     val skippedCount: Int = 0
@@ -85,19 +99,6 @@ class MusicFreePluginService(private val context: Context? = null) {
                 )
             )
         )
-    }
-
-    @Deprecated("Use importPlugins so repository links and single scripts are handled consistently.")
-    suspend fun importPlugin(url: String): Pair<String, String> = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url(url.trim().requireHttpsUrl("MusicFree source"))
-            .header("User-Agent", USER_AGENT)
-            .header("Cache-Control", "no-cache")
-            .build()
-        importClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("导入失败: HTTP ${response.code}")
-            importPluginScript(response.body?.byteStream()?.use { it.readUtf8Bounded(9_000_000L) }.orEmpty(), allowRuntimeInspect = context != null)
-        }
     }
 
     fun importPluginScript(
@@ -193,29 +194,32 @@ class MusicFreePluginService(private val context: Context? = null) {
         keyword: String,
         plugin: MusicFreePluginConfig?,
         page: Int = 1
-    ): List<MusicFreeOnlineSong> = withContext(Dispatchers.IO) {
+    ): MusicFreeSearchPage = withContext(Dispatchers.IO) {
         if (plugin == null) error("请先选择一个 MusicFree 插件")
         if (context == null) error("MusicFree 运行环境未初始化")
         val normalizedKeyword = keyword.trim()
         val safePage = page.coerceAtLeast(1)
-        val rawItems = runCatching {
+        val rawResult = runCatching {
             MusicFreePluginRuntime(context, client).use { runtime ->
                 runtime.search(plugin.script, normalizedKeyword, safePage)
             }
         }.getOrElse { error ->
             if (error.message?.contains("lists", ignoreCase = true) == true && plugin.looksLikeKugouPlugin()) {
-                searchKugouFallback(normalizedKeyword, safePage)
+                val data = searchKugouFallback(normalizedKeyword, safePage)
+                JSONObject().put("data", data).put("isEnd", data.length() < 20)
             } else {
                 throw error
             }
         }
-        val items = rawItems.toJsonObjects()
+        val rawPage = MusicFreeRawSearchPage.fromJson(rawResult)
+        val items = rawPage.data.toJsonObjects()
         val durationBySongMid = fetchQqDurationsIfNeeded(plugin.name, items)
-        items.mapNotNull { item ->
+        val songs = items.mapNotNull { item ->
             item.toOnlineSong(plugin.name)?.let { onlineSong ->
                 enrichMissingDuration(item, onlineSong, durationBySongMid)
             }
         }
+        MusicFreeSearchPage(songs, rawPage.isEnd)
     }
 
     suspend fun resolvePlayableSong(item: MusicFreeOnlineSong, plugin: MusicFreePluginConfig?): Song = withContext(Dispatchers.IO) {

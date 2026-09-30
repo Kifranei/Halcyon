@@ -9,6 +9,20 @@ import java.io.File
 
 class AppIconManagerTest {
     @Test
+    fun `traditional icon is selectable without replacing the default`() {
+        assertEquals(SettingsManager.APP_ICON_STYLE_TRADITIONAL, AppIconManager.normalize("traditional"))
+        assertEquals(SettingsManager.APP_ICON_STYLE_DEFAULT, AppIconManager.normalize(null))
+        assertEquals(SettingsManager.APP_ICON_STYLE_DEFAULT, AppIconManager.normalize("unknown"))
+        val manifest = listOf(File("src/main/AndroidManifest.xml"), File("app/src/main/AndroidManifest.xml"))
+            .first { it.exists() }.readText()
+        val traditional = manifest.substringAfter("android:name=\"com.ella.music.TraditionalLauncherAlias\"")
+            .substringBefore("</activity-alias>")
+        assertTrue(traditional.contains("android:enabled=\"false\""))
+        assertTrue(traditional.contains("@mipmap/ic_launcher_traditional"))
+    }
+
+
+    @Test
     fun `removed black hair preference migrates to default icon`() {
         assertEquals(SettingsManager.APP_ICON_STYLE_DEFAULT, AppIconManager.normalize("black_hair"))
     }

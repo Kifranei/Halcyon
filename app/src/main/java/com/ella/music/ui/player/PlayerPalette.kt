@@ -155,16 +155,6 @@ internal data class PlayerPalette(
             )
         }
 
-        fun fromLyricBackground(bitmap: Bitmap?, light: Boolean = false): PlayerPalette {
-            val accent = representativeAccent(bitmap)?.toPlayerAccent() ?: return if (light) LightDefault else Default
-            return if (light) lightPalette(accent) else PlayerPalette(
-                top = accent.darken(0.42f),
-                middle = accent.darken(0.68f),
-                bottom = accent.darken(0.88f),
-                accent = accent
-            )
-        }
-
         /**
          * A tinted-light background derived from the cover accent, mirroring the dark gradient:
          * keep a visible pastel of the cover (not near-white) that fades lighter toward the bottom,

@@ -7,6 +7,16 @@ import org.junit.Test
 class LyricRomanizationScriptTest {
 
     @Test
+    fun dashSpaceCreditsCannotBeInferredAsReadings() {
+        assertTrue("  - harmoe".excludesPronunciationInference())
+        assertTrue("ka ze\n- harmoe".excludesPronunciationInference())
+        assertFalse("- ka ze".looksLikeCjkReading())
+        assertFalse("- chūn xiāo".looksLikeCjkReading())
+        assertFalse("ka-ze".excludesPronunciationInference())
+        assertFalse("-ka ze".excludesPronunciationInference())
+    }
+
+    @Test
     fun vietnameseLettersAreNotRomanizationLetters() {
         listOf(
             "Khi màn đêm vừa buông",

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -60,13 +61,11 @@ import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.AudioQualityListBadge
 import com.ella.music.ui.components.DefaultAlbumCover
-import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.player.DynamicCoverSource
 import com.ella.music.ui.player.DynamicCoverVideo
 import com.ella.music.ui.components.ExplicitSongTitle
 import com.ella.music.ui.components.PlayNextQuickButton
 import com.ella.music.ui.components.MusicVideoListAction
-import com.ella.music.ui.components.openSongExternalUrl
 import com.ella.music.ui.components.rememberSongListVideoActions
 import com.ella.music.ui.components.RatingStarIcon
 import com.ella.music.ui.components.SafeCoverImage
@@ -561,6 +560,7 @@ internal fun AlbumHeader(
     albumCoverModel: Any?,
     hasNeteaseAlbum: Boolean,
     onNeteaseAlbumClick: () -> Unit,
+    onNeteaseCommentsClick: () -> Unit = {},
     onAlbumArtistClick: () -> Unit,
     onIntroductionClick: () -> Unit,
     onCoverClick: () -> Unit,
@@ -582,6 +582,7 @@ internal fun AlbumHeader(
             albumCoverModel = albumCoverModel,
             hasNeteaseAlbum = hasNeteaseAlbum,
             onNeteaseAlbumClick = onNeteaseAlbumClick,
+            onNeteaseCommentsClick = onNeteaseCommentsClick,
             onAlbumArtistClick = onAlbumArtistClick,
             onIntroductionClick = onIntroductionClick,
             onCoverClick = onCoverClick,
@@ -597,6 +598,7 @@ internal fun AlbumHeader(
             albumCoverModel = albumCoverModel,
             hasNeteaseAlbum = hasNeteaseAlbum,
             onNeteaseAlbumClick = onNeteaseAlbumClick,
+            onNeteaseCommentsClick = onNeteaseCommentsClick,
             onAlbumArtistClick = onAlbumArtistClick,
             onIntroductionClick = onIntroductionClick,
             onCoverClick = onCoverClick,
@@ -617,6 +619,7 @@ private fun CompactAlbumHeader(
     albumCoverModel: Any?,
     hasNeteaseAlbum: Boolean,
     onNeteaseAlbumClick: () -> Unit,
+    onNeteaseCommentsClick: () -> Unit = {},
     onAlbumArtistClick: () -> Unit,
     onIntroductionClick: () -> Unit,
     onCoverClick: () -> Unit,
@@ -736,30 +739,26 @@ private fun CompactAlbumHeader(
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(999.dp))
+                .background(MiuixTheme.colorScheme.surfaceContainer),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.weight(1f).clip(RoundedCornerShape(999.dp))
-                    .background(MiuixTheme.colorScheme.surfaceContainer)
-                    .clickable(onClick = onPlayAll).padding(horizontal = 18.dp, vertical = 14.dp),
+                modifier = Modifier.weight(1f).fillMaxHeight().clickable(onClick = onPlayAll).padding(horizontal = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(MiuixIcons.Regular.Play, null, modifier = Modifier.size(24.dp))
-                Text(stringResource(R.string.album_play_all), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Icon(MiuixIcons.Regular.Play, null, modifier = Modifier.size(20.dp))
+                Text(stringResource(R.string.album_play_all), fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
             if (hasNeteaseAlbum) {
-                Text(
-                    text = stringResource(R.string.player_netease_album_page),
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                Box(Modifier.width(1.dp).height(14.dp).background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.12f)))
+                Text(stringResource(R.string.netease_album_comment_button), fontSize = 13.sp,
+                    modifier = Modifier.clickable(onClick = onNeteaseCommentsClick).padding(horizontal = 12.dp, vertical = 10.dp))
+                Box(Modifier.width(1.dp).height(14.dp).background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.12f)))
+                Text(stringResource(R.string.player_netease_album_page), fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp))
-                        .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.10f))
-                        .clickable(onClick = onNeteaseAlbumClick)
-                        .padding(horizontal = 14.dp, vertical = 14.dp)
-                )
+                    modifier = Modifier.clickable(onClick = onNeteaseAlbumClick).padding(horizontal = 12.dp, vertical = 10.dp))
             }
         }
     }
@@ -772,6 +771,7 @@ private fun ImmersiveAlbumHeader(
     albumCoverModel: Any?,
     hasNeteaseAlbum: Boolean,
     onNeteaseAlbumClick: () -> Unit,
+    onNeteaseCommentsClick: () -> Unit = {},
     onAlbumArtistClick: () -> Unit,
     onIntroductionClick: () -> Unit,
     onCoverClick: () -> Unit,
@@ -933,6 +933,8 @@ private fun ImmersiveAlbumHeader(
                 )
             }
             if (hasNeteaseAlbum) {
+                Text(stringResource(R.string.netease_album_comment_button), color = Color.White,
+                    modifier = Modifier.clickable(onClick = onNeteaseCommentsClick).padding(10.dp))
                 Text(
                     text = stringResource(R.string.player_netease_album_page),
                     fontSize = 13.sp,

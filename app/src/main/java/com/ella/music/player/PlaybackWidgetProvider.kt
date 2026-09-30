@@ -26,7 +26,6 @@ import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import androidx.compose.ui.graphics.toArgb
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import com.ella.music.MainActivity
 import com.ella.music.R
