@@ -1,0 +1,71 @@
+name: iOS Port
+on:
+  pull_request:
+    branches: [main]
+    paths: ['ports/**', '.github/workflows/ios-build.yml']
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ports/package-lock.json
+      - run: npm ci
+        working-directory: ports
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm test && npm run prepare:ios
+        working-directory: ports
+      - name: Build iPhone and iPad simulator app
+        run: xcodebuild -project ports/ios/Halcyon.xcodeproj -scheme Halcyon -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ports/ios/build CODE_SIGNING_ALLOWED=NO build
+      - name: Build unsigned device app
+        run: xcodebuild -project ports/ios/Halcyon.xcodeproj -scheme Halcyon -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath ports/ios/build CODE_SIGNING_ALLOWED=NO build
+      - name: Run iPhone interface and native functional regression
+        id: iphone-tests
+        timeout-minutes: 25
+        run: |
+          python3 ports/scripts/fixture-server.py > ports/ios/fixture-server.log 2>&1 &
+          FIXTURE_PID=$!
+          trap 'kill "$FIXTURE_PID" 2>/dev/null || true' EXIT
+          curl --retry 10 --retry-connrefused --retry-delay 1 --fail http://127.0.0.1:8765/health
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(d["udid"] for devices in data["devices"].values() for d in devices if d["isAvailable"] and d["name"].startswith("iPhone")))')
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcodebuild -project ports/ios/Halcyon.xcodeproj -scheme Halcyon -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -derivedDataPath ports/ios/build -resultBundlePath ports/ios/smoke.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual CODE_SIGN_ENTITLEMENTS=Halcyon/SimulatorTests.entitlements test
+      - name: Run iPad layout and native playback regression
+        if: ${{ !cancelled() && (success() || steps.iphone-tests.outcome == 'failure') }}
+        timeout-minutes: 20
+        run: |
+          # Each device runs independently; release the previous simulator's resources.
+          xcrun simctl shutdown all || true
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(d["udid"] for devices in data["devices"].values() for d in devices if d["isAvailable"] and d["name"].startswith("iPad")))')
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcodebuild -project ports/ios/Halcyon.xcodeproj -scheme Halcyon -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -parallel-testing-enabled NO -derivedDataPath ports/ios/build -resultBundlePath ports/ios/ipad.xcresult -only-testing:HalcyonUITests/SmokeTests/testNativeAudioEffectsAndPausedQueueEditing CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual CODE_SIGN_ENTITLEMENTS=Halcyon/SimulatorTests.entitlements test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Halcyon-iOS-simulator-test-results
+          path: |
+            ports/ios/smoke.xcresult
+            ports/ios/ipad.xcresult
+            ports/ios/fixture-server.log
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Halcyon-iOS-builds-unsigned
+          path: |
+            ports/ios/build/Build/Products/Debug-iphonesimulator/Halcyon.app
+            ports/ios/build/Build/Products/Release-iphoneos/Halcyon.app
+          if-no-files-found: error

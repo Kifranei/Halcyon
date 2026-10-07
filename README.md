@@ -24,6 +24,12 @@
 
 ---
 
+## 跨平台版本
+
+`multiplatform` 分支同时包含 Android、iOS 与 Windows / macOS / Linux 桌面版。推送该分支会触发 **Actions → Multiplatform Build**，在一次工作流中并行构建全部平台，产物集中在该次运行的 Artifacts 中下载。
+
+iOS 与桌面端正在移植常用功能，功能范围和本地构建方法见 [跨平台使用说明](ports/README.md)。iOS 真机产物需自行完成 Apple 签名。
+
 ## ✨ 项目简介
 
 **Halcyon** 是一款基于 **Jetpack Compose、Miuix 和 AndroidX Media3** 构建的 Android 本地音乐播放器。

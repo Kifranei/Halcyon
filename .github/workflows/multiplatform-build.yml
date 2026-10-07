@@ -1,0 +1,56 @@
+name: Multiplatform Build
+on:
+  push:
+    branches: [multiplatform]
+  pull_request:
+    branches: [multiplatform]
+  workflow_dispatch:
+    inputs:
+      android_build_type:
+        description: Android build type (iOS and desktop also build)
+        type: choice
+        default: debug
+        options: [debug, release]
+permissions:
+  contents: read
+concurrency:
+  group: multiplatform-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    name: Android
+    uses: ./.github/workflows/android-build.yml
+    with:
+      build_type: ${{ inputs.android_build_type || 'debug' }}
+  ios:
+    name: iOS
+    uses: ./.github/workflows/ios-build.yml
+  desktop:
+    name: Desktop
+    uses: ./.github/workflows/desktop-build.yml
+  summary:
+    name: Build summary
+    if: always()
+    needs: [android, ios, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize all platform builds
+        env:
+          ANDROID_RESULT: ${{ needs.android.result }}
+          IOS_RESULT: ${{ needs.ios.result }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "## Halcyon multiplatform"
+            echo
+            echo "| Platform | Result | Artifact |"
+            echo "| --- | --- | --- |"
+            echo "| Android | $ANDROID_RESULT | arm64-v8a APK |"
+            echo "| iOS | $IOS_RESULT | Simulator and unsigned device apps, test results |"
+            echo "| Desktop | $DESKTOP_RESULT | Windows EXE, macOS DMG / ZIP, Linux AppImage / DEB |"
+            echo
+            echo "Download completed artifacts from [this build]($BUILD_URL)."
+            echo
+            echo "iOS device apps require Apple signing before installation. Desktop packages are unsigned."
+          } >> "$GITHUB_STEP_SUMMARY"

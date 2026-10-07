@@ -7,6 +7,12 @@ on:
   pull_request:
     branches:
       - main
+  workflow_call:
+    inputs:
+      build_type:
+        description: Android build type
+        type: string
+        default: debug
   workflow_dispatch:
     inputs:
       build_type:
@@ -69,13 +75,13 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build debug APK
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'debug' }}
+        if: ${{ inputs.build_type != 'release' }}
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
         run: ./gradlew --no-daemon :app:assembleDebug -PellaAbi=arm64-v8a --stacktrace
 
       - name: Build release APK
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'release' }}
+        if: ${{ inputs.build_type == 'release' }}
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
           ALLOW_DEBUG_SIGNED_RELEASE: "true"

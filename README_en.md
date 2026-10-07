@@ -24,6 +24,10 @@
 
 ---
 
+## Multiplatform branch
+
+The `multiplatform` branch contains Android, iOS and Windows / macOS / Linux desktop implementations. A push to this branch starts **Actions → Multiplatform Build** and builds all platforms in parallel and collects their artifacts in one run. See [port documentation](ports/README.md) for supported features and local build instructions. iOS device apps require Apple signing.
+
 ## ✨ Overview
 
 **Halcyon** is an Android local music player built with **Jetpack Compose, Miuix, and AndroidX Media3**.

@@ -1,0 +1,55 @@
+name: Desktop Port
+on:
+  pull_request:
+    branches: [main]
+    paths: ['ports/**', '.github/workflows/desktop-build.yml']
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: ports
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ports/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Smoke test actual Electron playback
+        timeout-minutes: 5
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+          npm run build && xvfb-run -a node desktop/smoke.mjs
+      - run: npm run package:desktop -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Regression test packaged Linux app
+        timeout-minutes: 5
+        if: runner.os == 'Linux'
+        run: HALCYON_SMOKE_EXECUTABLE="$PWD/desktop-dist/linux-unpacked/halcyon-ports" xvfb-run -a node desktop/smoke.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Halcyon-desktop-${{ matrix.os }}
+          path: |
+            ports/desktop-dist/*.exe
+            ports/desktop-dist/*.dmg
+            ports/desktop-dist/*.zip
+            ports/desktop-dist/*.AppImage
+            ports/desktop-dist/*.deb
+          if-no-files-found: error
