@@ -1,0 +1,8 @@
+node_modules/
+shared/dist/
+desktop-dist/
+ios/Halcyon/Web/
+ios/build/
+ios/*.xcresult/
+*.xcuserstate
+xcuserdata/

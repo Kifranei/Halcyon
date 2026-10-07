@@ -1,0 +1,72 @@
+{
+  "name": "halcyon-ports",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "desktop/main.mjs",
+  "description": "Halcyon shared iOS and desktop player",
+  "homepage": "https://github.com/Kifranei/Halcyon",
+  "author": "Kifranei",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "vite shared --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build shared --base ./",
+    "test": "node --test shared/tests/*.test.ts desktop/*.test.mjs",
+    "desktop": "npm run build && electron .",
+    "package:desktop": "npm run build && electron-builder",
+    "prepare:ios": "npm run build && node scripts/prepare-ios.mjs"
+  },
+  "dependencies": {
+    "music-metadata": "12.0.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "playwright-core": "^1.63.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  },
+  "build": {
+    "appId": "io.github.kifranei.halcyon",
+    "productName": "Halcyon",
+    "directories": {
+      "output": "desktop-dist"
+    },
+    "files": [
+      "shared/dist/**/*",
+      "desktop/**/*.mjs",
+      "desktop/preload.cjs",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.music"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "maintainer": "Kifranei <79257237+Kifranei@users.noreply.github.com>"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
