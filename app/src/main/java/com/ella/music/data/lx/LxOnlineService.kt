@@ -54,6 +54,22 @@ data class LxOnlineSong(
     val sourceMetadata: Map<String, String> = emptyMap()
 )
 
+/**
+ * Wraps a library [Song] carrying online identity (`onlineSource`/`onlineId`) into the
+ * [LxOnlineSong] shape required by [LxOnlineService.resolvePlayableSong].
+ *
+ * Songs imported from LX Music keep their `onlineSource`/`onlineId` but ship with an empty
+ * `path`, because LX Music resolves playback URLs lazily at play time. Such entries must be
+ * resolved through the configured LX source before they can be handed to the player.
+ */
+internal fun Song.toLxOnlineSong(quality: String = ""): LxOnlineSong = LxOnlineSong(
+    song = this,
+    source = onlineSource,
+    songmid = onlineId,
+    quality = quality,
+    coverUrl = coverUrl
+)
+
 internal const val MAX_LX_SOURCE_BYTES = 9_000_000L
 
 internal fun InputStream.readLxSourceText(): String = readUtf8Bounded(MAX_LX_SOURCE_BYTES)
