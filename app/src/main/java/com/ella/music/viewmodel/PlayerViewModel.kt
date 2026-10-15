@@ -14,6 +14,7 @@ import com.ella.music.data.lastfm.ListeningHistorySource
 import com.ella.music.data.PlaylistStore
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.lx.LxOnlineService
 import com.ella.music.ui.player.interludes
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -1905,7 +1906,62 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun livePositionMs(): Long = playerManager.livePositionMs()
 
     fun playQueueIndex(index: Int, startPlayback: Boolean = true) {
-        if (!lazyOnlineQueueController.playIndex(index, shouldPlay = startPlayback)) playerManager.playQueueIndex(index, startPlayback)
+        if (!lazyOnlineQueueController.playIndex(index, shouldPlay = startPlayback)) {
+            if (!adoptLibraryOnlineQueue(index, startPlayback)) {
+                playerManager.playQueueIndex(index, startPlayback)
+            }
+        }
+    }
+
+    /**
+     * Adopts the current library queue into the lazy online queue when the requested entry is an
+     * unresolved online song.
+     *
+     * Songs imported from LX Music keep `onlineSource`/`onlineId` but have an empty `path`
+     * (LX Music resolves URLs lazily). Playing such an entry used to fall through to
+     * [ExoPlayerManager.playQueueIndex], which handed the empty string to ExoPlayer as a local
+     * file path - producing `ERROR_CODE_IO_FILE_NOT_FOUND` with an empty `uri=` and silently
+     * skipping every track. Routing through [LazyOnlineQueue] resolves the URL on demand.
+     *
+     * @return true when this call takes over playback (resolution is dispatched asynchronously).
+     */
+    private fun adoptLibraryOnlineQueue(index: Int, shouldPlay: Boolean): Boolean {
+        val songs = playlist.value
+        val target = songs.getOrNull(index) ?: return false
+        // Already playable locally or via a direct URL: keep the existing fast path.
+        if (target.path.isNotBlank()) return false
+        // No online identity: nothing to resolve, let the existing path report the error.
+        if (target.onlineSource.isBlank() || target.onlineId.isBlank()) return false
+
+        viewModelScope.launch {
+            val sourceScript = runCatching {
+                com.ella.music.data.SettingsManager.getInstance(getApplication())
+                    .selectedLxSource.first()?.script.orEmpty()
+            }.getOrDefault("")
+
+            if (sourceScript.isBlank()) {
+                // No LX source configured: keep previous behaviour so the player still surfaces
+                // its own error instead of silently doing nothing.
+                playerManager.playQueueIndex(index, shouldPlay)
+                return@launch
+            }
+
+            runCatching {
+                val service = com.ella.music.data.lx.LxOnlineService(getApplication())
+                val resolved = service.resolvePlayableSong(target.toLxOnlineSong(), sourceScript)
+                setLazyOnlinePlaylist(
+                    songs = songs,
+                    startIndex = index,
+                    resolvedStartSong = resolved
+                ) { song ->
+                    service.resolvePlayableSong(song.toLxOnlineSong(), sourceScript)
+                }
+            }.onFailure {
+                // Resolution failed: fall back so the failure stays visible to the user.
+                playerManager.playQueueIndex(index, shouldPlay)
+            }
+        }
+        return true
     }
 
     fun removeFromPlaylist(index: Int) {
