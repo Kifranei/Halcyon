@@ -15,6 +15,7 @@ import com.ella.music.data.PlaylistStore
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lx.LxOnlineService
+import com.ella.music.data.lx.toLxOnlineSong
 import com.ella.music.ui.player.interludes
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
