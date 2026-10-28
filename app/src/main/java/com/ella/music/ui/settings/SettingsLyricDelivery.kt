@@ -5,12 +5,15 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.player.OriginOsMediaIslandAccess
 import com.ella.music.player.VivoAtomWalkmanWhitelist
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
@@ -39,6 +42,9 @@ internal fun SettingsLiveUpdateLyricControls(
         initial = SettingsManager.LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG
     )
     val vivoAtomWalkmanEnabled by settingsManager.vivoAtomWalkmanWhitelistEnabled.collectAsState(initial = false)
+    val vivoMediaIslandEnabled by settingsManager.vivoMediaIslandEnabled.collectAsState(initial = false)
+    val vivoMediaIslandOnly by settingsManager.vivoMediaIslandOnly.collectAsState(initial = false)
+    var applyingVivoMediaIsland by remember { mutableStateOf(false) }
     val labels = listOf(
         stringResource(R.string.settings_live_update_lyric_original),
         stringResource(R.string.settings_live_update_lyric_translation),
@@ -181,6 +187,60 @@ internal fun SettingsLiveUpdateLyricControls(
             )
             } // search-anchor:end
 
+        }
+    }
+
+    if (remember { OriginOsMediaIslandAccess.isSupportedDevice() } /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_enable_vivo_media_island, R.string.settings_vivo_media_island_only)) {
+        SettingsFocusAnchor(active = highlightKey == "vivo_media_island") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_enable_vivo_media_island) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_enable_vivo_media_island),
+                    summary = stringResource(R.string.settings_enable_vivo_media_island_summary),
+                    checked = vivoMediaIslandEnabled,
+                    enabled = !applyingVivoMediaIsland,
+                    onCheckedChange = { nextEnabled ->
+                        if (!applyingVivoMediaIsland) {
+                            applyingVivoMediaIsland = true
+                            scope.launch {
+                                try {
+                                    if (!nextEnabled) {
+                                        // Stop the local island even if Shizuku is unavailable.
+                                        settingsManager.setVivoMediaIslandEnabled(false)
+                                        OriginOsMediaIslandAccess.setEnabled(
+                                            context, false, requestPermission = false
+                                        )
+                                    } else if (OriginOsMediaIslandAccess.setEnabled(context, true)) {
+                                        settingsManager.setVivoMediaIslandEnabled(true)
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            R.string.settings_vivo_media_island_failed,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                } finally {
+                                    applyingVivoMediaIsland = false
+                                }
+                            }
+                        }
+                    }
+                )
+                } // search-anchor:end
+        }
+        SettingsFocusAnchor(active = highlightKey == "vivo_media_island_only") {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_vivo_media_island_only) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_vivo_media_island_only),
+                    summary = stringResource(R.string.settings_vivo_media_island_only_summary),
+                    checked = vivoMediaIslandOnly,
+                    enabled = vivoMediaIslandEnabled && !applyingVivoMediaIsland,
+                    onCheckedChange = { nextEnabled ->
+                        scope.launch { settingsManager.setVivoMediaIslandOnly(nextEnabled) }
+                    }
+                )
+            } // search-anchor:end
         }
     }
 }

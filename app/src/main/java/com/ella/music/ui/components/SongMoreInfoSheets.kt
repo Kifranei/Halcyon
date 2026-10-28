@@ -24,7 +24,6 @@ import androidx.compose.runtime.setValue
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.focusRequester
 import top.yukonga.miuix.kmp.basic.TextField
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -397,26 +396,18 @@ fun SongInfoSheet(
             }
         }
     }
-    val modifiedFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     EllaMiuixDialog(
         show = editingModifiedTime,
         title = modifiedLabel,
         onDismissRequest = { editingModifiedTime = false }
     ) {
-        androidx.compose.runtime.LaunchedEffect(editingModifiedTime) {
-            if (editingModifiedTime) {
-                kotlinx.coroutines.delay(80)
-                runCatching { modifiedFocus.requestFocus() }
-            }
-        }
         TextField(
             value = modifiedTimeDraft,
             onValueChange = { modifiedTimeDraft = it },
             label = "yyyy-MM-dd HH:mm:ss",
             singleLine = true,
             modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(modifiedFocus),
+                .fillMaxWidth(),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 imeAction = androidx.compose.ui.text.input.ImeAction.Done
             )

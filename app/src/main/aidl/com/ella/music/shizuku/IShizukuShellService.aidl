@@ -4,4 +4,5 @@ package com.ella.music.shizuku;
 interface IShizukuShellService {
     String exec(String command);
     void destroy();
+    boolean setOriginOsMediaIslandScene(String packageName, boolean enabled);
 }

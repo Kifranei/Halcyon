@@ -521,6 +521,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        const val ACTION_OPEN_HOME_FROM_ISLAND = "com.ella.music.action.OPEN_HOME_FROM_ISLAND"
         const val ACTION_MEDIA_NOTIFICATION_CLICK = "com.ella.music.action.MEDIA_NOTIFICATION_CLICK"
         const val EXTRA_OPEN_PLAYER_FROM_NOTIFICATION = "open_player_from_notification"
         private var startupPlaybackHandled = false

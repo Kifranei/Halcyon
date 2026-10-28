@@ -560,10 +560,8 @@ fun ArtistScreen(
         return
     }
 
-    // Always intercept so system/navbar back shares the toolbar onBack path (and any
-    // player-restore bookkeeping wired by the nav host). Previously only selection/search
-    // were handled here; with predictive back disabled globally, bare NavHost pops could
-    BackHandler {
+    // Let the navigation host preview a normal pop; transient modes keep Back priority.
+    BackHandler(enabled = selection.selectionMode || searchExpanded) {
         when {
             selection.selectionMode -> selection.finishSelectionMode()
             searchExpanded -> {

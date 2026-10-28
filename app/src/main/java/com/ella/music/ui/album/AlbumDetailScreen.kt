@@ -550,10 +550,9 @@ fun AlbumDetailScreen(
         return
     }
 
-    // Keep the explicit album-list restoration path for every system-back route.  Previously
-    // this handler was disabled for the normal detail state, so gesture/system back bypassed
-    // `onBack` and Navigation popped directly without restoring the album-list anchor.
-    BackHandler {
+    // The navigation host restores the album-list anchor when its ordinary/predictive pop commits.
+    // Local modes still consume Back before the destination itself can leave.
+    BackHandler(enabled = selection.selectionMode || searchExpanded || sortExpanded) {
         when {
             selection.selectionMode -> selection.finishSelectionMode()
             searchExpanded -> {

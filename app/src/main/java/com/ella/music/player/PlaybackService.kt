@@ -156,6 +156,7 @@ class PlaybackService : MediaLibraryService() {
     private var crossfadePresentationSettlementJob: kotlinx.coroutines.Job? = null
     private var castMediaServer: LocalCastMediaServer? = null
     private lateinit var notificationProvider: NoArtworkMediaNotificationProvider
+    private var originOsMediaIslandController: OriginOsMediaIslandController? = null
     private lateinit var settingsManager: SettingsManager
     private lateinit var musicRepository: MusicRepository
     private lateinit var desktopLyricBridge: DesktopLyricBridge
@@ -836,6 +837,12 @@ class PlaybackService : MediaLibraryService() {
         )
             .setSessionActivity(pendingIntent)
             .build()
+        if (OriginOsMediaIslandAccess.isSupportedDevice()) {
+            originOsMediaIslandController = OriginOsMediaIslandController(
+                this, presentationPlayer, settingsManager.vivoMediaIslandEnabled,
+                settingsManager.vivoMediaIslandOnly, serviceScope
+            )
+        }
         scheduleLegacyArtworkCompat(presentationPlayer.mediaMetadata)
 
         updateMediaButtonPreferences()
@@ -920,6 +927,11 @@ class PlaybackService : MediaLibraryService() {
         return mediaSession
     }
 
+    internal fun updateOriginOsMediaIslandArtwork(session: MediaSession, artwork: android.graphics.Bitmap?) {
+        if (session !== mediaSession) return
+        originOsMediaIslandController?.updateArtwork(session.player.currentMediaItem?.mediaId, artwork)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         mediaSession?.player?.let { player ->
@@ -969,6 +981,8 @@ class PlaybackService : MediaLibraryService() {
         AudioEffectState.publish(null)
         crossfadePresentationSettlementJob?.cancel()
         crossfadePresentationSettlementJob = null
+        originOsMediaIslandController?.close()
+        originOsMediaIslandController = null
         crossfadePlaybackCoordinator?.release()
         crossfadePlaybackCoordinator = null
         mediaSession?.run {

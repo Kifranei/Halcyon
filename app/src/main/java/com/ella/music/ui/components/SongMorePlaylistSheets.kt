@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,10 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,9 +37,7 @@ import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.mediaStoreAlbumArtUri
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.ui.focus.focusRequester
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -397,13 +392,6 @@ fun CreatePlaylistAndAddSheet(
     onCreate: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) {
-        delay(220L)
-        focusRequester.requestFocus()
-        keyboardController?.show()
-    }
     EllaMiuixBottomSheet(
         show = true,
         title = stringResource(R.string.playlist_create_title),
@@ -422,7 +410,6 @@ fun CreatePlaylistAndAddSheet(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(focusRequester)
             )
             EllaMiuixSheetActions(
                 cancelText = stringResource(R.string.common_cancel),

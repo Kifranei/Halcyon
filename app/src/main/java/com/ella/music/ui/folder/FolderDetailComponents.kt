@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,8 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,11 +29,9 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.ui.components.BreadcrumbBar
 import com.ella.music.ui.components.BreadcrumbItem
-import androidx.compose.ui.focus.focusRequester
 import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
-import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -51,13 +46,6 @@ internal fun CreatePlaylistAndAddSelectedSheet(
     onCreate: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) {
-        delay(220L)
-        focusRequester.requestFocus()
-        keyboardController?.show()
-    }
     EllaMiuixBottomSheet(
         show = true,
         title = stringResource(R.string.playlist_create_title),
@@ -79,7 +67,6 @@ internal fun CreatePlaylistAndAddSelectedSheet(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(focusRequester)
             )
             EllaMiuixSheetActions(
                 cancelText = stringResource(R.string.common_cancel),

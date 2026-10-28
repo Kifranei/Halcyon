@@ -6,6 +6,7 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import com.ella.music.BuildConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,7 +21,7 @@ import kotlin.coroutines.resumeWithException
 internal object ShizukuShellCommandExecutor {
     private const val TAG = "HalcyonShizuku"
     private const val SERVICE_PROCESS_SUFFIX = "shell"
-    private const val SERVICE_VERSION = 1
+    private const val SERVICE_VERSION = 2
     private const val SERVICE_CONNECTION_TIMEOUT_MS = 15_000L
 
     private val commandMutex = Mutex()
@@ -61,6 +62,25 @@ internal object ShizukuShellCommandExecutor {
             service = null
             Log.w(TAG, "Shizuku shell command failed", error)
             throw error
+        }
+    }
+
+    suspend fun setOriginOsMediaIslandScene(
+        context: Context,
+        packageName: String,
+        enabled: Boolean,
+        requestPermission: Boolean = true
+    ): Boolean = commandMutex.withLock {
+        try {
+            if (!ShizukuPermissionHelper.ensurePermission(requestPermission)) return@withLock false
+            val remote = connect(context.applicationContext)
+            withContext(Dispatchers.IO) { remote.setOriginOsMediaIslandScene(packageName, enabled) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            service = null
+            Log.w(TAG, "OriginOS media island scene update failed", error)
+            false
         }
     }
 

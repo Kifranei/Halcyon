@@ -12,10 +12,28 @@ import com.ella.music.isSearchRoute
 
 class LibrarySearchDockState(initialQuery: String = "") {
     var query by mutableStateOf(initialQuery)
-    var autoFocus by mutableStateOf<Boolean?>(null)
+    var autoFocus by mutableStateOf(false)
+    var active by mutableStateOf(false)
+        private set
+    private var owner: Any? = null
     var selectAll by mutableStateOf(false)
     var selectionRequestKey by mutableStateOf(0)
     var onSearch by mutableStateOf<(() -> Unit)?>(null)
+
+    internal fun bind(owner: Any, autoFocus: Boolean, onSearch: () -> Unit) {
+        this.owner = owner
+        this.autoFocus = autoFocus
+        this.onSearch = onSearch
+        active = true
+    }
+
+    internal fun unbind(owner: Any) {
+        if (this.owner !== owner) return
+        this.owner = null
+        active = false
+        autoFocus = false
+        onSearch = null
+    }
 }
 
 val LocalLibrarySearchDockState = staticCompositionLocalOf<LibrarySearchDockState?> { null }

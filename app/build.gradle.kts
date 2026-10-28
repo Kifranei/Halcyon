@@ -17,6 +17,7 @@ plugins {
 }
 
 val appVersionName = "1.3.0"
+val originOsTestBuild = providers.gradleProperty("ellaOriginOsTest").orNull == "true"
 val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 val configuredAbis = providers.gradleProperty("ellaAbi")
     .orNull
@@ -123,11 +124,13 @@ android {
         System.getenv("ALLOW_DEBUG_SIGNED_RELEASE").equals("true", ignoreCase = true)
 
     defaultConfig {
-        applicationId = "com.ella.music"
+        // All standalone build types use Kano's independent ID; default builds keep
+        // the upstream ID so contribution builds do not rename the original application.
+        applicationId = if (originOsTestBuild) "com.ella.music.kano" else "com.ella.music"
         minSdk = 29
         targetSdk = 37
         versionCode = 40
-        versionName = appVersionName
+        versionName = appVersionName + if (originOsTestBuild) "-originos-test" else ""
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
@@ -164,7 +167,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (hasReleaseSigning) {
+            signingConfig = if (originOsTestBuild) {
+                signingConfigs.getByName("debug")
+            } else if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else if (allowDebugSignedRelease) {
                 logger.warn("Release signing is not configured; using debug signing for this release build.")
@@ -183,7 +188,9 @@ android {
         isMinifyEnabled = false
         isShrinkResources = false
         matchingFallbacks += listOf("release")
-        signingConfig = if (hasReleaseSigning) {
+        signingConfig = if (originOsTestBuild) {
+            signingConfigs.getByName("debug")
+        } else if (hasReleaseSigning) {
             signingConfigs.getByName("release")
         } else if (allowDebugSignedRelease) {
             signingConfigs.getByName("debug")

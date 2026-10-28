@@ -65,6 +65,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -104,6 +105,9 @@ import com.ella.music.ui.components.updateEllaDynamicShortcuts
 import com.ella.music.ui.navigation.AppNavigation
 import com.ella.music.ui.navigation.EXTRA_SHORTCUT_ROUTE
 import com.ella.music.ui.navigation.LocalAppNavigator
+import com.ella.music.ui.navigation.LocalNavigationPageBackground
+import com.ella.music.ui.navigation.rememberNavigationPageBackground
+import com.ella.music.ui.navigation.recordNavigationPageBackground
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.navigation.EXTRA_SHORTCUT_ACTION
 import com.ella.music.ui.navigation.SHORTCUT_ACTION_PLAY
@@ -134,6 +138,11 @@ fun EllaApp(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val initialIslandHome = remember {
+        activity?.intent?.action == MainActivity.ACTION_OPEN_HOME_FROM_ISLAND
+    }
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val navigationRoute = resolvedCurrentRoute(
@@ -181,7 +190,8 @@ fun EllaApp(
     }
     val mainPageCatalog = bottomDockTabCatalog()
     val mainPageState = rememberMainPageState(
-        mainPageCatalog[initialUiSettings.bottomDockStartupItem.takeIf { it in initialUiSettings.bottomDockItems }]?.route ?: Screen.Home.route
+        if (initialIslandHome) Screen.Home.route else
+            mainPageCatalog[initialUiSettings.bottomDockStartupItem.takeIf { it in initialUiSettings.bottomDockItems }]?.route ?: Screen.Home.route
     )
     DisposableEffect(navController, mainPageState) {
         MainPageNavigation.register(navController, mainPageState)
@@ -209,7 +219,7 @@ fun EllaApp(
     // 打开应用自动进入播放界面 (设置 → 底部导航 → 启动页): the now-playing surface is part of the very
     // first frame, exactly like a media-notification tap, so a cold start lands on the player
     // instead of Home. The preference is read before composition, so no open animation runs at boot.
-    val startupPlayerOpen = initialUiSettings.startupOpenPlayer
+    val startupPlayerOpen = initialUiSettings.startupOpenPlayer && !initialIslandHome
     var showPlayerOverlay by remember { mutableStateOf(initialNotificationPlayer || startupPlayerOpen) }
     var playerDismissProgress by remember { mutableFloatStateOf(0f) }
     var playerOverlayOpenToken by remember { mutableIntStateOf(0) }
@@ -459,6 +469,16 @@ fun EllaApp(
 
     LaunchedEffect(currentProcessingIntent.value) {
         val activity = context as? Activity
+        if (currentProcessingIntent.value?.action == MainActivity.ACTION_OPEN_HOME_FROM_ISLAND) {
+            // A card-header tap always returns Home, including a warm app left on settings
+            // or the player and a cold start configured to open the now-playing surface.
+            snapPlayerOverlay = true
+            showPlayerOverlay = false
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+            navController.navigateBottomDockRoute(Screen.Home.route, currentRoute)
+            currentProcessingIntent.value?.action = null
+        }
         val shortcutAction = currentProcessingIntent.value?.resolveShortcutAction().orEmpty()
         when (shortcutAction) {
             SHORTCUT_ACTION_PLAY -> {
@@ -803,7 +823,7 @@ fun EllaApp(
                 light = !isDarkTheme
             )
     }
-    val startupRoute = bottomDockSpecs[initialUiSettings.bottomDockStartupItem]
+    val startupRoute = if (initialIslandHome) Screen.Home.route else bottomDockSpecs[initialUiSettings.bottomDockStartupItem]
         ?.takeIf { initialUiSettings.bottomDockStartupItem in initialUiSettings.bottomDockItems }
         ?.route
         ?: Screen.Home.route
@@ -875,6 +895,7 @@ fun EllaApp(
             val librarySearchDockState = rememberLibrarySearchDockState()
             val sharedBackgroundBackdrop = rememberMiuixLayerBackdrop()
             val hasSharedBackground = wallpaperVisible || nowPlayingFlowVisible
+            val navigationPageBackground = rememberNavigationPageBackground()
             // The dock still samples both page content and the now full-window background.
             val contentWithBackgroundBackdrop = com.ella.music.ui.components.liquid.rememberCombinedBackdrop(
                 sharedBackgroundBackdrop, miuixBackdrop
@@ -898,6 +919,7 @@ fun EllaApp(
                 },
                 LocalLibrarySearchDockState provides librarySearchDockState,
                 LocalSharedAppBackgroundVisible provides sharedAppBackgroundVisible,
+                LocalNavigationPageBackground provides (if (hasSharedBackground) navigationPageBackground else null),
                 LocalTopBarBlurStyle provides topBarBlurStyle,
                 LocalBackdrop provides (if (hasSharedBackground) sharedBackgroundBackdrop else null),
                 LocalSettingsCardFrosting provides (if (hasSharedBackground) settingsFrosting else null)
@@ -905,6 +927,8 @@ fun EllaApp(
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize().then(
                     if (hasSharedBackground) Modifier.layerMiuixBackdrop(sharedBackgroundBackdrop) else Modifier
+                ).then(
+                    if (hasSharedBackground) Modifier.recordNavigationPageBackground(navigationPageBackground) else Modifier
                 )) {
                     if (wallpaperVisible) {
                         val wallpaperDimAlpha = appWallpaperDim.coerceIn(0, 80) / 100f

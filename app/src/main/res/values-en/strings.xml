@@ -2259,8 +2259,8 @@
     <string name="settings_artist_cover_download_folder_remove_summary">Clear custom download path; downloads will fall back to existing cover folder or app internal storage</string>
     <string name="settings_artist_cover_download_folder_saved">Artist cover download path saved</string>
     <string name="settings_artist_cover_download_folder_cleared">Artist cover download path cleared</string>
-    <string name="settings_auto_show_search_keyboard">Show keyboard automatically when tapping search</string>
-    <string name="settings_auto_show_search_keyboard_summary">When off, tapping search only expands the search bar without focusing or showing the keyboard</string>
+    <string name="settings_auto_show_search_keyboard">Show keyboard automatically on the search page</string>
+    <string name="settings_auto_show_search_keyboard_summary">Only autofocus on the search page. When off, tap the input field to show the keyboard.</string>
     <string name="settings_search_reopen_behavior">Reopening search</string>
     <string name="settings_search_reopen_behavior_summary">What to do with the last query when opening search again</string>
     <string name="settings_search_reopen_select">Select the last search query</string>
@@ -2582,6 +2582,12 @@
     <string name="settings_enable_vivo_atom_walkman_whitelist">Add to Atom Walkman allowlist</string>
     <string name="settings_enable_vivo_atom_walkman_whitelist_summary">Use Shizuku to add Halcyon to vivo Atom Walkman playback sources</string>
     <string name="settings_vivo_atom_walkman_whitelist_failed">Could not update the Atom Walkman allowlist; make sure Shizuku is authorized</string>
+    <string name="settings_enable_vivo_media_island">OriginOS media island</string>
+    <string name="originos_media_island_notification_channel">Media island playback</string>
+    <string name="settings_enable_vivo_media_island_summary">Requires Shizuku authorization to show album artwork, playback waves and media controls on the island</string>
+    <string name="settings_vivo_media_island_only">Show only on the island</string>
+    <string name="settings_vivo_media_island_only_summary">Hide the extra live notification card in the notification shade while keeping the music notification and island</string>
+    <string name="settings_vivo_media_island_failed">Could not update the setting. Make sure Shizuku is running and authorized, and system live notifications are enabled</string>
     <string name="settings_live_update_lyric_content">Live Activity main lyric</string>
     <string name="settings_live_update_lyric_content_summary">Choose the main lyric shown in live-update notifications</string>
     <string name="settings_xiaomi_super_island_lyric_content">Super Island notification main lyric</string>

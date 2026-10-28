@@ -29,7 +29,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun LibrarySearchTopBar(
     query: String,
-    autoFocus: Boolean?,
+    autoFocus: Boolean,
     autoSelectAll: Boolean = false,
     selectionRequestKey: Int = 0,
     onAutoSelectAllConsumed: () -> Unit = {},
@@ -37,7 +37,8 @@ internal fun LibrarySearchTopBar(
     onBack: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    active: Boolean = true
 ) {
     Row(
         modifier = modifier
@@ -67,6 +68,7 @@ internal fun LibrarySearchTopBar(
             placeholder = stringResource(R.string.library_search_page_placeholder),
             modifier = Modifier.weight(1f),
             autoFocus = autoFocus,
+            active = active,
             autoSelectAll = autoSelectAll,
             selectionRequestKey = selectionRequestKey,
             onAutoSelectAllConsumed = onAutoSelectAllConsumed

@@ -9,6 +9,25 @@ import org.junit.Test
 
 class LibrarySearchDockStateTest {
     @Test
+    fun aHiddenSearchCannotDeactivateTheVisibleSearchDock() {
+        val dock = LibrarySearchDockState()
+        val hiddenOwner = Any()
+        val visibleOwner = Any()
+        var searches = 0
+        dock.bind(hiddenOwner, true) { error("Hidden search must not receive the action") }
+        dock.bind(visibleOwner, false) { searches++ }
+        dock.unbind(hiddenOwner)
+        assertTrue(dock.active)
+        assertFalse(dock.autoFocus)
+        dock.onSearch?.invoke()
+        assertEquals(1, searches)
+        dock.unbind(visibleOwner)
+        assertFalse(dock.active)
+        assertFalse(dock.autoFocus)
+        assertEquals(null, dock.onSearch)
+    }
+
+    @Test
     fun searchRouteUsesBottomSearchDock() {
         assertTrue(usesSearchBottomDock(Screen.LibrarySearch.createRoute()))
         assertTrue(usesSearchBottomDock(Screen.LibrarySearch.baseRoute))

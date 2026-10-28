@@ -4,20 +4,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
-import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
@@ -52,20 +51,18 @@ fun EllaSearchBar(
     placeholder: String,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
-    autoFocus: Boolean? = null,
+    autoFocus: Boolean = false,
     autoSelectAll: Boolean = false,
     selectionRequestKey: Int = 0,
     onAutoSelectAllConsumed: () -> Unit = {},
     onFocusChange: (Boolean) -> Unit = {},
-    containerColor: Color = MiuixTheme.colorScheme.surfaceContainerHigh
+    containerColor: Color = MiuixTheme.colorScheme.surfaceContainerHigh,
+    active: Boolean = true
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
-    val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = true)
-    val shouldAutoFocus = autoFocus ?: autoShowSearchKeyboard
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    var focused by remember { mutableStateOf(false) }
     var fieldValue by remember { mutableStateOf(TextFieldValue(query, TextRange(query.length))) }
     LaunchedEffect(query) {
         if (fieldValue.text != query) fieldValue = TextFieldValue(query, TextRange(query.length))
@@ -81,18 +78,28 @@ fun EllaSearchBar(
         if (!autoSelectAll) fieldValue = TextFieldValue(query, TextRange(query.length))
     }
 
-    LaunchedEffect(autoSelectAll, query, selectionRequestKey) {
-        if (autoSelectAll && query.isNotEmpty()) {
+    LaunchedEffect(active) {
+        if (!active && focused) {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
+
+    LaunchedEffect(active, autoFocus, autoSelectAll, query, selectionRequestKey) {
+        if (active && autoSelectAll && query.isNotEmpty()) {
             delay(180L)
-            focusRequester.requestFocus()
             fieldValue = TextFieldValue(query, TextRange(0, query.length))
-            if (shouldAutoFocus) keyboardController?.show()
+            // Selecting a saved query must not implicitly open the keyboard.
+            if (autoFocus) {
+                focusRequester.requestFocus()
+                keyboardController?.show()
+            }
             onAutoSelectAllConsumed()
         }
     }
 
-    LaunchedEffect(shouldAutoFocus) {
-        if (shouldAutoFocus && !autoSelectAll) {
+    LaunchedEffect(active, autoFocus, selectionRequestKey) {
+        if (active && autoFocus && !autoSelectAll) {
             delay(180L)
             focusRequester.requestFocus()
             keyboardController?.show()
@@ -111,7 +118,12 @@ fun EllaSearchBar(
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
         modifier = modifier.fillMaxWidth().padding(horizontal = 2.dp)
-            .focusRequester(focusRequester).onFocusChanged { onFocusChange(it.isFocused) },
+            .focusProperties { canFocus = active }
+            .focusRequester(focusRequester).onFocusChanged {
+                if (focused && !it.isFocused && !active) keyboardController?.hide()
+                focused = it.isFocused
+                onFocusChange(it.isFocused)
+            },
         decorationBox = { input ->
             Row(Modifier.fillMaxWidth().background(containerColor, CircleShape), verticalAlignment = Alignment.CenterVertically) {
                 Icon(MiuixIcons.Regular.Search, null,

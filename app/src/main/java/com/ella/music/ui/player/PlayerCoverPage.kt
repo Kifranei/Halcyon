@@ -61,6 +61,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlin.jvm.JvmSerializableLambda
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
@@ -552,7 +553,9 @@ internal fun CoverPlayerPage(
         }
     }
 
-    BoxWithConstraints(modifier = modifier) {
+    // Keep this large captured closure out of invokedynamic lowering: its debug
+    // DEX fails Android 16 verification when the cover page is first opened.
+    BoxWithConstraints(modifier = modifier, content = @JvmSerializableLambda {
         val rootPlayerWidth = maxWidth
         val rootPlayerHeight = maxHeight
         val useWidePlayer = maxWidth > maxHeight && maxWidth >= 700.dp
@@ -2725,7 +2728,7 @@ internal fun CoverPlayerPage(
                 onDismiss = { previewCover = null }
             )
         }
-    }
+    })
 }
 
 internal fun shouldInterceptAppleMusicLyricsBack(

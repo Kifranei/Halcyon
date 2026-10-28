@@ -14,7 +14,7 @@ internal object ShizukuPermissionHelper {
     private val permissionMutex = Mutex()
     private var nextRequestCode = 2000
 
-    suspend fun ensurePermission(): Boolean = permissionMutex.withLock {
+    suspend fun ensurePermission(requestPermission: Boolean = true): Boolean = permissionMutex.withLock {
         withContext(Dispatchers.Main.immediate) {
             if (!runCatching { Shizuku.pingBinder() }.getOrDefault(false)) return@withContext false
             if (runCatching { Shizuku.checkSelfPermission() }
@@ -22,6 +22,7 @@ internal object ShizukuPermissionHelper {
             ) {
                 return@withContext true
             }
+            if (!requestPermission) return@withContext false
 
             suspendCancellableCoroutine { continuation ->
                 val requestCode = synchronized(this@ShizukuPermissionHelper) {

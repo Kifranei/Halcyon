@@ -20,6 +20,9 @@ import java.util.WeakHashMap
 
 internal const val MAIN_PAGES_ROUTE = "main_pages"
 
+/** A composed neighbour is not yet an input destination. */
+internal val LocalMainPageActive = compositionLocalOf { true }
+
 internal fun mainPageIdentity(route: String) = route.substringBefore('?').trimEnd('/')
 
 @Stable
@@ -142,7 +145,10 @@ internal fun MainPagePager(
         val route = routes[index]
         holder.SaveableStateProvider(mainPageIdentity(route)) {
             val active = mainPageIdentity(route) == mainPageIdentity(state.selectedRoute)
-            MainPageBackScope(active) { content(if (active) state.selectedRoute else route) }
+            val readyForInput = active && index == pager.settledPage && !pager.isScrollInProgress && !navigating
+            CompositionLocalProvider(LocalMainPageActive provides readyForInput) {
+                MainPageBackScope(active) { content(if (active) state.selectedRoute else route) }
+            }
         }
     }
 }

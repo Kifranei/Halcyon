@@ -19,12 +19,14 @@ internal fun renderTintedDrawableBitmap(
     context: Context,
     @DrawableRes resId: Int,
     color: Int,
-    sizePx: Int
+    sizePx: Int,
+    offsetXPx: Float = 0f
 ): Bitmap {
     val drawable = requireNotNull(ContextCompat.getDrawable(context, resId)).mutate()
     DrawableCompat.setTint(drawable, color)
     val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
+    canvas.translate(offsetXPx, 0f)
     drawable.setBounds(0, 0, sizePx, sizePx)
     drawable.draw(canvas)
     return bitmap

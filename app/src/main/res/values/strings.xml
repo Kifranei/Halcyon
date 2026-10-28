@@ -476,8 +476,8 @@
     <string name="settings_search_click_playback_mode_summary">选择点击搜索结果后如何加入播放队列</string>
     <string name="settings_playlist_show_rating_filter">歌单页显示星级筛选</string>
     <string name="settings_library_show_rating_filter">音乐库页显示星级筛选</string>
-    <string name="settings_auto_show_search_keyboard">点击搜索按钮自动弹出输入法</string>
-    <string name="settings_auto_show_search_keyboard_summary">关闭后仅展开搜索栏，不再自动聚焦并弹出键盘</string>
+    <string name="settings_auto_show_search_keyboard">进入搜索页自动弹出输入法</string>
+    <string name="settings_auto_show_search_keyboard_summary">仅在搜索页自动聚焦；关闭后需点击输入框才弹出键盘</string>
     <string name="settings_search_reopen_behavior">再次进入搜索</string>
     <string name="settings_search_reopen_behavior_summary">再次打开搜索页时如何处理上次输入的内容</string>
     <string name="settings_search_reopen_select">选择上次的搜索内容</string>
@@ -1740,6 +1740,12 @@
     <string name="settings_enable_vivo_atom_walkman_whitelist">加入原子随身听白名单</string>
     <string name="settings_enable_vivo_atom_walkman_whitelist_summary">通过 Shizuku 将本应用加入 vivo 原子随身听的播放源列表</string>
     <string name="settings_vivo_atom_walkman_whitelist_failed">加入原子随身听白名单失败，请确认 Shizuku 已授权</string>
+    <string name="settings_enable_vivo_media_island">OriginOS 播放状态原子岛</string>
+    <string name="originos_media_island_notification_channel">原子岛播放状态</string>
+    <string name="settings_enable_vivo_media_island_summary">需要 Shizuku 授权，在原子岛显示专辑封面、播放波形和媒体控制按钮</string>
+    <string name="settings_vivo_media_island_only">仅在原子岛显示</string>
+    <string name="settings_vivo_media_island_only_summary">隐藏通知中心的超级通知卡片，保留普通音乐通知和原子岛</string>
+    <string name="settings_vivo_media_island_failed">设置失败，请确认 Shizuku 已运行并授权，且系统实况通知已开启</string>
     <string name="settings_live_update_lyric_content">实时活动通知主歌词</string>
     <string name="settings_live_update_lyric_content_summary">选择实时活动通知中显示的主歌词内容</string>
     <string name="settings_xiaomi_super_island_lyric_content">超级岛通知主歌词</string>

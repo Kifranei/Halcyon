@@ -77,6 +77,7 @@ internal class NoArtworkMediaNotificationProvider(
         val metadata = player.mediaMetadata
         val tickerPayload = PlaybackTickerState.current()
         val largeIcon = resolveLargeIcon(metadata)
+        service.updateOriginOsMediaIslandArtwork(mediaSession, largeIcon)
         // Render the app-owned card from the ticker snapshot. Session metadata is published
         // separately for MiPlay/Flyme/Bluetooth clients. Reading the session copy here caused
         // two card rebuilds for each line and visible flashing on ColorOS media controls.
@@ -98,6 +99,13 @@ internal class NoArtworkMediaNotificationProvider(
             .setOnlyAlertOnce(true)
             .setOngoing(isMediaNotificationOngoing(player.playWhenReady, player.playbackState))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        if (OriginOsMediaIslandAccess.isSupportedDevice()) {
+            // The optional island-only SuperX summary shares this group. With this one
+            // child, SystemUI displays the music card and omits the duplicate summary.
+            // Keep the child grouped before the island is posted or its setting loads.
+            builder.setGroup(OriginOsMediaIslandController.NOTIFICATION_GROUP)
+        }
 
         val compactIndices = mutableListOf<Int>()
         var actionCount = 0

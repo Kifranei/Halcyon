@@ -163,6 +163,8 @@ internal val generatedSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_enable_xiaomi_super_island_lyric, R.string.settings_enable_xiaomi_super_island_lyric_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),
     SettingsSearchDefinition(R.string.settings_xiaomi_super_island_custom, R.string.settings_xiaomi_super_island_custom_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),
     SettingsSearchDefinition(R.string.settings_enable_vivo_atom_walkman_whitelist, R.string.settings_enable_vivo_atom_walkman_whitelist_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),
+    SettingsSearchDefinition(R.string.settings_enable_vivo_media_island, R.string.settings_enable_vivo_media_island_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),
+    SettingsSearchDefinition(R.string.settings_vivo_media_island_only, R.string.settings_vivo_media_island_only_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),
     SettingsSearchDefinition(R.string.settings_enable_lyricon, R.string.settings_enable_lyricon_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),
     SettingsSearchDefinition(R.string.settings_secondary_delivery_content, R.string.settings_secondary_delivery_content_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),
     SettingsSearchDefinition(R.string.settings_enable_super_lyric, R.string.settings_enable_super_lyric_summary, target = SettingsSearchTarget.Lyrics(""), sheet = ""),

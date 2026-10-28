@@ -21,15 +21,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -379,13 +375,6 @@ internal fun FolderPlaylistEditorSheet(
 ) {
     if (!show) return
     var searchQuery by remember { mutableStateOf("") }
-    val nameFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(target) {
-        if (target == null) {
-            delay(100)
-            runCatching { nameFocusRequester.requestFocus() }
-        }
-    }
 
     val filteredFolders = remember(availableFolders, searchQuery) {
         if (searchQuery.isBlank()) availableFolders
@@ -534,7 +523,6 @@ internal fun FolderPlaylistEditorSheet(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(nameFocusRequester)
             )
             if (availableFolders.isNotEmpty()) {
                 Row(
