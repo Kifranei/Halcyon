@@ -46,6 +46,9 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
         val KEY_DESKTOP_LYRIC_BACKGROUND_MODE = intPreferencesKey("desktop_lyric_background_mode")
         val KEY_DESKTOP_LYRIC_BACKGROUND_OPACITY = intPreferencesKey("desktop_lyric_background_opacity")
         val KEY_DESKTOP_LYRIC_SYNC_COVER_CONTENT_COLOR = booleanPreferencesKey("desktop_lyric_sync_cover_content_color")
+        val KEY_DESKTOP_LYRIC_GLOW_RADIUS_TENTHS = intPreferencesKey("desktop_lyric_glow_radius_tenths")
+        val KEY_DESKTOP_LYRIC_CURRENT_LINE_POSITION = intPreferencesKey("desktop_lyric_current_line_position")
+        val KEY_DESKTOP_LYRIC_UNSUNG_OPACITY = intPreferencesKey("desktop_lyric_unsung_opacity_tenths")
         val KEY_DESKTOP_LYRIC_X = intPreferencesKey("desktop_lyric_x")
         val KEY_DESKTOP_LYRIC_Y = intPreferencesKey("desktop_lyric_y")
     }
@@ -95,6 +98,21 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     }
     val desktopLyricSyncCoverContentColor: Flow<Boolean> = dataStore.data.map {
         it[KEY_DESKTOP_LYRIC_SYNC_COVER_CONTENT_COLOR] ?: false
+    }
+    /** Glow blur radius in tenths of a percent of the default (1000 = 100.0%). */
+    val desktopLyricGlowRadiusTenths: Flow<Int> = dataStore.data.map {
+        (it[KEY_DESKTOP_LYRIC_GLOW_RADIUS_TENTHS] ?: 1000).coerceIn(0, 2000)
+    }
+    val desktopLyricCurrentLinePosition: Flow<Int> = dataStore.data.map {
+        (it[KEY_DESKTOP_LYRIC_CURRENT_LINE_POSITION]
+            ?: SettingsManager.DESKTOP_LYRIC_LINE_POSITION_CENTER).coerceIn(0, 2)
+    }
+    /**
+     * Unsung-word karaoke opacity in tenths of a percent (1000 = 100.0%), or -1 to follow the
+     * shared `lyric_unsung_opacity` setting (#727).
+     */
+    val desktopLyricUnsungOpacityTenths: Flow<Int> = dataStore.data.map {
+        (it[KEY_DESKTOP_LYRIC_UNSUNG_OPACITY] ?: -1).coerceIn(-1, 1000)
     }
     val desktopLyricX: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_X] ?: Int.MIN_VALUE }
     val desktopLyricY: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_Y] ?: Int.MIN_VALUE }
@@ -235,6 +253,19 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
 
     suspend fun setDesktopLyricSyncCoverContentColor(enabled: Boolean) {
         dataStore.edit { it[KEY_DESKTOP_LYRIC_SYNC_COVER_CONTENT_COLOR] = enabled }
+    }
+
+    suspend fun setDesktopLyricGlowRadiusTenths(tenths: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_GLOW_RADIUS_TENTHS] = tenths.coerceIn(0, 2000) }
+    }
+
+    suspend fun setDesktopLyricCurrentLinePosition(position: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_CURRENT_LINE_POSITION] = position.coerceIn(0, 2) }
+    }
+
+    /** Pass -1 to make the floating lyric follow the shared unsung-opacity setting again. */
+    suspend fun setDesktopLyricUnsungOpacityTenths(tenths: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_UNSUNG_OPACITY] = tenths.coerceIn(-1, 1000) }
     }
 
     suspend fun setDesktopLyricPosition(x: Int, y: Int) {

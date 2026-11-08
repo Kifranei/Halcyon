@@ -41,6 +41,12 @@ internal class MusicLibraryCacheStore(
                 .joinToString("") { "%02x".format(it) }.take(24)
             return File(context.filesDir, "remote_library_${source}_$key.json")
         }
+        val pluginId = com.ella.music.data.sourceplugin.sourcePluginKeyOf(source)
+        if (pluginId.isNotBlank()) {
+            val userId = com.ella.music.data.sourceplugin.SourcePluginRegistry
+                .accountStore(context).account(pluginId)?.userId.orEmpty()
+            return File(context.filesDir, "remote_library_plugin_${pluginId}_$userId.json")
+        }
         return File(context.filesDir, if (source == SettingsManager.LIBRARY_SOURCE_NETEASE)
             "remote_library_netease_${com.ella.music.data.netease.NeteaseAccountStore.getInstance(context).account.value.userId}.json"
         else "remote_library_$source.json")

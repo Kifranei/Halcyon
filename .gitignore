@@ -24,3 +24,6 @@ local.properties
 *.keystore
 .workbuddy
 /.analysis
+HANDOFF*.md
+extract_mf.js
+mf_extracted.js

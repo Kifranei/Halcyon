@@ -62,20 +62,17 @@ import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowListPopup
-import com.ella.music.ui.components.ApplyHalcyonSystemBarsToCurrentWindow
+import com.ella.music.ui.components.EllaGlassListPopup
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 
 @Composable
 fun LibraryAnalysisScreen(
@@ -307,39 +304,27 @@ fun LibraryAnalysisScreen(
                     )
                 )
 
-                WindowListPopup(
+                EllaGlassListPopup(
                     show = filterMenuVisible,
-                    alignment = PopupPositionProvider.Align.End,
                     onDismissRequest = { filterMenuVisible = false }
                 ) {
-                    ApplyHalcyonSystemBarsToCurrentWindow()
-                    ListPopupColumn {
-                        val lastEntryIdx = filterEntries.lastIndex
-                        filterEntries.forEachIndexed { entryIdx, entry ->
-                            val lastItemIdx = entry.items.lastIndex
-                            val isFirstEntry = entryIdx == 0
-                            val isLastEntry = entryIdx == lastEntryIdx
-                            entry.items.forEachIndexed { itemIdx, option ->
-                                DropdownImpl(
-                                    item = option,
-                                    optionSize = entry.items.size,
-                                    isSelected = option.selected,
-                                    index = itemIdx,
-                                    enabled = true,
-                                    isFirst = isFirstEntry && itemIdx == 0,
-                                    isLast = isLastEntry && itemIdx == lastItemIdx,
-                                    onSelectedIndexChange = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        option.onClick?.invoke()
-                                    }
-                                )
-                            }
-                            if (entryIdx < lastEntryIdx) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                    thickness = 1.dp
-                                )
-                            }
+                    val lastEntryIdx = filterEntries.lastIndex
+                    filterEntries.forEachIndexed { entryIdx, entry ->
+                        entry.items.forEach { option ->
+                            GlassPopupItem(
+                                text = option.text,
+                                selected = option.selected,
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    option.onClick?.invoke()
+                                }
+                            )
+                        }
+                        if (entryIdx < lastEntryIdx) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                thickness = 1.dp
+                            )
                         }
                     }
                 }

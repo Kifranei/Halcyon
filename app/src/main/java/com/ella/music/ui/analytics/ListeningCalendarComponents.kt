@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -127,14 +128,16 @@ internal fun ListeningMonthCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     week.forEach { day ->
-                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
-                            if (day == null) {
-                                Spacer(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .aspectRatio(0.82f)
-                                )
-                            } else {
+                        // Leading null cells share the day cell's minimum height — an aspect-ratio
+                        // spacer came out ~20dp short (and oversized in landscape), which made the
+                        // row-1→row-2 gap visibly wider than the rest (#698).
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 66.dp),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            if (day != null) {
                                 ListeningCalendarDayCell(
                                     day = day,
                                     selected = day.dateKey == selectedDateKey,

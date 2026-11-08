@@ -7,6 +7,22 @@ import java.text.BreakIterator
 import java.util.Locale
 import kotlin.math.*
 
+internal data class CinematicWord(val line: LyricLine, val glyphs: List<PosterTimedGlyph>,
+    val offsets: List<Float>, val width: Float)
+internal data class CinematicLine(val source: LyricLine, val words: List<CinematicWord>)
+
+/** Split a lyric line into word tokens whose glyphs are measured with [paint]. */
+internal fun posterCinematicLine(line: LyricLine, next: LyricLine?, paint: android.graphics.Paint): CinematicLine {
+    val words = posterLyricWords(line, next).map { token ->
+        val glyphs = posterTimedGlyphs(token)
+        var prefix = ""
+        val offsets = mutableListOf(0f)
+        glyphs.forEach { prefix += it.text; offsets += paint.measureText(prefix) }
+        CinematicWord(token, glyphs, offsets, offsets.last())
+    }
+    return CinematicLine(line, words)
+}
+
 internal data class PosterTimedGlyph(val text: String, val startMs: Long, val endMs: Long, val word: Int)
 
 /** Keep the source's sung intervals, whitespace, punctuation and grapheme clusters. */
@@ -51,26 +67,6 @@ internal fun posterGlyphProgress(glyph: PosterTimedGlyph, position: Long): Float
     position < glyph.startMs -> 0f
     position >= glyph.endMs -> 1f
     else -> ((position - glyph.startMs).toFloat() / (glyph.endMs - glyph.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
-}
-
-internal data class PosterRingGlyph(val x: Float, val y: Float, val scale: Float, val alpha: Float, val rotation: Float, val depth: Float)
-
-/** A flattened ring around an anti-diagonal, with its normal axis running at +45 degrees.
- * Glyph tangents remain readable on the rear side; the sung glyph passes through the focus. */
-internal fun posterRingGlyph(angle: Float, radius: Float): PosterRingGlyph {
-    val depth = (cos(angle) + 1f) * 0.5f
-    val spacing = 0.35f + 0.65f * depth.pow(1.2f)
-    val x = sin(angle) * radius * spacing
-    val y = cos(angle) * radius * 0.09f
-    val diagonal = sqrt(0.5f)
-    val tangent = atan2(-sin(angle) * 0.09f, cos(angle)) * 180f / PI.toFloat() - 45f
-    var readable = tangent
-    while (readable > 90f) readable -= 180f
-    while (readable < -90f) readable += 180f
-    val focus = (1f - (abs(angle) / 0.75f).coerceIn(0f, 1f)).pow(1.8f)
-    return PosterRingGlyph((x + y) * diagonal, (y - x) * diagonal,
-        0.54f + depth * 0.20f + focus * 0.52f,
-        0.16f + depth * 0.25f + focus * 0.59f, readable, depth)
 }
 
 internal data class PosterTypeBox(val x: Float, val y: Float, val width: Float, val height: Float,

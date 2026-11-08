@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -602,9 +603,45 @@ private suspend fun downloadLxSong(
 ) {
     val fileName = item.song.fileName.ifBlank { "${item.song.title}-${item.song.artist}.mp3" }
         .sanitizeExportFileName(fallback = "Halcyon.mp3", maxLength = 160)
-    val target = java.io.File(
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-        "Halcyon/$fileName"
-    )
-    service.downloadWithMetadata(item, sourceScript, target)
+    val customFolder = com.ella.music.data.SettingsManager.getInstance(context)
+        .songDownloadLocation.first().takeIf { it != "default" }.orEmpty()
+    if (customFolder.isBlank()) {
+        val target = java.io.File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+            "Halcyon/$fileName"
+        )
+        service.downloadWithMetadata(item, sourceScript, target)
+        return
+    }
+    // A SAF/custom destination cannot be a direct File target: tag a staged file first, then
+    // publish it through MediaExportStorage like the NetEase download service does.
+    val staging = java.io.File(context.cacheDir, "lx-download-${java.util.UUID.randomUUID()}.part")
+    try {
+        val downloaded = service.downloadWithMetadata(item, sourceScript, staging)
+        val mime = android.webkit.MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(downloaded.extension)
+            ?: item.song.mimeType.ifBlank { "audio/mpeg" }
+        try {
+            val uri = com.ella.music.data.MediaExportStorage.write(
+                context, downloaded.name, mime,
+                "${Environment.DIRECTORY_MUSIC}/Halcyon/", customFolder
+            ) { out -> downloaded.inputStream().use { it.copyTo(out) } }
+            if (!customFolder.startsWith("content://")) {
+                uri.path?.let {
+                    android.media.MediaScannerConnection.scanFile(context, arrayOf(it), arrayOf(mime), null)
+                }
+            }
+        } finally {
+            // downloadWithMetadata registered the staging path in MediaStore; drop that row so
+            // the library never sees a deleted cache file.
+            context.contentResolver.delete(
+                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                android.provider.MediaStore.MediaColumns.DATA + " = ?",
+                arrayOf(downloaded.absolutePath)
+            )
+            downloaded.delete()
+        }
+    } finally {
+        staging.delete()
+    }
 }

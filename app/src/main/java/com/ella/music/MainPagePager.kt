@@ -15,6 +15,8 @@ import androidx.navigationevent.NavigationEventDispatcherOwner
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.ella.music.ui.navigation.Screen
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.utils.springAnimateToPage
 import java.util.WeakHashMap
 
@@ -23,6 +25,13 @@ internal const val MAIN_PAGES_ROUTE = "main_pages"
 /** A composed neighbour is not yet an input destination. */
 internal val LocalMainPageActive = compositionLocalOf { true }
 
+/**
+ * This page is the committed destination of a programmatic tab jump. Unlike
+ * [LocalMainPageActive] it turns true as soon as the spring starts instead of after it
+ * settles, so entry gestures like the search IME can fire during the animation (#756).
+ */
+internal val LocalMainPageEntryTarget = compositionLocalOf { false }
+
 internal fun mainPageIdentity(route: String) = route.substringBefore('?').trimEnd('/')
 
 @Stable
@@ -30,6 +39,12 @@ internal class MainPageState(initialRoute: String, initialSearchReturnRoute: Str
     var selectedRoute by mutableStateOf(initialRoute)
     var searchReturnRoute by mutableStateOf(initialSearchReturnRoute)
         private set
+    /**
+     * Route of [PagerState.currentPage] while the user drags the pager; null once the
+     * scroll settles or during programmatic tab animations. The floating dock's selection
+     * bubble tracks this so it moves mid-gesture instead of after the settle.
+     */
+    var livePagerRoute by mutableStateOf<String?>(null)
     var requestVersion by mutableIntStateOf(0)
         private set
     var routes: List<String> = emptyList()
@@ -46,8 +61,17 @@ internal class MainPageState(initialRoute: String, initialSearchReturnRoute: Str
         selectedRoute = route
     }
 
+    /**
+     * Page identity whose saved state must be discarded after the pager settles elsewhere.
+     * Set when a search page is left through Back — tab swipes/dock taps keep state, a Back
+     * exit forgets it so the next visit starts at the top on the default tab (#778, #161).
+     */
+    var pendingForgetRoute by mutableStateOf<String?>(null)
+        private set
+
     fun exitSearch(): Boolean {
         if (!selectedRoute.isSearchRoute()) return false
+        val leaving = mainPageIdentity(selectedRoute)
         val target = routes.firstOrNull { mainPageIdentity(it) == searchReturnRoute?.let(::mainPageIdentity) }
             ?: Screen.Home.route
         if (!select(target)) {
@@ -55,8 +79,11 @@ internal class MainPageState(initialRoute: String, initialSearchReturnRoute: Str
             requestVersion++
         }
         searchReturnRoute = null
+        pendingForgetRoute = leaving
         return true
     }
+
+    fun consumeForgetRoute(): String? = pendingForgetRoute.also { pendingForgetRoute = null }
 }
 
 @Composable
@@ -110,21 +137,34 @@ internal fun MainPagePager(
     routes: List<String>,
     swipeEnabled: Boolean,
     modifier: Modifier = Modifier,
+    saveableStateHolder: androidx.compose.runtime.saveable.SaveableStateHolder = rememberSaveableStateHolder(),
     onBackToHome: () -> Unit = { if (!state.exitSearch()) state.select(Screen.Home.route) },
     content: @Composable (String) -> Unit
 ) {
     if (routes.isEmpty()) return
     val selected = routes.indexOfFirst { mainPageIdentity(it) == mainPageIdentity(state.selectedRoute) }.coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = selected) { routes.size }
-    val holder = rememberSaveableStateHolder()
+    // The holder is normally hoisted above the NavHost so a destination stacked by a
+    // deeplink does not destroy every tab's saved scroll state when this page leaves
+    // composition (#750).
+    val holder = saveableStateHolder
     val latestRoutes by rememberUpdatedState(routes)
     var navigating by remember { mutableStateOf(false) }
     var settledRequestVersion by remember { mutableIntStateOf(-1) }
     val requestedVersion = state.requestVersion
+    val scope = rememberCoroutineScope()
     LaunchedEffect(requestedVersion, routes) {
         val destination = latestRoutes.indexOfFirst { mainPageIdentity(it) == mainPageIdentity(state.selectedRoute) }.coerceAtLeast(0)
         navigating = true
-        try { pager.springAnimateToPage(destination) } finally {
+        try {
+            // A far tab jump would sweep every intermediate page (#720). Pre-position next to
+            // the target so the spring only crosses a single page edge.
+            val distance = destination - pager.currentPage
+            if (kotlin.math.abs(distance) > 1) {
+                pager.scrollToPage(destination - distance / kotlin.math.abs(distance))
+            }
+            pager.springAnimateToPage(destination)
+        } finally {
             settledRequestVersion = requestedVersion
             navigating = false
         }
@@ -137,8 +177,50 @@ internal fun MainPagePager(
                 }
             }
     }
+    // currentPage flips at the gesture's halfway point, so the dock bubble follows the
+    // swipe like the Miuix demo instead of waiting for the settle. Programmatic tab
+    // animations keep the settled-route selection so a dock tap still lights instantly.
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.currentPage to (pager.isScrollInProgress && !navigating) }
+            .collect { (page, swiping) ->
+                state.livePagerRoute = if (swiping) latestRoutes.getOrNull(page) else null
+            }
+    }
+    // A Back-exited search page forgets its saved state once it leaves composition (#778).
+    val pendingForget = state.pendingForgetRoute
+    LaunchedEffect(pendingForget, holder) {
+        if (pendingForget == null) return@LaunchedEffect
+        val landedOn = mainPageIdentity(state.selectedRoute)
+        snapshotFlow { pager.settledPage to (pager.isScrollInProgress || navigating) }
+            .first { (page, busy) ->
+                !busy && latestRoutes.getOrNull(page)?.let(::mainPageIdentity) == landedOn
+            }
+        withFrameNanos { }
+        if (state.pendingForgetRoute == pendingForget) {
+            holder.removeState(pendingForget)
+            state.consumeForgetRoute()
+        }
+    }
     BackHandler(enabled = state.selectedRoute != Screen.Home.route) {
+        // Tab swipes and dock taps keep each page's saved scroll. System Back that lands on
+        // Home forgets the page being left, so the next visit starts at the top (#773, #161).
+        val leaving = mainPageIdentity(state.selectedRoute)
         onBackToHome()
+        if (mainPageIdentity(state.selectedRoute) == mainPageIdentity(Screen.Home.route) &&
+            leaving != mainPageIdentity(Screen.Home.route)
+        ) {
+            scope.launch {
+                snapshotFlow { pager.settledPage to pager.isScrollInProgress }
+                    .first { (page, scrolling) ->
+                        !scrolling && latestRoutes.getOrNull(page)?.let(::mainPageIdentity) ==
+                            mainPageIdentity(Screen.Home.route)
+                    }
+                withFrameNanos { }
+                if (mainPageIdentity(state.selectedRoute) == mainPageIdentity(Screen.Home.route)) {
+                    holder.removeState(leaving)
+                }
+            }
+        }
     }
     HorizontalPager(state = pager, modifier = modifier.fillMaxSize(), key = { mainPageIdentity(routes[it]) },
         userScrollEnabled = swipeEnabled, beyondViewportPageCount = 0) { index ->
@@ -146,7 +228,10 @@ internal fun MainPagePager(
         holder.SaveableStateProvider(mainPageIdentity(route)) {
             val active = mainPageIdentity(route) == mainPageIdentity(state.selectedRoute)
             val readyForInput = active && index == pager.settledPage && !pager.isScrollInProgress && !navigating
-            CompositionLocalProvider(LocalMainPageActive provides readyForInput) {
+            CompositionLocalProvider(
+                LocalMainPageActive provides readyForInput,
+                LocalMainPageEntryTarget provides (active && navigating && index == pager.targetPage)
+            ) {
                 MainPageBackScope(active) { content(if (active) state.selectedRoute else route) }
             }
         }

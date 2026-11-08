@@ -34,6 +34,7 @@ internal fun songsToLibraryCacheJsonArray(songs: List<Song>): JSONArray {
                 .put("composer", song.composer)
                 .put("arranger", song.arranger)
                 .put("lyricist", song.lyricist)
+                .put("producer", song.producer)
                 .put("customTags", JSONObject().apply { song.customTags.forEach { (key, values) -> put(key, JSONArray(values)) } })
                 .put("customTagsLoaded", song.customTagsLoaded)
                 .put("coverUrl", song.coverUrl)
@@ -140,6 +141,7 @@ private fun JsonReader.readCacheSong(): Song {
     var composer = ""
     var arranger = ""
     var lyricist = ""
+    var producer = ""
     var customTags = emptyMap<String, List<String>>()
     var customTagsLoaded = false
     var coverUrl = ""
@@ -172,6 +174,7 @@ private fun JsonReader.readCacheSong(): Song {
             "composer" -> composer = nextStringOrEmpty()
             "arranger" -> arranger = nextStringOrEmpty()
             "lyricist" -> lyricist = nextStringOrEmpty()
+            "producer" -> producer = nextStringOrEmpty()
             "customTags" -> customTags = readCustomTags()
             "customTagsLoaded" -> customTagsLoaded = nextBoolean()
             "coverUrl" -> coverUrl = nextStringOrEmpty()
@@ -206,6 +209,7 @@ private fun JsonReader.readCacheSong(): Song {
         composer = composer,
         arranger = arranger,
         lyricist = lyricist,
+        producer = producer,
         customTags = customTags,
         customTagsLoaded = customTagsLoaded,
         coverUrl = coverUrl,

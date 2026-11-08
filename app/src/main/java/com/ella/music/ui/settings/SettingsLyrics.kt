@@ -44,7 +44,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsLyricsSection(
@@ -524,6 +524,8 @@ private fun SettingsPlayerLyricSizingControls(initialBlurPercent: Int? = null) {
     val lyricFontScale by settingsManager.lyricFontScale.collectAsState(initial = 100)
     val lyricSecondaryFontScale by settingsManager.lyricSecondaryFontScale.collectAsState(initial = 100)
     val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = initialBlurPercent ?: 70)
+    val lyricInactiveOpacity by settingsManager.lyricInactiveOpacity.collectAsState(initial = 24)
+    val lyricUnsungOpacity by settingsManager.lyricUnsungOpacity.collectAsState(initial = 36)
     val lyricPrimaryTextSize by when (layoutProfile) {
         PlayerLyricLayoutProfile.Compact -> settingsManager.lyricCompactPrimaryTextSize
             .collectAsState(initial = SettingsManager.LYRIC_COMPACT_PRIMARY_TEXT_SIZE_DEFAULT_SP)
@@ -546,6 +548,34 @@ private fun SettingsPlayerLyricSizingControls(initialBlurPercent: Int? = null) {
         valueText = "$lyricNonCurrentBlurPercent%",
         onValueChange = { value ->
             scope.launch { settingsManager.setLyricNonCurrentBlurPercent(value) }
+        }
+    )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_lyric_inactive_opacity) {
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.settings_lyric_inactive_opacity, lyricInactiveOpacity),
+        summary = stringResource(R.string.settings_lyric_inactive_opacity_summary),
+        value = lyricInactiveOpacity,
+        valueRange = 5..100,
+        valueText = "${lyricInactiveOpacity.coerceIn(5, 100)}%",
+        onValueChange = { value ->
+            scope.launch { settingsManager.setLyricInactiveOpacity(value) }
+        }
+    )
+    } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_lyric_unsung_opacity) {
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.settings_lyric_unsung_opacity, lyricUnsungOpacity),
+        summary = stringResource(R.string.settings_lyric_unsung_opacity_summary),
+        value = lyricUnsungOpacity,
+        valueRange = 0..100,
+        valueText = "${lyricUnsungOpacity.coerceIn(0, 100)}%",
+        onValueChange = { value ->
+            scope.launch { settingsManager.setLyricUnsungOpacity(value) }
         }
     )
     } // search-anchor:end
@@ -651,7 +681,7 @@ internal fun SettingsPlayerMiniLyricControls() {
     )
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_player_lyric_text_align) {
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
         summary = stringResource(R.string.settings_player_lyric_text_align_summary),
         items = alignLabels.map { DropdownItem(title = it) },
@@ -728,7 +758,7 @@ private fun SettingsPlayerLyricAlignmentPreference() {
     }
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_player_lyric_text_align) {
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
         summary = stringResource(R.string.settings_player_lyric_text_align_summary),
         items = entries,

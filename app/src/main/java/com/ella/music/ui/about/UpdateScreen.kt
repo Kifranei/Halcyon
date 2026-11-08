@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.BuildConfig
 import com.ella.music.R
+import com.ella.music.ui.components.EllaGlassListPopup
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private enum class UpdateScreenMode {
@@ -105,26 +107,11 @@ fun UpdateScreen(
         checkUpdate()
     }
 
-    com.ella.music.ui.components.EllaMiuixBottomSheet(
-        show = showChannelPicker,
-        title = stringResource(R.string.update_channel_title),
-        onDismissRequest = { showChannelPicker = false }
-    ) {
-        com.ella.music.ui.components.EllaMiuixSheetColumn(spacing = 8.dp, showHandle = false, scrollable = false) {
-            com.ella.music.ui.components.EllaCheckOptionGroup(
-                options = listOf(
-                    false to stringResource(R.string.update_channel_stable),
-                    true to stringResource(R.string.update_channel_preview)
-                ),
-                selected = includePrereleases,
-                onSelect = { preview ->
-                    includePrereleases = preview
-                    UpdateChannelPreferences.setIncludesPrereleases(context, preview)
-                    showChannelPicker = false
-                    checkUpdate()
-                }
-            )
-        }
+    fun selectChannel(preview: Boolean) {
+        includePrereleases = preview
+        UpdateChannelPreferences.setIncludesPrereleases(context, preview)
+        showChannelPicker = false
+        checkUpdate()
     }
 
     val readyState = state as? UpdateUiState.Ready
@@ -170,8 +157,25 @@ fun UpdateScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showChannelPicker = true }) {
-                        Icon(MiuixIcons.Regular.More, contentDescription = stringResource(R.string.player_quick_more))
+                    Box {
+                        IconButton(onClick = { showChannelPicker = true }) {
+                            Icon(MiuixIcons.Regular.More, contentDescription = stringResource(R.string.player_quick_more))
+                        }
+                        EllaGlassListPopup(
+                            show = showChannelPicker,
+                            onDismissRequest = { showChannelPicker = false }
+                        ) {
+                            GlassPopupItem(
+                                text = stringResource(R.string.update_channel_stable),
+                                selected = !includePrereleases,
+                                onClick = { selectChannel(false) }
+                            )
+                            GlassPopupItem(
+                                text = stringResource(R.string.update_channel_preview),
+                                selected = includePrereleases,
+                                onClick = { selectChannel(true) }
+                            )
+                        }
                     }
                 }
             )

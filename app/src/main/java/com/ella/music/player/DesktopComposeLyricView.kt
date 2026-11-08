@@ -76,12 +76,19 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
     private var statusBarPronunciationWords by mutableStateOf(emptyList<LyricWord>())
     private var statusBarTextAlign by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_STATUS_ALIGN_LEFT)
     private var statusBarVerticalAlign by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_TOP)
+    private var currentLinePosition by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_LINE_POSITION_CENTER)
+    /** Tenths of a percent, or -1 to follow the shared lyric unsung opacity (#727). */
+    private var unsungOpacityTenths by mutableIntStateOf(-1)
+    /** Whether any line of the current lyric set carries pronunciation/translation (#727). */
+    private var songHasPronunciation by mutableStateOf(false)
+    private var songHasTranslation by mutableStateOf(false)
     private var lyricFontPath by mutableStateOf("")
     private var lyricFontWeight by mutableIntStateOf(800)
     private var lyricFontItalic by mutableStateOf(false)
     private var wordLiftEnabled by mutableStateOf(true)
     private var compactLayout by mutableStateOf(false)
     private var glowEnabled by mutableStateOf(false)
+    private var glowRadiusTenths by mutableStateOf(1000)
     private var outlineEnabled by mutableStateOf(false)
 
     init {
@@ -160,11 +167,14 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         statusBarMergeSecondary: Boolean = false,
         statusBarTextAlign: Int = SettingsManager.DESKTOP_LYRIC_STATUS_ALIGN_LEFT,
         statusBarVerticalAlign: Int = SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_TOP,
+        currentLinePosition: Int = SettingsManager.DESKTOP_LYRIC_LINE_POSITION_CENTER,
+        unsungOpacityTenths: Int = -1,
         lyricFontPath: String = "",
         lyricFontWeight: Int = 800,
         lyricFontItalic: Boolean = false,
         wordLiftEnabled: Boolean = true,
         glowEnabled: Boolean = false,
+        glowRadiusTenths: Int = 1000,
         outlineEnabled: Boolean = false,
         backgroundMode: Int = 0,
         backgroundOpacity: Int = 58
@@ -180,11 +190,14 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         this.statusBarMergeSecondary = statusBarMergeSecondary
         this.statusBarTextAlign = statusBarTextAlign.coerceIn(0, 2)
         this.statusBarVerticalAlign = statusBarVerticalAlign.coerceIn(0, 2)
+        this.currentLinePosition = currentLinePosition.coerceIn(0, 2)
+        this.unsungOpacityTenths = unsungOpacityTenths.coerceIn(-1, 1000)
         this.lyricFontPath = lyricFontPath
         this.lyricFontWeight = lyricFontWeight.coerceIn(100, 900)
         this.lyricFontItalic = lyricFontItalic
         this.wordLiftEnabled = wordLiftEnabled
         this.glowEnabled = glowEnabled
+        this.glowRadiusTenths = glowRadiusTenths.coerceIn(0, 2000)
         this.outlineEnabled = outlineEnabled
         if (outlineChanged) refreshCurrentLyricRendering()
         background = when (backgroundMode.coerceIn(0, 2)) {
@@ -234,8 +247,12 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         backgroundWordStarts: LongArray,
         backgroundWordEnds: LongArray,
         interludeStartMs: Long = -1L,
-        interludeEndMs: Long = -1L
+        interludeEndMs: Long = -1L,
+        songHasPronunciation: Boolean = false,
+        songHasTranslation: Boolean = false
     ) {
+        this.songHasPronunciation = songHasPronunciation
+        this.songHasTranslation = songHasTranslation
         currentPositionMs = positionMs
         currentInterlude = if (interludeStartMs >= 0L && interludeEndMs > interludeStartMs)
             com.ella.music.ui.player.AppleMusicInterlude(interludeStartMs, interludeEndMs, 0) else null
@@ -360,9 +377,14 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
             SettingsManager.PLAYER_LYRIC_ALIGN_CENTER
         }
         val verticalAlignment = when {
-            // Keep the first lyric baseline anchored at the top. Translation, pronunciation and
-            // wrapped rows then grow downward instead of moving the whole lyric block around.
-            !statusBarMode -> Alignment.TopCenter
+            // The floating lyric's current line sits at the configured vertical position inside
+            // its fixed-height window. Secondary rows are always reserved on both sides, so the
+            // primary text itself never shifts (#727).
+            !statusBarMode -> when (currentLinePosition) {
+                SettingsManager.DESKTOP_LYRIC_LINE_POSITION_TOP -> Alignment.TopCenter
+                SettingsManager.DESKTOP_LYRIC_LINE_POSITION_BOTTOM -> Alignment.BottomCenter
+                else -> Alignment.Center
+            }
             statusBarVerticalAlign == SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_CENTER -> Alignment.Center
             statusBarVerticalAlign == SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_BOTTOM -> Alignment.BottomCenter
             else -> Alignment.TopCenter
@@ -404,7 +426,9 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                     secondaryFontScale = translationScale,
                     primaryTextSizeSp = if (statusBarMode) 12.5f else 24f,
                     secondaryTextSizeSp = if (statusBarMode) 9.5f else 14f,
-                    fontPaddingForTallGlyphs = true,
+                    // Same font-independent trimmed metric as the player page: line height must
+                    // not grow when a custom typeface draws past its declared ascent (#727).
+                    fontPaddingForTallGlyphs = false,
                     lyricTextAlign = effectiveAlign,
                     contentColor = Color(textColor).let { color ->
                         if (opacityPercent >= 100) color else color.copy(alpha = opacityPercent / 100f)
@@ -417,8 +441,16 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                     primaryGlowColor = if (glowEnabled && !statusBarMode) {
                         Color(textColor).copy(alpha = 0.70f)
                     } else null,
-                    primaryGlowRadius = 7f * resources.displayMetrics.density,
-                    singleLine = statusBarMode,
+                    primaryGlowRadius = 7f * resources.displayMetrics.density * (glowRadiusTenths / 1000f),
+                    // Floating lines never wrap either: they scroll horizontally in sync with
+                    // the line's timed duration instead (#727). A compact (locked) window wraps
+                    // the content itself, so there is no viewport to scroll inside.
+                    singleLine = true,
+                    lineProgressScroll = !statusBarMode && !compactLayout,
+                    unsungAlpha = unsungOpacityTenths.takeIf { it >= 0 }?.let { it / 1000f },
+                    reservePronunciationRow = !statusBarMode && songHasPronunciation,
+                    reserveTranslationRow = !statusBarMode && songHasTranslation,
+                    forcePronunciationAbove = !statusBarMode,
                     inlineStaticSecondaryText = if (statusBarMode) statusBarSecondaryText else "",
                     inlineStaticSecondaryWords = if (statusBarMode) statusBarSecondaryWords else emptyList(),
                     mergeInlineSecondary = statusBarMode && statusBarMergeSecondary,

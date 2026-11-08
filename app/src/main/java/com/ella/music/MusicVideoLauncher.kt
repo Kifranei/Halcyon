@@ -58,6 +58,25 @@ internal object MusicVideoLauncher {
         ))
     }
 
+    /** Online-MV entry point for list rows: dispatches by the URL scheme the row produced. */
+    fun openOnline(context: Context, song: Song?, url: String) {
+        val uri = Uri.parse(url)
+        if (uri.scheme == "halcyon-plugin-mv") {
+            openSourcePlugin(context, song, uri.host.orEmpty(), uri.lastPathSegment.orEmpty())
+        } else {
+            openNetease(context, song, uri.getQueryParameter("id").orEmpty())
+        }
+    }
+
+    fun openSourcePlugin(context: Context, song: Song?, pluginId: String, mvId: String) {
+        if (pluginId.isBlank() || mvId.isBlank()) return
+        open(context, song, DynamicCoverSource(
+            uri = Uri.parse("halcyon-plugin-mv://$pluginId/${Uri.encode(mvId)}"),
+            failureKey = "plugin-mv:$pluginId:$mvId",
+            role = com.ella.music.ui.player.PlayerVideoRole.MusicVideo
+        ))
+    }
+
     fun isMusicVideo(intent: Intent): Boolean = !intent.getBooleanExtra(EXTRA_GENERIC_VIDEO, false)
 
     fun songFrom(intent: Intent): Song? = intent.getStringExtra(EXTRA_SONG)

@@ -86,6 +86,13 @@ internal fun AppleMusicLyricsView(
     onLineClick: (LyricLine) -> Unit,
     onLineDoubleClick: (() -> Unit)? = null,
     onLineLongClick: (LyricLine) -> Unit,
+    /**
+     * #727: when both are set, dragging the opening blank lyric row reports scrub positions
+     * through this preview channel (null clears it) instead of live-seeking on every move;
+     * [onOpeningLyricCommit] fires once with the final position when the gesture ends.
+     */
+    onOpeningLyricPreview: ((Long?) -> Unit)? = null,
+    onOpeningLyricCommit: ((Long) -> Unit)? = null,
     topContentPadding: Dp = 72.dp,
     bottomContentPadding: Dp = 132.dp,
     lineSpacing: Dp = 25.dp,
@@ -113,6 +120,8 @@ internal fun AppleMusicLyricsView(
         .collectAsState(initial = residentPreferences?.sustainMotion ?: true)
     val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
         .collectAsState(initial = residentPreferences?.pronunciationBelow ?: false)
+    val inactiveOpacityPercent by remember(context) { SettingsManager.getInstance(context).lyricInactiveOpacity }
+        .collectAsState(initial = residentPreferences?.inactiveOpacityPercent ?: 24)
     val sustainThresholdMs by remember(context) {
         SettingsManager.getInstance(context).appleMusicLyricsSustainThresholdMs
     }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
@@ -156,6 +165,7 @@ internal fun AppleMusicLyricsView(
             ) {
                 lyrics.forEachIndexed { index, line ->
                     val presentation = linePresentation?.invoke(index, line)
+                    val openingScrub = line.openingScrubHandlers(onOpeningLyricPreview, onOpeningLyricCommit)
                     AppleMusicLyricLine(
                         line = line,
                         active = true,
@@ -167,6 +177,7 @@ internal fun AppleMusicLyricsView(
                         showTranslation = presentation?.showTranslation ?: showTranslation,
                         showPronunciation = presentation?.showPronunciation ?: showPronunciation,
                         pronunciationBelow = pronunciationBelow,
+                        inactiveOpacityBase = inactiveOpacityPercent / 100f,
                         fontFamily = fontFamily,
                         translationFontFamily = translationFontFamily,
                         fontWeight = fontWeight,
@@ -189,7 +200,8 @@ internal fun AppleMusicLyricsView(
                         onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
                             { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
                         } else null,
-                        onTapFraction = line.openingSeekHandler(onLineClick),
+                        onTapFraction = openingScrub?.onFraction ?: line.openingSeekHandler(onLineClick),
+                        onDragEnd = openingScrub?.onRelease,
                         touchFeedbackEnabled = touchFeedbackEnabled
                     )
                 }
@@ -461,6 +473,7 @@ internal fun AppleMusicLyricsView(
                     }
                     val lineIsActive = activeInterlude == null && (index == activeIndex || duetActive)
                     val presentation = linePresentation?.invoke(index, line)
+                    val openingScrub = line.openingScrubHandlers(onOpeningLyricPreview, onOpeningLyricCommit)
                     AppleMusicLyricLine(
                         line = line,
                         active = lineIsActive,
@@ -478,6 +491,7 @@ internal fun AppleMusicLyricsView(
                         showTranslation = presentation?.showTranslation ?: showTranslation,
                         showPronunciation = presentation?.showPronunciation ?: showPronunciation,
                         pronunciationBelow = pronunciationBelow,
+                        inactiveOpacityBase = inactiveOpacityPercent / 100f,
                         fontFamily = fontFamily,
                         translationFontFamily = translationFontFamily,
                         fontWeight = fontWeight,
@@ -500,7 +514,8 @@ internal fun AppleMusicLyricsView(
                         onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
                             { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
                         } else null,
-                        onTapFraction = line.openingSeekHandler(onLineClick),
+                        onTapFraction = openingScrub?.onFraction ?: line.openingSeekHandler(onLineClick),
+                        onDragEnd = openingScrub?.onRelease,
                         touchFeedbackEnabled = touchFeedbackEnabled,
                         modifier = (if (index == lyrics.lastIndex) {
                             Modifier.onSizeChanged { trailingLineHeightPx = it.height }
@@ -536,7 +551,8 @@ internal data class AppleMusicLyricsViewPreferences(
     val sustainMotion: Boolean,
     val pronunciationBelow: Boolean,
     val nonCurrentLineBlurPercent: Int,
-    val pauseCurrentOnly: Boolean
+    val pauseCurrentOnly: Boolean,
+    val inactiveOpacityPercent: Int
 )
 
 internal val LocalAppleMusicLyricsViewPreferences =
@@ -551,13 +567,15 @@ internal fun rememberAppleMusicLyricsViewPreferences(
             settingsManager.lyricSustainMotion,
             settingsManager.lyricPronunciationBelow,
             settingsManager.lyricNonCurrentBlurPercent,
-            settingsManager.lyricPauseCurrentOnly
-        ) { sustainMotion, pronunciationBelow, blurPercent, pauseCurrentOnly ->
+            settingsManager.lyricPauseCurrentOnly,
+            settingsManager.lyricInactiveOpacity
+        ) { sustainMotion, pronunciationBelow, blurPercent, pauseCurrentOnly, inactiveOpacity ->
             AppleMusicLyricsViewPreferences(
                 sustainMotion = sustainMotion,
                 pronunciationBelow = pronunciationBelow,
                 nonCurrentLineBlurPercent = blurPercent,
-                pauseCurrentOnly = pauseCurrentOnly
+                pauseCurrentOnly = pauseCurrentOnly,
+                inactiveOpacityPercent = inactiveOpacity
             )
         }
     }
@@ -576,6 +594,39 @@ private fun LyricLine.openingSeekHandler(
             onLineClick(copy(timeMs = positionMs))
         }
     }
+}
+
+/**
+ * #727: paired scrub callbacks for the opening metadata row. `onFraction` previews each
+ * position through the player seek bar; `onRelease` commits the last previewed position once
+ * and clears the preview. The shared `lastDragMs` lives in the closure — a lyric set holds at
+ * most one opening row and both callbacks always run on the gesture thread.
+ */
+internal class OpeningLyricScrub(
+    val onFraction: (Float) -> Unit,
+    val onRelease: () -> Unit
+)
+
+private fun LyricLine.openingScrubHandlers(
+    onPreview: ((Long?) -> Unit)?,
+    onCommit: ((Long) -> Unit)?
+): OpeningLyricScrub? {
+    if (onPreview == null || onCommit == null) return null
+    if (resolveOpeningLyricSeekPosition(this, 0f) == null) return null
+    var lastDragMs: Long? = null
+    return OpeningLyricScrub(
+        onFraction = { fraction ->
+            resolveOpeningLyricSeekPosition(this, fraction)?.let { positionMs ->
+                lastDragMs = positionMs
+                onPreview(positionMs)
+            }
+        },
+        onRelease = {
+            lastDragMs?.let(onCommit)
+            lastDragMs = null
+            onPreview(null)
+        }
+    )
 }
 
 internal fun resolveOpeningLyricSeekPosition(line: LyricLine, fraction: Float): Long? {
@@ -634,13 +685,26 @@ internal fun lyricFramePositionMs(
     displayMs: Long,
     sampledMs: Long,
     frameDeltaMs: Long,
-    playing: Boolean
-): Long = livePositionMs?.coerceAtLeast(0L) ?: nextSmoothLyricPositionMs(
-    displayMs = displayMs,
-    sampledMs = sampledMs,
-    frameDeltaMs = frameDeltaMs,
-    playing = playing
-)
+    playing: Boolean,
+    seekThresholdMs: Long = 1_500L,
+    backwardToleranceMs: Long = PLAYER_POSITION_BACKWARD_DRIFT_TOLERANCE_MS
+): Long {
+    val live = livePositionMs?.coerceAtLeast(0L)
+    if (live != null) {
+        if (!playing) return live
+        // Real seeks land far from the last authoritative sample; anything within the window
+        // is engine jitter. Clamp it so a stuttering live read cannot rewind the karaoke
+        // sweep by more than the drift tolerance (#727).
+        if (abs(live - sampledMs) > seekThresholdMs) return live
+        return live.coerceAtLeast(displayMs - backwardToleranceMs)
+    }
+    return nextSmoothLyricPositionMs(
+        displayMs = displayMs,
+        sampledMs = sampledMs,
+        frameDeltaMs = frameDeltaMs,
+        playing = playing
+    )
+}
 
 internal fun nextSmoothLyricPositionMs(
     displayMs: Long,

@@ -75,7 +75,7 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyGridScrollIndicator
-import com.ella.music.ui.components.RestoreGridScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchGridState
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -115,14 +115,16 @@ fun AlbumScreen(
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var albumMenuTarget by remember { mutableStateOf<Album?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var batchAlbumTarget by remember { mutableStateOf<com.ella.music.data.model.Album?>(null) }
     val storedPinnedAlbumKeys by mainViewModel.settingsManager.pinnedKeysFlow("album").collectAsState(initial = null)
     val pinnedAlbumKeys = storedPinnedAlbumKeys.orEmpty()
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
@@ -286,7 +288,7 @@ fun AlbumScreen(
                     }
                 },
                 titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
-                titleEndPadding = if (selection.selectionMode) 280.dp else 128.dp,
+                titleEndPadding = if (selection.selectionMode) 328.dp else 128.dp,
                 onDoubleTapTitle = { scrollToTopRequest++ },
                 actions = {
                     if (selection.selectionMode) {
@@ -304,6 +306,10 @@ fun AlbumScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = selectedAlbumSongs()
+                            if (selectedSongs.isNotEmpty()) batchEditSongs = selectedSongs
+                        })
                         IconButton(onClick = {
                             val selectedSongs = selectedAlbumSongs()
                             if (selectedSongs.isNotEmpty()) {
@@ -459,14 +465,13 @@ fun AlbumScreen(
                 )
             }
         } else {
-            RestoreGridScrollAfterSearch(
-                searchExpanded = searchExpanded,
-                query = searchQuery,
-                gridState = gridState
-            )
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val searchGridState = rememberSearchGridState(searchExpanded, searchQuery)
+            val activeGridState = if (searchExpanded) searchGridState else gridState
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             LaunchedEffect(scrollToTopRequest) {
-                if (scrollToTopRequest > 0) gridState.animateScrollToItem(0)
+                if (scrollToTopRequest > 0) activeGridState.animateScrollToItem(0)
             }
             // Restoration is applied only to a result calculated from the final pin/sort inputs.
             // requestScrollToItem also disables lazy key anchoring for the next remeasure.
@@ -518,8 +523,8 @@ fun AlbumScreen(
 
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(safeGridColumns),
-                        state = gridState,
-                        modifier = Modifier.fillMaxSize().dragSelectGrid(gridState, selection, sortedAlbumIds),
+                        state = activeGridState,
+                        modifier = Modifier.fillMaxSize().dragSelectGrid(activeGridState, selection, sortedAlbumIds),
                         contentPadding = PaddingValues(
                             end = if (showAlbumSideIndex) SideIndexListEndPadding else 0.dp,
                             bottom = 160.dp
@@ -588,13 +593,13 @@ fun AlbumScreen(
                             val index = fastIndexTargets[letter]
                             if (index != null) {
                                 fastScrollJob?.cancel()
-                                fastScrollJob = scope.launch { gridState.scrollToItem(index) }
+                                fastScrollJob = scope.launch { activeGridState.scrollToItem(index) }
                             }
                         }
                     )
                 } else if (showAlbumSideIndex) {
                     LazyGridScrollIndicator(
-                        state = gridState,
+                        state = activeGridState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -615,6 +620,7 @@ fun AlbumScreen(
         }
     }
 
+    com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
     playlistPickerSongs?.let { songsToAdd ->
         EllaMiuixBottomSheet(
             show = true,
@@ -703,11 +709,27 @@ fun AlbumScreen(
                     ).show()
                     albumMenuTarget = null
                 },
+                com.ella.music.ui.components.LibraryEntityAction(
+                    title = stringResource(R.string.category_batch_edit),
+                    icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                    onClick = { batchAlbumTarget = album; albumMenuTarget = null }
+                ),
                 com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                     pendingDeleteSongs = mainViewModel.getSongsForAlbum(album.id)
                     albumMenuTarget = null
                 }
             )
+        )
+    }
+
+    batchAlbumTarget?.let { batchAlbum ->
+        com.ella.music.ui.category.BatchTagEditSheet(
+            type = "album",
+            category = batchAlbum.name,
+            songs = remember(batchAlbum.id) { mainViewModel.getSongsForAlbum(batchAlbum.id) },
+            specs = com.ella.music.ui.category.ALBUM_BATCH_FIELD_SPECS,
+            mainViewModel = mainViewModel,
+            onDismiss = { batchAlbumTarget = null }
         )
     }
 

@@ -48,6 +48,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_RESUME_PLAYBACK_POSITIO
 import com.ella.music.data.SettingsManager.Companion.KEY_SHUFFLE_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_SHUFFLE_RESHUFFLE_ON_STARTUP
 import com.ella.music.data.SettingsManager.Companion.KEY_DISABLE_SEQUENTIAL_PLAYBACK
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYBACK_MODE_STOP_AFTER_CURRENT
 import com.ella.music.data.SettingsManager.Companion.KEY_SLEEP_TIMER_CUSTOM_MINUTES
 import com.ella.music.data.SettingsManager.Companion.KEY_SLEEP_TIMER_STOP_AFTER_CURRENT
 import com.ella.music.data.SettingsManager.Companion.KEY_STARTUP_AUTO_PLAY
@@ -89,6 +90,7 @@ interface PlaybackSettingsAccess {
     val shuffleMode: Flow<Int>
     val shuffleReshuffleOnStartup: Flow<Boolean>
     val disableSequentialPlayback: Flow<Boolean>
+    val playbackModeStopAfterCurrent: Flow<Boolean>
     val previousButtonAction: Flow<Int>
     val pausedSwitchMode: Flow<Int>
     val usbDacMode: Flow<Boolean>
@@ -116,6 +118,7 @@ interface PlaybackSettingsAccess {
     suspend fun setShuffleMode(mode: Int)
     suspend fun setShuffleReshuffleOnStartup(enabled: Boolean)
     suspend fun setDisableSequentialPlayback(enabled: Boolean)
+    suspend fun setPlaybackModeStopAfterCurrent(enabled: Boolean)
     suspend fun setPreviousButtonAction(action: Int)
     suspend fun setPausedSwitchMode(mode: Int)
     suspend fun setUsbDacMode(enabled: Boolean)
@@ -209,6 +212,8 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
         context.dataStore.data.map { it[KEY_SHUFFLE_RESHUFFLE_ON_STARTUP] ?: false }
     override val disableSequentialPlayback: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_DISABLE_SEQUENTIAL_PLAYBACK] ?: false }
+    override val playbackModeStopAfterCurrent: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYBACK_MODE_STOP_AFTER_CURRENT] ?: false }
     override val previousButtonAction: Flow<Int> =
         context.dataStore.data.map { it[KEY_PREVIOUS_BUTTON_ACTION] ?: PREVIOUS_BUTTON_PREVIOUS }
     override val pausedSwitchMode: Flow<Int> =
@@ -319,6 +324,10 @@ internal class PlaybackSettingsAccessImpl(private val context: Context) : Playba
 
     override suspend fun setDisableSequentialPlayback(enabled: Boolean) {
         context.dataStore.edit { it[KEY_DISABLE_SEQUENTIAL_PLAYBACK] = enabled }
+    }
+
+    override suspend fun setPlaybackModeStopAfterCurrent(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYBACK_MODE_STOP_AFTER_CURRENT] = enabled }
     }
 
     override suspend fun setPreviousButtonAction(action: Int) {

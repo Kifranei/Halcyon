@@ -164,7 +164,8 @@ internal fun HistoryCard(
     libraryById: Map<Long, Song>,
     libraryByStatsKey: Map<String, Song>,
     mainViewModel: MainViewModel,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onSongClick: ((Song) -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -207,7 +208,8 @@ internal fun HistoryCard(
                         entry = entry,
                         song = libraryByStatsKey[entry.analyticsStatsKey()]
                             ?: libraryById[entry.songId],
-                        mainViewModel = mainViewModel
+                        mainViewModel = mainViewModel,
+                        onClick = onSongClick
                     )
                 }
             }
@@ -220,11 +222,15 @@ private fun HistoryRow(
     entry: PlaybackHistoryEntry,
     song: Song?,
     mainViewModel: MainViewModel,
-    timeText: String = formatHistoryTime(entry.playedAt)
+    timeText: String = formatHistoryTime(entry.playedAt),
+    onClick: ((Song) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = song != null && onClick != null) {
+                song?.let { onClick?.invoke(it) }
+            }
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

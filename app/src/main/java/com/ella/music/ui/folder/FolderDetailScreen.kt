@@ -68,7 +68,7 @@ import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
@@ -98,6 +98,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -111,7 +112,8 @@ fun FolderDetailScreen(
     onNavigateToAlbum: (Long) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onFolderClick: (String) -> Unit,
-    onNavigateToPlayer: () -> Unit
+    onNavigateToPlayer: () -> Unit,
+    onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val librarySongs by mainViewModel.songs.collectAsState()
@@ -141,12 +143,13 @@ fun FolderDetailScreen(
     val pinnedFolderPaths by mainViewModel.settingsManager.pinnedKeysFlow("folder").collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     var actionSong by remember { mutableStateOf<Song?>(null) }
     val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
@@ -171,7 +174,7 @@ fun FolderDetailScreen(
         saveScope.launch { mainViewModel.settingsManager.setFolderDetailSongSortIndex(nextSortIndex) }
     }
     val normalizedFolderPath = remember(folderPath) { folderPath.normalizeFolderPath() }
-    val listState = rememberSaveable(normalizedFolderPath, saver = LazyListState.Saver) { LazyListState() }
+    val listState = com.ella.music.ui.components.rememberDetailListState(normalizedFolderPath)
     var unpinToTopPath by remember(normalizedFolderPath) { mutableStateOf<String?>(null) }
     var scrollToTopRequest by remember { mutableStateOf(0) }
 
@@ -335,6 +338,14 @@ fun FolderDetailScreen(
                     }
                 }
                 if (selection.selectionMode) {
+                    com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                        val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                        if (selectedSongs.isEmpty()) {
+                            Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
+                        } else {
+                            batchEditSongs = selectedSongs
+                        }
+                    })
                     IconButton(
                         onClick = {
                                 val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
@@ -449,6 +460,14 @@ fun FolderDetailScreen(
                             )
                         )
                     )
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Close,
+                            contentDescription = stringResource(R.string.common_close),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -521,14 +540,13 @@ fun FolderDetailScreen(
                     unpinToTopPath = null
                 }
             }
-            RestoreListScrollAfterSearch(
-                searchExpanded = searchExpanded,
-                query = searchQuery,
-                listState = listState
-            )
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+            val activeListState = if (searchExpanded) searchListState else listState
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             LaunchedEffect(scrollToTopRequest) {
-                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+                if (scrollToTopRequest > 0) activeListState.animateScrollToItem(0)
             }
             val sortedSongIndexById = remember(sortedSongs) {
                 buildMap {
@@ -666,8 +684,8 @@ fun FolderDetailScreen(
                     )
                     LazyColumn(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        state = listState,
-                        modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, sortedSongIdsForSelection),
+                        state = activeListState,
+                        modifier = Modifier.fillMaxSize().dragSelectList(activeListState, selection, sortedSongIdsForSelection),
                         contentPadding = PaddingValues(end = listEndInset, bottom = 120.dp)
                     ) {
                         if (searchQuery.isBlank()) {
@@ -751,20 +769,20 @@ fun FolderDetailScreen(
                             val index = fastIndexTargets[letter]
                             if (index != null) {
                                 fastScrollJob?.cancel()
-                                fastScrollJob = scope.launch { listState.scrollToItem(index) }
+                                fastScrollJob = scope.launch { activeListState.scrollToItem(index) }
                             }
                         }
                     )
                 } else if (showScrollIndicator) {
                     LazyListScrollIndicator(
-                        state = listState,
+                        state = activeListState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
                     )
                 }
                 LocateCurrentSongFloatingButton(
-                    listState = listState,
+                    listState = activeListState,
                     currentItemIndex = currentSongItemIndex,
                     locateRequest = locateCurrentSongRequest,
                     modifier = Modifier
@@ -901,6 +919,7 @@ fun FolderDetailScreen(
             onNavigateToArtist = onNavigateToArtist
         )
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         playlistPickerSongs?.let { songsToAdd ->
             EllaMiuixBottomSheet(
                 show = true,

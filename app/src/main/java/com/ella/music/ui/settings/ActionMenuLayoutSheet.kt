@@ -32,6 +32,7 @@ internal fun actionMenuStringRes(id: String): Int = when (id) {
     ActionMenuIds.REMOTE_QUALITY -> R.string.settings_action_menu_remote_quality
     ActionMenuIds.LANDSCAPE -> R.string.player_landscape_lyrics
     ActionMenuIds.POSTER_WALL -> R.string.poster_wall_title
+    ActionMenuIds.LYRIC_THEATER -> R.string.poster_wall_fullscreen_player
     ActionMenuIds.LYRICS_DISPLAY -> R.string.player_lyrics_display
     ActionMenuIds.MINI_LYRICS_STYLE -> R.string.player_mini_lyrics_style
     ActionMenuIds.DYNAMIC_COVER -> R.string.player_match_dynamic_cover
@@ -61,6 +62,10 @@ internal fun actionMenuStringRes(id: String): Int = when (id) {
     ActionMenuIds.SONG_INFO_COMPOSER -> R.string.player_detail_composer
     ActionMenuIds.SONG_INFO_ARRANGER -> R.string.player_detail_arranger
     ActionMenuIds.SONG_INFO_LYRICIST -> R.string.player_detail_lyricist
+    ActionMenuIds.SONG_INFO_PRODUCER -> R.string.player_detail_producer
+    ActionMenuIds.SONG_INFO_COPYRIGHT -> R.string.song_more_metadata_copyright
+    ActionMenuIds.SONG_INFO_LANGUAGE -> R.string.player_detail_language
+    ActionMenuIds.SONG_INFO_CUSTOM -> R.string.song_info_custom_fields
     ActionMenuIds.SONG_INFO_COMMENT -> R.string.player_detail_comment
     ActionMenuIds.SONG_INFO_NETEASE -> R.string.song_more_netease_key
     ActionMenuIds.SONG_INFO_FORMAT -> R.string.song_more_detail_format

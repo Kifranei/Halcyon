@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -36,6 +38,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.TextWithEndPin
 import com.ella.music.ui.components.isAppWallpaperVisible
 import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.artist.rememberArtistCoverModel
@@ -45,7 +48,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Music
-import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
 
@@ -61,6 +63,9 @@ internal fun MetadataCategoryCard(
     selectionMode: Boolean = false,
     selected: Boolean = false,
     isPinned: Boolean = false,
+    customList: Boolean = false,
+    customCard: Boolean = false,
+    customCardColumns: Int = 2,
     mainViewModel: MainViewModel? = null,
     artistCoverFolderUri: String = "",
     onClick: () -> Unit,
@@ -74,6 +79,22 @@ internal fun MetadataCategoryCard(
         showDefaultWhenMissing = false
     )
     val coverModel: Any? = coverState.model
+
+    if (customList) {
+        PersonCategoryRow(
+            item = item,
+            sortMode = sortMode,
+            coverModel = coverModel,
+            selectionMode = selectionMode,
+            selected = selected,
+            isPinned = isPinned,
+            squareCover = true,
+            compactSummary = true,
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+        return
+    }
 
     when (type) {
         "folder" -> {
@@ -89,7 +110,7 @@ internal fun MetadataCategoryCard(
             )
             return
         }
-        "composer", "arranger", "lyricist" -> {
+        "composer", "arranger", "lyricist", "producer" -> {
             val personCoverModel: Any? = if (mainViewModel != null) {
                 rememberArtistCoverModel(
                     artistName = item.name,
@@ -123,10 +144,21 @@ internal fun MetadataCategoryCard(
     val hasCover = coverModel != null
     val isGenreCard = type == "genre"
     val useSmallCover = type == "genre" || type == "year"
+    // Custom-category cards size from a per-column-count aspect ratio instead of a fixed
+    // height so the grid keeps consistent proportions at any screen width.
+    val customCardAspect = when (customCardColumns.coerceIn(1, 4)) {
+        1 -> 1040f / 257f
+        2 -> 500f / 257f
+        3 -> 320f / 257f
+        else -> 230f / 257f
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (isGenreCard) 112.dp else 116.dp)
+            .then(
+                if (customCard) Modifier.aspectRatio(customCardAspect)
+                else Modifier.height(if (isGenreCard) 112.dp else 116.dp)
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -157,7 +189,10 @@ internal fun MetadataCategoryCard(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 2.dp)
-                    .size(if (useSmallCover) 54.dp else 78.dp)
+                    .then(
+                        if (customCard) Modifier.fillMaxHeight().aspectRatio(183f / 232f)
+                        else Modifier.size(if (useSmallCover) 54.dp else 78.dp)
+                    )
                     .graphicsLayer {
                         rotationZ = 13f
                         translationX = if (useSmallCover) 9.dp.toPx() else 16.dp.toPx()
@@ -196,7 +231,7 @@ internal fun MetadataCategoryCard(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    start = 14.dp,
+                    start = if (customCard) 10.dp else 14.dp,
                     top = if (isGenreCard) 12.dp else 13.dp,
                     end = if (hasCover) {
                         if (useSmallCover) 54.dp else 72.dp
@@ -207,33 +242,29 @@ internal fun MetadataCategoryCard(
                 ),
             // Small-cover cards (genre/year) keep the title and count on adjacent lines instead of
             // spreading them apart, so there is no empty gap between e.g. the year and song count.
-            verticalArrangement = if (useSmallCover) Arrangement.Center else Arrangement.SpaceBetween
+            verticalArrangement = if (useSmallCover || customCard) Arrangement.Center else Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = item.name,
-                    fontSize = if (isGenreCard) 13.sp else 16.sp,
-                    lineHeight = if (isGenreCard) 17.sp else 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = if (isGenreCard) 3 else 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (isPinned) {
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Pin,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
+            TextWithEndPin(
+                text = item.name,
+                pinned = isPinned,
+                fontSize = if (customCard) 14.sp else if (isGenreCard) 13.sp else 16.sp,
+                lineHeight = if (customCard) 18.sp else if (isGenreCard) 17.sp else 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = if (customCard) 4 else if (isGenreCard) 3 else 2
+            )
+            val countSummary = when {
+                customCard && sortMode.usesSongCountSummary() ->
+                    stringResource(R.string.custom_category_count, item.songCount)
+                customCard && (sortMode == MetadataCategorySortMode.AlbumCount ||
+                    sortMode == MetadataCategorySortMode.AlbumCountAsc) ->
+                    stringResource(R.string.custom_category_album_count, item.albumCount)
+                else -> item.categorySortSummary(sortMode)
             }
             Text(
-                text = item.categorySortSummary(sortMode),
-                fontSize = if (isGenreCard) 10.sp else 12.sp,
-                lineHeight = if (isGenreCard) 13.sp else 15.sp,
+                text = countSummary,
+                fontSize = if (customCard) 11.sp else if (isGenreCard) 10.sp else 12.sp,
+                lineHeight = if (customCard) 14.sp else if (isGenreCard) 13.sp else 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White.copy(alpha = 0.78f),
                 maxLines = 1,
@@ -291,27 +322,15 @@ private fun FolderCategoryRow(
             }
         }
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = item.name.substringAfterLast('/').ifBlank { item.name.ifBlank { stringResource(R.string.folder_root) } },
-                    fontSize = 17.sp,
-                    lineHeight = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (isPinned) {
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Pin,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
+            TextWithEndPin(
+                text = item.name.substringAfterLast('/').ifBlank { item.name.ifBlank { stringResource(R.string.folder_root) } },
+                pinned = isPinned,
+                fontSize = 17.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${item.folderSortSummary(sortMode)} · ${item.name}",
@@ -319,8 +338,7 @@ private fun FolderCategoryRow(
                 lineHeight = 17.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
+                overflow = TextOverflow.Ellipsis
             )
         }
         if (selectionMode) {
@@ -339,9 +357,12 @@ private fun PersonCategoryRow(
     selectionMode: Boolean,
     selected: Boolean,
     isPinned: Boolean,
+    squareCover: Boolean = false,
+    compactSummary: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val coverShape = if (squareCover) RoundedCornerShape(12.dp) else CircleShape
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -358,7 +379,7 @@ private fun PersonCategoryRow(
         Box(
             modifier = Modifier
                 .size(54.dp)
-                .clip(CircleShape)
+                .clip(coverShape)
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
         ) {
@@ -368,7 +389,7 @@ private fun PersonCategoryRow(
                     contentDescription = null,
                     modifier = Modifier
                         .size(54.dp)
-                        .clip(CircleShape),
+                        .clip(coverShape),
                     contentScale = ContentScale.Crop,
                     sizePx = 128,
                     showDefaultPlaceholder = false
@@ -384,28 +405,16 @@ private fun PersonCategoryRow(
         }
         Spacer(modifier = Modifier.size(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = item.name.ifBlank { stringResource(R.string.common_unknown) },
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (isPinned) {
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Pin,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
+            TextWithEndPin(
+                text = item.name.ifBlank { stringResource(R.string.common_unknown) },
+                pinned = isPinned,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
             Text(
-                text = item.personSortSummary(sortMode),
+                text = item.personSortSummary(sortMode, compactSummary),
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = 1,

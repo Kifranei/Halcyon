@@ -76,6 +76,7 @@ internal fun PlayerActionMenu(
     onArtist: () -> Unit,
     onDownload: () -> Unit,
     onLandscape: () -> Unit,
+    onLyricTheater: () -> Unit,
     onSongInfo: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -232,6 +233,7 @@ internal fun PlayerActionMenu(
                                     ActionMenuIds.CASTING -> openSystemOutputSwitcher(context)
                                     ActionMenuIds.AB_REPEAT -> onAbRepeat()
                                     ActionMenuIds.LANDSCAPE -> onLandscape()
+                                    ActionMenuIds.LYRIC_THEATER -> onLyricTheater()
                                     ActionMenuIds.POSTER_WALL -> openPosterWall()
                                     ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) setPage(PlayerActionSheetPage.LyricDisplay)
                                     ActionMenuIds.MINI_LYRICS_STYLE -> setPage(PlayerActionSheetPage.MiniLyricStyle)
@@ -354,6 +356,11 @@ internal fun PlayerActionMenu(
                             ActionMenuIds.LANDSCAPE -> PlayerActionMenuItem(
                                 stringResource(R.string.player_landscape_lyrics),
                                 onLandscape,
+                                icon = icon
+                            )
+                            ActionMenuIds.LYRIC_THEATER -> PlayerActionMenuItem(
+                                stringResource(R.string.poster_wall_fullscreen_player),
+                                onLyricTheater,
                                 icon = icon
                             )
                             ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) {

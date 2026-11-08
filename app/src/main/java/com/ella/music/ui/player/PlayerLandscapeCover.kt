@@ -124,6 +124,9 @@ internal fun LandscapeCoverPlayerPage(
     onShowLyrics: () -> Unit,
     onLyricLineClick: (LyricLine) -> Unit,
     onLyricLineLongClick: (LyricLine) -> Unit,
+    /** #727: opening blank-lyric scrubs preview through the seek bar and commit on release. */
+    onOpeningLyricPreview: ((Long?) -> Unit)? = null,
+    onOpeningLyricCommit: ((Long) -> Unit)? = null,
     onSeek: (Float) -> Unit,
     onCyclePlaybackMode: () -> Unit,
     onPrevious: () -> Unit,
@@ -184,7 +187,8 @@ internal fun LandscapeCoverPlayerPage(
     val lyricTopPadding = if (ultraWideLandscape) 0.dp else 8.dp
     val titleAboveCover = playerTitlePosition ==
         com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
-    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
+    val canvasFillsPlayer = dynamicCoverSource?.fillsPlayer() == true
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground || canvasFillsPlayer }
 
     if (compactPhoneLandscape) {
         CompactPhoneLandscapeCoverPlayerPage(
@@ -242,6 +246,8 @@ internal fun LandscapeCoverPlayerPage(
             onNext = onNext,
             onLyricLineClick = onLyricLineClick,
             onLyricLineLongClick = onLyricLineLongClick,
+            onOpeningLyricPreview = onOpeningLyricPreview,
+            onOpeningLyricCommit = onOpeningLyricCommit,
             onShowLyrics = onShowLyrics,
             onArtist = onArtist,
             drawBackground = drawBackground,
@@ -250,8 +256,8 @@ internal fun LandscapeCoverPlayerPage(
         return
     }
 
-    Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
-        if (drawBackground) {
+    Box(modifier = modifier.then(if (drawBackground && !canvasFillsPlayer) Modifier.background(palette.middle) else Modifier)) {
+        if (drawBackground && !canvasFillsPlayer) {
             LandscapeCoverModeBackground(
                 palette = palette,
                 dynamicCoverSource = dynamicCoverSource,
@@ -365,7 +371,7 @@ internal fun LandscapeCoverPlayerPage(
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 14f
                             )
-                        } else {
+                        } else if (!canvasFillsPlayer) {
                             AlbumArtView(
                                 song = song,
                                 embeddedCover = embeddedCover,
@@ -474,6 +480,8 @@ internal fun LandscapeCoverPlayerPage(
                                 onLineClick = onLyricLineClick,
                                 onLineDoubleClick = onPlayPause,
                                 onLineLongClick = onLyricLineLongClick,
+                                onOpeningLyricPreview = onOpeningLyricPreview,
+                                onOpeningLyricCommit = onOpeningLyricCommit,
                                 topContentPadding = lyricTopPadding,
                                 bottomContentPadding = if (ultraWideLandscape) 32.dp else 44.dp,
                                 lineSpacing = if (ultraWideLandscape) 18.dp else 21.dp,
@@ -551,13 +559,18 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     onNext: () -> Unit,
     onLyricLineClick: (LyricLine) -> Unit,
     onLyricLineLongClick: (LyricLine) -> Unit,
+    /** #727: opening blank-lyric scrubs preview through the seek bar and commit on release. */
+    onOpeningLyricPreview: ((Long?) -> Unit)? = null,
+    onOpeningLyricCommit: ((Long) -> Unit)? = null,
     onShowLyrics: () -> Unit,
     onArtist: () -> Unit,
     drawBackground: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var previewProgress by remember(song?.id, song?.path) { mutableStateOf<Float?>(null) }
-    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
+    var previewProgress by (LocalPlayerSeekPreviewOverride.current
+        ?: remember(song?.id, song?.path) { mutableStateOf<Float?>(null) })
+    val canvasFillsPlayer = dynamicCoverSource?.fillsPlayer() == true
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground || canvasFillsPlayer }
     val coverGestureModifier = Modifier.playerCoverGestures(
         swipeEnabled = coverSwipeEnabled,
         onSwipePrevious = onSwipePrevious,
@@ -568,8 +581,8 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
         nextSongTitle = nextSongTitle
     )
 
-    Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
-        if (drawBackground) {
+    Box(modifier = modifier.then(if (drawBackground && !canvasFillsPlayer) Modifier.background(palette.middle) else Modifier)) {
+        if (drawBackground && !canvasFillsPlayer) {
             LandscapeCoverModeBackground(
                 palette = palette,
                 dynamicCoverSource = dynamicCoverSource,
@@ -625,7 +638,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                             modifier = Modifier.fillMaxSize(),
                             cornerRadiusDp = 22f
                         )
-                    } else {
+                    } else if (!canvasFillsPlayer) {
                         PhoneLandscapeCoverImage(
                             song = song,
                             embeddedCover = embeddedCover,
@@ -768,6 +781,8 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                                 onLineClick = onLyricLineClick,
                                 onLineDoubleClick = onPlayPause,
                                 onLineLongClick = onLyricLineLongClick,
+                                onOpeningLyricPreview = onOpeningLyricPreview,
+                                onOpeningLyricCommit = onOpeningLyricCommit,
                                 topContentPadding = 0.dp,
                                 bottomContentPadding = 28.dp,
                                 lineSpacing = 18.dp,

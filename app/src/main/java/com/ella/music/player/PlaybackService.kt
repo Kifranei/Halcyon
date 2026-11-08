@@ -37,6 +37,7 @@ import com.ella.music.data.MusicFreePluginConfig
 import com.ella.music.data.PlaylistStore
 import com.ella.music.data.decodeNeteaseKey
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.primaryEndMs
 import com.ella.music.data.neteaseShareSongUrl
 import com.ella.music.data.netease.NETEASE_SCHEME
 import com.ella.music.data.netease.NeteasePlaybackProvider
@@ -382,8 +383,11 @@ class PlaybackService : MediaLibraryService() {
         val scopedMediaSourceFactory = com.ella.music.data.musicfree.MusicFreeMediaSourceFactory(
             this, DefaultMediaSourceFactory(dataSourceFactory), pluginPlaybackClient
         )
-        val mediaSourceFactory = com.ella.music.data.netease.NeteasePlaybackMediaSourceFactory(
+        val pluginMediaSourceFactory = com.ella.music.data.sourceplugin.SourcePluginMediaSourceFactory(
             this, scopedMediaSourceFactory
+        )
+        val mediaSourceFactory = com.ella.music.data.netease.NeteasePlaybackMediaSourceFactory(
+            this, pluginMediaSourceFactory
         )
 
         val decoderMode = runBlocking(Dispatchers.IO) {
@@ -565,6 +569,9 @@ class PlaybackService : MediaLibraryService() {
             scope = serviceScope,
             onPlayerCreated = { decoder, gain ->
                 bindPlayerReplayGain(decoder, gain, settingsManager, musicRepository, serviceScope)
+            },
+            transitionHintLoader = { source, target, sourceDurationMs, fadeMs ->
+                computeCrossfadeTransitionHints(source, target, sourceDurationMs, fadeMs)
             }
         )
         var currentCrossfadeDurationMs = 0
@@ -599,7 +606,9 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         serviceScope.launch {
-            settingsManager.crossfadeDurationMs.collect { durationMs ->
+            combine(settingsManager.crossfadeEnabled, settingsManager.crossfadeDurationMs) { enabled, durationMs ->
+                if (enabled) durationMs else 0
+            }.collect { durationMs ->
                 currentCrossfadeDurationMs = durationMs
                 crossfadePlaybackCoordinator?.setDuration(durationMs)
             }
@@ -865,10 +874,12 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun refreshNeteasePlaybackRoutes(localPlayer: SwitchableLocalPlayer, crossfadeDurationMs: Int) {
+        fun isDeferredScheme(item: MediaItem): Boolean {
+            val scheme = item.localConfiguration?.uri?.scheme
+            return scheme == NETEASE_SCHEME || scheme == com.ella.music.data.sourceplugin.SOURCE_PLUGIN_SCHEME
+        }
         val previousPlayer = localPlayer.activePlayer
-        if ((0 until previousPlayer.mediaItemCount).none {
-                previousPlayer.getMediaItemAt(it).localConfiguration?.uri?.scheme == NETEASE_SCHEME
-            }) return
+        if ((0 until previousPlayer.mediaItemCount).none { isDeferredScheme(previousPlayer.getMediaItemAt(it)) }) return
 
         val coordinator = crossfadePlaybackCoordinator
         // Cancel both an audible transition and its preloaded transport before capturing the
@@ -881,18 +892,18 @@ class PlaybackService : MediaLibraryService() {
             val positionMs = player.currentPosition.coerceAtLeast(0L)
             val playWhenReady = player.playWhenReady
             val wasPrepared = player.playbackState != Player.STATE_IDLE
-            val refreshCurrent = queue.getOrNull(currentIndex)?.localConfiguration?.uri?.scheme == NETEASE_SCHEME
+            val refreshCurrent = queue.getOrNull(currentIndex)?.let(::isDeferredScheme) == true
             // A fresh tag changes LocalConfiguration equality, preventing Media3 from reusing
             // the old DeferredNeteaseMediaSource while preserving song and queue entry identity.
             val routeRevision = Any()
             var index = 0
             while (index < queue.size) {
-                if (queue[index].localConfiguration?.uri?.scheme != NETEASE_SCHEME) {
+                if (!isDeferredScheme(queue[index])) {
                     index++
                     continue
                 }
                 val start = index
-                while (index < queue.size && queue[index].localConfiguration?.uri?.scheme == NETEASE_SCHEME) index++
+                while (index < queue.size && isDeferredScheme(queue[index])) index++
                 player.replaceMediaItems(start, index, queue.subList(start, index).map {
                     it.buildUpon().setTag(routeRevision).build()
                 })
@@ -908,6 +919,51 @@ class PlaybackService : MediaLibraryService() {
         } finally {
             coordinator?.setDuration(crossfadeDurationMs)
         }
+    }
+
+    /**
+     * Smart-fade recipe (lyric-aware + album-side continuity), resolved on the service scope a
+     * beat before the prebuffer window. A null result keeps the configured fixed fade window;
+     * the coordinator's waveform-envelope fast-commit stays the low-level fallback underneath.
+     */
+    private suspend fun computeCrossfadeTransitionHints(
+        source: MediaItem,
+        target: MediaItem,
+        sourceDurationMs: Long,
+        fadeMs: Long
+    ): TransitionHints? {
+        val sourceSong = source.toSongFromMediaItemExtras()
+        val targetSong = target.toSongFromMediaItemExtras()
+        // Contiguous album sides (same disc, track N -> N+1) form one continuous mix; the
+        // natural gapless auto-transition preserves the intended seam better than any fade.
+        if (sourceSong != null && targetSong != null &&
+            sourceSong.album.isNotBlank() && sourceSong.album == targetSong.album &&
+            sourceSong.trackNumber > 0 && targetSong.trackNumber == sourceSong.trackNumber + 1 &&
+            sourceSong.discNumber == targetSong.discNumber &&
+            (sourceSong.albumArtist.isBlank() || targetSong.albumArtist.isBlank() ||
+                sourceSong.albumArtist == targetSong.albumArtist)
+        ) {
+            return TransitionHints(keepSeamless = true)
+        }
+        if (sourceSong == null || fadeMs <= 0L || sourceDurationMs <= 0L) return null
+        val lyrics = runCatching { musicRepository.getLyrics(sourceSong) }.getOrNull()
+            ?.filter { it.text.isNotBlank() && !it.isOpeningMetadata }
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+        val plannedStart = (sourceDurationMs - fadeMs).coerceAtLeast(0L)
+        for (index in lyrics.indices) {
+            val line = lyrics[index]
+            if (line.timeMs > plannedStart) break
+            val lineEnd = line.primaryEndMs(nextLine = lyrics.getOrNull(index + 1))
+            if (plannedStart >= lineEnd) continue
+            // The fixed window would open mid-line. Sliding the start to the line boundary
+            // keeps the vocal intact while a usable tail window remains.
+            if (lineEnd <= sourceDurationMs - CrossfadeTransitionMath.MIN_SMART_FADE_MS) {
+                return TransitionHints(fadeStartMs = lineEnd)
+            }
+            return null
+        }
+        return null
     }
 
     private fun buildSessionActivityPendingIntent(openPlayer: Boolean): PendingIntent {

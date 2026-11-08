@@ -202,9 +202,15 @@ class MusicRepository(private val context: Context) {
         metadataPathResolver = { song -> song.effectiveLocalPathForMetadata() },
         qualityCacheFile = File(context.filesDir, "audio_quality_cache.json"),
         onlineStreamInfo = { song ->
-            if (song.onlineSource == SettingsManager.LIBRARY_SOURCE_NETEASE && song.onlineId.isNotBlank())
-                com.ella.music.data.netease.NeteaseLibraryStore.getInstance(context).audioInfoFor(song.onlineId)
-            else null
+            when {
+                song.onlineSource == SettingsManager.LIBRARY_SOURCE_NETEASE && song.onlineId.isNotBlank() ->
+                    com.ella.music.data.netease.NeteaseLibraryStore.getInstance(context).audioInfoFor(song.onlineId)
+                song.onlineId.isNotBlank() ->
+                    com.ella.music.data.sourceplugin.SourcePluginRegistry
+                        .libraryStore(context, com.ella.music.data.sourceplugin.sourcePluginKeyOf(song.onlineSource))
+                        ?.audioInfoFor(song.onlineId)
+                else -> null
+            }
         }
     )
     private val tagWriter = MusicTagWriter(
@@ -655,7 +661,9 @@ class MusicRepository(private val context: Context) {
             return publishLibrarySnapshot(generation, cached)
         }
 
-        if (source != SettingsManager.LIBRARY_SOURCE_NETEASE && !forceRefresh && applyCache()) {
+        if (source != SettingsManager.LIBRARY_SOURCE_NETEASE &&
+            !com.ella.music.data.sourceplugin.isSourcePluginKey(source) &&
+            !forceRefresh && applyCache()) {
             return@withContext MusicScanSummary(total = _songs.value.size)
         }
         if (!isCurrentLibrarySnapshotLoad(generation)) {
@@ -663,11 +671,16 @@ class MusicRepository(private val context: Context) {
         }
 
         val remoteSongs = runCatching {
-            when (source) {
-                SettingsManager.LIBRARY_SOURCE_NETEASE -> {
+            when {
+                source == SettingsManager.LIBRARY_SOURCE_NETEASE -> {
                     com.ella.music.data.netease.NeteaseLibraryStore.getInstance(context).refresh(forceRefresh)
                 }
-                SettingsManager.LIBRARY_SOURCE_NAVIDROME -> {
+                com.ella.music.data.sourceplugin.isSourcePluginKey(source) -> {
+                    val store = com.ella.music.data.sourceplugin.SourcePluginRegistry.libraryStoreForSource(context, source)
+                        ?: return@runCatching null
+                    store.refresh(forceRefresh)
+                }
+                source == SettingsManager.LIBRARY_SOURCE_NAVIDROME -> {
                     val config = settingsManager.navidromeConfig.first()
                     if (!config.isConfigured) return@runCatching null
                     NavidromeService(context).listSongs(config) { page ->
@@ -676,7 +689,7 @@ class MusicRepository(private val context: Context) {
                         publishLibrarySnapshot(generation, partial)
                     }.map { it.song }
                 }
-                SettingsManager.LIBRARY_SOURCE_OPENSUBSONIC -> {
+                source == SettingsManager.LIBRARY_SOURCE_OPENSUBSONIC -> {
                     val config = settingsManager.openSubsonicConfig.first()
                     if (!config.isConfigured) return@runCatching null
                     NavidromeService(context).listSongs(config) { page ->
@@ -684,16 +697,16 @@ class MusicRepository(private val context: Context) {
                         publishLibrarySnapshot(generation, partial)
                     }.map { it.song }
                 }
-                SettingsManager.LIBRARY_SOURCE_EMBY -> {
+                source == SettingsManager.LIBRARY_SOURCE_EMBY -> {
                     val config = settingsManager.embyConfig.first()
                     if (!config.isConfigured) return@runCatching null
                     EmbyService(context).listSongs(config).map { it.song }
                 }
-                SettingsManager.LIBRARY_SOURCE_WEBDAV -> {
+                source == SettingsManager.LIBRARY_SOURCE_WEBDAV -> {
                     val config = loadWebDavConfig(settingsManager) ?: return@runCatching null
                     listWebDavLibrarySongs(config, forceRefresh = forceRefresh) { publishLibrarySnapshot(generation, it) }
                 }
-                SettingsManager.LIBRARY_SOURCE_FTP, SettingsManager.LIBRARY_SOURCE_SFTP -> {
+                source == SettingsManager.LIBRARY_SOURCE_FTP || source == SettingsManager.LIBRARY_SOURCE_SFTP -> {
                     if (settingsManager.transferLibraryConfig(source).first().url.isBlank()) return@runCatching null
                     val account = com.ella.music.data.ftp.transferAccount(context, source)
                     com.ella.music.data.ftp.transferSession(account).use { session ->
@@ -705,7 +718,7 @@ class MusicRepository(private val context: Context) {
                         }, onSongs = { publishLibrarySnapshot(generation, it) })
                     }
                 }
-                SettingsManager.LIBRARY_SOURCE_SMB -> {
+                source == SettingsManager.LIBRARY_SOURCE_SMB -> {
                     if (settingsManager.smbUrl.first().isBlank()) return@runCatching null
                     val account = com.ella.music.data.smb.smbAccount(context)
                     com.ella.music.data.smb.SmbSession(account).use { session ->
@@ -801,10 +814,15 @@ class MusicRepository(private val context: Context) {
         return if (value == Long.MIN_VALUE) 1L else kotlin.math.abs(value).takeIf { it != 0L } ?: 1L
     }
 
-    private suspend fun neteaseLyricsSong(song: Song): Song =
-        if (song.onlineSource == SettingsManager.LIBRARY_SOURCE_NETEASE)
-            com.ella.music.data.netease.NeteaseLibraryStore.getInstance(context).lyrics(song)
-        else song
+    private suspend fun neteaseLyricsSong(song: Song): Song {
+        if (song.onlineSource == SettingsManager.LIBRARY_SOURCE_NETEASE) {
+            return com.ella.music.data.netease.NeteaseLibraryStore.getInstance(context).lyrics(song)
+        }
+        val pluginStore = com.ella.music.data.sourceplugin.SourcePluginRegistry
+            .libraryStore(context, com.ella.music.data.sourceplugin.sourcePluginKeyOf(song.onlineSource))
+        if (pluginStore != null) return pluginStore.lyrics(song)
+        return song
+    }
 
     suspend fun getLyrics(
         song: Song,
@@ -926,9 +944,38 @@ class MusicRepository(private val context: Context) {
         }
     }
 
-    suspend fun writeCategoryTagForBatch(song: Song, key: String, value: String): Result<Song> = withContext(Dispatchers.IO) {
+    suspend fun writeCategoryTagForBatch(song: Song, values: Map<String, String>): Result<Song> = withContext(Dispatchers.IO) {
+        fun value(vararg keys: String): String? = keys.firstNotNullOfOrNull { key ->
+            values.entries.firstOrNull { it.key.equals(key, ignoreCase = true) }?.value
+        }
+        val builtIns = setOf(
+            "TITLE", "ARTIST", "ALBUM", "ALBUMARTIST", "ALBUM ARTIST", "GENRE", "DATE", "YEAR",
+            "COMPOSER", "ARRANGER", "LYRICIST", "PRODUCER", "LYRICS", "COPYRIGHT", "TCOP", "CPRO",
+            "DISC", "DISCNUMBER", "DISC NUMBER", "TRACK", "TRACKNUMBER", "TRACK NUMBER"
+        )
         val result = try {
-            tagWriter.writeSongTags(song, AudioTagInfo(customTags = mapOf(key to listOf(value))))
+            tagWriter.writeSongTags(
+                song,
+                AudioTagInfo(
+                    title = value("TITLE"),
+                    artist = value("ARTIST"),
+                    album = value("ALBUM"),
+                    albumArtist = value("ALBUMARTIST", "ALBUM ARTIST"),
+                    genre = value("GENRE"),
+                    year = value("DATE", "YEAR"),
+                    composer = value("COMPOSER"),
+                    arranger = value("ARRANGER"),
+                    lyricist = value("LYRICIST"),
+                    producer = value("PRODUCER"),
+                    copyright = value("COPYRIGHT", "TCOP", "CPRO"),
+                    discNumber = value("DISC", "DISCNUMBER", "DISC NUMBER")?.let { it.toIntOrNull() ?: 0 },
+                    trackNumber = value("TRACK", "TRACKNUMBER", "TRACK NUMBER")?.let { it.toIntOrNull() ?: 0 },
+                    lyrics = value("LYRICS"),
+                    customTags = values
+                        .filterKeys { it.uppercase(java.util.Locale.ROOT) !in builtIns }
+                        .mapValues { listOf(it.value) }
+                )
+            )
         } catch (error: SecurityException) { Result.failure(error) }
         tagWriter.writePermissionRequestIfNeeded(result, song)?.exceptionOrNull()?.let {
             return@withContext Result.failure(it)
@@ -1018,6 +1065,34 @@ class MusicRepository(private val context: Context) {
             val immediate = updateSongAfterLocalTagWrite(song)
             refreshSongAfterExternalEdit(immediate) ?: immediate
         }
+    }
+
+    /**
+     * Puts [original]'s file and library timestamp back after a tag write.
+     * Same idea as batch edit: file `lastModified` when the path is a real file, MediaStore
+     * `DATE_MODIFIED`, and the in-memory `dateModified` the lists sort on.
+     */
+    suspend fun keepSongModifiedTime(original: Song) = withContext(Dispatchers.IO) {
+        val stamp = original.dateModified
+        if (stamp <= 0L) return@withContext
+        val file = original.path.takeIf { it.startsWith("/") || it.startsWith("file:") }
+            ?.removePrefix("file://")
+            ?.let(::File)
+            ?.takeIf { it.isFile }
+        if (file != null) applyFileLastModified(file, stamp)
+        updateMediaStoreDateModified(original, stamp)
+        val currentSongs = _songs.value
+        if (currentSongs.isEmpty()) return@withContext
+        val nextSongs = currentSongs.map { existing ->
+            if (existing.id == original.id || existing.path == original.path) {
+                existing.copy(dateModified = stamp)
+            } else {
+                existing
+            }
+        }
+        _songs.value = nextSongs
+        _albums.value = nextSongs.toAlbums()
+        libraryCacheStore.saveLibraryCache(nextSongs, _albums.value)
     }
 
     suspend fun updateSongModifiedTime(song: Song, modifiedAtMs: Long): Boolean = withContext(Dispatchers.IO) {
@@ -1318,6 +1393,7 @@ class MusicRepository(private val context: Context) {
     suspend fun resolveSongForPlayback(song: Song): Song = withContext(Dispatchers.IO) {
         // Media3 resolves this stable URI at each open, including queue advance and seek.
         if (song.onlineSource == SettingsManager.LIBRARY_SOURCE_NETEASE) return@withContext song
+        if (com.ella.music.data.sourceplugin.isSourcePluginKey(song.onlineSource)) return@withContext song
         try {
             val fileSource = when {
                 song.path.startsWith("smb://", true) -> SettingsManager.LIBRARY_SOURCE_SMB
@@ -1508,6 +1584,7 @@ class MusicRepository(private val context: Context) {
             composer = tagInfo?.composer.takeIf { it.isUsableTagText() } ?: wavMetadata?.composer.takeIf { it.isUsableTagText() } ?: composer,
             arranger = tagInfo?.arranger.takeIf { it.isUsableTagText() } ?: wavMetadata?.arranger.takeIf { it.isUsableTagText() } ?: arranger,
             lyricist = tagInfo?.lyricist.takeIf { it.isUsableTagText() } ?: wavMetadata?.lyricist.takeIf { it.isUsableTagText() } ?: lyricist,
+            producer = tagInfo?.producer.takeIf { it.isUsableTagText() } ?: wavMetadata?.producer.takeIf { it.isUsableTagText() } ?: producer,
             trackNumber = tagInfo?.trackNumber ?: wavMetadata?.trackNumber ?: trackNumber,
             discNumber = tagInfo?.discNumber ?: wavMetadata?.discNumber ?: discNumber,
             customTags = tagInfo?.customTags?.libraryCustomTags() ?: customTags,
@@ -1672,6 +1749,7 @@ class MusicRepository(private val context: Context) {
                 composer = tagInfo.composer.ifBlank { wavInfo?.composer.orEmpty().ifBlank { song.composer } },
                 arranger = tagInfo.arranger.ifBlank { wavInfo?.arranger.orEmpty().ifBlank { song.arranger } },
                 lyricist = tagInfo.lyricist.ifBlank { wavInfo?.lyricist.orEmpty().ifBlank { song.lyricist } },
+                producer = tagInfo.producer.ifBlank { wavInfo?.producer.orEmpty().ifBlank { song.producer } },
                 customTags = tagInfo.customTags.libraryCustomTags(),
                 customTagsLoaded = true,
                 coverUrl = song.coverUrl,

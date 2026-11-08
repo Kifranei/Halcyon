@@ -28,6 +28,7 @@ import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.AddToPlaylistActionIcon
 import com.ella.music.ui.components.PlayNextActionIcon
+import com.ella.music.ui.components.SelectionBatchEditButton
 import com.ella.music.ui.components.ellaPageBackground
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -48,9 +49,11 @@ internal fun PlaylistDetailTopBar(
     showExport: Boolean,
     showRatingFilter: Boolean,
     showFavoriteFilter: Boolean,
+    hasUnratedSongs: Boolean = true,
     ratingFilter: com.ella.music.ui.home.HomeRatingFilterSelection,
     onRatingFilterChange: (com.ella.music.ui.home.HomeRatingFilterSelection) -> Unit,
     onNavigationClick: () -> Unit,
+    onBatchEditSelectedClick: () -> Unit,
     onPlayNextSelectedClick: () -> Unit,
     onAddSelectedClick: () -> Unit,
     onRemoveSelectedClick: () -> Unit,
@@ -65,7 +68,7 @@ internal fun PlaylistDetailTopBar(
         // Keep the double-tap title hit target clear of every action. The rating and favorite
         // buttons are the left-most actions, so the old two-button inset covered them (#267).
         titleEndPadding = if (selectionMode) {
-            168.dp
+            216.dp
         } else {
             (24 + 48 * (
                 2 + (if (showExport) 1 else 0) +
@@ -84,6 +87,7 @@ internal fun PlaylistDetailTopBar(
         },
         actions = {
             if (selectionMode) {
+                SelectionBatchEditButton(onClick = onBatchEditSelectedClick)
                 IconButton(onClick = onPlayNextSelectedClick) {
                     PlayNextActionIcon(
                         contentDescription = stringResource(R.string.song_more_play_next),
@@ -112,7 +116,8 @@ internal fun PlaylistDetailTopBar(
                         selection = ratingFilter,
                         onSelectionChange = onRatingFilterChange,
                         showFavorite = showFavoriteFilter,
-                        showRating = showRatingFilter
+                        showRating = showRatingFilter,
+                        hasUnrated = hasUnratedSongs
                     )
                 }
                 IconButton(onClick = onSelectionModeClick) {

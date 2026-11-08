@@ -378,8 +378,17 @@ private fun HabitMetric(label: String, value: String, modifier: Modifier = Modif
 }
 
 @Composable
-internal fun TasteProfileCard(profile: TasteProfile) {
-    val insights = listOfNotNull(profile.topArtist, profile.topAlbum, profile.topGenre)
+internal fun TasteProfileCard(
+    profile: TasteProfile,
+    onArtistClick: ((String) -> Unit)? = null,
+    onAlbumClick: ((Long) -> Unit)? = null,
+    onGenreClick: ((String) -> Unit)? = null
+) {
+    val groups = listOf(
+        profile.topArtists,
+        profile.topAlbums,
+        profile.topGenres
+    )
     Card(modifier = Modifier.fillMaxWidth(), colors = analyticsWallpaperCardColors()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -395,20 +404,43 @@ internal fun TasteProfileCard(profile: TasteProfile) {
                 modifier = Modifier.padding(top = 3.dp)
             )
             Spacer(modifier = Modifier.height(10.dp))
-            if (insights.isEmpty()) {
+            if (groups.all { it.isEmpty() }) {
                 Text(
                     text = stringResource(R.string.analytics_taste_empty),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             } else {
-                insights.forEach { TasteInsightRow(insight = it) }
+                groups.forEach { insights ->
+                    insights.forEach { insight ->
+                        TasteInsightRow(
+                            insight = insight,
+                            onClick = when {
+                                insight.labelRes == R.string.analytics_taste_top_artist &&
+                                    onArtistClick != null &&
+                                    insight.title.isNotBlank() &&
+                                    !LibraryNormalizer.isGeneratedUnknownArtistPlaceholder(insight.title) ->
+                                    { -> onArtistClick(insight.title) }
+
+                                insight.labelRes == R.string.analytics_taste_top_album &&
+                                    onAlbumClick != null && insight.albumId != null ->
+                                    { -> onAlbumClick(insight.albumId) }
+
+                                insight.labelRes == R.string.analytics_taste_top_genre &&
+                                    onGenreClick != null && insight.title.isNotBlank() ->
+                                    { -> onGenreClick(insight.title) }
+
+                                else -> null
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TasteInsightRow(insight: TasteInsight) {
+private fun TasteInsightRow(insight: TasteInsight, onClick: (() -> Unit)? = null) {
     val context = LocalContext.current
     val displayTitle = if (insight.labelRes == R.string.analytics_taste_top_album &&
         LibraryNormalizer.isGeneratedUnknownAlbumPlaceholder(insight.title)
@@ -420,6 +452,7 @@ private fun TasteInsightRow(insight: TasteInsight) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -459,7 +492,8 @@ private fun TasteInsightRow(insight: TasteInsight) {
 @Composable
 internal fun MonthlyFavoritesCard(
     report: MonthlyListeningReport,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onArtistClick: ((String) -> Unit)? = null
 ) {
     val palette = replayPalette()
     val insights = report.favoriteArtists.ifEmpty {
@@ -505,7 +539,8 @@ internal fun MonthlyFavoritesCard(
                     FavoriteInsightCard(
                         insight = insight,
                         rank = index + 1,
-                        mainViewModel = mainViewModel
+                        mainViewModel = mainViewModel,
+                        onArtistClick = onArtistClick
                     )
                 }
             }
@@ -518,7 +553,8 @@ internal fun MonthlyFavoritesCard(
 private fun FavoriteInsightCard(
     insight: ListeningInsight,
     rank: Int,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onArtistClick: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val displayTitle = if (insight.labelRes == R.string.analytics_month_favorite_album &&
@@ -541,12 +577,17 @@ private fun FavoriteInsightCard(
         )
     } else null
 
+    val navigableArtist = isArtist && onArtistClick != null && insight.title.isNotBlank() &&
+        !LibraryNormalizer.isGeneratedUnknownArtistPlaceholder(insight.title)
     Card(
         modifier = Modifier
             .width(168.dp)
             .height(244.dp),
         cornerRadius = 20.dp,
-        colors = analyticsWallpaperCardColors(alpha = 0.55f)
+        colors = analyticsWallpaperCardColors(alpha = 0.55f),
+        onClick = {
+            if (navigableArtist) onArtistClick?.invoke(insight.title)
+        }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (isArtist) {

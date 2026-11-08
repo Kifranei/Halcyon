@@ -95,6 +95,7 @@ internal fun AlbumCopyrightFooter(
     composers: List<AlbumMetadataDisplayItem>,
     arrangers: List<AlbumMetadataDisplayItem>,
     lyricists: List<AlbumMetadataDisplayItem>,
+    producers: List<AlbumMetadataDisplayItem>,
     mainViewModel: MainViewModel,
     artistCoverFolderUri: String,
     onGenreClick: (String) -> Unit,
@@ -102,6 +103,7 @@ internal fun AlbumCopyrightFooter(
     onComposerClick: (String) -> Unit,
     onArrangerClick: (String) -> Unit,
     onLyricistClick: (String) -> Unit,
+    onProducerClick: (String) -> Unit,
     onYearClick: (String) -> Unit,
     showReleaseDateSection: Boolean = true
 ) {
@@ -182,6 +184,14 @@ internal fun AlbumCopyrightFooter(
             mainViewModel = mainViewModel,
             artistCoverFolderUri = artistCoverFolderUri,
             onItemClick = onLyricistClick
+        )
+        AlbumMetadataSection(
+            title = stringResource(R.string.player_detail_producer),
+            items = producers,
+            circularCover = true,
+            mainViewModel = mainViewModel,
+            artistCoverFolderUri = artistCoverFolderUri,
+            onItemClick = onProducerClick
         )
     }
 }
@@ -518,7 +528,7 @@ private fun AlbumTrackRow(
                     label = stringResource(R.string.online_mv),
                     contentDescription = stringResource(R.string.online_mv),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    onClick = { MusicVideoLauncher.openNetease(context, song, Uri.parse(url).getQueryParameter("id").orEmpty()) }
+                    onClick = { MusicVideoLauncher.openOnline(context, song, url) }
                 )
                 Spacer(modifier = Modifier.width(6.dp))
             }

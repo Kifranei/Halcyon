@@ -12,7 +12,7 @@ import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsMediaExportSection() {
@@ -21,6 +21,7 @@ internal fun SettingsMediaExportSection() {
     val scope = rememberCoroutineScope()
     val artistLocation by settings.artistImageSaveLocation.collectAsState(initial = "default")
     val mvLocation by settings.musicVideoDownloadLocation.collectAsState(initial = "default")
+    val songLocation by settings.songDownloadLocation.collectAsState(initial = "default")
     val template by settings.musicVideoDownloadTemplate.collectAsState(initial = "{artist} - {title}")
     var customTemplate by remember { mutableStateOf(false) }
     val artistPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -39,12 +40,20 @@ internal fun SettingsMediaExportSection() {
             else android.widget.Toast.makeText(context, R.string.cover_preview_save_failed, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
+    val songPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            if (runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }.isSuccess) scope.launch { settings.setSongDownloadLocation(uri.toString()) }
+            else android.widget.Toast.makeText(context, R.string.cover_preview_save_failed, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
     SmallTitle(stringResource(R.string.settings_media_export))
     SettingsCardGroup {
         Column {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_artist_image_save_location) {
-                WindowSpinnerPreference(title = stringResource(R.string.settings_artist_image_save_location),
+                EllaSpinnerPreference(title = stringResource(R.string.settings_artist_image_save_location),
                     summary = stringResource(R.string.settings_artist_image_save_location_summary),
                     items = listOf(DropdownItem(stringResource(R.string.settings_artist_cover_folder)),
                         DropdownItem(stringResource(R.string.settings_media_export_default)),
@@ -58,7 +67,7 @@ internal fun SettingsMediaExportSection() {
                 } // search-anchor:end
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_mv_download_location) {
-                WindowSpinnerPreference(title = stringResource(R.string.settings_mv_download_location),
+                EllaSpinnerPreference(title = stringResource(R.string.settings_mv_download_location),
                     summary = stringResource(R.string.settings_mv_download_location_summary),
                     items = listOf(DropdownItem(stringResource(R.string.settings_music_video_custom_folders)),
                         DropdownItem(stringResource(R.string.settings_media_export_default)),
@@ -71,8 +80,20 @@ internal fun SettingsMediaExportSection() {
                     } })
                 } // search-anchor:end
                 // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_song_download_location) {
+                EllaSpinnerPreference(title = stringResource(R.string.settings_song_download_location),
+                    summary = stringResource(R.string.settings_song_download_location_summary),
+                    items = listOf(DropdownItem(stringResource(R.string.settings_media_export_default)),
+                        DropdownItem(stringResource(R.string.settings_artist_cover_custom_storage))),
+                    selectedIndex = if (songLocation == "default") 0 else 1,
+                    onSelectedIndexChange = { index ->
+                        if (index == 0) scope.launch { settings.setSongDownloadLocation("default") }
+                        else songPicker.launch(null)
+                    })
+                } // search-anchor:end
+                // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_mv_download_template) {
-                WindowSpinnerPreference(title = stringResource(R.string.settings_mv_download_template),
+                EllaSpinnerPreference(title = stringResource(R.string.settings_mv_download_template),
                     items = listOf(DropdownItem(stringResource(R.string.settings_export_artist_title)),
                         DropdownItem(stringResource(R.string.settings_export_title_artist)),
                         DropdownItem(stringResource(R.string.settings_export_custom_template))),

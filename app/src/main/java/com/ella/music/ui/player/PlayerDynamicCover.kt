@@ -112,6 +112,8 @@ internal data class DynamicCoverSource(
     val role: PlayerVideoRole = PlayerVideoRole.DynamicCover
 )
 
+internal fun DynamicCoverSource.fillsPlayer(): Boolean = failureKey.startsWith("spotify-canvas:")
+
 internal fun Song.dynamicCoverResolutionKey(): String =
     listOf(
         playlistIdentityKey(),

@@ -142,11 +142,12 @@ fun MiniPlayer(
             fontFamily = globalFontFamily
         )
     }
-    val titleStyle = remember(onSurfaceColor, globalFontFamily) {
+    val accentColor = MiuixTheme.colorScheme.primary
+    val titleStyle = remember(accentColor, globalFontFamily) {
         TextStyle(
             fontSize = 11.sp,
-            fontWeight = FontWeight.Normal,
-            color = onSurfaceColor,
+            fontWeight = FontWeight.Medium,
+            color = accentColor,
             fontFamily = globalFontFamily
         )
     }
@@ -326,7 +327,7 @@ fun MiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textX, startY + hint.size.height + lineGap)
                             )
                         } else {
@@ -338,7 +339,7 @@ fun MiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textRight - titleHint.size.width, startY + hint.size.height + lineGap)
                             )
                         }
@@ -533,11 +534,12 @@ fun CompactMiniPlayer(
             fontFamily = globalFontFamily
         )
     }
-    val titleStyle = remember(onSurfaceColor, globalFontFamily) {
+    val accentColor = MiuixTheme.colorScheme.primary
+    val titleStyle = remember(accentColor, globalFontFamily) {
         TextStyle(
             fontSize = 11.sp,
-            fontWeight = FontWeight.Normal,
-            color = onSurfaceColor,
+            fontWeight = FontWeight.Medium,
+            color = accentColor,
             fontFamily = globalFontFamily
         )
     }
@@ -696,7 +698,7 @@ fun CompactMiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textX, startY + hint.size.height + lineGap)
                             )
                         } else {
@@ -708,7 +710,7 @@ fun CompactMiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textRight - titleHint.size.width, startY + hint.size.height + lineGap)
                             )
                         }

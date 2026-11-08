@@ -78,7 +78,7 @@ import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -160,11 +160,12 @@ fun AlbumDetailScreen(
     val sortMode = AlbumDetailSongSortMode.entries.getOrElse(sortIndex) { AlbumDetailSongSortMode.Track }
     val scope = rememberCoroutineScope()
     var sortExpanded by remember { mutableStateOf(false) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val selection = rememberLibrarySelectionState<Long>()
     var actionSong by remember { mutableStateOf<Song?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var albumArtistChoices by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -383,6 +384,11 @@ fun AlbumDetailScreen(
             .flatMap { splitArtistNames(it.lyricist) }
             .distinctBy { it.lowercase(Locale.ROOT) }
     }
+    val participatingProducers = remember(albumSongs, nameSplitRevision) {
+        albumSongs
+            .flatMap { splitArtistNames(it.producer) }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+    }
     val yearDisplayItem = remember(albumRecordedYear, albumSongs) {
         albumRecordedYear?.let { year ->
             buildAlbumMetadataDisplayItem(
@@ -473,12 +479,25 @@ fun AlbumDetailScreen(
             )
         }
     }
-    val listState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
+    val producerDisplayItems = remember(participatingProducers, albumSongs, librarySongs) {
+        participatingProducers.map { producer ->
+            buildAlbumMetadataDisplayItem(
+                name = producer,
+                songs = mainViewModel.getSongsForMetadataCategory("producer", producer),
+                mainViewModel = mainViewModel,
+                fallbackSong = albumSongs.firstOrNull(),
+                categoryType = "producer",
+                coverCandidates = librarySongs,
+                artistCoverName = producer,
+                artistCoverSong = selectMetadataCategoryCoverSong(librarySongs, "producer", producer) ?: selectArtistCoverSong(librarySongs, producer)
+            )
+        }
+    }
+    val listState = com.ella.music.ui.components.rememberDetailListState(albumId)
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
     val albumSongHeaderCount = 2
     val showSongSideIndex = !selection.selectionMode &&
         sortMode in setOf(
@@ -565,7 +584,7 @@ fun AlbumDetailScreen(
     }
 
     LaunchedEffect(scrollToTopRequest) {
-        if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+        if (scrollToTopRequest > 0) activeListState.animateScrollToItem(0)
     }
     LaunchedEffect(selection.selectionMode, sortedAlbumSongs) {
         if (!selection.selectionMode) return@LaunchedEffect
@@ -598,8 +617,8 @@ fun AlbumDetailScreen(
             // look like it had erased the album the user navigated to.
             EllaCenteredLoadingIndicator()
         } else LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, remember(sortedAlbumSongs) { sortedAlbumSongs.map { it.id } }),
+            state = activeListState,
+            modifier = Modifier.fillMaxSize().dragSelectList(activeListState, selection, remember(sortedAlbumSongs) { sortedAlbumSongs.map { it.id } }),
             contentPadding = PaddingValues(bottom = 120.dp, end = if (showScrollIndicator) ScrollIndicatorListEndPadding else 0.dp)
         ) {
             item {
@@ -794,6 +813,7 @@ fun AlbumDetailScreen(
                 participatingComposers.isNotEmpty() ||
                 participatingArrangers.isNotEmpty() ||
                 participatingLyricists.isNotEmpty() ||
+                participatingProducers.isNotEmpty() ||
                 (showFooterReleaseDate && albumRecordedYear != null)
             ) {
                 item(key = "album-extra-info") {
@@ -806,6 +826,7 @@ fun AlbumDetailScreen(
                         composers = composerDisplayItems,
                         arrangers = arrangerDisplayItems,
                         lyricists = lyricistDisplayItems,
+                        producers = producerDisplayItems,
                         year = yearDisplayItem,
                         mainViewModel = mainViewModel,
                         artistCoverFolderUri = artistCoverFolderUri,
@@ -814,6 +835,7 @@ fun AlbumDetailScreen(
                         onComposerClick = { composer -> onNavigateToMetadataCategory("composer", composer) },
                         onArrangerClick = { arranger -> onNavigateToMetadataCategory("arranger", arranger) },
                         onLyricistClick = { lyricist -> onNavigateToMetadataCategory("lyricist", lyricist) },
+                        onProducerClick = { producer -> onNavigateToMetadataCategory("producer", producer) },
                         onYearClick = { year -> onNavigateToMetadataCategory("year", year) },
                         showReleaseDateSection = showFooterReleaseDate
                     )
@@ -828,7 +850,7 @@ fun AlbumDetailScreen(
                     sortMode == AlbumDetailSongSortMode.FileNameDesc,
                 onLetterClick = { letter ->
                     songFastIndexData.firstOrNull { it.first == letter }?.second?.let { itemIndex ->
-                        scope.launch { listState.scrollToItem(itemIndex) }
+                        scope.launch { activeListState.scrollToItem(itemIndex) }
                     }
                 },
                 modifier = Modifier
@@ -837,7 +859,7 @@ fun AlbumDetailScreen(
             )
         } else if (showScrollIndicator) {
             LazyListScrollIndicator(
-                state = listState,
+                state = activeListState,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(top = 80.dp, bottom = 118.dp)
@@ -854,7 +876,7 @@ fun AlbumDetailScreen(
             color = Color.Transparent,
             titleColor = albumChromeTint,
             titleStartPadding = 64.dp,
-            titleEndPadding = if (selection.selectionMode) 216.dp else 160.dp,
+            titleEndPadding = if (selection.selectionMode) 264.dp else 160.dp,
             modifier = Modifier.align(Alignment.TopCenter),
             onDoubleTapTitle = { scrollToTopRequest++ },
             navigationIcon = {
@@ -900,6 +922,13 @@ fun AlbumDetailScreen(
                             modifier = Modifier.size(27.dp)
                         )
                     }
+                    com.ella.music.ui.components.SelectionBatchEditButton(
+                        onClick = {
+                            val selected = selectedSongs()
+                            if (selected.isNotEmpty()) batchEditSongs = selected
+                        },
+                        tint = albumChromeTint,
+                    )
                     IconButton(onClick = {
                         val selected = selectedSongs()
                         if (selected.isNotEmpty()) {
@@ -1072,7 +1101,7 @@ fun AlbumDetailScreen(
         }
 
         LocateCurrentSongFloatingButton(
-            listState = listState,
+            listState = activeListState,
             currentItemIndex = currentSongItemIndex,
             locateRequest = locateCurrentSongRequest,
             modifier = Modifier
@@ -1119,6 +1148,7 @@ fun AlbumDetailScreen(
             }
         }
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         playlistPickerSongs?.let { songsToAdd ->
             EllaMiuixBottomSheet(
                 show = true,

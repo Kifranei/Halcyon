@@ -72,6 +72,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.Search
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
@@ -119,6 +120,8 @@ internal fun CoverPreviewDialog(
     title: String,
     saveName: String = title,
     imageKind: com.ella.music.data.ExportImageKind = com.ella.music.data.ExportImageKind.Song,
+    onSearchImage: (() -> Unit)? = null,
+    saveOverride: (suspend (pageIndex: Int) -> Boolean)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -432,9 +435,11 @@ internal fun CoverPreviewDialog(
                 CoverPreviewBottomBar(
                     currentPage = pagerState.currentPage,
                     totalCount = effectiveModels.size,
+                    onSearchImage = onSearchImage,
                     onSave = {
                         scope.launch {
-                            val saved = saveCoverToPictures(context, currentModel, saveName, imageKind)
+                            val saved = saveOverride?.invoke(pagerState.currentPage)
+                                ?: saveCoverToPictures(context, currentModel, saveName, imageKind)
                             Toast.makeText(
                                 context,
                                 context.getString(
@@ -616,7 +621,8 @@ private fun CoverPreviewBottomBar(
     onSave: () -> Unit,
     onShare: () -> Unit,
     onOpenGallery: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSearchImage: (() -> Unit)? = null
 ) {
     Box(
         modifier = modifier
@@ -627,6 +633,20 @@ private fun CoverPreviewBottomBar(
             horizontalArrangement = Arrangement.spacedBy(32.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (onSearchImage != null) {
+                CoverPreviewBarButton(
+                    icon = {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Search,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    label = stringResource(R.string.artist_image_search),
+                    onClick = onSearchImage
+                )
+            }
             CoverPreviewBarButton(
                 icon = { PlayerCoverPreviewSaveIcon(modifier = Modifier.size(22.dp)) },
                 label = stringResource(R.string.cover_preview_save),

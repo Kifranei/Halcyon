@@ -43,6 +43,11 @@ internal fun SongMoreActionSheet(
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val neteaseLinks = rememberNeteaseSongLinks(song)
     val neteaseMvId = neteaseLinks.mvId
+    val pluginMvId = song?.let {
+        it.onlineMvId.takeIf { mvId ->
+            com.ella.music.data.sourceplugin.sourcePluginKeyOf(it.onlineSource).isNotBlank() && mvId.isNotBlank()
+        }
+    }.orEmpty()
     val savedLayout by settingsManager.listActionMenuLayout.collectAsState(initial = "")
     val visibleActions = remember(savedLayout, song) {
         ActionMenuLayout.parse(savedLayout, ActionMenuIds.listDefaults)
@@ -71,10 +76,18 @@ internal fun SongMoreActionSheet(
                         com.ella.music.data.netease.NeteaseLinks.open(context, com.ella.music.data.netease.NeteaseLinkKind.Comment, neteaseLinks.songId)
                     }, icon = actionMenuIcon(actionId))
                 }
-                ActionMenuIds.VIEW_MV -> if (neteaseMvId.isNotBlank()) {
+                ActionMenuIds.VIEW_MV -> if (neteaseMvId.isNotBlank() || pluginMvId.isNotBlank()) {
                     SongMenuItem(stringResource(R.string.player_view_music_video), {
                         onDismiss()
-                        com.ella.music.MusicVideoLauncher.openNetease(context, song, neteaseMvId)
+                        if (pluginMvId.isNotBlank()) {
+                            com.ella.music.MusicVideoLauncher.openSourcePlugin(
+                                context, song,
+                                com.ella.music.data.sourceplugin.sourcePluginKeyOf(song?.onlineSource.orEmpty()),
+                                pluginMvId
+                            )
+                        } else {
+                            com.ella.music.MusicVideoLauncher.openNetease(context, song, neteaseMvId)
+                        }
                     }, icon = actionMenuIcon(actionId))
                 }
                 ActionMenuIds.MV_COMMENTS -> if (neteaseMvId.isNotBlank()) {
@@ -117,15 +130,28 @@ internal fun SongMoreActionSheet(
                     onPlayNext,
                     icon = actionMenuIcon(actionId)
                 )
-                ActionMenuIds.DOWNLOAD -> if (song.onlineSource == "netease") {
-                    SongMenuItem(stringResource(R.string.netease_download_song), {
-                        com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, song)
-                        onDismiss()
-                    }, icon = actionMenuIcon(actionId))
+                ActionMenuIds.DOWNLOAD -> when {
+                    song.onlineSource == "netease" -> {
+                        SongMenuItem(stringResource(R.string.netease_download_song), {
+                            com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, song)
+                            onDismiss()
+                        }, icon = actionMenuIcon(actionId))
+                    }
+                    com.ella.music.data.sourceplugin.sourcePluginKeyOf(song.onlineSource).isNotBlank() -> {
+                        SongMenuItem(stringResource(R.string.netease_download_song), {
+                            com.ella.music.data.sourceplugin.SourcePluginDownloadService.enqueue(context, song)
+                            onDismiss()
+                        }, icon = actionMenuIcon(actionId))
+                    }
                 }
                 ActionMenuIds.DOWNLOAD_MV -> if (neteaseMvId.isNotBlank()) {
                     SongMenuItem(stringResource(R.string.netease_download_mv), {
                         com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, song, neteaseMvId)
+                        onDismiss()
+                    }, icon = actionMenuIcon(actionId))
+                } else if (pluginMvId.isNotBlank()) {
+                    SongMenuItem(stringResource(R.string.netease_download_mv), {
+                        com.ella.music.data.sourceplugin.SourcePluginDownloadService.enqueueMv(context, song, pluginMvId)
                         onDismiss()
                     }, icon = actionMenuIcon(actionId))
                 }

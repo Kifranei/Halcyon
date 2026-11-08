@@ -191,6 +191,19 @@
             android:theme="@style/Theme.Ella.Casting" />
 
         <activity
+            android:name=".ArtistImageSearchActivity"
+            android:label="@string/artist_image_search"
+            android:exported="true"
+            android:theme="@style/Theme.Ella.Casting">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="halcyon" android:host="artist-image-search" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".SpectrumViewerActivity"
             android:label="@string/song_more_view_spectrum"
             android:exported="true"

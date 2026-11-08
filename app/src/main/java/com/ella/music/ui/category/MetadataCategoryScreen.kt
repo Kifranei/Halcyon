@@ -66,7 +66,7 @@ import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LazyGridScrollIndicator
-import com.ella.music.ui.components.RestoreGridScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchGridState
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
@@ -150,13 +150,14 @@ fun MetadataCategoryScreen(
             pinned + sortedItems.filterNot { it.name in pinnedSet }
         }
     }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val selection = rememberLibrarySelectionState<String>()
     var categoryMenuItem by remember { mutableStateOf<MetadataCategoryItem?>(null) }
     var batchCategory by rememberSaveable(type) { mutableStateOf<String?>(null) }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var associateFolderPaths by remember { mutableStateOf<List<String>?>(null) }
@@ -171,9 +172,11 @@ fun MetadataCategoryScreen(
         }
     }
     val gridColumns by mainViewModel.settingsManager.categoryGridColumns.collectAsState(initial = 2)
+    val customCategories by mainViewModel.settingsManager.customMetadataCategories.collectAsState(initial = emptyList())
+    val customCategory = remember(customCategories, type) { customCategories.firstOrNull { it.type == type } }
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val configuration = LocalConfiguration.current
-    val safeGridColumns = if (type.usesSingleColumnCategory()) {
+    val safeGridColumns = if (type.usesSingleColumnCategory() || customCategory?.listStyle == true) {
         1
     } else if (configuration.smallestScreenWidthDp >= 600) {
         gridColumns.coerceIn(5, 8)
@@ -182,11 +185,10 @@ fun MetadataCategoryScreen(
     }
     val pageBackground = ellaPageBackground()
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
-    RestoreGridScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        gridState = gridState
-    )
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchGridState = rememberSearchGridState(searchExpanded, searchQuery)
+    val activeGridState = if (searchExpanded) searchGridState else gridState
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val currentSelectionKeys = remember(displayedItems) { displayedItems.map { it.name } }
@@ -283,8 +285,8 @@ fun MetadataCategoryScreen(
                     }
                 },
                 titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
-                titleEndPadding = if (selection.selectionMode) 280.dp else 128.dp,
-                onDoubleTapTitle = { scope.launch { gridState.animateScrollToItem(0) } },
+                titleEndPadding = if (selection.selectionMode) 328.dp else 128.dp,
+                onDoubleTapTitle = { scope.launch { activeGridState.animateScrollToItem(0) } },
                 actions = {
                     if (selection.selectionMode) {
                         IconButton(onClick = {
@@ -303,6 +305,14 @@ fun MetadataCategoryScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = selectedActionSongs()
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                            } else {
+                                batchEditSongs = selectedSongs
+                            }
+                        })
                         IconButton(onClick = {
                             val selectedSongs = selectedActionSongs()
                             if (selectedSongs.isEmpty()) {
@@ -472,8 +482,8 @@ fun MetadataCategoryScreen(
         } else {
             // A-Z index bar for the single-column person categories when
             // sorted by name, mirroring the artists list.
-            val showCategoryIndexBar = (type in PERSON_METADATA_CATEGORY_TYPES || type == "folder") &&
-                sortMode == MetadataCategorySortMode.Name &&
+            val showCategoryIndexBar = (type in PERSON_METADATA_CATEGORY_TYPES || type == "folder" || type.startsWith("tag_")) &&
+                sortMode.sortField() == MetadataCategorySortField.Name &&
                 displayedItems.size > 30
             val categoryIndexLetters = remember(displayedItems, showCategoryIndexBar) {
                 if (showCategoryIndexBar) displayedItems.map { it.categoryIndexLetter(type) } else emptyList()
@@ -487,8 +497,8 @@ fun MetadataCategoryScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(safeGridColumns),
-                    state = gridState,
-                    modifier = Modifier.fillMaxSize().dragSelectGrid(gridState, selection, currentSelectionKeys),
+                    state = activeGridState,
+                    modifier = Modifier.fillMaxSize().dragSelectGrid(activeGridState, selection, currentSelectionKeys),
                     contentPadding = PaddingValues(
                         end = if (showCategorySideIndex) SideIndexListEndPadding else 0.dp,
                         bottom = 120.dp
@@ -534,6 +544,9 @@ fun MetadataCategoryScreen(
                             selectionMode = selection.selectionMode,
                             selected = item.name in selection.selectedIds,
                             isPinned = item.name in pinnedCategoryKeys,
+                            customList = customCategory?.listStyle == true,
+                            customCard = customCategory != null && customCategory.listStyle == false,
+                            customCardColumns = safeGridColumns,
                             onClick = {
                                 if (selection.selectionMode) selection.toggleSelection(item.name) else onCategoryClick(item.name)
                             },
@@ -550,6 +563,7 @@ fun MetadataCategoryScreen(
                 if (showCategoryIndexBar) {
                     FastIndexBar(
                         letters = categoryIndexLetters,
+                        reverse = sortMode == MetadataCategorySortMode.NameDesc,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -558,13 +572,13 @@ fun MetadataCategoryScreen(
                             val index = categoryIndexTargets[letter]
                             if (index != null) {
                                 // +1 to skip the count-summary header item.
-                                scope.launch { gridState.scrollToItem(index + 1) }
+                                scope.launch { activeGridState.scrollToItem(index + 1) }
                             }
                         }
                     )
                 } else if (showCategorySideIndex) {
                     LazyGridScrollIndicator(
-                        state = gridState,
+                        state = activeGridState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -722,17 +736,25 @@ fun MetadataCategoryScreen(
                         ).show()
                         categoryMenuItem = null
                     },
+                    // #725 §3: search-image and batch-edit sit above permanent delete.
+                    * (if (type in ARTIST_IMAGE_CATEGORY_TYPES) listOf(
+                        com.ella.music.ui.components.LibraryEntityActions.searchImage {
+                            com.ella.music.ArtistImageSearchActivity.open(context, item.name)
+                            categoryMenuItem = null
+                        }
+                    ) else emptyList()).toTypedArray(),
+                    * if (batchFieldSpecs(type).isNotEmpty()) listOf(
+                        com.ella.music.ui.components.LibraryEntityAction(
+                            title = stringResource(R.string.category_batch_edit),
+                            icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                            onClick = { batchCategory = item.name; categoryMenuItem = null }
+                        )
+                    ).toTypedArray() else emptyArray(),
                     com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                         pendingDeleteSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
                         categoryMenuItem = null
                     }
-                ) + if (com.ella.music.data.metadataCategoryEditKey(type) != null) listOf(
-                    com.ella.music.ui.components.LibraryEntityAction(
-                        title = stringResource(R.string.category_batch_edit),
-                        icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
-                        onClick = { batchCategory = item.name; categoryMenuItem = null }
-                    )
-                ) else emptyList()
+                )
             )
         }
     }
@@ -795,6 +817,7 @@ fun MetadataCategoryScreen(
         )
     }
 
+    SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
     playlistPickerSongs?.let { songs ->
         EllaMiuixBottomSheet(
             show = true,
@@ -873,3 +896,5 @@ private suspend fun MainViewModel.detailSortedSongsForMetadataCategory(
         }
     return getSongsForMetadataCategory(type, name).sortedForMetadataDetail(mode)
 }
+
+internal val ARTIST_IMAGE_CATEGORY_TYPES = setOf("composer", "arranger", "lyricist", "producer")

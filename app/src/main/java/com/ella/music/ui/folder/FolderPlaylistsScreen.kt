@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +60,7 @@ import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.ScanRefreshIconButton
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -154,15 +155,14 @@ fun FolderPlaylistsScreen(
         showEditor = true
     }
     var pendingDelete by remember { mutableStateOf<FolderPlaylist?>(null) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val folderDisplayColumns = rememberFolderDisplaySettings().columns
     val listState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
     var moreMenuTarget by remember { mutableStateOf<FolderPlaylist?>(null) }
     var associateFolderPaths by remember { mutableStateOf<List<String>?>(null) }
     var draggedPlaylistId by remember { mutableStateOf<String?>(null) }
@@ -250,7 +250,7 @@ fun FolderPlaylistsScreen(
         }
     }
     val reorderableLazyListState = rememberEllaReorderableLazyListState(
-        lazyListState = listState,
+        lazyListState = activeListState,
         onMove = { from, to ->
             if (!reorderEnabled) return@rememberEllaReorderableLazyListState
             val fromIndex = from.index
@@ -324,7 +324,7 @@ fun FolderPlaylistsScreen(
         // to the bottom when that card sorts last (#374).
         androidx.compose.runtime.withFrameNanos { }
         androidx.compose.runtime.withFrameNanos { }
-        if (filteredPlaylists.isNotEmpty()) listState.scrollToItem(0)
+        if (filteredPlaylists.isNotEmpty()) activeListState.scrollToItem(0)
         pendingSortResetMode = null
     }
 
@@ -389,7 +389,7 @@ fun FolderPlaylistsScreen(
             // Six selection actions occupy the right side. Keep the title gesture area clear of
             // the first (pin) action so it remains reliably tappable on narrow screens.
             titleEndPadding = if (selection.selectionMode) 304.dp else 192.dp,
-            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } },
+            onDoubleTapTitle = { scope.launch { activeListState.animateScrollToItem(0) } },
             navigationIcon = {
                 if (showBackButton || selection.selectionMode) {
                     IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
@@ -633,8 +633,8 @@ fun FolderPlaylistsScreen(
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                state = listState,
-                modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, displayedPlaylistIds, excludedEndWidth = 112.dp),
+                state = activeListState,
+                modifier = Modifier.fillMaxSize().dragSelectList(activeListState, selection, displayedPlaylistIds, excludedEndWidth = 112.dp),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {

@@ -73,6 +73,7 @@ class DesktopLyricService : Service() {
     private var opacityPercent = 100
     private var lyricTextColor = Color.WHITE
     private var lyricGlowEnabled = false
+    private var lyricGlowRadiusTenths = 1000
     private var lyricOutlineEnabled = false
     private var lyricBackgroundMode = 0
     private var lyricBackgroundOpacity = 58
@@ -85,6 +86,9 @@ class DesktopLyricService : Service() {
     private var hideOnLyricsPage = false
     private var hostPage = HOST_PAGE_NONE
     private var desktopLyricWidthPercent = 72
+    private var currentLinePosition = SettingsManager.DESKTOP_LYRIC_LINE_POSITION_CENTER
+    /** Tenths of a percent; -1 makes the desktop lyric follow the shared unsung opacity (#727). */
+    private var unsungOpacityTenths = -1
     private var statusBarTopOffsetDp = 16
     private var statusBarPosition = SettingsManager.DESKTOP_LYRIC_STATUS_POSITION_CENTER
     private var statusBarWidthPercent = 72
@@ -251,7 +255,9 @@ class DesktopLyricService : Service() {
             backgroundWordStarts = intent.getLongArrayExtra(EXTRA_BACKGROUND_WORD_STARTS) ?: LongArray(0),
             backgroundWordEnds = intent.getLongArrayExtra(EXTRA_BACKGROUND_WORD_ENDS) ?: LongArray(0),
             interludeStartMs = intent.getLongExtra(EXTRA_INTERLUDE_START, -1L),
-            interludeEndMs = intent.getLongExtra(EXTRA_INTERLUDE_END, -1L)
+            interludeEndMs = intent.getLongExtra(EXTRA_INTERLUDE_END, -1L),
+            songHasPronunciation = intent.getBooleanExtra(EXTRA_SET_HAS_PRONUNCIATION, false),
+            songHasTranslation = intent.getBooleanExtra(EXTRA_SET_HAS_TRANSLATION, false)
         )
         lyricView?.setPlaybackActive(controller?.isPlaying ?: true)
     }
@@ -823,6 +829,8 @@ class DesktopLyricService : Service() {
         hideOnPlayerPage = settingsManager.desktopLyricHideOnPlayerPage.first(),
         hideOnLyricsPage = settingsManager.desktopLyricHideOnLyricsPage.first(),
         desktopLyricWidthPercent = settingsManager.desktopLyricWidth.first(),
+        currentLinePosition = settingsManager.desktopLyricCurrentLinePosition.first(),
+        unsungOpacityTenths = settingsManager.desktopLyricUnsungOpacityTenths.first(),
         statusBarTopOffsetDp = settingsManager.desktopLyricStatusBarTopOffset.first(),
         statusBarPosition = settingsManager.desktopLyricStatusBarPosition.first(),
         statusBarWidthPercent = settingsManager.desktopLyricStatusBarWidth.first(),
@@ -858,6 +866,7 @@ class DesktopLyricService : Service() {
         // independently stored color.
         lyricTextColor = settingsManager.desktopLyricTextColor.first(),
         lyricGlowEnabled = settingsManager.desktopLyricGlowEnabled.first(),
+        lyricGlowRadiusTenths = settingsManager.desktopLyricGlowRadiusTenths.first(),
         lyricOutlineEnabled = settingsManager.desktopLyricOutlineEnabled.first(),
         lyricBackgroundMode = settingsManager.desktopLyricBackgroundMode.first(),
         lyricBackgroundOpacity = settingsManager.desktopLyricBackgroundOpacity.first(),
@@ -898,6 +907,8 @@ class DesktopLyricService : Service() {
         hideOnPlayerPage = settings.hideOnPlayerPage
         hideOnLyricsPage = settings.hideOnLyricsPage
         desktopLyricWidthPercent = settings.desktopLyricWidthPercent
+        currentLinePosition = settings.currentLinePosition
+        unsungOpacityTenths = settings.unsungOpacityTenths
         statusBarTopOffsetDp = settings.statusBarTopOffsetDp
         statusBarPosition = settings.statusBarPosition
         statusBarWidthPercent = settings.statusBarWidthPercent
@@ -912,6 +923,7 @@ class DesktopLyricService : Service() {
         opacityPercent = settings.opacityPercent
         lyricTextColor = settings.lyricTextColor
         lyricGlowEnabled = settings.lyricGlowEnabled
+        lyricGlowRadiusTenths = settings.lyricGlowRadiusTenths
         lyricOutlineEnabled = settings.lyricOutlineEnabled
         lyricBackgroundMode = settings.lyricBackgroundMode
         lyricBackgroundOpacity = settings.lyricBackgroundOpacity
@@ -988,11 +1000,14 @@ class DesktopLyricService : Service() {
             statusBarMergeSecondary = statusBarMergeSecondary,
             statusBarTextAlign = statusBarTextAlign,
             statusBarVerticalAlign = statusBarVerticalAlign,
+            currentLinePosition = currentLinePosition,
+            unsungOpacityTenths = unsungOpacityTenths,
             lyricFontPath = lyricFontPath,
             lyricFontWeight = lyricFontWeight,
             lyricFontItalic = lyricFontItalic,
             wordLiftEnabled = appleMusicWordLiftEnabled,
             glowEnabled = lyricGlowEnabled && !statusBarMode,
+            glowRadiusTenths = lyricGlowRadiusTenths,
             outlineEnabled = lyricOutlineEnabled && !statusBarMode,
             backgroundMode = if (statusBarMode) 0 else lyricBackgroundMode,
             backgroundOpacity = lyricBackgroundOpacity
@@ -1093,6 +1108,8 @@ class DesktopLyricService : Service() {
         val hideOnPlayerPage: Boolean,
         val hideOnLyricsPage: Boolean,
         val desktopLyricWidthPercent: Int,
+        val currentLinePosition: Int,
+        val unsungOpacityTenths: Int,
         val statusBarTopOffsetDp: Int,
         val statusBarPosition: Int,
         val statusBarWidthPercent: Int,
@@ -1107,6 +1124,7 @@ class DesktopLyricService : Service() {
         val opacityPercent: Int,
         val lyricTextColor: Int,
         val lyricGlowEnabled: Boolean,
+        val lyricGlowRadiusTenths: Int,
         val lyricOutlineEnabled: Boolean,
         val lyricBackgroundMode: Int,
         val lyricBackgroundOpacity: Int,
@@ -1153,6 +1171,10 @@ class DesktopLyricService : Service() {
         const val EXTRA_BACKGROUND_WORD_TEXTS = "background_word_texts"
         const val EXTRA_BACKGROUND_WORD_STARTS = "background_word_starts"
         const val EXTRA_BACKGROUND_WORD_ENDS = "background_word_ends"
+        // Whether any line in the current lyric set carries pronunciation/translation, so the
+        // floating lyric can reserve the secondary slots and keep the original row fixed (#727).
+        const val EXTRA_SET_HAS_PRONUNCIATION = "set_has_pronunciation"
+        const val EXTRA_SET_HAS_TRANSLATION = "set_has_translation"
         const val EXTRA_HOST_PAGE = "host_page"
         const val HOST_PAGE_NONE = 0
         const val HOST_PAGE_PLAYER = 1

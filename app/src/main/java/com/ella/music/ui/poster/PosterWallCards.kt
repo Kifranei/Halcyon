@@ -221,6 +221,7 @@ internal fun PosterExpandedCard(
     val swipeDensity = LocalDensity.current.density
     val scope = rememberCoroutineScope()
     var releasing by remember(poster.origin) { mutableStateOf(false) }
+    val enterAlpha = remember(poster.origin) { Animatable(1f) }
     val canSwipe = onStackSwipe != null && stackSongs.size > 1
     fun settle(commit: Boolean, widthPx: Float) {
         if (releasing) return
@@ -242,6 +243,12 @@ internal fun PosterExpandedCard(
                             snapshotFlow { displayedCard }.first { it != previous }
                         }
                         withFrameNanos { }
+                        // The promoted rear card is already lifted to the center, so the new
+                        // front teleports home while invisible and fades in over it —
+                        // snapping the offset to zero was the visible flicker.
+                        enterAlpha.snapTo(0f)
+                        swipeOffset = 0f
+                        enterAlpha.animateTo(1f, tween(180))
                     }
                 } else motion.animateTo(0f, spring(stiffness = 500f)) { swipeOffset = value }
             } finally {
@@ -312,6 +319,7 @@ internal fun PosterExpandedCard(
                 clip = true
                 shadowElevation = (3f + 29f * progress.value) * density
                 rotationZ = poster.originRotation * (1f - progress.value) + (swipeOffset / (width * swipeDensity)).coerceIn(-1f, 1f) * 12f
+                alpha = progress.value * enterAlpha.value
             }
             .then(if (!canSwipe || !controlsReady || releasing) Modifier else Modifier.pointerInput(poster.origin, width, swipeDensity) {
                 detectHorizontalDragGestures(

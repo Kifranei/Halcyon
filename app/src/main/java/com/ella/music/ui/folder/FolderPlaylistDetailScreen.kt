@@ -73,7 +73,7 @@ import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
@@ -149,19 +149,47 @@ fun FolderPlaylistDetailScreen(
     val playlist = remember(playlists, playlistId) {
         playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
     }
-    val allPlaylistSongs = remember(playlist, songs) {
-        playlist?.let { songs.songsForFolderPlaylist(it.folders) }.orEmpty()
-    }
-    val playlistSongs = remember(allPlaylistSongs, playlist?.hiddenFolders) {
-        val hiddenFolders = playlist?.hiddenFolders.orEmpty().map { it.normalizeFolderPath() }
-        allPlaylistSongs.filterNot { song ->
-            val songFolder = song.folderPath().normalizeFolderPath()
-            hiddenFolders.any { hidden ->
-                songFolder.equals(hidden, ignoreCase = true) ||
-                    songFolder.startsWith("${hidden.trimEnd('/')}/", ignoreCase = true)
+    // Library-size × folder-count derivations ran inside composition; on a large library each
+    // `songs` emission used to freeze a whole frame. Compute them off the main thread.
+    val folderPlaylistDerived by produceState(
+        initialValue = FolderPlaylistDerived.Empty,
+        playlist,
+        songs
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val allSongs = playlist?.let { songs.songsForFolderPlaylist(it.folders) }.orEmpty()
+            val hiddenFolders = playlist?.hiddenFolders.orEmpty().map { it.normalizeFolderPath() }
+            val plSongs = if (hiddenFolders.isEmpty()) allSongs else allSongs.filterNot { song ->
+                val songFolder = song.folderPath().normalizeFolderPath()
+                hiddenFolders.any { hidden ->
+                    songFolder.equals(hidden, ignoreCase = true) ||
+                        songFolder.startsWith("${hidden.trimEnd('/')}/", ignoreCase = true)
+                }
             }
+            val fEntries = playlist?.folders.orEmpty().mapNotNull { folderPath ->
+                val normalized = folderPath.normalizeFolderPath()
+                val folderSongs = songs.filter {
+                    val songFolder = it.folderPath().normalizeFolderPath()
+                    songFolder.equals(normalized, ignoreCase = true) ||
+                        songFolder.startsWith("${normalized.trimEnd('/')}/", ignoreCase = true)
+                }
+                if (folderSongs.isEmpty()) return@mapNotNull null
+                FolderPlaylistFolderEntry(
+                    path = folderPath,
+                    displayName = folderPath.folderDisplayName(""),
+                    songCount = folderSongs.size,
+                    albumCount = folderSongs.map { it.album }.distinct().size,
+                    duration = folderSongs.sumOf { it.duration },
+                    dateModified = folderSongs.maxOfOrNull { it.dateModified } ?: 0L,
+                    coverModel = folderSongs.firstOrNull().folderPlaylistCoverModel()
+                )
+            }
+            FolderPlaylistDerived(allSongs, plSongs, fEntries)
         }
     }
+    val allPlaylistSongs = folderPlaylistDerived.allSongs
+    val playlistSongs = folderPlaylistDerived.playlistSongs
+    val folderEntries = folderPlaylistDerived.folderEntries
     var selectedTab by rememberSaveable(playlistId) { mutableStateOf(FolderPlaylistTab.Songs) }
     var searchExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
     var searchQuery by rememberSaveable(playlistId) { mutableStateOf("") }
@@ -188,6 +216,7 @@ fun FolderPlaylistDetailScreen(
     var draggedKey by remember { mutableStateOf<String?>(null) }
     var pressedDragHandleKey by remember { mutableStateOf<String?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val userPlaylists by mainViewModel.playlists.collectAsState()
@@ -198,26 +227,6 @@ fun FolderPlaylistDetailScreen(
     val songSortMode = FolderPlaylistSongSortMode.entries.getOrElse(songSortIndex) { FolderPlaylistSongSortMode.Custom }
     val folderSortMode = FolderPlaylistFolderSortMode.entries.getOrElse(folderSortIndex) { FolderPlaylistFolderSortMode.Custom }
     val detailQuery = searchQuery.trim()
-    val folderEntries = remember(playlist, songs) {
-        playlist?.folders.orEmpty().mapNotNull { folderPath ->
-            val normalized = folderPath.normalizeFolderPath()
-            val folderSongs = songs.filter {
-                val songFolder = it.folderPath().normalizeFolderPath()
-                songFolder.equals(normalized, ignoreCase = true) ||
-                    songFolder.startsWith("${normalized.trimEnd('/')}/", ignoreCase = true)
-            }
-            if (folderSongs.isEmpty()) return@mapNotNull null
-            FolderPlaylistFolderEntry(
-                path = folderPath,
-                displayName = folderPath.folderDisplayName(""),
-                songCount = folderSongs.size,
-                albumCount = folderSongs.map { it.album }.distinct().size,
-                duration = folderSongs.sumOf { it.duration },
-                dateModified = folderSongs.maxOfOrNull { it.dateModified } ?: 0L,
-                coverModel = folderSongs.firstOrNull().folderPlaylistCoverModel()
-            )
-        }
-    }
     val activeFavoriteSongKeys = if (ratingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
     val activeRatingRevision = if (ratingFilter.hasRatingConstraint()) ratingRevision else 0
     val ratingFilteredPlaylistSongs by produceState(
@@ -305,27 +314,28 @@ fun FolderPlaylistDetailScreen(
             }
         }
     }
-    val randomFolderEntrySongs = remember(displayedFolderEntries, allPlaylistSongs) {
-        val normalizedFolders = displayedFolderEntries.map { it.path.normalizeFolderPath() }
+    val randomFolderEntrySongs by produceState(
+        initialValue = emptyList(),
+        displayedFolderEntries,
         allPlaylistSongs
-            .filter { song ->
-                val songFolder = song.folderPath().normalizeFolderPath()
-                normalizedFolders.any { folder -> songFolder.startsWith(folder) }
-            }
-            .distinctBy { it.id }
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val normalizedFolders = displayedFolderEntries.map { it.path.normalizeFolderPath() }
+            allPlaylistSongs
+                .filter { song ->
+                    val songFolder = song.folderPath().normalizeFolderPath()
+                    normalizedFolders.any { folder -> songFolder.startsWith(folder) }
+                }
+                .distinctBy { it.id }
+        }
     }
-    val songsListState = rememberLazyListState()
-    val foldersListState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = songsListState
-    )
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = foldersListState
-    )
+    val songsListState = com.ella.music.ui.components.rememberDetailListState(playlistId, storageKey = "detail_scroll_songs")
+    val foldersListState = com.ella.music.ui.components.rememberDetailListState(playlistId, storageKey = "detail_scroll_folders")
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeSongsListState = if (searchExpanded) searchListState else songsListState
+    val activeFoldersListState = if (searchExpanded) searchListState else foldersListState
     val displayedSongIndexByKey = remember(displayedSongs) {
         buildMap {
             displayedSongs.forEachIndexed { index, song ->
@@ -403,7 +413,7 @@ fun FolderPlaylistDetailScreen(
         }
     }
     val songReorderableState = rememberEllaReorderableLazyListState(
-        lazyListState = songsListState,
+        lazyListState = activeSongsListState,
         onMove = { from, to ->
             if (!songReorderEnabled) return@rememberEllaReorderableLazyListState
             val fromSong = reorderableSongs.getOrNull(from.index - FolderPlaylistSongsHeaderCount)
@@ -428,7 +438,7 @@ fun FolderPlaylistDetailScreen(
         }
     )
     val folderReorderableState = rememberEllaReorderableLazyListState(
-        lazyListState = foldersListState,
+        lazyListState = activeFoldersListState,
         onMove = { from, to ->
             if (!folderReorderEnabled) return@rememberEllaReorderableLazyListState
             val fromEntry = reorderableFolderEntries.getOrNull(from.index - 1)
@@ -607,7 +617,7 @@ fun FolderPlaylistDetailScreen(
             // The title owns a double-tap gesture layer. Reserve the full action row so that the
             // newly-added rating/favorite buttons remain the top-most pointer targets (#267).
             titleEndPadding = when {
-                selectionMode -> 168.dp
+                selectionMode -> 216.dp
                 selectedTab == FolderPlaylistTab.Songs ->
                     (168 + 48 * (if (showRatingFilter || showFavoriteFilter) 1 else 0)).dp
                 else -> 168.dp
@@ -615,8 +625,8 @@ fun FolderPlaylistDetailScreen(
             onDoubleTapTitle = {
                 scope.launch {
                     when (selectedTab) {
-                        FolderPlaylistTab.Songs -> songsListState.animateScrollToItem(0)
-                        FolderPlaylistTab.Folders -> foldersListState.animateScrollToItem(0)
+                        FolderPlaylistTab.Songs -> activeSongsListState.animateScrollToItem(0)
+                        FolderPlaylistTab.Folders -> activeFoldersListState.animateScrollToItem(0)
                     }
                 }
             },
@@ -632,6 +642,10 @@ fun FolderPlaylistDetailScreen(
             },
             actions = {
                 if (selectionMode) {
+                    com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) batchEditSongs = selected
+                    })
                     IconButton(onClick = {
                         val selected = selectedActionSongs()
                         if (selected.isNotEmpty()) {
@@ -687,7 +701,10 @@ fun FolderPlaylistDetailScreen(
                                 HomeRatingFilterUiState.selection = it
                             },
                             showFavorite = showFavoriteFilter,
-                            showRating = showRatingFilter
+                            showRating = showRatingFilter,
+                            hasUnrated = remember(playlistSongs, ratingRevision) {
+                                playlistSongs.any { mainViewModel.getSongRating(it) <= 0 }
+                            }
                         )
                     }
                 }
@@ -867,8 +884,8 @@ fun FolderPlaylistDetailScreen(
         when (selectedTab) {
             FolderPlaylistTab.Songs -> {
                 LazyColumn(
-                    state = songsListState,
-                    modifier = Modifier.fillMaxSize().dragSelectList(songsListState, selectionMode, displayedKeysForTab, currentSelectedKeys, onSelectionChange = { setSelectedKeys(it); rangeAnchorKey = null; rangeTargetKey = null }, onToggle = ::toggleKey, excludedEndWidth = 112.dp),
+                    state = activeSongsListState,
+                    modifier = Modifier.fillMaxSize().dragSelectList(activeSongsListState, selectionMode, displayedKeysForTab, currentSelectedKeys, onSelectionChange = { setSelectedKeys(it); rangeAnchorKey = null; rangeTargetKey = null }, onToggle = ::toggleKey, excludedEndWidth = 112.dp),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp)
                 ) {
                     item {
@@ -1020,8 +1037,8 @@ fun FolderPlaylistDetailScreen(
             }
             FolderPlaylistTab.Folders -> {
                 LazyColumn(
-                    state = foldersListState,
-                    modifier = Modifier.fillMaxSize().dragSelectList(foldersListState, selectionMode, displayedKeysForTab, currentSelectedKeys, onSelectionChange = { setSelectedKeys(it); rangeAnchorKey = null; rangeTargetKey = null }, onToggle = ::toggleKey, excludedEndWidth = 112.dp),
+                    state = activeFoldersListState,
+                    modifier = Modifier.fillMaxSize().dragSelectList(activeFoldersListState, selectionMode, displayedKeysForTab, currentSelectedKeys, onSelectionChange = { setSelectedKeys(it); rangeAnchorKey = null; rangeTargetKey = null }, onToggle = ::toggleKey, excludedEndWidth = 112.dp),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp)
                 ) {
                     item {
@@ -1162,7 +1179,7 @@ fun FolderPlaylistDetailScreen(
             }
         }
             LocateCurrentSongFloatingButton(
-                listState = songsListState,
+                listState = activeSongsListState,
                 currentItemIndex = currentSongItemIndex,
                 locateRequest = locateCurrentSongRequest,
                 enabled = selectedTab == FolderPlaylistTab.Songs && !selectionMode,
@@ -1363,6 +1380,7 @@ fun FolderPlaylistDetailScreen(
         )
     }
 
+    com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
     playlistPickerSongs?.let { songsToAdd ->
         EllaMiuixBottomSheet(
             show = true,
@@ -1421,3 +1439,13 @@ internal fun folderPlaylistSongListIndex(
     songIndex: Int,
     headerCount: Int = FolderPlaylistSongsHeaderCount
 ): Int = if (songIndex < 0) -1 else songIndex + headerCount
+
+private data class FolderPlaylistDerived(
+    val allSongs: List<Song>,
+    val playlistSongs: List<Song>,
+    val folderEntries: List<FolderPlaylistFolderEntry>
+) {
+    companion object {
+        val Empty = FolderPlaylistDerived(emptyList(), emptyList(), emptyList())
+    }
+}

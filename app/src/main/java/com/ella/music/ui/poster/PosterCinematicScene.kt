@@ -26,10 +26,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import kotlin.math.*
 import kotlin.random.Random
 
-private data class CinematicWord(val line: LyricLine, val glyphs: List<PosterTimedGlyph>,
-    val offsets: List<Float>, val width: Float)
-private data class CinematicLine(val source: LyricLine, val words: List<CinematicWord>)
-
 /** Native scene compositions informed by Folia's Tempera, Lumiere, Claddagh and Sonnet.
  * Layouts and glyph metrics are cached; only drawing reads the live playback clock. */
 @Composable
@@ -52,18 +48,12 @@ internal fun PosterCinematicScene(
     } }
     val active = lyrics.getOrNull(currentIndex)
     val window = remember(lyrics, currentIndex, paint, style) {
-        (currentIndex - (if (style == PosterLyricStyle.Glow) 6 else 1)..currentIndex + 1).mapNotNull { index ->
+        (currentIndex - (if (style == PosterLyricStyle.Glow) 6 else if (style == PosterLyricStyle.Orbit) 4 else 1)..currentIndex + (if (style == PosterLyricStyle.Orbit) 3 else 1)).mapNotNull { index ->
             val line = lyrics.getOrNull(index) ?: return@mapNotNull null
-            val words = posterLyricWords(line, lyrics.getOrNull(index + 1)).map { token ->
-                val glyphs = posterTimedGlyphs(token)
-                var prefix = ""
-                val offsets = mutableListOf(0f)
-                glyphs.forEach { prefix += it.text; offsets += paint.measureText(prefix) }
-                CinematicWord(token, glyphs, offsets, offsets.last())
-            }
-            CinematicLine(line, words)
+            posterCinematicLine(line, lyrics.getOrNull(index + 1), paint)
         }
     }
+    val accent = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary
     val primary = window.firstOrNull { it.source == active }
     val collage = remember(primary, viewport, fontPx, style) {
         posterTypeLayout(primary?.words?.map { it.width }.orEmpty(), fontPx * 1.12f,
@@ -85,29 +75,19 @@ internal fun PosterCinematicScene(
                 native.save(); native.translate(size.width / 2, size.height / 2); native.scale(fit, fit)
                 native.drawText(fallbackTitle, -paint.measureText(fallbackTitle) / 2, 0f, paint); native.restore()
             } else when (style) {
-                PosterLyricStyle.Orbit -> drawCinematicRing(window, primary, position.value, paint)
+                PosterLyricStyle.Orbit -> drawOrbitElliptical(window, primary, position.value, paint)
                 PosterLyricStyle.Glow -> drawCinematicGlow(window, primary, collage, position.value, seconds, paint, showPronunciation)
+                PosterLyricStyle.ColorField -> drawColorFieldShots(primary, position.value, seconds, seed, paint, showPronunciation, accent)
+                PosterLyricStyle.Sonnet -> drawSonnetComposition(primary, collage, position.value, seconds, seed, particles, paint, showPronunciation)
                 else -> {
-                    // Slow camera travel connects scenes, while each glyph has its own entrance.
+                    // Generic collage fallback for styles without a dedicated composition.
                     val zoom = 1.02f + sin(elapsed * 0.23f) * 0.025f
-                    val passes = if (style == PosterLyricStyle.ColorField) 2 else 1
-                    val inkRegion = if (passes == 2) cinematicInkRegion(size, seconds, seed) else null
-                    repeat(passes) { pass ->
                     native.save()
-                    // Clip in stage coordinates before applying ANY text/camera transform.
-                    // Inversion follows the rendered paper pixels, including partial glyphs.
-                    if (inkRegion != null) {
-                        if (pass == 1) native.clipPath(inkRegion) else native.clipOutPath(inkRegion)
-                    }
                     native.translate(size.width / 2, size.height * 0.51f)
                     native.scale(zoom, zoom)
                     primary.words.forEachIndexed { i, word ->
                         val box = collage.getOrNull(i) ?: return@forEachIndexed
-                        val uprightColumn = box.vertical && word.line.text.any { ch ->
-                            Character.UnicodeScript.of(ch.code) in listOf(Character.UnicodeScript.HAN,
-                                Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA)
-                        }
-                        native.save(); native.translate(box.x, box.y); native.rotate(if (uprightColumn) 0f else box.rotation)
+                        native.save(); native.translate(box.x, box.y); native.rotate(box.rotation)
                         native.scale(box.scale, box.scale)
                         val baseline = -(paint.fontMetrics.ascent + paint.fontMetrics.descent) / 2
                         word.glyphs.forEachIndexed { g, glyph ->
@@ -115,27 +95,18 @@ internal fun PosterCinematicScene(
                             val entrance = smooth(((position.value - glyph.startMs + 450f) / 450f).coerceIn(0f, 1f))
                             val motion = (1f - entrance) * fontPx * 0.9f
                             val direction = (i + g) % 4
-                            val x = (if (uprightColumn) -advance / 2f else word.offsets[g] - word.width / 2f) +
+                            val x = word.offsets[g] - word.width / 2f +
                                 when (direction) { 0 -> -motion; 1 -> motion; else -> 0f }
-                            val y = baseline + (if (uprightColumn) word.offsets[g] + advance / 2f - word.width / 2f else 0f) +
-                                when (direction) { 2 -> motion; 3 -> -motion; else -> 0f }
-                            native.save()
-                            if (style == PosterLyricStyle.Sonnet) {
-                                native.rotate((1f - entrance) * if (i % 2 == 0) 14f else -14f, x + advance / 2f, y - fontPx / 2f)
-                            }
-                            val color = if (pass == 1) Color(0xFF090909) else Color.White
-                            drawLitGlyph(native, paint, glyph, x, y, advance, position.value, color,
-                                unlit = if (style == PosterLyricStyle.ColorField) 0.45f else 0.27f,
-                                opacity = entrance, glow = if (style == PosterLyricStyle.Sonnet) fontPx * 0.12f else 0f)
-                            native.restore()
+                            val y = baseline + when (direction) { 2 -> motion; 3 -> -motion; else -> 0f }
+                            drawLitGlyph(native, paint, glyph, x, y, advance, position.value,
+                                Color.White, unlit = 0.27f, opacity = entrance)
                         }
-                        if (pass == 0 && showPronunciation && !word.line.pronunciation.isNullOrBlank()) {
+                        if (showPronunciation && !word.line.pronunciation.isNullOrBlank()) {
                             drawReading(native, paint, word.line.pronunciation, -word.width / 2f, -fontPx * 0.67f)
                         }
                         native.restore()
                     }
                     native.restore()
-                    }
                 }
             }
         }
@@ -229,45 +200,59 @@ internal fun drawLitGlyph(canvas: android.graphics.Canvas, paint: Paint, glyph: 
 
 }
 
-private fun ringGlyphs(line: CinematicLine, paint: Paint): List<Pair<PosterTimedGlyph, Float>> {
-    val glyphs = posterTimedGlyphs(line.source)
-    return glyphs.map { it to paint.measureText(it.text) }
-}
-
-private fun DrawScope.drawCinematicRing(window: List<CinematicLine>, active: CinematicLine, position: Long, paint: Paint) {
-    val radius = min(size.width * 0.47f, size.height * 0.77f)
+/** Whole lines ride a tilted elliptical track; the sung line holds the front focus while
+ * the queue wraps behind it, shrinking and fading with depth. Original implementation. */
+private fun DrawScope.drawOrbitElliptical(window: List<CinematicLine>, active: CinematicLine, position: Long, paint: Paint) {
     val canvas = drawContext.canvas.nativeCanvas
-    val activeGlyphs = ringGlyphs(active, paint)
-    val advances = activeGlyphs.map { it.second + paint.textSize * 0.10f }
-    val total = advances.sum()
-    val angularFit = minOf(1f, radius * 4.1f / total.coerceAtLeast(1f))
-    var sung = 0f
-    activeGlyphs.forEachIndexed { i, (glyph, _) -> sung += advances[i] * posterGlyphProgress(glyph, position) }
-    // The current sung position stays close to the foreground focus as the sentence rotates.
-    val focus = (sung - total / 2f) / radius.coerceAtLeast(1f) * angularFit
-    data class DrawGlyph(val glyph: PosterTimedGlyph, val width: Float, val pose: PosterRingGlyph, val active: Boolean)
-    val draws = mutableListOf<DrawGlyph>()
-    window.filter { it.source.timeMs >= active.source.timeMs }.forEach { line ->
-        val current = line === active
-        val glyphs = ringGlyphs(line, paint)
-        val span = glyphs.sumOf { (it.second + paint.textSize * 0.1f).toDouble() }.toFloat()
-        val fit = minOf(1f, radius * 4.1f / span.coerceAtLeast(1f))
-        var offset = -span / 2f
-        glyphs.forEach { (glyph, width) ->
-            val angle = (offset + width / 2f) / radius.coerceAtLeast(1f) * fit -
-                (if (current) focus else focus * 0.3f) + if (current) 0f else PI.toFloat()
-            draws += DrawGlyph(glyph, width, posterRingGlyph(angle, radius), current)
-            offset += width + paint.textSize * 0.1f
-        }
+    val centerX = size.width * 0.5f; val centerY = size.height * 0.50f
+    val rx = size.width * 0.42f; val ry = size.height * 0.30f
+    val tilt = -24f * PI.toFloat() / 180f
+    val slot = 0.62f
+    val activeIndex = window.indexOf(active).coerceAtLeast(0)
+    val baseline = -(paint.fontMetrics.ascent + paint.fontMetrics.descent) / 2f
+    // The track creeps forward as the line is sung, easing the next line toward the front.
+    var lineProgress = 0f
+    val glyphCount = active.words.sumOf { it.glyphs.size }.coerceAtLeast(1)
+    active.words.forEach { word -> word.glyphs.forEach { glyph ->
+        lineProgress += posterGlyphProgress(glyph, position) / glyphCount
+    } }
+    lineProgress = lineProgress.coerceIn(0f, 1f)
+    data class Slot(val line: CinematicLine, val x: Float, val y: Float, val scale: Float, val alpha: Float, val depth: Float, val current: Boolean)
+    val slots = window.mapIndexedNotNull { index, line ->
+        val offset = index - activeIndex
+        val theta = offset * slot - lineProgress * slot * 0.28f
+        val depth = ((cos(theta) + 1f) * 0.5f).coerceIn(0f, 1f)
+        if (depth <= 0.02f && line !== active) return@mapIndexedNotNull null
+        val ex = sin(theta) * rx; val ey = -cos(theta) * ry
+        val x = centerX + ex * cos(tilt) - ey * sin(tilt)
+        val y = centerY + ex * sin(tilt) + ey * cos(tilt) + ry * 0.52f
+        val focus = (1f - abs(theta) / (slot * 1.4f)).coerceIn(0f, 1f)
+        val scale = (0.40f + depth * 0.44f) * if (line === active) 1.22f else 1f
+        val alpha = if (line === active) 1f else (0.10f + depth * 0.55f) * (0.5f + focus * 0.5f)
+        Slot(line, x, y, scale, alpha.coerceIn(0f, 1f), depth, line === active)
     }
-    draws.sortedBy { it.pose.depth }.forEach { draw ->
-        val p = draw.pose
-        canvas.save(); canvas.translate(size.width / 2f + p.x, size.height * 0.48f + p.y)
-        canvas.rotate(p.rotation); canvas.scale(p.scale * angularFit, p.scale * angularFit)
-        val baseline = -(paint.fontMetrics.ascent + paint.fontMetrics.descent) / 2f
-        drawLitGlyph(canvas, paint, draw.glyph, -draw.width / 2, baseline, draw.width, position,
-            Color.White, 0.45f, opacity = p.alpha * if (draw.active) 1f else 0.45f,
-            glow = if (draw.active && abs(p.rotation + 45f) < 8f) paint.textSize * 0.10f else 0f)
+    slots.sortedBy { it.depth }.forEach { slotEntry ->
+        val line = slotEntry.line
+        canvas.save()
+        canvas.translate(slotEntry.x, slotEntry.y)
+        canvas.scale(slotEntry.scale, slotEntry.scale)
+        val text = line.source.text.trim()
+        if (slotEntry.current) {
+            var left = -paint.measureText(text) / 2f
+            line.words.forEach { word ->
+                word.glyphs.forEachIndexed { g, glyph ->
+                    val advance = word.offsets[g + 1] - word.offsets[g]
+                    drawLitGlyph(canvas, paint, glyph, left + word.offsets[g], baseline,
+                        advance, position, Color.White, unlit = 0.45f, glow = paint.textSize * 0.10f)
+                }
+                left += word.width + paint.textSize * 0.12f
+            }
+        } else {
+            paint.clearShadowLayer()
+            paint.style = Paint.Style.FILL
+            paint.color = Color.White.copy(alpha = slotEntry.alpha).toArgb()
+            canvas.drawText(text, -paint.measureText(text) / 2f, baseline, paint)
+        }
         canvas.restore()
     }
 }
@@ -349,61 +334,25 @@ private fun DrawScope.cinematicBackdrop(style: PosterLyricStyle, seconds: Float,
     drawRect(Color(0xFF060709))
     when (style) {
         PosterLyricStyle.Orbit -> {
-            val delta = Offset(h * 0.30f, h * 0.30f)
-            drawLine(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.38f), Color.Transparent),
-                center - delta, center + delta), center - delta, center + delta, 1.4f)
-            particles.take(20).forEachIndexed { i, p ->
-                val at = Offset(p.first * w, p.second * h)
-                rotate(seconds * 0.8f + i * 31f, at) {
-                    val r = h * (0.025f + p.third * 0.065f)
-                    val color = Color.White.copy(alpha = 0.045f)
-                    when (i % 4) {
-                        0 -> drawRect(color, at - Offset(r, r), Size(r * 2, r * 2))
-                        1 -> drawCircle(color, r, at, style = Stroke(1f))
-                        2 -> { drawLine(color, at - Offset(r, 0f), at + Offset(r, 0f), r * 0.6f)
-                            drawLine(color, at - Offset(0f, r), at + Offset(0f, r), r * 0.6f) }
-                        else -> drawPath(Path().apply { moveTo(at.x, at.y - r); lineTo(at.x + r, at.y + r); lineTo(at.x - r, at.y + r); close() }, color)
-                    }
+            // The same tilted track the lyric lines ride on, drawn as a faint guide.
+            val trackCenter = Offset(w * 0.5f, h * 0.50f + h * 0.30f * 0.52f)
+            val rx = w * 0.42f; val ry = h * 0.30f
+            rotate(-24f, trackCenter) {
+                drawOval(Color.White.copy(alpha = 0.10f),
+                    trackCenter - Offset(rx, ry), Size(rx * 2f, ry * 2f), style = Stroke(1f))
+                drawOval(Color.White.copy(alpha = 0.05f),
+                    trackCenter - Offset(rx * 0.62f, ry * 0.62f), Size(rx * 1.24f, ry * 1.24f), style = Stroke(0.7f))
+                repeat(9) { i ->
+                    val a = i * PI.toFloat() * 2f / 9f + seconds * 0.06f
+                    val dot = trackCenter + Offset(cos(a) * rx, sin(a) * ry)
+                    drawCircle(Color.White.copy(alpha = 0.14f), 1.4f, dot)
                 }
             }
+            drawLine(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.30f), Color.Transparent),
+                Offset(w * 0.5f, h * 0.24f), Offset(w * 0.5f, h * 0.76f)),
+                Offset(w * 0.5f, h * 0.24f), Offset(w * 0.5f, h * 0.76f), 0.9f)
         }
-        PosterLyricStyle.ColorField -> {
-            val variant = Math.floorMod(seed, 4)
-            val travel = sin(seconds * 0.17f) * h * 0.035f
-            val paper = Color(0xFFB5B5B5)
-            when (variant) {
-                0 -> {
-                    rotate(23f, center) { drawRect(paper.copy(alpha = 0.52f), Offset(-w * 0.4f, h * 0.35f + travel), Size(w * 1.8f, h * 0.24f)) }
-                    rotate(-23f, center) { drawRect(paper.copy(alpha = 0.55f), Offset(-w * 0.4f, h * 0.35f - travel), Size(w * 1.8f, h * 0.24f)) }
-                }
-                1 -> {
-                    drawRect(paper, Offset(0f, h * 0.47f + travel), Size(w, h))
-                    drawRect(Color(0xFF333333), Offset(w * 0.72f, 0f), Size(w * 0.28f, h * 0.47f))
-                }
-                2 -> {
-                    rotate(-17f, center) {
-                        repeat(3) { i -> drawRect(paper.copy(alpha = 0.22f + i * 0.18f),
-                            Offset(-w * 0.2f, h * (0.12f + i * 0.28f) + travel), Size(w * 1.4f, h * 0.18f)) }
-                    }
-                }
-                else -> {
-                    drawCircle(paper.copy(alpha = 0.48f), h * 0.45f, center + Offset(w * 0.13f, 0f))
-                    drawCircle(Color(0xFF141414), h * 0.28f, center + Offset(w * 0.13f, 0f))
-                    drawRect(paper.copy(alpha = 0.36f), Offset(0f, h * 0.32f), Size(w * 0.44f, h * 0.19f))
-                }
-            }
-            // Screen-print grain, frame guides and diagonal hatching span the entire stage.
-            for (row in 0 until 24) for (column in 0 until 48) {
-                val p = particles[(row * 17 + column) % particles.size]
-                drawCircle(Color.White.copy(alpha = 0.025f + p.third * 0.015f), 0.7f,
-                    Offset((column + p.first) * w / 48, (row + p.second) * h / 24))
-            }
-            rotate(7f, center) {
-                drawLine(Color.White.copy(alpha = 0.16f), Offset(w * 0.81f, -h), Offset(w * 0.81f, h * 2), 0.8f)
-                drawLine(Color.White.copy(alpha = 0.16f), Offset(-w, h * 0.38f), Offset(w * 2, h * 0.38f), 0.8f)
-                repeat(25) { i -> drawLine(Color.White.copy(alpha = 0.055f), Offset(i * w * 0.02f, 0f), Offset(i * w * 0.02f + h * 0.3f, h * 0.3f), 0.7f) }
-            }
-        }
+        PosterLyricStyle.ColorField -> Unit // Shot backdrops are drawn per cut by drawColorFieldShots.
         PosterLyricStyle.Glow -> {
             val warm = Color(0xFFFFE5AB)
             val light = Offset(w * (0.51f + sin(seconds * 0.13f) * 0.045f), h * 0.39f)
@@ -430,46 +379,10 @@ private fun DrawScope.cinematicBackdrop(style: PosterLyricStyle, seconds: Float,
                 drawLine(warm.copy(alpha = 0.26f), Offset(x, y), Offset(x, y + sy * h * 0.045f), 0.8f)
             }
         }
-        PosterLyricStyle.Sonnet -> {
-            val ink = Color.White.copy(alpha = 0.34f)
-            val wheel = Offset(w * 0.39f, h * 0.51f)
-            drawCircle(ink, h * 0.35f, wheel, style = Stroke(1.4f))
-            rotate(seconds * 1.6f, wheel) {
-                repeat(40) { i ->
-                    val angle = i * PI.toFloat() / 20f
-                    val from = wheel + Offset(cos(angle), sin(angle)) * h * 0.38f
-                    val to = wheel + Offset(cos(angle), sin(angle)) * max(w, h) * 1.3f
-                    drawLine(ink.copy(alpha = if (i % 4 == 0) 0.24f else 0.09f), from, to, 0.7f)
-                }
-            }
-            particles.take(16).forEachIndexed { i, p ->
-                val at = Offset(p.first * w, p.second * h)
-                val r = h * (0.027f + p.third * 0.065f)
-                rotate(i * 23f + sin(seconds * 0.21f + i) * 6f, at) {
-                    when (i % 4) {
-                        0 -> { repeat(7) { petal ->
-                            val a = petal * PI.toFloat() * 2f / 7f
-                            drawOval(ink, at + Offset(cos(a), sin(a)) * r * 0.6f - Offset(r * 0.3f, r * 0.3f), Size(r * 0.6f, r * 0.6f), style = Stroke(1.0f))
-                        }; drawCircle(ink, r * 0.22f, at, style = Stroke(1f)) }
-                        1 -> { drawCircle(ink, r, at, style = Stroke(1f)); drawCircle(ink, r * 0.2f, at)
-                            drawLine(ink, at - Offset(r * 1.6f, 0f), at + Offset(r * 1.6f, 0f), 0.8f) }
-                        2 -> { drawRect(ink, at - Offset(r, r), Size(r * 2, r * 2), style = Stroke(1f))
-                            drawLine(ink, at - Offset(r * 0.5f, 0f), at + Offset(r * 0.5f, 0f), 0.7f) }
-                        else -> { val star = Path().apply {
-                            moveTo(at.x, at.y - r); quadraticTo(at.x + r * 0.18f, at.y - r * 0.18f, at.x + r, at.y)
-                            quadraticTo(at.x + r * 0.18f, at.y + r * 0.18f, at.x, at.y + r)
-                            quadraticTo(at.x - r * 0.18f, at.y + r * 0.18f, at.x - r, at.y)
-                            quadraticTo(at.x - r * 0.18f, at.y - r * 0.18f, at.x, at.y - r); close()
-                        }; drawPath(star, ink) }
-                    }
-                }
-            }
-            drawRect(Color.White.copy(alpha = 0.07f), Offset(0f, h * 0.33f), Size(w * 0.29f, h * 0.15f))
-            repeat(18) { i -> drawLine(Color.White.copy(alpha = 0.14f), Offset(w * 0.015f * i, 0f), Offset(w * 0.015f * i + h * 0.30f, h * 0.31f), 0.8f) }
-        }
         else -> Unit
     }
-    if (style != PosterLyricStyle.Orbit && text.isNotBlank()) {
+    if (style != PosterLyricStyle.Orbit && style != PosterLyricStyle.ColorField &&
+        style != PosterLyricStyle.Sonnet && text.isNotBlank()) {
         val canvas = drawContext.canvas.nativeCanvas
         val original = paint.textSize
         paint.clearShadowLayer(); paint.style = Paint.Style.STROKE
@@ -483,4 +396,246 @@ private fun DrawScope.cinematicBackdrop(style: PosterLyricStyle, seconds: Float,
         }
         paint.textSize = original; paint.style = Paint.Style.FILL
     }
+}
+
+private data class ColorFieldShot(val words: List<CinematicWord>, val seed: Int)
+
+/** Split a line into 2..4-word shots; every cut lands on a word boundary. */
+private fun posterColorFieldShots(words: List<CinematicWord>, seed: Int): List<ColorFieldShot> {
+    if (words.isEmpty()) return emptyList()
+    val random = Random(seed)
+    val shots = mutableListOf<ColorFieldShot>()
+    var index = 0
+    while (index < words.size) {
+        val take = minOf(words.size - index, 2 + random.nextInt(3))
+        shots += ColorFieldShot(words.subList(index, index + take), seed * 31 + index)
+        index += take
+    }
+    return shots
+}
+
+/** PV-style cut composition: each shot repaints the stage (two-tone, grayscale or
+ * accent-block variants), then its words enter glyph by glyph with an inverted pass
+ * where the paper and ink regions overlap. Original implementation. */
+private fun DrawScope.drawColorFieldShots(
+    active: CinematicLine, position: Long, seconds: Float, seed: Int,
+    paint: Paint, readings: Boolean, accent: Color
+) {
+    val w = size.width; val h = size.height
+    val shots = posterColorFieldShots(active.words, seed)
+    if (shots.isEmpty()) return
+    var shotIndex = 0
+    shots.forEachIndexed { i, shot ->
+        val startMs = shot.words.first().glyphs.firstOrNull()?.startMs ?: Long.MAX_VALUE
+        if (startMs <= position) shotIndex = i
+    }
+    val shot = shots[shotIndex]
+    val fontPx = paint.textSize
+    val inkRegion = cinematicInkRegion(size, seconds, shot.seed)
+    colorFieldBackdrop(shot.seed, accent, seconds)
+    val canvas = drawContext.canvas.nativeCanvas
+    val boxes = posterTypeLayout(shot.words.map { it.width }, fontPx * 1.12f,
+        w, h * 0.65f, shot.seed, sonnet = false)
+    val baseline = -(paint.fontMetrics.ascent + paint.fontMetrics.descent) / 2f
+    val zoom = 1.02f + sin(seconds * 0.23f + shotIndex) * 0.025f
+    repeat(2) { pass ->
+        canvas.save()
+        if (pass == 1) canvas.clipPath(inkRegion) else canvas.clipOutPath(inkRegion)
+        canvas.translate(w / 2f, h * 0.51f)
+        canvas.scale(zoom, zoom)
+        shot.words.forEachIndexed { i, word ->
+            val box = boxes.getOrNull(i) ?: return@forEachIndexed
+            canvas.save(); canvas.translate(box.x, box.y); canvas.rotate(box.rotation); canvas.scale(box.scale, box.scale)
+            word.glyphs.forEachIndexed { g, glyph ->
+                val advance = word.offsets[g + 1] - word.offsets[g]
+                val entrance = smooth(((position - glyph.startMs + 450f) / 450f).coerceIn(0f, 1f))
+                val motion = (1f - entrance) * fontPx * 0.9f
+                val direction = (i + g) % 4
+                val x = word.offsets[g] - word.width / 2f +
+                    when (direction) { 0 -> -motion; 1 -> motion; else -> 0f }
+                val y = baseline + when (direction) { 2 -> motion; 3 -> -motion; else -> 0f }
+                drawLitGlyph(canvas, paint, glyph, x, y, advance, position,
+                    if (pass == 1) Color(0xFF090909) else Color.White,
+                    unlit = 0.45f, opacity = entrance)
+            }
+            if (pass == 0 && readings && !word.line.pronunciation.isNullOrBlank()) {
+                drawReading(canvas, paint, word.line.pronunciation, -word.width / 2f, -fontPx * 0.67f)
+            }
+            canvas.restore()
+        }
+        canvas.restore()
+    }
+}
+
+private fun DrawScope.colorFieldBackdrop(seed: Int, accent: Color, seconds: Float) {
+    val w = size.width; val h = size.height
+    val center = Offset(w * 0.5f, h * 0.48f)
+    val travel = sin(seconds * 0.17f) * h * 0.035f
+    val paper = Color(0xFFB5B5B5)
+    when (Math.floorMod(seed, 6)) {
+        // Two-tone diagonal bands crossing over the sung area.
+        0 -> {
+            rotate(23f, center) { drawRect(paper.copy(alpha = 0.52f), Offset(-w * 0.4f, h * 0.35f + travel), Size(w * 1.8f, h * 0.24f)) }
+            rotate(-23f, center) { drawRect(accent.copy(alpha = 0.30f), Offset(-w * 0.4f, h * 0.35f - travel), Size(w * 1.8f, h * 0.24f)) }
+        }
+        // Paper lower half with an accent slab off to the right.
+        1 -> {
+            drawRect(paper, Offset(0f, h * 0.47f + travel), Size(w, h))
+            drawRect(accent.copy(alpha = 0.85f), Offset(w * 0.72f, 0f), Size(w * 0.28f, h * 0.47f))
+        }
+        // Ascending translucent strips like PV title cards.
+        2 -> rotate(-17f, center) {
+            repeat(3) { i -> drawRect(if (i == 1) accent.copy(alpha = 0.24f) else paper.copy(alpha = 0.22f + i * 0.18f),
+                Offset(-w * 0.2f, h * (0.12f + i * 0.28f) + travel), Size(w * 1.4f, h * 0.18f)) }
+        }
+        // Grayscale: dark half on the left, paper on the right, thin accent seam.
+        3 -> {
+            drawRect(paper, Offset(w * 0.58f, 0f), Size(w * 0.42f, h))
+            drawRect(Color(0xFF1A1A1A), Offset(0f, 0f), Size(w * 0.58f, h))
+            drawRect(accent.copy(alpha = 0.8f), Offset(w * 0.565f, 0f), Size(w * 0.015f, h))
+        }
+        // Accent circle behind the focus block with a paper side panel.
+        4 -> {
+            drawCircle(accent.copy(alpha = 0.55f), h * 0.45f, center + Offset(w * 0.13f, 0f))
+            drawCircle(Color(0xFF141414), h * 0.28f, center + Offset(w * 0.13f, 0f))
+            drawRect(paper.copy(alpha = 0.36f), Offset(0f, h * 0.32f), Size(w * 0.44f, h * 0.19f))
+        }
+        // Near-black with a single accent band at lyric height.
+        else -> {
+            drawRect(accent.copy(alpha = 0.42f), Offset(0f, h * 0.42f), Size(w, h * 0.17f))
+            drawRect(paper.copy(alpha = 0.10f), Offset(0f, h * 0.59f), Size(w, h * 0.015f))
+        }
+    }
+    // Screen-print halftone, frame guides and diagonal hatching span the whole stage.
+    for (row in 0 until 24) for (column in 0 until 48) {
+        val p = posterHalftonePoint(row, column)
+        drawCircle(Color.White.copy(alpha = 0.025f + p * 0.015f), 0.7f,
+            Offset((column + p) * w / 48, (row + p) * h / 24))
+    }
+    rotate(7f, center) {
+        drawLine(Color.White.copy(alpha = 0.16f), Offset(w * 0.81f, -h), Offset(w * 0.81f, h * 2), 0.8f)
+        drawLine(Color.White.copy(alpha = 0.16f), Offset(-w, h * 0.38f), Offset(w * 2, h * 0.38f), 0.8f)
+        repeat(25) { i -> drawLine(Color.White.copy(alpha = 0.055f), Offset(i * w * 0.02f, 0f), Offset(i * w * 0.02f + h * 0.3f, h * 0.3f), 0.7f) }
+    }
+}
+
+private fun posterHalftonePoint(row: Int, column: Int): Float {
+    var mixed = row * 73856093 xor column * 19349663
+    mixed = (mixed xor (mixed ushr 16)) * 0x45d9f3b
+    return ((mixed xor (mixed ushr 16)) and 0xffff).toFloat() / 65535f
+}
+
+/** Editorial print composition: the sung line sits inside a ruled page frame with
+ * registration marks, an oversized outlined initial, film grain and a vignette.
+ * Lit glyphs separate into red/cyan channels before resolving to white. */
+private fun DrawScope.drawSonnetComposition(
+    active: CinematicLine, boxes: List<PosterTypeBox>, position: Long, seconds: Float,
+    seed: Int, particles: List<Triple<Float, Float, Float>>, paint: Paint, readings: Boolean
+) {
+    val w = size.width; val h = size.height
+    sonnetBackdrop(seed, seconds, particles, paint, active.source.text)
+    val canvas = drawContext.canvas.nativeCanvas
+    val fontPx = paint.textSize
+    val baseline = -(paint.fontMetrics.ascent + paint.fontMetrics.descent) / 2f
+    val lineElapsed = ((position - active.source.timeMs) / 1000f).coerceAtLeast(0f)
+    val sceneIn = smooth((lineElapsed / 0.55f).coerceIn(0f, 1f))
+    val zoom = 0.97f + sceneIn * 0.03f + sin(seconds * 0.19f) * 0.012f
+    canvas.save()
+    canvas.translate(w / 2f, h * 0.51f)
+    canvas.scale(zoom, zoom)
+    active.words.forEachIndexed { i, word ->
+        val box = boxes.getOrNull(i) ?: return@forEachIndexed
+        canvas.save(); canvas.translate(box.x, box.y); canvas.rotate(box.rotation); canvas.scale(box.scale, box.scale)
+        word.glyphs.forEachIndexed { g, glyph ->
+            val advance = word.offsets[g + 1] - word.offsets[g]
+            val entrance = smooth(((position - glyph.startMs + 450f) / 450f).coerceIn(0f, 1f)) * sceneIn
+            val motion = (1f - entrance) * fontPx * 0.9f
+            val direction = (i + g) % 4
+            val x = word.offsets[g] - word.width / 2f + when (direction) { 0 -> -motion; 1 -> motion; else -> 0f }
+            val y = baseline + when (direction) { 2 -> motion; 3 -> -motion; else -> 0f }
+            canvas.save()
+            canvas.rotate((1f - entrance) * if (i % 2 == 0) 14f else -14f, x + advance / 2f, y - fontPx / 2f)
+            val lit = posterGlyphProgress(glyph, position)
+            if (lit > 0f && lit < 1f && !glyph.text.isBlank()) {
+                // Chromatic ghosts converge on the white master as the glyph lights up.
+                val split = fontPx * 0.045f * (1f - lit)
+                paint.clearShadowLayer(); paint.style = Paint.Style.FILL
+                paint.color = Color(0xFFFF4A3D).copy(alpha = 0.38f * entrance).toArgb()
+                canvas.drawText(glyph.text, x - split, y, paint)
+                paint.color = Color(0xFF4AD8FF).copy(alpha = 0.38f * entrance).toArgb()
+                canvas.drawText(glyph.text, x + split, y, paint)
+            }
+            drawLitGlyph(canvas, paint, glyph, x, y, advance, position, Color.White,
+                unlit = 0.27f, opacity = entrance, glow = fontPx * 0.12f)
+            canvas.restore()
+        }
+        if (readings && !word.line.pronunciation.isNullOrBlank()) {
+            drawReading(canvas, paint, word.line.pronunciation, -word.width / 2f, -fontPx * 0.67f)
+        }
+        canvas.restore()
+    }
+    canvas.restore()
+}
+
+private fun DrawScope.sonnetBackdrop(seed: Int, seconds: Float,
+    particles: List<Triple<Float, Float, Float>>, paint: Paint, text: String
+) {
+    val w = size.width; val h = size.height
+    val random = Random(seed)
+    val rule = Color.White.copy(alpha = 0.30f)
+    // Page frame: outer rule, inner hairline, corner registration ticks.
+    val fx = w * 0.07f; val fy = h * 0.13f; val fw = w * 0.86f; val fh = h * 0.72f
+    drawRect(rule, Offset(fx, fy), Size(fw, fh), style = Stroke(1.1f))
+    drawRect(rule.copy(alpha = 0.16f), Offset(fx + w * 0.012f, fy + w * 0.012f),
+        Size(fw - w * 0.024f, fh - w * 0.024f), style = Stroke(0.6f))
+    listOf(Offset(fx, fy), Offset(fx + fw, fy), Offset(fx, fy + fh), Offset(fx + fw, fy + fh)).forEach { corner ->
+        val sx = if (corner.x < w / 2) 1f else -1f; val sy = if (corner.y < h / 2) 1f else -1f
+        drawLine(rule, corner, corner + Offset(sx * h * 0.028f, 0f), 1.2f)
+        drawLine(rule, corner, corner + Offset(0f, sy * h * 0.028f), 1.2f)
+    }
+    // Oversized outlined initial drifting behind the frame.
+    val initial = text.firstOrNull { !it.isWhitespace() }?.uppercase() ?: return
+    val canvas = drawContext.canvas.nativeCanvas
+    val original = paint.textSize
+    paint.clearShadowLayer(); paint.style = Paint.Style.STROKE
+    paint.strokeWidth = original * 0.014f; paint.color = Color.White.copy(alpha = 0.10f).toArgb()
+    paint.textSize = h * 0.62f
+    canvas.save()
+    canvas.translate(w * (0.72f + sin(seconds * 0.07f) * 0.015f), h * 0.62f)
+    canvas.rotate(-6f + sin(seconds * 0.11f) * 2f)
+    canvas.drawText(initial, -paint.measureText(initial) / 2f, 0f, paint)
+    canvas.restore()
+    paint.textSize = original; paint.style = Paint.Style.FILL
+    // Short marker rules and a numbered slug along the left rail, like print marginalia.
+    paint.textSize = original * 0.24f; paint.color = Color.White.copy(alpha = 0.5f).toArgb()
+    val slug = "NO.%02d".format(Math.floorMod(seed, 42) + 1)
+    canvas.save(); canvas.translate(fx + h * 0.012f, fy + fh * 0.6f); canvas.rotate(-90f)
+    canvas.drawText(slug, 0f, 0f, paint); canvas.restore()
+    repeat(5) { i ->
+        val y = fy + fh * (0.12f + i * 0.19f)
+        drawLine(rule.copy(alpha = 0.24f), Offset(fx, y), Offset(fx + h * (0.018f + random.nextFloat() * 0.03f), y), 1f)
+        drawLine(rule.copy(alpha = 0.24f), Offset(fx + fw, y), Offset(fx + fw - h * (0.018f + random.nextFloat() * 0.03f), y), 1f)
+    }
+    paint.textSize = original
+    // Horizontal tracks above and below the focus zone.
+    drawLine(rule.copy(alpha = 0.20f), Offset(fx, h * 0.335f), Offset(fx + fw, h * 0.335f), 0.7f)
+    drawLine(rule.copy(alpha = 0.20f), Offset(fx, h * 0.685f), Offset(fx + fw, h * 0.685f), 0.7f)
+    // Film grain: jittered dots reseeded per frame slice.
+    particles.take(160).forEachIndexed { i, p ->
+        var mixed = (i * 31 + (seconds * 24).toInt()) * -0x61c88647
+        mixed = (mixed xor (mixed ushr 16)) * 0x45d9f3b
+        mixed = mixed xor (mixed ushr 16)
+        val gx = (mixed and 0xffff).toFloat() / 65535f * w
+        val gy = ((mixed ushr 16) and 0xffff).toFloat() / 65535f * h
+        drawCircle(Color.White.copy(alpha = 0.05f * p.third), 0.6f, Offset(gx, gy))
+    }
+    // Halftone patch in the lower-left quadrant.
+    for (row in 0 until 9) for (column in 0 until 14) {
+        val dot = posterHalftonePoint(row + seed, column)
+        drawCircle(Color.White.copy(alpha = 0.05f + dot * 0.06f), 0.5f + dot * 0.9f,
+            Offset(fx + w * 0.02f + column * w * 0.014f, fy + fh * 0.72f + row * w * 0.014f))
+    }
+    // Vignette.
+    drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.42f)),
+        Offset(w / 2f, h * 0.5f), h * 0.78f))
 }

@@ -10,6 +10,7 @@ import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.normalizedAudioFormat
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.splitGenreNames
 import com.ella.music.viewmodel.MainViewModel
@@ -95,9 +96,9 @@ internal data class ListeningInsight(
 )
 
 internal data class TasteProfile(
-    val topArtist: TasteInsight?,
-    val topAlbum: TasteInsight?,
-    val topGenre: TasteInsight?
+    val topArtists: List<TasteInsight>,
+    val topAlbums: List<TasteInsight>,
+    val topGenres: List<TasteInsight>
 )
 
 internal data class TasteInsight(
@@ -105,14 +106,17 @@ internal data class TasteInsight(
     val title: String,
     val subtitle: String,
     val listenedMs: Long,
-    val playCount: Int
+    val playCount: Int,
+    /** Album navigation target when this insight is an album (#698). */
+    val albumId: Long? = null
 )
 
 internal data class TasteAccumulator(
     val title: String,
     val subtitle: String = "",
     var listenedMs: Long = 0L,
-    var playCount: Int = 0
+    var playCount: Int = 0,
+    var albumId: Long? = null
 )
 
 internal data class ResolvedHistoryEntry(
@@ -389,13 +393,20 @@ internal fun buildTasteProfile(
                 )
         }
 
-    fun add(acc: MutableMap<String, TasteAccumulator>, rawTitle: String, subtitle: String, stat: SongPlaybackStats) {
+    fun add(
+        acc: MutableMap<String, TasteAccumulator>,
+        rawTitle: String,
+        subtitle: String,
+        stat: SongPlaybackStats,
+        albumId: Long? = null
+    ) {
         val title = rawTitle.trim()
         if (title.isBlank()) return
         val key = title.lowercase(Locale.getDefault())
-        val item = acc.getOrPut(key) { TasteAccumulator(title = title, subtitle = subtitle) }
+        val item = acc.getOrPut(key) { TasteAccumulator(title = title, subtitle = subtitle, albumId = albumId) }
         item.listenedMs += stat.listenedMs
         item.playCount += stat.playCount
+        if (item.albumId == null) item.albumId = albumId
     }
 
     val artists = linkedMapOf<String, TasteAccumulator>()
@@ -409,30 +420,102 @@ internal fun buildTasteProfile(
             .forEach { artist -> add(artists, artist, song?.album.orEmpty(), stat) }
 
         val album = song?.album?.takeIf { it.isNotBlank() } ?: stat.album
-        add(albums, album, song?.albumArtist?.takeIf { it.isNotBlank() }.orEmpty(), stat)
+        add(
+            albums, album, song?.albumArtist?.takeIf { it.isNotBlank() }.orEmpty(), stat,
+            albumId = song?.albumIdentityId()
+        )
 
         splitGenreNames(song?.genre.orEmpty()).forEach { genre -> add(genres, genre, "", stat) }
     }
 
-    fun top(labelRes: Int, acc: Map<String, TasteAccumulator>): TasteInsight? {
-        val item = acc.values.maxWithOrNull(
-            compareBy<TasteAccumulator> { it.listenedMs }
-                .thenBy { it.playCount }
-        ) ?: return null
-        return TasteInsight(
-            labelRes = labelRes,
-            title = item.title,
-            subtitle = item.subtitle,
-            listenedMs = item.listenedMs,
-            playCount = item.playCount
-        )
+    fun topN(labelRes: Int, acc: Map<String, TasteAccumulator>, n: Int = 3): List<TasteInsight> {
+        return acc.values.sortedWith(
+            compareByDescending<TasteAccumulator> { it.listenedMs }
+                .thenByDescending { it.playCount }
+        ).take(n).map { item ->
+            TasteInsight(
+                labelRes = labelRes,
+                title = item.title,
+                subtitle = item.subtitle,
+                listenedMs = item.listenedMs,
+                playCount = item.playCount,
+                albumId = item.albumId
+            )
+        }
     }
 
     return TasteProfile(
-        topArtist = top(R.string.analytics_taste_top_artist, artists),
-        topAlbum = top(R.string.analytics_taste_top_album, albums),
-        topGenre = top(R.string.analytics_taste_top_genre, genres)
+        topArtists = topN(R.string.analytics_taste_top_artist, artists),
+        topAlbums = topN(R.string.analytics_taste_top_album, albums),
+        topGenres = topN(R.string.analytics_taste_top_genre, genres)
     )
+}
+
+/** Time ranges for the ranking cards/page (#698): the memories cards' configured range. */
+internal enum class AnalyticsRankingRange(val prefValue: String, val labelRes: Int) {
+    Week("7d", R.string.analytics_range_7d),
+    Month1("1m", R.string.analytics_range_1m),
+    Month3("3m", R.string.analytics_range_3m),
+    Month6("6m", R.string.analytics_range_6m),
+    Year1("1y", R.string.analytics_range_1y),
+    All("all", R.string.analytics_range_all);
+
+    fun cutoffMs(now: Long): Long {
+        if (this == All) return 0L
+        val cal = Calendar.getInstance().apply { timeInMillis = now }
+        when (this) {
+            Week -> cal.add(Calendar.DAY_OF_YEAR, -7)
+            Month1 -> cal.add(Calendar.MONTH, -1)
+            Month3 -> cal.add(Calendar.MONTH, -3)
+            Month6 -> cal.add(Calendar.MONTH, -6)
+            Year1 -> cal.add(Calendar.YEAR, -1)
+            All -> Unit
+        }
+        return cal.timeInMillis
+    }
+
+    companion object {
+        fun fromPref(value: String?): AnalyticsRankingRange =
+            entries.firstOrNull { it.prefValue == value } ?: All
+    }
+}
+
+/**
+ * Aggregates per-play history into `SongPlaybackStats`-compatible rows over a bounded range so
+ * the ranking cards/page can be scoped by time (#698). Grouped by the same stats key the cards
+ * resolve against, so remote/Last.fm entries merge correctly. `duration` sums listenedMs of
+ * every entry; `count` only counts entries that met the play-count threshold.
+ */
+internal fun buildRangeRankingStats(
+    history: List<PlaybackHistoryEntry>,
+    range: AnalyticsRankingRange,
+    kind: String,
+    now: Long = System.currentTimeMillis()
+): List<SongPlaybackStats> {
+    val cutoff = range.cutoffMs(now)
+    return history
+        .asSequence()
+        .filter { it.playedAt >= cutoff }
+        .groupBy { it.analyticsStatsKey() }
+        .values
+        .map { entries ->
+            val first = entries.first()
+            SongPlaybackStats(
+                songId = first.songId,
+                title = first.title,
+                artist = first.artist,
+                album = first.album,
+                playCount = entries.count { it.playCounted },
+                listenedMs = entries.sumOf { it.listenedMs },
+                lastPlayedAt = entries.maxOf { it.playedAt }
+            )
+        }
+        .filter { if (kind == "count") it.playCount > 0 else it.listenedMs > 0 }
+        .let { list ->
+            if (kind == "count") list.sortedByDescending { it.playCount }
+            else list.sortedByDescending { it.listenedMs }
+        }
+        .toList()
 }
 
 internal suspend fun buildLibraryAnalysis(

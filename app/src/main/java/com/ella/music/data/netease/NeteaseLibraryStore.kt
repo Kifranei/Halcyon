@@ -55,15 +55,55 @@ class NeteaseLibraryStore private constructor(private val context: Context) {
             try {
                 val result = client.collections(account)
                 if (accounts.account.value != account) return@withLock emptyList()
+                // Curated pseudo-playlists ride the same sync; each failure is non-fatal.
+                val extras = buildList {
+                    runCatching { client.dailyRecommendSongs(account.cookie) }.getOrNull()
+                        ?.takeIf { it.isNotEmpty() }?.let { songs ->
+                            add(
+                                UserPlaylist(
+                                    id = "remote:netease:${account.userId}:daily_songs",
+                                    name = context.getString(com.ella.music.R.string.netease_daily_recommend),
+                                    songs = songs.map { it.toPlaylistSong() },
+                                    createdAt = System.currentTimeMillis(),
+                                    updatedAt = System.currentTimeMillis(),
+                                    remoteSource = NETEASE_SOURCE,
+                                    remoteServerId = account.userId.toString(),
+                                    remotePlaylistId = "daily_songs"
+                                )
+                            )
+                        }
+                    runCatching { client.dailyRecommendedPlaylists(account) }.getOrNull()
+                        ?.let(::addAll)
+                    val seed = (mutableRecentPlays.value.firstOrNull()?.song?.onlineId
+                        ?: result.favorites.firstOrNull()?.onlineId).orEmpty()
+                    if (seed.isNotBlank()) {
+                        runCatching { client.heartbeatFm(account.cookie, seed) }.getOrNull()
+                            ?.takeIf { it.isNotEmpty() }?.let { songs ->
+                                add(
+                                    UserPlaylist(
+                                        id = "remote:netease:${account.userId}:heartbeat_fm",
+                                        name = context.getString(com.ella.music.R.string.netease_heartbeat_fm),
+                                        songs = songs.map { it.toPlaylistSong() },
+                                        createdAt = System.currentTimeMillis(),
+                                        updatedAt = System.currentTimeMillis(),
+                                        remoteSource = NETEASE_SOURCE,
+                                        remoteServerId = account.userId.toString(),
+                                        remotePlaylistId = "heartbeat_fm"
+                                    )
+                                )
+                            }
+                    }
+                }
+                val merged = result.copy(playlists = result.playlists + extras)
                 val json = JSONObject().put("metadataVersion", 1).put("userId", account.userId)
                     .put("favoritePlaylistId", result.favoritePlaylistId)
                     .put("favorites", JSONArray().apply { result.favorites.forEach { put(it.toPlaylistSong().toJson()) } })
-                    .put("playlists", JSONArray().apply { result.playlists.forEach { put(it.toJson()) } })
+                    .put("playlists", JSONArray().apply { merged.playlists.forEach { put(it.toJson()) } })
                 val cache = cache(account.userId)
                 val stream = cache.startWrite()
                 try { stream.write(json.toString().toByteArray()); cache.finishWrite(stream) }
                 catch (e: Exception) { cache.failWrite(stream); throw e }
-                apply(result)
+                apply(merged)
                 metadataNeedsRefresh = false
                 mutableStatus.value = ""
             } catch (cancel: CancellationException) { throw cancel }

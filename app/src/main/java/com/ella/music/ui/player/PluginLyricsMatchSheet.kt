@@ -79,7 +79,7 @@ import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class PluginLyricsTagEditorMatch(
@@ -552,7 +552,7 @@ private fun LyricsSaveDestinationControl(
         stringResource(R.string.lyric_sidecar_destination_ttml)
     )
     val selectedIndex = destinations.indexOf(selected).takeIf { it >= 0 } ?: 0
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.lyric_sidecar_destination_title),
         summary = labels[selectedIndex],
         items = labels.map { DropdownItem(title = it) },
@@ -585,7 +585,7 @@ private fun LyricsRenderControls(
         stringResource(R.string.lyric_match_format_ttml)
     )
     val selectedIndex = formats.indexOf(selectedFormat).takeIf { it >= 0 } ?: 0
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.lyric_match_render_format),
         summary = labels[selectedIndex],
         items = labels.map { DropdownItem(title = it) },

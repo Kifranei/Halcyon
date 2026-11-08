@@ -42,9 +42,14 @@ import java.util.Calendar
 @Composable
 fun AnalyticsScreen(
     mainViewModel: MainViewModel,
+    playerViewModel: com.ella.music.viewmodel.PlayerViewModel,
     onBack: () -> Unit,
     showBackButton: Boolean = true,
-    onNavigateToHistory: () -> Unit = {}
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (Long) -> Unit = {},
+    onNavigateToGenre: (String) -> Unit = {},
+    onNavigateToRanking: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val replay = replayPalette()
@@ -52,6 +57,12 @@ fun AnalyticsScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val playbackHistory by mainViewModel.playbackHistory.collectAsState()
     val dailyListenMs by mainViewModel.dailyListenMs.collectAsState()
+    val settings = com.ella.music.data.SettingsManager.getInstance(context)
+    val historyCardCount by settings.analyticsHistoryCardCount.collectAsState(initial = 20)
+    val durationCardRange by settings.analyticsRankingRange("duration").collectAsState(initial = "all")
+    val durationCardCount by settings.analyticsRankingCount("duration").collectAsState(initial = 10)
+    val countCardRange by settings.analyticsRankingRange("count").collectAsState(initial = "all")
+    val countCardCount by settings.analyticsRankingCount("count").collectAsState(initial = 10)
     val now = remember { Calendar.getInstance() }
     val replayYears = remember(playbackHistory, dailyListenMs, now) {
         buildReplayYears(playbackHistory, dailyListenMs, now)
@@ -143,7 +154,8 @@ fun AnalyticsScreen(
             item {
                 MonthlyFavoritesCard(
                     report = monthlyReport,
-                    mainViewModel = mainViewModel
+                    mainViewModel = mainViewModel,
+                    onArtistClick = onNavigateToArtist
                 )
             }
 
@@ -152,7 +164,12 @@ fun AnalyticsScreen(
             }
 
             item {
-                TasteProfileCard(profile = tasteProfile)
+                TasteProfileCard(
+                    profile = tasteProfile,
+                    onArtistClick = onNavigateToArtist,
+                    onAlbumClick = onNavigateToAlbum,
+                    onGenreClick = onNavigateToGenre
+                )
             }
 
             item {
@@ -161,12 +178,13 @@ fun AnalyticsScreen(
 
             item {
                 HistoryCard(
-                    history = playbackHistory.take(20),
+                    history = playbackHistory.take(historyCardCount),
                     totalCount = playbackHistory.size,
                     libraryById = libraryById,
                     libraryByStatsKey = libraryByStatsKey,
                     mainViewModel = mainViewModel,
-                    onClick = onNavigateToHistory
+                    onClick = onNavigateToHistory,
+                    onSongClick = { playerViewModel.playSong(it) }
                 )
             }
 
@@ -174,14 +192,19 @@ fun AnalyticsScreen(
                 RankingCard(
                     title = stringResource(R.string.analytics_listen_duration_ranking),
                     emptyText = stringResource(R.string.analytics_listen_duration_empty),
-                    stats = playbackStats
-                        .filter { it.listenedMs > 0L }
-                        .sortedByDescending { it.listenedMs }
-                        .take(10),
+                    stats = remember(playbackHistory, durationCardRange, durationCardCount) {
+                        buildRangeRankingStats(
+                            playbackHistory,
+                            AnalyticsRankingRange.fromPref(durationCardRange),
+                            "duration"
+                        ).take(durationCardCount)
+                    },
                     libraryById = libraryById,
                     libraryByStatsKey = libraryByStatsKey,
                     mainViewModel = mainViewModel,
-                    valueText = { formatListenDuration(context, it.listenedMs) }
+                    valueText = { formatListenDuration(context, it.listenedMs) },
+                    onSongClick = { playerViewModel.playSong(it) },
+                    onHeaderClick = { onNavigateToRanking("duration") }
                 )
             }
 
@@ -189,14 +212,19 @@ fun AnalyticsScreen(
                 RankingCard(
                     title = stringResource(R.string.analytics_play_count_ranking),
                     emptyText = stringResource(R.string.analytics_play_count_empty),
-                    stats = playbackStats
-                        .filter { it.playCount > 0 }
-                        .sortedByDescending { it.playCount }
-                        .take(10),
+                    stats = remember(playbackHistory, countCardRange, countCardCount) {
+                        buildRangeRankingStats(
+                            playbackHistory,
+                            AnalyticsRankingRange.fromPref(countCardRange),
+                            "count"
+                        ).take(countCardCount)
+                    },
                     libraryById = libraryById,
                     libraryByStatsKey = libraryByStatsKey,
                     mainViewModel = mainViewModel,
-                    valueText = { context.getString(R.string.analytics_times_count, it.playCount) }
+                    valueText = { context.getString(R.string.analytics_times_count, it.playCount) },
+                    onSongClick = { playerViewModel.playSong(it) },
+                    onHeaderClick = { onNavigateToRanking("count") }
                 )
             }
         }

@@ -32,6 +32,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +56,7 @@ import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.directionalSortDropdownItems
@@ -77,6 +78,7 @@ import com.ella.music.data.model.albumIdentityId
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -90,7 +92,8 @@ fun FolderScreen(
     onNavigateToPlayer: () -> Unit,
     onNavigateToLibraryAnalysis: () -> Unit,
     onNavigateToScanSettings: () -> Unit,
-    onFolderClick: (String) -> Unit
+    onFolderClick: (String) -> Unit,
+    onClose: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -128,8 +131,8 @@ fun FolderScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<com.ella.music.data.model.Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<com.ella.music.data.model.Song>?>(null) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var scrollToTopRequest by remember { mutableStateOf(0) }
 
     val rootFolderPath = remember(songs) { songs.commonFolderRoot() }
@@ -245,6 +248,14 @@ fun FolderScreen(
                             saveScope.launch { mainViewModel.settingsManager.setFolderListSortIndex(mode.ordinal) }
                         }
                     )
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Close,
+                            contentDescription = stringResource(R.string.common_close),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             )
         }
@@ -516,18 +527,17 @@ fun FolderScreen(
                     unpinToTopPath = null
                 }
             }
-            RestoreListScrollAfterSearch(
-                searchExpanded = searchExpanded,
-                query = searchQuery,
-                listState = listState
-            )
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+            val activeListState = if (searchExpanded) searchListState else listState
             LaunchedEffect(scrollToTopRequest) {
-                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+                if (scrollToTopRequest > 0) activeListState.animateScrollToItem(0)
             }
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    state = listState,
+                    state = activeListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 160.dp, end = if (folders.size > 30) ScrollIndicatorListEndPadding else 0.dp)
                 ) {
@@ -547,7 +557,7 @@ fun FolderScreen(
                 }
                 if (folders.size > 30) {
                     LazyListScrollIndicator(
-                        state = listState,
+                        state = activeListState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -567,7 +577,7 @@ fun FolderScreen(
                     }
                 }
                 LocateCurrentSongFloatingButton(
-                    listState = listState,
+                    listState = activeListState,
                     currentItemIndex = if (currentFolderIndex < 0) -1 else currentFolderIndex / folderColumns,
                     locateRequest = locateCurrentSongRequest,
                     modifier = Modifier

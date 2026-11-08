@@ -159,12 +159,23 @@ internal fun MetadataCategoryItem.folderSortSummary(sortMode: MetadataCategorySo
 }
 
 @Composable
-internal fun MetadataCategoryItem.personSortSummary(sortMode: MetadataCategorySortMode): String {
+internal fun MetadataCategoryItem.personSortSummary(
+    sortMode: MetadataCategorySortMode,
+    compact: Boolean = false
+): String {
     val context = LocalContext.current
     return when (sortMode) {
         MetadataCategorySortMode.Duration,
-        MetadataCategorySortMode.DurationAsc -> context.getString(R.string.category_person_sort_duration, duration.formatDuration(), albumCount)
-        else -> context.getString(R.string.category_person_sort, songCount, albumCount)
+        MetadataCategorySortMode.DurationAsc -> context.getString(
+            if (compact) R.string.category_person_sort_duration_compact else R.string.category_person_sort_duration,
+            duration.formatDuration(),
+            albumCount
+        )
+        else -> context.getString(
+            if (compact) R.string.category_person_sort_compact else R.string.category_person_sort,
+            songCount,
+            albumCount
+        )
     }
 }
 
@@ -351,6 +362,7 @@ internal fun String.categoryTitle(): String {
         "composer" -> context.getString(R.string.category_composer)
         "arranger" -> context.getString(R.string.category_arranger)
         "lyricist" -> context.getString(R.string.category_lyricist)
+        "producer" -> context.getString(R.string.category_producer)
         "folder" -> context.getString(R.string.category_folder)
         else -> context.getString(R.string.category_general)
     }
@@ -364,6 +376,7 @@ internal fun String.categoryCountSummary(count: Int): String {
         "composer" -> context.getString(R.string.category_count_composers, count)
         "arranger" -> context.getString(R.string.category_count_arrangers, count)
         "lyricist" -> context.getString(R.string.category_count_lyricists, count)
+        "producer" -> context.getString(R.string.category_count_producers, count)
         "folder" -> context.getString(R.string.category_count_folders, count)
         "year" -> context.getString(R.string.category_count_years, count)
         else -> context.getString(R.string.category_count_general, count)
@@ -374,7 +387,13 @@ internal fun String.usesSingleColumnCategory(): Boolean {
     return this in PERSON_METADATA_CATEGORY_TYPES || this == "folder"
 }
 
-internal val PERSON_METADATA_CATEGORY_TYPES = setOf("composer", "arranger", "lyricist")
+internal fun MetadataCategorySortMode.usesSongCountSummary(): Boolean =
+    this != MetadataCategorySortMode.AlbumCount &&
+        this != MetadataCategorySortMode.AlbumCountAsc &&
+        this != MetadataCategorySortMode.Duration &&
+        this != MetadataCategorySortMode.DurationAsc
+
+internal val PERSON_METADATA_CATEGORY_TYPES = setOf("composer", "arranger", "lyricist", "producer")
 
 internal fun Long.formatDuration(): String {
     return formatPlaybackDuration()

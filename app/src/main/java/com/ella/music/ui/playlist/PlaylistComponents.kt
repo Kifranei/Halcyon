@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,11 +27,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import com.ella.music.R
 import com.ella.music.data.PlaylistExportFormat
 import com.ella.music.data.PlaylistImportMode
@@ -40,7 +45,8 @@ import com.ella.music.ui.components.ellaOverlayCardColor
 import com.ella.music.ui.components.EllaMiuixActionRow
 import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixSheetActions
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SelectionCheck
 import com.ella.music.ui.components.LocalSettingsCardFrosting
@@ -259,7 +265,14 @@ internal fun CreatePlaylistDialog(
     confirmText: String? = null
 ) {
     var name by remember(initialName) { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initialName, androidx.compose.ui.text.TextRange(0, initialName.length))) }
-    EllaMiuixBottomSheet(
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        delay(180L)
+        runCatching { focusRequester.requestFocus() }
+        keyboardController?.show()
+    }
+    EllaMiuixDialog(
         show = true,
         title = title ?: stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
@@ -275,8 +288,9 @@ internal fun CreatePlaylistDialog(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
-            EllaMiuixSheetActions(
+            EllaMiuixDialogActions(
                 cancelText = stringResource(R.string.common_cancel),
                 confirmText = confirmText ?: stringResource(R.string.common_create),
                 onCancel = onDismiss,

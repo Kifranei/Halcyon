@@ -16,7 +16,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-val appVersionName = "1.3.0"
+val appVersionName = "1.3.1"
 val originOsTestBuild = providers.gradleProperty("ellaOriginOsTest").orNull == "true"
 val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 val configuredAbis = providers.gradleProperty("ellaAbi")
@@ -129,7 +129,7 @@ android {
         applicationId = if (originOsTestBuild) "com.ella.music.kano" else "com.ella.music"
         minSdk = 29
         targetSdk = 37
-        versionCode = 40
+        versionCode = 41
         versionName = appVersionName + if (originOsTestBuild) "-originos-test" else ""
         externalNativeBuild {
             cmake {
@@ -320,6 +320,7 @@ dependencies {
     implementation(libs.miuix.ui)
     implementation(libs.miuix.icons)
     implementation(libs.miuix.blur)
+    implementation(libs.miuix.material)
     implementation(libs.miuix.preference)
     implementation(libs.androidx.webkit)
 

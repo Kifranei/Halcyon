@@ -156,6 +156,24 @@ internal object FolderHierarchyTrail {
     }
 }
 
+/** Close returns home and the next folder visit opens the hierarchy root. */
+internal object FolderHierarchySession {
+    var openAtRoot: Boolean = false
+        private set
+
+    fun requestRoot() {
+        FolderHierarchyTrail.reset()
+        openAtRoot = true
+    }
+
+    fun consumeRoot(route: String): Boolean {
+        if (!openAtRoot) return false
+        if (route.substringBefore('?') != "folder") return false
+        openAtRoot = false
+        return true
+    }
+}
+
 internal fun String.folderBreadcrumbs(rootName: String): List<FolderBreadcrumb> {
     val normalized = normalizeFolderPath()
     if (normalized == "/" || normalized.isBlank()) {

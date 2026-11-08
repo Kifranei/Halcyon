@@ -253,7 +253,7 @@ internal fun DetailMusicVideoScreen(
                     .build(),
                 true
             )
-            if (source.scheme != "halcyon-netease-mv") {
+            if (source.scheme != "halcyon-netease-mv" && source.scheme != "halcyon-plugin-mv") {
                 setMediaItem(context.buildMusicVideoMediaItem(source, song.mimeType.takeIf { source.toString() == song.path && it.isNotBlank() }))
                 prepare()
                 playWhenReady = true
@@ -264,6 +264,34 @@ internal fun DetailMusicVideoScreen(
     var neteaseMvResolution by remember(source) { mutableStateOf<Int?>(null) }
     var showMvQualitySheet by remember { mutableStateOf(false) }
     LaunchedEffect(player, source, neteaseMvResolution) {
+        if (source.scheme == "halcyon-plugin-mv") {
+            try {
+                val pluginId = source.host.orEmpty()
+                val mvId = android.net.Uri.decode(source.lastPathSegment.orEmpty())
+                val config = com.ella.music.data.sourceplugin.SourcePluginRegistry.config(context, pluginId)
+                    ?: throw com.ella.music.data.sourceplugin.SourcePluginException(
+                        context.getString(R.string.source_plugin_not_installed))
+                val result = com.ella.music.data.sourceplugin.SourcePluginRegistry.client(context)
+                    .getMvUrl(config, song, mvId, neteaseMvResolution ?: 720)
+                val url = result.optString("url")
+                if (url.isBlank()) throw com.ella.music.data.sourceplugin.SourcePluginException(
+                    context.getString(R.string.source_plugin_no_url))
+                val headers = org.json.JSONObject().apply {
+                    result.optJSONObject("headers")?.let { put("headers", it) }
+                }
+                val marked = com.ella.music.data.musicfree.MusicFreeStreamHeaders
+                    .getInstance(context).register(url, headers)
+                val resumeAt = player.currentPosition.takeIf { player.mediaItemCount > 0 } ?: 0L
+                player.setMediaItem(context.buildMusicVideoMediaItem(Uri.parse(marked)), resumeAt)
+                player.prepare()
+                player.playWhenReady = true
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                Toast.makeText(context, R.string.music_video_play_failed, Toast.LENGTH_LONG).show()
+            }
+            return@LaunchedEffect
+        }
         if (source.scheme == "halcyon-netease-mv") {
             try {
                 val resolution = neteaseMvResolution ?: settingsManager.neteaseMvResolution.first().also { neteaseMvResolution = it }

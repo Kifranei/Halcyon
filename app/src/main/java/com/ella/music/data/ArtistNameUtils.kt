@@ -37,6 +37,10 @@ object NameSplitConfigStore {
 
     @Volatile
     var parseFeaturedArtists: Boolean = false
+
+    /** #752: fields that make two songs share the default album identity (album name always). */
+    @Volatile
+    var albumMergeFields: List<String> = CustomMetadataCategory.DEFAULT_ALBUM_MERGE_FIELDS
 }
 
 // Compiled separator regexes are reused across calls; building them per call was a

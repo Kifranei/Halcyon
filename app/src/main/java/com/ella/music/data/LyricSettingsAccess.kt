@@ -56,9 +56,11 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_KEEP_SCREEN_ON
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_TRANSLATION
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_INACTIVE_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_EFFECT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_Y_ANGLE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PRONUNCIATION_BELOW
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_UNSUNG_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SECONDARY_FONT_SCALE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_CUSTOM_INFO
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_EXPORT_FOLDER_URI
@@ -105,6 +107,10 @@ interface LyricSettingsAccess {
     val lyricOffsetOverrides: Flow<Map<String, Long>>
     val playerLyricTextAlign: Flow<Int>
     val lyricPronunciationBelow: Flow<Boolean>
+    /** Base opacity (percent) applied to non-current lyric rows before the distance falloff. */
+    val lyricInactiveOpacity: Flow<Int>
+    /** Opacity (percent) of not-yet-sung words inside the current karaoke line. */
+    val lyricUnsungOpacity: Flow<Int>
     val lyricPageTranslation: Flow<Boolean>
     val lyricPageKeepScreenOn: Flow<Boolean>
     val appleMusicLyricsWordLift: Flow<Boolean>
@@ -151,6 +157,8 @@ interface LyricSettingsAccess {
     val lyricPerspectiveYAngle: Flow<Int>
     suspend fun setPlayerLyricTextAlign(align: Int)
     suspend fun setLyricPronunciationBelow(below: Boolean)
+    suspend fun setLyricInactiveOpacity(percent: Int)
+    suspend fun setLyricUnsungOpacity(percent: Int)
     suspend fun setLyricLineBlacklist(lines: List<String>)
     suspend fun setIgnoreLyricHeaderTags(enabled: Boolean)
     suspend fun setHideLyricExtraInfo(enabled: Boolean)
@@ -229,6 +237,10 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
     // instead of above it. Default false = above.
     override val lyricPronunciationBelow: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PRONUNCIATION_BELOW] ?: false }
+    override val lyricInactiveOpacity: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_LYRIC_INACTIVE_OPACITY] ?: 24).coerceIn(5, 100) }
+    override val lyricUnsungOpacity: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_LYRIC_UNSUNG_OPACITY] ?: 36).coerceIn(0, 100) }
     override val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     override val lyricPageKeepScreenOn: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] ?: false }
@@ -322,6 +334,14 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
 
     override suspend fun setLyricPronunciationBelow(below: Boolean) {
         context.dataStore.edit { it[KEY_LYRIC_PRONUNCIATION_BELOW] = below }
+    }
+
+    override suspend fun setLyricInactiveOpacity(percent: Int) {
+        context.dataStore.edit { it[KEY_LYRIC_INACTIVE_OPACITY] = percent.coerceIn(5, 100) }
+    }
+
+    override suspend fun setLyricUnsungOpacity(percent: Int) {
+        context.dataStore.edit { it[KEY_LYRIC_UNSUNG_OPACITY] = percent.coerceIn(0, 100) }
     }
 
     override suspend fun setLyricLineBlacklist(lines: List<String>) {

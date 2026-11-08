@@ -8,7 +8,7 @@ import com.ella.music.data.netease.NeteaseQuality
 import com.ella.music.ui.settings.SettingsSearchAnchor
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun NeteaseDownloadPreferences(settings: SettingsManager) {
@@ -17,7 +17,7 @@ internal fun NeteaseDownloadPreferences(settings: SettingsManager) {
     val playback by settings.neteaseMvResolution.collectAsState(initial = 720)
     val download by settings.neteaseMvDownloadResolution.collectAsState(initial = 720)
     SettingsSearchAnchor(R.string.netease_download_quality_title) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.netease_download_quality_title),
             items = NeteaseQuality.entries.map { DropdownItem(title = stringResource(it.titleRes)) },
             selectedIndex = NeteaseQuality.fromId(quality).ordinal,
@@ -27,7 +27,7 @@ internal fun NeteaseDownloadPreferences(settings: SettingsManager) {
     val resolutions = listOf(240, 480, 720, 1080)
     listOf(R.string.netease_mv_resolution_title to playback, R.string.netease_mv_download_resolution_title to download).forEach { (title, value) ->
         SettingsSearchAnchor(title) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(title),
                 items = resolutions.map { DropdownItem(title = "${it}P") },
                 selectedIndex = resolutions.indexOf(value).coerceAtLeast(0),

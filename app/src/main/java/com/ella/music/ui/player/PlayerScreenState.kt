@@ -30,7 +30,8 @@ internal class PlayerScreenUiState(
     dynamicCoverFailedPath: String? = null,
     lyricMatchSong: Song? = null,
     musicVideoVisible: Boolean = false,
-    musicVideoOwnerKey: String? = null
+    musicVideoOwnerKey: String? = null,
+    lyricTheaterExpanded: Boolean = false
 ) {
     var menuExpanded by mutableStateOf(menuExpanded)
     var dynamicCoverSheetSong by mutableStateOf(dynamicCoverSheetSong)
@@ -54,6 +55,8 @@ internal class PlayerScreenUiState(
     var musicVideoVisible by mutableStateOf(musicVideoVisible)
     /** The song instance for which the MV switch was enabled. */
     var musicVideoOwnerKey by mutableStateOf(musicVideoOwnerKey)
+    /** Poster-wall lyric theater opened as a player action (#698). */
+    var lyricTheaterExpanded by mutableStateOf(lyricTheaterExpanded)
 }
 
 internal class PlayerLandscapeUiState(

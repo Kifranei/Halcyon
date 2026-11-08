@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +56,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LazyListScrollIndicator
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -85,7 +86,8 @@ fun PlaylistScreen(
     val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     val librarySource by mainViewModel.settingsManager.librarySource.collectAsState(initial = "")
-    val neteaseLibrary = librarySource == com.ella.music.data.SettingsManager.LIBRARY_SOURCE_NETEASE
+    val neteaseLibrary = librarySource == com.ella.music.data.SettingsManager.LIBRARY_SOURCE_NETEASE ||
+        com.ella.music.data.sourceplugin.isSourcePluginKey(librarySource)
     val librarySongs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
@@ -93,8 +95,8 @@ fun PlaylistScreen(
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     var showCreateDialog by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val persistedPlaylistSortIndex by mainViewModel.settingsManager.playlistListSortIndex.collectAsState(initial = LibrarySortUiState.playlistListSortIndex)
     val playlistCustomOrderIds by mainViewModel.settingsManager.playlistCustomOrder.collectAsState(
         initial = LibrarySortUiState.playlistCustomOrderIds
@@ -130,11 +132,10 @@ fun PlaylistScreen(
     var showExportFormatSheet by remember { mutableStateOf(false) }
     var pendingExportFormat by remember { mutableStateOf<PlaylistExportFormat?>(null) }
     val listState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val favorites = playlists.firstOrNull { it.id == FAVORITES_PLAYLIST_ID }
@@ -441,7 +442,7 @@ fun PlaylistScreen(
     }
     val playlistListHeaderCount = (if (showFavorites) 1 else 0) + (if (showFiveStar) 1 else 0) + 1
     val reorderableLazyListState = rememberEllaReorderableLazyListState(
-        lazyListState = listState,
+        lazyListState = activeListState,
         onMove = { from, to ->
             if (!reorderEnabled) return@rememberEllaReorderableLazyListState
             val fromIndex = from.index - playlistListHeaderCount
@@ -607,7 +608,7 @@ fun PlaylistScreen(
                 )
             },
             onExportAllClick = { showExportAllFormatSheet = true },
-            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } }
+            onDoubleTapTitle = { scope.launch { activeListState.animateScrollToItem(0) } }
         )
 
         PlaylistSearchSection(
@@ -641,8 +642,8 @@ fun PlaylistScreen(
         }
         val showPlaylistSideIndex = reorderablePlaylists.size > 30
         LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, remember(reorderablePlaylists) { reorderablePlaylists.filterNot { it.isRemote }.map { it.id } }, excludedEndWidth = 112.dp),
+            state = activeListState,
+            modifier = Modifier.fillMaxSize().dragSelectList(activeListState, selection, remember(reorderablePlaylists) { reorderablePlaylists.filterNot { it.isRemote }.map { it.id } }, excludedEndWidth = 112.dp),
             contentPadding = PaddingValues(
                 start = 12.dp,
                 end = when {
@@ -789,12 +790,12 @@ fun PlaylistScreen(
                         .fillMaxHeight(),
                     onLetterClick = { letter ->
                         val index = playlistFastIndexTargets[letter]
-                        if (index != null) scope.launch { listState.scrollToItem(index) }
+                        if (index != null) scope.launch { activeListState.scrollToItem(index) }
                     }
                 )
             } else if (showPlaylistSideIndex) {
                 LazyListScrollIndicator(
-                    state = listState,
+                    state = activeListState,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .fillMaxHeight()

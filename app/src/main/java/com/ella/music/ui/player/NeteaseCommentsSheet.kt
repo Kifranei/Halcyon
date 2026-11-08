@@ -68,6 +68,10 @@ import com.ella.music.data.netease.NeteaseCommentSort
 import com.ella.music.data.netease.clipNeteaseComment
 import com.ella.music.data.netease.neteaseCommentLength
 import com.ella.music.data.netease.withLiked
+import com.ella.music.data.netease.OnlineCommentsProvider
+import com.ella.music.data.sourceplugin.NeteaseCommentsProvider
+import com.ella.music.data.sourceplugin.songCommentProvider
+import com.ella.music.data.sourceplugin.songCommentThreadId
 import com.ella.music.ui.components.EllaLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.SafeCoverImage
@@ -100,7 +104,9 @@ internal fun PlayerCommentHeaderAction(
     useAppleIcons: Boolean = false
 ) {
     val current = song ?: return
-    val songId = current.neteaseCommentSongId() ?: return
+    val context = LocalContext.current
+    val commentProvider = remember(current) { songCommentProvider(context, current) }
+    val songId = commentProvider?.let { songCommentThreadId(current) } ?: return
     var showComments by rememberSaveable(songId) { mutableStateOf(false) }
     val contentColor = LocalPlayerContentColor.current
     Box(
@@ -138,7 +144,9 @@ internal fun PlayerCommentHeaderAction(
     NeteaseCommentsSheet(
         show = showComments,
         song = current,
-        onDismiss = { showComments = false }
+        onDismiss = { showComments = false },
+        songIdOverride = songId.takeIf { current.neteaseCommentSongId() == null },
+        provider = commentProvider
     )
 }
 
@@ -148,7 +156,8 @@ internal fun NeteaseCommentsSheet(
     song: Song,
     onDismiss: () -> Unit,
     songIdOverride: String? = null,
-    resource: com.ella.music.data.netease.NeteaseCommentResource = com.ella.music.data.netease.NeteaseCommentResource.Song
+    resource: com.ella.music.data.netease.NeteaseCommentResource = com.ella.music.data.netease.NeteaseCommentResource.Song,
+    provider: OnlineCommentsProvider? = null
 ) {
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.86f).dp
     EllaMiuixBottomSheet(
@@ -161,7 +170,7 @@ internal fun NeteaseCommentsSheet(
                 .fillMaxWidth()
                 .height(sheetHeight)
         ) {
-            NeteaseCommentsContent(song = song, songIdOverride = songIdOverride, resource = resource)
+            NeteaseCommentsContent(song = song, songIdOverride = songIdOverride, resource = resource, provider = provider)
         }
     }
 }
@@ -179,7 +188,7 @@ private class CommentFloorUi {
 
 @Stable
 private class NeteaseCommentsUi(
-    private val client: CatClawNeteaseClient,
+    private val client: OnlineCommentsProvider,
     private val songId: String,
     private val resource: com.ella.music.data.netease.NeteaseCommentResource,
     private val scope: CoroutineScope,
@@ -269,7 +278,7 @@ private class NeteaseCommentsUi(
 
     /** Optimistic like toggle; rolls back and toasts when the server refuses. */
     fun toggleLike(comment: NeteaseComment) {
-        if (client.signedInAccount() == null) {
+        if (client.signedInUser == null) {
             toast(R.string.netease_comments_login_required)
             return
         }
@@ -295,7 +304,7 @@ private class NeteaseCommentsUi(
     fun send(onPosted: (topLevel: Boolean) -> Unit) {
         val content = draft.trim()
         if (sending || content.isEmpty() || neteaseCommentLength(content) > NETEASE_COMMENT_MAX_LENGTH) return
-        val account = client.signedInAccount()
+        val account = client.signedInUser
         if (account == null) {
             toast(R.string.netease_comments_login_required)
             return
@@ -321,7 +330,7 @@ private class NeteaseCommentsUi(
                     val local = created.copy(
                         timeMs = created.timeMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
                         user = created.user.takeIf { it.nickname.isNotBlank() }
-                            ?: created.user.copy(userId = account.userId, nickname = account.nickname)
+                            ?: created.user.copy(userId = account.first, nickname = account.second)
                     )
                     insertCreated(local, floorId)
                 }
@@ -392,7 +401,8 @@ private class NeteaseCommentsUi(
                 songId = songId, resource = resource,
                 sortType = nextSortType,
                 pageNo = nextPageNo,
-                cursor = nextCursor
+                cursor = nextCursor,
+                pageSize = 20
             )
             if (token != generation) return
             val known = comments.mapTo(HashSet<Long>()) { it.id }
@@ -436,7 +446,7 @@ private class NeteaseCommentsUi(
         floor.failed = false
         floor.job = scope.launch {
             try {
-                val page = client.commentFloor(songId = songId, resource = resource, parentCommentId = commentId, time = floor.nextTime)
+                val page = client.commentFloor(songId = songId, resource = resource, parentCommentId = commentId, time = floor.nextTime, limit = 20)
                 val known = floor.replies.mapTo(HashSet<Long>()) { it.id }
                 floor.replies.addAll(page.replies.filter { known.add(it.id) })
                 floor.nextTime = page.nextTime
@@ -453,12 +463,15 @@ private class NeteaseCommentsUi(
 }
 
 @Composable
-private fun ColumnScope.NeteaseCommentsContent(song: Song, songIdOverride: String? = null, resource: com.ella.music.data.netease.NeteaseCommentResource) {
+private fun ColumnScope.NeteaseCommentsContent(song: Song, songIdOverride: String? = null, resource: com.ella.music.data.netease.NeteaseCommentResource, provider: OnlineCommentsProvider? = null) {
     val context = LocalContext.current
-    val songId = songIdOverride?.takeIf { (it.toLongOrNull() ?: 0L) > 0L } ?: song.neteaseCommentSongId() ?: return
+    val songId = songIdOverride?.takeIf { (it.toLongOrNull() ?: 0L) > 0L || provider != null }
+        ?: song.neteaseCommentSongId() ?: return
     val scope = rememberCoroutineScope()
-    val client = remember(context) { CatClawNeteaseClient(context.applicationContext) }
-    val ui = remember(songId, resource) {
+    val client = remember(context, provider) {
+        provider ?: NeteaseCommentsProvider(CatClawNeteaseClient(context.applicationContext))
+    }
+    val ui = remember(songId, resource, client) {
         NeteaseCommentsUi(client, songId, resource, scope, context.applicationContext,
             initialSort = com.ella.music.data.netease.NeteaseLinks.current(context).defaultCommentSort)
     }

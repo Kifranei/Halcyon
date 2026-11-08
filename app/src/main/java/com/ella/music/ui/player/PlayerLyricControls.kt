@@ -31,7 +31,7 @@ import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun LyricActionMenu(
@@ -186,7 +186,7 @@ internal fun LyricActionMenu(
         }
         if (lyricFormatAvailability.hasBoth) {
             SettingsCardGroup {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.player_lyric_format),
                     items = listOf(
                         DropdownItem(title = stringResource(R.string.player_lyric_format_ttml)),
@@ -200,7 +200,7 @@ internal fun LyricActionMenu(
             }
         }
         SettingsCardGroup {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.player_lyric_source),
                 items = listOf(
                     DropdownItem(title = stringResource(R.string.player_lyric_source_auto)),

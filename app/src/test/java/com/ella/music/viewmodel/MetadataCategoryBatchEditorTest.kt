@@ -26,13 +26,13 @@ class MetadataCategoryBatchEditorTest {
         val gate = CompletableDeferred<Unit>()
         val writes = mutableListOf<Pair<Long, String>>()
         val publications = mutableListOf<List<Song>>()
-        val editor = MetadataCategoryBatchEditor(this, write = { song, key, value ->
-            gate.await(); writes += song.id to key
-            if (song.id == 2L) throw IllegalStateException("read only") else Result.success(song.copy(genre = value))
+        val editor = MetadataCategoryBatchEditor(this, write = { song, values ->
+            gate.await(); writes += song.id to values.keys.single()
+            if (song.id == 2L) throw IllegalStateException("read only") else Result.success(song.copy(genre = values.getValue("GENRE")))
         }, publish = { publications += it })
         val targets = listOf(song(1), song(1), song(2), song(3, "smb://host/Music/3.flac"))
-        editor.start("genre", "Old", "New", targets)
-        editor.start("year", "2025", "2026", listOf(song(9)))
+        editor.start("genre", "Old", listOf(BatchFieldOp("GENRE", replacement = "New")), targets)
+        editor.start("year", "2025", listOf(BatchFieldOp("DATE", replacement = "2026")), listOf(song(9)))
         editor.dismiss()
         assertTrue(editor.state.value!!.running)
         gate.complete(Unit)
@@ -55,11 +55,11 @@ class MetadataCategoryBatchEditorTest {
         val permission = WritePermissionRequiredException(pending.intentSender)
         var calls = 0
         var writtenKey = ""
-        val editor = MetadataCategoryBatchEditor(this, write = { s, key, _ ->
-            writtenKey = key; calls++
-            if (calls == 1) Result.failure(permission) else Result.success(s)
+        val editor = MetadataCategoryBatchEditor(this, write = { song, values ->
+            writtenKey = values.keys.single(); calls++
+            if (calls == 1) Result.failure(permission) else Result.success(song)
         }, publish = {})
-        editor.start(CustomMetadataCategory("Arranger", "ARRANGER").type, "Old", "New", listOf(song(1)))
+        editor.start(CustomMetadataCategory("Arranger", "ARRANGER").type, "Old", listOf(BatchFieldOp("ARRANGER", replacement = "New")), listOf(song(1)))
         runCurrent()
         assertEquals(permission, editor.state.value!!.permission)
         assertEquals(permission, editor.takePermissionLaunch())

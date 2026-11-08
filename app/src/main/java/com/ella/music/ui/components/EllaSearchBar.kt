@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -42,6 +45,7 @@ import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.icon.extended.Close
 import androidx.compose.ui.res.stringResource
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -51,7 +55,8 @@ fun EllaSearchBar(
     placeholder: String,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
-    autoFocus: Boolean = false,
+    // null = follow the "auto popup IME on search" setting; explicit true/false overrides it.
+    autoFocus: Boolean? = null,
     autoSelectAll: Boolean = false,
     selectionRequestKey: Int = 0,
     onAutoSelectAllConsumed: () -> Unit = {},
@@ -59,6 +64,10 @@ fun EllaSearchBar(
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainerHigh,
     active: Boolean = true
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = true)
+    val shouldAutoFocus = autoFocus ?: autoShowSearchKeyboard
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -85,12 +94,21 @@ fun EllaSearchBar(
         }
     }
 
-    LaunchedEffect(active, autoFocus, autoSelectAll, query, selectionRequestKey) {
-        if (active && autoSelectAll && query.isNotEmpty()) {
+    // Autofocus is an entry gesture, not a response to `active` toggling. The main-page
+    // pager drops `active` during any swipe and restores it when the gesture settles
+    // (#742) — re-requesting focus on that return edge was reopening the IME after
+    // every scroll. Only the first composition or an explicit selectionRequestKey
+    // bump may auto-request focus now.
+    var autoFocusHandledKey by rememberSaveable { mutableIntStateOf(-1) }
+    LaunchedEffect(active, shouldAutoFocus, autoSelectAll, query, selectionRequestKey) {
+        if (active && autoSelectAll && query.isNotEmpty() && autoFocusHandledKey != selectionRequestKey) {
+            // Mark before the delay: a cancelled attempt still counts as handled so a
+            // swipe that briefly drops `active` cannot reschedule the IME on return.
+            autoFocusHandledKey = selectionRequestKey
             delay(180L)
             fieldValue = TextFieldValue(query, TextRange(0, query.length))
             // Selecting a saved query must not implicitly open the keyboard.
-            if (autoFocus) {
+            if (shouldAutoFocus) {
                 focusRequester.requestFocus()
                 keyboardController?.show()
             }
@@ -98,8 +116,9 @@ fun EllaSearchBar(
         }
     }
 
-    LaunchedEffect(active, autoFocus, selectionRequestKey) {
-        if (active && autoFocus && !autoSelectAll) {
+    LaunchedEffect(active, shouldAutoFocus, selectionRequestKey) {
+        if (active && shouldAutoFocus && !autoSelectAll && autoFocusHandledKey != selectionRequestKey) {
+            autoFocusHandledKey = selectionRequestKey
             delay(180L)
             focusRequester.requestFocus()
             keyboardController?.show()

@@ -12,7 +12,7 @@ import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
@@ -54,7 +54,7 @@ internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
         SettingsFocusAnchor(active = highlightKey == "mini_player_secondary") {
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_mini_player_secondary) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_mini_player_secondary),
                 summary = stringResource(R.string.settings_mini_player_secondary_summary),
                 items = statusLyricSecondaryEntries,
@@ -105,7 +105,7 @@ internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
     SettingsFocusAnchor(active = highlightKey == "mini_player_right_button") {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_mini_player_right_button) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_mini_player_right_button),
             summary = stringResource(R.string.settings_mini_player_right_button_summary),
             items = miniPlayerRightButtonLabels.map { DropdownItem(title = it) },

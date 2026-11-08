@@ -58,6 +58,9 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.material.GlassMaterials
+import top.yukonga.miuix.kmp.material.GlassShape
+import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.window.WindowDialog
@@ -184,14 +187,21 @@ fun EllaMiuixDialog(
     content: @Composable () -> Unit
 ) {
     val inheritedDensity = LocalDensity.current
+    val dialogShape = GlassShape(32.dp)
     WindowDialog(
         show = show,
         title = title,
         summary = summary,
         onDismissRequest = onDismissRequest,
-        backgroundColor = ellaDialogCanvasColor(),
+        backgroundColor = Color.Transparent,
         insideMargin = DpSize(22.dp, 20.dp),
-        modifier = modifier,
+        modifier = modifier.glassPanel(
+            backdrop = LocalBackdrop.current,
+            shape = dialogShape,
+            material = GlassMaterials.dialogGlass(ellaSchemeIsDark()),
+            shading = false,
+            fallback = Modifier.clip(dialogShape).background(ellaDialogCanvasColor()),
+        ),
         content = {
             CompositionLocalProvider(
                 LocalSettingsCardFrosting provides null,

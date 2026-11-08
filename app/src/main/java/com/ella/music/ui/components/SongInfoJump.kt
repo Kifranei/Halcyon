@@ -23,7 +23,8 @@ internal enum class SongInfoJump {
     Year,
     Composer,
     Arranger,
-    Lyricist
+    Lyricist,
+    Producer
 }
 
 internal fun songInfoJumpChoices(jump: SongInfoJump, value: String): List<String> {
@@ -31,7 +32,7 @@ internal fun songInfoJumpChoices(jump: SongInfoJump, value: String): List<String
     if (trimmed.isBlank()) return emptyList()
     return when (jump) {
         SongInfoJump.Artist, SongInfoJump.AlbumArtist, SongInfoJump.Composer,
-        SongInfoJump.Arranger, SongInfoJump.Lyricist -> splitArtistNames(trimmed)
+        SongInfoJump.Arranger, SongInfoJump.Lyricist, SongInfoJump.Producer -> splitArtistNames(trimmed)
         SongInfoJump.Genre -> splitGenreNames(trimmed)
         else -> listOf(trimmed)
     }.map { it.trim() }.filter { it.isNotBlank() }.distinct()
@@ -77,6 +78,9 @@ internal fun songInfoJumpRoute(
         }
         SongInfoJump.Lyricist -> chosen.takeIf { it.isNotBlank() }?.let {
             Screen.MetadataCategoryDetail.createRoute("lyricist", it)
+        }
+        SongInfoJump.Producer -> chosen.takeIf { it.isNotBlank() }?.let {
+            Screen.MetadataCategoryDetail.createRoute("producer", it)
         }
     }
 }

@@ -14,7 +14,8 @@ import androidx.compose.ui.unit.dp
 import com.ella.music.data.BottomBarGlassEffect
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.drawBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.material.GlassEdgeStrokes
+import top.yukonga.miuix.kmp.material.edgeStroke
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -59,14 +60,17 @@ fun GlassPill(
                     disableRefraction = disableRefraction,
                 )
             },
-            highlight = {
-                Highlight.Default.copy(
-                    alpha = bottomBarGlassHighlightAlpha(isLight, glassEffect)
-                )
-            },
             onDrawSurface = {
                 drawRect(containerColor)
             }
+        ).edgeStroke(
+            shape = resolvedShape,
+            stroke = GlassEdgeStrokes.forTheme(
+                isDark = isInDark,
+                light = GlassEdgeStrokes.SmallLight,
+                dark = GlassEdgeStrokes.SmallDark,
+            ),
+            alpha = bottomBarGlassHighlightAlpha(isLight, glassEffect),
         )
     } else {
         Modifier.background(containerColor, resolvedShape)

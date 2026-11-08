@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,7 +64,7 @@ import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.RememberPlaybackSourceScreen
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.SongItem
@@ -120,18 +121,23 @@ internal fun LibraryAnalysisBucketDetailScreen(
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMode by remember(sourceKey) {
         mutableStateOf(LibraryAnalysisBucketSortState.get(sourceKey))
     }
     var actionSong by remember { mutableStateOf<Song?>(null) }
     val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val deleteSelectedSongs = rememberSongDeleteResultHandler(mainViewModel) { selection.finishSelectionMode() }
     val listState = remember(bucketLabel) { LazyListState() }
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
 
     val filteredSongs = remember(songs, searchQuery) {
         val query = searchQuery.trim()
@@ -237,9 +243,9 @@ internal fun LibraryAnalysisBucketDetailScreen(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .pointerInput(listState) {
+                        .pointerInput(activeListState) {
                             detectTapGestures(onDoubleTap = {
-                                scope.launch { listState.animateScrollToItem(0) }
+                                scope.launch { activeListState.animateScrollToItem(0) }
                             })
                         }
                 ) {
@@ -261,6 +267,14 @@ internal fun LibraryAnalysisBucketDetailScreen(
                     )
                 }
                 if (selection.selectionMode) {
+                    com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                        val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                        if (selectedSongs.isEmpty()) {
+                            Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
+                        } else {
+                            batchEditSongs = selectedSongs
+                        }
+                    })
                     IconButton(
                         onClick = {
                             val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
@@ -393,11 +407,6 @@ internal fun LibraryAnalysisBucketDetailScreen(
                     )
                 }
             } else {
-                RestoreListScrollAfterSearch(
-                    searchExpanded = searchExpanded,
-                    query = searchQuery,
-                    listState = listState
-                )
                 val showScrollIndicator = sortedSongs.size > 30
                 val listEndInset = if (showScrollIndicator) ScrollIndicatorListEndPadding else 0.dp
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -425,8 +434,8 @@ internal fun LibraryAnalysisBucketDetailScreen(
                             }
                         )
                         LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, sortedSongIdsForSelection, itemIdsByKey = remember(sortedSongs) { sortedSongs.associate { (it.playlistIdentityKey() as Any) to listOf(it.id) } }),
+                            state = activeListState,
+                            modifier = Modifier.fillMaxSize().dragSelectList(activeListState, selection, sortedSongIdsForSelection, itemIdsByKey = remember(sortedSongs) { sortedSongs.associate { (it.playlistIdentityKey() as Any) to listOf(it.id) } }),
                             contentPadding = PaddingValues(end = listEndInset, bottom = 120.dp)
                         ) {
                             itemsIndexed(
@@ -477,14 +486,14 @@ internal fun LibraryAnalysisBucketDetailScreen(
                     }
                     if (showScrollIndicator) {
                         LazyListScrollIndicator(
-                            state = listState,
+                            state = activeListState,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
                         )
                     }
                     LocateCurrentSongFloatingButton(
-                        listState = listState,
+                        listState = activeListState,
                         currentItemIndex = currentSongItemIndex,
                         locateRequest = locateCurrentSongRequest,
                         modifier = Modifier
@@ -523,6 +532,7 @@ internal fun LibraryAnalysisBucketDetailScreen(
             onNavigateToArtist = onNavigateToArtist
         )
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         playlistPickerSongs?.let { songsToAdd ->
             EllaMiuixBottomSheet(
                 show = true,

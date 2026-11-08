@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -41,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ella.music.R
-import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
+import sh.calvin.reorderable.DragGestureDetector
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.CoverUsage
@@ -122,6 +123,12 @@ internal fun queueSnapshotKey(items: List<Song>): Long {
     return hash
 }
 
+internal object PlayerQueueScrollMemory {
+    @Volatile var index = 0
+    @Volatile var offset = 0
+    @Volatile var hasSaved = false
+}
+
 @Composable
 internal fun PlayerQueueMenu(
     playlist: List<Song>,
@@ -175,6 +182,23 @@ internal fun PlayerQueueMenu(
     }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val rememberQueueScroll by settingsManager.queueRememberScrollPosition.collectAsState(initial = false)
+    var restoredQueueScroll by remember { mutableStateOf(false) }
+    LaunchedEffect(rememberQueueScroll) {
+        if (rememberQueueScroll && !restoredQueueScroll && PlayerQueueScrollMemory.hasSaved) {
+            restoredQueueScroll = true
+            listState.scrollToItem(PlayerQueueScrollMemory.index, PlayerQueueScrollMemory.offset)
+        }
+    }
+    LaunchedEffect(rememberQueueScroll) {
+        if (!rememberQueueScroll) return@LaunchedEffect
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                PlayerQueueScrollMemory.index = index
+                PlayerQueueScrollMemory.offset = offset
+                PlayerQueueScrollMemory.hasSaved = true
+            }
+    }
     // Compute from the rows on every recomposition: the upstream queue may mutate its backing
     // list in place, making remember(playlist) believe that nothing changed.
     val playlistSnapshotKey = queueSnapshotKey(playlist)
@@ -235,8 +259,9 @@ internal fun PlayerQueueMenu(
     }
     // Moving rows changes the index without changing the playing occurrence. Recentring on
     // every index change fights edge scrolling and makes a drag jump through the queue.
+    // When the queue-scroll memory restored a position, keep it instead of re-centering (#698).
     LaunchedEffect(manualPlaylist.getOrNull(currentIndex)?.stableKey) {
-        if (currentIndex >= 0) {
+        if (currentIndex >= 0 && !(rememberQueueScroll && restoredQueueScroll)) {
             listState.scrollToItem(currentIndex)
         }
     }
@@ -408,7 +433,7 @@ internal fun PlayerQueueMenu(
                             Modifier
                         } else {
                             Modifier.draggableHandle(
-                                dragGestureDetector = ImmediateOrLongPressDragGestureDetector,
+                                dragGestureDetector = DragGestureDetector.LongPress,
                                 onDragStopped = {
                                     val move = resolveQueueMoveCommit(
                                         fromIndex = pendingMoveStart,

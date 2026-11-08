@@ -158,7 +158,8 @@ class NeteaseDownloadService : Service() {
             val displayName = if (isVideo) com.ella.music.data.musicVideoExportName(
                 job.optString("mvTemplate", "{artist} - {title}"), song.artist, song.title, song.album,
                 job.optInt("resolution", 720).toString(), mvId) else "$label.$extension"
-            publish(file, displayName, mime, song, isVideo, job.getString("key"), job.optString("mvFolder"))
+            publish(file, displayName, mime, song, isVideo, job.getString("key"),
+                if (isVideo) job.optString("mvFolder") else job.optString("songFolder"))
         } finally { stage?.delete() }
     }
 
@@ -172,6 +173,13 @@ class NeteaseDownloadService : Service() {
             return
         }
         val relative = if (video) "Movies/Halcyon/NcmOfflineMvs/" else NeteaseOfflineDownloads.RELATIVE_PATH
+        if (folder.isNotBlank()) {
+            // User-configured download destination: a SAF tree (content://) or a plain path.
+            com.ella.music.data.MediaExportStorage.write(this, name, mime, relative, folder) { out ->
+                file.inputStream().use { it.copyTo(out) }
+            }
+            return
+        }
         if (Build.VERSION.SDK_INT < 29) {
             val target = File(Environment.getExternalStorageDirectory(), relative + name)
             target.parentFile?.mkdirs()
@@ -225,7 +233,9 @@ class NeteaseDownloadService : Service() {
                             ?: if (mvId.isNotBlank()) error("MV folder is not configured") else ""
                         else -> location
                     }
+                    val songFolder = settings.songDownloadLocation.first().takeIf { it != "default" }.orEmpty()
                     val job = JSONObject().put("song", song.toPlaylistSong().toJson())
+                        .put("songFolder", songFolder)
                         .put("mvFolder", mvFolder).put("mvTemplate", settings.musicVideoDownloadTemplate.first())
                         .put("mv", mvId).put("quality", quality).put("resolution", resolution)
                         .put("key", if (mvId.isBlank()) "song:${song.onlineId}:$quality" else "mv:$mvId:$resolution")

@@ -104,6 +104,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Navidrome / Emby remote music libraries support paginated loading and whole-library caching; Navidrome libraries exceeding 500 tracks continue to load in batches.
 - Import user-supplied online source plugins (no sources are bundled) for online search, playback, cover/lyric retrieval, and local downloading.
 - Search sources are generated from the platforms each plugin declares; plugins can be imported from local files, links, or plugin repositories.
+- New account-source plugins (Source Plugin API v1): user-supplied JavaScript scripts run in a QuickJS sandbox with cookie, QR-code, or anonymous sign-in. Once signed in, a plugin acts as a full library source like the NetEase account — favorites and playlist sync, search, playback, lyrics, recent plays, daily recommendations, comments, and MVs. A documented contract template plus Kuwo, Kugou, QQ Music, Migu and Soda Music reference implementations live in `plugins/` (standalone repo: [halcyon-online-plugin](https://github.com/Kifranei/halcyon-online-plugin)).
 - Provides a local Web Music Service Beta to browse, play, and upload music via a browser within a trusted LAN. Currently unauthenticated; do not expose on public networks or forwarded ports.
 
 ### 🎚 Audio Effects, Decoding, Tags & Quality

@@ -46,25 +46,29 @@ internal fun ArtistBiographyRuleSettings(settings: SettingsManager) {
         }) {
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            draft.forEachIndexed { i, rule ->
+            SettingsSearchAnchor(R.string.artist_bio_match_add) {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.artist_bio_match_add) {
+            ArrowPreference(title = stringResource(R.string.artist_bio_match_add), onClick = { index = -1; editor = true })
+            } // search-anchor:end
+            }
+            draft.recentEditOrder().forEach { rule ->
                 Card(Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ArrowPreference(title = "${rule.search} → ${rule.alias}", modifier = Modifier.weight(1f),
                             summary = if (rule.sources.isEmpty()) stringResource(R.string.artist_bio_match_all_sources)
                                 else rule.sources.mapNotNull { artistBiographyProviderNames[it] }.joinToString(" / "),
-                            onClick = { index = i; editor = true })
-                        Switch(rule.enabled, { value -> draft = draft.toMutableList().apply { set(i, rule.copy(enabled = value)) } })
-                        IconButton(onClick = { draft = draft.filterIndexed { j, _ -> j != i } }) {
+                            onClick = { index = draft.indexOf(rule); editor = true })
+                        Switch(rule.enabled, { value ->
+                            draft = draft.map { if (it == rule) it.copy(enabled = value) else it }
+                        })
+                        IconButton(onClick = { draft = draft.filter { it != rule } }) {
                             Icon(MiuixIcons.Regular.Delete, stringResource(R.string.common_delete), tint = MiuixTheme.colorScheme.error)
                         }
                         Spacer(Modifier.width(8.dp))
                     }
                 }
             }
-            // search-anchor:start
-            SettingsSearchAnchor(R.string.artist_bio_match_add) {
-            ArrowPreference(title = stringResource(R.string.artist_bio_match_add), onClick = { index = -1; editor = true })
-            } // search-anchor:end
         }
     }
     if (editor) {
@@ -75,7 +79,8 @@ internal fun ArtistBiographyRuleSettings(settings: SettingsManager) {
         SettingsEditSheet(true, stringResource(R.string.artist_bio_match_add),
             saveEnabled = search.isNotBlank() && alias.isNotBlank(), onDismissRequest = { editor = false },
             onSave = {
-                val rule = ArtistBiographyMatchRule(search, alias, original?.enabled ?: true, sources)
+                val rule = ArtistBiographyMatchRule(search, alias, original?.enabled ?: true, sources,
+                    updatedAt = System.currentTimeMillis())
                 draft = draft.toMutableList().apply { if (index in indices) set(index, rule) else add(rule) }
                 editor = false
             }) {

@@ -20,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
@@ -58,12 +59,14 @@ internal object MusicFreeStreamDownload {
         if (error is DownloadFailure) context.getString(error.messageRes, *error.args) else error.localizedMessage
 
     private suspend fun save(context: Context, song: Song, fileName: String) {
+        val targetFolder = com.ella.music.data.SettingsManager.getInstance(context)
+            .songDownloadLocation.first().takeIf { it != "default" }.orEmpty()
         val stage = File.createTempFile("musicfree-download-", ".part", context.cacheDir)
         try {
             val format = transfer(song.path, stage, MusicFreeStreamHeaders.getInstance(context), http,
                 song.fileName, song.mimeType)
             currentCoroutineContext().ensureActive()
-            publish(context, song.copy(mimeType = format.mimeType), stage, fileNameForFormat(fileName, format))
+            publish(context, song.copy(mimeType = format.mimeType), stage, fileNameForFormat(fileName, format), targetFolder)
         } finally {
             stage.delete()
         }
@@ -178,10 +181,20 @@ internal object MusicFreeStreamDownload {
         return detectAudioContainerFormat(prefix, type, fileName, mimeType)
     }
 
-    private fun publish(context: Context, song: Song, file: File, name: String) {
+    private fun publish(context: Context, song: Song, file: File, name: String, targetFolder: String = "") {
         val mime = song.mimeType.ifBlank { "audio/mpeg" }
+        if (targetFolder.isNotBlank()) {
+            // User-configured download destination: a SAF tree (content://) or a plain path.
+            val uri = com.ella.music.data.MediaExportStorage.write(
+                context, name, mime, "${Environment.DIRECTORY_MUSIC}/MF/", targetFolder
+            ) { out -> file.inputStream().use { it.copyTo(out) } }
+            if (!targetFolder.startsWith("content://")) {
+                uri.path?.let { MediaScannerConnection.scanFile(context, arrayOf(it), arrayOf(mime), null) }
+            }
+            return
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "Ella")
+            val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "MF")
                 .apply { mkdirs() }
             val requested = File(directory, name)
             val target = if (requested.createNewFile()) requested else {
@@ -202,7 +215,7 @@ internal object MusicFreeStreamDownload {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/Ella/")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/MF/")
             put(MediaStore.MediaColumns.IS_PENDING, 1)
             put(MediaStore.Audio.Media.TITLE, song.title)
             put(MediaStore.Audio.Media.ARTIST, song.artist)

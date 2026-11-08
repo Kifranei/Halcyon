@@ -123,6 +123,7 @@ fun LinkToFolderPlaylistSheet(
                     onQueryChange = { query = it },
                     placeholder = stringResource(R.string.common_search),
                     onSearch = {},
+                    autoFocus = false,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(
@@ -173,8 +174,7 @@ fun LinkToFolderPlaylistSheet(
                                 ),
                                 selectedMode = sortMode,
                                 onSelect = { sortMode = it }
-                            ),
-                            alignment = PopupPositionProvider.Align.Start
+                            )
                         ) {
                             LinkFolderPlaylistChip(
                                 text = stringResource(R.string.common_sort) + ": " + stringResource(sortMode.labelRes),

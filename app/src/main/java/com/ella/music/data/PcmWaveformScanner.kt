@@ -37,6 +37,15 @@ internal suspend fun scanPcmWaveform(
         if (source.scheme == "halcyon-netease") {
             source = android.net.Uri.parse(com.ella.music.data.netease.NeteaseLibraryStore.getInstance(context)
                 .streamUrl(source.lastPathSegment.orEmpty()))
+        } else if (source.scheme == com.ella.music.data.sourceplugin.SOURCE_PLUGIN_SCHEME) {
+            // Plugin streams carry scoped headers; MediaExtractor can't send them, so waveforms
+            // are skipped for header-bearing plugin songs.
+            val resolved = runCatching {
+                com.ella.music.data.sourceplugin.SourcePluginPlaybackResolver(context).resolve(song)
+            }.getOrNull() ?: return@withContext FloatArray(0)
+            if (com.ella.music.data.musicfree.MusicFreeStreamHeaders.getInstance(context)
+                    .isMarked(resolved.path)) return@withContext FloatArray(0)
+            source = android.net.Uri.parse(resolved.path)
         }
         if (source.scheme.equals("http", true) || source.scheme.equals("https", true)) {
             extractor.setDataSource(source.toString(), mapOf("User-Agent" to "Mozilla/5.0"))
